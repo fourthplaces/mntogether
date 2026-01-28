@@ -22,6 +22,9 @@ packages/
 │               ├── models/      # SQL models with queries ONLY
 │               │   ├── need.rs
 │               │   └── source.rs
+│               ├── data/        # GraphQL data types with resolvers
+│               │   ├── need.rs
+│               │   └── source.rs
 │               ├── events/      # Event definitions (facts)
 │               │   └── mod.rs
 │               ├── commands/    # Command definitions (intent)
@@ -370,3 +373,161 @@ pub async fn get_needs(
 5. **Scalability**: Background job execution via postgres queue
 6. **Type safety**: Rust's type system prevents common errors
 7. **Maintainability**: Changes localized to specific layers
+
+## Data Pattern (GraphQL Layer)
+
+The `data/` directory contains GraphQL-friendly data structures with resolvers. These are separate from SQL models to provide a clean API layer.
+
+### Key Characteristics
+
+1. **Serializable**: Implement `Serialize + Deserialize`
+2. **GraphQL Types**: Use `#[juniper::graphql_object]` for resolvers
+3. **From Models**: Convert from SQL models via `From<Model>` trait
+4. **Nested Resolvers**: Fetch related data lazily via edge functions
+5. **Access Control**: Handle authorization in resolvers
+
+### Example
+
+```rust
+// packages/server/src/domains/organization/data/need.rs
+use crate::domains::organization::models::need::OrganizationNeed;
+use crate::server::graphql::context::GraphQLContext;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NeedData {
+    pub id: String,
+    pub organization_name: String,
+    pub title: String,
+    pub description: String,
+    pub tldr: Option<String>,
+    pub contact_info: Option<ContactInfoData>,
+    pub status: String,
+    pub source_id: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+// Convert from SQL model
+impl From<OrganizationNeed> for NeedData {
+    fn from(need: OrganizationNeed) -> Self {
+        Self {
+            id: need.id.to_string(),
+            organization_name: need.organization_name,
+            title: need.title,
+            description: need.description,
+            tldr: need.tldr,
+            contact_info: need.contact_info.and_then(|json| {
+                serde_json::from_value(json).ok()
+            }),
+            status: need.status,
+            source_id: need.source_id.map(|id| id.to_string()),
+            created_at: need.created_at.to_rfc3339(),
+            updated_at: need.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+// GraphQL resolvers
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl NeedData {
+    fn id(&self) -> String {
+        self.id.clone()
+    }
+
+    fn organization_name(&self) -> String {
+        self.organization_name.clone()
+    }
+
+    fn title(&self) -> String {
+        self.title.clone()
+    }
+
+    fn description(&self) -> String {
+        self.description.clone()
+    }
+
+    // ... other scalar fields
+
+    /// Lazy-load related source (nested resolver)
+    async fn source(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<SourceData>> {
+        let Some(source_id_str) = &self.source_id else {
+            return Ok(None);
+        };
+
+        let source_id = Uuid::parse_str(source_id_str)?;
+        let source = OrganizationSource::find_by_id(source_id, &context.db_pool).await?;
+        Ok(Some(source.into()))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContactInfoData {
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub website: Option<String>,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ContactInfoData {
+    fn email(&self) -> Option<String> {
+        self.email.clone()
+    }
+
+    fn phone(&self) -> Option<String> {
+        self.phone.clone()
+    }
+
+    fn website(&self) -> Option<String> {
+        self.website.clone()
+    }
+}
+```
+
+### GraphQL Query Example
+
+```graphql
+query GetNeed {
+  need(id: "123") {
+    id
+    organizationName
+    title
+    description
+    tldr
+    contactInfo {
+      email
+      phone
+      website
+    }
+    status
+    source {
+      id
+      organizationName
+      sourceUrl
+      lastScrapedAt
+    }
+    createdAt
+  }
+}
+```
+
+### Benefits
+
+1. **Separation of Concerns**: SQL models focus on persistence, data types focus on API
+2. **Type Safety**: Juniper validates GraphQL schema at compile time
+3. **Performance**: Nested resolvers enable lazy loading (N+1 query optimization via DataLoader pattern)
+4. **Evolution**: Can change GraphQL API without changing database schema
+5. **Documentation**: GraphQL schema is self-documenting
+
+### Layer Responsibilities
+
+| Layer    | Responsibility                          | Example                           |
+| -------- | --------------------------------------- | --------------------------------- |
+| `models` | SQL queries, database persistence       | `find_by_id`, `insert`, `update`  |
+| `data`   | GraphQL types, nested resolvers         | Field getters, lazy-load related  |
+| `edges`  | Business logic, request dispatching     | `dispatch_request`, orchestration |
+| `events` | Facts and requests                      | `NeedCreated`, `ApproveRequested` |
+| `commands`| Intent for IO                          | `CreateNeed`, `UpdateStatus`      |
+| `effects`| IO execution, emit facts               | Database writes, API calls        |
+| `machines`| State transitions, pure decisions      | Event → Command logic             |
+
