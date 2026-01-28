@@ -32,10 +32,14 @@ impl Command for MemberCommand {
 
     fn job_spec(&self) -> Option<JobSpec> {
         match self {
-            Self::GenerateEmbedding { .. } => Some(JobSpec {
-                queue: "default".to_string(),
-                max_attempts: 3,
-                timeout_seconds: 60,
+            Self::GenerateEmbedding { member_id } => Some(JobSpec {
+                job_type: "generate_member_embedding",
+                idempotency_key: Some(member_id.to_string()),
+                max_retries: 3,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*member_id),
+                container_id: None,
             }),
             _ => None,
         }

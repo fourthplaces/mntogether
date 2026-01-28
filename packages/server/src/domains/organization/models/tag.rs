@@ -105,13 +105,11 @@ impl TagOnOrganization {
 
     /// Remove a tag from an organization
     pub async fn delete(organization_id: Uuid, tag_id: Uuid, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM tags_on_organizations WHERE organization_id = $1 AND tag_id = $2",
-        )
-        .bind(organization_id)
-        .bind(tag_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("DELETE FROM tags_on_organizations WHERE organization_id = $1 AND tag_id = $2")
+            .bind(organization_id)
+            .bind(tag_id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 
@@ -126,12 +124,11 @@ impl TagOnOrganization {
 
     /// Find all organizations with a specific tag
     pub async fn find_organizations_with_tag(tag_id: Uuid, pool: &PgPool) -> Result<Vec<Uuid>> {
-        let org_ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT organization_id FROM tags_on_organizations WHERE tag_id = $1",
-        )
-        .bind(tag_id)
-        .fetch_all(pool)
-        .await?;
+        let org_ids: Vec<(Uuid,)> =
+            sqlx::query_as("SELECT organization_id FROM tags_on_organizations WHERE tag_id = $1")
+                .bind(tag_id)
+                .fetch_all(pool)
+                .await?;
         Ok(org_ids.into_iter().map(|(id,)| id).collect())
     }
 }

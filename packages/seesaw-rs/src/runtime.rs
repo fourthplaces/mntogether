@@ -215,8 +215,10 @@ impl<D: Send + Sync + 'static> Runtime<D> {
                                 // Machine panicked - record error for correlation tracking
                                 if let Some(ref inflight) = self.inflight {
                                     if envelope.cid.is_some() {
-                                        inflight
-                                            .record_error(envelope.cid, anyhow::anyhow!("{}", panic_msg));
+                                        inflight.record_error(
+                                            envelope.cid,
+                                            anyhow::anyhow!("{}", panic_msg),
+                                        );
                                     }
                                 }
                                 // Continue processing other machines - one bad machine

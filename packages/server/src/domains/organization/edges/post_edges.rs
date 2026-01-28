@@ -40,14 +40,12 @@ pub async fn query_posts_for_need(
 
 /// Query a single post by ID
 pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Option<PostGql>> {
-    let post = Post::find_by_id(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to fetch post: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    let post = Post::find_by_id(post_id, &ctx.db_pool).await.map_err(|e| {
+        juniper::FieldError::new(
+            format!("Failed to fetch post: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(post.map(PostGql::from))
 }
@@ -142,14 +140,12 @@ pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Pos
     // Require admin access
     ctx.require_admin()?;
 
-    let post = Post::expire(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to expire post: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    let post = Post::expire(post_id, &ctx.db_pool).await.map_err(|e| {
+        juniper::FieldError::new(
+            format!("Failed to expire post: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(PostGql::from(post))
 }
@@ -159,14 +155,12 @@ pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Po
     // Require admin access
     ctx.require_admin()?;
 
-    let post = Post::archive(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to archive post: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    let post = Post::archive(post_id, &ctx.db_pool).await.map_err(|e| {
+        juniper::FieldError::new(
+            format!("Failed to archive post: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(PostGql::from(post))
 }

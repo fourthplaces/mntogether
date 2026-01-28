@@ -57,7 +57,7 @@ pub async fn find_members_within_radius(
            AND m.notification_count_this_week < 3
            AND haversine_distance($2, $3, m.latitude, m.longitude) <= $4
          ORDER BY similarity DESC
-         LIMIT 20"
+         LIMIT 20",
     )
     .bind(need_embedding)
     .bind(org_lat)
@@ -103,7 +103,7 @@ pub async fn find_members_statewide(
            AND m.embedding IS NOT NULL
            AND m.notification_count_this_week < 3
          ORDER BY similarity DESC
-         LIMIT 20"
+         LIMIT 20",
     )
     .bind(need_embedding)
     .fetch_all(pool)

@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 
-use crate::common::utils::{EmbeddingService, ExpoClient};
 use super::utils::{FirecrawlClient, NeedExtractor};
+use crate::common::utils::{EmbeddingService, ExpoClient};
 
 /// Server dependencies accessible to effects
 pub struct ServerDeps {

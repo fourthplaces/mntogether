@@ -846,10 +846,7 @@ mod stress_tests {
         );
 
         // Should return an error (either from panic or timeout)
-        assert!(
-            result.is_err(),
-            "Expected error after effect panic, got Ok"
-        );
+        assert!(result.is_err(), "Expected error after effect panic, got Ok");
 
         // Inflight should be cleaned up (no leaks)
         tokio::time::sleep(Duration::from_millis(100)).await;

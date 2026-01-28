@@ -2,10 +2,10 @@
 //!
 //! Executes GraphQL queries directly against the schema without HTTP overhead.
 
-use server_core::domains::organization::effects::{FirecrawlClient, NeedExtractor};
-use server_core::server::graphql::{GraphQLContext, Schema, create_schema};
 use juniper::Variables;
 use serde_json::Value;
+use server_core::domains::organization::effects::{FirecrawlClient, NeedExtractor};
+use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
 use sqlx::PgPool;
 
 /// GraphQL client for executing queries and mutations in tests.
@@ -69,9 +69,10 @@ impl GraphQLClient {
 
     /// Execute a GraphQL query/mutation with variables.
     pub async fn execute_with_vars(&self, query: &str, variables: Variables) -> GraphQLResult {
-        let (result, errors) = juniper::execute(query, None, &self.schema, &variables, &self.context)
-            .await
-            .expect("GraphQL execution failed");
+        let (result, errors) =
+            juniper::execute(query, None, &self.schema, &variables, &self.context)
+                .await
+                .expect("GraphQL execution failed");
 
         // Convert juniper::Value to serde_json::Value
         let data = Some(serde_json::to_value(&result).expect("Failed to serialize GraphQL result"));

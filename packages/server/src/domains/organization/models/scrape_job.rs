@@ -77,11 +77,7 @@ impl ScrapeJob {
     }
 
     /// Update job status
-    pub async fn update_status(
-        id: Uuid,
-        status: ScrapeJobStatus,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn update_status(id: Uuid, status: ScrapeJobStatus, pool: &PgPool) -> Result<Self> {
         let job = sqlx::query_as::<_, ScrapeJob>(
             r#"
             UPDATE scrape_jobs

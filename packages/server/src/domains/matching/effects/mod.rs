@@ -45,8 +45,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 info!("Finding matches for need: {}", need_id);
 
                 // 1. Get need from database
-                let need = match OrganizationNeed::find_by_id(need_id, &ctx.deps().db_pool).await
-                {
+                let need = match OrganizationNeed::find_by_id(need_id, &ctx.deps().db_pool).await {
                     Ok(need) => need,
                     Err(e) => {
                         error!("Failed to fetch need {}: {}", need_id, e);
@@ -71,9 +70,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 };
 
                 // 2. Vector search with distance filtering
-                let candidates = if let (Some(lat), Some(lng)) =
-                    (need.latitude, need.longitude)
-                {
+                let candidates = if let (Some(lat), Some(lng)) = (need.latitude, need.longitude) {
                     // Has location - filter by distance
                     find_members_within_radius(
                         &need_embedding,
@@ -102,14 +99,10 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 let mut notified_count = 0;
                 for candidate in candidates.iter().take(MAX_NOTIFICATIONS) {
                     // Check relevance (placeholder - would use GPT-4 in production)
-                    let (is_relevant, why_relevant) =
-                        check_relevance(&need, &candidate).await?;
+                    let (is_relevant, why_relevant) = check_relevance(&need, &candidate).await?;
 
                     if !is_relevant {
-                        debug!(
-                            "Candidate {} not relevant, skipping",
-                            candidate.member_id
-                        );
+                        debug!("Candidate {} not relevant, skipping", candidate.member_id);
                         continue;
                     }
 
@@ -128,7 +121,13 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                             );
 
                             // Send Expo push notification
-                            send_push_notification(&candidate, &need, &why_relevant, &ctx.deps().expo_client).await?;
+                            send_push_notification(
+                                &candidate,
+                                &need,
+                                &why_relevant,
+                                &ctx.deps().expo_client,
+                            )
+                            .await?;
 
                             // Track notification in database
                             record_notification(
@@ -186,7 +185,10 @@ async fn check_relevance(
         info!("High similarity score, accepting without AI call");
         return Ok((
             true,
-            format!("Strong match based on your interests and skills ({}% similar)", (candidate.similarity * 100.0) as i32)
+            format!(
+                "Strong match based on your interests and skills ({}% similar)",
+                (candidate.similarity * 100.0) as i32
+            ),
         ));
     }
 
@@ -195,61 +197,61 @@ async fn check_relevance(
     // Uncomment for production or when you have sufficient API quota
 
     /*
-    use reqwest::Client;
+        use reqwest::Client;
 
-    let client = Client::new();
-    let api_key = std::env::var("OPENAI_API_KEY")?;
+        let client = Client::new();
+        let api_key = std::env::var("OPENAI_API_KEY")?;
 
-    let prompt = format!(
-        r#"Evaluate if this volunteer is a good match for this opportunity.
+        let prompt = format!(
+            r#"Evaluate if this volunteer is a good match for this opportunity.
 
-Organization Need:
-{}
+    Organization Need:
+    {}
 
-Volunteer Profile:
-{}
+    Volunteer Profile:
+    {}
 
-Respond with ONLY:
-- "YES|" followed by a one-sentence explanation if they're a good match
-- "NO|Not a good match" if they're not
+    Respond with ONLY:
+    - "YES|" followed by a one-sentence explanation if they're a good match
+    - "NO|Not a good match" if they're not
 
-Be generous - if there's ANY reasonable connection, say YES."#,
-        need.description,
-        candidate.searchable_text
-    );
+    Be generous - if there's ANY reasonable connection, say YES."#,
+            need.description,
+            candidate.searchable_text
+        );
 
-    let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
-        .json(&serde_json::json!({
-            "model": "gpt-4o-mini",
-            "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a volunteer matching assistant. Be generous with matches."
-                },
-                {
-                    "role": "user",
-                    "content": prompt
-                }
-            ],
-            "temperature": 0.3,
-            "max_tokens": 100
-        }))
-        .send()
-        .await?;
+        let response = client
+            .post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", api_key))
+            .json(&serde_json::json!({
+                "model": "gpt-4o-mini",
+                "messages": [
+                    {
+                        "role": "system",
+                        "content": "You are a volunteer matching assistant. Be generous with matches."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                "temperature": 0.3,
+                "max_tokens": 100
+            }))
+            .send()
+            .await?;
 
-    let json: serde_json::Value = response.json().await?;
-    let content = json["choices"][0]["message"]["content"]
-        .as_str()
-        .unwrap_or("NO|Error");
+        let json: serde_json::Value = response.json().await?;
+        let content = json["choices"][0]["message"]["content"]
+            .as_str()
+            .unwrap_or("NO|Error");
 
-    let parts: Vec<&str> = content.splitn(2, '|').collect();
-    let is_relevant = parts[0].trim() == "YES";
-    let explanation = parts.get(1).unwrap_or(&"").trim().to_string();
+        let parts: Vec<&str> = content.splitn(2, '|').collect();
+        let is_relevant = parts[0].trim() == "YES";
+        let explanation = parts.get(1).unwrap_or(&"").trim().to_string();
 
-    Ok((is_relevant, explanation))
-    */
+        Ok((is_relevant, explanation))
+        */
 
     // Fallback: use similarity threshold
     let is_relevant = candidate.similarity > 0.6;
@@ -309,7 +311,7 @@ async fn record_notification(
     sqlx::query(
         "INSERT INTO notifications (need_id, member_id, why_relevant)
          VALUES ($1, $2, $3)
-         ON CONFLICT (need_id, member_id) DO NOTHING"
+         ON CONFLICT (need_id, member_id) DO NOTHING",
     )
     .bind(need_id)
     .bind(member_id)

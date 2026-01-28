@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw::{Effect, EffectContext};
 
-use super::{sync_needs, ExtractedNeedInput};
 use super::deps::ServerDeps;
+use super::{sync_needs, ExtractedNeedInput};
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
 use crate::domains::organization::models::source::OrganizationSource;

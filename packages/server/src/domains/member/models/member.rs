@@ -16,7 +16,7 @@ pub struct Member {
     // Location (coarse precision for matching)
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
-    pub location_name: Option<String>,  // "Minneapolis, MN"
+    pub location_name: Option<String>, // "Minneapolis, MN"
 
     // Status
     pub active: bool,
@@ -48,7 +48,7 @@ impl Member {
     /// Find all active members
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM members WHERE active = true ORDER BY created_at DESC"
+            "SELECT * FROM members WHERE active = true ORDER BY created_at DESC",
         )
         .fetch_all(pool)
         .await
@@ -71,7 +71,7 @@ impl Member {
                AND m.latitude IS NOT NULL
                AND m.longitude IS NOT NULL
                AND haversine_distance($1, $2, m.latitude, m.longitude) <= $3
-             ORDER BY m.created_at DESC"
+             ORDER BY m.created_at DESC",
         )
         .bind(center_lat)
         .bind(center_lng)
@@ -94,7 +94,7 @@ impl Member {
                 notification_count_this_week
              )
              VALUES ($1, $2, $3, $4, $5, $6, $7)
-             RETURNING *"
+             RETURNING *",
         )
         .bind(&self.expo_push_token)
         .bind(&self.searchable_text)
@@ -110,14 +110,12 @@ impl Member {
 
     /// Update member status
     pub async fn update_status(id: Uuid, active: bool, pool: &PgPool) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            "UPDATE members SET active = $2 WHERE id = $1 RETURNING *"
-        )
-        .bind(id)
-        .bind(active)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("UPDATE members SET active = $2 WHERE id = $1 RETURNING *")
+            .bind(id)
+            .bind(active)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Increment notification count (for throttling)
@@ -129,7 +127,7 @@ impl Member {
              SET notification_count_this_week = notification_count_this_week + 1
              WHERE id = $1
                AND notification_count_this_week < 3
-             RETURNING *"
+             RETURNING *",
         )
         .bind(id)
         .fetch_optional(pool)

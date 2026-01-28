@@ -210,7 +210,12 @@ where
     ///
     /// Returns the new revision on success.
     /// Returns [`StoreError::Conflict`] if the revision doesn't match.
-    async fn save(&self, id: &Id, state: &State, expected: Revision) -> Result<Revision, StoreError>;
+    async fn save(
+        &self,
+        id: &Id,
+        state: &State,
+        expected: Revision,
+    ) -> Result<Revision, StoreError>;
 }
 
 // =============================================================================
@@ -306,9 +311,10 @@ pub mod testing {
         State: Clone + Send + Sync + 'static,
     {
         async fn load(&self, id: &Id) -> Result<Option<(State, Revision)>, StoreError> {
-            let data = self.data.lock().map_err(|e| {
-                StoreError::Backend(anyhow::anyhow!("mutex poisoned: {}", e))
-            })?;
+            let data = self
+                .data
+                .lock()
+                .map_err(|e| StoreError::Backend(anyhow::anyhow!("mutex poisoned: {}", e)))?;
             Ok(data.get(id).cloned())
         }
 
@@ -318,9 +324,10 @@ pub mod testing {
             state: &State,
             expected: Revision,
         ) -> Result<Revision, StoreError> {
-            let mut data = self.data.lock().map_err(|e| {
-                StoreError::Backend(anyhow::anyhow!("mutex poisoned: {}", e))
-            })?;
+            let mut data = self
+                .data
+                .lock()
+                .map_err(|e| StoreError::Backend(anyhow::anyhow!("mutex poisoned: {}", e)))?;
 
             let current_rev = data.get(id).map(|(_, r)| *r).unwrap_or(Revision::NONE);
 
@@ -337,8 +344,8 @@ pub mod testing {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::testing::InMemoryStore;
+    use super::*;
     use crate::Command;
     use smallvec::smallvec;
     use uuid::Uuid;

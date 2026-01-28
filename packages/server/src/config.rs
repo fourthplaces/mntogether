@@ -24,16 +24,14 @@ impl Config {
         let _ = dotenv();
 
         Ok(Self {
-            database_url: env::var("DATABASE_URL")
-                .context("DATABASE_URL must be set")?,
+            database_url: env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
             redis_url: env::var("REDIS_URL")
                 .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             port: env::var("PORT")
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .context("PORT must be a valid number")?,
-            openai_api_key: env::var("OPENAI_API_KEY")
-                .context("OPENAI_API_KEY must be set")?,
+            openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,
             tavily_api_key: env::var("TAVILY_API_KEY").ok(),

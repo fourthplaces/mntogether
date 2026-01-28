@@ -60,7 +60,9 @@ pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler
     scheduler.add(reset_job).await?;
     scheduler.start().await?;
 
-    tracing::info!("Scheduled tasks started (periodic scraping every hour, weekly reset every Monday)");
+    tracing::info!(
+        "Scheduled tasks started (periodic scraping every hour, weekly reset every Monday)"
+    );
     Ok(scheduler)
 }
 

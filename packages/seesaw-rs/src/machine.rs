@@ -353,7 +353,11 @@ mod tests {
             Err(e) => e,
             Ok(_) => panic!("Expected error"),
         };
-        assert!(err.contains("panicked"), "Error should mention panic: {}", err);
+        assert!(
+            err.contains("panicked"),
+            "Error should mention panic: {}",
+            err
+        );
         assert!(
             err.contains("intentional panic"),
             "Error should contain panic message: {}",

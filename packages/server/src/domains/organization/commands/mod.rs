@@ -9,10 +9,7 @@ use crate::domains::organization::events::ExtractedNeed;
 #[derive(Debug, Clone)]
 pub enum OrganizationCommand {
     /// Scrape a source URL using Firecrawl
-    ScrapeSource {
-        source_id: Uuid,
-        job_id: Uuid,
-    },
+    ScrapeSource { source_id: Uuid, job_id: Uuid },
 
     /// Extract needs from scraped content using AI
     ExtractNeeds {
@@ -39,7 +36,7 @@ pub enum OrganizationCommand {
         urgency: Option<String>,
         location: Option<String>,
         ip_address: Option<String>, // Converted from IpAddr before storing
-        submission_type: String, // 'user_submitted'
+        submission_type: String,    // 'user_submitted'
     },
 
     /// Update need status (for approval/rejection)
@@ -71,9 +68,7 @@ pub enum OrganizationCommand {
     },
 
     /// Generate embedding for a need (background job)
-    GenerateNeedEmbedding {
-        need_id: Uuid,
-    },
+    GenerateNeedEmbedding { need_id: Uuid },
 }
 
 // Implement Command trait for seesaw-rs integration
@@ -107,6 +102,7 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
+                container_id: None,
             }),
             Self::ExtractNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "extract_needs",
@@ -115,6 +111,7 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
+                container_id: None,
             }),
             Self::SyncNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "sync_needs",
@@ -123,6 +120,7 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
+                container_id: None,
             }),
             Self::GenerateNeedEmbedding { need_id } => Some(seesaw::JobSpec {
                 job_type: "generate_need_embedding",
@@ -131,6 +129,7 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*need_id),
+                container_id: None,
             }),
             // Inline commands don't need job specs
             _ => None,

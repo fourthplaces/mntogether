@@ -65,10 +65,7 @@ mod tests {
         let text1 = "We need Spanish-speaking volunteers!";
         let text2 = "We need Spanish-speaking volunteers!";
 
-        assert_eq!(
-            generate_content_hash(text1),
-            generate_content_hash(text2)
-        );
+        assert_eq!(generate_content_hash(text1), generate_content_hash(text2));
     }
 
     #[test]
@@ -118,10 +115,7 @@ mod tests {
         let text1 = "We need Spanish-speaking volunteers";
         let text2 = "We need French-speaking volunteers";
 
-        assert_ne!(
-            generate_content_hash(text1),
-            generate_content_hash(text2)
-        );
+        assert_ne!(generate_content_hash(text1), generate_content_hash(text2));
     }
 
     #[test]
@@ -130,10 +124,7 @@ mod tests {
         let text2 = "Food distribution volunteers needed";
 
         // Word order DOES matter - these should have different hashes
-        assert_ne!(
-            generate_content_hash(text1),
-            generate_content_hash(text2)
-        );
+        assert_ne!(generate_content_hash(text1), generate_content_hash(text2));
     }
 
     #[test]
@@ -158,9 +149,6 @@ mod tests {
         let text2 = "---***===";
 
         // Both should normalize to empty string
-        assert_eq!(
-            generate_content_hash(text1),
-            generate_content_hash(text2)
-        );
+        assert_eq!(generate_content_hash(text1), generate_content_hash(text2));
     }
 }

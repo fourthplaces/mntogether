@@ -1,7 +1,7 @@
 // Main entry point for server
 
 use anyhow::{Context, Result};
-use server_core::{Config, server::build_app, kernel::scheduled_tasks};
+use server_core::{kernel::scheduled_tasks, server::build_app, Config};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -10,15 +10,14 @@ async fn main() -> Result<()> {
     // Initialize logging
     tracing_subscriber::registry()
         .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| {
-                    "info,server_core=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
-                }),
+            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+                "info,server_core=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
+            }),
         )
         .with(
             tracing_subscriber::fmt::layer()
                 .with_target(true)
-                .with_line_number(true)
+                .with_line_number(true),
         )
         .init();
 
@@ -65,7 +64,10 @@ async fn main() -> Result<()> {
     // Start server
     let addr = format!("0.0.0.0:{}", config.port);
     tracing::info!("Starting server on {}", addr);
-    tracing::info!("GraphQL playground: http://localhost:{}/graphql", config.port);
+    tracing::info!(
+        "GraphQL playground: http://localhost:{}/graphql",
+        config.port
+    );
     tracing::info!("Health check: http://localhost:{}/health", config.port);
 
     let listener = tokio::net::TcpListener::bind(&addr)

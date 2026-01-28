@@ -49,8 +49,7 @@ impl Effect<MemberCommand, ServerDeps> for RegistrationEffect {
                 }
 
                 // Geocode city to lat/lng
-                let (latitude, longitude, location_name) = match geocode_city(&city, &state).await
-                {
+                let (latitude, longitude, location_name) = match geocode_city(&city, &state).await {
                     Ok(location) => (
                         Some(location.latitude),
                         Some(location.longitude),
@@ -152,7 +151,9 @@ impl Effect<MemberCommand, ServerDeps> for RegistrationEffect {
                 debug!("Generated embedding with {} dimensions", embedding.len());
 
                 // Update member with embedding
-                if let Err(e) = Member::update_embedding(member_id, &embedding, &ctx.deps().db_pool).await {
+                if let Err(e) =
+                    Member::update_embedding(member_id, &embedding, &ctx.deps().db_pool).await
+                {
                     error!("Failed to save embedding: {}", e);
                     return Ok(MemberEvent::EmbeddingFailed {
                         member_id,

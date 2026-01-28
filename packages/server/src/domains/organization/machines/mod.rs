@@ -101,15 +101,13 @@ impl seesaw::Machine for OrganizationMachine {
                 contact_info: contact_info.clone(),
                 urgency: urgency.clone(),
                 location: location.clone(),
-                ip_address: *ip_address,
+                ip_address: ip_address.clone(),
                 submission_type: "user_submitted".to_string(),
             }),
 
             OrganizationEvent::NeedCreated { need_id, .. } => {
                 // Need created, generate embedding
-                Some(OrganizationCommand::GenerateNeedEmbedding {
-                    need_id: *need_id,
-                })
+                Some(OrganizationCommand::GenerateNeedEmbedding { need_id: *need_id })
             }
 
             // =========================================================================

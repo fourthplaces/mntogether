@@ -40,11 +40,7 @@ impl FirecrawlClient {
                 .text()
                 .await
                 .unwrap_or_else(|_| "Unknown error".to_string());
-            anyhow::bail!(
-                "Firecrawl API error (status {}): {}",
-                status,
-                error_text
-            );
+            anyhow::bail!("Firecrawl API error (status {}): {}", status, error_text);
         }
 
         let api_response: FirecrawlResponse = response

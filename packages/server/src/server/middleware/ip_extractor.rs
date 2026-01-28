@@ -29,10 +29,7 @@ pub async fn extract_client_ip(
             .and_then(|s| s.trim().parse::<IpAddr>().ok())
     } else if let Some(real_ip) = request.headers().get("x-real-ip") {
         // Try X-Real-IP header
-        real_ip
-            .to_str()
-            .ok()
-            .and_then(|s| s.parse::<IpAddr>().ok())
+        real_ip.to_str().ok().and_then(|s| s.parse::<IpAddr>().ok())
     } else {
         // Fall back to socket address
         Some(addr.ip())

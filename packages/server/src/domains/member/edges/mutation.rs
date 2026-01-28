@@ -17,7 +17,10 @@ pub async fn register_member(
     state: String,
     ctx: &GraphQLContext,
 ) -> FieldResult<MemberData> {
-    info!("register_member mutation called for city: {}, {}", city, state);
+    info!(
+        "register_member mutation called for city: {}, {}",
+        city, state
+    );
 
     // Dispatch request event and await response
     let member_id = dispatch_request(
@@ -60,7 +63,10 @@ pub async fn update_member_status(
 ) -> FieldResult<MemberData> {
     let member_id = Uuid::parse_str(&member_id)?;
 
-    info!("update_member_status mutation called: {} -> {}", member_id, active);
+    info!(
+        "update_member_status mutation called: {} -> {}",
+        member_id, active
+    );
 
     // Dispatch request event
     dispatch_request(
@@ -74,9 +80,7 @@ pub async fn update_member_status(
                 } if updated_id == &member_id => Some(Ok(())),
                 MemberEvent::MemberNotFound {
                     member_id: not_found_id,
-                } if not_found_id == &member_id => {
-                    Some(Err(anyhow::anyhow!("Member not found")))
-                }
+                } if not_found_id == &member_id => Some(Err(anyhow::anyhow!("Member not found"))),
                 _ => None,
             })
             .result()
