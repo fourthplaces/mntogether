@@ -15,7 +15,7 @@ pub struct SubmitNeedInput {
     pub contact_info: Option<serde_json::Value>,
     pub urgency: Option<String>,
     pub location: Option<String>,
-    pub ip_address: Option<IpAddr>,
+    pub ip_address: Option<String>,
 }
 
 /// Submit a need from a volunteer (goes to pending_approval)

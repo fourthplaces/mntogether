@@ -38,6 +38,10 @@ For each need, provide:
 3. **description**: Full details (what they need, requirements, impact)
 4. **contact**: Any contact information (phone, email, website)
 5. **urgency**: Estimate urgency ("urgent", "normal", or "low")
+6. **confidence**: Your confidence in this extraction ("high", "medium", or "low")
+   - "high": Explicitly stated volunteer opportunity with clear details
+   - "medium": Mentioned but some details are inferred
+   - "low": Vague or unclear, might not be a real opportunity
 
 IMPORTANT RULES:
 - ONLY extract REAL volunteer needs explicitly stated on the page
@@ -45,6 +49,7 @@ IMPORTANT RULES:
 - If the page has no volunteer opportunities, return an empty array
 - Extract EVERY distinct need mentioned (don't summarize multiple needs into one)
 - Include practical details: time commitment, location, skills needed, etc.
+- Be honest about confidence - it helps human reviewers prioritize
 
 Return ONLY valid JSON (no markdown, no explanation):
 [
@@ -53,7 +58,8 @@ Return ONLY valid JSON (no markdown, no explanation):
     "tldr": "...",
     "description": "...",
     "contact": {{ "phone": "...", "email": "...", "website": "..." }},
-    "urgency": "normal"
+    "urgency": "normal",
+    "confidence": "high"
   }}
 ]"#,
             organization_name = organization_name,
@@ -89,6 +95,7 @@ pub struct ExtractedNeed {
     pub description: String,
     pub contact: Option<ContactInfo>,
     pub urgency: Option<String>,
+    pub confidence: Option<String>, // "high" | "medium" | "low"
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

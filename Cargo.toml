@@ -3,6 +3,8 @@ resolver = "2"
 members = [
     "packages/server",
     "packages/seesaw-rs",
+    "packages/twilio-rs",
+    "packages/dev-cli",
 ]
 
 [workspace.package]
@@ -24,7 +26,7 @@ tower-http = { version = "0.6", features = ["trace", "cors", "timeout"] }
 sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono", "json"] }
 
 # GraphQL
-juniper = "0.16"
+juniper = { version = "0.16", features = ["uuid", "chrono"] }
 juniper_axum = "0.1"
 
 # Serialization
@@ -59,3 +61,9 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Testing
 testcontainers = "0.23"
+
+# CLI
+colored = "2.1"
+dialoguer = "0.11"
+console = "0.15"
+which = "6.0"

@@ -1,7 +1,7 @@
-// Main entry point for API server
+// Main entry point for server
 
 use anyhow::{Context, Result};
-use api_core::{Config, server::build_app};
+use server_core::{Config, server::build_app, kernel::scheduled_tasks};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -11,12 +11,18 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,api_core=debug,sqlx=warn".into()),
+                .unwrap_or_else(|_| {
+                    "info,server_core=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
+                }),
         )
-        .with(tracing_subscriber::fmt::layer())
+        .with(
+            tracing_subscriber::fmt::layer()
+                .with_target(true)
+                .with_line_number(true)
+        )
         .init();
 
-    tracing::info!("Starting Emergency Resource Aggregator API");
+    tracing::info!("Starting Emergency Resource Aggregator Server");
 
     // Load configuration
     let config = Config::from_env().context("Failed to load configuration")?;
@@ -40,11 +46,21 @@ async fn main() -> Result<()> {
     tracing::info!("Migrations complete");
 
     // Build application
-    let app = build_app(
-        pool,
+    let (app, handle) = build_app(
+        pool.clone(),
         config.firecrawl_api_key,
         config.openai_api_key,
+        config.expo_access_token,
+        config.twilio_account_sid,
+        config.twilio_auth_token,
+        config.twilio_verify_service_sid,
     );
+
+    // Start scheduled tasks (periodic scraping)
+    let bus = handle.bus().clone();
+    let _scheduler = scheduled_tasks::start_scheduler(pool.clone(), bus)
+        .await
+        .context("Failed to start scheduler")?;
 
     // Start server
     let addr = format!("0.0.0.0:{}", config.port);

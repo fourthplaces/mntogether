@@ -1,67 +1,125 @@
-# Emergency Resource Aggregator
+# Minnesota Digital Aid
 
-A privacy-first platform that matches volunteers with organization needs using AI.
+A privacy-first volunteer matching platform that connects community members with immigrant resource organizations using AI-powered semantic search and location-based filtering.
+
+## Overview
+
+This platform helps volunteers discover opportunities at immigrant resource organizations in Minnesota. It features:
+
+- **Privacy-First Design**: No PII storage, only coarse location data and Expo push tokens
+- **Text-First Architecture**: Searchable text as source of truth for anti-fragile evolution
+- **AI-Powered Matching**: GPT-4o extracts needs, embeddings enable semantic search
+- **Event-Driven Architecture**: Built with seesaw-rs for clean separation of concerns
+- **Location-Based Filtering**: 30km radius matching using PostGIS distance calculations
+- **Smart Notifications**: Weekly throttling (max 3) with AI relevance checking
 
 ## Quick Start
 
 ### Prerequisites
 
-- Rust 1.70+ and Cargo
-- Docker and Docker Compose
-- Node.js 18+ (for frontend development)
-- API keys for external services
+- Rust 1.70+ and Cargo ([Install from rustup.rs](https://rustup.rs/))
+- Docker and Docker Compose ([Install Docker Desktop](https://www.docker.com/products/docker-desktop/))
+- PostgreSQL with pgvector extension
+- API keys: OpenAI, Firecrawl, Twilio (SMS auth)
 
-### Backend Setup (Rust + GraphQL)
+### 🚀 One-Command Setup
+
+The easiest way to get started:
+
+```bash
+./dev.sh
+```
+
+This single entry point will:
+1. Install all dependencies automatically
+2. Build the project
+3. Present an interactive menu for:
+   - Starting the mobile app (Expo)
+   - Managing Docker services
+   - Viewing logs
+
+See [DEV_CLI.md](DEV_CLI.md) for complete documentation.
+
+### Environment Variables
+
+Before starting, create your environment file:
+
+```bash
+cd packages/server
+cp .env.example .env
+# Edit .env and add your API keys
+```
+
+Required keys:
+```env
+# Core services
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mndigitalaid
+REDIS_URL=redis://localhost:6379
+
+# AI/ML
+OPENAI_API_KEY=sk-...                    # Required: GPT-4o + embeddings
+
+# Web scraping
+FIRECRAWL_API_KEY=fc-...                 # Required: Source scraping
+TAVILY_API_KEY=tvly-...                  # Optional: Search discovery
+
+# SMS authentication
+TWILIO_ACCOUNT_SID=AC...                 # Required: SMS verification
+TWILIO_AUTH_TOKEN=...                    # Required
+TWILIO_VERIFY_SERVICE_SID=VA...          # Required
+
+# Push notifications
+EXPO_ACCESS_TOKEN=...                    # Optional: Higher rate limits
+
+# Server
+PORT=8080
+RUST_LOG=info,server_core=debug
+```
+
+### Manual Setup (Alternative)
+
+If you prefer manual control:
+
+#### Backend Setup (Rust + GraphQL)
 
 1. **Navigate to server package**:
    ```bash
    cd packages/server
    ```
 
-2. **Copy environment variables**:
-   ```bash
-   cp .env.example .env
-   ```
-
-3. **Edit `.env` and add your API keys**:
-   ```
-   OPENAI_API_KEY=sk-...
-   FIRECRAWL_API_KEY=fc-...
-   ```
-
-4. **Start all services**:
+2. **Start all services**:
    ```bash
    make up
    # or: docker-compose up -d
    ```
 
-5. **Run database migrations**:
+3. **Run database migrations**:
    ```bash
    make migrate
    # or: docker-compose exec api cargo sqlx migrate run
    ```
 
-6. **Prepare SQLx offline data** (required for compilation):
+4. **Prepare SQLx offline data** (required for compilation):
    ```bash
    cargo sqlx prepare --workspace
    # This creates .sqlx/ with cached query data for offline compilation
    ```
 
-7. **Build the server**:
+5. **Build the server**:
    ```bash
    cargo build
    # or from packages/server: make build
    ```
 
-8. **Check logs**:
+6. **Check logs**:
    ```bash
    make logs
    # or: docker-compose logs -f
    ```
 
-### Frontend Setup
+#### Frontend Setup
 
-#### Admin UI (React + Vite)
+##### Admin UI (React + Vite)
 ```bash
 cd packages/admin-spa
 npm install
@@ -69,9 +127,9 @@ npm run dev
 # Access: http://localhost:3000
 ```
 
-#### Expo App (React Native)
+##### Expo App (React Native)
 ```bash
-cd packages/expo-app
+cd packages/app
 npm install
 npm start
 # Press 'a' for Android, 'i' for iOS, 'w' for web

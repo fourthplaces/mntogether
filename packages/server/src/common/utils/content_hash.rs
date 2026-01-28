@@ -1,5 +1,33 @@
 use sha2::{Digest, Sha256};
 
+/// Generate a content fingerprint for change detection
+///
+/// Takes the first 300 characters of description, normalizes it:
+/// - Convert to lowercase
+/// - Remove all punctuation
+/// - Collapse whitespace
+///
+/// This is MORE RESILIENT than title matching because:
+/// - Titles change frequently ("URGENT:", "New!", etc.)
+/// - Description content is more stable
+/// - Still detects real changes
+///
+/// Use for detecting if a need's content has meaningfully changed.
+pub fn generate_fingerprint(description: &str) -> String {
+    // Take first 300 chars
+    let truncated: String = description.chars().take(300).collect();
+
+    // Normalize: lowercase, remove punctuation, collapse whitespace
+    truncated
+        .to_lowercase()
+        .chars()
+        .filter(|c| c.is_alphanumeric() || c.is_whitespace())
+        .collect::<String>()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
 /// Generate a content hash for duplicate detection
 ///
 /// Uses SHA256 of normalized text to detect when content has changed.

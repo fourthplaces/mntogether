@@ -1,6 +1,7 @@
-use axum::{http::StatusCode, Json};
+use axum::{extract::Extension, http::StatusCode, Json};
 use serde::Serialize;
-use sqlx::PgPool;
+
+use crate::server::app::AppState;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
@@ -9,9 +10,9 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint
-pub async fn health_handler(pool: axum::extract::State<PgPool>) -> (StatusCode, Json<HealthResponse>) {
+pub async fn health_handler(Extension(state): Extension<AppState>) -> (StatusCode, Json<HealthResponse>) {
     // Check database connection
-    let db_status = match sqlx::query("SELECT 1").execute(&*pool).await {
+    let db_status = match sqlx::query("SELECT 1").execute(&state.db_pool).await {
         Ok(_) => "ok",
         Err(_) => "error",
     };

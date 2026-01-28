@@ -56,37 +56,12 @@ pub use worker::{JobWorker, JobWorkerConfig, SeesawCommandHandler};
 /// enabling the `JobWorker` to deserialize job payloads back to typed commands.
 ///
 /// Call this during job worker startup.
-pub fn register_commands(registry: &mut seesaw::CommandRegistry) {
-    use crate::domains::agent::commands::{
-        GENERATE_AGENT_GREETING_JOB_TYPE, GENERATE_AGENT_REPLY_JOB_TYPE,
-        GenerateAgentGreetingCommand, GenerateAgentReplyCommand,
-    };
-    use crate::domains::container::commands::{
-        CONTAINER_SUMMARY_JOB_TYPE, ContainerSummaryCommand,
-    };
-    use crate::domains::deck::commands::{
-        GENERATE_DECK_CARDS_JOB_TYPE, GENERATE_DECK_TITLE_JOB_TYPE, GenerateDeckCardsCommand,
-        GenerateDeckTitleCommand, REGENERATE_DECK_CARDS_JOB_TYPE, RegenerateDeckCardsCommand,
-    };
-    use crate::domains::entry::{
-        AAD_MIGRATION_JOB_TYPE, ANALYZE_ENTRY_JOB_TYPE, AUTO_TAG_ENTRY_JOB_TYPE,
-        AadMigrationCommand, AnalyzeEntryCommand, AutoTagEntryCommand,
-    };
-
-    // Agent domain
-    registry.register::<GenerateAgentReplyCommand>(GENERATE_AGENT_REPLY_JOB_TYPE, vec![1]);
-    registry.register::<GenerateAgentGreetingCommand>(GENERATE_AGENT_GREETING_JOB_TYPE, vec![1]);
-
-    // Deck domain
-    registry.register::<GenerateDeckCardsCommand>(GENERATE_DECK_CARDS_JOB_TYPE, vec![1]);
-    registry.register::<GenerateDeckTitleCommand>(GENERATE_DECK_TITLE_JOB_TYPE, vec![1]);
-    registry.register::<RegenerateDeckCardsCommand>(REGENERATE_DECK_CARDS_JOB_TYPE, vec![1]);
-
-    // Entry domain
-    registry.register::<AnalyzeEntryCommand>(ANALYZE_ENTRY_JOB_TYPE, vec![1]);
-    registry.register::<AutoTagEntryCommand>(AUTO_TAG_ENTRY_JOB_TYPE, vec![1]);
-    registry.register::<AadMigrationCommand>(AAD_MIGRATION_JOB_TYPE, vec![1]);
-
-    // Container domain
-    registry.register::<ContainerSummaryCommand>(CONTAINER_SUMMARY_JOB_TYPE, vec![1]);
+///
+/// NOTE: Currently commented out as this codebase doesn't use the job queue system yet.
+/// Uncomment and adapt when background job processing is needed.
+#[allow(dead_code)]
+pub fn register_commands(_registry: &mut seesaw::CommandRegistry) {
+    // TODO: Register organization domain background commands when needed
+    // use crate::domains::organization::commands::{...};
+    // registry.register::<SomeBackgroundCommand>("job_type", vec![1]);
 }

@@ -11,8 +11,10 @@ pub struct Config {
     pub openai_api_key: String,
     pub firecrawl_api_key: String,
     pub tavily_api_key: Option<String>,
-    pub clerk_secret_key: Option<String>,
     pub expo_access_token: Option<String>,
+    pub twilio_account_sid: String,
+    pub twilio_auth_token: String,
+    pub twilio_verify_service_sid: String,
 }
 
 impl Config {
@@ -35,8 +37,13 @@ impl Config {
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,
             tavily_api_key: env::var("TAVILY_API_KEY").ok(),
-            clerk_secret_key: env::var("CLERK_SECRET_KEY").ok(),
             expo_access_token: env::var("EXPO_ACCESS_TOKEN").ok(),
+            twilio_account_sid: env::var("TWILIO_ACCOUNT_SID")
+                .context("TWILIO_ACCOUNT_SID must be set")?,
+            twilio_auth_token: env::var("TWILIO_AUTH_TOKEN")
+                .context("TWILIO_AUTH_TOKEN must be set")?,
+            twilio_verify_service_sid: env::var("TWILIO_VERIFY_SERVICE_SID")
+                .context("TWILIO_VERIFY_SERVICE_SID must be set")?,
         })
     }
 }
