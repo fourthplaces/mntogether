@@ -8,6 +8,7 @@
 // - Sync tracking (new/changed/disappeared needs)
 
 pub mod commands;
+pub mod data;
 pub mod edges;
 pub mod effects;
 pub mod models;
