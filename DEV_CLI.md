@@ -41,18 +41,50 @@ Starts all Docker services in detached mode:
 - API server (port 8080)
 
 ### 🔄 Docker restart
-Restarts all running Docker services without rebuilding.
+Restarts running Docker services without rebuilding.
+
+You'll be prompted to select which services to restart:
+- **postgres** - PostgreSQL database
+- **redis** - Redis cache
+- **api** - Rust API server
+
+Use Space to select/deselect, Enter to confirm.
 
 ### 🔨 Docker rebuild
 Rebuilds Docker images from scratch and starts the services.
+
+You'll be prompted to select which services to rebuild:
+- **postgres** - PostgreSQL database
+- **redis** - Redis cache
+- **api** - Rust API server (selected by default)
+
 Use this when:
 - You've modified the Dockerfile
-- You've added new dependencies
+- You've added new Rust dependencies
 - You want a clean build
+
+**Note:** The API service now includes cargo-watch for hot-reloading, so you typically only need to rebuild when changing dependencies or Dockerfiles.
 
 ### 📋 Follow docker logs
 Tails the logs from all Docker services.
 Press `Ctrl+C` to stop following.
+
+### 🗄️ Run database migrations
+Runs SQLx database migrations inside the running API container.
+
+This executes `sqlx migrate run` to apply any pending migrations.
+
+**Note:** Migrations also run automatically when Docker starts.
+
+### 🌐 Open GraphQL Playground
+Opens the GraphQL Playground in your default browser at `http://localhost:8080/graphql`.
+
+This is useful for:
+- Testing GraphQL queries and mutations
+- Exploring the API schema
+- Debugging API responses
+
+Note: Make sure Docker services are running first.
 
 ### 🛑 Exit
 Exits the CLI.
@@ -64,6 +96,22 @@ On first run, the CLI will:
 2. Install Expo CLI globally if not present
 3. Install app dependencies (`npm install` in packages/app)
 4. Build the Rust workspace
+
+## Hot-Reload Development
+
+The API server now includes **cargo-watch** for automatic reloading:
+
+- Edit any Rust file in `packages/`
+- Save the file
+- Cargo watch detects the change and rebuilds
+- The server automatically restarts with your changes
+
+This is configured in:
+- `packages/server/Dockerfile.dev` - Development Dockerfile with cargo-watch
+- `packages/server/dev-watch.sh` - Watch script that monitors file changes
+- `packages/server/docker-compose.yml` - Volume mounts for hot-reload
+
+**Build artifacts are cached** in a Docker volume to speed up rebuilds.
 
 ## Environment Variables
 
@@ -148,8 +196,11 @@ Check Docker Desktop is running and you have enough resources allocated (4GB RAM
 
 Typical workflow:
 1. Run `./dev.sh`
-2. Select "🐳 Docker start" to start backend services
-3. Select "📱 Start mobile" to start the Expo app
-4. Develop and test
-5. Select "📋 Follow docker logs" to debug backend issues
-6. Select "🔄 Docker restart" after making backend changes
+2. Select "🐳 Docker start" to start backend services (postgres, redis, api)
+3. Migrations run automatically on startup
+4. Select "🌐 Open GraphQL Playground" to test the API
+5. Select "📱 Start mobile" to start the Expo app
+6. Edit Rust files - cargo-watch automatically reloads
+7. Select "📋 Follow docker logs" to debug backend issues
+8. Select "🔄 Docker restart" if needed (select specific services)
+9. Select "🔨 Docker rebuild" only when changing dependencies or Dockerfiles

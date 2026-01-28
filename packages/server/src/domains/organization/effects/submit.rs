@@ -1,5 +1,5 @@
-use crate::common::utils::generate_content_hash;
 use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
+use crate::domains::organization::utils::{generate_need_content_hash, generate_tldr};
 use anyhow::Result;
 use sqlx::PgPool;
 use std::net::IpAddr;
@@ -24,58 +24,17 @@ pub struct SubmitNeedInput {
 /// not just needs scraped from websites.
 pub async fn submit_user_need(pool: &PgPool, input: SubmitNeedInput) -> Result<OrganizationNeed> {
     // Generate content hash for deduplication
-    let content_hash = generate_content_hash(&format!(
-        "{} {} {}",
-        input.title, input.description, input.organization_name
-    ));
+    let content_hash =
+        generate_need_content_hash(&input.title, &input.description, &input.organization_name);
 
     // Generate TLDR (first 100 chars of description)
-    let tldr = if input.description.len() > 100 {
-        format!("{}...", &input.description[..97])
-    } else {
-        input.description.clone()
-    };
+    let tldr = generate_tldr(&input.description, 100);
 
     // Convert IP address to string for storage
     let ip_str = input.ip_address.map(|ip| ip.to_string());
 
-    let need = sqlx::query_as!(
-        OrganizationNeed,
-        r#"
-        INSERT INTO organization_needs (
-            organization_name,
-            title,
-            description,
-            tldr,
-            contact_info,
-            urgency,
-            location,
-            status,
-            content_hash,
-            submission_type,
-            submitted_by_volunteer_id,
-            submitted_from_ip
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet)
-        RETURNING
-            id,
-            organization_name,
-            title,
-            description,
-            description_markdown,
-            tldr,
-            contact_info,
-            urgency,
-            status as "status!: String",
-            content_hash,
-            source_id,
-            submission_type,
-            submitted_by_volunteer_id,
-            location,
-            last_seen_at,
-            disappeared_at,
-            created_at,
-            updated_at
-        "#,
+    // Create need using model method
+    let need = OrganizationNeed::create(
         input.organization_name,
         input.title,
         input.description,
@@ -85,44 +44,23 @@ pub async fn submit_user_need(pool: &PgPool, input: SubmitNeedInput) -> Result<O
         input.location,
         NeedStatus::PendingApproval.to_string(),
         content_hash,
-        "user_submitted",
+        Some("user_submitted".to_string()),
         input.volunteer_id,
-        ip_str
+        ip_str,
+        None, // source_id
+        pool,
     )
-    .fetch_one(pool)
     .await?;
 
-    // Parse status string back to enum
-    let mut need_with_status = need;
-    need_with_status.status = match need_with_status.status.as_str() {
-        "pending_approval" => NeedStatus::PendingApproval,
-        "active" => NeedStatus::Active,
-        "rejected" => NeedStatus::Rejected,
-        "expired" => NeedStatus::Expired,
-        _ => NeedStatus::PendingApproval,
-    };
-
-    Ok(need_with_status)
+    Ok(need)
 }
 
 /// Check if a similar need already exists (duplicate detection)
 ///
 /// Looks for needs with similar content hash to prevent duplicates
 pub async fn find_similar_need(pool: &PgPool, content_hash: &str) -> Result<Option<Uuid>> {
-    let row = sqlx::query!(
-        r#"
-        SELECT id
-        FROM organization_needs
-        WHERE content_hash = $1
-          AND status IN ('pending_approval', 'active')
-        LIMIT 1
-        "#,
-        content_hash
-    )
-    .fetch_optional(pool)
-    .await?;
-
-    Ok(row.map(|r| r.id))
+    // Use model method for finding duplicate by content hash
+    OrganizationNeed::find_id_by_content_hash_active(content_hash, pool).await
 }
 
 #[cfg(test)]

@@ -1,14 +1,15 @@
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw::{Effect, EffectContext};
-use uuid::Uuid;
 
-use super::ServerDeps;
+use super::{need_extraction, ServerDeps};
 use crate::domains::organization::commands::OrganizationCommand;
-use crate::domains::organization::events::{ContactInfo, ExtractedNeed, OrganizationEvent};
+use crate::domains::organization::events::OrganizationEvent;
 use crate::domains::organization::models::source::OrganizationSource;
 
 /// AI Effect - Handles ExtractNeeds command
+///
+/// This is a thin orchestrator that delegates to domain functions.
 pub struct AIEffect;
 
 #[async_trait]
@@ -27,34 +28,20 @@ impl Effect<OrganizationCommand, ServerDeps> for AIEffect {
                 organization_name,
                 content,
             } => {
-                // Extract needs using AI
+                // Get source for URL info
                 let source = OrganizationSource::find_by_id(source_id, &ctx.deps().db_pool)
                     .await
                     .context("Failed to find source")?;
 
-                let ai_needs = ctx
-                    .deps()
-                    .need_extractor
-                    .extract_needs(&organization_name, &content, &source.source_url)
-                    .await
-                    .context("AI extraction failed")?;
-
-                // Convert to event format
-                let extracted_needs: Vec<ExtractedNeed> = ai_needs
-                    .into_iter()
-                    .map(|need| ExtractedNeed {
-                        title: need.title,
-                        description: need.description,
-                        tldr: need.tldr,
-                        contact: need.contact.map(|c| ContactInfo {
-                            email: c.email,
-                            phone: c.phone,
-                            website: c.website,
-                        }),
-                        urgency: need.urgency,
-                        confidence: need.confidence,
-                    })
-                    .collect();
+                // Delegate to domain function
+                let extracted_needs = need_extraction::extract_needs(
+                    ctx.deps().ai.as_ref(),
+                    &organization_name,
+                    &content,
+                    &source.source_url,
+                )
+                .await
+                .context("AI extraction failed")?;
 
                 // Return fact event
                 Ok(OrganizationEvent::NeedsExtracted {

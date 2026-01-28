@@ -1,4 +1,4 @@
-use crate::server::auth::SessionStore;
+use crate::domains::auth::JwtService;
 use crate::server::middleware::AuthUser;
 use seesaw::EventBus;
 use sqlx::PgPool;
@@ -8,12 +8,13 @@ use twilio::TwilioService;
 /// GraphQL request context
 ///
 /// Contains shared resources available to all resolvers
+#[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
     pub bus: EventBus,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
-    pub session_store: Arc<SessionStore>,
+    pub jwt_service: Arc<JwtService>,
 }
 
 impl juniper::Context for GraphQLContext {}
@@ -24,14 +25,14 @@ impl GraphQLContext {
         bus: EventBus,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
-        session_store: Arc<SessionStore>,
+        jwt_service: Arc<JwtService>,
     ) -> Self {
         Self {
             db_pool,
             bus,
             auth_user,
             twilio,
-            session_store,
+            jwt_service,
         }
     }
 

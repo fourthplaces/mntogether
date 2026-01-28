@@ -890,31 +890,6 @@ impl SpyJobQueue {
             jobs.iter().map(|j| j.scheduled_at).collect::<Vec<_>>()
         );
     }
-
-    /// Get jobs with a specific container ID (useful for multi-tenant testing).
-    pub fn jobs_for_container(&self, container_id: Uuid) -> Vec<EnqueuedJob> {
-        self.enqueued
-            .lock()
-            .unwrap()
-            .iter()
-            .filter(|j| j.spec.container_id == Some(container_id))
-            .cloned()
-            .collect()
-    }
-
-    /// Assert jobs were enqueued for a specific container.
-    ///
-    /// # Panics
-    ///
-    /// Panics if no jobs for the container exist.
-    pub fn assert_has_jobs_for_container(&self, container_id: Uuid) {
-        let jobs = self.jobs_for_container(container_id);
-        assert!(
-            !jobs.is_empty(),
-            "Expected jobs for container_id '{}', found none",
-            container_id
-        );
-    }
 }
 
 #[async_trait::async_trait]

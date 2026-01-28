@@ -1,6 +1,24 @@
-// Kernel - core infrastructure (cross-domain)
+// Kernel - core infrastructure with dependency injection
+//
+// The ServerKernel holds all server dependencies (database, APIs, services)
+// and provides dependency injection through traits for testability.
+//
+// IMPORTANT: Kernel is for INFRASTRUCTURE only, not business logic.
+// Business logic belongs in domain layers.
 
-// TODO: Job queue infrastructure (imported from shay, needs adaptation)
-// pub mod jobs;
-
+pub mod ai;
 pub mod scheduled_tasks;
+pub mod server_kernel;
+pub mod test_dependencies;
+pub mod traits;
+
+pub use ai::OpenAIClient;
+pub use server_kernel::ServerKernel;
+pub use test_dependencies::{
+    MockAI, MockEmbeddingService, MockPushNotificationService, MockWebScraper, TestDependencies,
+};
+pub use traits::*;
+
+// Re-export domain types that used to be in kernel but now live in domain layer
+// This maintains backward compatibility with existing code
+pub use crate::domains::organization::effects::need_extraction::{ContactInfo, ExtractedNeed};

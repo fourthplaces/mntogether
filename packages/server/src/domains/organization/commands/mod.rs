@@ -102,7 +102,6 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
-                container_id: None,
             }),
             Self::ExtractNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "extract_needs",
@@ -111,7 +110,6 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
-                container_id: None,
             }),
             Self::SyncNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "sync_needs",
@@ -120,7 +118,6 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id),
-                container_id: None,
             }),
             Self::GenerateNeedEmbedding { need_id } => Some(seesaw::JobSpec {
                 job_type: "generate_need_embedding",
@@ -129,7 +126,6 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*need_id),
-                container_id: None,
             }),
             // Inline commands don't need job specs
             _ => None,

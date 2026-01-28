@@ -4,6 +4,19 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
+use seesaw::{EngineBuilder, EngineHandle, EventBus};
+use server_core::domains::matching::{
+    commands::MatchingCommand, effects::MatchingEffect, machines::MatchingMachine,
+};
+use server_core::domains::member::{
+    commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
+};
+use server_core::domains::organization::{
+    commands::OrganizationCommand,
+    effects::{AIEffect, NeedEffect, ScraperEffect, ServerDeps, SyncEffect},
+    machines::OrganizationMachine,
+};
+use server_core::kernel::{ServerKernel, TestDependencies};
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
@@ -95,10 +108,54 @@ impl SharedTestInfra {
     }
 }
 
+fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw::Engine<ServerDeps>) {
+    handles.push(engine.start());
+}
+
+fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
+    let mut handles = Vec::new();
+
+    // Organization domain
+    start_engine(
+        &mut handles,
+        EngineBuilder::new_from_deps(deps.clone())
+            .with_machine(OrganizationMachine::new())
+            .with_effect::<OrganizationCommand, _>(ScraperEffect)
+            .with_effect::<OrganizationCommand, _>(AIEffect)
+            .with_effect::<OrganizationCommand, _>(SyncEffect)
+            .with_effect::<OrganizationCommand, _>(NeedEffect)
+            .with_bus(bus.clone())
+            .build(),
+    );
+
+    // Member domain
+    start_engine(
+        &mut handles,
+        EngineBuilder::new_from_deps(deps.clone())
+            .with_machine(MemberMachine::new())
+            .with_effect::<MemberCommand, _>(RegistrationEffect)
+            .with_bus(bus.clone())
+            .build(),
+    );
+
+    // Matching domain
+    start_engine(
+        &mut handles,
+        EngineBuilder::new_from_deps(deps.clone())
+            .with_machine(MatchingMachine::new())
+            .with_effect::<MatchingCommand, _>(MatchingEffect)
+            .with_bus(bus.clone())
+            .build(),
+    );
+
+    handles
+}
+
 /// Test harness that manages test infrastructure.
 ///
 /// Uses shared containers across all tests for fast test execution.
-/// Each test gets a fresh context, but reuses the same database and Redis containers.
+/// Each test gets a fresh kernel and service instance, but reuses
+/// the same database and Redis containers.
 ///
 /// # Example using test-context
 ///
@@ -113,12 +170,137 @@ impl SharedTestInfra {
 /// }
 /// ```
 pub struct TestHarness {
+    pub kernel: Arc<ServerKernel>,
     /// Database pool - use this for test fixtures.
+    /// This is the same pool used by the kernel.
     pub db_pool: PgPool,
-    /// Firecrawl API key (can be mocked in tests)
-    pub firecrawl_api_key: String,
-    /// OpenAI API key (can be mocked in tests)
-    pub openai_api_key: String,
+    /// Test dependencies for accessing mocks
+    pub deps: TestDependencies,
+    /// Handles for domain engines (kept alive to process events).
+    _engine_handles: Vec<EngineHandle>,
+}
+
+impl TestHarness {
+    /// Creates a new test harness using shared containers.
+    ///
+    /// This will:
+    /// 1. Get or initialize shared PostgreSQL and Redis containers
+    /// 2. Run database migrations (only on first call)
+    /// 3. Initialize a fresh ServerKernel with test dependencies
+    /// 4. Register all domain processors
+    pub async fn new() -> Result<Self> {
+        Self::with_deps(TestDependencies::new()).await
+    }
+
+    /// Creates a test harness with custom dependencies.
+    ///
+    /// Use this to inject mock services with pre-configured responses.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use server_core::kernel::{MockNeedExtractor, TestDependencies};
+    ///
+    /// let deps = TestDependencies::new()
+    ///     .mock_extractor(
+    ///         MockNeedExtractor::new()
+    ///             .with_single_need("Volunteers Needed", "Help us!")
+    ///     );
+    /// let harness = TestHarness::with_deps(deps).await?;
+    /// ```
+    pub async fn with_deps(deps: TestDependencies) -> Result<Self> {
+        // Get shared infrastructure (containers start + migrations run on first call only)
+        let infra = SharedTestInfra::get().await;
+
+        // Create a fresh pool for this test
+        let db_pool = PgPool::connect(&infra.db_url)
+            .await
+            .context("Failed to connect to test database")?;
+
+        // Create kernel with test dependencies
+        let kernel = deps.clone().into_kernel(db_pool.clone());
+
+        // Create ServerDeps for engines (from kernel dependencies)
+        let server_deps = ServerDeps::new(
+            kernel.db_pool.clone(),
+            kernel.web_scraper.clone(),
+            kernel.need_extractor.clone(),
+            kernel.embedding_service.clone(),
+            kernel.push_service.clone(),
+        );
+
+        // Start domain engines (same as production)
+        let bus = kernel.bus.clone();
+        let engine_handles = start_domain_engines(&server_deps, &bus);
+
+        // Give engines time to subscribe to the event bus
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        Ok(Self {
+            kernel,
+            db_pool,
+            deps,
+            _engine_handles: engine_handles,
+        })
+    }
+
+    /// Get a GraphQL client for this harness.
+    pub fn graphql(&self) -> GraphQLClient {
+        GraphQLClient::new(self.kernel.clone())
+    }
+
+    /// Get the event bus for this harness.
+    /// Use this to call edge functions that require an EventBus.
+    pub fn bus(&self) -> EventBus {
+        self.kernel.bus.clone()
+    }
+
+    /// Wait for effects to settle after an action.
+    ///
+    /// Effects are executed by the seesaw Dispatcher via domain engines.
+    /// Machines observe events and emit commands, which are then dispatched
+    /// to their corresponding effects. This method yields to allow the
+    /// event-driven pipeline to complete.
+    pub async fn settle(&self) {
+        // Allow time for the seesaw event pipeline to process:
+        // 1. EventBus delivers events to subscribed engines
+        // 2. Machines observe events and emit commands
+        // 3. Dispatcher routes commands to effects (inline or background)
+        // 4. Effects execute and emit fact events
+        for _ in 0..10 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+            tokio::task::yield_now().await;
+        }
+    }
+
+    /// Wait for a condition to become true, with retries.
+    ///
+    /// This is more robust than `settle()` for cases where you need to wait
+    /// for a specific state change. It polls the condition every 25ms for
+    /// up to 500ms total.
+    pub async fn wait_for<F, Fut>(&self, condition: F) -> bool
+    where
+        F: Fn() -> Fut,
+        Fut: std::future::Future<Output = bool>,
+    {
+        for _ in 0..20 {
+            if condition().await {
+                return true;
+            }
+            tokio::time::sleep(tokio::time::Duration::from_millis(25)).await;
+            tokio::task::yield_now().await;
+        }
+        false
+    }
+}
+
+impl Drop for TestHarness {
+    fn drop(&mut self) {
+        // Abort all engine handles to stop their background tasks.
+        for handle in &self._engine_handles {
+            handle.abort();
+        }
+    }
 }
 
 #[async_trait::async_trait]
@@ -128,47 +310,7 @@ impl AsyncTestContext for TestHarness {
     }
 
     async fn teardown(self) {
-        // Database pool is automatically dropped
-    }
-}
-
-impl TestHarness {
-    /// Creates a new test harness using shared containers.
-    ///
-    /// This will:
-    /// 1. Get or initialize shared PostgreSQL and Redis containers
-    /// 2. Run database migrations (only on first call)
-    /// 3. Create a fresh database connection pool
-    pub async fn new() -> Result<Self> {
-        // Get shared infrastructure (containers start + migrations run on first call only)
-        let infra = SharedTestInfra::get().await;
-
-        // Create a fresh pool for this test
-        let db_pool = PgPool::connect(&infra.db_url)
-            .await
-            .context("Failed to connect to test database")?;
-
-        Ok(Self {
-            db_pool,
-            firecrawl_api_key: "test-firecrawl-key".to_string(),
-            openai_api_key: "test-openai-key".to_string(),
-        })
-    }
-
-    /// Get a GraphQL client for this harness.
-    pub fn graphql(&self) -> GraphQLClient {
-        GraphQLClient::new(
-            self.db_pool.clone(),
-            self.firecrawl_api_key.clone(),
-            self.openai_api_key.clone(),
-        )
-    }
-
-    /// Wait for effects to settle (for event-driven systems).
-    ///
-    /// In our simple MVP, this is not needed yet, but we include it
-    /// for future compatibility when we add event-driven features.
-    pub async fn settle(&self) {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        // Engine handles are aborted in Drop
+        self.db_pool.close().await;
     }
 }

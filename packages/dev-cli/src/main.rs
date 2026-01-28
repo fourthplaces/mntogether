@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use colored::Colorize;
 use console::Term;
-use dialoguer::{theme::ColorfulTheme, Select};
+use dialoguer::{theme::ColorfulTheme, MultiSelect, Select};
 use std::env;
 use std::path::PathBuf;
 use std::process::Command;
@@ -31,6 +31,8 @@ fn main() -> Result<()> {
             "🔄 Docker restart",
             "🔨 Docker rebuild",
             "📋 Follow docker logs",
+            "🗄️  Run database migrations",
+            "🌐 Open GraphQL Playground",
             "🛑 Exit",
         ];
 
@@ -46,7 +48,9 @@ fn main() -> Result<()> {
             2 => docker_restart(&project_root)?,
             3 => docker_rebuild(&project_root)?,
             4 => docker_logs(&project_root)?,
-            5 => {
+            5 => run_migrations(&project_root)?,
+            6 => open_graphql_playground()?,
+            7 => {
                 println!("{}", "👋 Goodbye!".bright_blue());
                 break;
             }
@@ -61,15 +65,15 @@ fn print_banner(term: &Term) -> Result<()> {
     term.clear_screen()?;
     println!(
         "{}",
-        "╔════════════════════════════════════════╗".bright_cyan()
+        "╔══════════════════════════════════════╗".bright_cyan()
     );
     println!(
         "{}",
-        "║   Minnesota Digital Aid Dev CLI      ║".bright_cyan()
+        "║  Minnesota Digital Aid Dev CLI       ║".bright_cyan()
     );
     println!(
         "{}",
-        "╚════════════════════════════════════════╝".bright_cyan()
+        "╚══════════════════════════════════════╝".bright_cyan()
     );
     println!();
     Ok(())
@@ -223,17 +227,39 @@ fn docker_restart(project_root: &PathBuf) -> Result<()> {
         "{}",
         "🔄 Restarting Docker services...".bright_blue().bold()
     );
+    println!();
 
     let server_dir = project_root.join("packages/server");
+    let services = vec!["postgres", "redis", "api"];
+
+    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select services to restart (Space to select, Enter to confirm)")
+        .items(&services)
+        .defaults(&[true, true, true])
+        .interact()?;
+
+    if selections.is_empty() {
+        println!("{}", "No services selected".dimmed());
+        return Ok(());
+    }
+
+    let selected_services: Vec<&str> = selections.iter().map(|&i| services[i]).collect();
+
+    let mut args = vec!["compose", "restart"];
+    args.extend(selected_services.clone());
 
     let status = Command::new("docker")
-        .args(&["compose", "restart"])
+        .args(&args)
         .current_dir(&server_dir)
         .status()
         .context("Failed to restart Docker")?;
 
     if status.success() {
-        println!("{}", "✅ Docker services restarted".bright_green());
+        println!(
+            "{} {}",
+            "✅ Restarted services:".bright_green(),
+            selected_services.join(", ")
+        );
     } else {
         println!("{}", "❌ Failed to restart Docker services".bright_red());
     }
@@ -246,20 +272,41 @@ fn docker_rebuild(project_root: &PathBuf) -> Result<()> {
         "{}",
         "🔨 Rebuilding Docker services...".bright_blue().bold()
     );
-    println!("{}", "   This may take a few minutes...".dimmed());
+    println!();
 
     let server_dir = project_root.join("packages/server");
+    let services = vec!["postgres", "redis", "api"];
+
+    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
+        .with_prompt("Select services to rebuild (Space to select, Enter to confirm)")
+        .items(&services)
+        .defaults(&[false, false, true]) // Default to rebuilding only API
+        .interact()?;
+
+    if selections.is_empty() {
+        println!("{}", "No services selected".dimmed());
+        return Ok(());
+    }
+
+    let selected_services: Vec<&str> = selections.iter().map(|&i| services[i]).collect();
+
+    println!("{}", "   This may take a few minutes...".dimmed());
+    println!();
+
+    let mut args = vec!["compose", "up", "-d", "--build"];
+    args.extend(selected_services.clone());
 
     let status = Command::new("docker")
-        .args(&["compose", "up", "-d", "--build"])
+        .args(&args)
         .current_dir(&server_dir)
         .status()
         .context("Failed to rebuild Docker")?;
 
     if status.success() {
         println!(
-            "{}",
-            "✅ Docker services rebuilt and started".bright_green()
+            "{} {}",
+            "✅ Rebuilt and started services:".bright_green(),
+            selected_services.join(", ")
         );
     } else {
         println!("{}", "❌ Failed to rebuild Docker services".bright_red());
@@ -270,19 +317,81 @@ fn docker_rebuild(project_root: &PathBuf) -> Result<()> {
 
 fn docker_logs(project_root: &PathBuf) -> Result<()> {
     println!("{}", "📋 Following Docker logs...".bright_blue().bold());
-    println!("{}", "   Press Ctrl+C to stop".dimmed());
+    println!("{}", "   Logs will stream continuously".dimmed());
+    println!("{}", "   Press Ctrl+C to stop and return to menu".dimmed());
     println!();
 
     let server_dir = project_root.join("packages/server");
 
+    // Run docker compose logs with follow flag
+    // This will stay attached and stream logs until Ctrl+C
     let status = Command::new("docker")
-        .args(&["compose", "logs", "-f"])
+        .args(&["compose", "logs", "-f", "--tail=100"])
         .current_dir(&server_dir)
         .status()
         .context("Failed to follow Docker logs")?;
 
+    // After Ctrl+C, we return to the menu
     if !status.success() {
+        println!();
         println!("{}", "❌ Failed to follow Docker logs".bright_red());
+        println!();
+        println!("Make sure Docker services are running:");
+        println!("  {} 🐳 Docker start", "→".bright_yellow());
+    }
+
+    Ok(())
+}
+
+fn run_migrations(project_root: &PathBuf) -> Result<()> {
+    println!(
+        "{}",
+        "🗄️  Running database migrations...".bright_blue().bold()
+    );
+
+    let server_dir = project_root.join("packages/server");
+
+    let status = Command::new("docker")
+        .args(&["compose", "exec", "api", "sqlx", "migrate", "run"])
+        .current_dir(&server_dir)
+        .status()
+        .context("Failed to run migrations")?;
+
+    if status.success() {
+        println!("{}", "✅ Migrations completed successfully".bright_green());
+    } else {
+        println!("{}", "❌ Failed to run migrations".bright_red());
+        println!();
+        println!("Make sure Docker services are running:");
+        println!("  {} 🐳 Docker start", "→".bright_yellow());
+    }
+
+    Ok(())
+}
+
+fn open_graphql_playground() -> Result<()> {
+    let url = "http://localhost:8080/graphql";
+
+    println!(
+        "{}",
+        "🌐 Opening GraphQL Playground...".bright_blue().bold()
+    );
+    println!("   {}", url.dimmed());
+
+    match open::that(url) {
+        Ok(_) => {
+            println!("{}", "✅ Browser opened".bright_green());
+            println!();
+            println!("If the server isn't running, start it with:");
+            println!("  {} 🐳 Docker start", "→".bright_yellow());
+        }
+        Err(e) => {
+            println!("{}", "❌ Failed to open browser".bright_red());
+            println!();
+            println!("Please open this URL manually:");
+            println!("  {}", url.bright_cyan());
+            return Err(anyhow::anyhow!("Failed to open browser: {}", e));
+        }
     }
 
     Ok(())

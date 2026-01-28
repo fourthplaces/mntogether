@@ -15,6 +15,8 @@ pub struct Config {
     pub twilio_account_sid: String,
     pub twilio_auth_token: String,
     pub twilio_verify_service_sid: String,
+    pub jwt_secret: String,
+    pub jwt_issuer: String,
 }
 
 impl Config {
@@ -42,6 +44,8 @@ impl Config {
                 .context("TWILIO_AUTH_TOKEN must be set")?,
             twilio_verify_service_sid: env::var("TWILIO_VERIFY_SERVICE_SID")
                 .context("TWILIO_VERIFY_SERVICE_SID must be set")?,
+            jwt_secret: env::var("JWT_SECRET").context("JWT_SECRET must be set")?,
+            jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "mndigitalaid".to_string()),
         })
     }
 }

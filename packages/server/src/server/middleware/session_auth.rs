@@ -1,5 +1,5 @@
 use crate::server::auth::SessionStore;
-use axum::{extract::Request, middleware::Next, response::Response};
+use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use std::sync::Arc;
 use uuid::Uuid;
 
@@ -22,11 +22,11 @@ pub struct AuthUser {
 /// Note: This middleware does NOT block requests - it only extracts auth info.
 /// Authorization checks happen in GraphQL resolvers.
 pub async fn session_auth_middleware(
-    session_store: Arc<SessionStore>,
+    State(session_store): State<Arc<SessionStore>>,
     mut request: Request,
     next: Next,
 ) -> Response {
-    let auth_user = extract_auth_user(&request, &session_store).await;
+    let auth_user = extract_auth_user(&request, session_store.as_ref()).await;
 
     // Store auth user in request extensions
     if let Some(user) = auth_user {

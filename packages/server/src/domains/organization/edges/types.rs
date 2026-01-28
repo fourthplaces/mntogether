@@ -37,7 +37,13 @@ impl From<OrganizationNeed> for Need {
             description_markdown: need.description_markdown,
             contact_info,
             urgency: need.urgency,
-            status: need.status.into(),
+            status: match need.status.as_str() {
+                "pending_approval" => NeedStatusGql::PendingApproval,
+                "active" => NeedStatusGql::Active,
+                "rejected" => NeedStatusGql::Rejected,
+                "expired" => NeedStatusGql::Expired,
+                _ => NeedStatusGql::PendingApproval, // default fallback
+            },
             location: need.location,
             submission_type: need.submission_type,
             created_at: need.created_at,

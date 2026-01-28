@@ -4,9 +4,9 @@
 
 use juniper::Variables;
 use serde_json::Value;
-use server_core::domains::organization::effects::{FirecrawlClient, NeedExtractor};
+use server_core::kernel::ServerKernel;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
-use sqlx::PgPool;
+use std::sync::Arc;
 
 /// GraphQL client for executing queries and mutations in tests.
 pub struct GraphQLClient {
@@ -52,9 +52,9 @@ impl GraphQLResult {
 }
 
 impl GraphQLClient {
-    /// Creates a new GraphQL client with the given dependencies.
-    pub fn new(pool: PgPool, firecrawl_api_key: String, openai_api_key: String) -> Self {
-        let context = GraphQLContext::new(pool, firecrawl_api_key, openai_api_key);
+    /// Creates a new GraphQL client with the given kernel.
+    pub fn new(kernel: Arc<ServerKernel>) -> Self {
+        let context = GraphQLContext::new(kernel);
 
         Self {
             schema: create_schema(),
