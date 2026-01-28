@@ -1,17 +1,17 @@
+use crate::common::{NeedId, SourceId};
 use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
 use crate::domains::organization::utils::{generate_need_content_hash, generate_tldr};
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::PgPool;
-use uuid::Uuid;
 
 /// Sync result showing what changed
 #[derive(Debug)]
 pub struct SyncResult {
-    pub new_needs: Vec<Uuid>,
-    pub unchanged_needs: Vec<Uuid>,
-    pub changed_needs: Vec<Uuid>,
-    pub disappeared_needs: Vec<Uuid>,
+    pub new_needs: Vec<NeedId>,
+    pub unchanged_needs: Vec<NeedId>,
+    pub changed_needs: Vec<NeedId>,
+    pub disappeared_needs: Vec<NeedId>,
 }
 
 /// Extracted need input (from AI)
@@ -39,7 +39,7 @@ pub struct ExtractedNeedInput {
 /// 4. Mark needs not in extracted set as disappeared
 pub async fn sync_needs(
     pool: &PgPool,
-    source_id: Uuid,
+    source_id: SourceId,
     extracted_needs: Vec<ExtractedNeedInput>,
 ) -> Result<SyncResult> {
     // Calculate content hashes for extracted needs
@@ -106,10 +106,10 @@ pub async fn sync_needs(
 /// Create a new pending need
 async fn create_pending_need(
     pool: &PgPool,
-    source_id: Uuid,
+    source_id: SourceId,
     need: &ExtractedNeedInput,
     content_hash: &str,
-) -> Result<Uuid> {
+) -> Result<NeedId> {
     let created = OrganizationNeed::create(
         need.organization_name.clone(),
         need.title.clone(),

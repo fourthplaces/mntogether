@@ -2,12 +2,13 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use uuid::Uuid;
+
+use crate::common::SourceId;
 
 /// Organization source - a website to monitor for needs
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OrganizationSource {
-    pub id: Uuid,
+    pub id: SourceId,
     pub organization_name: String,
     pub source_url: String,
     pub last_scraped_at: Option<DateTime<Utc>>,
@@ -22,7 +23,7 @@ pub struct OrganizationSource {
 
 impl OrganizationSource {
     /// Find source by ID
-    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
+    pub async fn find_by_id(id: SourceId, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             "SELECT * FROM organization_sources WHERE id = $1",
         )
@@ -92,7 +93,7 @@ impl OrganizationSource {
     }
 
     /// Update last_scraped_at timestamp
-    pub async fn update_last_scraped(id: Uuid, pool: &PgPool) -> Result<Self> {
+    pub async fn update_last_scraped(id: SourceId, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             r#"
             UPDATE organization_sources
@@ -108,7 +109,7 @@ impl OrganizationSource {
     }
 
     /// Set source active/inactive
-    pub async fn set_active(id: Uuid, active: bool, pool: &PgPool) -> Result<Self> {
+    pub async fn set_active(id: SourceId, active: bool, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             r#"
             UPDATE organization_sources

@@ -88,9 +88,12 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
         let job_id = Uuid::new_v4();
 
         // Emit event (fire-and-forget, non-blocking)
+        // System-initiated scrapes use system user ID (all zeros) with admin privileges
         bus.emit(OrganizationEvent::ScrapeSourceRequested {
             source_id: source.id,
             job_id,
+            requested_by: Uuid::nil(), // System user
+            is_admin: true,            // System has admin privileges
         });
 
         tracing::info!(

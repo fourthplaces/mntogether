@@ -3,7 +3,7 @@
 --
 -- Key concept:
 -- - Needs = persistent state of the world (what organizations need)
--- - Posts = temporal announcements about that state (what we tell volunteers)
+-- - Posts = temporal announcements about that state (what we tell members)
 --
 -- Benefits:
 -- - One need can have multiple posts over time (re-posting unfilled needs)
@@ -79,7 +79,7 @@ COMMENT ON TABLE posts IS
 'Temporal announcements created when needs are approved. One need can have multiple posts over time.';
 
 COMMENT ON COLUMN posts.custom_title IS
-'Admin can override need title to add urgency or context (e.g., "URGENT: Food Bank Needs 10 Volunteers This Weekend")';
+'Admin can override need title to add urgency or context (e.g., "URGENT: Food Bank Needs 10 People This Weekend")';
 
 COMMENT ON COLUMN posts.targeting_hints IS
 'Hints for future relevance matching (e.g., {"tags": ["spanish_speaking"], "locations": ["minneapolis"]})';

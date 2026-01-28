@@ -1,5 +1,5 @@
-use super::types::{Need, NeedConnection, NeedStatusGql};
-use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
+use super::types::{Need, NeedConnection, NeedStatusGql, OrganizationSourceGql};
+use crate::domains::organization::models::{source::OrganizationSource, NeedStatus, OrganizationNeed};
 use juniper::{FieldError, FieldResult};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -52,4 +52,31 @@ pub async fn query_need(pool: &PgPool, id: Uuid) -> FieldResult<Option<Need>> {
     let need = OrganizationNeed::find_by_id(id, pool).await.ok(); // Convert Result<Need> to Option<Need>
 
     Ok(need.map(Need::from))
+}
+
+/// Query all organization sources
+pub async fn query_organization_sources(pool: &PgPool) -> FieldResult<Vec<OrganizationSourceGql>> {
+    let sources = OrganizationSource::find_active(pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to fetch organization sources: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(sources
+        .into_iter()
+        .map(OrganizationSourceGql::from)
+        .collect())
+}
+
+/// Get a single organization source by ID
+pub async fn query_organization_source(
+    pool: &PgPool,
+    id: Uuid,
+) -> FieldResult<Option<OrganizationSourceGql>> {
+    let source = OrganizationSource::find_by_id(id, pool).await.ok();
+
+    Ok(source.map(OrganizationSourceGql::from))
 }

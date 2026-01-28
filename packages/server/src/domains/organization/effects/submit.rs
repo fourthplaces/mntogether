@@ -8,7 +8,7 @@ use uuid::Uuid;
 /// Input for submitting a user-generated need
 #[derive(Debug, Clone)]
 pub struct SubmitNeedInput {
-    pub volunteer_id: Option<Uuid>,
+    pub member_id: Option<Uuid>,
     pub organization_name: String,
     pub title: String,
     pub description: String,
@@ -18,9 +18,9 @@ pub struct SubmitNeedInput {
     pub ip_address: Option<String>,
 }
 
-/// Submit a need from a volunteer (goes to pending_approval)
+/// Submit a need from a member (goes to pending_approval)
 ///
-/// This allows volunteers to report needs they've encountered,
+/// This allows members to report needs they've encountered,
 /// not just needs scraped from websites.
 pub async fn submit_user_need(pool: &PgPool, input: SubmitNeedInput) -> Result<OrganizationNeed> {
     // Generate content hash for deduplication
@@ -45,7 +45,7 @@ pub async fn submit_user_need(pool: &PgPool, input: SubmitNeedInput) -> Result<O
         NeedStatus::PendingApproval.to_string(),
         content_hash,
         Some("user_submitted".to_string()),
-        input.volunteer_id,
+        input.member_id,
         ip_str,
         None, // source_id
         pool,

@@ -30,11 +30,15 @@ async fn main() -> Result<()> {
     // Connect to database
     tracing::info!("Connecting to database...");
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .max_connections(50) // Production-ready (was 10)
+        .min_connections(10) // Keep warm connections
+        .acquire_timeout(std::time::Duration::from_secs(5)) // Fail fast
+        .idle_timeout(Some(std::time::Duration::from_secs(600))) // 10 min
+        .max_lifetime(Some(std::time::Duration::from_secs(1800))) // 30 min rotation
         .connect(&config.database_url)
         .await
         .context("Failed to connect to database")?;
-    tracing::info!("Database connected");
+    tracing::info!("Database connected with {} max connections", 50);
 
     // Run migrations
     tracing::info!("Running database migrations...");
@@ -55,6 +59,7 @@ async fn main() -> Result<()> {
         config.twilio_verify_service_sid,
         config.jwt_secret,
         config.jwt_issuer,
+        config.allowed_origins,
     );
 
     // Start scheduled tasks (periodic scraping)

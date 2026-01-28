@@ -4,10 +4,11 @@ use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::OrganizationData;
 use crate::domains::organization::edges::{
     approve_need, archive_post, create_custom_post, edit_and_approve_need, expire_post,
-    increment_post_click, increment_post_response, increment_post_view, query_need, query_needs,
-    query_post, query_posts_for_need, query_published_posts, reject_need, repost_need,
-    scrape_organization, submit_need, CreatePostInput, EditNeedInput, Need, NeedConnection,
-    NeedStatusGql, PostGql, RepostResult, ScrapeJobResult, SubmitNeedInput,
+    query_need, query_needs, query_organization_source, query_organization_sources, query_post,
+    query_posts_for_need, query_published_posts, reject_need, repost_need, scrape_organization,
+    submit_need, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
+    NeedConnection, NeedStatusGql, OrganizationSourceGql, PostGql, RepostResult,
+    ScrapeJobResult, SubmitNeedInput,
 };
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
@@ -92,6 +93,21 @@ impl Query {
         Ok(orgs.into_iter().map(OrganizationData::from).collect())
     }
 
+    /// Get all organization sources (websites to scrape)
+    async fn organization_sources(
+        ctx: &GraphQLContext,
+    ) -> FieldResult<Vec<OrganizationSourceGql>> {
+        query_organization_sources(&ctx.db_pool).await
+    }
+
+    /// Get a single organization source by ID
+    async fn organization_source(
+        ctx: &GraphQLContext,
+        id: Uuid,
+    ) -> FieldResult<Option<OrganizationSourceGql>> {
+        query_organization_source(&ctx.db_pool, id).await
+    }
+
     /// Get all active organizations
     async fn organizations(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationData>> {
         use crate::domains::organization::data::OrganizationData;
@@ -114,14 +130,14 @@ impl Mutation {
         scrape_organization(ctx, source_id).await
     }
 
-    /// Submit a need from a volunteer (public, goes to pending_approval)
+    /// Submit a need from a member (public, goes to pending_approval)
     async fn submit_need(
         ctx: &GraphQLContext,
         input: SubmitNeedInput,
-        volunteer_id: Option<Uuid>,
+        member_id: Option<Uuid>,
     ) -> FieldResult<Need> {
         // TODO: Get IP address from request context
-        submit_need(ctx, input, volunteer_id, None).await
+        submit_need(ctx, input, member_id, None).await
     }
 
     /// Approve a need (make it visible to volunteers) (admin only)
@@ -188,19 +204,14 @@ impl Mutation {
         archive_post(ctx, post_id).await
     }
 
-    /// Increment post view count (public)
-    async fn increment_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        increment_post_view(ctx, post_id).await
+    /// Track post view (analytics - public)
+    async fn post_viewed(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        track_post_view(ctx, post_id).await
     }
 
-    /// Increment post click count (public)
-    async fn increment_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        increment_post_click(ctx, post_id).await
-    }
-
-    /// Increment post response count (public)
-    async fn increment_post_response(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        increment_post_response(ctx, post_id).await
+    /// Track post click (analytics - public)
+    async fn post_clicked(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        track_post_click(ctx, post_id).await
     }
 
     /// Register a new member (public)

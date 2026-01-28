@@ -1,3 +1,4 @@
+use crate::common::SourceId;
 use crate::domains::organization::data::NeedData;
 use crate::domains::organization::models::need::OrganizationNeed;
 use crate::domains::organization::models::source::OrganizationSource;
@@ -63,7 +64,8 @@ impl SourceData {
 
     /// Get all needs scraped from this source
     async fn needs(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<NeedData>> {
-        let source_id = Uuid::parse_str(&self.id)?;
+        let uuid = Uuid::parse_str(&self.id)?;
+        let source_id = SourceId::from_uuid(uuid);
         let needs = OrganizationNeed::find_by_source_id(source_id, &context.db_pool).await?;
         Ok(needs.into_iter().map(NeedData::from).collect())
     }

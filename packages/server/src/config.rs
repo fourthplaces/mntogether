@@ -17,6 +17,7 @@ pub struct Config {
     pub twilio_verify_service_sid: String,
     pub jwt_secret: String,
     pub jwt_issuer: String,
+    pub allowed_origins: Vec<String>,
 }
 
 impl Config {
@@ -46,6 +47,20 @@ impl Config {
                 .context("TWILIO_VERIFY_SERVICE_SID must be set")?,
             jwt_secret: env::var("JWT_SECRET").context("JWT_SECRET must be set")?,
             jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "mndigitalaid".to_string()),
+            allowed_origins: env::var("ALLOWED_ORIGINS")
+                .unwrap_or_else(|_| {
+                    if cfg!(debug_assertions) {
+                        // Development: Allow localhost and Expo
+                        "http://localhost:3000,http://localhost:19006,http://localhost:8081".to_string()
+                    } else {
+                        // Production: Must be explicitly set
+                        "".to_string()
+                    }
+                })
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
         })
     }
 }

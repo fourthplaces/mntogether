@@ -5,9 +5,9 @@
 
 use anyhow::{Context, Result};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use super::{sync_needs, ExtractedNeedInput};
+use crate::common::SourceId;
 use crate::domains::organization::events::ExtractedNeed;
 use crate::domains::organization::models::source::OrganizationSource;
 
@@ -26,7 +26,7 @@ pub struct NeedSyncResult {
 /// 3. Performs sync operation with database
 /// 4. Returns summary of changes
 pub async fn sync_extracted_needs(
-    source_id: Uuid,
+    source_id: SourceId,
     needs: Vec<ExtractedNeed>,
     pool: &PgPool,
 ) -> Result<NeedSyncResult> {

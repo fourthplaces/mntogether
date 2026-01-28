@@ -1,4 +1,4 @@
--- Organization sources (websites we monitor for volunteer needs)
+-- Organization sources (websites we monitor for needs)
 
 CREATE TABLE organization_sources (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

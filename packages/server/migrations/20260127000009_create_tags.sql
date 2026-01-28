@@ -1,5 +1,5 @@
 -- Universal tags table (not org-specific)
--- Can be used for organizations, needs, volunteers, etc.
+-- Can be used for organizations, needs, members, etc.
 
 CREATE TABLE tags (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
