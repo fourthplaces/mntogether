@@ -27,7 +27,9 @@ pub async fn send_verification_code(
     )
     .fetch_one(db_pool)
     .await
-    .map_err(|e| juniper::FieldError::new(format!("Database error: {}", e), juniper::Value::null()))?
+    .map_err(|e| {
+        juniper::FieldError::new(format!("Database error: {}", e), juniper::Value::null())
+    })?
     .exists
     .unwrap_or(false);
 
@@ -39,10 +41,9 @@ pub async fn send_verification_code(
     }
 
     // Send OTP via Twilio
-    twilio
-        .send_otp(&phone_number)
-        .await
-        .map_err(|e| juniper::FieldError::new(format!("Failed to send OTP: {}", e), juniper::Value::null()))?;
+    twilio.send_otp(&phone_number).await.map_err(|e| {
+        juniper::FieldError::new(format!("Failed to send OTP: {}", e), juniper::Value::null())
+    })?;
 
     Ok(true)
 }
@@ -56,10 +57,12 @@ pub async fn verify_code(
     db_pool: &PgPool,
 ) -> FieldResult<SessionToken> {
     // Verify OTP with Twilio
-    twilio
-        .verify_otp(&phone_number, &code)
-        .await
-        .map_err(|e| juniper::FieldError::new(format!("Invalid or expired code: {}", e), juniper::Value::null()))?;
+    twilio.verify_otp(&phone_number, &code).await.map_err(|e| {
+        juniper::FieldError::new(
+            format!("Invalid or expired code: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Look up member by phone hash
     let phone_hash = hash_phone_number(&phone_number);
@@ -73,7 +76,9 @@ pub async fn verify_code(
     )
     .fetch_one(db_pool)
     .await
-    .map_err(|e| juniper::FieldError::new(format!("Database error: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        juniper::FieldError::new(format!("Database error: {}", e), juniper::Value::null())
+    })?;
 
     // Create session
     let session = Session {
@@ -89,14 +94,13 @@ pub async fn verify_code(
 }
 
 /// Logout (delete session)
-pub async fn logout(
-    session_token: String,
-    session_store: &SessionStore,
-) -> FieldResult<bool> {
+pub async fn logout(session_token: String, session_store: &SessionStore) -> FieldResult<bool> {
     session_store
         .delete_session(&session_token)
         .await
-        .map_err(|e| juniper::FieldError::new(format!("Failed to logout: {}", e), juniper::Value::null()))?;
+        .map_err(|e| {
+            juniper::FieldError::new(format!("Failed to logout: {}", e), juniper::Value::null())
+        })?;
 
     Ok(true)
 }
@@ -123,12 +127,9 @@ pub async fn register_phone_number(
 
     // Create new member
     let member_id = Uuid::new_v4();
-    sqlx::query!(
-        "INSERT INTO members (id) VALUES ($1)",
-        member_id
-    )
-    .execute(db_pool)
-    .await?;
+    sqlx::query!("INSERT INTO members (id) VALUES ($1)", member_id)
+        .execute(db_pool)
+        .await?;
 
     // Create identifier
     sqlx::query!(

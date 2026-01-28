@@ -24,7 +24,7 @@ impl OrganizationSource {
     /// Find source by ID
     pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE id = $1"
+            "SELECT * FROM organization_sources WHERE id = $1",
         )
         .bind(id)
         .fetch_one(pool)
@@ -35,7 +35,7 @@ impl OrganizationSource {
     /// Find source by URL
     pub async fn find_by_url(url: &str, pool: &PgPool) -> Result<Option<Self>> {
         let source = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE source_url = $1"
+            "SELECT * FROM organization_sources WHERE source_url = $1",
         )
         .bind(url)
         .fetch_optional(pool)
@@ -46,7 +46,7 @@ impl OrganizationSource {
     /// Find all active sources
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         let sources = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE active = true ORDER BY created_at"
+            "SELECT * FROM organization_sources WHERE active = true ORDER BY created_at",
         )
         .fetch_all(pool)
         .await?;
@@ -62,7 +62,7 @@ impl OrganizationSource {
               AND (last_scraped_at IS NULL
                    OR last_scraped_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
             ORDER BY last_scraped_at NULLS FIRST
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await?;
@@ -78,7 +78,7 @@ impl OrganizationSource {
             )
             VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING *
-            "#
+            "#,
         )
         .bind(self.id)
         .bind(&self.organization_name)
@@ -99,7 +99,7 @@ impl OrganizationSource {
             SET last_scraped_at = NOW()
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .fetch_one(pool)
@@ -115,7 +115,7 @@ impl OrganizationSource {
             SET active = $2
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .bind(active)

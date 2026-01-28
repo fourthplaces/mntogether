@@ -26,6 +26,13 @@ pub struct OrganizationNeed {
     pub content_hash: Option<String>,
     pub location: Option<String>,
 
+    // Vector search (for semantic matching)
+    pub embedding: Option<pgvector::Vector>,
+
+    // Location coordinates (inherited from organization for proximity matching)
+    pub latitude: Option<f64>,
+    pub longitude: Option<f64>,
+
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped' | 'user_submitted'
     pub submitted_by_volunteer_id: Option<Uuid>,
@@ -82,22 +89,26 @@ impl std::str::FromStr for NeedStatus {
 impl OrganizationNeed {
     /// Find need by ID
     pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
-        let need = sqlx::query_as::<_, OrganizationNeed>(
-            "SELECT * FROM organization_needs WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
+        let need =
+            sqlx::query_as::<_, OrganizationNeed>("SELECT * FROM organization_needs WHERE id = $1")
+                .bind(id)
+                .fetch_one(pool)
+                .await?;
         Ok(need)
     }
 
     /// Find needs by status
-    pub async fn find_by_status(status: &str, limit: i64, offset: i64, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_status(
+        status: &str,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
         let needs = sqlx::query_as::<_, OrganizationNeed>(
             "SELECT * FROM organization_needs
              WHERE status = $1
              ORDER BY created_at DESC
-             LIMIT $2 OFFSET $3"
+             LIMIT $2 OFFSET $3",
         )
         .bind(status)
         .bind(limit)
@@ -110,7 +121,7 @@ impl OrganizationNeed {
     /// Find needs by source ID
     pub async fn find_by_source_id(source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         let needs = sqlx::query_as::<_, OrganizationNeed>(
-            "SELECT * FROM organization_needs WHERE source_id = $1"
+            "SELECT * FROM organization_needs WHERE source_id = $1",
         )
         .bind(source_id)
         .fetch_all(pool)
@@ -121,7 +132,7 @@ impl OrganizationNeed {
     /// Find need by content hash
     pub async fn find_by_content_hash(content_hash: &str, pool: &PgPool) -> Result<Option<Self>> {
         let need = sqlx::query_as::<_, OrganizationNeed>(
-            "SELECT * FROM organization_needs WHERE content_hash = $1 LIMIT 1"
+            "SELECT * FROM organization_needs WHERE content_hash = $1 LIMIT 1",
         )
         .bind(content_hash)
         .fetch_optional(pool)
@@ -141,7 +152,7 @@ impl OrganizationNeed {
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING *
-            "#
+            "#,
         )
         .bind(self.id)
         .bind(&self.organization_name)
@@ -156,7 +167,7 @@ impl OrganizationNeed {
         .bind(&self.location)
         .bind(&self.submission_type)
         .bind(self.submitted_by_volunteer_id)
-        .bind(self.submitted_from_ip)
+        .bind(self.submitted_from_ip.clone())
         .bind(self.source_id)
         .bind(self.last_seen_at)
         .bind(self.created_at)
@@ -174,7 +185,7 @@ impl OrganizationNeed {
             SET status = $1, updated_at = NOW()
             WHERE id = $2
             RETURNING *
-            "#
+            "#,
         )
         .bind(status)
         .bind(id)
@@ -203,7 +214,7 @@ impl OrganizationNeed {
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .bind(title)
@@ -222,7 +233,7 @@ impl OrganizationNeed {
             UPDATE organization_needs
             SET disappeared_at = NOW(), status = 'expired', updated_at = NOW()
             WHERE id = ANY($1) AND disappeared_at IS NULL
-            "#
+            "#,
         )
         .bind(need_ids)
         .execute(pool)
@@ -237,7 +248,7 @@ impl OrganizationNeed {
             UPDATE organization_needs
             SET last_seen_at = NOW(), updated_at = NOW()
             WHERE id = ANY($1)
-            "#
+            "#,
         )
         .bind(need_ids)
         .execute(pool)

@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
-use rig::providers::openai;
 use rig::completion::Prompt;
+use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
 /// AI client for extracting volunteer needs from website content
@@ -80,8 +80,8 @@ Return ONLY valid JSON (no markdown, no explanation):
             .context("Failed to call OpenAI API")?;
 
         // Parse JSON response
-        let needs: Vec<ExtractedNeed> = serde_json::from_str(&response)
-            .context("Failed to parse extracted needs as JSON")?;
+        let needs: Vec<ExtractedNeed> =
+            serde_json::from_str(&response).context("Failed to parse extracted needs as JSON")?;
 
         Ok(needs)
     }

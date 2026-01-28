@@ -34,9 +34,9 @@ pub struct ContactInfoData {
 
 impl From<OrganizationNeed> for NeedData {
     fn from(need: OrganizationNeed) -> Self {
-        let contact_info = need.contact_info.and_then(|json| {
-            serde_json::from_value::<ContactInfoData>(json).ok()
-        });
+        let contact_info = need
+            .contact_info
+            .and_then(|json| serde_json::from_value::<ContactInfoData>(json).ok());
 
         Self {
             id: need.id.to_string(),

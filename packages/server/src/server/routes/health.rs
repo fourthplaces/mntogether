@@ -10,14 +10,20 @@ pub struct HealthResponse {
 }
 
 /// Health check endpoint
-pub async fn health_handler(Extension(state): Extension<AppState>) -> (StatusCode, Json<HealthResponse>) {
+pub async fn health_handler(
+    Extension(state): Extension<AppState>,
+) -> (StatusCode, Json<HealthResponse>) {
     // Check database connection
     let db_status = match sqlx::query("SELECT 1").execute(&state.db_pool).await {
         Ok(_) => "ok",
         Err(_) => "error",
     };
 
-    let overall_status = if db_status == "ok" { "healthy" } else { "unhealthy" };
+    let overall_status = if db_status == "ok" {
+        "healthy"
+    } else {
+        "unhealthy"
+    };
 
     let status_code = if db_status == "ok" {
         StatusCode::OK

@@ -1,5 +1,6 @@
 use super::context::GraphQLContext;
 use crate::domains::member::{data::MemberData, edges as member_edges};
+use crate::domains::organization::data::OrganizationData;
 use crate::domains::organization::edges::{
     approve_need, archive_post, create_custom_post, edit_and_approve_need, expire_post,
     increment_post_click, increment_post_response, increment_post_view, query_need, query_needs,
@@ -8,7 +9,6 @@ use crate::domains::organization::edges::{
     NeedStatusGql, PostGql, RepostResult, ScrapeJobResult, SubmitNeedInput,
 };
 use crate::server::auth::edges as auth_edges;
-use crate::domains::organization::data::OrganizationData;
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -38,7 +38,10 @@ impl Query {
     }
 
     /// Get published posts (for volunteers)
-    async fn published_posts(ctx: &GraphQLContext, limit: Option<i32>) -> FieldResult<Vec<PostGql>> {
+    async fn published_posts(
+        ctx: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<PostGql>> {
         query_published_posts(ctx, limit).await
     }
 
@@ -63,9 +66,12 @@ impl Query {
     }
 
     /// Get an organization by ID
-    async fn organization(ctx: &GraphQLContext, id: String) -> FieldResult<Option<OrganizationData>> {
-        use crate::domains::organization::models::Organization;
+    async fn organization(
+        ctx: &GraphQLContext,
+        id: String,
+    ) -> FieldResult<Option<OrganizationData>> {
         use crate::domains::organization::data::OrganizationData;
+        use crate::domains::organization::models::Organization;
 
         let org_id = Uuid::parse_str(&id)?;
         match Organization::find_by_id(org_id, &ctx.db_pool).await {
@@ -75,9 +81,12 @@ impl Query {
     }
 
     /// Search organizations by name
-    async fn search_organizations(ctx: &GraphQLContext, query: String) -> FieldResult<Vec<OrganizationData>> {
-        use crate::domains::organization::models::Organization;
+    async fn search_organizations(
+        ctx: &GraphQLContext,
+        query: String,
+    ) -> FieldResult<Vec<OrganizationData>> {
         use crate::domains::organization::data::OrganizationData;
+        use crate::domains::organization::models::Organization;
 
         let orgs = Organization::search_by_name(&query, &ctx.db_pool).await?;
         Ok(orgs.into_iter().map(OrganizationData::from).collect())
@@ -85,8 +94,8 @@ impl Query {
 
     /// Get all active organizations
     async fn organizations(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationData>> {
-        use crate::domains::organization::models::Organization;
         use crate::domains::organization::data::OrganizationData;
+        use crate::domains::organization::models::Organization;
 
         let orgs = Organization::find_active(&ctx.db_pool).await?;
         Ok(orgs.into_iter().map(OrganizationData::from).collect())
@@ -130,11 +139,7 @@ impl Mutation {
     }
 
     /// Reject a need (hide forever) (admin only)
-    async fn reject_need(
-        ctx: &GraphQLContext,
-        need_id: Uuid,
-        reason: String,
-    ) -> FieldResult<bool> {
+    async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) -> FieldResult<bool> {
         reject_need(ctx, need_id, reason).await
     }
 
@@ -234,8 +239,8 @@ impl Mutation {
         phone: Option<String>,
         city: Option<String>,
     ) -> FieldResult<OrganizationData> {
-        use crate::domains::organization::models::Organization;
         use crate::domains::organization::data::OrganizationData;
+        use crate::domains::organization::models::Organization;
 
         let contact_info = if website.is_some() || phone.is_some() {
             let mut map = serde_json::Map::new();
@@ -273,8 +278,8 @@ impl Mutation {
         organization_id: String,
         tags: Vec<TagInput>,
     ) -> FieldResult<OrganizationData> {
-        use crate::domains::organization::models::{Organization, Tag, TagOnOrganization};
         use crate::domains::organization::data::OrganizationData;
+        use crate::domains::organization::models::{Organization, Tag, TagOnOrganization};
 
         let org_id = Uuid::parse_str(&organization_id)?;
 

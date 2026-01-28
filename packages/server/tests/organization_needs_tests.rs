@@ -5,11 +5,11 @@
 mod common;
 
 use crate::common::{
-    TestHarness, clean_needs, create_test_need_active, create_test_need_full,
-    create_test_need_pending,
+    clean_needs, create_test_need_active, create_test_need_full, create_test_need_pending,
+    TestHarness,
 };
-use server_core::domains::organization::models::NeedStatus;
 use serde_json::json;
+use server_core::domains::organization::models::NeedStatus;
 use test_context::test_context;
 
 // =============================================================================
@@ -129,10 +129,7 @@ async fn query_needs_pagination(ctx: &TestHarness) {
 
     // First page (limit 2, offset 0)
     let result = client
-        .query_with_vars(
-            query,
-            vars!("limit" => 2, "offset" => 0),
-        )
+        .query_with_vars(query, vars!("limit" => 2, "offset" => 0))
         .await;
 
     assert_eq!(result["needs"]["totalCount"].as_i64().unwrap(), 5);
@@ -141,10 +138,7 @@ async fn query_needs_pagination(ctx: &TestHarness) {
 
     // Second page (limit 2, offset 2)
     let result = client
-        .query_with_vars(
-            query,
-            vars!("limit" => 2, "offset" => 2),
-        )
+        .query_with_vars(query, vars!("limit" => 2, "offset" => 2))
         .await;
 
     assert_eq!(result["needs"]["nodes"].as_array().unwrap().len(), 2);
@@ -152,10 +146,7 @@ async fn query_needs_pagination(ctx: &TestHarness) {
 
     // Last page (limit 2, offset 4)
     let result = client
-        .query_with_vars(
-            query,
-            vars!("limit" => 2, "offset" => 4),
-        )
+        .query_with_vars(query, vars!("limit" => 2, "offset" => 4))
         .await;
 
     assert_eq!(result["needs"]["nodes"].as_array().unwrap().len(), 1);
@@ -206,10 +197,7 @@ async fn query_need_by_id_returns_full_details(ctx: &TestHarness) {
     "#;
 
     let result = client
-        .query_with_vars(
-            query,
-            vars!("id" => need_id.to_string()),
-        )
+        .query_with_vars(query, vars!("id" => need_id.to_string()))
         .await;
 
     let need = &result["need"];
@@ -261,16 +249,10 @@ async fn approve_need_changes_status_to_active(ctx: &TestHarness) {
     "#;
 
     let result = client
-        .query_with_vars(
-            mutation,
-            vars!("needId" => need_id.to_string()),
-        )
+        .query_with_vars(mutation, vars!("needId" => need_id.to_string()))
         .await;
 
-    assert_eq!(
-        result["approveNeed"]["status"].as_str().unwrap(),
-        "ACTIVE"
-    );
+    assert_eq!(result["approveNeed"]["status"].as_str().unwrap(), "ACTIVE");
 
     // Verify in database
     let row = sqlx::query!(
@@ -347,14 +329,9 @@ async fn reject_need_changes_status_to_rejected(ctx: &TestHarness) {
     clean_needs(&ctx.db_pool).await.unwrap();
     let client = ctx.graphql();
 
-    let need_id = create_test_need_pending(
-        &ctx.db_pool,
-        None,
-        "Spam Need",
-        "This is clearly spam",
-    )
-    .await
-    .unwrap();
+    let need_id = create_test_need_pending(&ctx.db_pool, None, "Spam Need", "This is clearly spam")
+        .await
+        .unwrap();
 
     let mutation = r#"
         mutation RejectNeed($needId: ID!, $reason: String!) {
@@ -394,14 +371,9 @@ async fn reject_need_changes_status_to_rejected(ctx: &TestHarness) {
 async fn content_hash_generated_for_new_needs(ctx: &TestHarness) {
     clean_needs(&ctx.db_pool).await.unwrap();
 
-    let need_id = create_test_need_pending(
-        &ctx.db_pool,
-        None,
-        "Test Need",
-        "Test description",
-    )
-    .await
-    .unwrap();
+    let need_id = create_test_need_pending(&ctx.db_pool, None, "Test Need", "Test description")
+        .await
+        .unwrap();
 
     let row = sqlx::query!(
         r#"SELECT content_hash FROM organization_needs WHERE id = $1"#,

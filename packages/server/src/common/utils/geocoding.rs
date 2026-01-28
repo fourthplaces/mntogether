@@ -44,7 +44,10 @@ pub async fn geocode_city(city: &str, state: &str) -> Result<GeocodedLocation> {
     let client = reqwest::Client::new();
     let response: Vec<NominatimResponse> = client
         .get(&url)
-        .header("User-Agent", "MNDigitalAid/1.0 (Emergency Response Platform)")
+        .header(
+            "User-Agent",
+            "MNDigitalAid/1.0 (Emergency Response Platform)",
+        )
         .timeout(std::time::Duration::from_secs(10))
         .send()
         .await
@@ -59,12 +62,10 @@ pub async fn geocode_city(city: &str, state: &str) -> Result<GeocodedLocation> {
             anyhow!("Failed to parse geocoding response: {}", e)
         })?;
 
-    let result = response
-        .first()
-        .ok_or_else(|| {
-            warn!(city = %city, state = %state, "Location not found by geocoding API");
-            anyhow!("Location not found: {}", query)
-        })?;
+    let result = response.first().ok_or_else(|| {
+        warn!(city = %city, state = %state, "Location not found by geocoding API");
+        anyhow!("Location not found: {}", query)
+    })?;
 
     let lat: f64 = result
         .lat
@@ -108,10 +109,7 @@ pub async fn geocode_city(city: &str, state: &str) -> Result<GeocodedLocation> {
 /// assert_eq!(lng, -93.27);
 /// ```
 pub fn coarsen_coords(lat: f64, lng: f64) -> (f64, f64) {
-    (
-        (lat * 100.0).round() / 100.0,
-        (lng * 100.0).round() / 100.0,
-    )
+    ((lat * 100.0).round() / 100.0, (lng * 100.0).round() / 100.0)
 }
 
 /// Calculate distance between two coordinates in kilometers
@@ -166,12 +164,7 @@ mod tests {
         let minneapolis = (44.98, -93.27);
         let st_paul = (44.95, -93.09);
 
-        let distance = calculate_distance_km(
-            minneapolis.0,
-            minneapolis.1,
-            st_paul.0,
-            st_paul.1,
-        );
+        let distance = calculate_distance_km(minneapolis.0, minneapolis.1, st_paul.0, st_paul.1);
 
         // Should be approximately 16 km
         assert!(distance > 15.0 && distance < 17.0);

@@ -2,9 +2,9 @@ use anyhow::{Context, Result};
 use colored::Colorize;
 use console::Term;
 use dialoguer::{theme::ColorfulTheme, Select};
-use std::process::Command;
-use std::path::PathBuf;
 use std::env;
+use std::path::PathBuf;
+use std::process::Command;
 
 fn main() -> Result<()> {
     let term = Term::stdout();
@@ -59,9 +59,18 @@ fn main() -> Result<()> {
 
 fn print_banner(term: &Term) -> Result<()> {
     term.clear_screen()?;
-    println!("{}", "╔════════════════════════════════════════╗".bright_cyan());
-    println!("{}", "║   Minnesota Digital Aid Dev CLI      ║".bright_cyan());
-    println!("{}", "╚════════════════════════════════════════╝".bright_cyan());
+    println!(
+        "{}",
+        "╔════════════════════════════════════════╗".bright_cyan()
+    );
+    println!(
+        "{}",
+        "║   Minnesota Digital Aid Dev CLI      ║".bright_cyan()
+    );
+    println!(
+        "{}",
+        "╚════════════════════════════════════════╝".bright_cyan()
+    );
     println!();
     Ok(())
 }
@@ -210,7 +219,10 @@ fn docker_start(project_root: &PathBuf) -> Result<()> {
 }
 
 fn docker_restart(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "🔄 Restarting Docker services...".bright_blue().bold());
+    println!(
+        "{}",
+        "🔄 Restarting Docker services...".bright_blue().bold()
+    );
 
     let server_dir = project_root.join("packages/server");
 
@@ -230,7 +242,10 @@ fn docker_restart(project_root: &PathBuf) -> Result<()> {
 }
 
 fn docker_rebuild(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "🔨 Rebuilding Docker services...".bright_blue().bold());
+    println!(
+        "{}",
+        "🔨 Rebuilding Docker services...".bright_blue().bold()
+    );
     println!("{}", "   This may take a few minutes...".dimmed());
 
     let server_dir = project_root.join("packages/server");
@@ -242,7 +257,10 @@ fn docker_rebuild(project_root: &PathBuf) -> Result<()> {
         .context("Failed to rebuild Docker")?;
 
     if status.success() {
-        println!("{}", "✅ Docker services rebuilt and started".bright_green());
+        println!(
+            "{}",
+            "✅ Docker services rebuilt and started".bright_green()
+        );
     } else {
         println!("{}", "❌ Failed to rebuild Docker services".bright_red());
     }

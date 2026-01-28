@@ -35,9 +35,9 @@ pub struct TagData {
 
 impl From<Organization> for OrganizationData {
     fn from(org: Organization) -> Self {
-        let contact_info = org.contact_info.and_then(|json| {
-            serde_json::from_value::<ContactInfo>(json).ok()
-        });
+        let contact_info = org
+            .contact_info
+            .and_then(|json| serde_json::from_value::<ContactInfo>(json).ok());
 
         Self {
             id: org.id.to_string(),

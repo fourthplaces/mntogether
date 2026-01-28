@@ -131,6 +131,9 @@ mod tests {
         assert_eq!(hash1, hash2, "Same phone should produce same hash");
 
         let hash3 = hash_phone_number("+9876543210");
-        assert_ne!(hash1, hash3, "Different phones should have different hashes");
+        assert_ne!(
+            hash1, hash3,
+            "Different phones should have different hashes"
+        );
     }
 }

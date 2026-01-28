@@ -192,9 +192,14 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                     .await
                     .context("Failed to create post")?
                 } else {
-                    Post::create_and_publish(need_id, created_by, expires_in_days, &ctx.deps().db_pool)
-                        .await
-                        .context("Failed to create post")?
+                    Post::create_and_publish(
+                        need_id,
+                        created_by,
+                        expires_in_days,
+                        &ctx.deps().db_pool,
+                    )
+                    .await
+                    .context("Failed to create post")?
                 };
 
                 // Return fact event
@@ -211,7 +216,12 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                     .context("Failed to find need")?;
 
                 // Generate embedding from description
-                let embedding = match ctx.deps().embedding_service.generate(&need.description).await {
+                let embedding = match ctx
+                    .deps()
+                    .embedding_service
+                    .generate(&need.description)
+                    .await
+                {
                     Ok(emb) => emb,
                     Err(e) => {
                         return Ok(OrganizationEvent::NeedEmbeddingFailed {
@@ -222,7 +232,10 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 };
 
                 // Update need with embedding
-                if let Err(e) = OrganizationNeed::update_embedding(need_id, &embedding, &ctx.deps().db_pool).await {
+                if let Err(e) =
+                    OrganizationNeed::update_embedding(need_id, &embedding, &ctx.deps().db_pool)
+                        .await
+                {
                     return Ok(OrganizationEvent::NeedEmbeddingFailed {
                         need_id,
                         reason: format!("Failed to save embedding: {}", e),

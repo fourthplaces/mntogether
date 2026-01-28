@@ -19,10 +19,13 @@ impl Command for MatchingCommand {
     fn job_spec(&self) -> Option<JobSpec> {
         match self {
             Self::FindMatches { need_id } => Some(JobSpec {
-                job_type: "find_matches".to_string(),
-                unique_key: Some(need_id.to_string()),
+                job_type: "find_matches",
+                idempotency_key: Some(need_id.to_string()),
                 max_retries: 2,
-                timeout_seconds: 60,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*need_id),
+                container_id: None,
             }),
         }
     }

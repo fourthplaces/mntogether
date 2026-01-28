@@ -124,9 +124,7 @@ pub struct TestHarness {
 #[async_trait::async_trait]
 impl AsyncTestContext for TestHarness {
     async fn setup() -> Self {
-        Self::new()
-            .await
-            .expect("Failed to create test harness")
+        Self::new().await.expect("Failed to create test harness")
     }
 
     async fn teardown(self) {

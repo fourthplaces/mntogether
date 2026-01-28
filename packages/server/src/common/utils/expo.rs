@@ -128,7 +128,10 @@ impl ExpoClient {
             request = request.header("Authorization", format!("Bearer {}", token));
         }
 
-        info!("Sending batch of {} Expo push notifications", messages.len());
+        info!(
+            "Sending batch of {} Expo push notifications",
+            messages.len()
+        );
 
         let response = request.send().await?;
 
@@ -151,9 +154,16 @@ impl ExpoClient {
         }
 
         if error_count > 0 {
-            error!("{} out of {} notifications failed", error_count, expo_response.data.len());
+            error!(
+                "{} out of {} notifications failed",
+                error_count,
+                expo_response.data.len()
+            );
         } else {
-            info!("All {} notifications sent successfully", expo_response.data.len());
+            info!(
+                "All {} notifications sent successfully",
+                expo_response.data.len()
+            );
         }
 
         Ok(())

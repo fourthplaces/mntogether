@@ -9,8 +9,7 @@ use crate::domains::member::{
 use crate::domains::organization::{
     commands::OrganizationCommand,
     effects::{
-        AIEffect, NeedEffect, ScraperEffect, ServerDeps, SyncEffect,
-        FirecrawlClient, NeedExtractor,
+        AIEffect, FirecrawlClient, NeedEffect, NeedExtractor, ScraperEffect, ServerDeps, SyncEffect,
     },
     machines::OrganizationMachine,
 };

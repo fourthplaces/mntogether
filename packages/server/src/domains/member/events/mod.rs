@@ -48,4 +48,4 @@ pub enum MemberEvent {
 }
 
 // Auto-implement Event trait (from seesaw)
-impl seesaw::Event for MemberEvent {}
+// Event is auto-implemented for Clone + Send + Sync types

@@ -28,9 +28,7 @@ pub enum OrganizationEvent {
     },
 
     /// Admin approves a need (makes it active)
-    ApproveNeedRequested {
-        need_id: Uuid,
-    },
+    ApproveNeedRequested { need_id: Uuid },
 
     /// Admin edits and approves a need (fix AI mistakes)
     EditAndApproveNeedRequested {
@@ -45,10 +43,7 @@ pub enum OrganizationEvent {
     },
 
     /// Admin rejects a need (hide forever)
-    RejectNeedRequested {
-        need_id: Uuid,
-        reason: String,
-    },
+    RejectNeedRequested { need_id: Uuid, reason: String },
 
     // =========================================================================
     // Fact Events (from effects - what actually happened)
@@ -86,38 +81,22 @@ pub enum OrganizationEvent {
     },
 
     /// A need was approved by admin
-    NeedApproved {
-        need_id: Uuid,
-    },
+    NeedApproved { need_id: Uuid },
 
     /// A need was rejected by admin
-    NeedRejected {
-        need_id: Uuid,
-        reason: String,
-    },
+    NeedRejected { need_id: Uuid, reason: String },
 
     /// A need was updated
-    NeedUpdated {
-        need_id: Uuid,
-    },
+    NeedUpdated { need_id: Uuid },
 
     /// A post was created (when need approved)
-    PostCreated {
-        post_id: Uuid,
-        need_id: Uuid,
-    },
+    PostCreated { post_id: Uuid, need_id: Uuid },
 
     /// Embedding generated for a need
-    NeedEmbeddingGenerated {
-        need_id: Uuid,
-        dimensions: usize,
-    },
+    NeedEmbeddingGenerated { need_id: Uuid, dimensions: usize },
 
     /// Embedding generation failed for a need
-    NeedEmbeddingFailed {
-        need_id: Uuid,
-        reason: String,
-    },
+    NeedEmbeddingFailed { need_id: Uuid, reason: String },
 }
 
 /// Extracted need from AI

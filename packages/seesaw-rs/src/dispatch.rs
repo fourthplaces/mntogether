@@ -1065,7 +1065,9 @@ mod tests {
     }
     impl Command for ScheduledNoJobSpecCommand {
         fn execution_mode(&self) -> ExecutionMode {
-            ExecutionMode::Scheduled { run_at: self.run_at }
+            ExecutionMode::Scheduled {
+                run_at: self.run_at,
+            }
         }
         // Intentionally missing job_spec()
         fn serialize_to_json(&self) -> Option<serde_json::Value> {
@@ -1080,7 +1082,9 @@ mod tests {
     }
     impl Command for ScheduledNoSerializeCommand {
         fn execution_mode(&self) -> ExecutionMode {
-            ExecutionMode::Scheduled { run_at: self.run_at }
+            ExecutionMode::Scheduled {
+                run_at: self.run_at,
+            }
         }
         fn job_spec(&self) -> Option<JobSpec> {
             Some(JobSpec::new("test:no_serialize"))

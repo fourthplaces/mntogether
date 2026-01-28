@@ -119,9 +119,7 @@ pub async fn approve_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Ne
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => {
-                    Some(Ok(()))
-                }
+                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => Some(Ok(())),
                 _ => None,
             })
             .result()
@@ -174,9 +172,7 @@ pub async fn edit_and_approve_need(
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => {
-                    Some(Ok(()))
-                }
+                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => Some(Ok(())),
                 _ => None,
             })
             .result()

@@ -24,4 +24,4 @@ pub enum MatchingEvent {
     },
 }
 
-impl seesaw::Event for MatchingEvent {}
+// Event is auto-implemented for Clone + Send + Sync types

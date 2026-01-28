@@ -1,9 +1,11 @@
 use anyhow::{Context, Result};
-use server_core::config::Config;
-use server_core::domains::organization::models::{Organization, OrganizationStatus, Tag, TagOnOrganization};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
+use server_core::config::Config;
+use server_core::domains::organization::models::{
+    Organization, OrganizationStatus, Tag, TagOnOrganization,
+};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -55,14 +57,16 @@ async fn main() -> Result<()> {
     // Read seed data
     let json_data = std::fs::read_to_string("data/immigrant_resources_seed.json")
         .context("Failed to read seed data file")?;
-    let seed_data: SeedData = serde_json::from_str(&json_data)
-        .context("Failed to parse seed data")?;
+    let seed_data: SeedData =
+        serde_json::from_str(&json_data).context("Failed to parse seed data")?;
 
-    println!("✓ Loaded {} organizations from JSON", seed_data.organizations.len());
+    println!(
+        "✓ Loaded {} organizations from JSON",
+        seed_data.organizations.len()
+    );
 
     // Initialize OpenAI client for tag extraction
-    let openai_api_key = config.openai_api_key
-        .context("OPENAI_API_KEY not set")?;
+    let openai_api_key = config.openai_api_key.context("OPENAI_API_KEY not set")?;
 
     println!("\n🚀 Starting seed process...\n");
 
@@ -70,7 +74,12 @@ async fn main() -> Result<()> {
     let mut skipped_count = 0;
 
     for (idx, org_input) in seed_data.organizations.iter().enumerate() {
-        println!("[{}/{}] Processing: {}", idx + 1, seed_data.organizations.len(), org_input.name);
+        println!(
+            "[{}/{}] Processing: {}",
+            idx + 1,
+            seed_data.organizations.len(),
+            org_input.name
+        );
 
         // Check if organization already exists
         if let Ok(Some(_)) = Organization::find_by_name(&org_input.name, &pool).await {
@@ -114,7 +123,9 @@ async fn main() -> Result<()> {
             updated_at: Utc::now(),
         };
 
-        let org = organization.insert(&pool).await
+        let org = organization
+            .insert(&pool)
+            .await
             .context("Failed to insert organization")?;
 
         // Create and associate tags
@@ -240,8 +251,8 @@ JSON:"#,
         .trim_end_matches("```")
         .trim();
 
-    let tags: ExtractedTags = serde_json::from_str(cleaned)
-        .context("Failed to parse extracted tags")?;
+    let tags: ExtractedTags =
+        serde_json::from_str(cleaned).context("Failed to parse extracted tags")?;
 
     Ok(tags)
 }
