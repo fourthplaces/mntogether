@@ -3,10 +3,20 @@
 use std::collections::HashMap;
 
 pub mod models;
-use reqwest::{Client, header};
+use reqwest::{header, Client};
 
 use crate::models::{OTPResponse, OTPVerifyResponse};
 use serde_json::Value;
+
+/// Check if a string is a valid email address
+fn is_email(identifier: &str) -> bool {
+    identifier.contains('@') && identifier.contains('.')
+}
+
+/// Check if a string is a valid phone number (E.164 format)
+fn is_phone_number(identifier: &str) -> bool {
+    identifier.starts_with('+') && identifier.len() >= 10
+}
 
 #[derive(Debug, Clone)]
 pub struct TwilioOptions {
@@ -33,6 +43,17 @@ impl TwilioService {
         let auth_token = self.options.auth_token.clone();
         let service_id = self.options.service_id.clone();
 
+        // Validate recipient format
+        let channel = if is_email(recipient) {
+            "email"
+        } else if is_phone_number(recipient) {
+            "sms"
+        } else {
+            eprintln!("Invalid recipient format: {}", recipient);
+            eprintln!("Expected: email (user@example.com) or E.164 phone (+1234567890)");
+            return Err("Invalid recipient format");
+        };
+
         let url = format!(
             "https://verify.twilio.com/v2/Services/{serv_id}/Verifications",
             serv_id = service_id
@@ -45,13 +66,6 @@ impl TwilioService {
                 .parse()
                 .expect("Header value should parse correctly"),
         );
-
-        // Determine channel based on recipient format (email vs phone)
-        let channel = if recipient.contains('@') {
-            "email"
-        } else {
-            "sms"
-        };
 
         let mut form_body: HashMap<&str, String> = HashMap::new();
         form_body.insert("To", recipient.to_string());
@@ -70,9 +84,35 @@ impl TwilioService {
             Ok(response) => {
                 let status = response.status();
                 if !status.is_success() {
-                    // Log the error response from Twilio
                     let error_body = response.text().await.unwrap_or_default();
                     eprintln!("Twilio error ({}): {}", status, error_body);
+
+                    // Parse error to provide more helpful messages
+                    if let Ok(error_json) = serde_json::from_str::<serde_json::Value>(&error_body) {
+                        if let Some(code) = error_json.get("code").and_then(|c| c.as_i64()) {
+                            match code {
+                                60200 => {
+                                    // Invalid parameter - often means email channel not enabled
+                                    if channel == "email" {
+                                        eprintln!("Email channel may not be enabled on your Twilio Verify Service.");
+                                        eprintln!("Enable it at: https://console.twilio.com/us1/develop/verify/services");
+                                        return Err("Email verification not enabled");
+                                    }
+                                    return Err("Invalid parameter");
+                                }
+                                60203 => {
+                                    eprintln!("Maximum check attempts reached");
+                                    return Err("Too many verification attempts");
+                                }
+                                60202 => {
+                                    eprintln!("Maximum send attempts reached");
+                                    return Err("Too many send attempts");
+                                }
+                                _ => return Err("Twilio returned an error"),
+                            }
+                        }
+                    }
+
                     return Err("Twilio returned an error");
                 }
 
@@ -170,5 +210,36 @@ impl TwilioService {
             }
             Err(_) => Err("Error fetching ICE servers from Twilio"),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_email() {
+        // Valid emails
+        assert!(is_email("user@example.com"));
+        assert!(is_email("admin@test.org"));
+        assert!(is_email("test.user@domain.co.uk"));
+
+        // Invalid emails
+        assert!(!is_email("user@example"));  // No TLD
+        assert!(!is_email("userexample.com"));  // No @
+        assert!(!is_email("+1234567890"));  // Phone number
+    }
+
+    #[test]
+    fn test_is_phone_number() {
+        // Valid E.164 phone numbers
+        assert!(is_phone_number("+1234567890"));
+        assert!(is_phone_number("+15551234567"));
+        assert!(is_phone_number("+44123456789"));
+
+        // Invalid phone numbers
+        assert!(!is_phone_number("1234567890"));  // Missing +
+        assert!(!is_phone_number("+123"));  // Too short
+        assert!(!is_phone_number("user@example.com"));  // Email
     }
 }

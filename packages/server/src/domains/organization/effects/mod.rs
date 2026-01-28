@@ -4,6 +4,7 @@
 // Domain logic lives in separate function modules.
 
 pub mod ai;
+pub mod composite;
 pub mod deps;
 pub mod need;
 pub mod need_extraction; // Domain functions for AI extraction
@@ -16,6 +17,7 @@ pub mod syncing; // Domain functions for need synchronization
 pub mod utils;
 
 pub use ai::*;
+pub use composite::*;
 pub use deps::*;
 pub use need::*;
 pub use scraper::*;

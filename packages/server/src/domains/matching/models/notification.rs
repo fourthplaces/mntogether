@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::common::{MemberId, NeedId};
+
 /// Notification record - tracks when a member was notified about a need
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Notification {
@@ -20,8 +22,8 @@ impl Notification {
     /// Uses ON CONFLICT DO NOTHING to prevent duplicate notifications
     /// for the same need-member pair.
     pub async fn record(
-        need_id: Uuid,
-        member_id: Uuid,
+        need_id: NeedId,
+        member_id: MemberId,
         why_relevant: String,
         pool: &PgPool,
     ) -> Result<()> {
@@ -30,8 +32,8 @@ impl Notification {
              VALUES ($1, $2, $3)
              ON CONFLICT (need_id, member_id) DO NOTHING",
         )
-        .bind(need_id)
-        .bind(member_id)
+        .bind(need_id.into_uuid())
+        .bind(member_id.into_uuid())
         .bind(why_relevant)
         .execute(pool)
         .await?;
@@ -40,11 +42,11 @@ impl Notification {
     }
 
     /// Find all notifications for a member
-    pub async fn find_by_member(member_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_member(member_id: MemberId, pool: &PgPool) -> Result<Vec<Self>> {
         let notifications = sqlx::query_as::<_, Notification>(
             "SELECT * FROM notifications WHERE member_id = $1 ORDER BY created_at DESC",
         )
-        .bind(member_id)
+        .bind(member_id.into_uuid())
         .fetch_all(pool)
         .await?;
 
@@ -52,11 +54,11 @@ impl Notification {
     }
 
     /// Find all notifications for a need
-    pub async fn find_by_need(need_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_need(need_id: NeedId, pool: &PgPool) -> Result<Vec<Self>> {
         let notifications = sqlx::query_as::<_, Notification>(
             "SELECT * FROM notifications WHERE need_id = $1 ORDER BY created_at DESC",
         )
-        .bind(need_id)
+        .bind(need_id.into_uuid())
         .fetch_all(pool)
         .await?;
 

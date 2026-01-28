@@ -21,9 +21,7 @@ fn sanitize_prompt_input(input: &str) -> String {
         // Filter to safe characters only
         .chars()
         .filter(|c| {
-            c.is_alphanumeric()
-                || c.is_whitespace()
-                || ".,!?-_@#()[]{}:;'\"/\\+=<>".contains(*c)
+            c.is_alphanumeric() || c.is_whitespace() || ".,!?-_@#()[]{}:;'\"/\\+=<>".contains(*c)
         })
         // Limit total length to prevent DoS
         .take(10_000)
@@ -38,17 +36,26 @@ fn validate_extracted_needs(needs: &[ExtractedNeed]) -> Result<()> {
 
         for keyword in suspicious_keywords {
             if need.title.to_uppercase().contains(keyword)
-                || need.description.to_uppercase().contains(keyword) {
-                anyhow::bail!("Suspicious content detected in AI response: potential injection attempt");
+                || need.description.to_uppercase().contains(keyword)
+            {
+                anyhow::bail!(
+                    "Suspicious content detected in AI response: potential injection attempt"
+                );
             }
         }
 
         // Validate title and description lengths
         if need.title.len() > 200 {
-            anyhow::bail!("Title too long (possible injection): {} chars", need.title.len());
+            anyhow::bail!(
+                "Title too long (possible injection): {} chars",
+                need.title.len()
+            );
         }
         if need.description.len() > 5000 {
-            anyhow::bail!("Description too long (possible injection): {} chars", need.description.len());
+            anyhow::bail!(
+                "Description too long (possible injection): {} chars",
+                need.description.len()
+            );
         }
 
         // Validate email format if present
@@ -188,7 +195,9 @@ pub async fn generate_outreach_copy(
     let safe_org_name = sanitize_prompt_input(organization_name);
     let safe_need_title = sanitize_prompt_input(need_title);
     let safe_need_desc = sanitize_prompt_input(need_description);
-    let safe_contact = contact_email.map(sanitize_prompt_input).unwrap_or_else(|| "N/A".to_string());
+    let safe_contact = contact_email
+        .map(sanitize_prompt_input)
+        .unwrap_or_else(|| "N/A".to_string());
 
     let prompt = format!(
         r#"Generate a personalized outreach email for a volunteer reaching out about this opportunity:
@@ -236,7 +245,7 @@ Hi! I saw your English tutoring program and would love to help newly arrived fam
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::OpenAIClient;
+    use crate::kernel::ClaudeClient;
 
     const SAMPLE_CONTENT: &str = r#"
 # Volunteer Opportunities
@@ -254,10 +263,10 @@ No experience necessary. Contact Sarah at (612) 555-5678.
     #[tokio::test]
     #[ignore] // Requires API key
     async fn test_extract_needs() {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .expect("OPENAI_API_KEY must be set for integration tests");
+        let api_key = std::env::var("ANTHROPIC_API_KEY")
+            .expect("ANTHROPIC_API_KEY must be set for integration tests");
 
-        let ai = OpenAIClient::new(api_key);
+        let ai = ClaudeClient::new(api_key);
 
         let needs = extract_needs(
             &ai,

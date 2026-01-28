@@ -30,6 +30,11 @@ impl ToString for PostStatus {
 /// Post - temporal announcement created when need is approved
 ///
 /// Key concept: Needs = reality, Posts = announcements about that reality
+///
+/// Engagement Tracking:
+/// - `last_displayed_at`: Tracks when this post was last shown in a feed query
+/// - Used for round-robin rotation: posts with fewer views and older display times
+///   are prioritized to ensure all posts get fair visibility over time
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
     pub id: PostId,
@@ -45,6 +50,7 @@ pub struct Post {
     pub view_count: i32,
     pub click_count: i32,
     pub response_count: i32,
+    pub last_displayed_at: Option<DateTime<Utc>>, // For engagement-based rotation
     pub created_by: Option<MemberId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -163,13 +169,27 @@ impl Post {
     }
 
     /// Find all published posts (for notification engine)
+    /// Find published posts with engagement-based rotation
+    ///
+    /// Rotation Algorithm:
+    /// Posts are sorted to ensure fair visibility across all content:
+    /// 1. Posts with fewer views are shown first (view_count ASC)
+    /// 2. Among posts with similar view counts, those displayed longest ago come first
+    /// 3. Posts never displayed (last_displayed_at IS NULL) get highest priority
+    ///
+    /// This creates a round-robin effect where:
+    /// - Newly published posts get initial visibility
+    /// - Under-engaged posts periodically resurface
+    /// - All posts receive fair exposure over their lifetime
     pub async fn find_published(limit: Option<i64>, pool: &PgPool) -> Result<Vec<Self>> {
         let posts = sqlx::query_as::<_, Post>(
             r#"
             SELECT * FROM posts
             WHERE status = 'published'
               AND (expires_at IS NULL OR expires_at > NOW())
-            ORDER BY published_at DESC
+            ORDER BY
+                view_count ASC,
+                last_displayed_at ASC NULLS FIRST
             LIMIT $1
             "#,
         )
@@ -284,5 +304,33 @@ impl Post {
         .fetch_one(pool)
         .await?;
         Ok(post)
+    }
+
+    /// Update last_displayed_at timestamp for a batch of posts
+    ///
+    /// This is called after fetching published posts to track when they were
+    /// last shown in the feed. This timestamp is used by the engagement-based
+    /// rotation algorithm to ensure fair visibility.
+    ///
+    /// Design Note: We update after fetching (not during) to avoid transaction
+    /// overhead in the read query. This means the timestamps reflect when posts
+    /// were actually delivered to users, not when the query started.
+    pub async fn mark_displayed(post_ids: &[PostId], pool: &PgPool) -> Result<()> {
+        let now = Utc::now();
+        let ids: Vec<uuid::Uuid> = post_ids.iter().map(|id| id.into_uuid()).collect();
+
+        sqlx::query(
+            r#"
+            UPDATE posts
+            SET last_displayed_at = $1
+            WHERE id = ANY($2)
+            "#,
+        )
+        .bind(now)
+        .bind(&ids)
+        .execute(pool)
+        .await?;
+
+        Ok(())
     }
 }

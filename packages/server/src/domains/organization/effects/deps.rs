@@ -12,6 +12,8 @@ pub struct ServerDeps {
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<TwilioService>,
+    pub test_identifier_enabled: bool,
+    pub admin_identifiers: Vec<String>,
 }
 
 impl ServerDeps {
@@ -23,6 +25,8 @@ impl ServerDeps {
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<TwilioService>,
+        test_identifier_enabled: bool,
+        admin_identifiers: Vec<String>,
     ) -> Self {
         Self {
             db_pool,
@@ -31,6 +35,8 @@ impl ServerDeps {
             embedding_service,
             push_service,
             twilio,
+            test_identifier_enabled,
+            admin_identifiers,
         }
     }
 }

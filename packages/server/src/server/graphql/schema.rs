@@ -3,12 +3,12 @@ use crate::domains::auth::edges as auth_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::OrganizationData;
 use crate::domains::organization::edges::{
-    approve_need, archive_post, create_custom_post, edit_and_approve_need, expire_post,
-    query_need, query_needs, query_organization_source, query_organization_sources, query_post,
+    approve_need, archive_post, create_custom_post, edit_and_approve_need, expire_post, query_need,
+    query_needs, query_organization_source, query_organization_sources, query_post,
     query_posts_for_need, query_published_posts, reject_need, repost_need, scrape_organization,
-    submit_need, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
-    NeedConnection, NeedStatusGql, OrganizationSourceGql, PostGql, RepostResult,
-    ScrapeJobResult, SubmitNeedInput,
+    submit_need, submit_resource_link, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
+    NeedConnection, NeedStatusData, OrganizationSourceData, PostData, RepostResult, ScrapeJobResult,
+    SubmitNeedInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
@@ -26,7 +26,7 @@ impl Query {
     /// Get a list of needs with filters
     async fn needs(
         ctx: &GraphQLContext,
-        status: Option<NeedStatusGql>,
+        status: Option<NeedStatusData>,
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> FieldResult<NeedConnection> {
@@ -42,17 +42,17 @@ impl Query {
     async fn published_posts(
         ctx: &GraphQLContext,
         limit: Option<i32>,
-    ) -> FieldResult<Vec<PostGql>> {
+    ) -> FieldResult<Vec<PostData>> {
         query_published_posts(ctx, limit).await
     }
 
     /// Get posts for a specific need
-    async fn posts_for_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Vec<PostGql>> {
+    async fn posts_for_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Vec<PostData>> {
         query_posts_for_need(ctx, need_id).await
     }
 
     /// Get a single post by ID
-    async fn post(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<PostGql>> {
+    async fn post(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<PostData>> {
         query_post(ctx, id).await
     }
 
@@ -94,9 +94,7 @@ impl Query {
     }
 
     /// Get all organization sources (websites to scrape)
-    async fn organization_sources(
-        ctx: &GraphQLContext,
-    ) -> FieldResult<Vec<OrganizationSourceGql>> {
+    async fn organization_sources(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationSourceData>> {
         query_organization_sources(&ctx.db_pool).await
     }
 
@@ -104,7 +102,7 @@ impl Query {
     async fn organization_source(
         ctx: &GraphQLContext,
         id: Uuid,
-    ) -> FieldResult<Option<OrganizationSourceGql>> {
+    ) -> FieldResult<Option<OrganizationSourceData>> {
         query_organization_source(&ctx.db_pool, id).await
     }
 
@@ -138,6 +136,14 @@ impl Mutation {
     ) -> FieldResult<Need> {
         // TODO: Get IP address from request context
         submit_need(ctx, input, member_id, None).await
+    }
+
+    /// Submit a resource link (URL) for scraping (public)
+    async fn submit_resource_link(
+        ctx: &GraphQLContext,
+        input: SubmitResourceLinkInput,
+    ) -> FieldResult<SubmitResourceLinkResult> {
+        submit_resource_link(ctx, input).await
     }
 
     /// Approve a need (make it visible to volunteers) (admin only)
@@ -185,7 +191,7 @@ impl Mutation {
     async fn create_custom_post(
         ctx: &GraphQLContext,
         input: CreatePostInput,
-    ) -> FieldResult<PostGql> {
+    ) -> FieldResult<PostData> {
         create_custom_post(ctx, input).await
     }
 
@@ -195,12 +201,12 @@ impl Mutation {
     }
 
     /// Expire a post (admin only)
-    async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
+    async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostData> {
         expire_post(ctx, post_id).await
     }
 
     /// Archive a post (admin only)
-    async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
+    async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostData> {
         archive_post(ctx, post_id).await
     }
 

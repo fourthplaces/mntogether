@@ -4,8 +4,8 @@
 
 use anyhow::{Context, Result};
 use sqlx::PgPool;
-use uuid::Uuid;
 
+use crate::common::SourceId;
 use crate::domains::organization::models::source::OrganizationSource;
 use crate::kernel::{BaseWebScraper, ScrapeResult};
 
@@ -17,7 +17,7 @@ use crate::kernel::{BaseWebScraper, ScrapeResult};
 /// 3. Updates the last_scraped_at timestamp
 /// 4. Returns the scrape result
 pub async fn scrape_source(
-    source_id: Uuid,
+    source_id: SourceId,
     web_scraper: &dyn BaseWebScraper,
     db_pool: &PgPool,
 ) -> Result<(OrganizationSource, ScrapeResult)> {

@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use seesaw::{Effect, EffectContext};
 use sqlx::PgPool;
 use tracing::{debug, error, info, instrument, warn};
-use uuid::Uuid;
 
+use crate::common::{MemberId, NeedId};
 use crate::domains::matching::{
     commands::MatchingCommand, events::MatchingEvent, models::notification::Notification,
     utils::check_relevance_by_similarity,
@@ -209,8 +209,8 @@ async fn send_push_notification(
 /// Record notification in database
 #[instrument(skip(pool, why_relevant), fields(need_id = %need_id, member_id = %member_id))]
 async fn record_notification(
-    need_id: Uuid,
-    member_id: Uuid,
+    need_id: NeedId,
+    member_id: MemberId,
     why_relevant: &str,
     pool: &PgPool,
 ) -> Result<()> {

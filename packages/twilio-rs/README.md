@@ -4,9 +4,11 @@ A Rust client library for Twilio's Verify API and ICE server provisioning.
 
 ## Features
 
-- OTP (One-Time Password) verification via SMS or email
-- ICE server provisioning for WebRTC
-- Simple async API with reqwest
+- ✅ **OTP Verification** - Send OTP codes via SMS or Email
+- ✅ **Automatic Channel Detection** - Detects email vs phone number format
+- ✅ **Input Validation** - Validates E.164 phone format and email addresses
+- ✅ **Enhanced Error Messages** - Helpful error messages for common issues
+- ✅ **ICE Server Provisioning** - For WebRTC applications
 
 ## Installation
 
@@ -62,11 +64,13 @@ let ice_servers = service.fetch_ice_servers().await?;
 
 ## Environment Variables
 
-| Variable             | Description                   |
-| -------------------- | ----------------------------- |
-| `TWILIO_ACCOUNT_SID` | Your Twilio Account SID       |
-| `TWILIO_AUTH_TOKEN`  | Your Twilio Auth Token        |
-| `TWILIO_SERVICE_ID`  | Your Twilio Verify Service ID |
+| Variable                      | Description                          | Format      |
+| ----------------------------- | ------------------------------------ | ----------- |
+| `TWILIO_ACCOUNT_SID`          | Your Twilio Account SID              | `ACxxxxxx`  |
+| `TWILIO_AUTH_TOKEN`           | Your Twilio Auth Token               | String      |
+| `TWILIO_VERIFY_SERVICE_SID`   | Your Twilio Verify Service SID       | `VAxxxxxx`  |
+
+⚠️ **Important:** The Verify Service SID starts with `VA`, not `AC`. Don't confuse it with your Account SID!
 
 ## API Reference
 
@@ -77,6 +81,65 @@ let ice_servers = service.fetch_ice_servers().await?;
 | `send_otp(recipient)`         | Send OTP to phone or email |
 | `verify_otp(recipient, code)` | Verify OTP code            |
 | `fetch_ice_servers()`         | Get TURN/STUN credentials  |
+
+## Format Requirements
+
+### Phone Numbers
+Must be in **E.164 format**:
+- ✅ `+15551234567` (US)
+- ✅ `+442012345678` (UK)
+- ❌ `5551234567` (missing `+`)
+- ❌ `(555) 123-4567` (not E.164)
+
+### Email Addresses
+Standard email format with `@` and domain:
+- ✅ `user@example.com`
+- ✅ `admin@company.co.uk`
+- ❌ `user@example` (no TLD)
+- ❌ `userexample.com` (no `@`)
+
+## Troubleshooting
+
+### Error 60200: "Invalid parameter" with email
+
+**Cause:** Email channel not enabled on your Twilio Verify Service.
+
+**Solution:**
+1. Go to [Twilio Verify Services](https://console.twilio.com/us1/develop/verify/services)
+2. Click on your Verify Service
+3. Select **"Email"** in the left sidebar
+4. Click **"Enable Email Channel"**
+5. Configure SendGrid integration if prompted
+6. Save settings
+
+### Error 60202/60203: "Too many attempts"
+
+**Cause:** Twilio rate-limits verification requests.
+
+**Solution:** Wait before retrying. The rate limit resets after a few minutes.
+
+### Wrong Service SID
+
+**Problem:** Using Account SID (`ACxxxxxx`) instead of Verify Service SID (`VAxxxxxx`).
+
+**Solution:**
+```rust
+// ❌ Wrong
+service_id: "ACxxxxxxxx"  // Account SID
+
+// ✅ Correct
+service_id: "VAxxxxxxxx"  // Verify Service SID
+```
+
+Find your Verify Service SID at: https://console.twilio.com/us1/develop/verify/services
+
+### Invalid recipient format
+
+**Cause:** Phone number not in E.164 format or invalid email.
+
+**Solution:**
+- Phones must start with `+` followed by country code
+- Emails must contain `@` and a domain
 
 ## Dependencies
 

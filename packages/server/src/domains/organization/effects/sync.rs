@@ -42,18 +42,17 @@ async fn handle_sync_needs(
     needs: Vec<crate::common::ExtractedNeed>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
-    let result = match super::syncing::sync_extracted_needs(source_id, needs, &ctx.deps().db_pool)
-        .await
-    {
-        Ok(r) => r,
-        Err(e) => {
-            return Ok(OrganizationEvent::SyncFailed {
-                source_id,
-                job_id,
-                reason: format!("Failed to sync needs: {}", e),
-            });
-        }
-    };
+    let result =
+        match super::syncing::sync_extracted_needs(source_id, needs, &ctx.deps().db_pool).await {
+            Ok(r) => r,
+            Err(e) => {
+                return Ok(OrganizationEvent::SyncFailed {
+                    source_id,
+                    job_id,
+                    reason: format!("Failed to sync needs: {}", e),
+                });
+            }
+        };
 
     Ok(OrganizationEvent::NeedsSynced {
         source_id,

@@ -1,4 +1,6 @@
-use crate::domains::organization::models::{source::OrganizationSource, NeedStatus, OrganizationNeed};
+use crate::domains::organization::models::{
+    source::OrganizationSource, NeedStatus, OrganizationNeed,
+};
 use chrono::{DateTime, Utc};
 use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
@@ -16,7 +18,7 @@ pub struct Need {
     pub description_markdown: Option<String>,
     pub contact_info: Option<ContactInfo>,
     pub urgency: Option<String>,
-    pub status: NeedStatusGql,
+    pub status: NeedStatusData,
     pub location: Option<String>,
     pub submission_type: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -29,7 +31,7 @@ impl From<OrganizationNeed> for Need {
             .and_then(|json| serde_json::from_value(json).ok());
 
         Self {
-            id: need.id,
+            id: need.id.into_uuid(),
             organization_name: need.organization_name,
             title: need.title,
             tldr: need.tldr,
@@ -38,11 +40,11 @@ impl From<OrganizationNeed> for Need {
             contact_info,
             urgency: need.urgency,
             status: match need.status.as_str() {
-                "pending_approval" => NeedStatusGql::PendingApproval,
-                "active" => NeedStatusGql::Active,
-                "rejected" => NeedStatusGql::Rejected,
-                "expired" => NeedStatusGql::Expired,
-                _ => NeedStatusGql::PendingApproval, // default fallback
+                "pending_approval" => NeedStatusData::PendingApproval,
+                "active" => NeedStatusData::Active,
+                "rejected" => NeedStatusData::Rejected,
+                "expired" => NeedStatusData::Expired,
+                _ => NeedStatusData::PendingApproval, // default fallback
             },
             location: need.location,
             submission_type: need.submission_type,
@@ -61,14 +63,14 @@ pub struct ContactInfo {
 
 /// Need status for GraphQL
 #[derive(Debug, Clone, Copy, GraphQLEnum)]
-pub enum NeedStatusGql {
+pub enum NeedStatusData {
     PendingApproval,
     Active,
     Rejected,
     Expired,
 }
 
-impl From<NeedStatus> for NeedStatusGql {
+impl From<NeedStatus> for NeedStatusData {
     fn from(status: NeedStatus) -> Self {
         match status {
             NeedStatus::PendingApproval => Self::PendingApproval,
@@ -137,7 +139,7 @@ pub struct NeedConnection {
 /// GraphQL type for organization source (website to scrape)
 #[derive(Debug, Clone, GraphQLObject)]
 #[graphql(description = "A website source for scraping volunteer opportunities")]
-pub struct OrganizationSourceGql {
+pub struct OrganizationSourceData {
     pub id: Uuid,
     pub organization_name: String,
     pub source_url: String,
@@ -147,10 +149,10 @@ pub struct OrganizationSourceGql {
     pub created_at: DateTime<Utc>,
 }
 
-impl From<OrganizationSource> for OrganizationSourceGql {
+impl From<OrganizationSource> for OrganizationSourceData {
     fn from(source: OrganizationSource) -> Self {
         Self {
-            id: source.id,
+            id: source.id.into_uuid(),
             organization_name: source.organization_name,
             source_url: source.source_url,
             last_scraped_at: source.last_scraped_at,
@@ -159,4 +161,20 @@ impl From<OrganizationSource> for OrganizationSourceGql {
             created_at: source.created_at,
         }
     }
+}
+
+/// Input for submitting a resource link from the public
+#[derive(Debug, Clone, GraphQLInputObject)]
+pub struct SubmitResourceLinkInput {
+    pub url: String,
+    pub context: Option<String>,
+    pub submitter_contact: Option<String>,
+}
+
+/// Result of submitting a resource link
+#[derive(Debug, Clone, GraphQLObject)]
+pub struct SubmitResourceLinkResult {
+    pub job_id: Uuid,
+    pub status: String,
+    pub message: String,
 }

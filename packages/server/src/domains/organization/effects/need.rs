@@ -4,7 +4,7 @@ use seesaw::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
 
 use super::deps::ServerDeps;
-use crate::common::{MemberId, NeedId, PostId};
+use crate::common::{ExtractedNeed, JobId, MemberId, NeedId, PostId};
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
 
@@ -148,10 +148,7 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 created_by,
                 requested_by,
                 is_admin,
-            } => {
-                handle_repost_need(need_id, created_by, requested_by, is_admin, &ctx)
-                    .await
-            }
+            } => handle_repost_need(need_id, created_by, requested_by, is_admin, &ctx).await,
 
             OrganizationCommand::ExpirePost {
                 post_id,
@@ -171,6 +168,24 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
 
             OrganizationCommand::IncrementPostClick { post_id } => {
                 handle_increment_post_click(post_id, &ctx).await
+            }
+
+            OrganizationCommand::CreateNeedsFromResourceLink {
+                job_id,
+                url,
+                needs,
+                context,
+                submitter_contact,
+            } => {
+                handle_create_needs_from_resource_link(
+                    job_id,
+                    url,
+                    needs,
+                    context,
+                    submitter_contact,
+                    &ctx,
+                )
+                .await
             }
 
             _ => anyhow::bail!("NeedEffect: Unexpected command"),
@@ -467,4 +482,89 @@ async fn handle_increment_post_click(
 ) -> Result<OrganizationEvent> {
     super::need_operations::increment_post_click(post_id, &ctx.deps().db_pool).await?;
     Ok(OrganizationEvent::PostClicked { post_id })
+}
+
+async fn handle_create_needs_from_resource_link(
+    _job_id: JobId,
+    _url: String,
+    needs: Vec<ExtractedNeed>,
+    _context: Option<String>,
+    _submitter_contact: Option<String>,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<OrganizationEvent> {
+    use crate::domains::organization::models::OrganizationNeed;
+    use tracing::info;
+
+    // Create each extracted need as a user_submitted need in pending_approval status
+    let mut created_count = 0;
+
+    for extracted_need in needs {
+        let contact_json = extracted_need
+            .contact
+            .and_then(|c| serde_json::to_value(c).ok());
+
+        // Calculate content hash for deduplication
+        let content_hash = {
+            use sha2::{Digest, Sha256};
+            let combined = format!("{}{}", extracted_need.title, extracted_need.description);
+            let mut hasher = Sha256::new();
+            hasher.update(combined.as_bytes());
+            format!("{:x}", hasher.finalize())
+        };
+
+        let need = OrganizationNeed {
+            id: crate::common::NeedId::new(),
+            organization_name: "Resource Link".to_string(), // We don't have org name from ExtractedNeed
+            title: extracted_need.title.clone(),
+            description: extracted_need.description.clone(),
+            description_markdown: None,
+            tldr: Some(extracted_need.tldr),
+            contact_info: contact_json,
+            urgency: extracted_need.urgency,
+            status: "pending_approval".to_string(),
+            content_hash: Some(content_hash),
+            location: None,
+            submission_type: Some("user_submitted".to_string()),
+            submitted_by_member_id: None,
+            submitted_from_ip: None,
+            source_id: None,
+            last_seen_at: chrono::Utc::now(),
+            disappeared_at: None,
+            embedding: None,
+            latitude: None,
+            longitude: None,
+            created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
+        };
+
+        match need.insert(&ctx.deps().db_pool).await {
+            Ok(_) => {
+                created_count += 1;
+                info!(
+                    need_id = %need.id,
+                    org = %need.organization_name,
+                    title = %need.title,
+                    "Created need from resource link"
+                );
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    title = %extracted_need.title,
+                    "Failed to create need from resource link"
+                );
+            }
+        }
+    }
+
+    info!(created_count = %created_count, "Created needs from resource link");
+
+    // Return a success event (we'll use NeedCreated for now, but could create a new event type)
+    // For simplicity, just return a generic success event
+    Ok(OrganizationEvent::NeedCreated {
+        need_id: crate::common::NeedId::new(), // Dummy ID
+        organization_name: "Resource Link".to_string(),
+        title: format!("{} needs created", created_count),
+        submission_type: "user_submitted".to_string(),
+    })
 }

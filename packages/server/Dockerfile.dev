@@ -1,20 +1,33 @@
 # Development Dockerfile with cargo-watch for hot-reloading
-# Based on Rust 1.83 (matches production Dockerfile)
-FROM rust:1.83-bookworm
+# Based on Rust 1.84 with nightly toolchain for edition2024 support
+FROM rust:1.84-bookworm
 
 # Install dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl-dev \
     libpq-dev \
+    postgresql-client \
     pkg-config \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 20.x (LTS) and enable corepack for Yarn Modern
+RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && corepack enable \
+    && corepack prepare yarn@stable --activate \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install nightly toolchain for edition2024 support
+RUN rustup toolchain install nightly && \
+    rustup default nightly
 
 # Install cargo-watch for hot-reloading
 RUN cargo install cargo-watch --locked
 
-# Install sqlx-cli for migrations
-RUN cargo install sqlx-cli --no-default-features --features postgres
+# Install sqlx-cli for migrations (version 0.8 to match workspace sqlx)
+RUN cargo install sqlx-cli --version 0.8.2 --no-default-features --features postgres --locked
 
 # Set working directory
 WORKDIR /app

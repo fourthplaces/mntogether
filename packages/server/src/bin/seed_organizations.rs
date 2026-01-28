@@ -65,8 +65,8 @@ async fn main() -> Result<()> {
         seed_data.organizations.len()
     );
 
-    // Initialize OpenAI client for tag extraction
-    let openai_api_key = &config.openai_api_key;
+    // Initialize Claude client for tag extraction
+    let anthropic_api_key = &config.anthropic_api_key;
 
     println!("\n🚀 Starting seed process...\n");
 
@@ -92,7 +92,7 @@ async fn main() -> Result<()> {
         let city = extract_city(&org_input.address, &org_input.county);
 
         // Extract tags using AI
-        let tags = extract_tags_with_ai(&org_input.populations_served, &openai_api_key)
+        let tags = extract_tags_with_ai(&org_input.populations_served, &anthropic_api_key)
             .await
             .unwrap_or_else(|e| {
                 eprintln!("  ⚠ Failed to extract tags: {}", e);
@@ -217,29 +217,26 @@ JSON:"#,
     );
 
     let response = client
-        .post("https://api.openai.com/v1/chat/completions")
-        .header("Authorization", format!("Bearer {}", api_key))
+        .post("https://api.anthropic.com/v1/messages")
+        .header("x-api-key", api_key)
+        .header("anthropic-version", "2023-06-01")
         .json(&serde_json::json!({
-            "model": "gpt-4o-mini",
+            "model": "claude-3-5-haiku-latest",
+            "max_tokens": 500,
+            "system": "You are a tag extraction assistant. Return only valid JSON.",
             "messages": [
-                {
-                    "role": "system",
-                    "content": "You are a tag extraction assistant. Return only valid JSON."
-                },
                 {
                     "role": "user",
                     "content": prompt
                 }
-            ],
-            "temperature": 0.3,
-            "max_tokens": 500
+            ]
         }))
         .send()
         .await?;
 
     let json: serde_json::Value = response.json().await?;
 
-    let content = json["choices"][0]["message"]["content"]
+    let content = json["content"][0]["text"]
         .as_str()
         .context("No content in response")?;
 

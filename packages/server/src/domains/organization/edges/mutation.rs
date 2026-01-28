@@ -1,4 +1,4 @@
-use super::types::{EditNeedInput, Need, ScrapeJobResult, SubmitNeedInput};
+use super::types::{EditNeedInput, Need, ScrapeJobResult, SubmitNeedInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
 use crate::common::{JobId, MemberId, NeedId, SourceId};
 use crate::domains::matching::events::MatchingEvent;
 use crate::domains::organization::data::NeedData;
@@ -20,9 +20,10 @@ pub async fn scrape_organization(
     info!(source_id = %source_id, "Scraping organization source");
 
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed IDs
     let source_id = SourceId::from_uuid(source_id);
@@ -115,9 +116,10 @@ pub async fn approve_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Ne
     info!(need_id = %need_id, "Approving need (triggers matching)");
 
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let need_id = NeedId::from_uuid(need_id);
@@ -167,9 +169,10 @@ pub async fn edit_and_approve_need(
     info!(need_id = %need_id, title = ?input.title, "Editing and approving need (triggers matching)");
 
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     let contact_json = input
         .contact_info
@@ -226,9 +229,10 @@ pub async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) ->
     info!(need_id = %need_id, reason = %reason, "Rejecting need");
 
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let need_id = NeedId::from_uuid(need_id);
@@ -244,7 +248,7 @@ pub async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) ->
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::NeedRejected { need_id: nid, .. } if nid == need_id => {
+                OrganizationEvent::NeedRejected { need_id: nid, .. } if *nid == need_id => {
                     Some(Ok(()))
                 }
                 OrganizationEvent::AuthorizationDenied { reason, .. } => {
@@ -264,4 +268,42 @@ pub async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) ->
     })?;
 
     Ok(true)
+}
+
+/// Submit a resource link (URL) from the public for scraping
+/// Returns job_id immediately - user can check progress
+/// Following seesaw pattern: dispatch request event, machine creates command, effect scrapes
+pub async fn submit_resource_link(
+    ctx: &GraphQLContext,
+    input: SubmitResourceLinkInput,
+) -> FieldResult<SubmitResourceLinkResult> {
+    info!(url = %input.url, context = ?input.context, "Submitting resource link for scraping");
+
+    // Basic URL validation
+    if !input.url.starts_with("http://") && !input.url.starts_with("https://") {
+        return Err(FieldError::new(
+            "Invalid URL: must start with http:// or https://",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Generate IDs for tracking
+    let job_id = JobId::new();
+
+    // Emit request event (async workflow starts)
+    // Machine will decide on scraping command
+    // Effect will create temporary source, scrape, extract, and mark as user_submitted
+    ctx.bus.emit(OrganizationEvent::SubmitResourceLinkRequested {
+        job_id,
+        url: input.url.clone(),
+        context: input.context,
+        submitter_contact: input.submitter_contact,
+    });
+
+    // Return immediately with job_id
+    Ok(SubmitResourceLinkResult {
+        job_id: job_id.into_uuid(),
+        status: "pending".to_string(),
+        message: "Resource submitted successfully. We'll scrape and review it soon!".to_string(),
+    })
 }

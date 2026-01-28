@@ -1,4 +1,4 @@
-use super::post_types::{CreatePostInput, PostGql, RepostResult};
+use super::post_types::{CreatePostInput, PostData, RepostResult};
 use crate::common::{NeedId, PostId};
 use crate::domains::organization::events::OrganizationEvent;
 use crate::domains::organization::models::{OrganizationNeed, Post};
@@ -8,10 +8,15 @@ use seesaw::{dispatch_request, EnvelopeMatch};
 use uuid::Uuid;
 
 /// Query published posts (for volunteers)
+///
+/// This uses engagement-based rotation to ensure fair visibility:
+/// - Fetches posts sorted by view_count and last_displayed_at
+/// - Updates last_displayed_at for all returned posts to track when they were shown
+/// - This creates a round-robin effect where under-engaged posts resurface
 pub async fn query_published_posts(
     ctx: &GraphQLContext,
     limit: Option<i32>,
-) -> FieldResult<Vec<PostGql>> {
+) -> FieldResult<Vec<PostData>> {
     let posts = Post::find_published(limit.map(|l| l as i64), &ctx.db_pool)
         .await
         .map_err(|e| {
@@ -21,14 +26,28 @@ pub async fn query_published_posts(
             )
         })?;
 
-    Ok(posts.into_iter().map(PostGql::from).collect())
+    // Update last_displayed_at for engagement tracking
+    // This is done asynchronously and failures are logged but don't block the response
+    if !posts.is_empty() {
+        let post_ids: Vec<PostId> = posts.iter().map(|p| p.id).collect();
+        tokio::spawn({
+            let pool = ctx.db_pool.clone();
+            async move {
+                if let Err(e) = Post::mark_displayed(&post_ids, &pool).await {
+                    tracing::warn!(error = %e, "Failed to update last_displayed_at for posts");
+                }
+            }
+        });
+    }
+
+    Ok(posts.into_iter().map(PostData::from).collect())
 }
 
 /// Query posts for a specific need
 pub async fn query_posts_for_need(
     ctx: &GraphQLContext,
     need_id: Uuid,
-) -> FieldResult<Vec<PostGql>> {
+) -> FieldResult<Vec<PostData>> {
     let need_id = NeedId::from_uuid(need_id);
     let posts = Post::find_by_need_id(need_id, &ctx.db_pool)
         .await
@@ -39,11 +58,11 @@ pub async fn query_posts_for_need(
             )
         })?;
 
-    Ok(posts.into_iter().map(PostGql::from).collect())
+    Ok(posts.into_iter().map(PostData::from).collect())
 }
 
 /// Query a single post by ID
-pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Option<PostGql>> {
+pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Option<PostData>> {
     let post_id = PostId::from_uuid(post_id);
     let post = Post::find_by_id(post_id, &ctx.db_pool).await.map_err(|e| {
         juniper::FieldError::new(
@@ -52,7 +71,7 @@ pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Opti
         )
     })?;
 
-    Ok(post.map(PostGql::from))
+    Ok(post.map(PostData::from))
 }
 
 /// Create a custom post for a need (admin only)
@@ -60,11 +79,12 @@ pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Opti
 pub async fn create_custom_post(
     ctx: &GraphQLContext,
     input: CreatePostInput,
-) -> FieldResult<PostGql> {
+) -> FieldResult<PostData> {
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let need_id = NeedId::from_uuid(input.need_id);
@@ -112,16 +132,17 @@ pub async fn create_custom_post(
         .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
         .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
-    Ok(PostGql::from(post))
+    Ok(PostData::from(post))
 }
 
 /// Repost a need (create new post for existing active need) (admin only)
 /// Following seesaw pattern: dispatch request event, await fact event
 pub async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<RepostResult> {
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let need_id = NeedId::from_uuid(need_id);
@@ -136,9 +157,10 @@ pub async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Rep
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::PostCreated { post_id, need_id: nid } if nid == need_id => {
-                    Some(Ok(*post_id))
-                }
+                OrganizationEvent::PostCreated {
+                    post_id,
+                    need_id: nid,
+                } if *nid == need_id => Some(Ok(*post_id)),
                 OrganizationEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -162,18 +184,19 @@ pub async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Rep
         .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
     Ok(RepostResult {
-        post: PostGql::from(post),
+        post: PostData::from(post),
         message: "Need reposted successfully. Post expires in 5 days.".to_string(),
     })
 }
 
 /// Expire a post (admin only)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
+pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostData> {
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let post_id = PostId::from_uuid(post_id);
@@ -188,7 +211,7 @@ pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Pos
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::PostExpired { post_id: pid } if pid == post_id => Some(Ok(())),
+                OrganizationEvent::PostExpired { post_id: pid } if *pid == post_id => Some(Ok(())),
                 OrganizationEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -211,16 +234,17 @@ pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Pos
         .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
         .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
-    Ok(PostGql::from(post))
+    Ok(PostData::from(post))
 }
 
 /// Archive a post (admin only)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
+pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostData> {
     // Get user info (authorization will be checked in effect)
-    let user = ctx.auth_user.as_ref().ok_or_else(|| {
-        FieldError::new("Authentication required", juniper::Value::null())
-    })?;
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed ID
     let post_id = PostId::from_uuid(post_id);
@@ -235,9 +259,7 @@ pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Po
         &ctx.bus,
         |m| {
             m.try_match(|e: &OrganizationEvent| match e {
-                OrganizationEvent::PostArchived { post_id: pid } if pid == post_id => {
-                    Some(Ok(()))
-                }
+                OrganizationEvent::PostArchived { post_id: pid } if *pid == post_id => Some(Ok(())),
                 OrganizationEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -260,7 +282,7 @@ pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Po
         .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
         .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
-    Ok(PostGql::from(post))
+    Ok(PostData::from(post))
 }
 
 /// Track post view (public - called when member sees post)
@@ -270,7 +292,8 @@ pub async fn track_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult
     let post_id = PostId::from_uuid(post_id);
 
     // Emit analytics event (fire-and-forget, no need to wait)
-    ctx.bus.emit(OrganizationEvent::PostViewedRequested { post_id });
+    ctx.bus
+        .emit(OrganizationEvent::PostViewedRequested { post_id });
     Ok(true)
 }
 

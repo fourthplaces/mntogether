@@ -69,6 +69,23 @@ impl seesaw::Machine for OrganizationMachine {
                 })
             }
 
+            OrganizationEvent::ResourceLinkScraped {
+                job_id,
+                url,
+                content,
+                context,
+                submitter_contact,
+            } => {
+                // Resource link was scraped, now extract needs from content
+                Some(OrganizationCommand::ExtractNeedsFromResourceLink {
+                    job_id: *job_id,
+                    url: url.clone(),
+                    content: content.clone(),
+                    context: context.clone(),
+                    submitter_contact: submitter_contact.clone(),
+                })
+            }
+
             OrganizationEvent::NeedsExtracted {
                 source_id,
                 job_id,
@@ -79,6 +96,23 @@ impl seesaw::Machine for OrganizationMachine {
                     source_id: *source_id,
                     job_id: *job_id,
                     needs: needs.clone(),
+                })
+            }
+
+            OrganizationEvent::ResourceLinkNeedsExtracted {
+                job_id,
+                url,
+                needs,
+                context,
+                submitter_contact,
+            } => {
+                // Needs extracted from resource link, create them as user_submitted
+                Some(OrganizationCommand::CreateNeedsFromResourceLink {
+                    job_id: *job_id,
+                    url: url.clone(),
+                    needs: needs.clone(),
+                    context: context.clone(),
+                    submitter_contact: submitter_contact.clone(),
                 })
             }
 
@@ -106,6 +140,11 @@ impl seesaw::Machine for OrganizationMachine {
             OrganizationEvent::SyncFailed { source_id, .. } => {
                 // Sync failed, clean up pending state so retries can happen
                 self.pending_scrapes.remove(source_id);
+                None
+            }
+
+            OrganizationEvent::ResourceLinkScrapeFailed { .. } => {
+                // Resource link scrape failed, terminal event
                 None
             }
 
@@ -171,6 +210,21 @@ impl seesaw::Machine for OrganizationMachine {
             OrganizationEvent::PostClickedRequested { post_id } => {
                 Some(OrganizationCommand::IncrementPostClick { post_id: *post_id })
             }
+
+            // =========================================================================
+            // Resource link submission workflow: Request → Scrape → Extract → Create needs
+            // =========================================================================
+            OrganizationEvent::SubmitResourceLinkRequested {
+                job_id,
+                url,
+                context,
+                submitter_contact,
+            } => Some(OrganizationCommand::ScrapeResourceLink {
+                job_id: *job_id,
+                url: url.clone(),
+                context: context.clone(),
+                submitter_contact: submitter_contact.clone(),
+            }),
 
             // =========================================================================
             // User submission workflow: Request → Create

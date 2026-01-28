@@ -5,14 +5,15 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Identifier - maps hashed phone numbers to members
+/// Identifier - maps hashed phone numbers or emails to members
 ///
-/// Phone numbers are hashed for privacy - we never store raw phone numbers
+/// Identifiers (phone numbers or emails) are hashed for privacy.
+/// We never store raw identifiers in plaintext.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Identifier {
     pub id: Uuid,
     pub member_id: Uuid,
-    pub phone_hash: String,
+    pub phone_hash: String, // Actually stores hash of phone number OR email
     pub is_admin: bool,
     pub created_at: DateTime<Utc>,
 }
@@ -70,14 +71,36 @@ impl Identifier {
 // Utility Functions
 // =============================================================================
 
-/// Hash a phone number using SHA256
+/// Hash an identifier (phone number or email) using SHA256
 ///
-/// Phone numbers are hashed for privacy - we never store raw phone numbers.
+/// Identifiers are hashed for privacy - we never store raw identifiers.
 /// The hash is used as a lookup key in the identifiers table.
+///
+/// Note: Function named `hash_phone_number` for backward compatibility,
+/// but it works for any string identifier (phone or email).
 pub fn hash_phone_number(phone_number: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(phone_number.as_bytes());
     format!("{:x}", hasher.finalize())
+}
+
+/// Check if an identifier (email or phone) should be granted admin privileges
+///
+/// Returns true if the identifier is in the admin_identifiers list.
+/// Supports both emails and phone numbers.
+///
+/// - For emails: case-insensitive matching
+/// - For phone numbers: exact match (E.164 format)
+pub fn is_admin_identifier(identifier: &str, admin_identifiers: &[String]) -> bool {
+    admin_identifiers.iter().any(|admin_id| {
+        // Case-insensitive match for emails
+        if identifier.contains('@') && admin_id.contains('@') {
+            admin_id.eq_ignore_ascii_case(identifier)
+        } else {
+            // Exact match for phone numbers
+            admin_id == identifier
+        }
+    })
 }
 
 #[cfg(test)]
@@ -109,5 +132,64 @@ mod tests {
             hash.chars().all(|c| c.is_ascii_hexdigit()),
             "Hash should only contain hex digits"
         );
+    }
+
+    #[test]
+    fn test_email_hash_works() {
+        // Function works for emails too, not just phones
+        let hash1 = hash_phone_number("user@example.com");
+        let hash2 = hash_phone_number("user@example.com");
+        assert_eq!(hash1, hash2, "Same email should produce same hash");
+
+        let hash3 = hash_phone_number("other@example.com");
+        assert_ne!(
+            hash1, hash3,
+            "Different emails should have different hashes"
+        );
+    }
+
+    #[test]
+    fn test_is_admin_identifier_email() {
+        let admin_identifiers = vec![
+            "admin@example.com".to_string(),
+            "owner@example.com".to_string(),
+        ];
+
+        assert!(is_admin_identifier("admin@example.com", &admin_identifiers));
+        assert!(is_admin_identifier("owner@example.com", &admin_identifiers));
+        assert!(!is_admin_identifier("user@example.com", &admin_identifiers));
+    }
+
+    #[test]
+    fn test_is_admin_identifier_case_insensitive() {
+        let admin_identifiers = vec!["Admin@Example.com".to_string()];
+
+        assert!(is_admin_identifier("admin@example.com", &admin_identifiers));
+        assert!(is_admin_identifier("ADMIN@EXAMPLE.COM", &admin_identifiers));
+        assert!(is_admin_identifier("Admin@Example.com", &admin_identifiers));
+    }
+
+    #[test]
+    fn test_is_admin_identifier_phone() {
+        let admin_identifiers = vec!["+1234567890".to_string(), "+15551234567".to_string()];
+
+        // Phone numbers match exactly
+        assert!(is_admin_identifier("+1234567890", &admin_identifiers));
+        assert!(is_admin_identifier("+15551234567", &admin_identifiers));
+        assert!(!is_admin_identifier("+9876543210", &admin_identifiers));
+    }
+
+    #[test]
+    fn test_is_admin_identifier_mixed() {
+        let admin_identifiers = vec![
+            "admin@example.com".to_string(),
+            "+1234567890".to_string(),
+        ];
+
+        // Both emails and phones work
+        assert!(is_admin_identifier("admin@example.com", &admin_identifiers));
+        assert!(is_admin_identifier("+1234567890", &admin_identifiers));
+        assert!(!is_admin_identifier("user@example.com", &admin_identifiers));
+        assert!(!is_admin_identifier("+9876543210", &admin_identifiers));
     }
 }

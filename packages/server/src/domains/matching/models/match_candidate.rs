@@ -3,10 +3,12 @@ use sqlx::PgPool;
 use tracing::{debug, info, instrument};
 use uuid::Uuid;
 
+use crate::common::MemberId;
+
 /// Candidate member for matching (from vector search)
 #[derive(Debug, Clone)]
 pub struct MatchCandidate {
-    pub member_id: Uuid,
+    pub member_id: MemberId,
     pub expo_push_token: String,
     pub searchable_text: String,
     pub similarity: f64,
@@ -66,7 +68,7 @@ impl MatchCandidate {
         let results: Vec<MatchCandidate> = candidates
             .into_iter()
             .map(|(id, token, text, similarity, distance)| MatchCandidate {
-                member_id: id,
+                member_id: MemberId::from_uuid(id),
                 expo_push_token: token,
                 searchable_text: text,
                 similarity,
@@ -106,7 +108,7 @@ impl MatchCandidate {
         let results: Vec<MatchCandidate> = candidates
             .into_iter()
             .map(|(id, token, text, similarity)| MatchCandidate {
-                member_id: id,
+                member_id: MemberId::from_uuid(id),
                 expo_push_token: token,
                 searchable_text: text,
                 similarity,
@@ -127,7 +129,7 @@ mod tests {
     #[test]
     fn test_match_candidate() {
         let candidate = MatchCandidate {
-            member_id: Uuid::new_v4(),
+            member_id: MemberId::from_uuid(Uuid::new_v4()),
             expo_push_token: "token".to_string(),
             searchable_text: "Can drive".to_string(),
             similarity: 0.85,

@@ -12,7 +12,7 @@ pub mod server_kernel;
 pub mod test_dependencies;
 pub mod traits;
 
-pub use ai::OpenAIClient;
+pub use ai::ClaudeClient;
 pub use server_kernel::ServerKernel;
 pub use test_dependencies::{
     MockAI, MockEmbeddingService, MockPushNotificationService, MockWebScraper, TestDependencies,

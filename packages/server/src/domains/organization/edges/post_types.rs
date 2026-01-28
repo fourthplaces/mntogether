@@ -1,17 +1,19 @@
-use crate::domains::organization::models::{Post, PostStatus};
+use crate::domains::organization::models::{OrganizationNeed, Post, PostStatus};
+use crate::server::graphql::GraphQLContext;
 use chrono::{DateTime, Utc};
-use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
+use juniper::{FieldResult, GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
+use super::types::Need;
+
 /// GraphQL type for post
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "A temporal announcement about a volunteer need")]
-pub struct PostGql {
+#[derive(Debug, Clone)]
+pub struct PostData {
     pub id: Uuid,
     pub need_id: Uuid,
-    pub status: PostStatusGql,
+    pub status: PostStatusData,
     pub published_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
     pub custom_title: Option<String>,
@@ -24,11 +26,81 @@ pub struct PostGql {
     pub created_at: DateTime<Utc>,
 }
 
-impl From<Post> for PostGql {
+#[juniper::graphql_object(context = GraphQLContext)]
+impl PostData {
+    fn id(&self) -> Uuid {
+        self.id
+    }
+
+    fn need_id(&self) -> Uuid {
+        self.need_id
+    }
+
+    fn status(&self) -> PostStatusData {
+        self.status
+    }
+
+    fn published_at(&self) -> Option<DateTime<Utc>> {
+        self.published_at
+    }
+
+    fn expires_at(&self) -> Option<DateTime<Utc>> {
+        self.expires_at
+    }
+
+    fn custom_title(&self) -> Option<String> {
+        self.custom_title.clone()
+    }
+
+    fn custom_description(&self) -> Option<String> {
+        self.custom_description.clone()
+    }
+
+    fn custom_tldr(&self) -> Option<String> {
+        self.custom_tldr.clone()
+    }
+
+    fn outreach_copy(&self) -> Option<String> {
+        self.outreach_copy.clone()
+    }
+
+    fn view_count(&self) -> i32 {
+        self.view_count
+    }
+
+    fn click_count(&self) -> i32 {
+        self.click_count
+    }
+
+    fn response_count(&self) -> i32 {
+        self.response_count
+    }
+
+    fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    /// Fetch the associated need
+    async fn need(&self, ctx: &GraphQLContext) -> FieldResult<Need> {
+        let need = OrganizationNeed::find_by_id(
+            crate::common::NeedId::from_uuid(self.need_id),
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(|e| juniper::FieldError::new(
+            format!("Failed to fetch need: {}", e),
+            juniper::Value::null(),
+        ))?;
+
+        Ok(Need::from(need))
+    }
+}
+
+impl From<Post> for PostData {
     fn from(post: Post) -> Self {
         Self {
-            id: post.id,
-            need_id: post.need_id,
+            id: post.id.into_uuid(),
+            need_id: post.need_id.into_uuid(),
             status: post.status.into(),
             published_at: post.published_at,
             expires_at: post.expires_at,
@@ -46,14 +118,14 @@ impl From<Post> for PostGql {
 
 /// Post status for GraphQL
 #[derive(Debug, Clone, Copy, GraphQLEnum)]
-pub enum PostStatusGql {
+pub enum PostStatusData {
     Draft,
     Published,
     Expired,
     Archived,
 }
 
-impl From<PostStatus> for PostStatusGql {
+impl From<PostStatus> for PostStatusData {
     fn from(status: PostStatus) -> Self {
         match status {
             PostStatus::Draft => Self::Draft,
@@ -77,7 +149,8 @@ pub struct CreatePostInput {
 
 /// Result of reposting a need
 #[derive(Debug, Clone, GraphQLObject)]
+#[graphql(context = GraphQLContext)]
 pub struct RepostResult {
-    pub post: PostGql,
+    pub post: PostData,
     pub message: String,
 }

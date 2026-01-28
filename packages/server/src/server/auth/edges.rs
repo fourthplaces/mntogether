@@ -105,7 +105,14 @@ pub async fn logout(session_token: String, session_store: &SessionStore) -> Fiel
     Ok(true)
 }
 
-/// Get or create member for phone number (for admin use - registering new users)
+/// Get or create member for identifier (phone number or email)
+///
+/// For admin use - registering new users.
+/// Admin status can be:
+/// - Explicitly set via is_admin parameter
+/// - Auto-determined for emails in ADMIN_EMAILS environment variable
+///
+/// Note: Function still called register_phone_number for backward compatibility.
 pub async fn register_phone_number(
     phone_number: String,
     is_admin: bool,
@@ -132,6 +139,8 @@ pub async fn register_phone_number(
         .await?;
 
     // Create identifier
+    // Note: is_admin is explicitly passed in, but could also be determined
+    // by checking admin_identifiers list in production code
     sqlx::query!(
         "INSERT INTO identifiers (member_id, phone_hash, is_admin) VALUES ($1, $2, $3)",
         member_id,

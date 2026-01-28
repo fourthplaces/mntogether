@@ -10,20 +10,23 @@ use crate::domains::member::{
 use crate::domains::organization::{
     commands::OrganizationCommand,
     effects::{
-        utils::FirecrawlClient, AIEffect, NeedEffect, ScraperEffect, ServerDeps, SyncEffect,
+        utils::FirecrawlClient, OrganizationEffect, ServerDeps,
     },
     machines::OrganizationMachine,
 };
-use crate::kernel::OpenAIClient;
+use crate::kernel::ClaudeClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
 };
-use crate::server::static_files::serve_admin;
+use crate::server::static_files::{serve_admin, serve_web_app};
 use axum::{
     extract::{Extension, Request},
-    http::{HeaderValue, Method, header::{AUTHORIZATION, CONTENT_TYPE}},
+    http::{
+        header::{AUTHORIZATION, CONTENT_TYPE},
+        HeaderValue, Method,
+    },
     middleware::{self, Next},
     response::Response,
     routing::{get, post},
@@ -32,9 +35,9 @@ use axum::{
 use seesaw::{EngineBuilder, EngineHandle, EventBus};
 use sqlx::PgPool;
 use std::sync::Arc;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
-use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use twilio::{TwilioOptions, TwilioService};
 
 /// Shared application state
@@ -74,7 +77,8 @@ async fn create_graphql_context(
 pub fn build_app(
     pool: PgPool,
     firecrawl_api_key: String,
-    openai_api_key: String,
+    anthropic_api_key: String,
+    voyage_api_key: String,
     expo_access_token: Option<String>,
     twilio_account_sid: String,
     twilio_auth_token: String,
@@ -82,6 +86,8 @@ pub fn build_app(
     jwt_secret: String,
     jwt_issuer: String,
     allowed_origins: Vec<String>,
+    test_identifier_enabled: bool,
+    admin_identifiers: Vec<String>,
 ) -> (Router, EngineHandle) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
@@ -98,20 +104,19 @@ pub fn build_app(
     let server_deps = ServerDeps::new(
         pool.clone(),
         Arc::new(FirecrawlClient::new(firecrawl_api_key)),
-        Arc::new(OpenAIClient::new(openai_api_key.clone())),
-        Arc::new(crate::common::utils::EmbeddingService::new(openai_api_key)),
+        Arc::new(ClaudeClient::new(anthropic_api_key)),
+        Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         twilio.clone(),
+        test_identifier_enabled,
+        admin_identifiers,
     );
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
         // Organization domain
         .with_machine(OrganizationMachine::new())
-        .with_effect::<OrganizationCommand, _>(ScraperEffect)
-        .with_effect::<OrganizationCommand, _>(AIEffect)
-        .with_effect::<OrganizationCommand, _>(SyncEffect)
-        .with_effect::<OrganizationCommand, _>(NeedEffect)
+        .with_effect::<OrganizationCommand, _>(OrganizationEffect::new())
         // Member domain
         .with_machine(MemberMachine::new())
         .with_effect::<MemberCommand, _>(RegistrationEffect)
@@ -170,11 +175,11 @@ pub fn build_app(
     // Prevents API abuse, DoS attacks, and resource exhaustion
     let rate_limit_config = std::sync::Arc::new(
         GovernorConfigBuilder::default()
-            .per_second(10)      // Base rate: 10 requests per second
-            .burst_size(20)      // Allow bursts up to 20
-            .use_headers()       // Extract IP from X-Forwarded-For header
+            .per_second(10) // Base rate: 10 requests per second
+            .burst_size(20) // Allow bursts up to 20
+            .use_headers() // Extract IP from X-Forwarded-For header
             .finish()
-            .expect("Failed to build rate limiter")
+            .expect("Failed to build rate limiter"),
     );
 
     let rate_limit_layer = GovernorLayer {
@@ -192,14 +197,17 @@ pub fn build_app(
         // Static file serving for admin SPA (no rate limit)
         .route("/admin", get(serve_admin))
         .route("/admin/*path", get(serve_admin))
-        // Middleware layers (applied in reverse order)
-        .layer(Extension(app_state)) // Add shared state
+        // Static file serving for web app (catch-all, must be last)
+        .route("/", get(serve_web_app))
+        .route("/*path", get(serve_web_app))
+        // Middleware layers (applied in reverse order - last added runs first)
         .layer(middleware::from_fn(create_graphql_context)) // Create GraphQL context
         .layer(middleware::from_fn(move |req, next| {
             jwt_auth_middleware(jwt_service_for_middleware.clone(), req, next)
         })) // JWT authentication
         .layer(rate_limit_layer) // Rate limit: 100 req/min per IP
         .layer(middleware::from_fn(extract_client_ip))
+        .layer(Extension(app_state)) // Add shared state (must be after middlewares that need it)
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         // State (schema for GraphQL handlers)

@@ -16,12 +16,29 @@ pub enum OrganizationCommand {
         is_admin: bool,
     },
 
+    /// Scrape a user-submitted resource link (public submission)
+    ScrapeResourceLink {
+        job_id: JobId,
+        url: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
     /// Extract needs from scraped content using AI
     ExtractNeeds {
         source_id: SourceId,
         job_id: JobId,
         organization_name: String,
         content: String,
+    },
+
+    /// Extract needs from user-submitted resource link
+    ExtractNeedsFromResourceLink {
+        job_id: JobId,
+        url: String,
+        content: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
     },
 
     /// Sync extracted needs with database
@@ -42,6 +59,15 @@ pub enum OrganizationCommand {
         location: Option<String>,
         ip_address: Option<String>, // Converted from IpAddr before storing
         submission_type: String,    // 'user_submitted'
+    },
+
+    /// Create multiple needs from extracted resource link
+    CreateNeedsFromResourceLink {
+        job_id: JobId,
+        url: String,
+        needs: Vec<ExtractedNeed>,
+        context: Option<String>,
+        submitter_contact: Option<String>,
     },
 
     /// Update need status (for approval/rejection)
@@ -129,11 +155,14 @@ impl seesaw::Command for OrganizationCommand {
         match self {
             // Background commands - long-running IO operations
             Self::ScrapeSource { .. } => ExecutionMode::Background,
+            Self::ScrapeResourceLink { .. } => ExecutionMode::Background,
             Self::ExtractNeeds { .. } => ExecutionMode::Background,
+            Self::ExtractNeedsFromResourceLink { .. } => ExecutionMode::Background,
             Self::SyncNeeds { .. } => ExecutionMode::Background,
 
             // Inline commands - fast database operations
             Self::CreateNeed { .. } => ExecutionMode::Inline,
+            Self::CreateNeedsFromResourceLink { .. } => ExecutionMode::Inline,
             Self::UpdateNeedStatus { .. } => ExecutionMode::Inline,
             Self::UpdateNeedAndApprove { .. } => ExecutionMode::Inline,
             Self::CreatePost { .. } => ExecutionMode::Inline,
@@ -159,6 +188,14 @@ impl seesaw::Command for OrganizationCommand {
                 version: 1,
                 reference_id: Some(*source_id.as_uuid()),
             }),
+            Self::ScrapeResourceLink { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "scrape_resource_link",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 3,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
+            }),
             Self::ExtractNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "extract_needs",
                 idempotency_key: Some(source_id.to_string()),
@@ -166,6 +203,14 @@ impl seesaw::Command for OrganizationCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*source_id.as_uuid()),
+            }),
+            Self::ExtractNeedsFromResourceLink { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "extract_needs_from_resource_link",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
             }),
             Self::SyncNeeds { source_id, .. } => Some(seesaw::JobSpec {
                 job_type: "sync_needs",
