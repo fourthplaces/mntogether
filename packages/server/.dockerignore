@@ -1,0 +1,10 @@
+target/
+.git/
+.github/
+docs/
+.DS_Store
+.env
+*.log
+frontend/
+tests/
+.sqlx/
