@@ -1,299 +1,232 @@
-use super::types::{EditNeedInput, Need, ScrapeResult, SubmitNeedInput};
-use crate::domains::organization::effects::{
-    submit_user_need, sync_needs, ExtractedNeedInput, FirecrawlClient, NeedExtractor,
-    SubmitNeedInput as SubmitNeedEffectInput,
-};
-use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
+use super::types::{EditNeedInput, Need, ScrapeJobResult, SubmitNeedInput};
+use crate::domains::matching::events::MatchingEvent;
+use crate::domains::organization::data::NeedData;
+use crate::domains::organization::events::OrganizationEvent;
+use crate::domains::organization::models::{OrganizationNeed, ScrapeJob};
+use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
-use sqlx::PgPool;
-use std::net::IpAddr;
+use seesaw::{dispatch_request, EnvelopeMatch};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 
-/// Scrape an organization source and sync needs
+/// Scrape an organization source (async)
+/// Returns job_id immediately - admin polls for progress
+/// Following seesaw pattern: create job, dispatch event, return immediately
 pub async fn scrape_organization(
-    pool: &PgPool,
-    firecrawl_client: &FirecrawlClient,
-    need_extractor: &NeedExtractor,
+    ctx: &GraphQLContext,
     source_id: Uuid,
-) -> FieldResult<ScrapeResult> {
-    // Fetch source
-    let source = sqlx::query!(
-        r#"
-        SELECT organization_name, source_url
-        FROM organization_sources
-        WHERE id = $1 AND active = true
-        "#,
-        source_id
-    )
-    .fetch_optional(pool)
-    .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?
-    .ok_or_else(|| FieldError::new("Source not found", juniper::Value::null()))?;
+) -> FieldResult<ScrapeJobResult> {
+    info!(source_id = %source_id, "Scraping organization source");
 
-    // Scrape website
-    let scrape_result = firecrawl_client
-        .scrape(&source.source_url)
-        .await
-        .map_err(|e| FieldError::new(format!("Scraping failed: {}", e), juniper::Value::null()))?;
+    // Require admin access
+    ctx.require_admin()?;
 
-    // Extract needs with AI
-    let extracted_needs = need_extractor
-        .extract_needs(
-            &source.organization_name,
-            &scrape_result.markdown,
-            &source.source_url,
-        )
+    // Create scrape job (pending status)
+    let job = ScrapeJob::create(source_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
-                format!("AI extraction failed: {}", e),
+                format!("Failed to create scrape job: {}", e),
                 juniper::Value::null(),
             )
         })?;
 
-    // Convert to sync input
-    let sync_input: Vec<ExtractedNeedInput> = extracted_needs
-        .into_iter()
-        .map(|need| ExtractedNeedInput {
-            organization_name: source.organization_name.clone(),
-            title: need.title,
-            description: need.description,
-            description_markdown: None, // TODO: Generate markdown from description
-            tldr: Some(need.tldr),
-            contact: need.contact.and_then(|c| serde_json::to_value(c).ok()),
-            urgency: need.urgency,
-        })
-        .collect();
-
-    // Sync with database
-    let sync_result = sync_needs(pool, source_id, sync_input)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Sync failed: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
-
-    // Update last_scraped_at
-    sqlx::query!(
-        r#"
-        UPDATE organization_sources
-        SET last_scraped_at = NOW()
-        WHERE id = $1
-        "#,
-        source_id
-    )
-    .execute(pool)
-    .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
-
-    Ok(ScrapeResult {
+    // Emit request event (async workflow starts, fire-and-forget)
+    ctx.bus.emit(OrganizationEvent::ScrapeSourceRequested {
         source_id,
-        new_needs_count: sync_result.new_needs.len() as i32,
-        changed_needs_count: sync_result.changed_needs.len() as i32,
-        disappeared_needs_count: sync_result.disappeared_needs.len() as i32,
+        job_id: job.id,
+    });
+
+    // Return immediately with job_id
+    Ok(ScrapeJobResult {
+        job_id: job.id,
+        source_id,
+        status: job.status.to_string(),
     })
 }
 
 /// Submit a need from a volunteer (user-submitted, goes to pending_approval)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn submit_need(
-    pool: &PgPool,
+    ctx: &GraphQLContext,
     input: SubmitNeedInput,
     volunteer_id: Option<Uuid>,
-    ip_address: Option<IpAddr>,
+    ip_address: Option<String>,
 ) -> FieldResult<Need> {
+    info!(
+        org = %input.organization_name,
+        title = %input.title,
+        volunteer_id = ?volunteer_id,
+        "Submitting user need"
+    );
+
     let contact_json = input
         .contact_info
         .and_then(|c| serde_json::to_value(c).ok());
 
-    let effect_input = SubmitNeedEffectInput {
-        volunteer_id,
-        organization_name: input.organization_name,
-        title: input.title,
-        description: input.description,
-        contact_info: contact_json,
-        urgency: input.urgency,
-        location: input.location,
-        ip_address,
-    };
+    // Dispatch request event and await NeedCreated fact event
+    let need_id = dispatch_request(
+        OrganizationEvent::SubmitNeedRequested {
+            volunteer_id,
+            organization_name: input.organization_name,
+            title: input.title,
+            description: input.description,
+            contact_info: contact_json,
+            urgency: input.urgency,
+            location: input.location,
+            ip_address,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::NeedCreated {
+                    need_id,
+                    submission_type,
+                    ..
+                } if submission_type == "user_submitted" => Some(Ok(*need_id)),
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to submit need: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
-    let need = submit_user_need(pool, effect_input)
+    // Query result from database (read queries OK in edges)
+    let need = OrganizationNeed::find_by_id(need_id, &ctx.db_pool)
         .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to submit need: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+        .map_err(|_| FieldError::new("Failed to fetch need", juniper::Value::null()))?;
 
     Ok(Need::from(need))
 }
 
 /// Approve a need (human-in-the-loop)
-pub async fn approve_need(pool: &PgPool, need_id: Uuid) -> FieldResult<Need> {
-    let need = sqlx::query_as!(
-        OrganizationNeed,
-        r#"
-        UPDATE organization_needs
-        SET status = $1, updated_at = NOW()
-        WHERE id = $2
-        RETURNING
-            id,
-            organization_name,
-            title,
-            description,
-            description_markdown,
-            tldr,
-            contact_info,
-            urgency,
-            status as "status!: String",
-            content_hash,
-            source_id,
-            submission_type,
-            submitted_by_volunteer_id,
-            location,
-            last_seen_at,
-            disappeared_at,
-            created_at,
-            updated_at
-        "#,
-        NeedStatus::Active.to_string(),
-        need_id
+/// Following seesaw pattern: dispatch request event, await fact event
+pub async fn approve_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Need> {
+    info!(need_id = %need_id, "Approving need (triggers matching)");
+
+    // Require admin access
+    ctx.require_admin()?;
+
+    // Dispatch request event and await NeedApproved fact event
+    dispatch_request(
+        OrganizationEvent::ApproveNeedRequested { need_id },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => {
+                    Some(Ok(()))
+                }
+                _ => None,
+            })
+            .result()
+        },
     )
-    .fetch_one(pool)
     .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to approve need: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
-    // Parse status
-    let mut need_with_status = need;
-    need_with_status.status = NeedStatus::Active;
+    // Query result from database (read queries OK in edges)
+    let need = OrganizationNeed::find_by_id(need_id, &ctx.db_pool)
+        .await
+        .map_err(|_| FieldError::new("Failed to fetch need", juniper::Value::null()))?;
 
-    Ok(Need::from(need_with_status))
+    Ok(Need::from(need))
 }
 
 /// Edit and approve a need (fix AI mistakes or improve user-submitted content)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn edit_and_approve_need(
-    pool: &PgPool,
+    ctx: &GraphQLContext,
     need_id: Uuid,
     input: EditNeedInput,
 ) -> FieldResult<Need> {
-    // Build dynamic update query
-    let mut updates = Vec::new();
-    let mut bind_index = 2; // $1 is need_id
+    info!(need_id = %need_id, title = ?input.title, "Editing and approving need (triggers matching)");
 
-    if input.title.is_some() {
-        updates.push(format!("title = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.description.is_some() {
-        updates.push(format!("description = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.description_markdown.is_some() {
-        updates.push(format!("description_markdown = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.tldr.is_some() {
-        updates.push(format!("tldr = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.contact_info.is_some() {
-        updates.push(format!("contact_info = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.urgency.is_some() {
-        updates.push(format!("urgency = ${}", bind_index));
-        bind_index += 1;
-    }
-    if input.location.is_some() {
-        updates.push(format!("location = ${}", bind_index));
-        bind_index += 1;
-    }
+    // Require admin access
+    ctx.require_admin()?;
 
-    // Always set status to active and update timestamp
-    updates.push(format!("status = '{}'", NeedStatus::Active));
-    updates.push("updated_at = NOW()".to_string());
+    let contact_json = input
+        .contact_info
+        .and_then(|c| serde_json::to_value(c).ok());
 
-    let query = format!(
-        r#"
-        UPDATE organization_needs
-        SET {}
-        WHERE id = $1
-        RETURNING
-            id,
-            organization_name,
-            title,
-            description,
-            description_markdown,
-            tldr,
-            contact_info,
-            urgency,
-            status,
-            content_hash,
-            source_id,
-            submission_type,
-            submitted_by_volunteer_id,
-            location,
-            last_seen_at,
-            disappeared_at,
-            created_at,
-            updated_at
-        "#,
-        updates.join(", ")
-    );
+    // Dispatch request event and await NeedApproved fact event
+    dispatch_request(
+        OrganizationEvent::EditAndApproveNeedRequested {
+            need_id,
+            title: input.title,
+            description: input.description,
+            description_markdown: input.description_markdown,
+            tldr: input.tldr,
+            contact_info: contact_json,
+            urgency: input.urgency,
+            location: input.location,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::NeedApproved { need_id: nid } if nid == &need_id => {
+                    Some(Ok(()))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to edit and approve need: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
-    let mut query_builder = sqlx::query_as::<_, OrganizationNeed>(&query).bind(need_id);
-
-    // Bind values in same order as updates
-    if let Some(title) = input.title {
-        query_builder = query_builder.bind(title);
-    }
-    if let Some(description) = input.description {
-        query_builder = query_builder.bind(description);
-    }
-    if let Some(description_markdown) = input.description_markdown {
-        query_builder = query_builder.bind(description_markdown);
-    }
-    if let Some(tldr) = input.tldr {
-        query_builder = query_builder.bind(tldr);
-    }
-    if let Some(contact_info) = input.contact_info {
-        let contact_json = serde_json::to_value(contact_info)
-            .map_err(|_| FieldError::new("Invalid contact info", juniper::Value::null()))?;
-        query_builder = query_builder.bind(contact_json);
-    }
-    if let Some(urgency) = input.urgency {
-        query_builder = query_builder.bind(urgency);
-    }
-    if let Some(location) = input.location {
-        query_builder = query_builder.bind(location);
-    }
-
-    let need = query_builder
-        .fetch_one(pool)
+    // Query result from database (read queries OK in edges)
+    let need = OrganizationNeed::find_by_id(need_id, &ctx.db_pool)
         .await
-        .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+        .map_err(|_| FieldError::new("Failed to fetch need", juniper::Value::null()))?;
 
     Ok(Need::from(need))
 }
 
 /// Reject a need (hide forever)
-pub async fn reject_need(pool: &PgPool, need_id: Uuid, reason: String) -> FieldResult<bool> {
-    sqlx::query!(
-        r#"
-        UPDATE organization_needs
-        SET status = $1, updated_at = NOW()
-        WHERE id = $2
-        "#,
-        NeedStatus::Rejected.to_string(),
-        need_id
-    )
-    .execute(pool)
-    .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+/// Following seesaw pattern: dispatch request event, await fact event
+pub async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) -> FieldResult<bool> {
+    info!(need_id = %need_id, reason = %reason, "Rejecting need");
 
-    // TODO: Log rejection reason somewhere
+    // Require admin access
+    ctx.require_admin()?;
+
+    // Dispatch request event and await NeedRejected fact event
+    dispatch_request(
+        OrganizationEvent::RejectNeedRequested { need_id, reason },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::NeedRejected { need_id: nid, .. } if nid == &need_id => {
+                    Some(Ok(()))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to reject need: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(true)
 }

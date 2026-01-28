@@ -8,7 +8,7 @@ use crate::common::{
     TestHarness, clean_needs, create_test_need_active, create_test_need_full,
     create_test_need_pending,
 };
-use api_core::domains::organization::models::NeedStatus;
+use server_core::domains::organization::models::NeedStatus;
 use serde_json::json;
 use test_context::test_context;
 

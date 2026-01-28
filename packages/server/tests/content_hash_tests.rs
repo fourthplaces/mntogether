@@ -1,6 +1,6 @@
 //! Unit tests for content hash generation and sync logic.
 
-use api_core::common::utils::generate_content_hash;
+use server_core::common::utils::generate_content_hash;
 
 #[test]
 fn identical_text_produces_same_hash() {

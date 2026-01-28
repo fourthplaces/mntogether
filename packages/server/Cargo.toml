@@ -1,15 +1,19 @@
 [package]
-name = "api-core"
+name = "server"
 version.workspace = true
 edition.workspace = true
 
 [lib]
-name = "api_core"
+name = "server_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "api"
+name = "server"
 path = "src/server/main.rs"
+
+[[bin]]
+name = "seed_organizations"
+path = "src/bin/seed_organizations.rs"
 
 [dependencies]
 # Async runtime
@@ -35,6 +39,9 @@ tracing-subscriber = { workspace = true }
 # Event-driven architecture
 seesaw = { path = "../seesaw-rs" }
 
+# Authentication
+twilio = { path = "../twilio-rs" }
+
 # Database
 sqlx = { workspace = true, features = ["migrate"] }
 pgvector = { version = "0.4", features = ["sqlx"] }
@@ -54,6 +61,7 @@ hyper = { version = "1", features = ["full"] }
 
 # HTTP client (for Firecrawl, Tavily, Expo)
 reqwest = { workspace = true }
+urlencoding = "2.1"
 
 # Authentication (admin only)
 clerk-rs = "0.3"

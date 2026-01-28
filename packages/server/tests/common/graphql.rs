@@ -2,8 +2,8 @@
 //!
 //! Executes GraphQL queries directly against the schema without HTTP overhead.
 
-use api_core::domains::organization::effects::{FirecrawlClient, NeedExtractor};
-use api_core::server::graphql::{GraphQLContext, Schema, create_schema};
+use server_core::domains::organization::effects::{FirecrawlClient, NeedExtractor};
+use server_core::server::graphql::{GraphQLContext, Schema, create_schema};
 use juniper::Variables;
 use serde_json::Value;
 use sqlx::PgPool;

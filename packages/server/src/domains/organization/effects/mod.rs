@@ -2,12 +2,18 @@
 // - Database operations
 // - External API calls (Firecrawl, OpenAI)
 
-pub mod ai_effects;
-pub mod scraper_effects;
-pub mod submit_effects;
-pub mod sync_effects;
+pub mod ai;
+pub mod deps;
+pub mod need;
+pub mod scraper;
+pub mod submit;
+pub mod sync;
+pub mod utils;
 
-pub use ai_effects::*;
-pub use scraper_effects::*;
-pub use submit_effects::*;
-pub use sync_effects::*;
+pub use ai::*;
+pub use deps::*;
+pub use need::*;
+pub use scraper::*;
+pub use submit::*;
+pub use sync::*;
+pub use utils::*;

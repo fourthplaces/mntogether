@@ -14,6 +14,19 @@ pub struct SyncResult {
     pub disappeared_needs: Vec<Uuid>,
 }
 
+/// Extracted need input (from AI)
+#[derive(Debug, Clone)]
+pub struct ExtractedNeedInput {
+    pub organization_name: String,
+    pub title: String,
+    pub description: String,
+    pub description_markdown: Option<String>,
+    pub tldr: Option<String>,
+    pub contact: Option<serde_json::Value>,
+    pub urgency: Option<String>,
+    pub confidence: Option<String>,
+}
+
 /// Synchronize extracted needs with database
 ///
 /// Algorithm:
@@ -185,18 +198,6 @@ async fn create_pending_need(
     Ok(row.id)
 }
 
-/// Extracted need input (from AI)
-#[derive(Debug, Clone)]
-pub struct ExtractedNeedInput {
-    pub organization_name: String,
-    pub title: String,
-    pub description: String,
-    pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
-    pub contact: Option<serde_json::Value>,
-    pub urgency: Option<String>,
-}
-
 #[derive(Debug, sqlx::FromRow)]
 struct ExistingNeed {
     id: Uuid,
@@ -217,6 +218,7 @@ mod tests {
             tldr: None,
             contact: None,
             urgency: None,
+            confidence: None,
         };
 
         let hash1 = generate_content_hash(&format!(

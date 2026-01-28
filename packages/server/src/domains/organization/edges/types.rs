@@ -112,6 +112,14 @@ pub struct ScrapeResult {
     pub disappeared_needs_count: i32,
 }
 
+/// Result of starting an async scrape job
+#[derive(Debug, Clone, GraphQLObject)]
+pub struct ScrapeJobResult {
+    pub job_id: Uuid,
+    pub source_id: Uuid,
+    pub status: String,
+}
+
 /// Connection type for paginated needs
 #[derive(Debug, Clone, GraphQLObject)]
 pub struct NeedConnection {

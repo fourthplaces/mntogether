@@ -1,28 +1,74 @@
-use crate::domains::organization::effects::{FirecrawlClient, NeedExtractor};
+use crate::server::auth::SessionStore;
+use crate::server::middleware::AuthUser;
+use seesaw::EventBus;
 use sqlx::PgPool;
+use std::sync::Arc;
+use twilio::TwilioService;
 
 /// GraphQL request context
 ///
 /// Contains shared resources available to all resolvers
 pub struct GraphQLContext {
-    pub pool: PgPool,
-    pub firecrawl_client: FirecrawlClient,
-    pub need_extractor: NeedExtractor,
-    // TODO: Add auth (Clerk verification)
+    pub db_pool: PgPool,
+    pub bus: EventBus,
+    pub auth_user: Option<AuthUser>,
+    pub twilio: Arc<TwilioService>,
+    pub session_store: Arc<SessionStore>,
 }
 
 impl juniper::Context for GraphQLContext {}
 
 impl GraphQLContext {
     pub fn new(
-        pool: PgPool,
-        firecrawl_api_key: String,
-        openai_api_key: String,
+        db_pool: PgPool,
+        bus: EventBus,
+        auth_user: Option<AuthUser>,
+        twilio: Arc<TwilioService>,
+        session_store: Arc<SessionStore>,
     ) -> Self {
         Self {
-            pool,
-            firecrawl_client: FirecrawlClient::new(firecrawl_api_key),
-            need_extractor: NeedExtractor::new(openai_api_key),
+            db_pool,
+            bus,
+            auth_user,
+            twilio,
+            session_store,
         }
+    }
+
+    /// Check if the current user is authenticated
+    pub fn is_authenticated(&self) -> bool {
+        self.auth_user.is_some()
+    }
+
+    /// Check if the current user is an admin
+    pub fn is_admin(&self) -> bool {
+        self.auth_user
+            .as_ref()
+            .map(|user| user.is_admin)
+            .unwrap_or(false)
+    }
+
+    /// Require admin access, return error if not authorized
+    pub fn require_admin(&self) -> Result<(), juniper::FieldError> {
+        if !self.is_admin() {
+            return Err(juniper::FieldError::new(
+                "Unauthorized: Admin access required",
+                juniper::Value::null(),
+            ));
+        }
+        Ok(())
+    }
+
+    /// Get the current user ID, return error if not authenticated
+    pub fn require_auth(&self) -> Result<&str, juniper::FieldError> {
+        self.auth_user
+            .as_ref()
+            .map(|user| user.user_id.as_str())
+            .ok_or_else(|| {
+                juniper::FieldError::new(
+                    "Unauthenticated: Valid JWT required",
+                    juniper::Value::null(),
+                )
+            })
     }
 }

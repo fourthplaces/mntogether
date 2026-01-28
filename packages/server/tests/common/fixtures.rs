@@ -1,7 +1,7 @@
 //! Test fixtures for creating test data.
 
 use anyhow::Result;
-use api_core::domains::organization::models::{NeedStatus, OrganizationNeed, OrganizationSource};
+use server_core::domains::organization::models::{NeedStatus, OrganizationNeed, OrganizationSource};
 use chrono::Utc;
 use sqlx::PgPool;
 use uuid::Uuid;

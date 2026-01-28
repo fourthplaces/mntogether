@@ -27,7 +27,7 @@
 //! # Example
 //!
 //! ```ignore
-//! use api_core::kernel::jobs::{JobWorker, PostgresJobStore};
+//! use crate::kernel::jobs::{JobWorker, PostgresJobStore};
 //! use seesaw::{CommandRegistry, Dispatcher};
 //!
 //! // Create registry with command deserializers

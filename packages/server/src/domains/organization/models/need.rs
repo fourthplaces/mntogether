@@ -29,7 +29,7 @@ pub struct OrganizationNeed {
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped' | 'user_submitted'
     pub submitted_by_volunteer_id: Option<Uuid>,
-    pub submitted_from_ip: Option<std::net::IpAddr>,
+    pub submitted_from_ip: Option<String>, // INET stored as string
 
     // Sync tracking (for scraped needs)
     pub source_id: Option<Uuid>,
@@ -243,5 +243,20 @@ impl OrganizationNeed {
         .execute(pool)
         .await?;
         Ok(result.rows_affected())
+    }
+
+    /// Update need embedding
+    pub async fn update_embedding(id: Uuid, embedding: &[f32], pool: &PgPool) -> Result<()> {
+        use pgvector::Vector;
+
+        let vector = Vector::from(embedding.to_vec());
+
+        sqlx::query("UPDATE organization_needs SET embedding = $2 WHERE id = $1")
+            .bind(id)
+            .bind(vector)
+            .execute(pool)
+            .await?;
+
+        Ok(())
     }
 }
