@@ -68,6 +68,10 @@ TWILIO_ACCOUNT_SID=AC...                 # Required: SMS verification
 TWILIO_AUTH_TOKEN=...                    # Required
 TWILIO_VERIFY_SERVICE_SID=VA...          # Required
 
+# JWT authentication
+JWT_SECRET=...                           # Required: 32+ byte secret (generate with: openssl rand -base64 32)
+JWT_ISSUER=mndigitalaid                  # Optional: JWT issuer identifier
+
 # Push notifications
 EXPO_ACCESS_TOKEN=...                    # Optional: Higher rate limits
 

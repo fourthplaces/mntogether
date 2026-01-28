@@ -22,35 +22,20 @@ pub async fn query_needs(
         Some(NeedStatusGql::Expired) => NeedStatus::Expired,
     };
 
-    // Fetch needs
-    let needs = sqlx::query_as::<_, OrganizationNeed>(
-        r#"
-        SELECT *
-        FROM organization_needs
-        WHERE status = $1
-        ORDER BY created_at DESC
-        LIMIT $2 OFFSET $3
-        "#,
+    // Fetch needs using model method
+    let needs = OrganizationNeed::find_by_status(
+        &status_filter.to_string(),
+        limit as i64,
+        offset as i64,
+        pool,
     )
-    .bind(status_filter.to_string())
-    .bind(limit as i64)
-    .bind(offset as i64)
-    .fetch_all(pool)
-    .await
-    .map_err(|e| FieldError::new("Database error", juniper::Value::null()))?;
-
-    // Count total
-    let total_count = sqlx::query_scalar::<_, i64>(
-        r#"
-        SELECT COUNT(*)
-        FROM organization_needs
-        WHERE status = $1
-        "#,
-    )
-    .bind(status_filter.to_string())
-    .fetch_one(pool)
     .await
     .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+
+    // Count total using model method
+    let total_count = OrganizationNeed::count_by_status(&status_filter.to_string(), pool)
+        .await
+        .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
 
     let has_next_page = (offset + limit) < total_count as i32;
 
@@ -63,17 +48,8 @@ pub async fn query_needs(
 
 /// Get a single need by ID
 pub async fn query_need(pool: &PgPool, id: Uuid) -> FieldResult<Option<Need>> {
-    let need = sqlx::query_as::<_, OrganizationNeed>(
-        r#"
-        SELECT *
-        FROM organization_needs
-        WHERE id = $1
-        "#,
-    )
-    .bind(id)
-    .fetch_optional(pool)
-    .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+    // Use model method - converts Result to Option for non-existent records
+    let need = OrganizationNeed::find_by_id(id, pool).await.ok(); // Convert Result<Need> to Option<Need>
 
     Ok(need.map(Need::from))
 }

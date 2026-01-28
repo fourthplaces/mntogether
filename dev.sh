@@ -16,9 +16,9 @@ NC='\033[0m' # No Color
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DEV_CLI_BIN="$PROJECT_ROOT/target/release/dev"
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║   Minnesota Digital Aid Dev CLI      ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║  Minnesota Digital Aid Dev CLI       ║${NC}"
+echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
 echo ""
 
 # Check if Rust is installed

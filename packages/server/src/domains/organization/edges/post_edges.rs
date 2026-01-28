@@ -58,19 +58,16 @@ pub async fn create_custom_post(
     // Require admin access
     ctx.require_admin()?;
 
-    // Verify need exists and is active
+    // Verify need exists and is active (validation in model)
     let need = OrganizationNeed::find_by_id(input.need_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             juniper::FieldError::new(format!("Need not found: {}", e), juniper::Value::null())
         })?;
 
-    if need.status != "active" {
-        return Err(juniper::FieldError::new(
-            "Cannot create post for non-active need",
-            juniper::Value::null(),
-        ));
-    }
+    // Use model validation method
+    need.ensure_active()
+        .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
 
     // Get admin user ID from context
     let created_by = ctx.auth_user.as_ref().map(|u| u.member_id);
@@ -82,7 +79,10 @@ pub async fn create_custom_post(
         input.custom_title,
         input.custom_description,
         input.custom_tldr,
-        input.targeting_hints,
+        input
+            .targeting_hints
+            .as_ref()
+            .and_then(|s| serde_json::from_str(s).ok()),
         input.expires_in_days.map(|d| d as i64),
         &ctx.db_pool,
     )
@@ -102,19 +102,16 @@ pub async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Rep
     // Require admin access
     ctx.require_admin()?;
 
-    // Verify need exists and is active
+    // Verify need exists and is active (validation in model)
     let need = OrganizationNeed::find_by_id(need_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             juniper::FieldError::new(format!("Need not found: {}", e), juniper::Value::null())
         })?;
 
-    if need.status != "active" {
-        return Err(juniper::FieldError::new(
-            "Cannot repost non-active need",
-            juniper::Value::null(),
-        ));
-    }
+    // Use model validation method
+    need.ensure_active()
+        .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
 
     // Get admin user ID from context
     let created_by = ctx.auth_user.as_ref().map(|u| u.member_id);

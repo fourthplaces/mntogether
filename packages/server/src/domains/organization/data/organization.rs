@@ -117,12 +117,9 @@ impl OrganizationData {
     async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
         use crate::domains::organization::models::OrganizationSource;
 
-        let sources = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE organization_id = $1 ORDER BY created_at DESC"
-        )
-        .bind(Uuid::parse_str(&self.id)?)
-        .fetch_all(&context.db_pool)
-        .await?;
+        // Use model method - note: sources are linked by organization_name, not ID
+        let sources =
+            OrganizationSource::find_by_organization_name(&self.name, &context.db_pool).await?;
 
         Ok(sources.into_iter().map(SourceData::from).collect())
     }

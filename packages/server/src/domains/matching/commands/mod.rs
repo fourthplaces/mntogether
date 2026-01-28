@@ -25,7 +25,6 @@ impl Command for MatchingCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*need_id),
-                container_id: None,
             }),
         }
     }

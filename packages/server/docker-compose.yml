@@ -36,8 +36,8 @@ services:
   # API server (Rust)
   api:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: packages/server/Dockerfile.dev
     container_name: mndigitalaid_api
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
@@ -58,9 +58,16 @@ services:
       redis:
         condition: service_healthy
     volumes:
-      - ./:/app
-    command: cargo run --bin api
+      # Keep workspace files in sync
+      - ../../Cargo.lock:/app/Cargo.lock
+      - ../../Cargo.toml:/app/Cargo.toml
+      # Mount source code for hot-reload
+      - ../../packages:/app/packages
+      # Persist compiled artifacts (saves rebuild time)
+      - api-target:/app/target
 
 volumes:
   postgres_data:
   redis_data:
+  api-target:
+    name: mndigitalaid_api_target

@@ -17,6 +17,7 @@ pub struct PostGql {
     pub custom_title: Option<String>,
     pub custom_description: Option<String>,
     pub custom_tldr: Option<String>,
+    pub outreach_copy: Option<String>,
     pub view_count: i32,
     pub click_count: i32,
     pub response_count: i32,
@@ -34,6 +35,7 @@ impl From<Post> for PostGql {
             custom_title: post.custom_title,
             custom_description: post.custom_description,
             custom_tldr: post.custom_tldr,
+            outreach_copy: post.outreach_copy,
             view_count: post.view_count,
             click_count: post.click_count,
             response_count: post.response_count,
@@ -69,7 +71,7 @@ pub struct CreatePostInput {
     pub custom_title: Option<String>,
     pub custom_description: Option<String>,
     pub custom_tldr: Option<String>,
-    pub targeting_hints: Option<JsonValue>,
+    pub targeting_hints: Option<String>, // JSON string, parsed in resolver
     pub expires_in_days: Option<i32>,
 }
 

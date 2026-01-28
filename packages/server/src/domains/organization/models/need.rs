@@ -199,8 +199,11 @@ impl OrganizationNeed {
         id: Uuid,
         title: Option<String>,
         description: Option<String>,
+        description_markdown: Option<String>,
+        tldr: Option<String>,
         contact_info: Option<JsonValue>,
         urgency: Option<String>,
+        location: Option<String>,
         pool: &PgPool,
     ) -> Result<Self> {
         let need = sqlx::query_as::<_, OrganizationNeed>(
@@ -209,8 +212,11 @@ impl OrganizationNeed {
             SET
                 title = COALESCE($2, title),
                 description = COALESCE($3, description),
-                contact_info = COALESCE($4, contact_info),
-                urgency = COALESCE($5, urgency),
+                description_markdown = COALESCE($4, description_markdown),
+                tldr = COALESCE($5, tldr),
+                contact_info = COALESCE($6, contact_info),
+                urgency = COALESCE($7, urgency),
+                location = COALESCE($8, location),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -219,8 +225,11 @@ impl OrganizationNeed {
         .bind(id)
         .bind(title)
         .bind(description)
+        .bind(description_markdown)
+        .bind(tldr)
         .bind(contact_info)
         .bind(urgency)
+        .bind(location)
         .fetch_one(pool)
         .await?;
         Ok(need)
@@ -268,6 +277,201 @@ impl OrganizationNeed {
             .execute(pool)
             .await?;
 
+        Ok(())
+    }
+
+    /// Create a new need (returns inserted record with defaults applied)
+    ///
+    /// This method handles need creation for both scraped and user-submitted needs.
+    /// Last_seen_at is set to NOW() automatically by the database default.
+    pub async fn create(
+        organization_name: String,
+        title: String,
+        description: String,
+        tldr: String,
+        contact_info: Option<JsonValue>,
+        urgency: Option<String>,
+        location: Option<String>,
+        status: String,
+        content_hash: String,
+        submission_type: Option<String>,
+        submitted_by_volunteer_id: Option<Uuid>,
+        submitted_from_ip: Option<String>,
+        source_id: Option<Uuid>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let need = sqlx::query_as::<_, OrganizationNeed>(
+            r#"
+            INSERT INTO organization_needs (
+                organization_name,
+                title,
+                description,
+                tldr,
+                contact_info,
+                urgency,
+                location,
+                status,
+                content_hash,
+                submission_type,
+                submitted_by_volunteer_id,
+                submitted_from_ip,
+                source_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet, $13)
+            RETURNING *
+            "#,
+        )
+        .bind(organization_name)
+        .bind(title)
+        .bind(description)
+        .bind(tldr)
+        .bind(contact_info)
+        .bind(urgency)
+        .bind(location)
+        .bind(status)
+        .bind(content_hash)
+        .bind(submission_type)
+        .bind(submitted_by_volunteer_id)
+        .bind(submitted_from_ip)
+        .bind(source_id)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(need)
+    }
+
+    /// Find existing active needs from a source (for sync)
+    pub async fn find_active_by_source(source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+        let needs = sqlx::query_as::<_, OrganizationNeed>(
+            r#"
+            SELECT *
+            FROM organization_needs
+            WHERE source_id = $1
+              AND status IN ('pending_approval', 'active')
+              AND disappeared_at IS NULL
+            "#,
+        )
+        .bind(source_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(needs)
+    }
+
+    /// Find need by source and title (for sync - detecting changed needs)
+    pub async fn find_by_source_and_title(
+        source_id: Uuid,
+        title: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        let need = sqlx::query_as::<_, OrganizationNeed>(
+            r#"
+            SELECT *
+            FROM organization_needs
+            WHERE source_id = $1
+              AND title = $2
+              AND status IN ('pending_approval', 'active')
+              AND disappeared_at IS NULL
+            LIMIT 1
+            "#,
+        )
+        .bind(source_id)
+        .bind(title)
+        .fetch_optional(pool)
+        .await?;
+        Ok(need)
+    }
+
+    /// Mark needs as disappeared that are not in the provided content hash list (for sync)
+    pub async fn mark_disappeared_except(
+        source_id: Uuid,
+        content_hashes: &[String],
+        pool: &PgPool,
+    ) -> Result<Vec<Uuid>> {
+        let disappeared_ids = sqlx::query_scalar::<_, Uuid>(
+            r#"
+            UPDATE organization_needs
+            SET disappeared_at = NOW(), updated_at = NOW()
+            WHERE source_id = $1
+              AND status IN ('pending_approval', 'active')
+              AND disappeared_at IS NULL
+              AND content_hash NOT IN (SELECT * FROM UNNEST($2::text[]))
+            RETURNING id
+            "#,
+        )
+        .bind(source_id)
+        .bind(content_hashes)
+        .fetch_all(pool)
+        .await?;
+        Ok(disappeared_ids)
+    }
+
+    /// Update last_seen_at for a specific need
+    pub async fn touch_last_seen(id: Uuid, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE organization_needs
+            SET last_seen_at = NOW(), updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Count needs by status (for pagination)
+    pub async fn count_by_status(status: &str, pool: &PgPool) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM organization_needs
+            WHERE status = $1
+            "#,
+        )
+        .bind(status)
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
+
+    /// Find need by content hash with status filter (for duplicate detection)
+    ///
+    /// Returns the UUID of an existing need with the same content hash
+    /// that is either pending_approval or active (not rejected/expired).
+    pub async fn find_id_by_content_hash_active(
+        content_hash: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Uuid>> {
+        let id = sqlx::query_scalar::<_, Uuid>(
+            r#"
+            SELECT id
+            FROM organization_needs
+            WHERE content_hash = $1
+              AND status IN ('pending_approval', 'active')
+            LIMIT 1
+            "#,
+        )
+        .bind(content_hash)
+        .fetch_optional(pool)
+        .await?;
+        Ok(id)
+    }
+
+    // =============================================================================
+    // Validation Methods - Business logic validation
+    // =============================================================================
+
+    /// Ensure need is active (for operations that require active status)
+    ///
+    /// Returns an error if the need is not active, preventing operations
+    /// like post creation on inactive needs.
+    pub fn ensure_active(&self) -> Result<()> {
+        if self.status != "active" {
+            anyhow::bail!(
+                "Need must be active to perform this operation (current status: {})",
+                self.status
+            );
+        }
         Ok(())
     }
 }

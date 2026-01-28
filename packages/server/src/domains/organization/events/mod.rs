@@ -2,6 +2,9 @@ use serde_json::Value as JsonValue;
 use std::net::IpAddr;
 use uuid::Uuid;
 
+// Import business types from domain effects
+pub use crate::domains::organization::effects::need_extraction::{ContactInfo, ExtractedNeed};
+
 /// Organization domain events
 /// Following seesaw-rs pattern: Events are immutable facts
 #[derive(Debug, Clone)]
@@ -97,22 +100,4 @@ pub enum OrganizationEvent {
 
     /// Embedding generation failed for a need
     NeedEmbeddingFailed { need_id: Uuid, reason: String },
-}
-
-/// Extracted need from AI
-#[derive(Debug, Clone)]
-pub struct ExtractedNeed {
-    pub title: String,
-    pub description: String,
-    pub tldr: String,
-    pub contact: Option<ContactInfo>,
-    pub urgency: Option<String>,
-    pub confidence: Option<String>, // "high" | "medium" | "low"
-}
-
-#[derive(Debug, Clone)]
-pub struct ContactInfo {
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub website: Option<String>,
 }

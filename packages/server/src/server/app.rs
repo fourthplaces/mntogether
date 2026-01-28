@@ -1,3 +1,4 @@
+use crate::domains::auth::JwtService;
 use crate::domains::matching::{
     commands::MatchingCommand,
     effects::MatchingEffect,
@@ -9,13 +10,13 @@ use crate::domains::member::{
 use crate::domains::organization::{
     commands::OrganizationCommand,
     effects::{
-        AIEffect, FirecrawlClient, NeedEffect, NeedExtractor, ScraperEffect, ServerDeps, SyncEffect,
+        utils::FirecrawlClient, AIEffect, NeedEffect, ScraperEffect, ServerDeps, SyncEffect,
     },
     machines::OrganizationMachine,
 };
-use crate::server::auth::SessionStore;
+use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
-use crate::server::middleware::{extract_client_ip, session_auth_middleware, AuthUser};
+use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
 };
@@ -40,7 +41,7 @@ pub struct AppState {
     pub db_pool: PgPool,
     pub bus: EventBus,
     pub twilio: Arc<TwilioService>,
-    pub session_store: Arc<SessionStore>,
+    pub jwt_service: Arc<JwtService>,
 }
 
 /// Middleware to create GraphQLContext per-request
@@ -49,7 +50,7 @@ async fn create_graphql_context(
     mut request: Request,
     next: Next,
 ) -> Response {
-    // Extract auth user from request extensions (populated by session_auth_middleware)
+    // Extract auth user from request extensions (populated by jwt_auth_middleware)
     let auth_user = request.extensions().get::<AuthUser>().cloned();
 
     // Create GraphQL context with shared state + per-request auth
@@ -58,7 +59,7 @@ async fn create_graphql_context(
         state.bus.clone(),
         auth_user,
         state.twilio.clone(),
-        state.session_store.clone(),
+        state.jwt_service.clone(),
     );
 
     // Add context to request extensions
@@ -76,18 +77,29 @@ pub fn build_app(
     twilio_account_sid: String,
     twilio_auth_token: String,
     twilio_verify_service_sid: String,
+    jwt_secret: String,
+    jwt_issuer: String,
 ) -> (Router, EngineHandle) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
 
-    // Create server dependencies for effects
-    let server_deps = ServerDeps {
-        db_pool: pool.clone(),
-        firecrawl_client: FirecrawlClient::new(firecrawl_api_key),
-        need_extractor: NeedExtractor::new(openai_api_key.clone()),
-        embedding_service: crate::common::utils::EmbeddingService::new(openai_api_key),
-        expo_client: crate::common::utils::ExpoClient::new(expo_access_token),
+    // Create Twilio service (needed by ServerDeps)
+    let twilio_options = TwilioOptions {
+        account_sid: twilio_account_sid,
+        auth_token: twilio_auth_token,
+        service_id: twilio_verify_service_sid,
     };
+    let twilio = Arc::new(TwilioService::new(twilio_options));
+
+    // Create server dependencies for effects (using trait objects for testability)
+    let server_deps = ServerDeps::new(
+        pool.clone(),
+        Arc::new(FirecrawlClient::new(firecrawl_api_key)),
+        Arc::new(OpenAIClient::new(openai_api_key.clone())),
+        Arc::new(crate::common::utils::EmbeddingService::new(openai_api_key)),
+        Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
+        twilio.clone(),
+    );
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
@@ -105,6 +117,9 @@ pub fn build_app(
         .with_effect::<MatchingCommand, _>(MatchingEffect)
         // Cross-domain coordinator (OrganizationEvent → MatchingCommand)
         .with_machine(MatchingCoordinatorMachine::new())
+        // Auth domain
+        .with_machine(crate::domains::auth::AuthMachine::new())
+        .with_effect::<crate::domains::auth::AuthCommand, _>(crate::domains::auth::AuthEffect)
         // TODO: Integrate job queue
         // .with_job_queue(job_manager)
         .build();
@@ -112,23 +127,15 @@ pub fn build_app(
     let handle = engine.start();
     let bus = handle.bus().clone();
 
-    // Create Twilio service
-    let twilio_options = TwilioOptions {
-        account_sid: twilio_account_sid,
-        auth_token: twilio_auth_token,
-        service_id: twilio_verify_service_sid,
-    };
-    let twilio = Arc::new(TwilioService::new(twilio_options));
-
-    // Create session store
-    let session_store = Arc::new(SessionStore::new());
+    // Create JWT service
+    let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));
 
     // Create shared app state
     let app_state = AppState {
         db_pool: pool.clone(),
         bus,
         twilio: twilio.clone(),
-        session_store: session_store.clone(),
+        jwt_service: jwt_service.clone(),
     };
 
     // CORS configuration
@@ -136,6 +143,9 @@ pub fn build_app(
         .allow_origin(Any)
         .allow_methods(Any)
         .allow_headers(Any);
+
+    // Clone jwt_service for middleware closure
+    let jwt_service_for_middleware = jwt_service.clone();
 
     // Build router
     let router = Router::new()
@@ -148,18 +158,17 @@ pub fn build_app(
         // Static file serving for admin SPA
         .route("/admin", get(serve_admin))
         .route("/admin/*path", get(serve_admin))
-        // State (schema for GraphQL handlers)
-        .with_state(schema)
         // Middleware layers (applied in reverse order)
-        .layer(middleware::from_fn(create_graphql_context)) // Last: Create GraphQL context
-        .layer(middleware::from_fn_with_state(
-            session_store.clone(),
-            session_auth_middleware,
-        )) // Second: Extract session auth
-        .layer(Extension(app_state)) // First: Add shared state
+        .layer(Extension(app_state)) // Add shared state
+        .layer(middleware::from_fn(create_graphql_context)) // Create GraphQL context
+        .layer(middleware::from_fn(move |req, next| {
+            jwt_auth_middleware(jwt_service_for_middleware.clone(), req, next)
+        })) // CRITICAL FIX: JWT auth (was missing!)
         .layer(middleware::from_fn(extract_client_ip))
         .layer(cors)
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        // State (schema for GraphQL handlers)
+        .with_state(schema);
 
     (router, handle)
 }

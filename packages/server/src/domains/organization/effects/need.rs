@@ -1,12 +1,10 @@
-use anyhow::{Context, Result};
+use anyhow::Result;
 use async_trait::async_trait;
 use seesaw::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use crate::common::utils::generate_content_hash;
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
-use crate::domains::organization::models::{need::OrganizationNeed, post::Post, NeedStatus};
 
 /// Need Effect - Handles CreateNeed, UpdateNeedStatus, UpdateNeedAndApprove, CreatePost, GenerateNeedEmbedding commands
 pub struct NeedEffect;
@@ -32,78 +30,24 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 ip_address,
                 submission_type,
             } => {
-                // Generate content hash for deduplication
-                let content_hash = generate_content_hash(&format!(
-                    "{} {} {}",
-                    title, description, organization_name
-                ));
-
-                // Generate TLDR (first 100 chars of description)
-                let tldr = if description.len() > 100 {
-                    format!("{}...", &description[..97])
-                } else {
-                    description.clone()
-                };
-
-                // Convert IP address to string
                 let ip_str = ip_address.map(|ip| ip.to_string());
 
-                // Create need using model method
-                let need = sqlx::query_as!(
-                    OrganizationNeed,
-                    r#"
-                    INSERT INTO organization_needs (
-                        organization_name,
-                        title,
-                        description,
-                        tldr,
-                        contact_info,
-                        urgency,
-                        location,
-                        status,
-                        content_hash,
-                        submission_type,
-                        submitted_by_volunteer_id,
-                        submitted_from_ip
-                    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet)
-                    RETURNING
-                        id,
-                        organization_name,
-                        title,
-                        description,
-                        description_markdown,
-                        tldr,
-                        contact_info,
-                        urgency,
-                        status as "status!: String",
-                        content_hash,
-                        source_id,
-                        submission_type,
-                        submitted_by_volunteer_id,
-                        location,
-                        last_seen_at,
-                        disappeared_at,
-                        created_at,
-                        updated_at
-                    "#,
-                    organization_name,
+                let need = super::need_operations::create_need(
+                    volunteer_id,
+                    organization_name.clone(),
                     title,
                     description,
-                    tldr,
                     contact_info,
                     urgency,
                     location,
-                    NeedStatus::PendingApproval.to_string(),
-                    content_hash,
-                    submission_type,
-                    volunteer_id,
-                    ip_str
+                    ip_str,
+                    submission_type.clone(),
+                    None, // source_id
+                    ctx.deps().ai.as_ref(),
+                    &ctx.deps().db_pool,
                 )
-                .fetch_one(&ctx.deps().db_pool)
-                .await
-                .context("Failed to create need")?;
+                .await?;
 
-                // Return fact event
                 Ok(OrganizationEvent::NeedCreated {
                     need_id: need.id,
                     organization_name: need.organization_name,
@@ -117,15 +61,16 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 status,
                 rejection_reason,
             } => {
-                // Update status using model method
-                OrganizationNeed::update_status(need_id, &status, &ctx.deps().db_pool)
-                    .await
-                    .context("Failed to update need status")?;
+                let updated_status = super::need_operations::update_need_status(
+                    need_id,
+                    status.clone(),
+                    &ctx.deps().db_pool,
+                )
+                .await?;
 
-                // Return appropriate fact event
-                if status == "active" {
+                if updated_status == "active" {
                     Ok(OrganizationEvent::NeedApproved { need_id })
-                } else if status == "rejected" {
+                } else if updated_status == "rejected" {
                     Ok(OrganizationEvent::NeedRejected {
                         need_id,
                         reason: rejection_reason
@@ -146,8 +91,7 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 urgency,
                 location,
             } => {
-                // Update need content and approve
-                OrganizationNeed::update_content(
+                super::need_operations::update_and_approve_need(
                     need_id,
                     title,
                     description,
@@ -158,15 +102,8 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                     location,
                     &ctx.deps().db_pool,
                 )
-                .await
-                .context("Failed to update need content")?;
+                .await?;
 
-                // Set status to active
-                OrganizationNeed::update_status(need_id, "active", &ctx.deps().db_pool)
-                    .await
-                    .context("Failed to approve need")?;
-
-                // Return fact event
                 Ok(OrganizationEvent::NeedApproved { need_id })
             }
 
@@ -177,32 +114,17 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 custom_description,
                 expires_in_days,
             } => {
-                // Create and publish post
-                let post = if custom_title.is_some() || custom_description.is_some() {
-                    Post::create_and_publish_custom(
-                        need_id,
-                        created_by,
-                        custom_title,
-                        custom_description,
-                        None, // custom_tldr
-                        None, // targeting_hints
-                        expires_in_days,
-                        &ctx.deps().db_pool,
-                    )
-                    .await
-                    .context("Failed to create post")?
-                } else {
-                    Post::create_and_publish(
-                        need_id,
-                        created_by,
-                        expires_in_days,
-                        &ctx.deps().db_pool,
-                    )
-                    .await
-                    .context("Failed to create post")?
-                };
+                let post = super::need_operations::create_post_for_need(
+                    need_id,
+                    created_by,
+                    custom_title,
+                    custom_description,
+                    expires_in_days,
+                    ctx.deps().ai.as_ref(),
+                    &ctx.deps().db_pool,
+                )
+                .await?;
 
-                // Return fact event
                 Ok(OrganizationEvent::PostCreated {
                     post_id: post.id,
                     need_id,
@@ -210,42 +132,22 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
             }
 
             OrganizationCommand::GenerateNeedEmbedding { need_id } => {
-                // Get need from database
-                let need = OrganizationNeed::find_by_id(need_id, &ctx.deps().db_pool)
-                    .await
-                    .context("Failed to find need")?;
-
-                // Generate embedding from description
-                let embedding = match ctx
-                    .deps()
-                    .embedding_service
-                    .generate(&need.description)
-                    .await
-                {
-                    Ok(emb) => emb,
-                    Err(e) => {
-                        return Ok(OrganizationEvent::NeedEmbeddingFailed {
-                            need_id,
-                            reason: format!("Embedding generation failed: {}", e),
-                        });
-                    }
-                };
-
-                // Update need with embedding
-                if let Err(e) =
-                    OrganizationNeed::update_embedding(need_id, &embedding, &ctx.deps().db_pool)
-                        .await
-                {
-                    return Ok(OrganizationEvent::NeedEmbeddingFailed {
-                        need_id,
-                        reason: format!("Failed to save embedding: {}", e),
-                    });
-                }
-
-                Ok(OrganizationEvent::NeedEmbeddingGenerated {
+                match super::need_operations::generate_need_embedding(
                     need_id,
-                    dimensions: embedding.len(),
-                })
+                    ctx.deps().embedding_service.as_ref(),
+                    &ctx.deps().db_pool,
+                )
+                .await
+                {
+                    Ok(dimensions) => Ok(OrganizationEvent::NeedEmbeddingGenerated {
+                        need_id,
+                        dimensions,
+                    }),
+                    Err(e) => Ok(OrganizationEvent::NeedEmbeddingFailed {
+                        need_id,
+                        reason: e.to_string(),
+                    }),
+                }
             }
 
             _ => anyhow::bail!("NeedEffect: Unexpected command"),

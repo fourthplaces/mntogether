@@ -40,6 +40,7 @@ pub struct Post {
     pub custom_description: Option<String>,
     pub custom_tldr: Option<String>,
     pub targeting_hints: Option<JsonValue>,
+    pub outreach_copy: Option<String>,
     pub view_count: i32,
     pub click_count: i32,
     pub response_count: i32,
@@ -221,51 +222,66 @@ impl Post {
 
     /// Increment view count
     pub async fn increment_view_count(id: Uuid, pool: &PgPool) -> Result<()> {
-        sqlx::query!(
-            "UPDATE posts SET view_count = view_count + 1 WHERE id = $1",
-            id
-        )
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 
     /// Increment click count
     pub async fn increment_click_count(id: Uuid, pool: &PgPool) -> Result<()> {
-        sqlx::query!(
-            "UPDATE posts SET click_count = click_count + 1 WHERE id = $1",
-            id
-        )
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE posts SET click_count = click_count + 1 WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 
     /// Increment response count
     pub async fn increment_response_count(id: Uuid, pool: &PgPool) -> Result<()> {
-        sqlx::query!(
-            "UPDATE posts SET response_count = response_count + 1 WHERE id = $1",
-            id
-        )
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE posts SET response_count = response_count + 1 WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 
     /// Expire all posts past their expiration date (background job)
     pub async fn expire_old_posts(pool: &PgPool) -> Result<usize> {
-        let result = sqlx::query!(
+        let result = sqlx::query(
             r#"
             UPDATE posts
             SET status = 'expired'
             WHERE status = 'published'
               AND expires_at IS NOT NULL
               AND expires_at <= NOW()
-            "#
+            "#,
         )
         .execute(pool)
         .await?;
 
         Ok(result.rows_affected() as usize)
+    }
+
+    /// Update outreach copy for a post
+    pub async fn update_outreach_copy(
+        id: Uuid,
+        outreach_copy: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let post = sqlx::query_as::<_, Post>(
+            r#"
+            UPDATE posts
+            SET outreach_copy = $2
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(outreach_copy)
+        .fetch_one(pool)
+        .await?;
+        Ok(post)
     }
 }

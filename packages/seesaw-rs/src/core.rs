@@ -74,9 +74,6 @@ pub struct JobSpec {
 
     /// Optional reference ID for tracking purposes.
     pub reference_id: Option<Uuid>,
-
-    /// Optional container scope for multi-tenancy.
-    pub container_id: Option<Uuid>,
 }
 
 impl JobSpec {
@@ -93,7 +90,6 @@ impl JobSpec {
             priority: 0,
             version: 1,
             reference_id: None,
-            container_id: None,
         }
     }
 
@@ -124,12 +120,6 @@ impl JobSpec {
     /// Set an optional reference ID for tracking.
     pub fn with_reference_id(mut self, id: Uuid) -> Self {
         self.reference_id = Some(id);
-        self
-    }
-
-    /// Set an optional container ID for multi-tenancy.
-    pub fn with_container_id(mut self, id: Uuid) -> Self {
-        self.container_id = Some(id);
         self
     }
 }

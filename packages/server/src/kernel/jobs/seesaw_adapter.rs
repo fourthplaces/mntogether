@@ -92,7 +92,7 @@ impl SeesawJobQueueAdapter {
             spec.version,
             priority,
             spec.max_retries,
-            spec.container_id,
+            None, // container_id - not part of JobSpec, used internally by job system
             self.default_lease_ms,
         );
 

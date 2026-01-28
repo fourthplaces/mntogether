@@ -1,6 +1,9 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+
+use crate::kernel::BaseEmbeddingService;
 
 /// Embedding service using OpenAI's text-embedding-3-small
 pub struct EmbeddingService {
@@ -33,9 +36,11 @@ impl EmbeddingService {
             model: "text-embedding-3-small".to_string(),
         }
     }
+}
 
-    /// Generate embedding for text (returns 1536-dimensional vector)
-    pub async fn generate(&self, text: &str) -> Result<Vec<f32>> {
+#[async_trait]
+impl BaseEmbeddingService for EmbeddingService {
+    async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         let response = self
             .client
             .post("https://api.openai.com/v1/embeddings")

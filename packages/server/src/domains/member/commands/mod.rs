@@ -39,7 +39,6 @@ impl Command for MemberCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*member_id),
-                container_id: None,
             }),
             _ => None,
         }

@@ -66,7 +66,7 @@ async fn main() -> Result<()> {
     );
 
     // Initialize OpenAI client for tag extraction
-    let openai_api_key = config.openai_api_key.context("OPENAI_API_KEY not set")?;
+    let openai_api_key = &config.openai_api_key;
 
     println!("\n🚀 Starting seed process...\n");
 

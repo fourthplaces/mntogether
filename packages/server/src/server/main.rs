@@ -53,6 +53,8 @@ async fn main() -> Result<()> {
         config.twilio_account_sid,
         config.twilio_auth_token,
         config.twilio_verify_service_sid,
+        config.jwt_secret,
+        config.jwt_issuer,
     );
 
     // Start scheduled tasks (periodic scraping)
@@ -68,6 +70,7 @@ async fn main() -> Result<()> {
         "GraphQL playground: http://localhost:{}/graphql",
         config.port
     );
+    tracing::info!("Admin interface: http://localhost:{}/admin", config.port);
     tracing::info!("Health check: http://localhost:{}/health", config.port);
 
     let listener = tokio::net::TcpListener::bind(&addr)

@@ -7,12 +7,15 @@ use sqlx::PgPool;
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 
-use crate::domains::matching::{commands::MatchingCommand, events::MatchingEvent};
+use crate::domains::matching::{
+    commands::MatchingCommand, events::MatchingEvent, models::notification::Notification,
+    utils::check_relevance_by_similarity,
+};
 use crate::domains::member::models::member::Member;
 use crate::domains::organization::effects::ServerDeps;
 use crate::domains::organization::models::need::OrganizationNeed;
 
-use vector_search::{find_members_statewide, find_members_within_radius, MatchCandidate};
+use vector_search::MatchCandidate;
 
 /// Default search radius in kilometers (≈ 20 miles)
 const DEFAULT_RADIUS_KM: f64 = 30.0;
@@ -70,10 +73,11 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 };
 
                 // 2. Vector search with distance filtering
+                let embedding_slice: &[f32] = need_embedding.as_slice();
                 let candidates = if let (Some(lat), Some(lng)) = (need.latitude, need.longitude) {
                     // Has location - filter by distance
-                    find_members_within_radius(
-                        &need_embedding,
+                    MatchCandidate::find_within_radius(
+                        embedding_slice,
                         lat,
                         lng,
                         DEFAULT_RADIUS_KM,
@@ -82,7 +86,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                     .await?
                 } else {
                     // No location - search statewide
-                    find_members_statewide(&need_embedding, &ctx.deps().db_pool).await?
+                    MatchCandidate::find_statewide(embedding_slice, &ctx.deps().db_pool).await?
                 };
 
                 if candidates.is_empty() {
@@ -98,13 +102,15 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 // 3. AI relevance check + send notifications
                 let mut notified_count = 0;
                 for candidate in candidates.iter().take(MAX_NOTIFICATIONS) {
-                    // Check relevance (placeholder - would use GPT-4 in production)
-                    let (is_relevant, why_relevant) = check_relevance(&need, &candidate).await?;
+                    // Check relevance using pure utility function
+                    let relevance_result = check_relevance_by_similarity(candidate.similarity);
 
-                    if !is_relevant {
+                    if !relevance_result.is_relevant {
                         debug!("Candidate {} not relevant, skipping", candidate.member_id);
                         continue;
                     }
+
+                    let why_relevant = relevance_result.explanation;
 
                     // Increment notification count (atomic throttle check)
                     match Member::increment_notification_count(
@@ -125,7 +131,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                                 &candidate,
                                 &need,
                                 &why_relevant,
-                                &ctx.deps().expo_client,
+                                ctx.deps().push_service.as_ref(),
                             )
                             .await?;
 
@@ -166,114 +172,16 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
     }
 }
 
-/// Check if a candidate is relevant for a need (AI relevance check)
-///
-/// Uses GPT-4o-mini to evaluate if the member's skills/interests match the need
-#[instrument(skip(need, candidate), fields(need_id = %need.id, member_id = %candidate.member_id, similarity = %candidate.similarity))]
-async fn check_relevance(
-    need: &OrganizationNeed,
-    candidate: &MatchCandidate,
-) -> Result<(bool, String)> {
-    // Quick pre-filter: if similarity is very low, skip AI call
-    if candidate.similarity < 0.4 {
-        debug!("Low similarity score, rejecting without AI call");
-        return Ok((false, "Low similarity score".to_string()));
-    }
-
-    // For high similarity, trust the embedding
-    if candidate.similarity > 0.8 {
-        info!("High similarity score, accepting without AI call");
-        return Ok((
-            true,
-            format!(
-                "Strong match based on your interests and skills ({}% similar)",
-                (candidate.similarity * 100.0) as i32
-            ),
-        ));
-    }
-
-    // For medium similarity, use AI to decide
-    // Note: This is commented out to avoid excessive API costs in development
-    // Uncomment for production or when you have sufficient API quota
-
-    /*
-        use reqwest::Client;
-
-        let client = Client::new();
-        let api_key = std::env::var("OPENAI_API_KEY")?;
-
-        let prompt = format!(
-            r#"Evaluate if this volunteer is a good match for this opportunity.
-
-    Organization Need:
-    {}
-
-    Volunteer Profile:
-    {}
-
-    Respond with ONLY:
-    - "YES|" followed by a one-sentence explanation if they're a good match
-    - "NO|Not a good match" if they're not
-
-    Be generous - if there's ANY reasonable connection, say YES."#,
-            need.description,
-            candidate.searchable_text
-        );
-
-        let response = client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", api_key))
-            .json(&serde_json::json!({
-                "model": "gpt-4o-mini",
-                "messages": [
-                    {
-                        "role": "system",
-                        "content": "You are a volunteer matching assistant. Be generous with matches."
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "temperature": 0.3,
-                "max_tokens": 100
-            }))
-            .send()
-            .await?;
-
-        let json: serde_json::Value = response.json().await?;
-        let content = json["choices"][0]["message"]["content"]
-            .as_str()
-            .unwrap_or("NO|Error");
-
-        let parts: Vec<&str> = content.splitn(2, '|').collect();
-        let is_relevant = parts[0].trim() == "YES";
-        let explanation = parts.get(1).unwrap_or(&"").trim().to_string();
-
-        Ok((is_relevant, explanation))
-        */
-
-    // Fallback: use similarity threshold
-    let is_relevant = candidate.similarity > 0.6;
-    let why_relevant = if is_relevant {
-        format!(
-            "Your profile matches this opportunity ({}% similar)",
-            (candidate.similarity * 100.0) as i32
-        )
-    } else {
-        "Not a strong match".to_string()
-    };
-
-    Ok((is_relevant, why_relevant))
-}
+// Relevance checking moved to domains/matching/utils/relevance.rs
+// This keeps the effect focused on orchestration (I/O) rather than business logic
 
 /// Send push notification via Expo
-#[instrument(skip(candidate, need, expo_client), fields(member_id = %candidate.member_id, need_id = %need.id, token = %candidate.expo_push_token))]
+#[instrument(skip(candidate, need, push_service), fields(member_id = %candidate.member_id, need_id = %need.id, token = %candidate.expo_push_token))]
 async fn send_push_notification(
     candidate: &MatchCandidate,
     need: &OrganizationNeed,
     why_relevant: &str,
-    expo_client: &crate::common::utils::ExpoClient,
+    push_service: &dyn crate::kernel::BasePushNotificationService,
 ) -> Result<()> {
     let title = "You might be interested in this";
     let body = format!("{} - {}", need.organization_name, need.title);
@@ -286,7 +194,7 @@ async fn send_push_notification(
         "why_relevant": why_relevant,
     });
 
-    expo_client
+    push_service
         .send_notification(&candidate.expo_push_token, title, &body, data)
         .await
         .map_err(|e| {
@@ -308,20 +216,12 @@ async fn record_notification(
 ) -> Result<()> {
     debug!("Recording notification in database");
 
-    sqlx::query(
-        "INSERT INTO notifications (need_id, member_id, why_relevant)
-         VALUES ($1, $2, $3)
-         ON CONFLICT (need_id, member_id) DO NOTHING",
-    )
-    .bind(need_id)
-    .bind(member_id)
-    .bind(why_relevant)
-    .execute(pool)
-    .await
-    .map_err(|e| {
-        error!(error = %e, "Failed to record notification");
-        e
-    })?;
+    Notification::record(need_id, member_id, why_relevant.to_string(), pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to record notification");
+            e
+        })?;
 
     debug!("Successfully recorded notification");
     Ok(())

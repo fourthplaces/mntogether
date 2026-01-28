@@ -1,6 +1,9 @@
 use anyhow::{Context, Result};
+use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+
+use crate::kernel::{BaseWebScraper, ScrapeResult};
 
 /// Firecrawl API client for scraping websites
 pub struct FirecrawlClient {
@@ -17,9 +20,11 @@ impl FirecrawlClient {
             base_url: "https://api.firecrawl.dev/v1".to_string(),
         }
     }
+}
 
-    /// Scrape a website and return clean text content
-    pub async fn scrape(&self, url: &str) -> Result<ScrapeResult> {
+#[async_trait]
+impl BaseWebScraper for FirecrawlClient {
+    async fn scrape(&self, url: &str) -> Result<ScrapeResult> {
         let request_body = ScrapeRequest {
             url: url.to_string(),
             formats: vec!["markdown".to_string()],
@@ -78,14 +83,6 @@ struct FirecrawlData {
 #[derive(Debug, Deserialize)]
 struct FirecrawlMetadata {
     title: Option<String>,
-}
-
-/// Result of scraping a website
-#[derive(Debug, Clone)]
-pub struct ScrapeResult {
-    pub url: String,
-    pub markdown: String,
-    pub title: Option<String>,
 }
 
 #[cfg(test)]

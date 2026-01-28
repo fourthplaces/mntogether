@@ -27,13 +27,13 @@ impl Effect<OrganizationCommand, ServerDeps> for ScraperEffect {
                     .await
                     .context("Failed to find source")?;
 
-                // Scrape website using Firecrawl
+                // Scrape website using web scraper
                 let scrape_result = ctx
                     .deps()
-                    .firecrawl_client
+                    .web_scraper
                     .scrape(&source.source_url)
                     .await
-                    .context("Firecrawl scraping failed")?;
+                    .context("Web scraping failed")?;
 
                 // Update last_scraped_at timestamp
                 OrganizationSource::update_last_scraped(source_id, &ctx.deps().db_pool)

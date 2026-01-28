@@ -1,0 +1,37 @@
+# Development Dockerfile with cargo-watch for hot-reloading
+# Based on Rust 1.83 (matches production Dockerfile)
+FROM rust:1.83-bookworm
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl-dev \
+    libpq-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch for hot-reloading
+RUN cargo install cargo-watch --locked
+
+# Install sqlx-cli for migrations
+RUN cargo install sqlx-cli --no-default-features --features postgres
+
+# Set working directory
+WORKDIR /app
+
+# Copy workspace files
+COPY Cargo.toml Cargo.lock ./
+
+# Copy all workspace members (needed for workspace to compile)
+COPY packages ./packages
+
+# Create dev-watch script
+COPY packages/server/dev-watch.sh /app/dev-watch.sh
+RUN chmod +x /app/dev-watch.sh
+
+# Set working directory to server package
+WORKDIR /app/packages/server
+
+EXPOSE 8080
+
+CMD ["/app/dev-watch.sh"]

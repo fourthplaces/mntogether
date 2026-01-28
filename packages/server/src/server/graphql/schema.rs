@@ -1,4 +1,5 @@
 use super::context::GraphQLContext;
+use crate::domains::auth::edges as auth_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::OrganizationData;
 use crate::domains::organization::edges::{
@@ -8,7 +9,6 @@ use crate::domains::organization::edges::{
     scrape_organization, submit_need, CreatePostInput, EditNeedInput, Need, NeedConnection,
     NeedStatusGql, PostGql, RepostResult, ScrapeJobResult, SubmitNeedInput,
 };
-use crate::server::auth::edges as auth_edges;
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -148,7 +148,7 @@ impl Mutation {
         ctx: &GraphQLContext,
         phone_number: String,
     ) -> FieldResult<bool> {
-        auth_edges::send_verification_code(phone_number, &ctx.twilio, &ctx.db_pool).await
+        auth_edges::send_verification_code(phone_number, ctx).await
     }
 
     /// Verify OTP code and create session
@@ -157,19 +157,12 @@ impl Mutation {
         phone_number: String,
         code: String,
     ) -> FieldResult<String> {
-        auth_edges::verify_code(
-            phone_number,
-            code,
-            &ctx.twilio,
-            &ctx.session_store,
-            &ctx.db_pool,
-        )
-        .await
+        auth_edges::verify_code(phone_number, code, ctx).await
     }
 
     /// Logout (delete session)
     async fn logout(ctx: &GraphQLContext, session_token: String) -> FieldResult<bool> {
-        auth_edges::logout(session_token, &ctx.session_store).await
+        auth_edges::logout(session_token, ctx).await
     }
 
     /// Create a custom post for a need (admin only)

@@ -1,7 +1,10 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
+
+use crate::kernel::BasePushNotificationService;
 
 /// Expo Push Notification Client
 /// Sends push notifications to Expo Go mobile app users
@@ -45,9 +48,11 @@ impl ExpoClient {
             access_token,
         }
     }
+}
 
-    /// Send a push notification to an Expo push token
-    pub async fn send_notification(
+#[async_trait]
+impl BasePushNotificationService for ExpoClient {
+    async fn send_notification(
         &self,
         push_token: &str,
         title: &str,
@@ -98,8 +103,7 @@ impl ExpoClient {
         Ok(())
     }
 
-    /// Send multiple notifications in batch (up to 100)
-    pub async fn send_batch(
+    async fn send_batch(
         &self,
         notifications: Vec<(&str, &str, &str, serde_json::Value)>,
     ) -> Result<()> {

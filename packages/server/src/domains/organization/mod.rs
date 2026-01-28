@@ -14,6 +14,7 @@ pub mod effects;
 pub mod events;
 pub mod machines;
 pub mod models;
+pub mod utils;
 
 pub use edges::*;
 pub use models::*;

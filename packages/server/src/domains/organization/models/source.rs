@@ -123,4 +123,20 @@ impl OrganizationSource {
         .await?;
         Ok(source)
     }
+
+    /// Find sources by organization name
+    ///
+    /// Returns all sources for a given organization, ordered by creation date
+    pub async fn find_by_organization_name(
+        organization_name: &str,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let sources = sqlx::query_as::<_, OrganizationSource>(
+            "SELECT * FROM organization_sources WHERE organization_name = $1 ORDER BY created_at DESC",
+        )
+        .bind(organization_name)
+        .fetch_all(pool)
+        .await?;
+        Ok(sources)
+    }
 }

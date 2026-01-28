@@ -1,5 +1,5 @@
-use crate::common::utils::generate_content_hash;
 use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
+use crate::domains::organization::utils::{generate_need_content_hash, generate_tldr};
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::PgPool;
@@ -42,111 +42,58 @@ pub async fn sync_needs(
     source_id: Uuid,
     extracted_needs: Vec<ExtractedNeedInput>,
 ) -> Result<SyncResult> {
-    let now = Utc::now();
-
     // Calculate content hashes for extracted needs
     let extracted_with_hashes: Vec<_> = extracted_needs
         .into_iter()
         .map(|need| {
-            let content_hash = generate_content_hash(&format!(
-                "{} {} {}",
-                need.title, need.description, need.organization_name
-            ));
+            let content_hash =
+                generate_need_content_hash(&need.title, &need.description, &need.organization_name);
             (need, content_hash)
         })
         .collect();
 
     // Fetch existing active needs from this source
-    let existing_needs = sqlx::query_as::<_, ExistingNeed>(
-        r#"
-        SELECT id, content_hash
-        FROM organization_needs
-        WHERE source_id = $1
-          AND status IN ('pending_approval', 'active')
-          AND disappeared_at IS NULL
-        "#,
-    )
-    .bind(source_id)
-    .fetch_all(pool)
-    .await?;
+    let existing_needs = OrganizationNeed::find_active_by_source(source_id, pool).await?;
 
     let mut new_needs = Vec::new();
     let mut unchanged_needs = Vec::new();
     let mut changed_needs = Vec::new();
 
     // Process each extracted need
-    for (need, content_hash) in extracted_with_hashes {
+    for (need, content_hash) in &extracted_with_hashes {
         // Check if this content hash exists in database
         if let Some(existing) = existing_needs
             .iter()
-            .find(|n| n.content_hash.as_ref() == Some(&content_hash))
+            .find(|n| n.content_hash.as_ref() == Some(content_hash))
         {
             // Unchanged - just update last_seen_at
-            sqlx::query!(
-                r#"
-                UPDATE organization_needs
-                SET last_seen_at = $1
-                WHERE id = $2
-                "#,
-                now,
-                existing.id
-            )
-            .execute(pool)
-            .await?;
-
+            OrganizationNeed::touch_last_seen(existing.id, pool).await?;
             unchanged_needs.push(existing.id);
         } else {
             // Check if there's an existing need with same title (might be changed)
-            let maybe_changed = sqlx::query_as::<_, ExistingNeed>(
-                r#"
-                SELECT id, content_hash
-                FROM organization_needs
-                WHERE source_id = $1
-                  AND title = $2
-                  AND status IN ('pending_approval', 'active')
-                  AND disappeared_at IS NULL
-                LIMIT 1
-                "#,
-            )
-            .bind(source_id)
-            .bind(&need.title)
-            .fetch_optional(pool)
-            .await?;
+            let maybe_changed =
+                OrganizationNeed::find_by_source_and_title(source_id, &need.title, pool).await?;
 
             if maybe_changed.is_some() {
                 // Content changed - create new pending_approval need
-                let new_id = create_pending_need(pool, source_id, &need, &content_hash).await?;
+                let new_id = create_pending_need(pool, source_id, need, content_hash).await?;
                 changed_needs.push(new_id);
             } else {
                 // New need - create pending_approval
-                let new_id = create_pending_need(pool, source_id, &need, &content_hash).await?;
+                let new_id = create_pending_need(pool, source_id, need, content_hash).await?;
                 new_needs.push(new_id);
             }
         }
     }
 
     // Find needs that disappeared (weren't in extracted set)
-    let extracted_hashes: Vec<_> = extracted_with_hashes
+    let extracted_hashes: Vec<String> = extracted_with_hashes
         .iter()
-        .map(|(_, hash)| hash.as_str())
+        .map(|(_, hash)| hash.clone())
         .collect();
 
-    let disappeared_needs = sqlx::query_scalar::<_, Uuid>(
-        r#"
-        UPDATE organization_needs
-        SET disappeared_at = $1
-        WHERE source_id = $2
-          AND status IN ('pending_approval', 'active')
-          AND disappeared_at IS NULL
-          AND content_hash NOT IN (SELECT * FROM UNNEST($3::text[]))
-        RETURNING id
-        "#,
-    )
-    .bind(now)
-    .bind(source_id)
-    .bind(&extracted_hashes)
-    .fetch_all(pool)
-    .await?;
+    let disappeared_needs =
+        OrganizationNeed::mark_disappeared_except(source_id, &extracted_hashes, pool).await?;
 
     Ok(SyncResult {
         new_needs,
@@ -163,45 +110,28 @@ async fn create_pending_need(
     need: &ExtractedNeedInput,
     content_hash: &str,
 ) -> Result<Uuid> {
-    let contact_json = serde_json::to_value(&need.contact)?;
-
-    let row = sqlx::query!(
-        r#"
-        INSERT INTO organization_needs (
-            organization_name,
-            title,
-            description,
-            description_markdown,
-            tldr,
-            contact_info,
-            urgency,
-            status,
-            content_hash,
-            source_id
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-        RETURNING id
-        "#,
-        need.organization_name,
-        need.title,
-        need.description,
-        need.description_markdown,
-        need.tldr,
-        contact_json,
-        need.urgency,
+    let created = OrganizationNeed::create(
+        need.organization_name.clone(),
+        need.title.clone(),
+        need.description.clone(),
+        need.tldr.clone().unwrap_or_else(|| {
+            // Generate TLDR if not provided
+            generate_tldr(&need.description, 100)
+        }),
+        need.contact.clone(),
+        need.urgency.clone(),
+        None, // location
         NeedStatus::PendingApproval.to_string(),
-        content_hash,
-        source_id
+        content_hash.to_string(),
+        Some("scraped".to_string()),
+        None, // submitted_by_volunteer_id
+        None, // submitted_from_ip
+        Some(source_id),
+        pool,
     )
-    .fetch_one(pool)
     .await?;
 
-    Ok(row.id)
-}
-
-#[derive(Debug, sqlx::FromRow)]
-struct ExistingNeed {
-    id: Uuid,
-    content_hash: Option<String>,
+    Ok(created.id)
 }
 
 #[cfg(test)]
@@ -221,16 +151,12 @@ mod tests {
             confidence: None,
         };
 
-        let hash1 = generate_content_hash(&format!(
-            "{} {} {}",
-            need.title, need.description, need.organization_name
-        ));
+        let hash1 =
+            generate_need_content_hash(&need.title, &need.description, &need.organization_name);
 
         // Same content should produce same hash
-        let hash2 = generate_content_hash(&format!(
-            "{} {} {}",
-            need.title, need.description, need.organization_name
-        ));
+        let hash2 =
+            generate_need_content_hash(&need.title, &need.description, &need.organization_name);
 
         assert_eq!(hash1, hash2);
         assert_eq!(hash1.len(), 64); // SHA256 is 64 hex chars
