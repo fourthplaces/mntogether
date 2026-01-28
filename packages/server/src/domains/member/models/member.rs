@@ -3,6 +3,8 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::common::MemberId;
+
 /// Member model - SQL persistence layer
 ///
 /// Privacy-first: No PII, only expo_push_token for anonymous notifications
@@ -121,7 +123,7 @@ impl Member {
     /// Increment notification count (for throttling)
     ///
     /// Returns the updated member if successful (count < 3), None if limit reached
-    pub async fn increment_notification_count(id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn increment_notification_count(id: MemberId, pool: &PgPool) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
             "UPDATE members
              SET notification_count_this_week = notification_count_this_week + 1
@@ -129,7 +131,7 @@ impl Member {
                AND notification_count_this_week < 3
              RETURNING *",
         )
-        .bind(id)
+        .bind(id.into_uuid())
         .fetch_optional(pool)
         .await
         .map_err(Into::into)

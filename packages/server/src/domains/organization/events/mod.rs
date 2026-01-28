@@ -15,9 +15,9 @@ pub enum OrganizationEvent {
     /// Admin requests to scrape an organization source
     ScrapeSourceRequested {
         source_id: SourceId,
-        job_id: JobId, // Track job for async workflow
+        job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
-        is_admin: bool, // Whether user is admin (checked in effect)
+        is_admin: bool,         // Whether user is admin (checked in effect)
     },
 
     /// Member submits a need they encountered
@@ -32,11 +32,19 @@ pub enum OrganizationEvent {
         ip_address: Option<String>,
     },
 
+    /// Public user submits a resource link (URL) for scraping
+    SubmitResourceLinkRequested {
+        job_id: JobId,
+        url: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
     /// Admin approves a need (makes it active)
     ApproveNeedRequested {
         need_id: NeedId,
         requested_by: MemberId, // User making the request
-        is_admin: bool, // Whether user is admin (checked in effect)
+        is_admin: bool,         // Whether user is admin (checked in effect)
     },
 
     /// Admin edits and approves a need (fix AI mistakes)
@@ -50,7 +58,7 @@ pub enum OrganizationEvent {
         urgency: Option<String>,
         location: Option<String>,
         requested_by: MemberId, // User making the request
-        is_admin: bool, // Whether user is admin (checked in effect)
+        is_admin: bool,         // Whether user is admin (checked in effect)
     },
 
     /// Admin rejects a need (hide forever)
@@ -58,7 +66,7 @@ pub enum OrganizationEvent {
         need_id: NeedId,
         reason: String,
         requested_by: MemberId, // User making the request
-        is_admin: bool, // Whether user is admin (checked in effect)
+        is_admin: bool,         // Whether user is admin (checked in effect)
     },
 
     /// Admin creates a custom post for a need
@@ -95,14 +103,10 @@ pub enum OrganizationEvent {
     },
 
     /// Member viewed a post (analytics)
-    PostViewedRequested {
-        post_id: PostId,
-    },
+    PostViewedRequested { post_id: PostId },
 
     /// Member clicked on a post (analytics)
-    PostClickedRequested {
-        post_id: PostId,
-    },
+    PostClickedRequested { post_id: PostId },
 
     // =========================================================================
     // Fact Events (from effects - what actually happened)
@@ -115,11 +119,29 @@ pub enum OrganizationEvent {
         content: String,
     },
 
+    /// User-submitted resource link was scraped successfully
+    ResourceLinkScraped {
+        job_id: JobId,
+        url: String,
+        content: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
     /// AI extracted needs from scraped content
     NeedsExtracted {
         source_id: SourceId,
         job_id: JobId,
         needs: Vec<ExtractedNeed>,
+    },
+
+    /// AI extracted needs from user-submitted resource link
+    ResourceLinkNeedsExtracted {
+        job_id: JobId,
+        url: String,
+        needs: Vec<ExtractedNeed>,
+        context: Option<String>,
+        submitter_contact: Option<String>,
     },
 
     /// Needs were synced with database
@@ -134,6 +156,12 @@ pub enum OrganizationEvent {
     /// Scraping failed (terminal event - clears pending state)
     ScrapeFailed {
         source_id: SourceId,
+        job_id: JobId,
+        reason: String,
+    },
+
+    /// Resource link scraping failed (terminal event)
+    ResourceLinkScrapeFailed {
         job_id: JobId,
         reason: String,
     },

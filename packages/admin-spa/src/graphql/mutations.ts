@@ -35,3 +35,15 @@ export const SUBMIT_NEED = gql`
     }
   }
 `;
+
+export const SEND_VERIFICATION_CODE = gql`
+  mutation SendVerificationCode($phoneNumber: String!) {
+    sendVerificationCode(phoneNumber: $phoneNumber)
+  }
+`;
+
+export const VERIFY_CODE = gql`
+  mutation VerifyCode($phoneNumber: String!, $code: String!) {
+    verifyCode(phoneNumber: $phoneNumber, code: $code)
+  }
+`;

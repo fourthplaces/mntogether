@@ -8,7 +8,8 @@ pub struct Config {
     pub database_url: String,
     pub redis_url: String,
     pub port: u16,
-    pub openai_api_key: String,
+    pub anthropic_api_key: String,
+    pub voyage_api_key: String,
     pub firecrawl_api_key: String,
     pub tavily_api_key: Option<String>,
     pub expo_access_token: Option<String>,
@@ -18,6 +19,8 @@ pub struct Config {
     pub jwt_secret: String,
     pub jwt_issuer: String,
     pub allowed_origins: Vec<String>,
+    pub test_identifier_enabled: bool,
+    pub admin_identifiers: Vec<String>,
 }
 
 impl Config {
@@ -34,7 +37,9 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .context("PORT must be a valid number")?,
-            openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
+            anthropic_api_key: env::var("ANTHROPIC_API_KEY")
+                .context("ANTHROPIC_API_KEY must be set")?,
+            voyage_api_key: env::var("VOYAGE_API_KEY").context("VOYAGE_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,
             tavily_api_key: env::var("TAVILY_API_KEY").ok(),
@@ -51,12 +56,23 @@ impl Config {
                 .unwrap_or_else(|_| {
                     if cfg!(debug_assertions) {
                         // Development: Allow localhost and Expo
-                        "http://localhost:3000,http://localhost:19006,http://localhost:8081".to_string()
+                        "http://localhost:3000,http://localhost:19006,http://localhost:8081"
+                            .to_string()
                     } else {
                         // Production: Must be explicitly set
                         "".to_string()
                     }
                 })
+                .split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect(),
+            test_identifier_enabled: env::var("TEST_IDENTIFIER_ENABLED")
+                .unwrap_or_else(|_| "false".to_string())
+                .parse()
+                .unwrap_or(false),
+            admin_identifiers: env::var("ADMIN_IDENTIFIERS")
+                .unwrap_or_else(|_| "".to_string())
                 .split(',')
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty())

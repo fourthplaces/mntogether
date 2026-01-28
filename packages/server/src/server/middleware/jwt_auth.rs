@@ -1,14 +1,14 @@
+use crate::common::MemberId;
 use crate::domains::auth::JwtService;
 use axum::{middleware::Next, response::Response};
 use std::sync::Arc;
 use tracing::debug;
-use uuid::Uuid;
 
 /// Authenticated user information from JWT
 #[derive(Clone, Debug)]
 pub struct AuthUser {
     pub user_id: String,
-    pub member_id: Uuid,
+    pub member_id: MemberId,
     pub phone_number: String,
     pub is_admin: bool,
 }
@@ -54,7 +54,7 @@ fn extract_auth_user(
 
     Some(AuthUser {
         user_id: claims.member_id.to_string(),
-        member_id: claims.member_id,
+        member_id: MemberId::from_uuid(claims.member_id),
         phone_number: claims.phone_number,
         is_admin: claims.is_admin,
     })
@@ -80,7 +80,7 @@ mod tests {
 
         let auth_user = extract_auth_user(&request, &jwt_service);
         assert!(auth_user.is_some());
-        assert_eq!(auth_user.unwrap().member_id, member_id);
+        assert_eq!(auth_user.unwrap().member_id, MemberId::from_uuid(member_id));
     }
 
     #[test]
@@ -98,7 +98,7 @@ mod tests {
 
         let auth_user = extract_auth_user(&request, &jwt_service);
         assert!(auth_user.is_some());
-        assert_eq!(auth_user.unwrap().member_id, member_id);
+        assert_eq!(auth_user.unwrap().member_id, MemberId::from_uuid(member_id));
     }
 
     #[test]

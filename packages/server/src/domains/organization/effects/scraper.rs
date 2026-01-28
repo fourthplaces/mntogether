@@ -29,6 +29,12 @@ impl Effect<OrganizationCommand, ServerDeps> for ScraperEffect {
                 requested_by,
                 is_admin,
             } => handle_scrape_source(source_id, job_id, requested_by, is_admin, &ctx).await,
+            OrganizationCommand::ScrapeResourceLink {
+                job_id,
+                url,
+                context,
+                submitter_contact,
+            } => handle_scrape_resource_link(job_id, url, context, submitter_contact, &ctx).await,
             _ => anyhow::bail!("ScraperEffect: Unexpected command"),
         }
     }
@@ -79,8 +85,7 @@ async fn handle_scrape_source(
     };
 
     // Update last_scraped_at timestamp
-    if let Err(e) = OrganizationSource::update_last_scraped(source_id, &ctx.deps().db_pool).await
-    {
+    if let Err(e) = OrganizationSource::update_last_scraped(source_id, &ctx.deps().db_pool).await {
         // Log warning but don't fail the scrape - this is non-critical
         tracing::warn!(
             source_id = %source_id,
@@ -95,5 +100,35 @@ async fn handle_scrape_source(
         job_id,
         organization_name: source.organization_name,
         content: scrape_result.markdown,
+    })
+}
+
+async fn handle_scrape_resource_link(
+    job_id: JobId,
+    url: String,
+    context: Option<String>,
+    submitter_contact: Option<String>,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<OrganizationEvent> {
+    // Public endpoint - no authorization needed
+
+    // Scrape the URL using web scraper
+    let scrape_result = match ctx.deps().web_scraper.scrape(&url).await {
+        Ok(r) => r,
+        Err(e) => {
+            return Ok(OrganizationEvent::ResourceLinkScrapeFailed {
+                job_id,
+                reason: format!("Web scraping failed: {}", e),
+            });
+        }
+    };
+
+    // Return fact event with scraped content
+    Ok(OrganizationEvent::ResourceLinkScraped {
+        job_id,
+        url,
+        content: scrape_result.markdown,
+        context,
+        submitter_contact,
     })
 }

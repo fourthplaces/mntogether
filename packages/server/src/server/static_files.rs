@@ -5,14 +5,25 @@ use axum::{
 use rust_embed::RustEmbed;
 
 // Embed admin-spa build at compile time
-// Run `cd packages/admin-spa && npm run build` before building the server
+// Run `cd packages/admin-spa && yarn build` before building the server
 #[derive(RustEmbed)]
 #[folder = "../admin-spa/dist"]
 pub struct AdminAssets;
 
-/// Serve static files from embedded assets with SPA fallback
+// Embed web-app build at compile time
+// Run `cd packages/web-app && yarn build` before building the server
+#[derive(RustEmbed)]
+#[folder = "../web-app/dist"]
+pub struct WebAppAssets;
+
+/// Serve admin SPA from embedded assets with SPA fallback
 pub async fn serve_admin(uri: Uri) -> Response {
     serve_spa::<AdminAssets>(uri, "/admin").await
+}
+
+/// Serve web app from embedded assets with SPA fallback
+pub async fn serve_web_app(uri: Uri) -> Response {
+    serve_spa::<WebAppAssets>(uri, "").await
 }
 
 /// Generic SPA serving function with fallback to index.html

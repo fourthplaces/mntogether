@@ -1,11 +1,11 @@
+use crate::common::NeedId;
 use seesaw::{Command, ExecutionMode, JobSpec};
-use uuid::Uuid;
 
 /// Matching domain commands
 #[derive(Debug, Clone)]
 pub enum MatchingCommand {
     /// Find matching members for a need and send notifications
-    FindMatches { need_id: Uuid },
+    FindMatches { need_id: NeedId },
 }
 
 impl Command for MatchingCommand {
@@ -24,7 +24,7 @@ impl Command for MatchingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*need_id),
+                reference_id: Some(*need_id.as_uuid()),
             }),
         }
     }

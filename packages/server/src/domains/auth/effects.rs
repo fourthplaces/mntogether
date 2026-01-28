@@ -9,6 +9,9 @@ use super::models::{hash_phone_number, Identifier};
 use crate::domains::organization::effects::ServerDeps;
 
 /// Auth effect - handles OTP sending and verification
+///
+/// Supports both phone numbers and email addresses as identifiers.
+/// Twilio can send OTP codes to either.
 pub struct AuthEffect;
 
 #[async_trait]
@@ -16,21 +19,69 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
     type Event = AuthEvent;
 
     async fn execute(&self, cmd: AuthCommand, ctx: EffectContext<ServerDeps>) -> Result<AuthEvent> {
+        // Production safety check - test identifier should never be enabled in production
+        if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {
+            error!("⚠️  SECURITY WARNING: TEST_IDENTIFIER_ENABLED is true in production build! This is a security risk.");
+        }
+
         match cmd {
             AuthCommand::SendOTP { phone_number } => {
-                debug!("Sending OTP to {}", phone_number);
+                // Note: phone_number field can be either phone or email (Twilio supports both)
+                debug!("Sending OTP to identifier: {}", phone_number);
 
-                // 1. Check if phone is registered
+                // 1. Check if identifier is registered
                 let phone_hash = hash_phone_number(&phone_number);
-                let identifier =
+                let mut identifier =
                     Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await?;
 
+                // 2. Auto-create identifier for admin emails if not registered
                 if identifier.is_none() {
-                    info!("Phone number not registered: {}", phone_number);
-                    return Ok(AuthEvent::PhoneNotRegistered { phone_number });
+                    use super::models::is_admin_identifier;
+                    use crate::domains::member::models::Member;
+                    use uuid::Uuid;
+
+                    let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
+
+                    if is_admin {
+                        info!("Auto-creating admin member and identifier for: {}", phone_number);
+
+                        // Create member record first (required for foreign key)
+                        let member = Member {
+                            id: Uuid::new_v4(),
+                            expo_push_token: format!("admin:{}", phone_number), // Placeholder
+                            searchable_text: format!("Admin: {}", phone_number),
+                            latitude: None,
+                            longitude: None,
+                            location_name: None,
+                            active: true,
+                            notification_count_this_week: 0,
+                            paused_until: None,
+                            created_at: chrono::Utc::now(),
+                        };
+
+                        let member = member.insert(&ctx.deps().db_pool).await.map_err(|e| {
+                            error!("Failed to create admin member: {}", e);
+                            anyhow::anyhow!("Failed to create admin member: {}", e)
+                        })?;
+
+                        // Create identifier record
+                        identifier = Some(
+                            Identifier::create(member.id, phone_hash.clone(), true, &ctx.deps().db_pool)
+                                .await
+                                .map_err(|e| {
+                                    error!("Failed to create admin identifier: {}", e);
+                                    anyhow::anyhow!("Failed to create admin identifier: {}", e)
+                                })?
+                        );
+
+                        info!("Admin member and identifier created successfully for {}", phone_number);
+                    } else {
+                        info!("Identifier not registered: {}", phone_number);
+                        return Ok(AuthEvent::PhoneNotRegistered { phone_number });
+                    }
                 }
 
-                // 2. Send OTP via Twilio
+                // 2. Send OTP via Twilio (supports phone numbers and emails)
                 ctx.deps()
                     .twilio
                     .send_otp(&phone_number)
@@ -45,9 +96,60 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
             }
 
             AuthCommand::VerifyOTP { phone_number, code } => {
-                debug!("Verifying OTP for {}", phone_number);
+                // Note: phone_number field can be either phone or email (Twilio supports both)
+                debug!("Verifying OTP for identifier: {}", phone_number);
 
-                // 1. Verify OTP with Twilio
+                // TEST IDENTIFIER BYPASS: Allow test identifiers with static OTP in development/testing
+                // Supports: +1234567890 or test@example.com with code 123456
+                if ctx.deps().test_identifier_enabled
+                    && code == "123456"
+                    && (phone_number == "+1234567890" || phone_number == "test@example.com")
+                {
+                    info!("Test identifier bypass activated for {}", phone_number);
+
+                    // Get or create member info for test identifier
+                    let phone_hash = hash_phone_number(&phone_number);
+                    let identifier = match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await? {
+                        Some(id) => id,
+                        None => {
+                            use super::models::is_admin_identifier;
+                            use crate::domains::member::models::Member;
+                            use uuid::Uuid;
+
+                            info!("Auto-creating test member and identifier: {}", phone_number);
+                            let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
+
+                            // Create member record first
+                            let member = Member {
+                                id: Uuid::new_v4(),
+                                expo_push_token: format!("test:{}", phone_number),
+                                searchable_text: format!("Test: {}", phone_number),
+                                latitude: None,
+                                longitude: None,
+                                location_name: None,
+                                active: true,
+                                notification_count_this_week: 0,
+                                paused_until: None,
+                                created_at: chrono::Utc::now(),
+                            };
+
+                            let member = member.insert(&ctx.deps().db_pool).await
+                                .map_err(|e| anyhow::anyhow!("Failed to create test member: {}", e))?;
+
+                            Identifier::create(member.id, phone_hash, is_admin, &ctx.deps().db_pool)
+                                .await
+                                .map_err(|e| anyhow::anyhow!("Failed to create test identifier: {}", e))?
+                        }
+                    };
+
+                    return Ok(AuthEvent::OTPVerified {
+                        member_id: identifier.member_id,
+                        phone_number,
+                        is_admin: identifier.is_admin,
+                    });
+                }
+
+                // 1. Verify OTP with Twilio (supports phone numbers and emails)
                 match ctx
                     .deps()
                     .twilio
@@ -62,7 +164,7 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                             Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool)
                                 .await?
                                 .ok_or_else(|| {
-                                    anyhow::anyhow!("Phone not found after verification")
+                                    anyhow::anyhow!("Identifier not found after verification")
                                 })?;
 
                         info!(

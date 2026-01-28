@@ -3,15 +3,22 @@ use crate::server::graphql::context::GraphQLContext;
 use juniper::FieldResult;
 use seesaw::dispatch_request;
 
-/// Send OTP verification code via SMS
+/// Send OTP verification code via SMS or email
+///
+/// Accepts either:
+/// - Phone number with country code (e.g., +1234567890)
+/// - Email address (e.g., user@example.com)
 pub async fn send_verification_code(
     phone_number: String,
     ctx: &GraphQLContext,
 ) -> FieldResult<bool> {
-    // Validate phone number format
-    if !phone_number.starts_with('+') {
+    // Validate identifier format (phone number or email)
+    let is_phone = phone_number.starts_with('+');
+    let is_email = phone_number.contains('@');
+
+    if !is_phone && !is_email {
         return Err(juniper::FieldError::new(
-            "Phone number must include country code (e.g., +1234567890)",
+            "Must provide either phone number with country code (e.g., +1234567890) or email address",
             juniper::Value::null(),
         ));
     }
@@ -25,9 +32,9 @@ pub async fn send_verification_code(
         |m| {
             m.try_match(|e: &AuthEvent| match e {
                 AuthEvent::OTPSent { .. } => Some(Ok(true)),
-                AuthEvent::PhoneNotRegistered { .. } => {
-                    Some(Err(anyhow::anyhow!("Phone number not registered")))
-                }
+                AuthEvent::PhoneNotRegistered { .. } => Some(Err(anyhow::anyhow!(
+                    "Identifier not registered (phone or email)"
+                ))),
                 _ => None,
             })
             .result()
@@ -38,6 +45,8 @@ pub async fn send_verification_code(
 }
 
 /// Verify OTP code and create JWT token
+///
+/// Accepts either phone number or email address as identifier
 pub async fn verify_code(
     phone_number: String,
     code: String,

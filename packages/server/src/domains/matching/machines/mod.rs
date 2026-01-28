@@ -2,10 +2,10 @@ mod coordinator;
 
 pub use coordinator::MatchingCoordinatorMachine;
 
+use crate::common::NeedId;
 use seesaw::Machine;
 use std::collections::HashMap;
 use tracing::{debug, info, warn};
-use uuid::Uuid;
 
 use crate::domains::matching::{commands::MatchingCommand, events::MatchingEvent};
 
@@ -13,7 +13,7 @@ use crate::domains::matching::{commands::MatchingCommand, events::MatchingEvent}
 ///
 /// Tracks which needs are currently being matched
 pub struct MatchingMachine {
-    pending_matches: HashMap<Uuid, ()>, // need_id -> ()
+    pending_matches: HashMap<NeedId, ()>, // need_id -> ()
 }
 
 impl MatchingMachine {

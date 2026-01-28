@@ -1,5 +1,8 @@
-use super::types::{Need, NeedConnection, NeedStatusGql, OrganizationSourceGql};
-use crate::domains::organization::models::{source::OrganizationSource, NeedStatus, OrganizationNeed};
+use super::types::{Need, NeedConnection, NeedStatusData, OrganizationSourceData};
+use crate::common::{NeedId, SourceId};
+use crate::domains::organization::models::{
+    source::OrganizationSource, NeedStatus, OrganizationNeed,
+};
 use juniper::{FieldError, FieldResult};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -7,7 +10,7 @@ use uuid::Uuid;
 /// Query needs with filters and pagination
 pub async fn query_needs(
     pool: &PgPool,
-    status: Option<NeedStatusGql>,
+    status: Option<NeedStatusData>,
     limit: Option<i32>,
     offset: Option<i32>,
 ) -> FieldResult<NeedConnection> {
@@ -16,10 +19,10 @@ pub async fn query_needs(
 
     // Default to active status if not specified
     let status_filter = match status {
-        Some(NeedStatusGql::Active) | None => NeedStatus::Active,
-        Some(NeedStatusGql::PendingApproval) => NeedStatus::PendingApproval,
-        Some(NeedStatusGql::Rejected) => NeedStatus::Rejected,
-        Some(NeedStatusGql::Expired) => NeedStatus::Expired,
+        Some(NeedStatusData::Active) | None => NeedStatus::Active,
+        Some(NeedStatusData::PendingApproval) => NeedStatus::PendingApproval,
+        Some(NeedStatusData::Rejected) => NeedStatus::Rejected,
+        Some(NeedStatusData::Expired) => NeedStatus::Expired,
     };
 
     // Fetch needs using model method
@@ -48,26 +51,27 @@ pub async fn query_needs(
 
 /// Get a single need by ID
 pub async fn query_need(pool: &PgPool, id: Uuid) -> FieldResult<Option<Need>> {
+    // Convert to typed ID
+    let need_id = NeedId::from_uuid(id);
+
     // Use model method - converts Result to Option for non-existent records
-    let need = OrganizationNeed::find_by_id(id, pool).await.ok(); // Convert Result<Need> to Option<Need>
+    let need = OrganizationNeed::find_by_id(need_id, pool).await.ok(); // Convert Result<Need> to Option<Need>
 
     Ok(need.map(Need::from))
 }
 
 /// Query all organization sources
-pub async fn query_organization_sources(pool: &PgPool) -> FieldResult<Vec<OrganizationSourceGql>> {
-    let sources = OrganizationSource::find_active(pool)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to fetch organization sources: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+pub async fn query_organization_sources(pool: &PgPool) -> FieldResult<Vec<OrganizationSourceData>> {
+    let sources = OrganizationSource::find_active(pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch organization sources: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(sources
         .into_iter()
-        .map(OrganizationSourceGql::from)
+        .map(OrganizationSourceData::from)
         .collect())
 }
 
@@ -75,8 +79,11 @@ pub async fn query_organization_sources(pool: &PgPool) -> FieldResult<Vec<Organi
 pub async fn query_organization_source(
     pool: &PgPool,
     id: Uuid,
-) -> FieldResult<Option<OrganizationSourceGql>> {
-    let source = OrganizationSource::find_by_id(id, pool).await.ok();
+) -> FieldResult<Option<OrganizationSourceData>> {
+    // Convert to typed ID
+    let source_id = SourceId::from_uuid(id);
 
-    Ok(source.map(OrganizationSourceGql::from))
+    let source = OrganizationSource::find_by_id(source_id, pool).await.ok();
+
+    Ok(source.map(OrganizationSourceData::from))
 }

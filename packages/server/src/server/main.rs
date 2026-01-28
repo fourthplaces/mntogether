@@ -52,7 +52,8 @@ async fn main() -> Result<()> {
     let (app, handle) = build_app(
         pool.clone(),
         config.firecrawl_api_key,
-        config.openai_api_key,
+        config.anthropic_api_key,
+        config.voyage_api_key,
         config.expo_access_token,
         config.twilio_account_sid,
         config.twilio_auth_token,
@@ -60,6 +61,8 @@ async fn main() -> Result<()> {
         config.jwt_secret,
         config.jwt_issuer,
         config.allowed_origins,
+        config.test_identifier_enabled,
+        config.admin_identifiers,
     );
 
     // Start scheduled tasks (periodic scraping)

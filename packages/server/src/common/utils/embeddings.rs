@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::kernel::BaseEmbeddingService;
 
-/// Embedding service using OpenAI's text-embedding-3-small
+/// Embedding service using Voyage AI's voyage-3-large
 pub struct EmbeddingService {
     client: Client,
     api_key: String,
@@ -20,12 +20,7 @@ struct EmbeddingRequest {
 
 #[derive(Debug, Deserialize)]
 struct EmbeddingResponse {
-    data: Vec<EmbeddingData>,
-}
-
-#[derive(Debug, Deserialize)]
-struct EmbeddingData {
-    embedding: Vec<f32>,
+    embeddings: Vec<Vec<f32>>,
 }
 
 impl EmbeddingService {
@@ -33,7 +28,7 @@ impl EmbeddingService {
         Self {
             client: Client::new(),
             api_key,
-            model: "text-embedding-3-small".to_string(),
+            model: "voyage-3-large".to_string(),
         }
     }
 }
@@ -43,7 +38,7 @@ impl BaseEmbeddingService for EmbeddingService {
     async fn generate(&self, text: &str) -> Result<Vec<f32>> {
         let response = self
             .client
-            .post("https://api.openai.com/v1/embeddings")
+            .post("https://api.voyageai.com/v1/embeddings")
             .header("Authorization", format!("Bearer {}", self.api_key))
             .json(&EmbeddingRequest {
                 model: self.model.clone(),
@@ -55,16 +50,15 @@ impl BaseEmbeddingService for EmbeddingService {
         if !response.status().is_success() {
             let status = response.status();
             let body = response.text().await?;
-            anyhow::bail!("OpenAI API error {}: {}", status, body);
+            anyhow::bail!("Voyage AI API error {}: {}", status, body);
         }
 
         let embedding_response: EmbeddingResponse = response.json().await?;
 
         let embedding = embedding_response
-            .data
+            .embeddings
             .first()
             .ok_or_else(|| anyhow::anyhow!("No embedding returned"))?
-            .embedding
             .clone();
 
         Ok(embedding)
@@ -78,7 +72,7 @@ mod tests {
     #[tokio::test]
     #[ignore] // Requires API key
     async fn test_generate_embedding() {
-        let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+        let api_key = std::env::var("VOYAGE_API_KEY").expect("VOYAGE_API_KEY not set");
         let service = EmbeddingService::new(api_key);
 
         let embedding = service
@@ -86,7 +80,7 @@ mod tests {
             .await
             .expect("Failed to generate embedding");
 
-        assert_eq!(embedding.len(), 1536);
+        assert_eq!(embedding.len(), 1024);
         println!("Generated embedding with {} dimensions", embedding.len());
     }
 }
