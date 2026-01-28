@@ -1,3 +1,4 @@
+use crate::common::SourceId;
 use crate::domains::organization::data::SourceData;
 use crate::domains::organization::models::need::OrganizationNeed;
 use crate::domains::organization::models::source::OrganizationSource;
@@ -19,7 +20,7 @@ pub struct NeedData {
     pub status: String,
     pub location: Option<String>,
     pub submission_type: Option<String>,
-    pub submitted_by_volunteer_id: Option<String>,
+    pub submitted_by_member_id: Option<String>,
     pub source_id: Option<String>,
     pub created_at: String,
     pub updated_at: String,
@@ -50,7 +51,7 @@ impl From<OrganizationNeed> for NeedData {
             status: need.status,
             location: need.location,
             submission_type: need.submission_type,
-            submitted_by_volunteer_id: need.submitted_by_volunteer_id.map(|id| id.to_string()),
+            submitted_by_member_id: need.submitted_by_member_id.map(|id| id.to_string()),
             source_id: need.source_id.map(|id| id.to_string()),
             created_at: need.created_at.to_rfc3339(),
             updated_at: need.updated_at.to_rfc3339(),
@@ -104,8 +105,8 @@ impl NeedData {
         self.submission_type.clone()
     }
 
-    fn submitted_by_volunteer_id(&self) -> Option<String> {
-        self.submitted_by_volunteer_id.clone()
+    fn submitted_by_member_id(&self) -> Option<String> {
+        self.submitted_by_member_id.clone()
     }
 
     fn created_at(&self) -> String {
@@ -122,7 +123,8 @@ impl NeedData {
             return Ok(None);
         };
 
-        let source_id = Uuid::parse_str(source_id_str)?;
+        let uuid = Uuid::parse_str(source_id_str)?;
+        let source_id = SourceId::from_uuid(uuid);
         let source = OrganizationSource::find_by_id(source_id, &context.db_pool).await?;
         Ok(Some(source.into()))
     }

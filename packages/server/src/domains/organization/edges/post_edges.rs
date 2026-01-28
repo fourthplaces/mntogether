@@ -1,7 +1,10 @@
 use super::post_types::{CreatePostInput, PostGql, RepostResult};
+use crate::common::{NeedId, PostId};
+use crate::domains::organization::events::OrganizationEvent;
 use crate::domains::organization::models::{OrganizationNeed, Post};
 use crate::server::graphql::context::GraphQLContext;
-use juniper::FieldResult;
+use juniper::{FieldError, FieldResult};
+use seesaw::{dispatch_request, EnvelopeMatch};
 use uuid::Uuid;
 
 /// Query published posts (for volunteers)
@@ -26,6 +29,7 @@ pub async fn query_posts_for_need(
     ctx: &GraphQLContext,
     need_id: Uuid,
 ) -> FieldResult<Vec<PostGql>> {
+    let need_id = NeedId::from_uuid(need_id);
     let posts = Post::find_by_need_id(need_id, &ctx.db_pool)
         .await
         .map_err(|e| {
@@ -40,6 +44,7 @@ pub async fn query_posts_for_need(
 
 /// Query a single post by ID
 pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Option<PostGql>> {
+    let post_id = PostId::from_uuid(post_id);
     let post = Post::find_by_id(post_id, &ctx.db_pool).await.map_err(|e| {
         juniper::FieldError::new(
             format!("Failed to fetch post: {}", e),
@@ -51,155 +56,232 @@ pub async fn query_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<Opti
 }
 
 /// Create a custom post for a need (admin only)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn create_custom_post(
     ctx: &GraphQLContext,
     input: CreatePostInput,
 ) -> FieldResult<PostGql> {
-    // Require admin access
-    ctx.require_admin()?;
+    // Get user info (authorization will be checked in effect)
+    let user = ctx.auth_user.as_ref().ok_or_else(|| {
+        FieldError::new("Authentication required", juniper::Value::null())
+    })?;
 
-    // Verify need exists and is active (validation in model)
-    let need = OrganizationNeed::find_by_id(input.need_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(format!("Need not found: {}", e), juniper::Value::null())
-        })?;
+    // Convert to typed ID
+    let need_id = NeedId::from_uuid(input.need_id);
 
-    // Use model validation method
-    need.ensure_active()
-        .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-    // Get admin user ID from context
-    let created_by = ctx.auth_user.as_ref().map(|u| u.member_id);
-
-    // Create post
-    let post = Post::create_and_publish_custom(
-        input.need_id,
-        created_by,
-        input.custom_title,
-        input.custom_description,
-        input.custom_tldr,
-        input
-            .targeting_hints
-            .as_ref()
-            .and_then(|s| serde_json::from_str(s).ok()),
-        input.expires_in_days.map(|d| d as i64),
-        &ctx.db_pool,
+    // Dispatch request event and await PostCreated fact event
+    let (post_id, need_id) = dispatch_request(
+        OrganizationEvent::CreateCustomPostRequested {
+            need_id,
+            custom_title: input.custom_title,
+            custom_description: input.custom_description,
+            custom_tldr: input.custom_tldr,
+            targeting_hints: input
+                .targeting_hints
+                .as_ref()
+                .and_then(|s| serde_json::from_str(s).ok()),
+            expires_in_days: input.expires_in_days.map(|d| d as i64),
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::PostCreated { post_id, need_id } => {
+                    Some(Ok((*post_id, *need_id)))
+                }
+                OrganizationEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
     )
     .await
     .map_err(|e| {
-        juniper::FieldError::new(
-            format!("Failed to create post: {}", e),
+        FieldError::new(
+            format!("Failed to create custom post: {}", e),
             juniper::Value::null(),
         )
     })?;
+
+    // Query result from database
+    let post = Post::find_by_id(post_id, &ctx.db_pool)
+        .await
+        .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
     Ok(PostGql::from(post))
 }
 
 /// Repost a need (create new post for existing active need) (admin only)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<RepostResult> {
-    // Require admin access
-    ctx.require_admin()?;
+    // Get user info (authorization will be checked in effect)
+    let user = ctx.auth_user.as_ref().ok_or_else(|| {
+        FieldError::new("Authentication required", juniper::Value::null())
+    })?;
 
-    // Verify need exists and is active (validation in model)
-    let need = OrganizationNeed::find_by_id(need_id, &ctx.db_pool)
+    // Convert to typed ID
+    let need_id = NeedId::from_uuid(need_id);
+
+    // Dispatch request event and await PostCreated fact event
+    let post_id = dispatch_request(
+        OrganizationEvent::RepostNeedRequested {
+            need_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::PostCreated { post_id, need_id: nid } if nid == need_id => {
+                    Some(Ok(*post_id))
+                }
+                OrganizationEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to repost need: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Query result from database
+    let post = Post::find_by_id(post_id, &ctx.db_pool)
         .await
-        .map_err(|e| {
-            juniper::FieldError::new(format!("Need not found: {}", e), juniper::Value::null())
-        })?;
-
-    // Use model validation method
-    need.ensure_active()
-        .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-    // Get admin user ID from context
-    let created_by = ctx.auth_user.as_ref().map(|u| u.member_id);
-
-    // Create new post
-    let post = Post::create_and_publish(need_id, created_by, None, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to repost need: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+        .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
 
     Ok(RepostResult {
         post: PostGql::from(post),
-        message: format!("Need reposted successfully. Post expires in 5 days."),
+        message: "Need reposted successfully. Post expires in 5 days.".to_string(),
     })
 }
 
 /// Expire a post (admin only)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn expire_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
-    // Require admin access
-    ctx.require_admin()?;
+    // Get user info (authorization will be checked in effect)
+    let user = ctx.auth_user.as_ref().ok_or_else(|| {
+        FieldError::new("Authentication required", juniper::Value::null())
+    })?;
 
-    let post = Post::expire(post_id, &ctx.db_pool).await.map_err(|e| {
-        juniper::FieldError::new(
+    // Convert to typed ID
+    let post_id = PostId::from_uuid(post_id);
+
+    // Dispatch request event and await PostExpired fact event
+    dispatch_request(
+        OrganizationEvent::ExpirePostRequested {
+            post_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::PostExpired { post_id: pid } if pid == post_id => Some(Ok(())),
+                OrganizationEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
             format!("Failed to expire post: {}", e),
             juniper::Value::null(),
         )
     })?;
 
+    // Query result from database
+    let post = Post::find_by_id(post_id, &ctx.db_pool)
+        .await
+        .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
+
     Ok(PostGql::from(post))
 }
 
 /// Archive a post (admin only)
+/// Following seesaw pattern: dispatch request event, await fact event
 pub async fn archive_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostGql> {
-    // Require admin access
-    ctx.require_admin()?;
+    // Get user info (authorization will be checked in effect)
+    let user = ctx.auth_user.as_ref().ok_or_else(|| {
+        FieldError::new("Authentication required", juniper::Value::null())
+    })?;
 
-    let post = Post::archive(post_id, &ctx.db_pool).await.map_err(|e| {
-        juniper::FieldError::new(
+    // Convert to typed ID
+    let post_id = PostId::from_uuid(post_id);
+
+    // Dispatch request event and await PostArchived fact event
+    dispatch_request(
+        OrganizationEvent::ArchivePostRequested {
+            post_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::PostArchived { post_id: pid } if pid == post_id => {
+                    Some(Ok(()))
+                }
+                OrganizationEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
             format!("Failed to archive post: {}", e),
             juniper::Value::null(),
         )
     })?;
 
+    // Query result from database
+    let post = Post::find_by_id(post_id, &ctx.db_pool)
+        .await
+        .map_err(|_| FieldError::new("Failed to fetch post", juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Post not found", juniper::Value::null()))?;
+
     Ok(PostGql::from(post))
 }
 
-/// Increment post view count (public - called when volunteer sees post)
-pub async fn increment_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-    Post::increment_view_count(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to increment view count: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+/// Track post view (public - called when member sees post)
+/// Following seesaw pattern: emit event (fire-and-forget)
+pub async fn track_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+    // Convert to typed ID
+    let post_id = PostId::from_uuid(post_id);
 
+    // Emit analytics event (fire-and-forget, no need to wait)
+    ctx.bus.emit(OrganizationEvent::PostViewedRequested { post_id });
     Ok(true)
 }
 
-/// Increment post click count (public - called when volunteer clicks post)
-pub async fn increment_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-    Post::increment_click_count(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to increment click count: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+/// Track post click (public - called when member clicks post)
+/// Following seesaw pattern: emit event (fire-and-forget)
+pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+    // Convert to typed ID
+    let post_id = PostId::from_uuid(post_id);
 
-    Ok(true)
-}
-
-/// Increment post response count (public - called when volunteer responds to post)
-pub async fn increment_post_response(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-    Post::increment_response_count(post_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            juniper::FieldError::new(
-                format!("Failed to increment response count: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
-
+    // Emit analytics event (fire-and-forget, no need to wait)
+    ctx.bus
+        .emit(OrganizationEvent::PostClickedRequested { post_id });
     Ok(true)
 }

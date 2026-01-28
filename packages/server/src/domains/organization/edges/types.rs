@@ -1,4 +1,4 @@
-use crate::domains::organization::models::{NeedStatus, OrganizationNeed};
+use crate::domains::organization::models::{source::OrganizationSource, NeedStatus, OrganizationNeed};
 use chrono::{DateTime, Utc};
 use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
@@ -132,4 +132,31 @@ pub struct NeedConnection {
     pub nodes: Vec<Need>,
     pub total_count: i32,
     pub has_next_page: bool,
+}
+
+/// GraphQL type for organization source (website to scrape)
+#[derive(Debug, Clone, GraphQLObject)]
+#[graphql(description = "A website source for scraping volunteer opportunities")]
+pub struct OrganizationSourceGql {
+    pub id: Uuid,
+    pub organization_name: String,
+    pub source_url: String,
+    pub last_scraped_at: Option<DateTime<Utc>>,
+    pub scrape_frequency_hours: i32,
+    pub active: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+impl From<OrganizationSource> for OrganizationSourceGql {
+    fn from(source: OrganizationSource) -> Self {
+        Self {
+            id: source.id,
+            organization_name: source.organization_name,
+            source_url: source.source_url,
+            last_scraped_at: source.last_scraped_at,
+            scrape_frequency_hours: source.scrape_frequency_hours,
+            active: source.active,
+            created_at: source.created_at,
+        }
+    }
 }

@@ -19,6 +19,6 @@ pub use test_dependencies::{
 };
 pub use traits::*;
 
-// Re-export domain types that used to be in kernel but now live in domain layer
-// This maintains backward compatibility with existing code
-pub use crate::domains::organization::effects::need_extraction::{ContactInfo, ExtractedNeed};
+// Re-export common types for convenience
+// These are shared types used across layers (no circular dependency)
+pub use crate::common::{ContactInfo, ExtractedNeed};

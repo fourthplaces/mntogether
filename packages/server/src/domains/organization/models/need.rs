@@ -3,12 +3,13 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
-use uuid::Uuid;
 
-/// Organization need - a volunteer opportunity
+use crate::common::{MemberId, NeedId, SourceId};
+
+/// Organization need - an opportunity
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OrganizationNeed {
-    pub id: Uuid,
+    pub id: NeedId,
     pub organization_name: String,
 
     // Content
@@ -35,11 +36,11 @@ pub struct OrganizationNeed {
 
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped' | 'user_submitted'
-    pub submitted_by_volunteer_id: Option<Uuid>,
+    pub submitted_by_member_id: Option<MemberId>,
     pub submitted_from_ip: Option<String>, // INET stored as string
 
     // Sync tracking (for scraped needs)
-    pub source_id: Option<Uuid>,
+    pub source_id: Option<SourceId>,
     pub last_seen_at: DateTime<Utc>,
     pub disappeared_at: Option<DateTime<Utc>>,
 
@@ -88,7 +89,7 @@ impl std::str::FromStr for NeedStatus {
 
 impl OrganizationNeed {
     /// Find need by ID
-    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
+    pub async fn find_by_id(id: NeedId, pool: &PgPool) -> Result<Self> {
         let need =
             sqlx::query_as::<_, OrganizationNeed>("SELECT * FROM organization_needs WHERE id = $1")
                 .bind(id)
@@ -119,7 +120,7 @@ impl OrganizationNeed {
     }
 
     /// Find needs by source ID
-    pub async fn find_by_source_id(source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_source_id(source_id: SourceId, pool: &PgPool) -> Result<Vec<Self>> {
         let needs = sqlx::query_as::<_, OrganizationNeed>(
             "SELECT * FROM organization_needs WHERE source_id = $1",
         )
@@ -147,7 +148,7 @@ impl OrganizationNeed {
             INSERT INTO organization_needs (
                 id, organization_name, title, description, description_markdown, tldr,
                 contact_info, urgency, status, content_hash, location,
-                submission_type, submitted_by_volunteer_id, submitted_from_ip,
+                submission_type, submitted_by_member_id, submitted_from_ip,
                 source_id, last_seen_at, created_at, updated_at
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
@@ -166,7 +167,7 @@ impl OrganizationNeed {
         .bind(&self.content_hash)
         .bind(&self.location)
         .bind(&self.submission_type)
-        .bind(self.submitted_by_volunteer_id)
+        .bind(self.submitted_by_member_id)
         .bind(self.submitted_from_ip.clone())
         .bind(self.source_id)
         .bind(self.last_seen_at)
@@ -178,7 +179,7 @@ impl OrganizationNeed {
     }
 
     /// Update need status
-    pub async fn update_status(id: Uuid, status: &str, pool: &PgPool) -> Result<Self> {
+    pub async fn update_status(id: NeedId, status: &str, pool: &PgPool) -> Result<Self> {
         let need = sqlx::query_as::<_, OrganizationNeed>(
             r#"
             UPDATE organization_needs
@@ -196,7 +197,7 @@ impl OrganizationNeed {
 
     /// Update need content (for edit + approve)
     pub async fn update_content(
-        id: Uuid,
+        id: NeedId,
         title: Option<String>,
         description: Option<String>,
         description_markdown: Option<String>,
@@ -236,7 +237,7 @@ impl OrganizationNeed {
     }
 
     /// Mark needs as disappeared (for sync)
-    pub async fn mark_disappeared(need_ids: &[Uuid], pool: &PgPool) -> Result<u64> {
+    pub async fn mark_disappeared(need_ids: &[NeedId], pool: &PgPool) -> Result<u64> {
         let result = sqlx::query(
             r#"
             UPDATE organization_needs
@@ -251,7 +252,7 @@ impl OrganizationNeed {
     }
 
     /// Update last_seen_at timestamp
-    pub async fn update_last_seen(need_ids: &[Uuid], pool: &PgPool) -> Result<u64> {
+    pub async fn update_last_seen(need_ids: &[NeedId], pool: &PgPool) -> Result<u64> {
         let result = sqlx::query(
             r#"
             UPDATE organization_needs
@@ -266,7 +267,7 @@ impl OrganizationNeed {
     }
 
     /// Update need embedding
-    pub async fn update_embedding(id: Uuid, embedding: &[f32], pool: &PgPool) -> Result<()> {
+    pub async fn update_embedding(id: NeedId, embedding: &[f32], pool: &PgPool) -> Result<()> {
         use pgvector::Vector;
 
         let vector = Vector::from(embedding.to_vec());
@@ -295,9 +296,9 @@ impl OrganizationNeed {
         status: String,
         content_hash: String,
         submission_type: Option<String>,
-        submitted_by_volunteer_id: Option<Uuid>,
+        submitted_by_member_id: Option<MemberId>,
         submitted_from_ip: Option<String>,
-        source_id: Option<Uuid>,
+        source_id: Option<SourceId>,
         pool: &PgPool,
     ) -> Result<Self> {
         let need = sqlx::query_as::<_, OrganizationNeed>(
@@ -313,7 +314,7 @@ impl OrganizationNeed {
                 status,
                 content_hash,
                 submission_type,
-                submitted_by_volunteer_id,
+                submitted_by_member_id,
                 submitted_from_ip,
                 source_id
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet, $13)
@@ -330,7 +331,7 @@ impl OrganizationNeed {
         .bind(status)
         .bind(content_hash)
         .bind(submission_type)
-        .bind(submitted_by_volunteer_id)
+        .bind(submitted_by_member_id)
         .bind(submitted_from_ip)
         .bind(source_id)
         .fetch_one(pool)
@@ -340,7 +341,7 @@ impl OrganizationNeed {
     }
 
     /// Find existing active needs from a source (for sync)
-    pub async fn find_active_by_source(source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_active_by_source(source_id: SourceId, pool: &PgPool) -> Result<Vec<Self>> {
         let needs = sqlx::query_as::<_, OrganizationNeed>(
             r#"
             SELECT *
@@ -358,7 +359,7 @@ impl OrganizationNeed {
 
     /// Find need by source and title (for sync - detecting changed needs)
     pub async fn find_by_source_and_title(
-        source_id: Uuid,
+        source_id: SourceId,
         title: &str,
         pool: &PgPool,
     ) -> Result<Option<Self>> {
@@ -382,11 +383,11 @@ impl OrganizationNeed {
 
     /// Mark needs as disappeared that are not in the provided content hash list (for sync)
     pub async fn mark_disappeared_except(
-        source_id: Uuid,
+        source_id: SourceId,
         content_hashes: &[String],
         pool: &PgPool,
-    ) -> Result<Vec<Uuid>> {
-        let disappeared_ids = sqlx::query_scalar::<_, Uuid>(
+    ) -> Result<Vec<NeedId>> {
+        let disappeared_ids = sqlx::query_scalar::<_, NeedId>(
             r#"
             UPDATE organization_needs
             SET disappeared_at = NOW(), updated_at = NOW()
@@ -405,7 +406,7 @@ impl OrganizationNeed {
     }
 
     /// Update last_seen_at for a specific need
-    pub async fn touch_last_seen(id: Uuid, pool: &PgPool) -> Result<()> {
+    pub async fn touch_last_seen(id: NeedId, pool: &PgPool) -> Result<()> {
         sqlx::query(
             r#"
             UPDATE organization_needs
@@ -436,13 +437,13 @@ impl OrganizationNeed {
 
     /// Find need by content hash with status filter (for duplicate detection)
     ///
-    /// Returns the UUID of an existing need with the same content hash
+    /// Returns the NeedId of an existing need with the same content hash
     /// that is either pending_approval or active (not rejected/expired).
     pub async fn find_id_by_content_hash_active(
         content_hash: &str,
         pool: &PgPool,
-    ) -> Result<Option<Uuid>> {
-        let id = sqlx::query_scalar::<_, Uuid>(
+    ) -> Result<Option<NeedId>> {
+        let id = sqlx::query_scalar::<_, NeedId>(
             r#"
             SELECT id
             FROM organization_needs

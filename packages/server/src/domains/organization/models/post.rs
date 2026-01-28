@@ -3,7 +3,8 @@ use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
-use uuid::Uuid;
+
+use crate::common::{MemberId, NeedId, PostId};
 
 /// Post status
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
@@ -31,8 +32,8 @@ impl ToString for PostStatus {
 /// Key concept: Needs = reality, Posts = announcements about that reality
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
-    pub id: Uuid,
-    pub need_id: Uuid,
+    pub id: PostId,
+    pub need_id: NeedId,
     pub status: PostStatus,
     pub published_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
@@ -44,7 +45,7 @@ pub struct Post {
     pub view_count: i32,
     pub click_count: i32,
     pub response_count: i32,
-    pub created_by: Option<Uuid>,
+    pub created_by: Option<MemberId>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -56,8 +57,8 @@ pub struct Post {
 impl Post {
     /// Create and publish a post (default: expires in 5 days)
     pub async fn create_and_publish(
-        need_id: Uuid,
-        created_by: Option<Uuid>,
+        need_id: NeedId,
+        created_by: Option<MemberId>,
         expires_in_days: Option<i64>,
         pool: &PgPool,
     ) -> Result<Self> {
@@ -88,8 +89,8 @@ impl Post {
 
     /// Create and publish a post with customizations
     pub async fn create_and_publish_custom(
-        need_id: Uuid,
-        created_by: Option<Uuid>,
+        need_id: NeedId,
+        created_by: Option<MemberId>,
         custom_title: Option<String>,
         custom_description: Option<String>,
         custom_tldr: Option<String>,
@@ -131,7 +132,7 @@ impl Post {
     }
 
     /// Find post by ID
-    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_by_id(id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = $1")
             .bind(id)
             .fetch_optional(pool)
@@ -140,7 +141,7 @@ impl Post {
     }
 
     /// Find all posts for a need
-    pub async fn find_by_need_id(need_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_need_id(need_id: NeedId, pool: &PgPool) -> Result<Vec<Self>> {
         let posts = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts WHERE need_id = $1 ORDER BY published_at DESC",
         )
@@ -151,7 +152,7 @@ impl Post {
     }
 
     /// Find latest post for a need
-    pub async fn find_latest_by_need_id(need_id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_latest_by_need_id(need_id: NeedId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts WHERE need_id = $1 ORDER BY published_at DESC LIMIT 1",
         )
@@ -194,7 +195,7 @@ impl Post {
     }
 
     /// Update post status
-    pub async fn update_status(id: Uuid, status: PostStatus, pool: &PgPool) -> Result<Self> {
+    pub async fn update_status(id: PostId, status: PostStatus, pool: &PgPool) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
             r#"
             UPDATE posts
@@ -211,17 +212,17 @@ impl Post {
     }
 
     /// Expire a post
-    pub async fn expire(id: Uuid, pool: &PgPool) -> Result<Self> {
+    pub async fn expire(id: PostId, pool: &PgPool) -> Result<Self> {
         Self::update_status(id, PostStatus::Expired, pool).await
     }
 
     /// Archive a post
-    pub async fn archive(id: Uuid, pool: &PgPool) -> Result<Self> {
+    pub async fn archive(id: PostId, pool: &PgPool) -> Result<Self> {
         Self::update_status(id, PostStatus::Archived, pool).await
     }
 
     /// Increment view count
-    pub async fn increment_view_count(id: Uuid, pool: &PgPool) -> Result<()> {
+    pub async fn increment_view_count(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("UPDATE posts SET view_count = view_count + 1 WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -230,7 +231,7 @@ impl Post {
     }
 
     /// Increment click count
-    pub async fn increment_click_count(id: Uuid, pool: &PgPool) -> Result<()> {
+    pub async fn increment_click_count(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("UPDATE posts SET click_count = click_count + 1 WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -239,7 +240,7 @@ impl Post {
     }
 
     /// Increment response count
-    pub async fn increment_response_count(id: Uuid, pool: &PgPool) -> Result<()> {
+    pub async fn increment_response_count(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("UPDATE posts SET response_count = response_count + 1 WHERE id = $1")
             .bind(id)
             .execute(pool)
@@ -266,7 +267,7 @@ impl Post {
 
     /// Update outreach copy for a post
     pub async fn update_outreach_copy(
-        id: Uuid,
+        id: PostId,
         outreach_copy: String,
         pool: &PgPool,
     ) -> Result<Self> {

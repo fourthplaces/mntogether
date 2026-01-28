@@ -1,6 +1,6 @@
-use std::collections::HashMap;
-use uuid::Uuid;
+use std::collections::HashSet;
 
+use crate::common::SourceId;
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
 
@@ -8,13 +8,13 @@ use crate::domains::organization::events::OrganizationEvent;
 /// Pure decision logic - NO IO, only state transitions
 pub struct OrganizationMachine {
     /// Track pending scrapes to prevent duplicates
-    pending_scrapes: HashMap<Uuid, ()>,
+    pending_scrapes: HashSet<SourceId>,
 }
 
 impl OrganizationMachine {
     pub fn new() -> Self {
         Self {
-            pending_scrapes: HashMap::new(),
+            pending_scrapes: HashSet::new(),
         }
     }
 }
@@ -34,16 +34,23 @@ impl seesaw::Machine for OrganizationMachine {
             // =========================================================================
             // Scraping workflow: Request → Scrape → Extract → Sync
             // =========================================================================
-            OrganizationEvent::ScrapeSourceRequested { source_id, job_id } => {
+            OrganizationEvent::ScrapeSourceRequested {
+                source_id,
+                job_id,
+                requested_by,
+                is_admin,
+            } => {
                 // Prevent duplicate scrapes
-                if self.pending_scrapes.contains_key(source_id) {
+                if self.pending_scrapes.contains(source_id) {
                     return None;
                 }
 
-                self.pending_scrapes.insert(*source_id, ());
+                self.pending_scrapes.insert(*source_id);
                 Some(OrganizationCommand::ScrapeSource {
                     source_id: *source_id,
                     job_id: *job_id,
+                    requested_by: *requested_by,
+                    is_admin: *is_admin,
                 })
             }
 
@@ -82,10 +89,94 @@ impl seesaw::Machine for OrganizationMachine {
             }
 
             // =========================================================================
+            // Failure events - terminal events that clean up workflow state
+            // =========================================================================
+            OrganizationEvent::ScrapeFailed { source_id, .. } => {
+                // Scrape failed, clean up pending state so retries can happen
+                self.pending_scrapes.remove(source_id);
+                None
+            }
+
+            OrganizationEvent::ExtractFailed { source_id, .. } => {
+                // Extract failed, clean up pending state so retries can happen
+                self.pending_scrapes.remove(source_id);
+                None
+            }
+
+            OrganizationEvent::SyncFailed { source_id, .. } => {
+                // Sync failed, clean up pending state so retries can happen
+                self.pending_scrapes.remove(source_id);
+                None
+            }
+
+            // =========================================================================
+            // Post management workflows: Request → Create/Update
+            // =========================================================================
+            OrganizationEvent::CreateCustomPostRequested {
+                need_id,
+                custom_title,
+                custom_description,
+                custom_tldr,
+                targeting_hints,
+                expires_in_days,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::CreateCustomPost {
+                need_id: *need_id,
+                custom_title: custom_title.clone(),
+                custom_description: custom_description.clone(),
+                custom_tldr: custom_tldr.clone(),
+                targeting_hints: targeting_hints.clone(),
+                expires_in_days: *expires_in_days,
+                created_by: *requested_by,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            OrganizationEvent::RepostNeedRequested {
+                need_id,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::RepostNeed {
+                need_id: *need_id,
+                created_by: *requested_by,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            OrganizationEvent::ExpirePostRequested {
+                post_id,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::ExpirePost {
+                post_id: *post_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            OrganizationEvent::ArchivePostRequested {
+                post_id,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::ArchivePost {
+                post_id: *post_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            OrganizationEvent::PostViewedRequested { post_id } => {
+                Some(OrganizationCommand::IncrementPostView { post_id: *post_id })
+            }
+
+            OrganizationEvent::PostClickedRequested { post_id } => {
+                Some(OrganizationCommand::IncrementPostClick { post_id: *post_id })
+            }
+
+            // =========================================================================
             // User submission workflow: Request → Create
             // =========================================================================
             OrganizationEvent::SubmitNeedRequested {
-                volunteer_id,
+                member_id,
                 organization_name,
                 title,
                 description,
@@ -94,7 +185,7 @@ impl seesaw::Machine for OrganizationMachine {
                 location,
                 ip_address,
             } => Some(OrganizationCommand::CreateNeed {
-                volunteer_id: *volunteer_id,
+                member_id: *member_id,
                 organization_name: organization_name.clone(),
                 title: title.clone(),
                 description: description.clone(),
@@ -113,13 +204,17 @@ impl seesaw::Machine for OrganizationMachine {
             // =========================================================================
             // Approval workflows: Request → Update Status
             // =========================================================================
-            OrganizationEvent::ApproveNeedRequested { need_id } => {
-                Some(OrganizationCommand::UpdateNeedStatus {
-                    need_id: *need_id,
-                    status: "active".to_string(),
-                    rejection_reason: None,
-                })
-            }
+            OrganizationEvent::ApproveNeedRequested {
+                need_id,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::UpdateNeedStatus {
+                need_id: *need_id,
+                status: "active".to_string(),
+                rejection_reason: None,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
 
             OrganizationEvent::EditAndApproveNeedRequested {
                 need_id,
@@ -130,6 +225,8 @@ impl seesaw::Machine for OrganizationMachine {
                 contact_info,
                 urgency,
                 location,
+                requested_by,
+                is_admin,
             } => Some(OrganizationCommand::UpdateNeedAndApprove {
                 need_id: *need_id,
                 title: title.clone(),
@@ -139,15 +236,22 @@ impl seesaw::Machine for OrganizationMachine {
                 contact_info: contact_info.clone(),
                 urgency: urgency.clone(),
                 location: location.clone(),
+                requested_by: *requested_by,
+                is_admin: *is_admin,
             }),
 
-            OrganizationEvent::RejectNeedRequested { need_id, reason } => {
-                Some(OrganizationCommand::UpdateNeedStatus {
-                    need_id: *need_id,
-                    status: "rejected".to_string(),
-                    rejection_reason: Some(reason.clone()),
-                })
-            }
+            OrganizationEvent::RejectNeedRequested {
+                need_id,
+                reason,
+                requested_by,
+                is_admin,
+            } => Some(OrganizationCommand::UpdateNeedStatus {
+                need_id: *need_id,
+                status: "rejected".to_string(),
+                rejection_reason: Some(reason.clone()),
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
 
             // Terminal events - no further commands needed
             OrganizationEvent::NeedApproved { need_id } => {
@@ -164,10 +268,17 @@ impl seesaw::Machine for OrganizationMachine {
             OrganizationEvent::NeedRejected { .. } => None,
             OrganizationEvent::NeedUpdated { .. } => None,
             OrganizationEvent::PostCreated { .. } => None,
+            OrganizationEvent::PostExpired { .. } => None,
+            OrganizationEvent::PostArchived { .. } => None,
+            OrganizationEvent::PostViewed { .. } => None,
+            OrganizationEvent::PostClicked { .. } => None,
 
             // Embedding events - no further action needed
             OrganizationEvent::NeedEmbeddingGenerated { .. } => None,
             OrganizationEvent::NeedEmbeddingFailed { .. } => None,
+
+            // Authorization events - terminal events, no further action needed
+            OrganizationEvent::AuthorizationDenied { .. } => None,
         }
     }
 }

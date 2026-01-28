@@ -1,5 +1,5 @@
 -- Add AI-generated outreach copy to posts
--- This stores personalized email text for volunteers to easily contact organizations
+-- This stores personalized email text for members to easily contact organizations
 
 ALTER TABLE posts
     ADD COLUMN outreach_copy TEXT;

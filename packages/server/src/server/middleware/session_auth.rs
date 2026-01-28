@@ -1,13 +1,13 @@
+use crate::common::MemberId;
 use crate::server::auth::SessionStore;
 use axum::{extract::{Request, State}, middleware::Next, response::Response};
 use std::sync::Arc;
-use uuid::Uuid;
 
 /// Authenticated user information from session
 #[derive(Clone, Debug)]
 pub struct AuthUser {
     pub user_id: String,
-    pub member_id: Uuid,
+    pub member_id: MemberId,
     pub phone_number: String,
     pub is_admin: bool,
 }
@@ -50,7 +50,7 @@ async fn extract_auth_user(request: &Request, session_store: &SessionStore) -> O
 
     Some(AuthUser {
         user_id: session.member_id.to_string(),
-        member_id: session.member_id,
+        member_id: MemberId::from_uuid(session.member_id),
         phone_number: session.phone_number,
         is_admin: session.is_admin,
     })

@@ -23,6 +23,7 @@ use crate::server::routes::{
 use crate::server::static_files::serve_admin;
 use axum::{
     extract::{Extension, Request},
+    http::{HeaderValue, Method, header::{AUTHORIZATION, CONTENT_TYPE}},
     middleware::{self, Next},
     response::Response,
     routing::{get, post},
@@ -31,8 +32,9 @@ use axum::{
 use seesaw::{EngineBuilder, EngineHandle, EventBus};
 use sqlx::PgPool;
 use std::sync::Arc;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
+use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use twilio::{TwilioOptions, TwilioService};
 
 /// Shared application state
@@ -79,6 +81,7 @@ pub fn build_app(
     twilio_verify_service_sid: String,
     jwt_secret: String,
     jwt_issuer: String,
+    allowed_origins: Vec<String>,
 ) -> (Router, EngineHandle) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
@@ -138,24 +141,55 @@ pub fn build_app(
         jwt_service: jwt_service.clone(),
     };
 
-    // CORS configuration
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+    // CORS configuration - whitelist specific origins for security
+    let cors = if allowed_origins.is_empty() {
+        // No origins configured - reject all cross-origin requests
+        CorsLayer::new()
+            .allow_origin([])
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+    } else {
+        // Parse configured origins
+        let origins: Vec<_> = allowed_origins
+            .iter()
+            .filter_map(|origin| origin.parse::<HeaderValue>().ok())
+            .collect();
+
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([Method::GET, Method::POST])
+            .allow_headers([AUTHORIZATION, CONTENT_TYPE])
+            .allow_credentials(true)
+    };
 
     // Clone jwt_service for middleware closure
     let jwt_service_for_middleware = jwt_service.clone();
 
+    // Rate limiting configuration
+    // GraphQL: 100 requests per minute per IP (10/sec with burst of 20)
+    // Prevents API abuse, DoS attacks, and resource exhaustion
+    let rate_limit_config = std::sync::Arc::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)      // Base rate: 10 requests per second
+            .burst_size(20)      // Allow bursts up to 20
+            .use_headers()       // Extract IP from X-Forwarded-For header
+            .finish()
+            .expect("Failed to build rate limiter")
+    );
+
+    let rate_limit_layer = GovernorLayer {
+        config: rate_limit_config,
+    };
+
     // Build router
     let router = Router::new()
-        // GraphQL endpoints
+        // GraphQL endpoints with rate limiting
         .route("/graphql", post(graphql_handler))
         .route("/graphql/batch", post(graphql_batch_handler))
         .route("/graphql", get(graphql_playground))
-        // Health check
+        // Health check (no rate limit)
         .route("/health", get(health_handler))
-        // Static file serving for admin SPA
+        // Static file serving for admin SPA (no rate limit)
         .route("/admin", get(serve_admin))
         .route("/admin/*path", get(serve_admin))
         // Middleware layers (applied in reverse order)
@@ -163,7 +197,8 @@ pub fn build_app(
         .layer(middleware::from_fn(create_graphql_context)) // Create GraphQL context
         .layer(middleware::from_fn(move |req, next| {
             jwt_auth_middleware(jwt_service_for_middleware.clone(), req, next)
-        })) // CRITICAL FIX: JWT auth (was missing!)
+        })) // JWT authentication
+        .layer(rate_limit_layer) // Rate limit: 100 req/min per IP
         .layer(middleware::from_fn(extract_client_ip))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

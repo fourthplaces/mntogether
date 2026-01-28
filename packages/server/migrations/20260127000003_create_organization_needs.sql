@@ -1,4 +1,4 @@
--- Organization needs (volunteer opportunities extracted from websites)
+-- Organization needs (opportunities extracted from websites)
 
 CREATE TABLE organization_needs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
