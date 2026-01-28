@@ -1,0 +1,36 @@
+# Rust
+/target/
+Cargo.lock
+**/*.rs.bk
+
+# Environment
+.env
+.env.local
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Expo
+.expo/
+dist/
+web-build/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+.testcontainers-*
+
+# SQLx (keep for offline mode)
+# .sqlx/
