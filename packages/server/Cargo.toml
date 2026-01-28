@@ -33,7 +33,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Event-driven architecture
-seesaw = { path = "../../../shay/packages/seesaw-rs" }
+seesaw = { path = "../seesaw-rs" }
 
 # Database
 sqlx = { workspace = true, features = ["migrate"] }
