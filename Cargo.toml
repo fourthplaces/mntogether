@@ -5,6 +5,7 @@ members = [
     "packages/seesaw-rs",
     "packages/twilio-rs",
     "packages/dev-cli",
+    "packages/intelligent-crawler",
 ]
 
 [workspace.package]
@@ -68,3 +69,7 @@ dialoguer = "0.11"
 console = "0.15"
 which = "6.0"
 open = "5.3"
+
+# Profile overrides to reduce verbose logging from dependencies
+[profile.dev.package.firecrawl]
+debug-assertions = false

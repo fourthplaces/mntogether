@@ -5,6 +5,7 @@ use server_core::{kernel::scheduled_tasks, server::build_app, Config};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging
@@ -52,7 +53,7 @@ async fn main() -> Result<()> {
     let (app, handle) = build_app(
         pool.clone(),
         config.firecrawl_api_key,
-        config.anthropic_api_key,
+        config.openai_api_key,
         config.voyage_api_key,
         config.expo_access_token,
         config.twilio_account_sid,

@@ -55,6 +55,7 @@ pub async fn sync_extracted_needs(
             }),
             urgency: need.urgency,
             confidence: need.confidence,
+            source_url: Some(source.source_url.clone()), // Use main source URL for now
         })
         .collect();
 

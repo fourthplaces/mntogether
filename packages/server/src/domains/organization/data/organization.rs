@@ -1,8 +1,9 @@
+use crate::common::OrganizationId;
 use crate::domains::organization::data::SourceData;
-use crate::domains::organization::models::{Organization, Tag};
+use crate::domains::organization::models::Organization;
+use crate::kernel::tag::Tag;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 /// GraphQL-friendly representation of an organization
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -12,9 +13,7 @@ pub struct OrganizationData {
     pub description: Option<String>,
     pub contact_info: Option<ContactInfo>,
     pub location: Option<String>,
-    pub city: Option<String>,
-    pub state: Option<String>,
-    pub status: String,
+    pub verified: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -35,19 +34,19 @@ pub struct TagData {
 
 impl From<Organization> for OrganizationData {
     fn from(org: Organization) -> Self {
-        let contact_info = org
-            .contact_info
-            .and_then(|json| serde_json::from_value::<ContactInfo>(json).ok());
+        let contact_info = Some(ContactInfo {
+            email: org.email,
+            phone: org.phone,
+            website: org.website,
+        });
 
         Self {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
             contact_info,
-            location: org.location,
-            city: org.city,
-            state: org.state,
-            status: org.status,
+            location: org.primary_address,
+            verified: org.verified,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         }
@@ -86,16 +85,8 @@ impl OrganizationData {
         self.location.clone()
     }
 
-    fn city(&self) -> Option<String> {
-        self.city.clone()
-    }
-
-    fn state(&self) -> Option<String> {
-        self.state.clone()
-    }
-
-    fn status(&self) -> String {
-        self.status.clone()
+    fn verified(&self) -> bool {
+        self.verified
     }
 
     fn created_at(&self) -> String {
@@ -108,7 +99,7 @@ impl OrganizationData {
 
     /// Get tags for this organization
     async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
-        let org_id = Uuid::parse_str(&self.id)?;
+        let org_id = OrganizationId::parse(&self.id)?;
         let tags = Tag::find_for_organization(org_id, &context.db_pool).await?;
         Ok(tags.into_iter().map(TagData::from).collect())
     }

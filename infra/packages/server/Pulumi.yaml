@@ -1,0 +1,3 @@
+name: mndigitalaid-server
+runtime: nodejs
+description: Server deployment to ECS Fargate with ALB

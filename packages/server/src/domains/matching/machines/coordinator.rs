@@ -1,7 +1,7 @@
 use crate::domains::matching::commands::MatchingCommand;
 use crate::domains::organization::events::OrganizationEvent;
 use seesaw::Machine;
-use tracing::{debug, info};
+use tracing::info;
 
 /// Coordinator machine that bridges Organization → Matching domains
 /// Listens to OrganizationEvent, emits MatchingCommand
@@ -24,10 +24,7 @@ impl Machine for MatchingCoordinatorMachine {
                 info!(need_id = %need_id, "Need approved, triggering member matching");
                 Some(MatchingCommand::FindMatches { need_id: *need_id })
             }
-            _ => {
-                debug!(event = ?event, "Ignoring organization event (not relevant for matching)");
-                None
-            }
+            _ => None,
         }
     }
 }

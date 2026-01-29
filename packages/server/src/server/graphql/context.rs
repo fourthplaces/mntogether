@@ -1,4 +1,5 @@
 use crate::domains::auth::JwtService;
+use crate::kernel::OpenAIClient;
 use crate::server::middleware::AuthUser;
 use seesaw::EventBus;
 use sqlx::PgPool;
@@ -15,6 +16,7 @@ pub struct GraphQLContext {
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
+    pub openai_client: Arc<OpenAIClient>,
 }
 
 impl juniper::Context for GraphQLContext {}
@@ -26,6 +28,7 @@ impl GraphQLContext {
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
         jwt_service: Arc<JwtService>,
+        openai_client: Arc<OpenAIClient>,
     ) -> Self {
         Self {
             db_pool,
@@ -33,6 +36,7 @@ impl GraphQLContext {
             auth_user,
             twilio,
             jwt_service,
+            openai_client,
         }
     }
 

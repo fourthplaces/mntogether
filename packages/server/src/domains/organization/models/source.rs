@@ -11,6 +11,7 @@ pub struct OrganizationSource {
     pub id: SourceId,
     pub organization_name: String,
     pub source_url: String,
+    pub scrape_urls: Option<serde_json::Value>, // Optional array of specific URLs to scrape
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
@@ -139,5 +140,41 @@ impl OrganizationSource {
         .fetch_all(pool)
         .await?;
         Ok(sources)
+    }
+
+    /// Add a URL to the scrape_urls array
+    pub async fn add_scrape_url(id: SourceId, url: String, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE organization_sources
+            SET scrape_urls = COALESCE(scrape_urls, '[]'::jsonb) || jsonb_build_array($2::text)
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(url)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Remove a URL from the scrape_urls array
+    pub async fn remove_scrape_url(id: SourceId, url: String, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE organization_sources
+            SET scrape_urls = (
+                SELECT jsonb_agg(elem)
+                FROM jsonb_array_elements(scrape_urls) elem
+                WHERE elem::text != to_jsonb($2::text)::text
+            )
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(url)
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 }

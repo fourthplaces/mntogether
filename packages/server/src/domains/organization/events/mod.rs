@@ -34,9 +34,17 @@ pub enum OrganizationEvent {
 
     /// Public user submits a resource link (URL) for scraping
     SubmitResourceLinkRequested {
-        job_id: JobId,
         url: String,
         context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
+    /// Organization source created from user-submitted link
+    OrganizationSourceCreatedFromLink {
+        source_id: SourceId,
+        job_id: JobId,
+        url: String,
+        organization_name: String,
         submitter_contact: Option<String>,
     },
 
@@ -223,6 +231,65 @@ pub enum OrganizationEvent {
     AuthorizationDenied {
         user_id: MemberId,
         action: String, // e.g., "ApproveNeed", "ScrapeSource"
+        reason: String,
+    },
+
+    // =========================================================================
+    // Intelligent Crawler Events
+    // =========================================================================
+    /// Request to crawl a site intelligently
+    SiteCrawlRequested {
+        url: String,
+        job_id: JobId,
+    },
+
+    /// Site was crawled successfully
+    SiteCrawled {
+        url: String,
+        job_id: JobId,
+        snapshot_ids: Vec<uuid::Uuid>,
+    },
+
+    /// Site crawl failed
+    SiteCrawlFailed {
+        url: String,
+        job_id: JobId,
+        reason: String,
+    },
+
+    /// Information was detected in crawled pages
+    InformationDetected {
+        job_id: JobId,
+        detection_ids: Vec<uuid::Uuid>,
+    },
+
+    /// Information detection failed
+    InformationDetectionFailed {
+        job_id: JobId,
+        reason: String,
+    },
+
+    /// Structured data was extracted from detections
+    DataExtracted {
+        job_id: JobId,
+        extraction_ids: Vec<uuid::Uuid>,
+    },
+
+    /// Data extraction failed
+    DataExtractionFailed {
+        job_id: JobId,
+        reason: String,
+    },
+
+    /// Relationships were resolved between extractions
+    RelationshipsResolved {
+        job_id: JobId,
+        relationship_ids: Vec<uuid::Uuid>,
+    },
+
+    /// Relationship resolution failed
+    RelationshipResolutionFailed {
+        job_id: JobId,
         reason: String,
     },
 }

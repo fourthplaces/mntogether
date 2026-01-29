@@ -389,7 +389,7 @@ fn setup_env_wizard(project_root: &PathBuf) -> Result<()> {
     // Define all variables with their descriptions
     let variables = vec![
         // Required
-        ("ANTHROPIC_API_KEY", "Anthropic API key for Claude AI", true, "Get from https://console.anthropic.com"),
+        ("OPENAI_API_KEY", "OpenAI API key for GPT-4", true, "Get from https://platform.openai.com"),
         ("VOYAGE_API_KEY", "Voyage AI API key for embeddings", true, "Get from https://www.voyageai.com"),
         ("FIRECRAWL_API_KEY", "Firecrawl API key for web scraping", true, "Get from https://firecrawl.dev"),
         ("TWILIO_ACCOUNT_SID", "Twilio Account SID for SMS", true, "Get from https://console.twilio.com"),
@@ -648,7 +648,7 @@ fn flyctl_set_secret() -> Result<()> {
     println!();
 
     let key: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Secret name (e.g., ANTHROPIC_API_KEY)")
+        .with_prompt("Secret name (e.g., OPENAI_API_KEY)")
         .interact_text()?;
 
     let value: String = Input::with_theme(&ColorfulTheme::default())
@@ -899,7 +899,7 @@ fn check_api_keys(project_root: &PathBuf) -> Result<()> {
 
     // Define required and optional keys
     let required_keys = vec![
-        ("ANTHROPIC_API_KEY", "Anthropic Claude AI access"),
+        ("OPENAI_API_KEY", "OpenAI GPT-4 access"),
         ("VOYAGE_API_KEY", "Voyage AI embeddings"),
         ("FIRECRAWL_API_KEY", "Firecrawl web scraping"),
         ("TWILIO_ACCOUNT_SID", "Twilio authentication SID"),
@@ -958,7 +958,7 @@ fn check_api_keys(project_root: &PathBuf) -> Result<()> {
     println!();
     println!("Example .env file:");
     println!("{}", "─────────────────────────────────────".dimmed());
-    println!("ANTHROPIC_API_KEY=sk-ant-...");
+    println!("OPENAI_API_KEY=sk-...");
     println!("VOYAGE_API_KEY=pa-...");
     println!("FIRECRAWL_API_KEY=fc-...");
     println!("TWILIO_ACCOUNT_SID=AC...");

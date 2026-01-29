@@ -53,6 +53,7 @@ pub async fn create_need(
         member_id,
         ip_address,
         source_id,
+        None, // source_url - not applicable for user-submitted needs
         pool,
     )
     .await

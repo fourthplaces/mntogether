@@ -1,0 +1,19 @@
+{
+  "name": "@infra/web-next",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@infra/common": "workspace:*",
+    "@pulumi/aws": "^6.69.0",
+    "@pulumi/awsx": "^2.21.0",
+    "@pulumi/pulumi": "^3.147.0"
+  }
+}

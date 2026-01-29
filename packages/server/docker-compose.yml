@@ -59,9 +59,10 @@ services:
       ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS}
       # Optional
       EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
       TEST_IDENTIFIER_ENABLED: ${TEST_IDENTIFIER_ENABLED:-false}
+      # Skip frontend builds in build.rs (dev-watch.sh handles them)
+      SKIP_FRONTEND_BUILD: "true"
     ports:
       - "8080:8080"
     depends_on:

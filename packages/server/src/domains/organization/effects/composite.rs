@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use super::{AIEffect, NeedEffect, ScraperEffect, SyncEffect};
+use super::{AIEffect, IntelligentCrawlerEffect, NeedEffect, ScraperEffect, SyncEffect};
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
 
@@ -16,6 +16,7 @@ pub struct OrganizationEffect {
     ai: AIEffect,
     sync: SyncEffect,
     need: NeedEffect,
+    intelligent_crawler: IntelligentCrawlerEffect,
 }
 
 impl OrganizationEffect {
@@ -25,6 +26,7 @@ impl OrganizationEffect {
             ai: AIEffect,
             sync: SyncEffect,
             need: NeedEffect,
+            intelligent_crawler: IntelligentCrawlerEffect,
         }
     }
 }
@@ -56,8 +58,17 @@ impl Effect<OrganizationCommand, ServerDeps> for OrganizationEffect {
             // Route to SyncEffect
             OrganizationCommand::SyncNeeds { .. } => self.sync.execute(cmd, ctx).await,
 
+            // Route to IntelligentCrawlerEffect
+            OrganizationCommand::CrawlSite { .. }
+            | OrganizationCommand::DetectInformation { .. }
+            | OrganizationCommand::ExtractData { .. }
+            | OrganizationCommand::ResolveRelationships { .. } => {
+                self.intelligent_crawler.execute(cmd, ctx).await
+            }
+
             // Route to NeedEffect
-            OrganizationCommand::CreateNeed { .. }
+            OrganizationCommand::CreateOrganizationSourceFromLink { .. }
+            | OrganizationCommand::CreateNeed { .. }
             | OrganizationCommand::CreateNeedsFromResourceLink { .. }
             | OrganizationCommand::UpdateNeedStatus { .. }
             | OrganizationCommand::UpdateNeedAndApprove { .. }

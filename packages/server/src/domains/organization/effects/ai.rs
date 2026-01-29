@@ -52,10 +52,26 @@ async fn handle_extract_needs(
     content: String,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
+    tracing::info!(
+        source_id = %source_id,
+        job_id = %job_id,
+        organization_name = %organization_name,
+        content_length = content.len(),
+        "Starting AI need extraction"
+    );
+
     // Get source for URL info
     let source = match OrganizationSource::find_by_id(source_id, &ctx.deps().db_pool).await {
-        Ok(s) => s,
+        Ok(s) => {
+            tracing::info!(source_id = %source_id, url = %s.source_url, "Source found for extraction");
+            s
+        }
         Err(e) => {
+            tracing::error!(
+                source_id = %source_id,
+                error = %e,
+                "Failed to find source for extraction"
+            );
             return Ok(OrganizationEvent::ExtractFailed {
                 source_id,
                 job_id,
@@ -63,6 +79,12 @@ async fn handle_extract_needs(
             });
         }
     };
+
+    tracing::info!(
+        source_id = %source_id,
+        url = %source.source_url,
+        "Calling AI service to extract needs"
+    );
 
     // Delegate to domain function
     let extracted_needs = match need_extraction::extract_needs(
@@ -73,8 +95,20 @@ async fn handle_extract_needs(
     )
     .await
     {
-        Ok(needs) => needs,
+        Ok(needs) => {
+            tracing::info!(
+                source_id = %source_id,
+                needs_count = needs.len(),
+                "AI extraction completed successfully"
+            );
+            needs
+        }
         Err(e) => {
+            tracing::error!(
+                source_id = %source_id,
+                error = %e,
+                "AI extraction failed"
+            );
             return Ok(OrganizationEvent::ExtractFailed {
                 source_id,
                 job_id,
@@ -84,6 +118,12 @@ async fn handle_extract_needs(
     };
 
     // Return fact event
+    tracing::info!(
+        source_id = %source_id,
+        job_id = %job_id,
+        needs_count = extracted_needs.len(),
+        "Emitting NeedsExtracted event"
+    );
     Ok(OrganizationEvent::NeedsExtracted {
         source_id,
         job_id,
@@ -99,6 +139,14 @@ async fn handle_extract_needs_from_resource_link(
     submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
+    tracing::info!(
+        job_id = %job_id,
+        url = %url,
+        content_length = content.len(),
+        has_context = context.is_some(),
+        "Starting AI need extraction from resource link"
+    );
+
     // Try to extract organization name from URL (domain)
     let organization_name = url
         .split("//")
@@ -107,12 +155,21 @@ async fn handle_extract_needs_from_resource_link(
         .unwrap_or("Unknown Organization")
         .to_string();
 
+    tracing::info!(
+        job_id = %job_id,
+        organization_name = %organization_name,
+        "Extracted organization name from URL"
+    );
+
     // Add context to the content if provided
     let content_with_context = if let Some(ref ctx_text) = context {
+        tracing::info!(job_id = %job_id, "Adding user context to content");
         format!("Context: {}\n\n{}", ctx_text, content)
     } else {
         content
     };
+
+    tracing::info!(job_id = %job_id, "Calling AI service to extract needs from resource link");
 
     // Delegate to domain function
     let extracted_needs = match need_extraction::extract_needs(
@@ -123,8 +180,21 @@ async fn handle_extract_needs_from_resource_link(
     )
     .await
     {
-        Ok(needs) => needs,
+        Ok(needs) => {
+            tracing::info!(
+                job_id = %job_id,
+                needs_count = needs.len(),
+                "AI extraction from resource link completed successfully"
+            );
+            needs
+        }
         Err(e) => {
+            tracing::error!(
+                job_id = %job_id,
+                url = %url,
+                error = %e,
+                "AI extraction from resource link failed"
+            );
             return Ok(OrganizationEvent::ResourceLinkScrapeFailed {
                 job_id,
                 reason: format!("AI extraction failed: {}", e),
@@ -133,6 +203,12 @@ async fn handle_extract_needs_from_resource_link(
     };
 
     // Return fact event
+    tracing::info!(
+        job_id = %job_id,
+        url = %url,
+        needs_count = extracted_needs.len(),
+        "Emitting ResourceLinkNeedsExtracted event"
+    );
     Ok(OrganizationEvent::ResourceLinkNeedsExtracted {
         job_id,
         url,

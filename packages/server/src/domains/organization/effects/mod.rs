@@ -6,6 +6,7 @@
 pub mod ai;
 pub mod composite;
 pub mod deps;
+pub mod intelligent_crawler;
 pub mod need;
 pub mod need_extraction; // Domain functions for AI extraction
 pub mod need_operations; // Domain functions for need CRUD operations
@@ -19,6 +20,7 @@ pub mod utils;
 pub use ai::*;
 pub use composite::*;
 pub use deps::*;
+pub use intelligent_crawler::*;
 pub use need::*;
 pub use scraper::*;
 pub use submit::*;

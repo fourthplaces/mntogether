@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::net::IpAddr;
 
@@ -6,7 +7,7 @@ use crate::domains::organization::events::ExtractedNeed;
 
 /// Organization domain commands
 /// Following seesaw-rs pattern: Commands are requests for IO operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OrganizationCommand {
     /// Scrape a source URL using Firecrawl
     ScrapeSource {
@@ -14,6 +15,13 @@ pub enum OrganizationCommand {
         job_id: JobId,
         requested_by: MemberId,
         is_admin: bool,
+    },
+
+    /// Create organization source from user-submitted link
+    CreateOrganizationSourceFromLink {
+        url: String,
+        organization_name: String,
+        submitter_contact: Option<String>,
     },
 
     /// Scrape a user-submitted resource link (public submission)
@@ -145,6 +153,34 @@ pub enum OrganizationCommand {
 
     /// Increment post click count (analytics)
     IncrementPostClick { post_id: PostId },
+
+    // Intelligent Crawler Commands
+    /// Crawl a site using intelligent crawler
+    CrawlSite {
+        url: String,
+        job_id: JobId,
+        page_limit: Option<usize>,
+    },
+
+    /// Detect information in crawled pages
+    DetectInformation {
+        snapshot_ids: Vec<uuid::Uuid>,
+        job_id: JobId,
+        detection_kind: String,
+    },
+
+    /// Extract structured data from detections
+    ExtractData {
+        detection_ids: Vec<uuid::Uuid>,
+        job_id: JobId,
+        schema_id: uuid::Uuid,
+    },
+
+    /// Resolve relationships between extractions
+    ResolveRelationships {
+        extraction_ids: Vec<uuid::Uuid>,
+        job_id: JobId,
+    },
 }
 
 // Implement Command trait for seesaw-rs integration
@@ -153,15 +189,14 @@ impl seesaw::Command for OrganizationCommand {
         use seesaw::ExecutionMode;
 
         match self {
-            // Background commands - long-running IO operations
-            Self::ScrapeSource { .. } => ExecutionMode::Background,
-            Self::ScrapeResourceLink { .. } => ExecutionMode::Background,
-            Self::ExtractNeeds { .. } => ExecutionMode::Background,
-            Self::ExtractNeedsFromResourceLink { .. } => ExecutionMode::Background,
-            Self::SyncNeeds { .. } => ExecutionMode::Background,
-
-            // Inline commands - fast database operations
+            // All commands run inline (no job worker implemented)
+            Self::ScrapeSource { .. } => ExecutionMode::Inline,
+            Self::ScrapeResourceLink { .. } => ExecutionMode::Inline,
+            Self::ExtractNeeds { .. } => ExecutionMode::Inline,
+            Self::ExtractNeedsFromResourceLink { .. } => ExecutionMode::Inline,
+            Self::SyncNeeds { .. } => ExecutionMode::Inline,
             Self::CreateNeed { .. } => ExecutionMode::Inline,
+            Self::CreateOrganizationSourceFromLink { .. } => ExecutionMode::Inline,
             Self::CreateNeedsFromResourceLink { .. } => ExecutionMode::Inline,
             Self::UpdateNeedStatus { .. } => ExecutionMode::Inline,
             Self::UpdateNeedAndApprove { .. } => ExecutionMode::Inline,
@@ -172,9 +207,11 @@ impl seesaw::Command for OrganizationCommand {
             Self::ArchivePost { .. } => ExecutionMode::Inline,
             Self::IncrementPostView { .. } => ExecutionMode::Inline,
             Self::IncrementPostClick { .. } => ExecutionMode::Inline,
-
-            // Background - embedding generation
-            Self::GenerateNeedEmbedding { .. } => ExecutionMode::Background,
+            Self::GenerateNeedEmbedding { .. } => ExecutionMode::Inline,
+            Self::CrawlSite { .. } => ExecutionMode::Inline,
+            Self::DetectInformation { .. } => ExecutionMode::Inline,
+            Self::ExtractData { .. } => ExecutionMode::Inline,
+            Self::ResolveRelationships { .. } => ExecutionMode::Inline,
         }
     }
 
@@ -228,8 +265,44 @@ impl seesaw::Command for OrganizationCommand {
                 version: 1,
                 reference_id: Some(*need_id.as_uuid()),
             }),
+            Self::CrawlSite { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "crawl_site",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 3,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
+            }),
+            Self::DetectInformation { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "detect_information",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
+            }),
+            Self::ExtractData { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "extract_data",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
+            }),
+            Self::ResolveRelationships { job_id, .. } => Some(seesaw::JobSpec {
+                job_type: "resolve_relationships",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+                reference_id: Some(*job_id.as_uuid()),
+            }),
             // Inline commands don't need job specs
             _ => None,
         }
+    }
+
+    fn serialize_to_json(&self) -> Option<JsonValue> {
+        serde_json::to_value(self).ok()
     }
 }

@@ -3,16 +3,16 @@ use crate::common::{JobId, MemberId, NeedId, SourceId};
 use crate::domains::matching::events::MatchingEvent;
 use crate::domains::organization::data::NeedData;
 use crate::domains::organization::events::OrganizationEvent;
-use crate::domains::organization::models::{OrganizationNeed, ScrapeJob};
+use crate::domains::organization::models::{source::OrganizationSource, OrganizationNeed, ScrapeJob};
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
 use seesaw::{dispatch_request, EnvelopeMatch};
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-/// Scrape an organization source (async)
-/// Returns job_id immediately - admin polls for progress
-/// Following seesaw pattern: dispatch request event, machine creates command, effect creates job
+/// Scrape an organization source (synchronous)
+/// Waits for scraping to complete before returning
+/// Following seesaw pattern: dispatch request event, await completion event
 pub async fn scrape_organization(
     ctx: &GraphQLContext,
     source_id: Uuid,
@@ -29,21 +29,77 @@ pub async fn scrape_organization(
     let source_id = SourceId::from_uuid(source_id);
     let job_id = JobId::new();
 
-    // Emit request event (async workflow starts)
-    // Machine will decide on ScrapeSource command
-    // Effect will check authorization and create job
-    ctx.bus.emit(OrganizationEvent::ScrapeSourceRequested {
-        source_id,
-        job_id,
-        requested_by: user.member_id,
-        is_admin: user.is_admin,
-    });
+    // Dispatch request event and await completion (NeedsSynced or failure)
+    let result = dispatch_request(
+        OrganizationEvent::ScrapeSourceRequested {
+            source_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                // Success - scraping workflow complete
+                OrganizationEvent::NeedsSynced {
+                    source_id: synced_source_id,
+                    job_id: synced_job_id,
+                    new_count,
+                    changed_count,
+                    disappeared_count,
+                } if *synced_source_id == source_id && *synced_job_id == job_id => {
+                    Some(Ok((
+                        "completed".to_string(),
+                        format!(
+                            "Scraping complete! Found {} new, {} changed, {} disappeared",
+                            new_count, changed_count, disappeared_count
+                        ),
+                    )))
+                }
+                // Failure events
+                OrganizationEvent::ScrapeFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Scrape failed: {}", reason)))
+                }
+                OrganizationEvent::ExtractFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
+                }
+                OrganizationEvent::SyncFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
+                }
+                OrganizationEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "ScrapeSource" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Scrape failed: {}", e), juniper::Value::null()))?;
 
-    // Return immediately with job_id (job will be created in effect)
+    let (status, message) = result;
+
     Ok(ScrapeJobResult {
         job_id: job_id.into_uuid(),
         source_id: source_id.into_uuid(),
-        status: "pending".to_string(),
+        status,
+        message: Some(message),
     })
 }
 
@@ -272,14 +328,14 @@ pub async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) ->
 
 /// Submit a resource link (URL) from the public for scraping
 /// Returns job_id immediately - user can check progress
-/// Following seesaw pattern: dispatch request event, machine creates command, effect scrapes
+/// Following seesaw pattern: dispatch request event, await result event with job_id
 pub async fn submit_resource_link(
     ctx: &GraphQLContext,
     input: SubmitResourceLinkInput,
 ) -> FieldResult<SubmitResourceLinkResult> {
     info!(url = %input.url, context = ?input.context, "Submitting resource link for scraping");
 
-    // Basic URL validation
+    // Basic URL validation (edges can validate input)
     if !input.url.starts_with("http://") && !input.url.starts_with("https://") {
         return Err(FieldError::new(
             "Invalid URL: must start with http:// or https://",
@@ -287,23 +343,147 @@ pub async fn submit_resource_link(
         ));
     }
 
-    // Generate IDs for tracking
-    let job_id = JobId::new();
+    // Dispatch request event and await OrganizationSourceCreatedFromLink event
+    // This follows proper seesaw encapsulation - job_id is created in the effect
+    let job_id = dispatch_request(
+        OrganizationEvent::SubmitResourceLinkRequested {
+            url: input.url.clone(),
+            context: input.context,
+            submitter_contact: input.submitter_contact,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &OrganizationEvent| match e {
+                OrganizationEvent::OrganizationSourceCreatedFromLink { job_id, .. } => {
+                    Some(Ok(*job_id))
+                }
+                _ => None,
+            })
+            .result()
+        },
+        
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to submit resource link: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
-    // Emit request event (async workflow starts)
-    // Machine will decide on scraping command
-    // Effect will create temporary source, scrape, extract, and mark as user_submitted
-    ctx.bus.emit(OrganizationEvent::SubmitResourceLinkRequested {
-        job_id,
-        url: input.url.clone(),
-        context: input.context,
-        submitter_contact: input.submitter_contact,
-    });
-
-    // Return immediately with job_id
     Ok(SubmitResourceLinkResult {
         job_id: job_id.into_uuid(),
         status: "pending".to_string(),
-        message: "Resource submitted successfully. We'll scrape and review it soon!".to_string(),
+        message: "Resource submitted successfully! We'll process it shortly.".to_string(),
     })
+}
+
+/// Delete a need (admin only)
+pub async fn delete_need(
+    ctx: &GraphQLContext,
+    need_id: Uuid,
+) -> FieldResult<bool> {
+    info!(need_id = %need_id, "Deleting need");
+
+    // Get user info and check if admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Only administrators can delete needs",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Convert to typed ID
+    let need_id = NeedId::from_uuid(need_id);
+
+    // Delete the need
+    OrganizationNeed::delete(need_id, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to delete need: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(true)
+}
+
+/// Add a scrape URL to an organization source (admin only)
+pub async fn add_organization_scrape_url(
+    ctx: &GraphQLContext,
+    source_id: Uuid,
+    url: String,
+) -> FieldResult<bool> {
+    info!(source_id = %source_id, url = %url, "Adding scrape URL");
+
+    // Get user info and check if admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Only administrators can manage scrape URLs",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Convert to typed ID
+    let source_id = SourceId::from_uuid(source_id);
+
+    // Add the URL
+    OrganizationSource::add_scrape_url(source_id, url, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to add scrape URL: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(true)
+}
+
+/// Remove a scrape URL from an organization source (admin only)
+pub async fn remove_organization_scrape_url(
+    ctx: &GraphQLContext,
+    source_id: Uuid,
+    url: String,
+) -> FieldResult<bool> {
+    info!(source_id = %source_id, url = %url, "Removing scrape URL");
+
+    // Get user info and check if admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Only administrators can manage scrape URLs",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Convert to typed ID
+    let source_id = SourceId::from_uuid(source_id);
+
+    // Remove the URL
+    OrganizationSource::remove_scrape_url(source_id, url, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to remove scrape URL: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(true)
 }

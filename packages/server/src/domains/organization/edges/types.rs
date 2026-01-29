@@ -21,6 +21,7 @@ pub struct Need {
     pub status: NeedStatusData,
     pub location: Option<String>,
     pub submission_type: Option<String>,
+    pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -48,6 +49,7 @@ impl From<OrganizationNeed> for Need {
             },
             location: need.location,
             submission_type: need.submission_type,
+            source_url: need.source_url,
             created_at: need.created_at,
         }
     }
@@ -126,6 +128,7 @@ pub struct ScrapeJobResult {
     pub job_id: Uuid,
     pub source_id: Uuid,
     pub status: String,
+    pub message: Option<String>,
 }
 
 /// Connection type for paginated needs
@@ -143,6 +146,7 @@ pub struct OrganizationSourceData {
     pub id: Uuid,
     pub organization_name: String,
     pub source_url: String,
+    pub scrape_urls: Option<Vec<String>>,
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
@@ -151,10 +155,16 @@ pub struct OrganizationSourceData {
 
 impl From<OrganizationSource> for OrganizationSourceData {
     fn from(source: OrganizationSource) -> Self {
+        // Parse scrape_urls JSON array into Vec<String>
+        let scrape_urls = source.scrape_urls.and_then(|json| {
+            serde_json::from_value::<Vec<String>>(json).ok()
+        });
+
         Self {
             id: source.id.into_uuid(),
             organization_name: source.organization_name,
             source_url: source.source_url,
+            scrape_urls,
             last_scraped_at: source.last_scraped_at,
             scrape_frequency_hours: source.scrape_frequency_hours,
             active: source.active,

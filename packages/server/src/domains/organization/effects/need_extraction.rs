@@ -120,7 +120,16 @@ IMPORTANT RULES:
 - Include practical details: time commitment, location, skills needed, etc.
 - Be honest about confidence - it helps human reviewers prioritize
 
-Return ONLY valid JSON (no markdown, no explanation):
+OUTPUT FORMAT REQUIREMENTS:
+- Return ONLY a raw JSON array
+- NO markdown code blocks (no ```json)
+- NO backticks
+- NO explanation or commentary
+- NO text before or after the JSON
+- Start with [ and end with ]
+- Your entire response must be parseable by JSON.parse()
+
+Example format:
 [
   {{
     "title": "...",
@@ -136,14 +145,77 @@ Return ONLY valid JSON (no markdown, no explanation):
         website_content = safe_content
     );
 
-    // Use generic AI capability to get structured response
-    let response = ai
-        .complete_json(&prompt)
-        .await
-        .context("Failed to get AI response")?;
+    // Use generic AI capability to get structured response with retry logic
+    let mut last_response = String::new();
+    let mut needs: Vec<ExtractedNeed> = Vec::new();
 
-    let needs: Vec<ExtractedNeed> =
-        serde_json::from_str(&response).context("Failed to parse AI response as JSON")?;
+    for attempt in 1..=3 {
+        tracing::info!(attempt, "Calling AI to extract needs from content");
+
+        let current_prompt = if attempt == 1 {
+            prompt.clone()
+        } else {
+            format!(
+                r#"Your previous response was not valid JSON and could not be parsed.
+
+Previous response:
+{}
+
+ERROR: Failed to parse as JSON array.
+
+Please fix this and return ONLY a valid JSON array with no markdown, no code blocks, no explanation.
+Start your response with [ and end with ].
+
+Required format:
+[
+  {{
+    "title": "...",
+    "tldr": "...",
+    "description": "...",
+    "contact": {{ "phone": "...", "email": "...", "website": "..." }},
+    "urgency": "normal",
+    "confidence": "high"
+  }}
+]"#,
+                last_response
+            )
+        };
+
+        let response = ai
+            .complete_json(&current_prompt)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, attempt, "AI extraction failed");
+                e
+            })
+            .context("Failed to get AI response")?;
+
+        tracing::info!(response_length = response.len(), attempt, "AI response received");
+        last_response = response.clone();
+
+        match serde_json::from_str::<Vec<ExtractedNeed>>(&response) {
+            Ok(parsed_needs) => {
+                tracing::info!(needs_count = parsed_needs.len(), attempt, "Successfully parsed JSON");
+                needs = parsed_needs;
+                break;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    attempt,
+                    response_preview = %response.chars().take(200).collect::<String>(),
+                    "Failed to parse JSON, will retry"
+                );
+
+                if attempt == 3 {
+                    return Err(anyhow::anyhow!(
+                        "Failed to get valid JSON after 3 attempts. Last error: {}",
+                        e
+                    ));
+                }
+            }
+        }
+    }
 
     // Validate extracted needs for suspicious content
     validate_extracted_needs(&needs)?;
@@ -245,7 +317,7 @@ Hi! I saw your English tutoring program and would love to help newly arrived fam
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::ClaudeClient;
+    use crate::kernel::OpenAIClient;
 
     const SAMPLE_CONTENT: &str = r#"
 # Volunteer Opportunities
@@ -263,10 +335,10 @@ No experience necessary. Contact Sarah at (612) 555-5678.
     #[tokio::test]
     #[ignore] // Requires API key
     async fn test_extract_needs() {
-        let api_key = std::env::var("ANTHROPIC_API_KEY")
-            .expect("ANTHROPIC_API_KEY must be set for integration tests");
+        let api_key = std::env::var("OPENAI_API_KEY")
+            .expect("OPENAI_API_KEY must be set for integration tests");
 
-        let ai = ClaudeClient::new(api_key);
+        let ai = OpenAIClient::new(api_key);
 
         let needs = extract_needs(
             &ai,

@@ -1,0 +1,21 @@
+{
+  "name": "@infra/admin-spa",
+  "version": "0.0.1",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "devDependencies": {
+    "@types/mime": "^4.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "@infra/common": "workspace:*",
+    "@pulumi/aws": "^6.69.0",
+    "@pulumi/pulumi": "^3.147.0",
+    "glob": "^11.0.0",
+    "mime": "^4.0.4"
+  }
+}

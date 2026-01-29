@@ -47,6 +47,7 @@ pub async fn submit_user_need(pool: &PgPool, input: SubmitNeedInput) -> Result<O
         input.member_id,
         ip_str,
         None, // source_id
+        None, // source_url - not applicable for user-submitted needs
         pool,
     )
     .await?;
