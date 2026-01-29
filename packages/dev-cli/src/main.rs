@@ -188,20 +188,73 @@ fn run_command(cmd: &str, args: &[&str], cwd: &PathBuf) -> Result<()> {
 }
 
 fn start_web_app(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "🌐 Starting web app...".bright_blue().bold());
-    println!("{}", "   Press Ctrl+C to stop".dimmed());
-    println!();
+    let options = vec![
+        "React SPA (web-app) - Public + Admin on :3001",
+        "Next.js SSR (web-next) - Public SEO site on :3000",
+        "Both (via Docker Compose)",
+    ];
 
-    let web_app_dir = project_root.join("packages/web-app");
+    let selection = Select::with_theme(&ColorfulTheme::default())
+        .with_prompt("Which web app would you like to start?")
+        .items(&options)
+        .default(0)
+        .interact()?;
 
-    let status = Command::new("yarn")
-        .args(&["dev"])
-        .current_dir(&web_app_dir)
-        .status()
-        .context("Failed to start web app")?;
+    match selection {
+        0 => {
+            println!("{}", "🌐 Starting React SPA (web-app)...".bright_blue().bold());
+            println!("{}", "   Available at: http://localhost:3001".bright_cyan());
+            println!("{}", "   Admin at: http://localhost:3001/admin".bright_cyan());
+            println!("{}", "   Press Ctrl+C to stop".dimmed());
+            println!();
 
-    if !status.success() {
-        println!("{}", "❌ Failed to start web app".bright_red());
+            let web_app_dir = project_root.join("packages/web-app");
+
+            let status = Command::new("yarn")
+                .args(&["dev"])
+                .current_dir(&web_app_dir)
+                .status()
+                .context("Failed to start web-app")?;
+
+            if !status.success() {
+                println!("{}", "❌ Failed to start web-app".bright_red());
+            }
+        }
+        1 => {
+            println!("{}", "🌐 Starting Next.js SSR (web-next)...".bright_blue().bold());
+            println!("{}", "   Available at: http://localhost:3000".bright_cyan());
+            println!("{}", "   Press Ctrl+C to stop".dimmed());
+            println!();
+
+            let web_next_dir = project_root.join("packages/web-next");
+
+            let status = Command::new("yarn")
+                .args(&["dev"])
+                .current_dir(&web_next_dir)
+                .status()
+                .context("Failed to start web-next")?;
+
+            if !status.success() {
+                println!("{}", "❌ Failed to start web-next".bright_red());
+            }
+        }
+        2 => {
+            println!("{}", "🐳 Starting both via Docker Compose...".bright_blue().bold());
+            println!();
+
+            let server_dir = project_root.join("packages/server");
+
+            let status = Command::new("docker")
+                .args(&["compose", "up", "web-app", "web-next"])
+                .current_dir(&server_dir)
+                .status()
+                .context("Failed to start Docker services")?;
+
+            if !status.success() {
+                println!("{}", "❌ Failed to start web apps".bright_red());
+            }
+        }
+        _ => unreachable!(),
     }
 
     Ok(())
@@ -223,6 +276,9 @@ fn docker_start(project_root: &PathBuf) -> Result<()> {
         println!();
         println!("Services available at:");
         println!("  {} http://localhost:8080", "API:".bright_yellow());
+        println!("  {} http://localhost:3000", "Next.js (SSR):".bright_yellow());
+        println!("  {} http://localhost:3001", "Web App (SPA):".bright_yellow());
+        println!("  {} http://localhost:3001/admin", "Admin:".bright_yellow());
         println!("  {} localhost:5432", "PostgreSQL:".bright_yellow());
         println!("  {} localhost:6379", "Redis:".bright_yellow());
     } else {

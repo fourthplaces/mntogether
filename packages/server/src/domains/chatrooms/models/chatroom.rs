@@ -4,27 +4,78 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::common::{
-    ChatroomId, DocumentId, DocumentReferenceId, DocumentTranslationId, MessageId,
+    ChatroomId, ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId, ListingId,
+    MemberId, MessageId, OrganizationId,
 };
 
-/// Chatroom - anonymous conversation session
+/// Container - generic message container for AI chat, listing comments, org discussions, etc.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Chatroom {
-    pub id: ChatroomId,
-    pub language: String, // language_code from active_languages
+pub struct Container {
+    pub id: ContainerId,
+    pub container_type: String, // 'ai_chat', 'listing_comments', 'org_discussion'
+    pub entity_id: Option<uuid::Uuid>, // listing_id, organization_id, etc. (null for standalone chats)
+    pub language: String,       // language_code from active_languages
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
 
-/// Message - user or AI assistant message in a chatroom
+/// Chatroom - DEPRECATED: Use Container instead
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct Chatroom {
+    pub id: ChatroomId,
+    pub container_type: String,
+    pub entity_id: Option<uuid::Uuid>,
+    pub language: String,
+    pub created_at: DateTime<Utc>,
+    pub last_activity_at: DateTime<Utc>,
+}
+
+/// Message - message in a container (AI chat, public comment, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Message {
     pub id: MessageId,
-    pub chatroom_id: ChatroomId,
-    pub role: String, // 'user' or 'assistant'
+    pub container_id: ContainerId,
+    pub role: String,        // 'user', 'assistant', 'comment'
     pub content: String,
-    pub created_at: DateTime<Utc>,
+    pub author_id: Option<MemberId>, // Optional member ID - null for anonymous or AI
+    pub moderation_status: String,   // 'approved', 'pending', 'flagged', 'removed'
+    pub parent_message_id: Option<MessageId>, // For threaded discussions
     pub sequence_number: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub edited_at: Option<DateTime<Utc>>,
+}
+
+/// Container type enum
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ContainerType {
+    AiChat,
+    ListingComments,
+    OrgDiscussion,
+}
+
+impl std::fmt::Display for ContainerType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContainerType::AiChat => write!(f, "ai_chat"),
+            ContainerType::ListingComments => write!(f, "listing_comments"),
+            ContainerType::OrgDiscussion => write!(f, "org_discussion"),
+        }
+    }
+}
+
+impl std::str::FromStr for ContainerType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "ai_chat" => Ok(ContainerType::AiChat),
+            "listing_comments" => Ok(ContainerType::ListingComments),
+            "org_discussion" => Ok(ContainerType::OrgDiscussion),
+            _ => Err(anyhow::anyhow!("Invalid container type: {}", s)),
+        }
+    }
 }
 
 /// Message role enum
@@ -33,6 +84,7 @@ pub struct Message {
 pub enum MessageRole {
     User,
     Assistant,
+    Comment,
 }
 
 impl std::fmt::Display for MessageRole {
@@ -40,6 +92,7 @@ impl std::fmt::Display for MessageRole {
         match self {
             MessageRole::User => write!(f, "user"),
             MessageRole::Assistant => write!(f, "assistant"),
+            MessageRole::Comment => write!(f, "comment"),
         }
     }
 }
@@ -51,7 +104,43 @@ impl std::str::FromStr for MessageRole {
         match s {
             "user" => Ok(MessageRole::User),
             "assistant" => Ok(MessageRole::Assistant),
+            "comment" => Ok(MessageRole::Comment),
             _ => Err(anyhow::anyhow!("Invalid message role: {}", s)),
+        }
+    }
+}
+
+/// Moderation status enum
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ModerationStatus {
+    Approved,
+    Pending,
+    Flagged,
+    Removed,
+}
+
+impl std::fmt::Display for ModerationStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ModerationStatus::Approved => write!(f, "approved"),
+            ModerationStatus::Pending => write!(f, "pending"),
+            ModerationStatus::Flagged => write!(f, "flagged"),
+            ModerationStatus::Removed => write!(f, "removed"),
+        }
+    }
+}
+
+impl std::str::FromStr for ModerationStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "approved" => Ok(ModerationStatus::Approved),
+            "pending" => Ok(ModerationStatus::Pending),
+            "flagged" => Ok(ModerationStatus::Flagged),
+            "removed" => Ok(ModerationStatus::Removed),
+            _ => Err(anyhow::anyhow!("Invalid moderation status: {}", s)),
         }
     }
 }
@@ -60,7 +149,7 @@ impl std::str::FromStr for MessageRole {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct ReferralDocument {
     pub id: DocumentId,
-    pub chatroom_id: Option<ChatroomId>,
+    pub container_id: Option<ContainerId>,
 
     // Content
     pub source_language: String,
@@ -168,25 +257,150 @@ impl std::str::FromStr for ReferenceKind {
 }
 
 // =============================================================================
-// Chatroom Queries
+// Container Queries
+// =============================================================================
+
+impl Container {
+    /// Find container by ID
+    pub async fn find_by_id(id: ContainerId, pool: &PgPool) -> Result<Self> {
+        let container = sqlx::query_as::<_, Container>("SELECT * FROM containers WHERE id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await?;
+        Ok(container)
+    }
+
+    /// Find container by type and entity
+    pub async fn find_by_entity(
+        container_type: &str,
+        entity_id: uuid::Uuid,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        let container = sqlx::query_as::<_, Container>(
+            "SELECT * FROM containers WHERE container_type = $1 AND entity_id = $2",
+        )
+        .bind(container_type)
+        .bind(entity_id)
+        .fetch_optional(pool)
+        .await?;
+        Ok(container)
+    }
+
+    /// Find or create container for an entity (e.g., listing comments)
+    pub async fn find_or_create(
+        container_type: String,
+        entity_id: Option<uuid::Uuid>,
+        language: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        // Try to find existing container
+        if let Some(eid) = entity_id {
+            if let Some(container) = Self::find_by_entity(&container_type, eid, pool).await? {
+                return Ok(container);
+            }
+        }
+
+        // Create new container
+        Self::create(container_type, entity_id, language, pool).await
+    }
+
+    /// Create a new container
+    pub async fn create(
+        container_type: String,
+        entity_id: Option<uuid::Uuid>,
+        language: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let container = sqlx::query_as::<_, Container>(
+            r#"
+            INSERT INTO containers (container_type, entity_id, language)
+            VALUES ($1, $2, $3)
+            RETURNING *
+            "#,
+        )
+        .bind(container_type)
+        .bind(entity_id)
+        .bind(language)
+        .fetch_one(pool)
+        .await?;
+        Ok(container)
+    }
+
+    /// Update last activity timestamp
+    pub async fn touch_activity(id: ContainerId, pool: &PgPool) -> Result<Self> {
+        let container = sqlx::query_as::<_, Container>(
+            r#"
+            UPDATE containers
+            SET last_activity_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(container)
+    }
+
+    /// Find recent containers by type
+    pub async fn find_recent_by_type(
+        container_type: &str,
+        limit: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let containers = sqlx::query_as::<_, Container>(
+            "SELECT * FROM containers WHERE container_type = $1 ORDER BY last_activity_at DESC LIMIT $2",
+        )
+        .bind(container_type)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(containers)
+    }
+
+    /// Find all containers
+    pub async fn find_recent(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
+        let containers = sqlx::query_as::<_, Container>(
+            "SELECT * FROM containers ORDER BY last_activity_at DESC LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(containers)
+    }
+
+    /// Delete a container
+    pub async fn delete(id: ContainerId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM containers WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+}
+
+// =============================================================================
+// Chatroom Queries (DEPRECATED - use Container)
 // =============================================================================
 
 impl Chatroom {
     /// Find chatroom by ID
+    #[deprecated(note = "Use Container::find_by_id instead")]
     pub async fn find_by_id(id: ChatroomId, pool: &PgPool) -> Result<Self> {
-        let chatroom = sqlx::query_as::<_, Chatroom>("SELECT * FROM chatrooms WHERE id = $1")
+        let chatroom = sqlx::query_as::<_, Chatroom>("SELECT * FROM containers WHERE id = $1")
             .bind(id)
             .fetch_one(pool)
             .await?;
         Ok(chatroom)
     }
 
-    /// Create a new chatroom
+    /// Create a new chatroom (AI chat)
+    #[deprecated(note = "Use Container::create instead")]
     pub async fn create(language: String, pool: &PgPool) -> Result<Self> {
         let chatroom = sqlx::query_as::<_, Chatroom>(
             r#"
-            INSERT INTO chatrooms (language)
-            VALUES ($1)
+            INSERT INTO containers (container_type, language)
+            VALUES ('ai_chat', $1)
             RETURNING *
             "#,
         )
@@ -197,10 +411,11 @@ impl Chatroom {
     }
 
     /// Update last activity timestamp
+    #[deprecated(note = "Use Container::touch_activity instead")]
     pub async fn touch_activity(id: ChatroomId, pool: &PgPool) -> Result<Self> {
         let chatroom = sqlx::query_as::<_, Chatroom>(
             r#"
-            UPDATE chatrooms
+            UPDATE containers
             SET last_activity_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -213,9 +428,10 @@ impl Chatroom {
     }
 
     /// Find recent chatrooms
+    #[deprecated(note = "Use Container::find_recent instead")]
     pub async fn find_recent(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
         let chatrooms = sqlx::query_as::<_, Chatroom>(
-            "SELECT * FROM chatrooms ORDER BY last_activity_at DESC LIMIT $1",
+            "SELECT * FROM containers WHERE container_type = 'ai_chat' ORDER BY last_activity_at DESC LIMIT $1",
         )
         .bind(limit)
         .fetch_all(pool)
@@ -224,8 +440,9 @@ impl Chatroom {
     }
 
     /// Delete a chatroom
+    #[deprecated(note = "Use Container::delete instead")]
     pub async fn delete(id: ChatroomId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM chatrooms WHERE id = $1")
+        sqlx::query("DELETE FROM containers WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
@@ -247,12 +464,37 @@ impl Message {
         Ok(message)
     }
 
-    /// Find messages for a chatroom
-    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find messages for a container
+    pub async fn find_by_container(container_id: ContainerId, pool: &PgPool) -> Result<Vec<Self>> {
         let messages = sqlx::query_as::<_, Message>(
-            "SELECT * FROM messages WHERE chatroom_id = $1 ORDER BY sequence_number",
+            "SELECT * FROM messages WHERE container_id = $1 ORDER BY sequence_number",
         )
-        .bind(chatroom_id)
+        .bind(container_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(messages)
+    }
+
+    /// Find approved messages for a container (for public display)
+    pub async fn find_approved_by_container(
+        container_id: ContainerId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let messages = sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages WHERE container_id = $1 AND moderation_status = 'approved' ORDER BY sequence_number",
+        )
+        .bind(container_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(messages)
+    }
+
+    /// Find messages by author
+    pub async fn find_by_author(author_id: MemberId, pool: &PgPool) -> Result<Vec<Self>> {
+        let messages = sqlx::query_as::<_, Message>(
+            "SELECT * FROM messages WHERE author_id = $1 ORDER BY created_at DESC",
+        )
+        .bind(author_id)
         .fetch_all(pool)
         .await?;
         Ok(messages)
@@ -260,46 +502,118 @@ impl Message {
 
     /// Create a new message
     pub async fn create(
-        chatroom_id: ChatroomId,
+        container_id: ContainerId,
         role: String,
         content: String,
+        author_id: Option<MemberId>,
+        moderation_status: Option<String>,
+        parent_message_id: Option<MessageId>,
         sequence_number: i32,
         pool: &PgPool,
     ) -> Result<Self> {
         let message = sqlx::query_as::<_, Message>(
             r#"
-            INSERT INTO messages (chatroom_id, role, content, sequence_number)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO messages (
+                container_id, role, content, author_id,
+                moderation_status, parent_message_id, sequence_number
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             "#,
         )
-        .bind(chatroom_id)
+        .bind(container_id)
         .bind(role)
         .bind(content)
+        .bind(author_id)
+        .bind(moderation_status.unwrap_or_else(|| "approved".to_string()))
+        .bind(parent_message_id)
         .bind(sequence_number)
         .fetch_one(pool)
         .await?;
         Ok(message)
     }
 
-    /// Get next sequence number for a chatroom
-    pub async fn next_sequence_number(chatroom_id: ChatroomId, pool: &PgPool) -> Result<i32> {
-        let max: Option<i32> = sqlx::query_scalar(
-            "SELECT MAX(sequence_number) FROM messages WHERE chatroom_id = $1",
+    /// Update message content (for edits)
+    pub async fn update_content(id: MessageId, content: String, pool: &PgPool) -> Result<Self> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            UPDATE messages
+            SET content = $2, updated_at = NOW(), edited_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
         )
-        .bind(chatroom_id)
+        .bind(id)
+        .bind(content)
+        .fetch_one(pool)
+        .await?;
+        Ok(message)
+    }
+
+    /// Update moderation status
+    pub async fn update_moderation_status(
+        id: MessageId,
+        status: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let message = sqlx::query_as::<_, Message>(
+            r#"
+            UPDATE messages
+            SET moderation_status = $2, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(status)
+        .fetch_one(pool)
+        .await?;
+        Ok(message)
+    }
+
+    /// Get next sequence number for a container
+    pub async fn next_sequence_number(container_id: ContainerId, pool: &PgPool) -> Result<i32> {
+        let max: Option<i32> = sqlx::query_scalar(
+            "SELECT MAX(sequence_number) FROM messages WHERE container_id = $1",
+        )
+        .bind(container_id)
         .fetch_one(pool)
         .await?;
         Ok(max.unwrap_or(0) + 1)
     }
 
-    /// Delete all messages in a chatroom
-    pub async fn delete_all_for_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM messages WHERE chatroom_id = $1")
-            .bind(chatroom_id)
+    /// Delete a message
+    pub async fn delete(id: MessageId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE id = $1")
+            .bind(id)
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    /// Delete all messages in a container
+    pub async fn delete_all_for_container(container_id: ContainerId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM messages WHERE container_id = $1")
+            .bind(container_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
+    // =============================================================================
+    // DEPRECATED - for backward compatibility with chatroom terminology
+    // =============================================================================
+
+    /// Find messages for a chatroom (DEPRECATED - use find_by_container)
+    #[deprecated(note = "Use find_by_container instead")]
+    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
+        Self::find_by_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
+    }
+
+    /// Delete all messages in a chatroom (DEPRECATED - use delete_all_for_container)
+    #[deprecated(note = "Use delete_all_for_container instead")]
+    pub async fn delete_all_for_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<()> {
+        Self::delete_all_for_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
     }
 }
 
@@ -342,7 +656,7 @@ impl ReferralDocument {
 
     /// Create a new document
     pub async fn create(
-        chatroom_id: Option<ChatroomId>,
+        container_id: Option<ContainerId>,
         source_language: String,
         content: String,
         title: Option<String>,
@@ -354,13 +668,13 @@ impl ReferralDocument {
         let document = sqlx::query_as::<_, ReferralDocument>(
             r#"
             INSERT INTO referral_documents (
-                chatroom_id, source_language, content, title, slug, edit_token, status
+                container_id, source_language, content, title, slug, edit_token, status
             )
             VALUES ($1, $2, $3, $4, $5, $6, $7)
             RETURNING *
             "#,
         )
-        .bind(chatroom_id)
+        .bind(container_id)
         .bind(source_language)
         .bind(content)
         .bind(title)
@@ -428,15 +742,21 @@ impl ReferralDocument {
         Ok(document)
     }
 
-    /// Find documents by chatroom
-    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find documents by container
+    pub async fn find_by_container(container_id: ContainerId, pool: &PgPool) -> Result<Vec<Self>> {
         let documents = sqlx::query_as::<_, ReferralDocument>(
-            "SELECT * FROM referral_documents WHERE chatroom_id = $1 ORDER BY created_at DESC",
+            "SELECT * FROM referral_documents WHERE container_id = $1 ORDER BY created_at DESC",
         )
-        .bind(chatroom_id)
+        .bind(container_id)
         .fetch_all(pool)
         .await?;
         Ok(documents)
+    }
+
+    /// Find documents by chatroom (DEPRECATED - use find_by_container)
+    #[deprecated(note = "Use find_by_container instead")]
+    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
+        Self::find_by_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
     }
 
     /// Find published documents

@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, NeedId};
+use crate::common::{ListingId, MemberId};
 
-/// Notification record - tracks when a member was notified about a need
+/// Notification record - tracks when a member was notified about a listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Notification {
     pub id: Uuid,
-    pub need_id: Uuid,
+    pub listing_id: Uuid,
     pub member_id: Uuid,
     pub why_relevant: String,
     pub created_at: DateTime<Utc>,
@@ -20,19 +20,19 @@ impl Notification {
     /// Record a notification (upsert - ignores duplicates)
     ///
     /// Uses ON CONFLICT DO NOTHING to prevent duplicate notifications
-    /// for the same need-member pair.
+    /// for the same listing-member pair.
     pub async fn record(
-        need_id: NeedId,
+        listing_id: ListingId,
         member_id: MemberId,
         why_relevant: String,
         pool: &PgPool,
     ) -> Result<()> {
         sqlx::query(
-            "INSERT INTO notifications (need_id, member_id, why_relevant)
+            "INSERT INTO notifications (listing_id, member_id, why_relevant)
              VALUES ($1, $2, $3)
-             ON CONFLICT (need_id, member_id) DO NOTHING",
+             ON CONFLICT (listing_id, member_id) DO NOTHING",
         )
-        .bind(need_id.into_uuid())
+        .bind(listing_id.into_uuid())
         .bind(member_id.into_uuid())
         .bind(why_relevant)
         .execute(pool)
@@ -53,12 +53,12 @@ impl Notification {
         Ok(notifications)
     }
 
-    /// Find all notifications for a need
-    pub async fn find_by_need(need_id: NeedId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find all notifications for a listing
+    pub async fn find_by_listing(listing_id: ListingId, pool: &PgPool) -> Result<Vec<Self>> {
         let notifications = sqlx::query_as::<_, Notification>(
-            "SELECT * FROM notifications WHERE need_id = $1 ORDER BY created_at DESC",
+            "SELECT * FROM notifications WHERE listing_id = $1 ORDER BY created_at DESC",
         )
-        .bind(need_id.into_uuid())
+        .bind(listing_id.into_uuid())
         .fetch_all(pool)
         .await?;
 

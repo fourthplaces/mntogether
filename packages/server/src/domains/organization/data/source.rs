@@ -1,6 +1,6 @@
-use crate::common::SourceId;
-use crate::domains::organization::data::NeedData;
-use crate::domains::organization::models::need::OrganizationNeed;
+use crate::common::{DomainId, SourceId};
+use crate::domains::listings::data::ListingData;
+use crate::domains::listings::models::listing::Listing;
 use crate::domains::organization::models::source::OrganizationSource;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
@@ -62,11 +62,12 @@ impl SourceData {
         self.created_at.clone()
     }
 
-    /// Get all needs scraped from this source
-    async fn needs(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<NeedData>> {
+    /// Get all listings scraped from this source
+    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
         let uuid = Uuid::parse_str(&self.id)?;
         let source_id = SourceId::from_uuid(uuid);
-        let needs = OrganizationNeed::find_by_source_id(source_id, &context.db_pool).await?;
-        Ok(needs.into_iter().map(NeedData::from).collect())
+        let domain_id = DomainId::from_uuid(source_id.into_uuid());
+        let listings = Listing::find_by_domain_id(domain_id, &context.db_pool).await?;
+        Ok(listings.into_iter().map(ListingData::from).collect())
     }
 }

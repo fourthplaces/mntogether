@@ -1,17 +1,17 @@
 import { gql } from '@apollo/client';
 
-export const APPROVE_NEED = gql`
-  mutation ApproveNeed($needId: Uuid!) {
-    approveNeed(needId: $needId) {
+export const APPROVE_LISTING = gql`
+  mutation ApproveListing($listingId: Uuid!) {
+    approveListing(listingId: $listingId) {
       id
       status
     }
   }
 `;
 
-export const EDIT_AND_APPROVE_NEED = gql`
-  mutation EditAndApproveNeed($needId: Uuid!, $input: EditNeedInput!) {
-    editAndApproveNeed(needId: $needId, input: $input) {
+export const EDIT_AND_APPROVE_LISTING = gql`
+  mutation EditAndApproveListing($listingId: Uuid!, $input: EditListingInput!) {
+    editAndApproveListing(listingId: $listingId, input: $input) {
       id
       title
       description
@@ -21,15 +21,15 @@ export const EDIT_AND_APPROVE_NEED = gql`
   }
 `;
 
-export const REJECT_NEED = gql`
-  mutation RejectNeed($needId: Uuid!, $reason: String!) {
-    rejectNeed(needId: $needId, reason: $reason)
+export const REJECT_LISTING = gql`
+  mutation RejectListing($listingId: Uuid!, $reason: String!) {
+    rejectListing(listingId: $listingId, reason: $reason)
   }
 `;
 
-export const SUBMIT_NEED = gql`
-  mutation SubmitNeed($input: SubmitNeedInput!, $volunteerId: Uuid) {
-    submitNeed(input: $input, volunteerId: $volunteerId) {
+export const SUBMIT_LISTING = gql`
+  mutation SubmitListing($input: SubmitListingInput!, $volunteerId: Uuid) {
+    submitListing(input: $input, volunteerId: $volunteerId) {
       id
       status
     }
@@ -87,9 +87,9 @@ export const ARCHIVE_POST = gql`
   }
 `;
 
-export const DELETE_NEED = gql`
-  mutation DeleteNeed($needId: Uuid!) {
-    deleteNeed(needId: $needId)
+export const DELETE_LISTING = gql`
+  mutation DeleteListing($listingId: Uuid!) {
+    deleteListing(listingId: $listingId)
   }
 `;
 

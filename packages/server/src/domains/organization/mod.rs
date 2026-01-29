@@ -1,18 +1,15 @@
-// Organization domain - handles need discovery from websites
+// Organization domain - handles organization and source data
 //
 // Responsibilities:
-// - Scraping organization websites (via Firecrawl)
-// - AI extraction of volunteer needs (via rig.rs + GPT-4o)
-// - Content hash-based deduplication
-// - Human-in-the-loop approval workflow
-// - Sync tracking (new/changed/disappeared needs)
+// - Organization model and data
+// - Organization sources (website sources for scraping)
+// - Source operations (add/remove scrape URLs)
+//
+// Note: Scraping, AI extraction, and approval workflow moved to listings domain
 
-pub mod commands;
 pub mod data;
 pub mod edges;
 pub mod effects;
-pub mod events;
-pub mod machines;
 pub mod models;
 pub mod utils;
 

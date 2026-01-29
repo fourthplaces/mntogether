@@ -4,14 +4,14 @@ import { useEffect } from 'react';
 
 interface Post {
   id: string;
-  needId: string;
+  listingId: string;
   status: string;
   publishedAt?: string;
   expiresAt?: string;
   customTitle?: string;
   customDescription?: string;
   customTldr?: string;
-  need: {
+  listing: {
     id: string;
     organizationName: string;
     title: string;
@@ -60,29 +60,29 @@ export function PostCard({ post }: PostCardProps) {
     }
   };
 
-  // Use custom fields if available, otherwise fall back to need fields
-  const title = post.customTitle || post.need.title;
-  const tldr = post.customTldr || post.need.tldr;
+  // Use custom fields if available, otherwise fall back to listing fields
+  const title = post.customTitle || post.listing.title;
+  const tldr = post.customTldr || post.listing.tldr;
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow">
       {/* Urgency Badge */}
-      {post.need.urgency && (
+      {post.listing.urgency && (
         <div className="mb-3">
-          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getUrgencyColor(post.need.urgency)}`}>
-            {post.need.urgency.toUpperCase()}
+          <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${getUrgencyColor(post.listing.urgency)}`}>
+            {post.listing.urgency.toUpperCase()}
           </span>
         </div>
       )}
 
       {/* Title and Organization */}
       <h3 className="text-xl font-bold text-gray-900 mb-2">{title}</h3>
-      <p className="text-sm text-gray-600 mb-3">{post.need.organizationName}</p>
+      <p className="text-sm text-gray-600 mb-3">{post.listing.organizationName}</p>
 
       {/* Location */}
-      {post.need.location && (
+      {post.listing.location && (
         <p className="text-sm text-gray-500 mb-3">
-          📍 {post.need.location}
+          📍 {post.listing.location}
         </p>
       )}
 
@@ -90,29 +90,29 @@ export function PostCard({ post }: PostCardProps) {
       {tldr && <p className="text-gray-700 mb-4">{tldr}</p>}
 
       {/* Contact Info */}
-      {post.need.contactInfo && (
+      {post.listing.contactInfo && (
         <div className="space-y-2">
-          {post.need.contactInfo.email && (
+          {post.listing.contactInfo.email && (
             <a
-              href={`mailto:${post.need.contactInfo.email}`}
+              href={`mailto:${post.listing.contactInfo.email}`}
               onClick={handleContactClick}
               className="block text-blue-600 hover:text-blue-800 text-sm"
             >
-              ✉️ {post.need.contactInfo.email}
+              ✉️ {post.listing.contactInfo.email}
             </a>
           )}
-          {post.need.contactInfo.phone && (
+          {post.listing.contactInfo.phone && (
             <a
-              href={`tel:${post.need.contactInfo.phone}`}
+              href={`tel:${post.listing.contactInfo.phone}`}
               onClick={handleContactClick}
               className="block text-blue-600 hover:text-blue-800 text-sm"
             >
-              📞 {post.need.contactInfo.phone}
+              📞 {post.listing.contactInfo.phone}
             </a>
           )}
-          {post.need.contactInfo.website && (
+          {post.listing.contactInfo.website && (
             <a
-              href={post.need.contactInfo.website}
+              href={post.listing.contactInfo.website}
               target="_blank"
               rel="noopener noreferrer"
               onClick={handleContactClick}

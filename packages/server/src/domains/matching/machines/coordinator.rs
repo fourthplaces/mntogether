@@ -1,10 +1,10 @@
 use crate::domains::matching::commands::MatchingCommand;
-use crate::domains::organization::events::OrganizationEvent;
-use seesaw::Machine;
+use crate::domains::listings::events::ListingEvent;
+use seesaw_core::Machine;
 use tracing::info;
 
-/// Coordinator machine that bridges Organization → Matching domains
-/// Listens to OrganizationEvent, emits MatchingCommand
+/// Coordinator machine that bridges Listings → Matching domains
+/// Listens to ListingEvent, emits MatchingCommand
 pub struct MatchingCoordinatorMachine;
 
 impl MatchingCoordinatorMachine {
@@ -14,15 +14,15 @@ impl MatchingCoordinatorMachine {
 }
 
 impl Machine for MatchingCoordinatorMachine {
-    type Event = OrganizationEvent;
+    type Event = ListingEvent;
     type Command = MatchingCommand;
 
-    fn decide(&mut self, event: &OrganizationEvent) -> Option<MatchingCommand> {
+    fn decide(&mut self, event: &ListingEvent) -> Option<MatchingCommand> {
         match event {
-            // When a need is approved, trigger matching
-            OrganizationEvent::NeedApproved { need_id } => {
-                info!(need_id = %need_id, "Need approved, triggering member matching");
-                Some(MatchingCommand::FindMatches { need_id: *need_id })
+            // When a listing is approved, trigger matching
+            ListingEvent::ListingApproved { listing_id } => {
+                info!(listing_id = %listing_id, "Listing approved, triggering member matching");
+                Some(MatchingCommand::FindMatches { listing_id: *listing_id })
             }
             _ => None,
         }

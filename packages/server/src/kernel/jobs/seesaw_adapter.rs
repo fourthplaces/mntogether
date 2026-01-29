@@ -6,7 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use seesaw::JobSpec;
+use seesaw_core::JobSpec;
 use sqlx::PgPool;
 use tracing::debug;
 use uuid::Uuid;

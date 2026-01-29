@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
-export const GET_PENDING_NEEDS = gql`
-  query GetPendingNeeds($limit: Int, $offset: Int) {
-    needs(status: PENDING_APPROVAL, limit: $limit, offset: $offset) {
+export const GET_PENDING_LISTINGS = gql`
+  query GetPendingListings($limit: Int, $offset: Int) {
+    listings(status: PENDING_APPROVAL, limit: $limit, offset: $offset) {
       nodes {
         id
         organizationName
@@ -25,9 +25,9 @@ export const GET_PENDING_NEEDS = gql`
   }
 `;
 
-export const GET_ACTIVE_NEEDS = gql`
-  query GetActiveNeeds($limit: Int, $offset: Int) {
-    needs(status: ACTIVE, limit: $limit, offset: $offset) {
+export const GET_ACTIVE_LISTINGS = gql`
+  query GetActiveListings($limit: Int, $offset: Int) {
+    listings(status: ACTIVE, limit: $limit, offset: $offset) {
       nodes {
         id
         organizationName
@@ -43,9 +43,9 @@ export const GET_ACTIVE_NEEDS = gql`
   }
 `;
 
-export const GET_NEED_DETAIL = gql`
-  query GetNeedDetail($id: Uuid!) {
-    need(id: $id) {
+export const GET_LISTING_DETAIL = gql`
+  query GetListingDetail($id: Uuid!) {
+    listing(id: $id) {
       id
       organizationName
       title
@@ -81,9 +81,9 @@ export const GET_ORGANIZATION_SOURCES = gql`
   }
 `;
 
-export const GET_ORGANIZATION_SOURCE_NEEDS = gql`
-  query GetOrganizationSourceNeeds($status: NeedStatusData) {
-    needs(status: $status, limit: 1000) {
+export const GET_ORGANIZATION_SOURCE_LISTINGS = gql`
+  query GetOrganizationSourceListings($status: ListingStatusData) {
+    listings(status: $status, limit: 1000) {
       nodes {
         id
         organizationName
@@ -100,9 +100,9 @@ export const GET_ORGANIZATION_SOURCE_NEEDS = gql`
   }
 `;
 
-export const GET_POSTS_FOR_NEED = gql`
-  query GetPostsForNeed($needId: Uuid!) {
-    postsForNeed(needId: $needId) {
+export const GET_POSTS_FOR_LISTING = gql`
+  query GetPostsForListing($listingId: Uuid!) {
+    postsForListing(listingId: $listingId) {
       id
       status
       expiresAt

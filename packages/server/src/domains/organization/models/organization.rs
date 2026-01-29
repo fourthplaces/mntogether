@@ -127,7 +127,6 @@ pub struct Organization {
 #[serde(rename_all = "snake_case")]
 pub enum OrganizationType {
     Nonprofit,
-    Government,
     Business,
     Community,
     Other,
@@ -137,7 +136,6 @@ impl std::fmt::Display for OrganizationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             OrganizationType::Nonprofit => write!(f, "nonprofit"),
-            OrganizationType::Government => write!(f, "government"),
             OrganizationType::Business => write!(f, "business"),
             OrganizationType::Community => write!(f, "community"),
             OrganizationType::Other => write!(f, "other"),
@@ -151,7 +149,6 @@ impl std::str::FromStr for OrganizationType {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "nonprofit" => Ok(OrganizationType::Nonprofit),
-            "government" => Ok(OrganizationType::Government),
             "business" => Ok(OrganizationType::Business),
             "community" => Ok(OrganizationType::Community),
             "other" => Ok(OrganizationType::Other),

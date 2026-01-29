@@ -1,4 +1,4 @@
-use seesaw::Machine;
+use seesaw_core::Machine;
 use std::collections::HashMap;
 use uuid::Uuid;
 

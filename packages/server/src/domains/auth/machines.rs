@@ -1,4 +1,4 @@
-use seesaw::Machine;
+use seesaw_core::Machine;
 
 use super::commands::AuthCommand;
 use super::events::AuthEvent;

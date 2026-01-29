@@ -1,7 +1,7 @@
 use crate::domains::auth::events::AuthEvent;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::FieldResult;
-use seesaw::dispatch_request;
+use seesaw_core::dispatch_request;
 
 /// Send OTP verification code via SMS or email
 ///

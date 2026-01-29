@@ -123,18 +123,52 @@ impl Member {
     /// Increment notification count (for throttling)
     ///
     /// Returns the updated member if successful (count < 3), None if limit reached
+    ///
+    /// IMPORTANT: This uses SELECT FOR UPDATE to prevent race conditions where
+    /// concurrent transactions could both see count=2 and both increment to 3+.
+    /// The row lock ensures atomic check-and-increment.
     pub async fn increment_notification_count(id: MemberId, pool: &PgPool) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>(
+        // Start transaction for atomic check-and-increment
+        let mut tx = pool.begin().await?;
+
+        // Lock the row with SELECT FOR UPDATE to prevent concurrent modifications
+        let current: Option<Self> = sqlx::query_as(
+            "SELECT * FROM members WHERE id = $1 FOR UPDATE"
+        )
+        .bind(id.into_uuid())
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        // Check if member exists
+        let current = match current {
+            Some(m) => m,
+            None => {
+                tx.rollback().await?;
+                return Ok(None);
+            }
+        };
+
+        // Check throttle limit
+        if current.notification_count_this_week >= 3 {
+            tx.rollback().await?;
+            return Ok(None);
+        }
+
+        // Increment count (row is locked, safe to increment)
+        let updated: Self = sqlx::query_as(
             "UPDATE members
              SET notification_count_this_week = notification_count_this_week + 1
              WHERE id = $1
-               AND notification_count_this_week < 3
-             RETURNING *",
+             RETURNING *"
         )
         .bind(id.into_uuid())
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
+        .fetch_one(&mut *tx)
+        .await?;
+
+        // Commit transaction
+        tx.commit().await?;
+
+        Ok(Some(updated))
     }
 
     /// Reset weekly notification counts (called by weekly cron job)

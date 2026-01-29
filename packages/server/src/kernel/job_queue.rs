@@ -6,7 +6,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use seesaw::JobSpec;
+use seesaw_core::JobSpec;
 use sqlx::PgPool;
 use tracing::debug;
 use uuid::Uuid;
@@ -177,7 +177,7 @@ impl SeesawJobQueueAdapter {
 }
 
 #[async_trait]
-impl seesaw::JobQueue for SeesawJobQueueAdapter {
+impl seesaw_core::JobQueue for SeesawJobQueueAdapter {
     async fn enqueue(&self, payload: serde_json::Value, spec: JobSpec) -> Result<Uuid> {
         self.enqueue_internal(payload, spec, None).await
     }

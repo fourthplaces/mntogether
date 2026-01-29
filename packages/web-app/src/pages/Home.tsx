@@ -5,14 +5,14 @@ import { PostCard } from '../components/PostCard';
 
 interface Post {
   id: string;
-  needId: string;
+  listingId: string;
   status: string;
   publishedAt?: string;
   expiresAt?: string;
   customTitle?: string;
   customDescription?: string;
   customTldr?: string;
-  need: {
+  listing: {
     id: string;
     organizationName: string;
     title: string;
@@ -84,7 +84,7 @@ export function Home() {
         {posts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">
-              No active needs at the moment.
+              No active listings at the moment.
             </p>
           </div>
         ) : (

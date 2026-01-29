@@ -9,7 +9,7 @@ import { SubmitResource } from './pages/SubmitResource';
 
 // Admin pages
 import { Login } from './pages/admin/Login';
-import { NeedApprovalQueue } from './pages/admin/NeedApprovalQueue';
+import { ListingApprovalQueue } from './pages/admin/ListingApprovalQueue';
 import { Resources } from './pages/admin/Resources';
 import { ResourceDetail } from './pages/admin/ResourceDetail';
 import { OrganizationDetail } from './pages/admin/OrganizationDetail';
@@ -67,7 +67,7 @@ function AdminLayout() {
       </nav>
 
       <Routes>
-        <Route path="/" element={<NeedApprovalQueue />} />
+        <Route path="/" element={<ListingApprovalQueue />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/resources/:sourceId" element={<ResourceDetail />} />
         <Route path="/organizations/:sourceId" element={<OrganizationDetail />} />

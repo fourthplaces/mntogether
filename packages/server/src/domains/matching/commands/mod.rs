@@ -1,11 +1,11 @@
-use crate::common::NeedId;
-use seesaw::{Command, ExecutionMode, JobSpec};
+use crate::common::ListingId;
+use seesaw_core::{Command, ExecutionMode, JobSpec};
 
 /// Matching domain commands
 #[derive(Debug, Clone)]
 pub enum MatchingCommand {
-    /// Find matching members for a need and send notifications
-    FindMatches { need_id: NeedId },
+    /// Find matching members for a listing and send notifications
+    FindMatches { listing_id: ListingId },
 }
 
 impl Command for MatchingCommand {
@@ -18,21 +18,22 @@ impl Command for MatchingCommand {
 
     fn job_spec(&self) -> Option<JobSpec> {
         match self {
-            Self::FindMatches { need_id } => Some(JobSpec {
+            Self::FindMatches { listing_id } => Some(JobSpec {
                 job_type: "find_matches",
-                idempotency_key: Some(need_id.to_string()),
+                idempotency_key: Some(listing_id.to_string()),
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*need_id.as_uuid()),
+                reference_id: Some(*listing_id.as_uuid()),
+                container_id: None,
             }),
         }
     }
 
     fn serialize_to_json(&self) -> Option<serde_json::Value> {
         match self {
-            Self::FindMatches { need_id } => Some(serde_json::json!({
-                "need_id": need_id.to_string(),
+            Self::FindMatches { listing_id } => Some(serde_json::json!({
+                "listing_id": listing_id.to_string(),
             })),
         }
     }

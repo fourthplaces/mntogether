@@ -2,7 +2,7 @@ import { ApolloProvider } from '@apollo/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { apolloClient } from './graphql/client';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import { NeedApprovalQueue } from './pages/NeedApprovalQueue';
+import { ListingApprovalQueue } from './pages/ListingApprovalQueue';
 import { Login } from './pages/Login';
 import { Resources } from './pages/Resources';
 import { ResourceDetail } from './pages/ResourceDetail';
@@ -54,7 +54,7 @@ function ProtectedLayout() {
       </nav>
 
       <Routes>
-        <Route path="/" element={<NeedApprovalQueue />} />
+        <Route path="/" element={<ListingApprovalQueue />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/resources/:sourceId" element={<ResourceDetail />} />
         <Route path="/organizations/:sourceId" element={<OrganizationDetail />} />
