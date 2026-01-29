@@ -44,6 +44,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
+use crate::common::embedding::Embeddable;
 use crate::domains::organization::models::Organization;
 use crate::kernel::ai::OpenAIClient;
 

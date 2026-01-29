@@ -1,0 +1,21 @@
+# =============================================================================
+# web-app Dev Configuration
+# =============================================================================
+# Package-specific configuration. Global settings are in .dev/config.toml
+
+[cmd.build]
+default = "npm run build"
+watch = "npm run dev"
+
+[cmd.dev]
+default = "npm run dev"
+
+[cmd.typecheck]
+default = "npm run typecheck"
+
+[cmd.lint]
+default = "npm run lint"
+fix = "npm run lint -- --fix"
+
+[cmd.test]
+default = "npm run test"

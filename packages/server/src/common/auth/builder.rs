@@ -6,25 +6,31 @@ use anyhow::Result;
 ///
 /// Usage:
 /// ```
-/// Actor::new(actor_id)
+/// Actor::new(actor_id, is_admin)
 ///     .can(AdminCapability::ManageNeeds)
 ///     .check(ctx.deps())
 ///     .await?;
 /// ```
 pub struct Actor {
     actor_id: MemberId,
+    is_admin: bool,
 }
 
 impl Actor {
     /// Create a new actor for authorization checks
-    pub fn new(actor_id: MemberId) -> Self {
-        Self { actor_id }
+    ///
+    /// # Arguments
+    /// * `actor_id` - The member ID of the actor
+    /// * `is_admin` - Admin flag from JWT/session (already validated during authentication)
+    pub fn new(actor_id: MemberId, is_admin: bool) -> Self {
+        Self { actor_id, is_admin }
     }
 
     /// Specify what capability the actor needs
     pub fn can(self, capability: AdminCapability) -> CapabilityBuilder {
         CapabilityBuilder {
             actor_id: self.actor_id,
+            is_admin: self.is_admin,
             capability,
         }
     }
@@ -33,6 +39,7 @@ impl Actor {
 /// Builder after specifying capability
 pub struct CapabilityBuilder {
     actor_id: MemberId,
+    is_admin: bool,
     capability: AdminCapability,
 }
 
@@ -42,7 +49,7 @@ impl CapabilityBuilder {
     where
         D: HasAuthContext,
     {
-        check_admin_permission(self.actor_id, self.capability, deps).await
+        check_admin_permission(self.actor_id, self.is_admin, self.capability, deps).await
     }
 }
 
@@ -53,32 +60,25 @@ pub trait HasAuthContext: Send + Sync {
 }
 
 /// Core permission check function
+///
+/// This function verifies admin capabilities. The `is_admin` flag comes from the JWT token,
+/// which was already validated during OTP verification by checking if the phone number
+/// is in the admin_identifiers list. We trust this flag since:
+/// 1. JWT tokens are cryptographically signed and verified
+/// 2. The flag was set during authentication by checking against admin_identifiers
+/// 3. Tokens expire after 24 hours, limiting the window for stale permissions
 async fn check_admin_permission<D>(
-    actor_id: MemberId,
+    _actor_id: MemberId,
+    is_admin: bool,
     _capability: AdminCapability,
-    deps: &D,
+    _deps: &D,
 ) -> Result<(), AuthError>
 where
     D: HasAuthContext,
 {
-    // In MN Digital Aid, admin check is based on identifier matching
-    // The actor_id would be used to fetch the identifier (phone/email) from the JWT claims
-    // For now, we'll implement a simplified version that checks against admin_identifiers
-
-    // Note: In a real implementation, you would:
-    // 1. Fetch the member/identifier from actor_id
-    // 2. Check if their identifier is in the admin_identifiers list
-    // 3. Potentially check role/permissions from database
-
-    // For now, we'll assume the caller passes the identifier as part of the actor context
-    // This is a simplification - in production you'd fetch from DB or JWT claims
-
-    let is_admin = deps.admin_identifiers().iter().any(|admin_id| {
-        // This is a placeholder - you'd need to match against actual identifier
-        // extracted from the JWT token or member record
-        // For now we'll check if there are any admin identifiers configured
-        !admin_id.is_empty()
-    });
+    // In MN Digital Aid, all admin capabilities require admin status.
+    // The is_admin flag comes from the JWT and was validated during OTP verification
+    // by checking the phone number against the admin_identifiers list.
 
     if !is_admin {
         return Err(AuthError::AdminRequired);
@@ -112,7 +112,7 @@ mod tests {
         };
 
         let actor_id = MemberId::new();
-        let result = Actor::new(actor_id)
+        let result = Actor::new(actor_id, true) // is_admin = true
             .can(AdminCapability::ManageNeeds)
             .check(&deps)
             .await;
@@ -127,7 +127,7 @@ mod tests {
         };
 
         let actor_id = MemberId::new();
-        let result = Actor::new(actor_id)
+        let result = Actor::new(actor_id, false) // is_admin = false
             .can(AdminCapability::ManageNeeds)
             .check(&deps)
             .await;

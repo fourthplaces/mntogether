@@ -1,59 +1,71 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-# Minnesota Digital Aid Development CLI
-# Single entry point for development workflow
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR"
 
-set -e
+need_cmd() { command -v "$1" >/dev/null 2>&1; }
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# Quick health check for critical dependencies
+quick_doctor() {
+  local missing=()
+  for cmd in docker git cargo; do
+    need_cmd "$cmd" || missing+=("$cmd")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "⚠️  Missing recommended tools: ${missing[*]}"
+    echo "   Run './dev.sh doctor' for details."
+    echo
+  fi
+}
 
-# Project root directory
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DEV_CLI_BIN="$PROJECT_ROOT/target/release/dev"
+ensure_rust() {
+  if need_cmd cargo && need_cmd rustc; then
+    return
+  fi
 
-echo -e "${BLUE}╔══════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║  Minnesota Digital Aid Dev CLI       ║${NC}"
-echo -e "${BLUE}╚══════════════════════════════════════╝${NC}"
-echo ""
-
-# Check if Rust is installed
-if ! command -v cargo &> /dev/null; then
-    echo -e "${RED}❌ Cargo is not installed${NC}"
-    echo ""
-    echo "Please install Rust from: https://rustup.rs/"
-    echo ""
-    echo "Run: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
+  echo "Rust toolchain not found. Installing rustup..."
+  if ! need_cmd curl; then
+    echo "Error: curl is required to install rustup." >&2
     exit 1
+  fi
+
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y
+  # shellcheck disable=SC1091
+  if [[ -f "$HOME/.cargo/env" ]]; then
+    source "$HOME/.cargo/env"
+  fi
+
+  if ! need_cmd cargo; then
+    echo "Error: cargo not found after rustup install. Restart your terminal and try again." >&2
+    exit 1
+  fi
+}
+
+ensure_rust
+
+# Show quick doctor check only for interactive mode (no args)
+if [[ $# -eq 0 ]]; then
+  quick_doctor
 fi
 
-# Check if dev CLI binary exists and is up to date
-NEEDS_BUILD=false
+export REPO_ROOT
 
-if [ ! -f "$DEV_CLI_BIN" ]; then
-    NEEDS_BUILD=true
-else
-    # Check if source is newer than binary
-    if [ "packages/dev-cli/src/main.rs" -nt "$DEV_CLI_BIN" ] || \
-       [ "packages/dev-cli/Cargo.toml" -nt "$DEV_CLI_BIN" ]; then
-        NEEDS_BUILD=true
-    fi
+# Build once and reuse for faster startup
+DEV_CLI_BIN="$REPO_ROOT/target/release/dev"
+DEV_CLI_DIR="$REPO_ROOT/packages/dev-cli"
+
+needs_rebuild() {
+  [[ ! -f "$DEV_CLI_BIN" ]] && return 0
+  # Rebuild if any source file is newer than binary
+  find "$DEV_CLI_DIR/src" -name '*.rs' -newer "$DEV_CLI_BIN" 2>/dev/null | grep -q . && return 0
+  [[ "$DEV_CLI_DIR/Cargo.toml" -nt "$DEV_CLI_BIN" ]] && return 0
+  return 1
+}
+
+if needs_rebuild; then
+  echo "Building dev-cli (release mode)..."
+  cargo build --release --manifest-path "$DEV_CLI_DIR/Cargo.toml" --quiet
 fi
 
-# Build the dev CLI if needed
-if [ "$NEEDS_BUILD" = true ]; then
-    echo -e "${YELLOW}🔨 Building dev CLI...${NC}"
-    echo ""
-    cd "$PROJECT_ROOT"
-    cargo build --release --bin dev
-    echo ""
-    echo -e "${GREEN}✅ Build complete${NC}"
-    echo ""
-fi
-
-# Run the dev CLI
-exec "$DEV_CLI_BIN"
+exec "$DEV_CLI_BIN" "$@"

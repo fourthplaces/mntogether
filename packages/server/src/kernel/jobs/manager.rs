@@ -50,7 +50,6 @@ impl ScheduleOptions {
 
     /// Create options for a scheduled job.
     pub fn scheduled(
-        reference_id: Uuid,
         job_type: impl Into<String>,
         run_at: DateTime<Utc>,
     ) -> Self {
@@ -63,7 +62,6 @@ impl ScheduleOptions {
 
     /// Create options for a recurring job.
     pub fn recurring(
-        reference_id: Uuid,
         job_type: impl Into<String>,
         rrule: impl Into<String>,
         timezone: Option<String>,

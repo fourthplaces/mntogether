@@ -1,4 +1,4 @@
-use super::types::{EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
+use crate::domains::listings::data::{EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
 use crate::common::{JobId, ListingId, MemberId, SourceId};
 use crate::domains::listings::events::ListingEvent;
 use crate::domains::listings::models::Listing;

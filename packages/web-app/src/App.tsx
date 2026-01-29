@@ -10,9 +10,11 @@ import { SubmitResource } from './pages/SubmitResource';
 // Admin pages
 import { Login } from './pages/admin/Login';
 import { ListingApprovalQueue } from './pages/admin/ListingApprovalQueue';
+import ScrapedListingsReview from './pages/admin/ScrapedListingsReview';
 import { Resources } from './pages/admin/Resources';
 import { ResourceDetail } from './pages/admin/ResourceDetail';
 import { OrganizationDetail } from './pages/admin/OrganizationDetail';
+import { OrganizationsList } from './pages/admin/OrganizationsList';
 
 // Admin protected layout
 function AdminLayout() {
@@ -41,10 +43,22 @@ function AdminLayout() {
                   Approval Queue
                 </Link>
                 <Link
+                  to="/admin/scraped"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  🤖 Scraped Listings
+                </Link>
+                <Link
                   to="/admin/resources"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
                   Resources
+                </Link>
+                <Link
+                  to="/admin/organizations"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  Businesses
                 </Link>
               </div>
             </div>
@@ -68,8 +82,10 @@ function AdminLayout() {
 
       <Routes>
         <Route path="/" element={<ListingApprovalQueue />} />
+        <Route path="/scraped" element={<ScrapedListingsReview />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/resources/:sourceId" element={<ResourceDetail />} />
+        <Route path="/organizations" element={<OrganizationsList />} />
         <Route path="/organizations/:sourceId" element={<OrganizationDetail />} />
       </Routes>
     </div>

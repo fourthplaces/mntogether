@@ -1,0 +1,25 @@
+# =============================================================================
+# server Dev Configuration
+# =============================================================================
+# Package-specific configuration. Global settings are in .dev/config.toml
+# Name inferred from Cargo.toml: "server"
+# Release type inferred from src/main.rs or presence of bin: "server"
+
+# This package is releasable
+releasable = true
+
+# ECS service name for CloudWatch logs (if using ECS)
+ecs_service = "mntogether-server"
+
+[cmd.build]
+default = "cargo build -p server"
+release = "cargo build -p server --release --quiet"
+watch = "cargo watch -x 'build -p server'"
+
+[cmd.test]
+default = "cargo test -p server"
+watch = "cargo watch -x 'test -p server'"
+
+[cmd.run]
+default = "cargo run -p server"
+watch = "cargo watch -x 'run -p server'"

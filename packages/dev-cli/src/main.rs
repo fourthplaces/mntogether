@@ -1,1389 +1,1713 @@
-use anyhow::{Context, Result};
-use colored::Colorize;
-use console::Term;
-use dialoguer::{theme::ColorfulTheme, Confirm, FuzzySelect, Input, MultiSelect, Select};
-use std::collections::HashMap;
-use std::env;
-use std::path::PathBuf;
-use std::process::Command;
+//! Development CLI
+//!
+//! A comprehensive development environment management tool.
 
-fn main() -> Result<()> {
-    let term = Term::stdout();
+mod cmd;
+mod cmd_builder;
+mod compose;
+mod config;
+mod context;
+mod history;
+mod interactive;
+mod menu;
+mod services;
+mod utils;
 
-    // Print banner
-    print_banner(&term)?;
+use anyhow::Result;
+use clap::{Parser, Subcommand};
+use console::style;
+use dialoguer::Select;
+use std::path::Path;
+use std::process::ExitCode;
 
-    // Check if this is first run (no node_modules, no cargo build)
-    let project_root = get_project_root()?;
-    let needs_setup = check_needs_setup(&project_root)?;
+use cmd::{
+    ai::ai_fix,
+    ai_lint::ai_lint,
+    benchmark::{
+        benchmark_menu_with_config, quick_benchmark, run_api_benchmarks, run_load_test_with_config,
+    },
+    ci::{ci_cancel, ci_logs, ci_menu, ci_rerun, ci_runs, ci_status, ci_trigger, ci_watch},
+    coverage::{run_coverage, CoverageFormat},
+    db::{db_menu, db_migrate_with_config, db_psql, db_reset, db_seed},
+    deploy::{
+        deploy_menu_with_config, deploy_with_config, logs_cloudwatch_menu_with_config,
+        preview as deploy_preview, refresh as deploy_refresh, show_outputs,
+    },
+    docker::{
+        attach_container_with_logs, docker_compose_build, docker_compose_restart,
+        docker_compose_up, docker_nuke_rebuild, docker_shell, logs_menu, stop_docker_containers,
+    },
+    ecs::{ecs_exec_menu, ecs_health},
+    env::{pull_env_with_config, push_env_with_config, set_env_var_with_config, show_deployments},
+    houston::start_houston,
+    jobs::jobs_menu,
+    migrate::data_migrate,
+    mobile::{run_mobile_codegen, start_mobile},
+    print_doctor,
+    quality::{run_check, run_fmt, run_lint},
+    release::{list_packages, list_releases, release_interactive, release_packages, rollback},
+    status::{init_setup, show_status, sync_all},
+    test::{run_tests, watch_tests},
+    todos::{
+        cleanup_issues, quick_add_with_sprint, reset_checklist, run_checklist_by_name,
+        show_status as todos_status, todos_menu,
+    },
+    tunnel::start_http_tunnel,
+    watch::{watch_api, watch_app, watch_menu},
+};
+use context::AppContext;
+use history::record_action;
 
-    if needs_setup {
-        println!("{}", "🚀 First time setup detected!".bright_green().bold());
-        println!();
-        run_initial_setup(&project_root)?;
+// =============================================================================
+// CLI Arguments (clap)
+// =============================================================================
+
+#[derive(Parser)]
+#[command(name = "dev")]
+#[command(about = "Development CLI - manage your local dev environment")]
+#[command(version)]
+#[command(disable_help_subcommand = true)]
+struct Cli {
+    /// Run in quiet mode (non-interactive, use defaults)
+    #[arg(short, long, global = true)]
+    quiet: bool,
+
+    /// DevOps mode (dangerous operations menu)
+    #[arg(long, hide = true)]
+    devops: bool,
+
+    #[command(subcommand)]
+    command: Option<Commands>,
+}
+
+#[derive(Subcommand, Clone)]
+enum Commands {
+    // =========================================================================
+    // Quick Start/Stop
+    // =========================================================================
+    /// Start full development environment (docker + env sync)
+    Start,
+
+    /// Stop all services
+    Stop,
+
+    // =========================================================================
+    // Docker (aliased as 'd')
+    // =========================================================================
+    /// Docker container management
+    #[command(alias = "d")]
+    Docker {
+        #[command(subcommand)]
+        action: DockerAction,
+    },
+
+    /// Follow container logs (auto-reconnects)
+    Logs {
+        /// Container/service name (optional, interactive if omitted)
+        service: Option<String>,
+    },
+
+    /// Open shell in a running container
+    Shell {
+        /// Container/service name (optional, interactive if omitted)
+        service: Option<String>,
+    },
+
+    // =========================================================================
+    // Database (aliased as 'db')
+    // =========================================================================
+    /// Database operations
+    #[command(alias = "db")]
+    Database {
+        #[command(subcommand)]
+        action: Option<DbAction>,
+    },
+
+    /// Data migration management (cursor-based, resumable)
+    ///
+    /// For SQL schema migrations, use: ./dev.sh db migrate
+    ///
+    /// Examples:
+    ///   ./dev.sh migrate list                           # List registered migrations
+    ///   ./dev.sh migrate estimate <name> --env dev      # Count items to migrate
+    ///   ./dev.sh migrate run <name> --env dev           # Dry-run
+    ///   ./dev.sh migrate start <name> --env prod        # Execute migration
+    ///   ./dev.sh migrate status <name> --env prod       # Check progress
+    ///   ./dev.sh migrate pause <name> --env prod        # Pause migration
+    ///   ./dev.sh migrate resume <name> --env prod       # Resume migration
+    ///   ./dev.sh migrate verify <name> --env prod       # Verify completion
+    ///   ./dev.sh migrate complete <name> --env prod     # Mark complete
+    Migrate {
+        #[command(subcommand)]
+        action: MigrateAction,
+    },
+
+    // =========================================================================
+    // Environment
+    // =========================================================================
+    /// Manage environment variables (ESC)
+    Env {
+        #[command(subcommand)]
+        action: EnvAction,
+    },
+
+    // =========================================================================
+    // Code Quality
+    // =========================================================================
+    /// Run code formatters (cargo fmt, prettier)
+    Fmt {
+        /// Auto-fix formatting issues
+        #[arg(long)]
+        fix: bool,
+    },
+
+    /// Run linters (clippy, eslint)
+    Lint {
+        /// Auto-fix lint issues where possible
+        #[arg(long)]
+        fix: bool,
+        /// Use AI to fix lint issues that can't be auto-fixed
+        #[arg(long)]
+        ai_fix: bool,
+    },
+
+    /// Run pre-commit checks (fmt + lint + type check)
+    Check,
+
+    // =========================================================================
+    // Build (aliased as 'b')
+    // =========================================================================
+    /// Build packages (uses [cmd.build] from dev.toml)
+    ///
+    /// Examples:
+    ///   ./dev.sh build                      # Build all packages
+    ///   ./dev.sh build api-server           # Build specific package
+    ///   ./dev.sh build --release            # Build all with release variant
+    ///   ./dev.sh build api-server --release # Build specific with release
+    #[command(alias = "b")]
+    Build {
+        /// Package to build (all if omitted)
+        package: Option<String>,
+        /// Build in release mode
+        #[arg(long)]
+        release: bool,
+        /// Build in watch mode
+        #[arg(long)]
+        watch: bool,
+    },
+
+    // =========================================================================
+    // Testing (aliased as 't')
+    // =========================================================================
+    /// Run tests
+    #[command(alias = "t")]
+    Test {
+        /// Package to test
+        #[arg(short, long)]
+        package: Option<String>,
+        /// Test name filter
+        #[arg(short, long)]
+        filter: Option<String>,
+        /// Watch for changes
+        #[arg(short, long)]
+        watch: bool,
+    },
+
+    /// Generate code coverage report
+    Coverage {
+        /// Package to measure coverage for
+        #[arg(short, long)]
+        package: Option<String>,
+        /// Test name filter
+        #[arg(short, long)]
+        filter: Option<String>,
+        /// Output format: html, lcov, or summary (default: html)
+        #[arg(short, long, default_value = "html")]
+        output: String,
+        /// Open HTML report in browser after generation
+        #[arg(long)]
+        open: bool,
+    },
+
+    // =========================================================================
+    // Mobile (aliased as 'm')
+    // =========================================================================
+    /// Mobile development (iOS/Android)
+    #[command(alias = "m")]
+    Mobile {
+        #[command(subcommand)]
+        action: Option<MobileAction>,
+    },
+
+    // =========================================================================
+    // Utilities
+    // =========================================================================
+    /// Start HTTP tunnel
+    Tunnel,
+
+    /// Open a URL from config (e.g., dev open playground)
+    Open {
+        /// URL key from config (shows menu if omitted)
+        key: Option<String>,
+    },
+
+    /// Check prerequisites and system health
+    Doctor,
+
+    /// Show development environment status
+    Status,
+
+    /// Sync everything (git pull + env + migrate)
+    Sync,
+
+    /// Watch mode for development (auto-rebuild)
+    Watch {
+        #[command(subcommand)]
+        target: Option<WatchTarget>,
+    },
+
+    /// Start Houston monitoring dashboard (dev mode with HMR)
+    Houston,
+
+    /// Release packages (api, app, or all)
+    Release {
+        /// Packages to release (api, app, all) - interactive if omitted
+        #[arg(value_name = "PACKAGE")]
+        targets: Vec<String>,
+        /// Bump type (patch, minor, major, hotfix)
+        #[arg(short, long)]
+        bump: Option<String>,
+        /// Dry run (show what would happen)
+        #[arg(long)]
+        dry_run: bool,
+        #[command(subcommand)]
+        action: Option<ReleaseAction>,
+    },
+
+    /// Rollback to a previous version
+    ///
+    /// Examples:
+    ///   ./dev.sh rollback           # Interactive: select env and version
+    ///   ./dev.sh rollback v1.2.3    # Rollback to specific version (prompts for env)
+    ///   ./dev.sh rollback v1.2.3 --env prod  # Rollback prod to v1.2.3
+    Rollback {
+        /// Version to rollback to (e.g., v1.2.3)
+        version: Option<String>,
+        /// Environment to rollback (dev or prod)
+        #[arg(short, long)]
+        env: Option<String>,
+    },
+
+    /// First-time developer setup
+    Init,
+
+    /// Interactive todo/checklist management
+    ///
+    /// Work through checklists stored in docs/checklist/*.toml
+    /// or manage your own todo items.
+    ///
+    /// Examples:
+    ///   ./dev.sh todo                     # Interactive menu
+    ///   ./dev.sh todo "Fix the bug"       # Quick add (prompts for sprint)
+    ///   ./dev.sh todo launch              # Work through launch checklist
+    ///   ./dev.sh todo status              # Show progress
+    Todo {
+        /// Quick add: task text to add (prompts for sprint)
+        text: Option<String>,
+        #[command(subcommand)]
+        action: Option<TodoAction>,
+    },
+
+    /// Run performance benchmarks
+    Benchmark {
+        #[command(subcommand)]
+        action: Option<BenchmarkAction>,
+    },
+
+    /// Deploy to cloud environments (Pulumi)
+    Deploy {
+        #[command(subcommand)]
+        action: Option<DeployAction>,
+    },
+
+    /// CI/CD operations (GitHub Actions)
+    Ci {
+        #[command(subcommand)]
+        action: Option<CiAction>,
+    },
+
+    /// AI assistant - lint, fix, and run AI tasks
+    ///
+    /// Examples:
+    ///   dev ai lint              # Run all linters
+    ///   dev ai fix test          # Run tests with AI fix
+    ///   dev ai security-audit    # Run preset task
+    #[command(alias = "q")]
+    Ai {
+        /// List all available AI commands
+        #[arg(long)]
+        list: bool,
+
+        #[command(subcommand)]
+        action: Option<AiAction>,
+    },
+
+    /// Run package-defined commands
+    ///
+    /// Commands are defined in package dev.toml files:
+    ///   [cmd]
+    ///   test = "npx jest"
+    ///
+    ///   [cmd.build]
+    ///   default = "npx tsc"
+    ///   watch = "npx tsc --watch"
+    ///   deps = ["common:build"]
+    ///
+    /// Examples:
+    ///   dev cmd typecheck              # Run typecheck on all packages
+    ///   dev cmd lint:fix               # Run lint with fix variant
+    ///   dev cmd build:watch            # Run build in watch mode
+    ///   dev cmd lint --parallel        # Run lint in parallel
+    ///   dev cmd build -p app           # Run build on specific package
+    ///   dev cmd --list                 # List all available commands
+    Cmd {
+        /// Command to run (e.g., build, build:watch, lint:fix)
+        command: Option<String>,
+        /// Run in parallel where possible
+        #[arg(long)]
+        parallel: bool,
+        /// Only run for specific packages
+        #[arg(short, long)]
+        package: Vec<String>,
+        /// List all available commands
+        #[arg(long)]
+        list: bool,
+    },
+}
+
+// =============================================================================
+// Subcommand Enums
+// =============================================================================
+
+#[derive(Subcommand, Clone)]
+enum DockerAction {
+    /// Start containers (optionally rebuild first)
+    Up {
+        /// Specific services to start
+        services: Vec<String>,
+        /// Rebuild images before starting
+        #[arg(long)]
+        build: bool,
+    },
+    /// Stop all containers
+    #[command(alias = "down")]
+    Stop,
+    /// Restart containers
+    Restart {
+        /// Specific services to restart
+        services: Vec<String>,
+    },
+    /// Build docker images
+    Build {
+        /// Specific services to build
+        services: Vec<String>,
+        /// Pull newer base images first
+        #[arg(long)]
+        pull: bool,
+        /// Disable build cache
+        #[arg(long)]
+        no_cache: bool,
+    },
+    /// Nuke and rebuild (stop, remove images, rebuild from scratch)
+    Nuke {
+        /// Specific services to nuke and rebuild
+        services: Vec<String>,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum DbAction {
+    /// Run SQL schema migrations (via sqlx)
+    ///
+    /// Examples:
+    ///   ./dev.sh db migrate              # Local database
+    ///   ./dev.sh db migrate --env dev    # Remote dev environment
+    ///   ./dev.sh db migrate --env prod   # Remote prod (with confirmation)
+    Migrate {
+        /// Environment: dev, prod. Omit for local.
+        #[arg(short, long)]
+        env: Option<String>,
+    },
+    /// Reset database (drop + create + migrate)
+    Reset,
+    /// Seed database with test data
+    Seed,
+    /// Open psql shell
+    Psql,
+}
+
+#[derive(Subcommand, Clone)]
+enum MigrateAction {
+    /// List all registered data migrations
+    List,
+    /// Estimate items needing migration
+    Estimate {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long, default_value = "dev")]
+        env: String,
+    },
+    /// Dry-run: validate migration without mutations
+    Run {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long, default_value = "dev")]
+        env: String,
+        /// Batch size for processing
+        #[arg(long, default_value = "100")]
+        batch_size: i64,
+    },
+    /// Start the migration (commits changes)
+    Start {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long)]
+        env: String,
+        /// Error budget (0.01 = 1%)
+        #[arg(long, default_value = "0.01")]
+        error_budget: f64,
+        /// Batch size for processing
+        #[arg(long, default_value = "100")]
+        batch_size: i64,
+    },
+    /// Check migration progress
+    Status {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long, default_value = "dev")]
+        env: String,
+    },
+    /// Pause a running migration
+    Pause {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long)]
+        env: String,
+    },
+    /// Resume a paused migration
+    Resume {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long)]
+        env: String,
+    },
+    /// Verify migration integrity
+    Verify {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long, default_value = "dev")]
+        env: String,
+    },
+    /// Mark migration as complete
+    Complete {
+        /// Migration name
+        name: String,
+        /// Environment (dev, prod)
+        #[arg(short, long)]
+        env: String,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum EnvAction {
+    /// Pull environment variables from ESC
+    Pull {
+        /// Environment: dev, prod, or all
+        #[arg(default_value = "all")]
+        env: String,
+    },
+    /// Push environment variables to ESC
+    Push {
+        /// Environment: dev, prod, or all
+        #[arg(default_value = "all")]
+        env: String,
+    },
+    /// Set an environment variable
+    Set {
+        /// Environment (dev or prod)
+        #[arg(short, long)]
+        env: String,
+        /// Variable name
+        key: String,
+        /// Variable value
+        value: String,
+        /// Mark as secret
+        #[arg(short, long)]
+        secret: bool,
+    },
+    /// Show deployment info
+    Info {
+        /// Environment: dev or prod
+        env: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum MobileAction {
+    /// Start mobile development
+    Start {
+        /// Platform to run: ios, android, expo, or web
+        #[arg(short, long)]
+        platform: Option<String>,
+    },
+    /// Regenerate GraphQL types from the API schema
+    Codegen,
+}
+
+#[derive(Subcommand, Clone)]
+enum WatchTarget {
+    /// Watch API for changes (auto-rebuild)
+    Api,
+    /// Watch App for changes (hot reload)
+    App,
+    /// Watch all (containers + API)
+    All,
+}
+
+#[derive(Subcommand, Clone)]
+enum ReleaseAction {
+    /// List releasable packages
+    Packages,
+    /// List recent releases
+    List {
+        /// Number of releases to show per package
+        #[arg(short, long, default_value = "5")]
+        count: u32,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum TodoAction {
+    /// Add a new todo item
+    Add {
+        /// The todo item text
+        text: String,
+        /// Optional section/category
+        #[arg(short, long)]
+        section: Option<String>,
+    },
+    /// Remove a todo item
+    Remove {
+        /// The todo item ID or text to match
+        item: String,
+    },
+    /// List all todos
+    List {
+        /// Show only incomplete items
+        #[arg(long)]
+        pending: bool,
+    },
+    /// Show progress status
+    Status,
+    /// Reset progress for a checklist
+    Reset {
+        /// Checklist name to reset
+        name: String,
+    },
+    /// Work through a specific checklist
+    Run {
+        /// Checklist name (e.g., "launch")
+        name: String,
+    },
+    /// Clean up backlog issues - review and tidy each one
+    Cleanup {
+        /// Include issues from a specific milestone (default: backlog only)
+        #[arg(short, long)]
+        milestone: Option<String>,
+        /// Include all issues (not just backlog)
+        #[arg(long)]
+        all: bool,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum BenchmarkAction {
+    /// Quick benchmark (check + build + test times)
+    Quick,
+    /// Run cargo benchmarks
+    Cargo {
+        /// Filter benchmarks by name
+        filter: Option<String>,
+    },
+    /// Load test an API endpoint
+    Load {
+        /// Endpoint URL
+        #[arg(default_value = "http://localhost:8080/health")]
+        endpoint: String,
+        /// Number of requests
+        #[arg(short, long, default_value = "1000")]
+        requests: u32,
+        /// Concurrency level
+        #[arg(short, long, default_value = "10")]
+        concurrency: u32,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum DeployAction {
+    /// Deploy to an environment
+    Up {
+        /// Environment (dev or prod)
+        env: String,
+        /// Specific stacks to deploy (default: all)
+        #[arg(short, long)]
+        stack: Vec<String>,
+        /// Skip preview and deploy immediately
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Preview deployment changes
+    Preview {
+        /// Environment (dev or prod)
+        env: String,
+        /// Specific stacks to preview
+        #[arg(short, long)]
+        stack: Vec<String>,
+    },
+    /// Show stack outputs
+    Outputs {
+        /// Environment (dev or prod)
+        env: String,
+        /// Specific stack
+        #[arg(short, long)]
+        stack: Option<String>,
+    },
+    /// Refresh state from cloud provider
+    Refresh {
+        /// Environment (dev or prod)
+        env: String,
+        /// Specific stacks to refresh
+        #[arg(short, long)]
+        stack: Vec<String>,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum CiAction {
+    /// Show CI status for current branch
+    Status,
+    /// List recent workflow runs
+    Runs {
+        /// Number of runs to show
+        #[arg(short, long, default_value = "10")]
+        limit: u32,
+        /// Filter by workflow name
+        #[arg(short, long)]
+        workflow: Option<String>,
+    },
+    /// View logs for a workflow run
+    Logs {
+        /// Run ID (interactive if omitted)
+        run_id: Option<String>,
+    },
+    /// Watch a running workflow
+    Watch {
+        /// Run ID (latest in-progress if omitted)
+        run_id: Option<String>,
+    },
+    /// Trigger a workflow manually
+    Trigger {
+        /// Workflow name
+        workflow: Option<String>,
+        /// Branch to run on
+        #[arg(short, long)]
+        branch: Option<String>,
+    },
+    /// Re-run a failed workflow
+    Rerun {
+        /// Run ID (interactive if omitted)
+        run_id: Option<String>,
+        /// Only re-run failed jobs
+        #[arg(long)]
+        failed: bool,
+    },
+    /// Cancel a running workflow
+    Cancel {
+        /// Run ID (interactive if omitted)
+        run_id: Option<String>,
+    },
+}
+
+#[derive(Subcommand, Clone)]
+enum AiAction {
+    /// Run auto-fix steps and use AI for remaining issues
+    ///
+    /// Examples:
+    ///   dev ai fix              # Run all: fmt, lint, test
+    ///   dev ai fix test         # Just tests with AI fix
+    ///   dev ai fix lint sec     # Security lint with AI fix
+    ///   dev ai fix lint tc      # Test coverage lint with AI fix
+    ///   dev ai fix docker       # Build Docker images with AI fix
+    ///   dev ai fix "cargo build"  # Custom command
+    Fix {
+        /// What to fix: fmt, lint, lint sec, lint tc, test, docker, all (default), or custom command
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        command: Vec<String>,
+    },
+    /// Lint code for issues (security, test coverage, migrations)
+    ///
+    /// Examples:
+    ///   dev ai lint              # Run all linters
+    ///   dev ai lint tc           # Test coverage only
+    ///   dev ai lint sec          # Security only
+    ///   dev ai lint migrations   # Migration safety only
+    ///   dev ai lint tc --fix     # Lint and fix with Claude
+    Lint {
+        /// Category: tc (test-coverage), sec (security), migrations, all (default)
+        category: Option<String>,
+        /// Use Claude to fix violations
+        #[arg(long)]
+        fix: bool,
+        /// Show all available lint rules
+        #[arg(long)]
+        rules: bool,
+        /// Base branch to compare against (default: main)
+        #[arg(long, default_value = "main")]
+        base: String,
+        /// Specific files to check (uses git diff if omitted)
+        files: Vec<String>,
+    },
+    /// Run any other AI task (from docs/ai/tasks/)
+    ///
+    /// Examples:
+    ///   dev ai security-audit
+    ///   dev ai review-pr
+    #[command(external_subcommand)]
+    Task(Vec<String>),
+}
+
+// =============================================================================
+// Environment Loading
+// =============================================================================
+
+/// Get the default environment from .dev/config.toml
+fn get_default_env(repo_root: &Path) -> String {
+    let config_path = repo_root.join(".dev/config.toml");
+    if !config_path.exists() {
+        return "dev".to_string();
     }
 
-    // Main interactive loop
-    loop {
-        println!();
-        let options = vec![
-            "🌐 Start web app",
-            "🐳 Docker start",
-            "🔄 Docker restart",
-            "🔨 Docker rebuild",
-            "📋 Follow docker logs",
-            "🗄️  Run database migrations",
-            "🔑 Check API keys status",
-            "📝 Setup environment variables (wizard)",
-            "🚀 Manage Fly.io environment variables",
-            "👤 Manage admin users",
-            "📊 Open GraphQL Playground",
-            "🚁 Deploy to Fly.io",
-            "🛑 Exit",
-        ];
-
-        let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
-            .with_prompt("What would you like to do? (type to filter)")
-            .items(&options)
-            .default(0)
-            .interact_on(&term)?;
-
-        match selection {
-            0 => start_web_app(&project_root)?,
-            1 => docker_start(&project_root)?,
-            2 => docker_restart(&project_root)?,
-            3 => docker_rebuild(&project_root)?,
-            4 => docker_logs(&project_root)?,
-            5 => run_migrations(&project_root)?,
-            6 => check_api_keys(&project_root)?,
-            7 => setup_env_wizard(&project_root)?,
-            8 => manage_flyctl_secrets()?,
-            9 => manage_admin_users(&project_root)?,
-            10 => open_graphql_playground()?,
-            11 => deploy_to_flyio(&project_root)?,
-            12 => {
-                println!("{}", "👋 Goodbye!".bright_blue());
-                break;
+    // Minimal parsing - just extract environments.default
+    #[derive(serde::Deserialize, Default)]
+    struct EnvConfig {
+        #[serde(default)]
+        environments: EnvSection,
+    }
+    #[derive(serde::Deserialize)]
+    struct EnvSection {
+        #[serde(default = "default_env")]
+        default: String,
+    }
+    impl Default for EnvSection {
+        fn default() -> Self {
+            Self {
+                default: "dev".to_string(),
             }
-            _ => unreachable!(),
         }
     }
+    fn default_env() -> String {
+        "dev".to_string()
+    }
 
-    Ok(())
+    std::fs::read_to_string(&config_path)
+        .ok()
+        .and_then(|content| toml::from_str::<EnvConfig>(&content).ok())
+        .map(|c| c.environments.default)
+        .unwrap_or_else(|| "dev".to_string())
 }
 
-fn print_banner(term: &Term) -> Result<()> {
-    term.clear_screen()?;
-    println!(
-        "{}",
-        "╔══════════════════════════════════════╗".bright_cyan()
-    );
-    println!(
-        "{}",
-        "║  Minnesota Digital Aid Dev CLI       ║".bright_cyan()
-    );
-    println!(
-        "{}",
-        "╚══════════════════════════════════════╝".bright_cyan()
-    );
-    println!();
-    Ok(())
+/// Load .env files using dotenvy. Files loaded later override earlier ones.
+fn load_env_files() {
+    // Get repo root from REPO_ROOT env var (set by dev.sh)
+    let repo_root = std::env::var("REPO_ROOT").unwrap_or_else(|_| ".".to_string());
+    let root = Path::new(&repo_root);
+
+    // Get default environment from config
+    let default_env = get_default_env(root);
+
+    // Load in order: .env, .env.{default}, .env.local (later files override earlier)
+    let env_files = [
+        ".env".to_string(),
+        format!(".env.{}", default_env),
+        ".env.local".to_string(),
+    ];
+
+    for env_file in env_files {
+        let path = root.join(&env_file);
+        if path.exists() {
+            let _ = dotenvy::from_path(&path);
+        }
+    }
 }
 
-fn get_project_root() -> Result<PathBuf> {
-    // Get the directory containing Cargo.toml at workspace root
-    let current_exe = env::current_exe()?;
-    let mut path = current_exe
-        .parent()
-        .context("Failed to get parent directory")?
-        .to_path_buf();
+// =============================================================================
+// Main Entry Points
+// =============================================================================
 
-    // Navigate up to find workspace root (contains Cargo.toml with [workspace])
-    loop {
-        let cargo_toml = path.join("Cargo.toml");
-        if cargo_toml.exists() {
-            let contents = std::fs::read_to_string(&cargo_toml)?;
-            if contents.contains("[workspace]") {
-                return Ok(path);
+fn main() -> ExitCode {
+    // Load environment variables first
+    load_env_files();
+
+    if let Err(e) = real_main() {
+        eprintln!("dev-cli error: {:#}", e);
+        return ExitCode::from(1);
+    }
+    ExitCode::SUCCESS
+}
+
+fn real_main() -> Result<()> {
+    let cli = Cli::parse();
+    let ctx = AppContext::new(cli.quiet)?;
+
+    // DevOps mode - separate menu for dangerous operations
+    if cli.devops {
+        return match cli.command {
+            Some(cmd) => run_command(&ctx, cmd),
+            None => run_devops_interactive(&ctx),
+        };
+    }
+
+    match cli.command {
+        Some(cmd) => run_command(&ctx, cmd),
+        None => interactive::run_interactive(&ctx),
+    }
+}
+
+fn run_command(ctx: &AppContext, cmd: Commands) -> Result<()> {
+    // Use config from context (already loaded in AppContext::new)
+    let config_ref = Some(&ctx.config);
+
+    match cmd {
+        // =====================================================================
+        // Quick Start/Stop
+        // =====================================================================
+        Commands::Start => {
+            record_action("Start development environment");
+            ctx.print_header("Starting development environment");
+
+            // Pull env vars
+            if !ctx.quiet {
+                println!("[start] Syncing environment variables...");
             }
-        }
+            let _ = pull_env_with_config(ctx, config_ref, "dev", ".env.dev"); // Don't fail if esc not installed
 
-        if !path.pop() {
-            break;
-        }
-    }
+            // Start docker
+            if !ctx.quiet {
+                println!("[start] Starting docker containers...");
+            }
+            docker_compose_up(ctx, &[], false)?;
 
-    // Fallback to current directory
-    env::current_dir().context("Failed to get current directory")
-}
-
-fn check_needs_setup(project_root: &PathBuf) -> Result<bool> {
-    // Check if node_modules exists in web-app package
-    let web_app_node_modules = project_root.join("packages/web-app/node_modules");
-
-    Ok(!web_app_node_modules.exists())
-}
-
-fn run_initial_setup(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "Checking dependencies...".bright_yellow());
-
-    // Check for required tools
-    check_dependency("cargo", "Rust")?;
-    check_dependency("docker", "Docker")?;
-    check_dependency("node", "Node.js")?;
-    check_dependency("npm", "npm")?;
-
-    println!();
-    println!("{}", "Installing dependencies...".bright_yellow());
-    println!();
-
-    // Install web-app dependencies
-    println!("{}", "📦 Installing web-app dependencies...".bright_blue());
-    let web_app_dir = project_root.join("packages/web-app");
-    run_command("yarn", &["install"], &web_app_dir)?;
-
-    // Install admin-spa dependencies
-    println!("{}", "📦 Installing admin-spa dependencies...".bright_blue());
-    let admin_spa_dir = project_root.join("packages/admin-spa");
-    run_command("yarn", &["install"], &admin_spa_dir)?;
-
-    // Build Rust workspace
-    println!("{}", "🦀 Building Rust workspace...".bright_blue());
-    run_command("cargo", &["build"], project_root)?;
-
-    println!();
-    println!("{}", "✅ Setup complete!".bright_green().bold());
-
-    Ok(())
-}
-
-fn check_dependency(cmd: &str, name: &str) -> Result<()> {
-    match which::which(cmd) {
-        Ok(_) => {
-            println!("  {} {}", "✓".bright_green(), name);
+            ctx.print_success("Development environment started!");
             Ok(())
         }
-        Err(_) => {
-            println!("  {} {} is not installed", "✗".bright_red(), name);
-            Err(anyhow::anyhow!(
-                "{} is required but not found. Please install it first.",
-                name
-            ))
+
+        Commands::Stop => {
+            record_action("Stop development environment");
+            stop_docker_containers(ctx)
+        }
+
+        // =====================================================================
+        // Docker
+        // =====================================================================
+        Commands::Docker { action } => match action {
+            DockerAction::Up { services, build } => {
+                record_action("Start docker containers");
+                docker_compose_up(ctx, &services, build)
+            }
+            DockerAction::Stop => {
+                record_action("Stop docker containers");
+                stop_docker_containers(ctx)
+            }
+            DockerAction::Restart { services } => {
+                record_action("Restart docker containers");
+                docker_compose_restart(ctx, &services)
+            }
+            DockerAction::Build {
+                services,
+                pull,
+                no_cache,
+            } => {
+                record_action("Build docker images");
+                docker_compose_build(ctx, &services, pull, no_cache)
+            }
+            DockerAction::Nuke { services } => {
+                record_action("Nuke & rebuild docker images");
+                docker_nuke_rebuild(ctx, &services)
+            }
+        },
+
+        Commands::Logs { service } => {
+            record_action("Follow container logs");
+            if let Some(name) = service {
+                attach_container_with_logs(ctx, &name)
+            } else {
+                logs_menu(ctx)
+            }
+        }
+
+        Commands::Shell { service } => {
+            record_action("Open container shell");
+            docker_shell(ctx, service.as_deref())
+        }
+
+        // =====================================================================
+        // Database
+        // =====================================================================
+        Commands::Database { action } => match action {
+            Some(DbAction::Migrate { env }) => {
+                record_action("SQL migrate");
+                db_migrate_with_config(ctx, config_ref, env.as_deref())
+            }
+            Some(DbAction::Reset) => {
+                record_action("Reset database");
+                db_reset(ctx)
+            }
+            Some(DbAction::Seed) => {
+                record_action("Seed database");
+                db_seed(ctx)
+            }
+            Some(DbAction::Psql) => {
+                record_action("Open psql shell");
+                db_psql(ctx)
+            }
+            None => db_menu(ctx),
+        },
+
+        Commands::Migrate { action } => {
+            record_action("Data migrate");
+            data_migrate(ctx, config_ref, action)
+        }
+
+        // =====================================================================
+        // Environment
+        // =====================================================================
+        Commands::Env { action } => {
+            // Get available environments from config or use defaults
+            let available_envs: Vec<String> = config_ref
+                .map(|c| c.global.environments.available.clone())
+                .unwrap_or_else(|| vec!["dev".to_string(), "prod".to_string()]);
+
+            match action {
+                EnvAction::Pull { env } => {
+                    record_action(&format!("Pull env {}", env));
+                    if env == "all" {
+                        for e in &available_envs {
+                            let env_file = format!(".env.{}", e);
+                            pull_env_with_config(ctx, config_ref, e, &env_file)?;
+                        }
+                        Ok(())
+                    } else if available_envs.iter().any(|e| e == &env) {
+                        let env_file = format!(".env.{}", env);
+                        pull_env_with_config(ctx, config_ref, &env, &env_file)
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Invalid environment: {}. Available: {}, all",
+                            env,
+                            available_envs.join(", ")
+                        ))
+                    }
+                }
+                EnvAction::Push { env } => {
+                    record_action(&format!("Push env {}", env));
+                    if env == "all" {
+                        for e in &available_envs {
+                            let env_file = format!(".env.{}", e);
+                            push_env_with_config(ctx, config_ref, e, &env_file)?;
+                        }
+                        Ok(())
+                    } else if available_envs.iter().any(|e| e == &env) {
+                        let env_file = format!(".env.{}", env);
+                        push_env_with_config(ctx, config_ref, &env, &env_file)
+                    } else {
+                        Err(anyhow::anyhow!(
+                            "Invalid environment: {}. Available: {}, all",
+                            env,
+                            available_envs.join(", ")
+                        ))
+                    }
+                }
+                EnvAction::Set {
+                    env,
+                    key,
+                    value,
+                    secret,
+                } => {
+                    record_action(&format!("Set env var {}", env));
+                    set_env_var_with_config(ctx, config_ref, &env, &key, &value, secret)
+                }
+                EnvAction::Info { env } => {
+                    record_action("Show deployment info");
+                    show_deployments(ctx, config_ref, env.as_deref())
+                }
+            }
+        }
+
+        // =====================================================================
+        // Code Quality
+        // =====================================================================
+        Commands::Fmt { fix } => {
+            record_action("Run formatters");
+            run_fmt(ctx, fix, false)?;
+            Ok(())
+        }
+
+        Commands::Lint { fix, ai_fix } => {
+            record_action("Run linters");
+            run_lint(ctx, fix, ai_fix)?;
+            Ok(())
+        }
+
+        Commands::Check => {
+            record_action("Run pre-commit checks");
+            run_check(ctx)
+        }
+
+        // =====================================================================
+        // Build (routes to [cmd.build])
+        // =====================================================================
+        Commands::Build {
+            package,
+            release,
+            watch,
+        } => {
+            let cfg = config_ref.ok_or_else(|| {
+                anyhow::anyhow!("Config required for build. Create .dev/config.toml")
+            })?;
+            record_action("Build");
+            let variant = if watch {
+                Some("watch".to_string())
+            } else if release {
+                Some("release".to_string())
+            } else {
+                None
+            };
+            let packages = package.map(|p| vec![p]).unwrap_or_default();
+            let opts = cmd::cmd::CmdOptions {
+                parallel: false,
+                variant,
+                packages,
+                capture: false,
+            };
+            let results = cmd::cmd::run_cmd(ctx, cfg, "build", &opts)?;
+            cmd::cmd::print_results(ctx, &results);
+            if results.iter().any(|r| !r.success) {
+                return Err(anyhow::anyhow!("Build failed"));
+            }
+            Ok(())
+        }
+
+        // =====================================================================
+        // Testing
+        // =====================================================================
+        Commands::Test {
+            package,
+            filter,
+            watch,
+        } => {
+            record_action("Run tests");
+            if watch {
+                watch_tests(ctx)
+            } else {
+                run_tests(ctx, package.as_deref(), filter.as_deref(), false)?;
+                Ok(())
+            }
+        }
+
+        Commands::Coverage {
+            package,
+            filter,
+            output,
+            open,
+        } => {
+            record_action("Generate code coverage");
+            let format = CoverageFormat::from_str(&output).unwrap_or(CoverageFormat::Html);
+            run_coverage(ctx, package.as_deref(), filter.as_deref(), format, open)
+        }
+
+        // =====================================================================
+        // Mobile
+        // =====================================================================
+        Commands::Mobile { action } => match action {
+            Some(MobileAction::Start { platform }) => {
+                record_action("Start mobile development");
+                start_mobile(ctx, platform.as_deref())
+            }
+            Some(MobileAction::Codegen) => {
+                record_action("Regenerate mobile GraphQL");
+                run_mobile_codegen(ctx)
+            }
+            None => {
+                record_action("Start mobile development");
+                start_mobile(ctx, None)
+            }
+        },
+
+        // =====================================================================
+        // Utilities
+        // =====================================================================
+        Commands::Tunnel => {
+            record_action("Start HTTP tunnel");
+            start_http_tunnel(ctx)
+        }
+
+        Commands::Open { key } => {
+            // Open command requires config
+            let cfg = config_ref.ok_or_else(|| {
+                anyhow::anyhow!("Config required for open command. Create .dev/config.toml with [urls.*] entries")
+            })?;
+            match key {
+                Some(k) => {
+                    record_action(&format!("Open {}", k));
+                    cmd::open_url(ctx, cfg, &k)
+                }
+                None => {
+                    record_action("Open URL menu");
+                    cmd::open_url_menu(ctx, cfg)
+                }
+            }
+        }
+
+        Commands::Doctor => {
+            record_action("Doctor");
+            print_doctor(ctx);
+            Ok(())
+        }
+
+        // =====================================================================
+        // Status / Sync / Init
+        // =====================================================================
+        Commands::Status => {
+            record_action("Status");
+            show_status(ctx)
+        }
+
+        Commands::Sync => {
+            record_action("Sync");
+            sync_all(ctx)
+        }
+
+        Commands::Init => {
+            record_action("Init");
+            init_setup(ctx)
+        }
+
+        // =====================================================================
+        // Todo
+        // =====================================================================
+        Commands::Todo { text, action } => {
+            // If text is provided without a subcommand, do quick add with sprint selection
+            if let Some(task_text) = text {
+                if action.is_none() {
+                    record_action("Quick add todo");
+                    return quick_add_with_sprint(ctx, &task_text);
+                }
+            }
+
+            match action {
+                Some(TodoAction::Add { text, section }) => {
+                    record_action("Add todo");
+                    cmd::todos::add_todo(ctx, &text, section.as_deref())
+                }
+                Some(TodoAction::Remove { item }) => {
+                    record_action("Remove todo");
+                    cmd::todos::remove_todo(ctx, &item)
+                }
+                Some(TodoAction::List { pending }) => {
+                    record_action("List todos");
+                    cmd::todos::list_todos(ctx, pending)
+                }
+                Some(TodoAction::Status) => {
+                    record_action("Todo status");
+                    todos_status(ctx)
+                }
+                Some(TodoAction::Reset { name }) => {
+                    record_action(&format!("Reset checklist {}", name));
+                    reset_checklist(ctx, &name)
+                }
+                Some(TodoAction::Run { name }) => {
+                    record_action(&format!("Run checklist {}", name));
+                    run_checklist_by_name(ctx, &name)
+                }
+                Some(TodoAction::Cleanup { milestone, all }) => {
+                    record_action("Cleanup backlog");
+                    cleanup_issues(ctx, milestone.as_deref(), all)
+                }
+                None => {
+                    record_action("Todo menu");
+                    todos_menu(ctx)
+                }
+            }
+        }
+
+        // =====================================================================
+        // Watch
+        // =====================================================================
+        Commands::Watch { target } => match target {
+            Some(WatchTarget::Api) => {
+                record_action("Watch API");
+                watch_api(ctx, config_ref)
+            }
+            Some(WatchTarget::App) => {
+                record_action("Watch App");
+                watch_app(ctx, config_ref)
+            }
+            Some(WatchTarget::All) => {
+                record_action("Watch All");
+                cmd::watch::watch_all(ctx, config_ref)
+            }
+            None => watch_menu(ctx, config_ref),
+        },
+
+        // =====================================================================
+        // Houston
+        // =====================================================================
+        Commands::Houston => {
+            record_action("Houston");
+            start_houston(ctx)
+        }
+
+        // =====================================================================
+        // Release
+        // =====================================================================
+        Commands::Release {
+            targets,
+            bump,
+            dry_run,
+            action,
+        } => {
+            let config = config_ref.ok_or_else(|| {
+                anyhow::anyhow!("Release commands require config. Create .dev/config.toml")
+            })?;
+            match action {
+                Some(ReleaseAction::Packages) => {
+                    record_action("List packages");
+                    list_packages(ctx, config)
+                }
+                Some(ReleaseAction::List { count }) => {
+                    record_action("List releases");
+                    list_releases(ctx, config, count)
+                }
+                None => {
+                    if targets.is_empty() {
+                        record_action("Release");
+                        release_interactive(ctx, config, dry_run)
+                    } else {
+                        record_action(&format!("Release {}", targets.join(", ")));
+                        release_packages(ctx, config, &targets, bump.as_deref(), dry_run)
+                    }
+                }
+            }
+        }
+
+        // =====================================================================
+        // Rollback
+        // =====================================================================
+        Commands::Rollback { version, env } => {
+            record_action("Rollback");
+            rollback(ctx, version.as_deref(), env.as_deref())
+        }
+
+        // =====================================================================
+        // Benchmarks
+        // =====================================================================
+        Commands::Benchmark { action } => match action {
+            Some(BenchmarkAction::Quick) => {
+                record_action("Quick Benchmark");
+                quick_benchmark(ctx, config_ref)
+            }
+            Some(BenchmarkAction::Cargo { filter }) => {
+                record_action("Cargo Benchmarks");
+                run_api_benchmarks(ctx, config_ref, filter.as_deref())
+            }
+            Some(BenchmarkAction::Load {
+                endpoint,
+                requests,
+                concurrency,
+            }) => {
+                record_action("Load Test");
+                run_load_test_with_config(ctx, config_ref, Some(&endpoint), requests, concurrency)
+            }
+            None => benchmark_menu_with_config(ctx, config_ref),
+        },
+
+        // =====================================================================
+        // Deploy
+        // =====================================================================
+        Commands::Deploy { action } => match action {
+            Some(DeployAction::Up { env, stack, yes }) => {
+                record_action(&format!("Deploy to {}", env));
+                deploy_with_config(ctx, config_ref, &env, &stack, yes)
+            }
+            Some(DeployAction::Preview { env, stack }) => {
+                record_action(&format!("Preview {}", env));
+                deploy_preview(ctx, config_ref, &env, &stack)
+            }
+            Some(DeployAction::Outputs { env, stack }) => {
+                record_action(&format!("Show {} outputs", env));
+                show_outputs(ctx, config_ref, &env, stack.as_deref())
+            }
+            Some(DeployAction::Refresh { env, stack }) => {
+                record_action(&format!("Refresh {}", env));
+                deploy_refresh(ctx, config_ref, &env, &stack)
+            }
+            None => deploy_menu_with_config(ctx, config_ref),
+        },
+
+        // =====================================================================
+        // CI/CD
+        // =====================================================================
+        Commands::Ci { action } => match action {
+            Some(CiAction::Status) => {
+                record_action("CI status");
+                ci_status(ctx)
+            }
+            Some(CiAction::Runs { limit, workflow }) => {
+                record_action("CI runs");
+                ci_runs(ctx, limit, workflow.as_deref())
+            }
+            Some(CiAction::Logs { run_id }) => {
+                record_action("CI logs");
+                ci_logs(ctx, run_id.as_deref())
+            }
+            Some(CiAction::Watch { run_id }) => {
+                record_action("CI watch");
+                ci_watch(ctx, run_id.as_deref())
+            }
+            Some(CiAction::Trigger { workflow, branch }) => {
+                record_action("CI trigger");
+                ci_trigger(ctx, workflow.as_deref(), branch.as_deref())
+            }
+            Some(CiAction::Rerun { run_id, failed }) => {
+                record_action("CI rerun");
+                ci_rerun(ctx, run_id.as_deref(), failed)
+            }
+            Some(CiAction::Cancel { run_id }) => {
+                record_action("CI cancel");
+                ci_cancel(ctx, run_id.as_deref())
+            }
+            None => ci_menu(ctx),
+        },
+
+        // =====================================================================
+        // AI Assistant
+        // =====================================================================
+        Commands::Ai { list, action } => {
+            if list {
+                return cmd::ai_assistant::list_all_commands(ctx);
+            }
+            match action {
+                Some(AiAction::Fix { command }) => {
+                    record_action("AI fix");
+                    ai_fix(ctx, &command)
+                }
+                Some(AiAction::Lint {
+                    category,
+                    fix,
+                    rules,
+                    base,
+                    files,
+                }) => {
+                    record_action("AI lint");
+                    let files_opt = if files.is_empty() { None } else { Some(files) };
+                    ai_lint(ctx, category.as_deref(), fix, rules, Some(&base), files_opt)
+                }
+                Some(AiAction::Task(args)) => {
+                    if args.is_empty() {
+                        cmd::ai_assistant::task_menu(ctx)
+                    } else {
+                        let task_name = &args[0];
+                        record_action(&format!("AI: {}", task_name));
+                        cmd::ai_assistant::run_task_by_id(ctx, task_name)
+                    }
+                }
+                None => {
+                    // Interactive menu
+                    cmd::ai_assistant::ai_menu(ctx)
+                }
+            }
+        }
+
+        // =====================================================================
+        // Package Commands
+        // =====================================================================
+        Commands::Cmd {
+            command,
+            parallel,
+            package,
+            list,
+        } => {
+            let cfg = config_ref.ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Config required for cmd. Create .dev/config.toml and add [cmd] sections to package dev.toml files"
+                )
+            })?;
+
+            if list {
+                // List all available commands
+                let commands = cmd::cmd::list_commands(cfg);
+                if commands.is_empty() {
+                    println!("No commands defined in any package.");
+                    println!();
+                    println!("Add commands to package dev.toml files:");
+                    println!();
+                    println!("  [cmd]");
+                    println!("  build = \"npx tsc\"");
+                    println!("  test = \"npx jest\"");
+                    return Ok(());
+                }
+
+                println!("Available commands:");
+                println!();
+                let mut sorted: Vec<_> = commands.iter().collect();
+                sorted.sort_by_key(|(k, _)| *k);
+                for (cmd_name, packages) in sorted {
+                    println!("  {} ({})", style(cmd_name).cyan(), packages.join(", "));
+                }
+                return Ok(());
+            }
+
+            match command {
+                Some(cmd_str) => {
+                    // Parse cmd:variant syntax (e.g., "build:watch" -> cmd="build", variant="watch")
+                    let (cmd_name, variant) = if let Some(pos) = cmd_str.find(':') {
+                        (&cmd_str[..pos], Some(cmd_str[pos + 1..].to_string()))
+                    } else {
+                        (cmd_str.as_str(), None)
+                    };
+
+                    record_action(&format!("cmd {}", cmd_str));
+                    let opts = cmd::cmd::CmdOptions {
+                        parallel,
+                        variant,
+                        packages: package.clone(),
+                        capture: false,
+                    };
+                    let results = cmd::cmd::run_cmd(ctx, cfg, cmd_name, &opts)?;
+                    cmd::cmd::print_results(ctx, &results);
+
+                    // Return error if any failed
+                    if results.iter().any(|r| !r.success) {
+                        return Err(anyhow::anyhow!("Some commands failed"));
+                    }
+                    Ok(())
+                }
+                None => {
+                    // Interactive: list commands and let user pick
+                    let commands = cmd::cmd::list_commands(cfg);
+                    if commands.is_empty() {
+                        println!(
+                            "No commands defined. Add [cmd] sections to package dev.toml files."
+                        );
+                        return Ok(());
+                    }
+
+                    let mut sorted: Vec<_> = commands.keys().collect();
+                    sorted.sort();
+
+                    let choice = Select::with_theme(&ctx.theme())
+                        .with_prompt("Select command to run")
+                        .items(&sorted)
+                        .default(0)
+                        .interact()?;
+
+                    let cmd_name = sorted[choice];
+                    record_action(&format!("cmd {}", cmd_name));
+
+                    let opts = cmd::cmd::CmdOptions {
+                        parallel,
+                        variant: None,
+                        packages: package.clone(),
+                        capture: false,
+                    };
+                    let results = cmd::cmd::run_cmd(ctx, cfg, cmd_name, &opts)?;
+                    cmd::cmd::print_results(ctx, &results);
+
+                    if results.iter().any(|r| !r.success) {
+                        return Err(anyhow::anyhow!("Some commands failed"));
+                    }
+                    Ok(())
+                }
+            }
         }
     }
 }
 
-fn run_command(cmd: &str, args: &[&str], cwd: &PathBuf) -> Result<()> {
-    let status = Command::new(cmd)
-        .args(args)
-        .current_dir(cwd)
-        .status()
-        .context(format!("Failed to execute: {} {:?}", cmd, args))?;
+// =============================================================================
+// DevOps Interactive Mode
+// =============================================================================
 
-    if !status.success() {
-        return Err(anyhow::anyhow!("Command failed: {} {:?}", cmd, args));
+fn run_devops_interactive(ctx: &AppContext) -> Result<()> {
+    use console::style;
+
+    // Use config from context
+    let config_ref = Some(&ctx.config);
+
+    if !ctx.quiet {
+        println!();
+        println!(
+            "{}",
+            style("┌──────────────────────────────────────────────────────────────┐").red()
+        );
+        println!(
+            "{}",
+            style("│              DEVOPS - DANGER ZONE                            │")
+                .red()
+                .bold()
+        );
+        println!(
+            "{}",
+            style("│  These commands affect REMOTE/PRODUCTION systems.            │").red()
+        );
+        println!(
+            "{}",
+            style("└──────────────────────────────────────────────────────────────┘").red()
+        );
+        println!();
+    }
+
+    // Get available environments from config or use defaults
+    let envs: Vec<String> = config_ref
+        .map(|c| c.global.environments.available.clone())
+        .unwrap_or_else(|| vec!["dev".to_string(), "prod".to_string()]);
+    let envs_strs: Vec<&str> = envs.iter().map(|s| s.as_str()).collect();
+
+    loop {
+        let items = vec![
+            "SSH into container (ECS Exec)",
+            "Job queue debugging",
+            "ECS health status",
+            "Release",
+            "CloudWatch logs",
+            "CI/CD status",
+            "Debug locally (act)",
+            "Remote DB shell",
+            "Exit",
+        ];
+
+        let choice = Select::with_theme(&ctx.theme())
+            .with_prompt("DevOps Operations")
+            .items(&items)
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                record_action("ECS Exec");
+                ecs_exec_menu(ctx, config_ref)?
+            }
+            1 => {
+                let env = select_env(ctx, &envs_strs)?;
+                record_action(&format!("Job queue {}", env));
+                jobs_menu(ctx, env)?
+            }
+            2 => {
+                let env = select_env(ctx, &envs_strs)?;
+                record_action(&format!("ECS health {}", env));
+                ecs_health(ctx, env)?
+            }
+            3 => {
+                record_action("Release");
+                let cfg = config_ref.ok_or_else(|| {
+                    anyhow::anyhow!("Release requires config. Create .dev/config.toml")
+                })?;
+                release_menu(ctx, cfg)?
+            }
+            4 => {
+                record_action("CloudWatch logs");
+                logs_cloudwatch_menu_with_config(ctx, config_ref)?
+            }
+            5 => {
+                record_action("CI/CD");
+                ci_menu(ctx)?
+            }
+            6 => {
+                record_action("Debug locally");
+                run_local_ci_menu(ctx)?
+            }
+            7 => {
+                let env = select_env(ctx, &envs_strs)?;
+                if confirm_devops_action(ctx, &format!("connect to {} database", env))? {
+                    record_action(&format!("DB shell {}", env));
+                    cmd::db::remote_db_shell(ctx, env)?
+                }
+            }
+            _ => break,
+        }
     }
 
     Ok(())
 }
 
-fn start_web_app(project_root: &PathBuf) -> Result<()> {
-    let options = vec![
-        "React SPA (web-app) - Public + Admin on :3001",
-        "Next.js SSR (web-next) - Public SEO site on :3000",
-        "Both (via Docker Compose)",
-    ];
+fn release_menu(ctx: &AppContext, config: &config::Config) -> Result<()> {
+    loop {
+        let items = vec![
+            "Create release",
+            "List packages",
+            "List recent releases",
+            "Back",
+        ];
 
-    let selection = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("Which web app would you like to start?")
-        .items(&options)
+        let choice = Select::with_theme(&ctx.theme())
+            .with_prompt("Release")
+            .items(&items)
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                record_action("Create release");
+                release_interactive(ctx, config, false)?
+            }
+            1 => {
+                record_action("List packages");
+                list_packages(ctx, config)?
+            }
+            2 => {
+                record_action("List releases");
+                list_releases(ctx, config, 5)?
+            }
+            _ => return Ok(()),
+        }
+    }
+}
+
+/// Run GitHub Actions locally via act
+fn run_local_ci_menu(ctx: &AppContext) -> Result<()> {
+    let config = config::Config::load(&ctx.repo)?;
+    cmd::local::local_menu(ctx, &config)
+}
+
+fn select_env<'a>(ctx: &AppContext, envs: &'a [&str]) -> Result<&'a str> {
+    let choice = Select::with_theme(&ctx.theme())
+        .with_prompt("Environment")
+        .items(envs)
         .default(0)
         .interact()?;
-
-    match selection {
-        0 => {
-            println!("{}", "🌐 Starting React SPA (web-app)...".bright_blue().bold());
-            println!("{}", "   Available at: http://localhost:3001".bright_cyan());
-            println!("{}", "   Admin at: http://localhost:3001/admin".bright_cyan());
-            println!("{}", "   Press Ctrl+C to stop".dimmed());
-            println!();
-
-            let web_app_dir = project_root.join("packages/web-app");
-
-            let status = Command::new("yarn")
-                .args(&["dev"])
-                .current_dir(&web_app_dir)
-                .status()
-                .context("Failed to start web-app")?;
-
-            if !status.success() {
-                println!("{}", "❌ Failed to start web-app".bright_red());
-            }
-        }
-        1 => {
-            println!("{}", "🌐 Starting Next.js SSR (web-next)...".bright_blue().bold());
-            println!("{}", "   Available at: http://localhost:3000".bright_cyan());
-            println!("{}", "   Press Ctrl+C to stop".dimmed());
-            println!();
-
-            let web_next_dir = project_root.join("packages/web-next");
-
-            let status = Command::new("yarn")
-                .args(&["dev"])
-                .current_dir(&web_next_dir)
-                .status()
-                .context("Failed to start web-next")?;
-
-            if !status.success() {
-                println!("{}", "❌ Failed to start web-next".bright_red());
-            }
-        }
-        2 => {
-            println!("{}", "🐳 Starting both via Docker Compose...".bright_blue().bold());
-            println!();
-
-            let server_dir = project_root.join("packages/server");
-
-            let status = Command::new("docker")
-                .args(&["compose", "up", "web-app", "web-next"])
-                .current_dir(&server_dir)
-                .status()
-                .context("Failed to start Docker services")?;
-
-            if !status.success() {
-                println!("{}", "❌ Failed to start web apps".bright_red());
-            }
-        }
-        _ => unreachable!(),
-    }
-
-    Ok(())
+    Ok(envs[choice])
 }
 
-fn docker_start(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "🐳 Starting Docker services...".bright_blue().bold());
-
-    let server_dir = project_root.join("packages/server");
-
-    let status = Command::new("docker")
-        .args(&["compose", "up", "-d"])
-        .current_dir(&server_dir)
-        .status()
-        .context("Failed to start Docker")?;
-
-    if status.success() {
-        println!("{}", "✅ Docker services started".bright_green());
-        println!();
-        println!("Services available at:");
-        println!("  {} http://localhost:8080", "API:".bright_yellow());
-        println!("  {} http://localhost:3000", "Next.js (SSR):".bright_yellow());
-        println!("  {} http://localhost:3001", "Web App (SPA):".bright_yellow());
-        println!("  {} http://localhost:3001/admin", "Admin:".bright_yellow());
-        println!("  {} localhost:5432", "PostgreSQL:".bright_yellow());
-        println!("  {} localhost:6379", "Redis:".bright_yellow());
-    } else {
-        println!("{}", "❌ Failed to start Docker services".bright_red());
+fn confirm_devops_action(ctx: &AppContext, action: &str) -> Result<bool> {
+    // In CI mode, skip confirmation
+    if std::env::var("CI").is_ok() || std::env::var("GITHUB_ACTIONS").is_ok() {
+        return Ok(true);
     }
 
-    Ok(())
-}
-
-fn docker_restart(project_root: &PathBuf) -> Result<()> {
-    println!(
-        "{}",
-        "🔄 Restarting Docker services...".bright_blue().bold()
-    );
-    println!();
-
-    let server_dir = project_root.join("packages/server");
-    let services = vec!["postgres", "redis", "api"];
-
-    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
-        .with_prompt("Select services to restart (Space to select, Enter to confirm)")
-        .items(&services)
-        .defaults(&[true, true, true])
-        .interact()?;
-
-    if selections.is_empty() {
-        println!("{}", "No services selected".dimmed());
-        return Ok(());
-    }
-
-    let selected_services: Vec<&str> = selections.iter().map(|&i| services[i]).collect();
-
-    let mut args = vec!["compose", "restart"];
-    args.extend(selected_services.clone());
-
-    let status = Command::new("docker")
-        .args(&args)
-        .current_dir(&server_dir)
-        .status()
-        .context("Failed to restart Docker")?;
-
-    if status.success() {
-        println!(
-            "{} {}",
-            "✅ Restarted services:".bright_green(),
-            selected_services.join(", ")
-        );
-    } else {
-        println!("{}", "❌ Failed to restart Docker services".bright_red());
-    }
-
-    Ok(())
-}
-
-fn docker_rebuild(project_root: &PathBuf) -> Result<()> {
-    println!(
-        "{}",
-        "🔨 Rebuilding Docker services...".bright_blue().bold()
-    );
-    println!();
-
-    let server_dir = project_root.join("packages/server");
-    let services = vec!["postgres", "redis", "api"];
-
-    let selections = MultiSelect::with_theme(&ColorfulTheme::default())
-        .with_prompt("Select services to rebuild (Space to select, Enter to confirm)")
-        .items(&services)
-        .defaults(&[false, false, true]) // Default to rebuilding only API
-        .interact()?;
-
-    if selections.is_empty() {
-        println!("{}", "No services selected".dimmed());
-        return Ok(());
-    }
-
-    let selected_services: Vec<&str> = selections.iter().map(|&i| services[i]).collect();
-
-    println!("{}", "   This may take a few minutes...".dimmed());
-    println!();
-
-    let mut args = vec!["compose", "up", "-d", "--build"];
-    args.extend(selected_services.clone());
-
-    let status = Command::new("docker")
-        .args(&args)
-        .current_dir(&server_dir)
-        .status()
-        .context("Failed to rebuild Docker")?;
-
-    if status.success() {
-        println!(
-            "{} {}",
-            "✅ Rebuilt and started services:".bright_green(),
-            selected_services.join(", ")
-        );
-    } else {
-        println!("{}", "❌ Failed to rebuild Docker services".bright_red());
-    }
-
-    Ok(())
-}
-
-fn docker_logs(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "📋 Following Docker logs...".bright_blue().bold());
-    println!("{}", "   Logs will stream continuously".dimmed());
-    println!("{}", "   Press Ctrl+C to stop and return to menu".dimmed());
-    println!();
-
-    let server_dir = project_root.join("packages/server");
-
-    // Run docker compose logs with follow flag
-    // This will stay attached and stream logs until Ctrl+C
-    let status = Command::new("docker")
-        .args(&["compose", "logs", "-f", "--tail=100"])
-        .current_dir(&server_dir)
-        .status()
-        .context("Failed to follow Docker logs")?;
-
-    // After Ctrl+C, we return to the menu
-    if !status.success() {
-        println!();
-        println!("{}", "❌ Failed to follow Docker logs".bright_red());
-        println!();
-        println!("Make sure Docker services are running:");
-        println!("  {} 🐳 Docker start", "→".bright_yellow());
-    }
-
-    Ok(())
-}
-
-fn run_migrations(project_root: &PathBuf) -> Result<()> {
-    println!(
-        "{}",
-        "🗄️  Running database migrations...".bright_blue().bold()
-    );
-
-    let server_dir = project_root.join("packages/server");
-
-    let status = Command::new("docker")
-        .args(&["compose", "exec", "api", "sqlx", "migrate", "run"])
-        .current_dir(&server_dir)
-        .status()
-        .context("Failed to run migrations")?;
-
-    if status.success() {
-        println!("{}", "✅ Migrations completed successfully".bright_green());
-    } else {
-        println!("{}", "❌ Failed to run migrations".bright_red());
-        println!();
-        println!("Make sure Docker services are running:");
-        println!("  {} 🐳 Docker start", "→".bright_yellow());
-    }
-
-    Ok(())
-}
-
-fn setup_env_wizard(project_root: &PathBuf) -> Result<()> {
-    println!();
-    println!("{}", "📝 Environment Variables Setup Wizard".bright_cyan().bold());
-    println!();
-    println!("This wizard will help you set up all environment variables.");
-    println!();
-
-    // Define all variables with their descriptions
-    let variables = vec![
-        // Required
-        ("OPENAI_API_KEY", "OpenAI API key for GPT-4", true, "Get from https://platform.openai.com"),
-        ("VOYAGE_API_KEY", "Voyage AI API key for embeddings", true, "Get from https://www.voyageai.com"),
-        ("FIRECRAWL_API_KEY", "Firecrawl API key for web scraping", true, "Get from https://firecrawl.dev"),
-        ("TWILIO_ACCOUNT_SID", "Twilio Account SID for SMS", true, "Get from https://console.twilio.com"),
-        ("TWILIO_AUTH_TOKEN", "Twilio Auth Token for SMS", true, "Get from https://console.twilio.com"),
-        ("TWILIO_VERIFY_SERVICE_SID", "Twilio Verify Service SID", true, "Get from https://console.twilio.com/verify"),
-        ("JWT_SECRET", "Secret key for JWT tokens (random string)", true, "Generate a random 32+ character string"),
-        // Optional
-        ("TAVILY_API_KEY", "Tavily API key for search (optional)", false, "Get from https://tavily.com"),
-        ("EXPO_ACCESS_TOKEN", "Expo access token for push notifications (optional)", false, "Get from https://expo.dev"),
-        ("CLERK_SECRET_KEY", "Clerk secret key for auth (optional)", false, "Get from https://clerk.com"),
-    ];
-
-    // Read existing .env file
-    let env_file = project_root.join("packages/server/.env");
-    let mut env_values: HashMap<String, String> = HashMap::new();
-
-    if env_file.exists() {
-        let content = std::fs::read_to_string(&env_file)?;
-        for line in content.lines() {
-            let line = line.trim();
-            if line.is_empty() || line.starts_with('#') {
-                continue;
-            }
-            if let Some((key, value)) = line.split_once('=') {
-                env_values.insert(key.trim().to_string(), value.trim().to_string());
-            }
-        }
-        println!("{}", "✓ Found existing .env file".bright_green());
-    } else {
-        println!("{}", "ℹ️  No .env file found, will create new one".bright_blue());
-    }
-
-    println!();
-    println!("{}", "Let's go through each variable...".bright_yellow());
-    println!();
-
-    let mut updated = false;
-    let mut new_values: HashMap<String, String> = env_values.clone();
-
-    for (key, description, required, help) in &variables {
-        let current_value = env_values.get(*key);
-        let has_value = current_value.is_some();
-
-        // Print section header
-        println!("{}", "─".repeat(60).dimmed());
-        if *required {
-            println!("{} {}", "🔴".bright_red(), key.bright_cyan().bold());
-            println!("   {} {}", "Required:".bright_red(), description);
-        } else {
-            println!("{} {}", "🟡".bright_yellow(), key.bright_cyan().bold());
-            println!("   {} {}", "Optional:".bright_yellow(), description);
-        }
-        println!("   {} {}", "Help:".dimmed(), help.dimmed());
-
-        if has_value {
-            let value = current_value.unwrap();
-            let masked = if value.len() > 8 {
-                format!("{}...{}", &value[..4], &value[value.len()-4..])
-            } else {
-                "***".to_string()
-            };
-            println!("   {} {}", "Current:".bright_green(), masked);
-        } else {
-            println!("   {} Not set", "Current:".bright_red());
-        }
-
-        println!();
-
-        // Ask what to do
-        let actions = if has_value {
-            vec![
-                "Keep current value",
-                "Update value",
-                "Skip (leave as is)",
-            ]
-        } else {
-            vec![
-                "Set value now",
-                "Skip (leave empty)",
-            ]
-        };
-
-        let action = Select::with_theme(&ColorfulTheme::default())
-            .with_prompt(format!("What would you like to do with {}?", key))
-            .items(&actions)
-            .default(0)
-            .interact()?;
-
-        match (has_value, action) {
-            (true, 0) => {
-                // Keep current
-                println!("   {} Keeping current value", "✓".bright_green());
-            }
-            (true, 1) | (false, 0) => {
-                // Update or Set
-                let new_value: String = Input::with_theme(&ColorfulTheme::default())
-                    .with_prompt(format!("Enter value for {}", key))
-                    .allow_empty(!*required)
-                    .interact_text()?;
-
-                if !new_value.is_empty() {
-                    new_values.insert(key.to_string(), new_value);
-                    updated = true;
-                    println!("   {} Value updated", "✓".bright_green());
-                } else {
-                    println!("   {} Skipped", "○".dimmed());
-                }
-            }
-            _ => {
-                // Skip
-                println!("   {} Skipped", "○".dimmed());
-            }
-        }
-
-        println!();
-    }
-
-    println!("{}", "─".repeat(60).dimmed());
-    println!();
-
-    // Save to file
-    if updated || !env_file.exists() {
-        println!("{}", "💾 Saving to .env file...".bright_blue().bold());
-
-        let mut content = String::new();
-        content.push_str("# Environment Variables\n");
-        content.push_str("# Generated by dev-cli wizard\n\n");
-
-        // Required variables
-        content.push_str("# Required Variables\n");
-        for (key, _, required, _) in &variables {
-            if *required {
-                if let Some(value) = new_values.get(*key) {
-                    content.push_str(&format!("{}={}\n", key, value));
-                } else {
-                    content.push_str(&format!("# {}=\n", key));
-                }
-            }
-        }
-
-        content.push_str("\n# Optional Variables\n");
-        for (key, _, required, _) in &variables {
-            if !*required {
-                if let Some(value) = new_values.get(*key) {
-                    content.push_str(&format!("{}={}\n", key, value));
-                } else {
-                    content.push_str(&format!("# {}=\n", key));
-                }
-            }
-        }
-
-        // Create directory if it doesn't exist
-        if let Some(parent) = env_file.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
-
-        std::fs::write(&env_file, content)?;
-        println!("{}", "✅ Saved to packages/server/.env".bright_green());
-    } else {
-        println!("{}", "ℹ️  No changes made".bright_blue());
-    }
-
-    println!();
-
-    // Ask about pushing to Fly.io
-    if updated && which::which("flyctl").is_ok() {
-        let push_to_fly = Confirm::with_theme(&ColorfulTheme::default())
-            .with_prompt("Push these variables to Fly.io?")
-            .default(false)
-            .interact()?;
-
-        if push_to_fly {
-            println!();
-            flyctl_push_secrets()?;
-        }
-    }
-
-    println!();
-    println!("{}", "✨ Setup complete!".bright_green().bold());
-    println!();
-    println!("Next steps:");
-    println!("  1. Review the .env file at packages/server/.env");
-    println!("  2. Restart Docker services to apply changes");
-    println!("  3. Run 🐳 Docker restart from the main menu");
-
-    Ok(())
-}
-
-fn manage_flyctl_secrets() -> Result<()> {
-    // Check if flyctl is installed
-    if which::which("flyctl").is_err() {
-        println!("{}", "❌ flyctl is not installed".bright_red());
-        println!();
-        println!("Install it with:");
-        println!("  curl -L https://fly.io/install.sh | sh");
-        return Ok(());
-    }
-
-    loop {
-        println!();
-        println!("{}", "🚀 Fly.io Environment Variables".bright_cyan().bold());
-        println!();
-
-        let options = vec![
-            "📋 List current secrets",
-            "➕ Set a secret",
-            "⬇️  Pull secrets to .env (from Fly.io)",
-            "⬆️  Push secrets from .env (to Fly.io)",
-            "🔙 Back to main menu",
-        ];
-
-        let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
-            .with_prompt("What would you like to do? (type to filter)")
-            .items(&options)
-            .default(0)
-            .interact()?;
-
-        match selection {
-            0 => flyctl_list_secrets()?,
-            1 => flyctl_set_secret()?,
-            2 => flyctl_pull_secrets()?,
-            3 => flyctl_push_secrets()?,
-            4 => break,
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(())
-}
-
-fn flyctl_list_secrets() -> Result<()> {
-    println!("{}", "📋 Listing Fly.io secrets...".bright_blue().bold());
-    println!();
-
-    let output = Command::new("flyctl")
-        .args(&["secrets", "list"])
-        .output()
-        .context("Failed to list secrets")?;
-
-    if output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        println!("{}", stdout);
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", "❌ Failed to list secrets".bright_red());
-        println!("{}", stderr);
-    }
-
-    Ok(())
-}
-
-fn flyctl_set_secret() -> Result<()> {
-    use dialoguer::Input;
-
-    println!("{}", "➕ Set a Fly.io secret".bright_blue().bold());
-    println!();
-
-    let key: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Secret name (e.g., OPENAI_API_KEY)")
-        .interact_text()?;
-
-    let value: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Secret value")
-        .interact_text()?;
-
-    println!();
-    println!("{}", "Setting secret...".bright_yellow());
-
-    let output = Command::new("flyctl")
-        .args(&["secrets", "set", &format!("{}={}", key, value)])
-        .output()
-        .context("Failed to set secret")?;
-
-    if output.status.success() {
-        println!("{}", "✅ Secret set successfully".bright_green());
-        println!();
-        println!("Note: The deployment will restart to apply the new secret.");
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", "❌ Failed to set secret".bright_red());
-        println!("{}", stderr);
-    }
-
-    Ok(())
-}
-
-fn flyctl_pull_secrets() -> Result<()> {
-    println!("{}", "⬇️  Pulling secrets from Fly.io...".bright_blue().bold());
-    println!();
-    println!("This will fetch environment variables from your Fly.io app and save them to packages/server/.env");
-    println!();
-    println!("{}", "⚠️  Warning: This will OVERWRITE your local .env file".bright_yellow());
-    println!();
-
-    use dialoguer::Confirm;
-    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Continue?")
-        .default(false)
-        .interact()?;
-
-    if !confirmed {
-        println!("{}", "Cancelled".dimmed());
-        return Ok(());
-    }
-
-    println!();
-    println!("{}", "Connecting to Fly.io app and fetching environment variables...".bright_yellow());
-    println!();
-
-    // Use flyctl ssh console to read environment variables from running app
-    let output = Command::new("flyctl")
-        .args(&["ssh", "console", "-C", "printenv"])
-        .output()
-        .context("Failed to connect to Fly.io app")?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", "❌ Failed to fetch environment variables".bright_red());
-        println!("{}", stderr);
-        println!();
-        println!("Make sure:");
-        println!("  1. Your Fly.io app is deployed and running");
-        println!("  2. You're authenticated with flyctl (run: flyctl auth login)");
-        return Ok(());
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-
-    // Parse environment variables
-    let mut env_vars: Vec<(String, String)> = Vec::new();
-    for line in stdout.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            let key = key.trim();
-            let value = value.trim();
-
-            // Filter out system variables and only keep relevant app secrets
-            if key.starts_with("FLY_") ||
-               key == "PATH" ||
-               key == "HOME" ||
-               key == "USER" ||
-               key == "HOSTNAME" ||
-               key == "TERM" ||
-               key == "PWD" ||
-               key == "SHLVL" ||
-               key == "_" {
-                continue;
-            }
-
-            env_vars.push((key.to_string(), value.to_string()));
-        }
-    }
-
-    if env_vars.is_empty() {
-        println!("{}", "❌ No environment variables found".bright_yellow());
-        println!("Make sure your app has secrets configured on Fly.io");
-        return Ok(());
-    }
-
-    println!("{}", format!("Found {} environment variables", env_vars.len()).bright_green());
-    println!();
-
-    // Preview variables
-    println!("Variables to save:");
-    for (key, _) in &env_vars {
-        println!("  • {}", key.bright_cyan());
-    }
-    println!();
-
-    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Save these to packages/server/.env?")
-        .default(true)
-        .interact()?;
-
-    if !confirmed {
-        println!("{}", "Cancelled".dimmed());
-        return Ok(());
-    }
-
-    // Build .env content
-    let mut env_content = String::from("# Environment Variables\n");
-    env_content.push_str("# Pulled from Fly.io\n\n");
-
-    for (key, value) in &env_vars {
-        env_content.push_str(&format!("{}={}\n", key, value));
-    }
-
-    // Write to .env file
-    let project_root = get_project_root()?;
-    let env_path = project_root.join("packages/server/.env");
-
-    std::fs::write(&env_path, env_content)
-        .context("Failed to write .env file")?;
-
-    println!();
-    println!("{}", "✅ Environment variables saved to packages/server/.env".bright_green());
-    println!();
-    println!("Saved {} variables", env_vars.len());
-
-    Ok(())
-}
-
-fn flyctl_push_secrets() -> Result<()> {
-    println!("{}", "⬆️  Pushing secrets to Fly.io...".bright_blue().bold());
-    println!();
-
-    // Read .env file
-    let env_file = PathBuf::from("packages/server/.env");
-    if !env_file.exists() {
-        println!("{}", "❌ No .env file found at packages/server/.env".bright_red());
-        println!();
-        println!("Create a .env file first with your secrets.");
-        return Ok(());
-    }
-
-    let env_content = std::fs::read_to_string(&env_file)
-        .context("Failed to read .env file")?;
-
-    // Parse environment variables
-    let mut secrets = Vec::new();
-    for line in env_content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-        if let Some((key, value)) = line.split_once('=') {
-            secrets.push((key.trim().to_string(), value.trim().to_string()));
-        }
-    }
-
-    if secrets.is_empty() {
-        println!("{}", "❌ No secrets found in .env file".bright_yellow());
-        return Ok(());
-    }
-
-    println!("Found {} secret(s) in .env file:", secrets.len());
-    for (key, _) in &secrets {
-        println!("  • {}", key.bright_cyan());
-    }
-    println!();
-
-    use dialoguer::Confirm;
-    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Push these secrets to Fly.io?")
-        .default(false)
-        .interact()?;
-
-    if !confirmed {
-        println!("{}", "Cancelled".dimmed());
-        return Ok(());
-    }
-
-    println!();
-    println!("{}", "Pushing secrets...".bright_yellow());
-
-    // Build flyctl command with all secrets
-    let mut args = vec!["secrets", "set"];
-    let secret_pairs: Vec<String> = secrets
-        .iter()
-        .map(|(k, v)| format!("{}={}", k, v))
-        .collect();
-
-    for pair in &secret_pairs {
-        args.push(pair.as_str());
-    }
-
-    let output = Command::new("flyctl")
-        .args(&args)
-        .output()
-        .context("Failed to push secrets")?;
-
-    if output.status.success() {
-        println!("{}", "✅ Secrets pushed successfully".bright_green());
-        println!();
-        println!("Note: The deployment will restart to apply the new secrets.");
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", "❌ Failed to push secrets".bright_red());
-        println!("{}", stderr);
-    }
-
-    Ok(())
-}
-
-fn check_api_keys(project_root: &PathBuf) -> Result<()> {
-    println!(
-        "{}",
-        "🔑 Checking API keys status...".bright_blue().bold()
-    );
-    println!();
-
-    // Check .env file in server directory
-    let env_file = project_root.join("packages/server/.env");
-    let env_exists = env_file.exists();
-
-    if !env_exists {
-        println!(
-            "{}",
-            "⚠️  No .env file found in packages/server/".bright_yellow()
-        );
-        println!();
-        println!("Create a .env file with the following keys:");
-        println!();
-    } else {
-        println!("{}", "✓ .env file found".bright_green());
-        println!();
-    }
-
-    // Define required and optional keys
-    let required_keys = vec![
-        ("OPENAI_API_KEY", "OpenAI GPT-4 access"),
-        ("VOYAGE_API_KEY", "Voyage AI embeddings"),
-        ("FIRECRAWL_API_KEY", "Firecrawl web scraping"),
-        ("TWILIO_ACCOUNT_SID", "Twilio authentication SID"),
-        ("TWILIO_AUTH_TOKEN", "Twilio authentication token"),
-        ("TWILIO_VERIFY_SERVICE_SID", "Twilio verify service"),
-        ("JWT_SECRET", "JWT token signing secret"),
-    ];
-
-    let optional_keys = vec![
-        ("TAVILY_API_KEY", "Tavily search API (optional)"),
-        ("EXPO_ACCESS_TOKEN", "Expo notifications (optional)"),
-        ("CLERK_SECRET_KEY", "Clerk authentication (optional)"),
-    ];
-
-    // Check required keys
-    println!("{}", "Required API Keys:".bright_cyan().bold());
-    let mut missing_required = 0;
-    for (key, description) in &required_keys {
-        let is_set = env::var(key).is_ok();
-        if is_set {
-            println!("  {} {} - {}", "✓".bright_green(), key, description);
-        } else {
-            println!("  {} {} - {}", "✗".bright_red(), key, description);
-            missing_required += 1;
-        }
-    }
-
-    println!();
-    println!("{}", "Optional API Keys:".bright_cyan().bold());
-    for (key, description) in &optional_keys {
-        let is_set = env::var(key).is_ok();
-        if is_set {
-            println!("  {} {} - {}", "✓".bright_green(), key, description);
-        } else {
-            println!("  {} {} - {}", "○".dimmed(), key, description);
-        }
-    }
-
-    println!();
-    if missing_required > 0 {
-        println!(
-            "{}",
-            format!("❌ {} required key(s) missing", missing_required).bright_red()
-        );
-        println!();
-        println!("The API server will not start without these keys.");
-        println!();
-        println!("To fix:");
-        println!("  1. Create packages/server/.env file");
-        println!("  2. Add the missing keys with their values");
-        println!("  3. Restart Docker services");
-    } else {
-        println!("{}", "✅ All required API keys are set!".bright_green());
-    }
-
-    println!();
-    println!("Example .env file:");
-    println!("{}", "─────────────────────────────────────".dimmed());
-    println!("OPENAI_API_KEY=sk-...");
-    println!("VOYAGE_API_KEY=pa-...");
-    println!("FIRECRAWL_API_KEY=fc-...");
-    println!("TWILIO_ACCOUNT_SID=AC...");
-    println!("TWILIO_AUTH_TOKEN=...");
-    println!("TWILIO_VERIFY_SERVICE_SID=VA...");
-    println!("JWT_SECRET=your-random-secret-here");
-    println!("{}", "─────────────────────────────────────".dimmed());
-
-    Ok(())
-}
-
-fn deploy_to_flyio(project_root: &PathBuf) -> Result<()> {
-    use dialoguer::Confirm;
-
-    println!();
-    println!("{}", "🚁 Deploy to Fly.io".bright_blue().bold());
-    println!();
-
-    // Check if flyctl is installed
-    if which::which("flyctl").is_err() {
-        println!("{}", "❌ flyctl is not installed".bright_red());
-        println!();
-        println!("Install it with:");
-        println!("  curl -L https://fly.io/install.sh | sh");
-        return Ok(());
-    }
-
-    // Check if user is authenticated
-    let auth_check = Command::new("flyctl")
-        .args(&["auth", "whoami"])
-        .output()
-        .context("Failed to check flyctl authentication")?;
-
-    if !auth_check.status.success() {
-        println!("{}", "❌ Not authenticated with Fly.io".bright_red());
-        println!();
-        println!("Run: flyctl auth login");
-        return Ok(());
-    }
-
-    println!("{}", "Deployment Checklist:".bright_yellow().bold());
-    println!();
-    println!("  ✓ flyctl installed");
-    println!("  ✓ Authenticated with Fly.io");
-    println!();
-
-    // Confirm deployment
-    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Deploy to Fly.io now?")
-        .default(false)
-        .interact()?;
-
-    if !confirmed {
-        println!("{}", "Cancelled".dimmed());
-        return Ok(());
-    }
-
-    println!();
-    println!("{}", "🚀 Starting deployment...".bright_yellow());
-    println!();
-
-    // Run fly deploy
-    let status = Command::new("flyctl")
-        .args(&["deploy"])
-        .current_dir(project_root)
-        .status()
-        .context("Failed to run fly deploy")?;
-
-    if status.success() {
-        println!();
-        println!("{}", "✅ Deployment successful!".bright_green().bold());
-        println!();
-        println!("Useful commands:");
-        println!("  {} View logs", "fly logs".bright_cyan());
-        println!("  {} Check status", "fly status".bright_cyan());
-        println!("  {} Open in browser", "fly open".bright_cyan());
-    } else {
-        println!();
-        println!("{}", "❌ Deployment failed".bright_red());
-        println!();
-        println!("Check the output above for errors.");
-        println!("Common issues:");
-        println!("  • No fly.toml file found (run: fly launch)");
-        println!("  • App not created yet (run: fly apps create)");
-        println!("  • Docker build errors (check Dockerfile)");
-    }
-
-    Ok(())
-}
-
-fn manage_admin_users(project_root: &PathBuf) -> Result<()> {
-    loop {
-        println!();
-        println!("{}", "👤 Admin User Management".bright_cyan().bold());
-        println!();
-        println!("Admin users are managed via the ADMIN_IDENTIFIERS environment variable.");
-        println!("Supports emails and phone numbers (E.164: +1234567890)");
-        println!();
-
-        let options = vec![
-            "📋 Show current admin identifiers",
-            "➕ Add admin identifier (auto-saves)",
-            "➖ Remove admin identifier (auto-saves)",
-            "⬆️  Push to Fly.io (production)",
-            "🔙 Back to main menu",
-        ];
-
-        let selection = FuzzySelect::with_theme(&ColorfulTheme::default())
-            .with_prompt("What would you like to do? (type to filter)")
-            .items(&options)
-            .default(0)
-            .interact()?;
-
-        match selection {
-            0 => show_admin_emails(project_root)?,
-            1 => add_admin_email(project_root)?,
-            2 => remove_admin_email(project_root)?,
-            3 => push_admin_emails_to_flyio(project_root)?,
-            4 => break,
-            _ => unreachable!(),
-        }
-    }
-
-    Ok(())
-}
-
-fn get_admin_emails(project_root: &PathBuf) -> Result<Vec<String>> {
-    let env_file = project_root.join("packages/server/.env");
-
-    if !env_file.exists() {
-        return Ok(Vec::new());
-    }
-
-    let content = std::fs::read_to_string(&env_file)?;
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.starts_with("ADMIN_IDENTIFIERS=") {
-            let value = line.strip_prefix("ADMIN_IDENTIFIERS=").unwrap();
-            return Ok(value
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .filter(|s| !s.is_empty())
-                .collect());
-        }
-    }
-
-    Ok(Vec::new())
-}
-
-fn show_admin_emails(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "📋 Current Admin Identifiers".bright_blue().bold());
-    println!("{}", "  (Emails and phone numbers with admin access)".dimmed());
-    println!();
-
-    let identifiers = get_admin_emails(project_root)?;
-
-    if identifiers.is_empty() {
-        println!("{}", "  No admin identifiers configured".dimmed());
-    } else {
-        for (i, identifier) in identifiers.iter().enumerate() {
-            println!("  {}. {}", i + 1, identifier.bright_cyan());
-        }
-    }
-
-    println!();
-    Ok(())
-}
-
-fn add_admin_email(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "➕ Add Admin Identifier".bright_blue().bold());
-    println!();
-    println!("{}", "Enter an email address or phone number (E.164 format: +1234567890)".dimmed());
-    println!();
-
-    let identifier: String = Input::with_theme(&ColorfulTheme::default())
-        .with_prompt("Email or phone number")
-        .validate_with(|input: &String| -> Result<(), &str> {
-            // Check if it's an email (contains @ and .)
-            let is_email = input.contains('@') && input.contains('.');
-            // Check if it's a phone number (starts with + and has at least 10 digits)
-            let is_phone = input.starts_with('+') && input.chars().filter(|c| c.is_numeric()).count() >= 10;
-
-            if is_email || is_phone {
-                Ok(())
-            } else {
-                Err("Please enter a valid email address or phone number (E.164: +1234567890)")
-            }
-        })
-        .interact_text()?;
-
-    let mut identifiers = get_admin_emails(project_root)?;
-
-    if identifiers.contains(&identifier) {
-        println!();
-        println!("{}", "⚠️  Identifier already in admin list".bright_yellow());
-        return Ok(());
-    }
-
-    identifiers.push(identifier.clone());
-
-    // Save to .env file
-    save_admin_emails_list(project_root, &identifiers)?;
-
-    println!();
-    println!("{}", format!("✅ Added {} and saved to .env", identifier).bright_green());
-    println!();
-    println!("Current admin identifiers:");
-    for (i, id) in identifiers.iter().enumerate() {
-        println!("  {}. {}", i + 1, id.bright_cyan());
-    }
-
-    Ok(())
-}
-
-fn remove_admin_email(project_root: &PathBuf) -> Result<()> {
-    println!("{}", "➖ Remove Admin Identifier".bright_blue().bold());
-    println!();
-
-    let mut identifiers = get_admin_emails(project_root)?;
-
-    if identifiers.is_empty() {
-        println!("{}", "  No admin identifiers to remove".dimmed());
-        return Ok(());
-    }
-
-    let selection = Select::with_theme(&ColorfulTheme::default())
-        .with_prompt("Select identifier to remove")
-        .items(&identifiers)
-        .interact()?;
-
-    let removed = identifiers.remove(selection);
-
-    // Save to .env file
-    save_admin_emails_list(project_root, &identifiers)?;
-
-    println!();
-    println!("{}", format!("✅ Removed {} and saved to .env", removed).bright_green());
-    println!();
-    println!("Remaining admin identifiers:");
-    if identifiers.is_empty() {
-        println!("{}", "  No admins remaining".dimmed());
-    } else {
-        for (i, id) in identifiers.iter().enumerate() {
-            println!("  {}. {}", i + 1, id.bright_cyan());
-        }
-    }
-
-    Ok(())
-}
-
-fn save_admin_emails_list(project_root: &PathBuf, emails: &[String]) -> Result<()> {
-    let env_file = project_root.join("packages/server/.env");
-
-    // Read existing .env file
-    let content = if env_file.exists() {
-        std::fs::read_to_string(&env_file)?
-    } else {
-        String::new()
-    };
-
-    // Remove existing ADMIN_IDENTIFIERS line
-    let mut lines: Vec<String> = content
-        .lines()
-        .filter(|line| !line.trim().starts_with("ADMIN_IDENTIFIERS="))
-        .map(|s| s.to_string())
-        .collect();
-
-    // Add new ADMIN_IDENTIFIERS line
-    let admin_emails_line = format!("ADMIN_IDENTIFIERS={}", emails.join(","));
-
-    // Find a good place to insert (after JWT_ISSUER or at the end)
-    let insert_pos = lines
-        .iter()
-        .position(|line| line.starts_with("JWT_ISSUER="))
-        .map(|pos| pos + 1)
-        .unwrap_or(lines.len());
-
-    lines.insert(insert_pos, admin_emails_line);
-
-    // Write back to file
-    let new_content = lines.join("\n") + "\n";
-    std::fs::write(&env_file, new_content)?;
-
-    Ok(())
-}
-
-fn push_admin_emails_to_flyio(project_root: &PathBuf) -> Result<()> {
-    // Check if flyctl is installed
-    if which::which("flyctl").is_err() {
-        println!("{}", "❌ flyctl is not installed".bright_red());
-        println!();
-        println!("Install it with:");
-        println!("  curl -L https://fly.io/install.sh | sh");
-        return Ok(());
-    }
-
-    println!("{}", "⬆️  Push Admin Identifiers to Fly.io".bright_blue().bold());
-    println!();
-
-    let identifiers = get_admin_emails(project_root)?;
-
-    if identifiers.is_empty() {
-        println!("{}", "⚠️  No admin identifiers configured".bright_yellow());
-        return Ok(());
-    }
-
-    println!("Will set ADMIN_IDENTIFIERS to:");
-    for (i, identifier) in identifiers.iter().enumerate() {
-        println!("  {}. {}", i + 1, identifier.bright_cyan());
-    }
-    println!();
-
-    let confirmed = Confirm::with_theme(&ColorfulTheme::default())
-        .with_prompt("Push to Fly.io? (This will restart the deployment)")
-        .default(false)
-        .interact()?;
-
-    if !confirmed {
-        println!("{}", "Cancelled".dimmed());
-        return Ok(());
-    }
-
-    println!();
-    println!("{}", "Pushing to Fly.io...".bright_yellow());
-
-    let admin_identifiers_value = identifiers.join(",");
-    let output = Command::new("flyctl")
-        .args(&["secrets", "set", &format!("ADMIN_IDENTIFIERS={}", admin_identifiers_value)])
-        .output()
-        .context("Failed to set ADMIN_IDENTIFIERS secret")?;
-
-    if output.status.success() {
-        println!("{}", "✅ ADMIN_IDENTIFIERS updated on Fly.io".bright_green());
-        println!();
-        println!("The deployment will restart to apply the changes.");
-    } else {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        println!("{}", "❌ Failed to update ADMIN_IDENTIFIERS".bright_red());
-        println!("{}", stderr);
-    }
-
-    Ok(())
-}
-
-fn open_graphql_playground() -> Result<()> {
-    let url = "http://localhost:8080/graphql";
-
-    println!(
-        "{}",
-        "🌐 Opening GraphQL Playground...".bright_blue().bold()
-    );
-    println!("   {}", url.dimmed());
-
-    match open::that(url) {
-        Ok(_) => {
-            println!("{}", "✅ Browser opened".bright_green());
-            println!();
-            println!("If the server isn't running, start it with:");
-            println!("  {} 🐳 Docker start", "→".bright_yellow());
-        }
-        Err(e) => {
-            println!("{}", "❌ Failed to open browser".bright_red());
-            println!();
-            println!("Please open this URL manually:");
-            println!("  {}", url.bright_cyan());
-            return Err(anyhow::anyhow!("Failed to open browser: {}", e));
-        }
-    }
-
-    Ok(())
+    ctx.confirm(&format!("Are you sure you want to {}?", action), false)
 }

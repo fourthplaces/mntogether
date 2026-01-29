@@ -239,7 +239,6 @@ impl Job {
     /// Legacy constructor for backward compatibility with TestJobManager
     pub fn new(
         frequency: Option<String>,
-        reference_id: Uuid,
         job_type: String,
         next_run_at: Option<DateTime<Utc>>,
         timezone: Option<String>,
@@ -291,7 +290,6 @@ impl Job {
     pub fn for_command(
         job_type: &str,
         args: serde_json::Value,
-        reference_id: Option<Uuid>,
         run_at: Option<DateTime<Utc>>,
         idempotency_key: Option<String>,
         command_version: i32,
@@ -302,7 +300,6 @@ impl Job {
     ) -> Self {
         Self {
             id: db_id(),
-            reference_id: reference_id.unwrap_or_else(Uuid::new_v4),
             job_type: job_type.to_string(),
             frequency: None,
             timezone: "UTC".to_string(),
@@ -347,7 +344,6 @@ impl Job {
 
     /// Find a job by reference_id and job_type
     pub async fn find_by_reference(
-        reference_id: Uuid,
         job_type: &str,
         kernel: &ServerKernel,
     ) -> Result<Option<Self>> {
@@ -374,7 +370,6 @@ impl Job {
 
     /// Delete a job by reference_id and job_type
     pub async fn delete_by_reference(
-        reference_id: Uuid,
         job_type: &str,
         kernel: &ServerKernel,
     ) -> Result<u64> {
@@ -550,7 +545,6 @@ impl Job {
     pub fn create_retry(&self, scheduled_for: DateTime<Utc>) -> Self {
         Self {
             id: db_id(),
-            reference_id: self.reference_id,
             job_type: self.job_type.clone(),
             frequency: self.frequency.clone(),
             timezone: self.timezone.clone(),

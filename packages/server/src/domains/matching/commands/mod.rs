@@ -24,8 +24,6 @@ impl Command for MatchingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*listing_id.as_uuid()),
-                container_id: None,
             }),
         }
     }

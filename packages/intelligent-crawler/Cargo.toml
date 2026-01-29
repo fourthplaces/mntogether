@@ -16,4 +16,4 @@ hex = "0.4"
 url = { version = "2.5", features = ["serde"] }
 tokio = { workspace = true }
 tracing = { workspace = true }
-seesaw_core = "0.1"
+seesaw_core = "0.1.1"

@@ -92,8 +92,8 @@ deploy_stack() {
 
     cd "packages/$stack_name"
 
-    # Select or create stack
-    pulumi stack select "$ENV" --create 2>/dev/null || pulumi stack select "$ENV"
+    # Select or create stack with organization
+    pulumi stack select "mntogether/$ENV" --create 2>/dev/null || pulumi stack select "mntogether/$ENV"
 
     # Run pulumi command
     pulumi $PULUMI_ARGS

@@ -87,3 +87,31 @@ pub trait BaseTwilioService: Send + Sync {
     /// Verify OTP code for phone number
     async fn verify_otp(&self, phone_number: &str, code: &str) -> Result<()>;
 }
+
+// =============================================================================
+// PII Detection Trait (Infrastructure)
+// =============================================================================
+
+use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
+
+/// Result of PII detection and redaction
+#[derive(Debug, Clone)]
+pub struct PiiScrubResult {
+    pub clean_text: String,
+    pub findings: PiiFindings,
+    pub pii_detected: bool,
+}
+
+#[async_trait]
+pub trait BasePiiDetector: Send + Sync {
+    /// Detect PII in text with context
+    async fn detect(&self, text: &str, context: DetectionContext) -> Result<PiiFindings>;
+
+    /// Detect and redact PII in one call (convenience method)
+    async fn scrub(
+        &self,
+        text: &str,
+        context: DetectionContext,
+        strategy: RedactionStrategy,
+    ) -> Result<PiiScrubResult>;
+}

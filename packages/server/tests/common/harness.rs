@@ -108,7 +108,7 @@ impl SharedTestInfra {
     }
 }
 
-fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw::Engine<ServerDeps>) {
+fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw_core::Engine<ServerDeps>) {
     handles.push(engine.start());
 }
 
@@ -118,7 +118,7 @@ fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> 
     // Organization domain
     start_engine(
         &mut handles,
-        EngineBuilder::new_from_deps(deps.clone())
+        EngineBuilder::new(deps.clone())
             .with_machine(OrganizationMachine::new())
             .with_effect::<OrganizationCommand, _>(ScraperEffect)
             .with_effect::<OrganizationCommand, _>(AIEffect)
@@ -131,7 +131,7 @@ fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> 
     // Member domain
     start_engine(
         &mut handles,
-        EngineBuilder::new_from_deps(deps.clone())
+        EngineBuilder::new(deps.clone())
             .with_machine(MemberMachine::new())
             .with_effect::<MemberCommand, _>(RegistrationEffect)
             .with_bus(bus.clone())
@@ -141,7 +141,7 @@ fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> 
     // Matching domain
     start_engine(
         &mut handles,
-        EngineBuilder::new_from_deps(deps.clone())
+        EngineBuilder::new(deps.clone())
             .with_machine(MatchingMachine::new())
             .with_effect::<MatchingCommand, _>(MatchingEffect)
             .with_bus(bus.clone())

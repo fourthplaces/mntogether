@@ -11,6 +11,8 @@ use crate::domains::listings::edges::{
     archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
     repost_listing, track_post_click, track_post_view,
     query_organization_source, query_organization_sources,
+};
+use crate::domains::listings::data::{
     ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
     ListingType, ScrapeJobResult, SubmitListingInput,
     SubmitResourceLinkInput, SubmitResourceLinkResult,

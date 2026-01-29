@@ -89,6 +89,8 @@ pub fn build_app(
     allowed_origins: Vec<String>,
     test_identifier_enabled: bool,
     admin_identifiers: Vec<String>,
+    pii_scrubbing_enabled: bool,
+    pii_use_gpt_detection: bool,
 ) -> (Router, EngineHandle) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
@@ -105,7 +107,14 @@ pub fn build_app(
     let intelligent_crawler = Arc::new(intelligent_crawler::PostgresStorage::new(pool.clone()));
 
     // Create OpenAI client (shared across effects and GraphQL)
-    let openai_client = Arc::new(OpenAIClient::new(openai_api_key));
+    let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
+
+    // Create PII detector based on configuration
+    let pii_detector = crate::kernel::pii::create_pii_detector(
+        pii_scrubbing_enabled,
+        pii_use_gpt_detection,
+        Some(openai_api_key),
+    );
 
     // Create server dependencies for effects (using trait objects for testability)
     let firecrawl_client = FirecrawlClient::new(firecrawl_api_key)

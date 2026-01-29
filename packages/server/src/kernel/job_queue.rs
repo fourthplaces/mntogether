@@ -146,10 +146,11 @@ impl SeesawJobQueueAdapter {
         }
 
         // Create job
+        // Note: reference_id should now be in the command payload
         let mut job = Job::new(
             spec.job_type.to_string(),
             payload,
-            spec.reference_id,
+            None, // reference_id - should be in command payload
             spec.idempotency_key,
             spec.version,
             spec.max_retries,

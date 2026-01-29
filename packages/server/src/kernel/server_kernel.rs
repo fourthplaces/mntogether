@@ -7,7 +7,9 @@ use seesaw_core::{EventBus, JobQueue};
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use super::{BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseWebScraper};
+use super::{
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseWebScraper,
+};
 
 /// ServerKernel holds all server dependencies
 pub struct ServerKernel {
@@ -16,6 +18,7 @@ pub struct ServerKernel {
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
+    pub pii_detector: Arc<dyn BasePiiDetector>,
     /// Shared event bus for all engines and edges
     pub bus: EventBus,
     /// Job queue for background command execution
@@ -30,6 +33,7 @@ impl ServerKernel {
         ai: Arc<dyn BaseAI>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
+        pii_detector: Arc<dyn BasePiiDetector>,
         bus: EventBus,
         job_queue: Arc<dyn JobQueue>,
     ) -> Self {
@@ -39,6 +43,7 @@ impl ServerKernel {
             ai,
             embedding_service,
             push_service,
+            pii_detector,
             bus,
             job_queue,
         }

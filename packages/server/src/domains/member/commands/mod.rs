@@ -38,8 +38,6 @@ impl Command for MemberCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*member_id),
-                container_id: None,
             }),
             _ => None,
         }
