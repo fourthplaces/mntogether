@@ -22,7 +22,7 @@ Deploy infrastructure stacks to AWS using Pulumi
 
 OPTIONS:
     -e, --env ENV           Environment to deploy (dev|prod) [default: dev]
-    -s, --stack STACK       Specific stack to deploy (core|server|admin-spa|web-app|web-next|all)
+    -s, --stack STACK       Specific stack to deploy (core|server|web-app|web-next|all)
     -h, --help              Show this help message
 
 EXAMPLES:
@@ -111,10 +111,6 @@ fi
 
 if [[ -z "$STACK_NAME" || "$STACK_NAME" == "all" || "$STACK_NAME" == "server" ]]; then
     deploy_stack "server" "API Server (ECS Fargate)"
-fi
-
-if [[ -z "$STACK_NAME" || "$STACK_NAME" == "all" || "$STACK_NAME" == "admin-spa" ]]; then
-    deploy_stack "admin-spa" "Admin SPA (CloudFront + S3)"
 fi
 
 if [[ -z "$STACK_NAME" || "$STACK_NAME" == "all" || "$STACK_NAME" == "web-app" ]]; then

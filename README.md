@@ -123,12 +123,29 @@ If you prefer manual control:
 
 #### Frontend Setup
 
-##### Admin UI (React + Vite)
+##### Next.js Public Site (SSR)
+The Next.js app runs automatically with docker-compose and includes hot-reload:
 ```bash
-cd packages/admin-spa
-npm install
-npm run dev
+# Already running with docker-compose up
 # Access: http://localhost:3000
+```
+
+Or run standalone:
+```bash
+cd packages/web-next
+yarn install
+yarn dev
+# Access: http://localhost:3000
+```
+
+##### Web App (React + Vite)
+The unified web app includes both public pages and admin dashboard:
+```bash
+cd packages/web-app
+yarn install
+yarn dev
+# Access: http://localhost:3001
+# Admin: http://localhost:3001/admin
 ```
 
 ##### Expo App (React Native)
@@ -146,6 +163,7 @@ npm start
 - **API**: `localhost:8080`
 - **GraphiQL Playground**: `localhost:8080/graphql`
 - **Health Check**: `localhost:8080/health`
+- **Next.js Public Site**: `localhost:3000` (SSR with hot-reload)
 
 ### Seeding Data
 

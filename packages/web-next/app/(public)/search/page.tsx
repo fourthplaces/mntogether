@@ -1,24 +1,10 @@
 import { graphqlFetch, SEARCH_ORGANIZATIONS } from "@/lib/graphql";
+import type {
+  Organization,
+  OrganizationMatch,
+  SearchOrganizationsResult,
+} from "@/lib/types";
 import Link from "next/link";
-
-interface Organization {
-  id: string;
-  name: string;
-  description: string | null;
-  summary: string | null;
-  website: string | null;
-  phone: string | null;
-  primaryAddress: string | null;
-}
-
-interface OrganizationMatch {
-  organization: Organization;
-  similarityScore: number;
-}
-
-interface SearchResult {
-  searchOrganizationsSemantic: OrganizationMatch[];
-}
 
 export default async function SearchPage({
   searchParams,
@@ -32,10 +18,16 @@ export default async function SearchPage({
 
   if (query) {
     try {
-      const data = await graphqlFetch<SearchResult>(SEARCH_ORGANIZATIONS, {
-        query,
-        limit: 20,
-      });
+      const data = await graphqlFetch<SearchOrganizationsResult>(
+        SEARCH_ORGANIZATIONS,
+        {
+          query,
+          limit: 20,
+        },
+        {
+          revalidate: 300, // Cache for 5 minutes
+        }
+      );
       results = data.searchOrganizationsSemantic;
     } catch (error) {
       console.error("Search error:", error);

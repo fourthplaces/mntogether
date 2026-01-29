@@ -464,5 +464,10 @@ impl Mutation {
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;
 
 pub fn create_schema() -> Schema {
+    // Note: Juniper 0.16 doesn't support runtime introspection disabling.
+    // To disable introspection in production, use a reverse proxy or API gateway
+    // to block __schema and __type queries.
+    //
+    // For development, introspection is useful for GraphQL playground and tooling.
     Schema::new(Query, Mutation, EmptySubscription::new())
 }

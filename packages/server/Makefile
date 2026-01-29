@@ -33,3 +33,12 @@ db-shell: ## Open psql shell
 
 redis-cli: ## Open redis-cli
 	docker-compose exec redis redis-cli
+
+web-next-logs: ## Follow Next.js app logs
+	docker-compose logs -f web-next
+
+web-next-shell: ## Open shell in Next.js container
+	docker-compose exec web-next /bin/sh
+
+web-next-restart: ## Restart Next.js service
+	docker-compose restart web-next
