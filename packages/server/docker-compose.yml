@@ -79,6 +79,29 @@ services:
       # Persist compiled artifacts (saves rebuild time)
       - api-target:/app/target
 
+  # Next.js public website (SSR)
+  web-next:
+    build:
+      context: ../web-next
+      dockerfile: Dockerfile.dev
+    container_name: mndigitalaid_web_next
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8080/graphql
+      NODE_ENV: development
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    volumes:
+      # Mount source code for hot-reload
+      - ../web-next:/app
+      # Prevent node_modules from being overwritten
+      - /app/node_modules
+      - /app/.next
+      - /app/.yarn
+
 volumes:
   postgres_data:
   redis_data:

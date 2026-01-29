@@ -41,6 +41,13 @@ async fn main() -> Result<()> {
         .context("Failed to connect to database")?;
     tracing::info!("Database connected with {} max connections", 50);
 
+    // Set statement timeout to prevent long-running queries from blocking the pool
+    sqlx::query("SET statement_timeout = '30s'")
+        .execute(&pool)
+        .await
+        .context("Failed to set statement timeout")?;
+    tracing::info!("Database statement timeout set to 30s");
+
     // Run migrations
     tracing::info!("Running database migrations...");
     sqlx::migrate!("./migrations")

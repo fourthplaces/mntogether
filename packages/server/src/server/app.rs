@@ -205,11 +205,18 @@ pub fn build_app(
     };
 
     // Build router
-    let router = Router::new()
+    let mut router = Router::new()
         // GraphQL endpoints with rate limiting
         .route("/graphql", post(graphql_handler))
-        .route("/graphql/batch", post(graphql_batch_handler))
-        .route("/graphql", get(graphql_playground))
+        .route("/graphql/batch", post(graphql_batch_handler));
+
+    // GraphQL playground only in debug builds (development)
+    #[cfg(debug_assertions)]
+    {
+        router = router.route("/graphql", get(graphql_playground));
+    }
+
+    let router = router
         // Health check (no rate limit)
         .route("/health", get(health_handler))
         // Static file serving for admin SPA (no rate limit)

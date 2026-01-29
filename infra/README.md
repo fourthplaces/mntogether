@@ -61,17 +61,12 @@ API backend deployment:
 - **CloudWatch Logs**: Application logging
 - **Auto Scaling**: Based on CPU/memory metrics
 
-### admin-spa
-Admin dashboard frontend:
-- **S3**: Static file hosting
-- **CloudFront**: CDN distribution
-- **Route53**: DNS configuration (admin.domain.com)
-
 ### web-app
-Public web application:
+Unified web application (public + admin):
 - **S3**: Static file hosting
 - **CloudFront**: CDN distribution
 - **Route53**: DNS configuration (app.domain.com)
+- **Features**: Public pages + admin dashboard at /admin
 
 ### web-next
 Next.js application with SSR:
@@ -169,7 +164,6 @@ Deploy specific stack:
 ```bash
 ./deploy.sh -e dev -s core
 ./deploy.sh -e dev -s server
-./deploy.sh -e dev -s admin-spa
 ./deploy.sh -e dev -s web-app
 ./deploy.sh -e dev -s web-next
 ```
@@ -189,10 +183,10 @@ Deployment is triggered automatically:
 - Push to `dev` → deploys to dev
 - Changes in `packages/server/**`
 
-**Frontend (SPAs)**:
+**Web App (SPA)**:
 - After successful server deployment
 - Push to `main`/`dev`
-- Changes in `packages/admin-spa/**` or `packages/web-app/**`
+- Changes in `packages/web-app/**`
 
 **Next.js App**:
 - Push to `main` → deploys to prod
@@ -246,8 +240,8 @@ const certificateArn = coreStack.getOutput("certificateArn");
 - `clusterName`: ECS cluster name
 - `logGroupName`: CloudWatch log group
 
-### admin-spa / web-app
-- `targetUrl`: Frontend URL
+### web-app
+- `targetUrl`: Web app URL (https://app.domain.com)
 - `bucketName`: S3 bucket name
 - `cloudFrontDistributionId`: CloudFront distribution ID
 

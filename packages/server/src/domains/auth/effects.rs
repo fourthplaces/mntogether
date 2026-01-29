@@ -99,8 +99,9 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                 // Note: phone_number field can be either phone or email (Twilio supports both)
                 debug!("Verifying OTP for identifier: {}", phone_number);
 
-                // TEST IDENTIFIER BYPASS: Allow test identifiers with static OTP in development/testing
-                // Supports: +1234567890 or test@example.com with code 123456
+                // TEST IDENTIFIER BYPASS: Only available in debug builds (development)
+                // In release builds, this code is completely removed at compile time
+                #[cfg(debug_assertions)]
                 if ctx.deps().test_identifier_enabled
                     && code == "123456"
                     && (phone_number == "+1234567890" || phone_number == "test@example.com")
@@ -147,6 +148,15 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                         phone_number,
                         is_admin: identifier.is_admin,
                     });
+                }
+
+                // Fail fast in production if test auth is attempted
+                #[cfg(not(debug_assertions))]
+                if ctx.deps().test_identifier_enabled {
+                    panic!(
+                        "SECURITY: TEST_IDENTIFIER_ENABLED=true detected in production build! \
+                         Test authentication bypass must never be enabled in release builds."
+                    );
                 }
 
                 // 1. Verify OTP with Twilio (supports phone numbers and emails)
