@@ -5,9 +5,9 @@
 
 use serde::{Deserialize, Serialize};
 
-/// A need extracted from a website by AI
+/// A listing extracted from a website by AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedNeed {
+pub struct ExtractedListing {
     pub title: String,
     pub tldr: String,
     pub description: String,
@@ -15,6 +15,9 @@ pub struct ExtractedNeed {
     pub urgency: Option<String>,
     pub confidence: Option<String>, // "high" | "medium" | "low"
 }
+
+/// Legacy alias for ExtractedListing (for backward compatibility during migration)
+pub type ExtractedNeed = ExtractedListing;
 
 /// Contact information for a need/opportunity
 #[derive(Debug, Clone, Serialize, Deserialize)]

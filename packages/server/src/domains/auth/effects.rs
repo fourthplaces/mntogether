@@ -1,12 +1,12 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw::{Effect, EffectContext};
+use seesaw_core::{Effect, EffectContext};
 use tracing::{debug, error, info};
 
 use super::commands::AuthCommand;
 use super::events::AuthEvent;
 use super::models::{hash_phone_number, Identifier};
-use crate::domains::organization::effects::ServerDeps;
+use crate::domains::listings::effects::ServerDeps;
 
 /// Auth effect - handles OTP sending and verification
 ///

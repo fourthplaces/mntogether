@@ -18,13 +18,13 @@
 //! ```
 
 use anyhow::Result;
-use seesaw::EventBus;
+use seesaw_core::EventBus;
 use sqlx::PgPool;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{JobId, MemberId};
 use crate::domains::member::models::member::Member;
-use crate::domains::organization::events::OrganizationEvent;
+use crate::domains::listings::events::ListingEvent;
 use crate::domains::organization::models::OrganizationSource;
 
 /// Start all scheduled tasks
@@ -89,7 +89,7 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
 
         // Emit event (fire-and-forget, non-blocking)
         // System-initiated scrapes use system user ID (all zeros) with admin privileges
-        bus.emit(OrganizationEvent::ScrapeSourceRequested {
+        bus.emit(ListingEvent::ScrapeSourceRequested {
             source_id: source.id,
             job_id,
             requested_by: MemberId::nil(), // System user

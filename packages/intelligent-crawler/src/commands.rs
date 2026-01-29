@@ -1,6 +1,6 @@
 use chrono::Duration;
 use serde::{Deserialize, Serialize};
-use seesaw::{Command, ExecutionMode};
+use seesaw_core::{Command, ExecutionMode};
 use url::Url;
 use uuid::Uuid;
 

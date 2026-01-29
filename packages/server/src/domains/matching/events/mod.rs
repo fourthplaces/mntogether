@@ -1,25 +1,25 @@
-use crate::common::NeedId;
+use crate::common::ListingId;
 
 /// Matching domain events
 #[derive(Debug, Clone)]
 pub enum MatchingEvent {
     // Request events (from edges or organization domain)
     FindMatchesRequested {
-        need_id: NeedId,
+        listing_id: ListingId,
     },
 
     // Fact events (from effects)
     MatchesFound {
-        need_id: NeedId,
+        listing_id: ListingId,
         candidate_count: usize,
         notified_count: usize,
     },
     NoMatchesFound {
-        need_id: NeedId,
+        listing_id: ListingId,
         reason: String,
     },
     MatchingFailed {
-        need_id: NeedId,
+        listing_id: ListingId,
         error: String,
     },
 }

@@ -93,12 +93,52 @@ async fn main() -> Result<()> {
         .await
         .context("Failed to bind to address")?;
 
+    // Set up graceful shutdown signal handler
+    let shutdown_signal = async {
+        let ctrl_c = async {
+            tokio::signal::ctrl_c()
+                .await
+                .expect("Failed to install Ctrl+C handler");
+        };
+
+        #[cfg(unix)]
+        let terminate = async {
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+                .expect("Failed to install SIGTERM handler")
+                .recv()
+                .await;
+        };
+
+        #[cfg(not(unix))]
+        let terminate = std::future::pending::<()>();
+
+        tokio::select! {
+            _ = ctrl_c => {
+                tracing::info!("Received Ctrl+C, initiating graceful shutdown...");
+            },
+            _ = terminate => {
+                tracing::info!("Received SIGTERM, initiating graceful shutdown...");
+            },
+        }
+
+        // Give in-flight requests time to complete
+        tracing::info!("Waiting for in-flight requests to complete (10s timeout)...");
+        tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+        tracing::info!("Graceful shutdown complete");
+    };
+
+    // Start server with graceful shutdown
     axum::serve(
         listener,
         app.into_make_service_with_connect_info::<std::net::SocketAddr>(),
     )
+    .with_graceful_shutdown(shutdown_signal)
     .await
     .context("Server error")?;
+
+    // Close database connections
+    pool.close().await;
+    tracing::info!("Database connections closed");
 
     Ok(())
 }

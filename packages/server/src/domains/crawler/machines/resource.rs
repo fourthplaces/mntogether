@@ -1,5 +1,5 @@
 use intelligent_crawler::{CrawlerCommand, CrawlerEvent};
-use seesaw::Machine;
+use seesaw_core::Machine;
 use tracing::info;
 use uuid::Uuid;
 

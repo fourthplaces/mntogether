@@ -1,4 +1,6 @@
-use crate::domains::organization::models::{OrganizationNeed, Post, PostStatus};
+use crate::domains::organization::models::{Post, PostStatus};
+use crate::domains::listings::data::ListingData;
+use crate::domains::listings::models::listing::Listing;
 use crate::server::graphql::GraphQLContext;
 use chrono::{DateTime, Utc};
 use juniper::{FieldResult, GraphQLEnum, GraphQLInputObject, GraphQLObject};
@@ -6,13 +8,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
-use super::types::Need;
-
 /// GraphQL type for post
 #[derive(Debug, Clone)]
 pub struct PostData {
     pub id: Uuid,
-    pub need_id: Uuid,
+    pub listing_id: Uuid,
     pub status: PostStatusData,
     pub published_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
@@ -32,8 +32,8 @@ impl PostData {
         self.id
     }
 
-    fn need_id(&self) -> Uuid {
-        self.need_id
+    fn listing_id(&self) -> Uuid {
+        self.listing_id
     }
 
     fn status(&self) -> PostStatusData {
@@ -81,9 +81,9 @@ impl PostData {
     }
 
     /// Fetch the associated need
-    async fn need(&self, ctx: &GraphQLContext) -> FieldResult<Need> {
-        let need = OrganizationNeed::find_by_id(
-            crate::common::NeedId::from_uuid(self.need_id),
+    async fn listing(&self, ctx: &GraphQLContext) -> FieldResult<ListingData> {
+        let listing = Listing::find_by_id(
+            crate::common::ListingId::from_uuid(self.listing_id),
             &ctx.db_pool,
         )
         .await
@@ -92,7 +92,7 @@ impl PostData {
             juniper::Value::null(),
         ))?;
 
-        Ok(Need::from(need))
+        Ok(ListingData::from(listing))
     }
 }
 
@@ -100,7 +100,7 @@ impl From<Post> for PostData {
     fn from(post: Post) -> Self {
         Self {
             id: post.id.into_uuid(),
-            need_id: post.need_id.into_uuid(),
+            listing_id: post.listing_id.into_uuid(),
             status: post.status.into(),
             published_at: post.published_at,
             expires_at: post.expires_at,
@@ -139,7 +139,7 @@ impl From<PostStatus> for PostStatusData {
 /// Input for creating a custom post
 #[derive(Debug, Clone, GraphQLInputObject)]
 pub struct CreatePostInput {
-    pub need_id: Uuid,
+    pub listing_id: Uuid,
     pub custom_title: Option<String>,
     pub custom_description: Option<String>,
     pub custom_tldr: Option<String>,

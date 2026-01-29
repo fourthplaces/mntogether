@@ -1,7 +1,7 @@
 use crate::domains::auth::JwtService;
 use crate::kernel::OpenAIClient;
 use crate::server::middleware::AuthUser;
-use seesaw::EventBus;
+use seesaw_core::EventBus;
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;

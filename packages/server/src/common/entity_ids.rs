@@ -55,7 +55,11 @@ pub struct Tag;
 /// Marker type for Taggable entities (polymorphic tag associations).
 pub struct Taggable;
 
+/// Marker type for Container entities (message containers for chat, comments, discussions).
+pub struct Container;
+
 /// Marker type for Chatroom entities (anonymous conversations).
+/// DEPRECATED: Use Container instead.
 pub struct Chatroom;
 
 /// Marker type for Message entities (chat messages).
@@ -106,7 +110,11 @@ pub type TagId = Id<Tag>;
 /// Typed ID for Taggable entities.
 pub type TaggableId = Id<Taggable>;
 
+/// Typed ID for Container entities (message containers for chat, comments, discussions).
+pub type ContainerId = Id<Container>;
+
 /// Typed ID for Chatroom entities.
+/// DEPRECATED: Use ContainerId instead.
 pub type ChatroomId = Id<Chatroom>;
 
 /// Typed ID for Message entities.

@@ -4,7 +4,7 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
-use seesaw::{EngineBuilder, EngineHandle, EventBus};
+use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
 use server_core::domains::matching::{
     commands::MatchingCommand, effects::MatchingEffect, machines::MatchingMachine,
 };

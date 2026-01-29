@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw::job::{ClaimedJob, FailureKind, JobStore};
+use seesaw_core::job::{ClaimedJob, FailureKind, JobStore};
 use uuid::Uuid;
 
 use super::job::{ErrorKind, Job};

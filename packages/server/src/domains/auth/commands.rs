@@ -1,4 +1,4 @@
-use seesaw::{Command, ExecutionMode};
+use seesaw_core::{Command, ExecutionMode};
 
 /// Auth commands - actions to perform
 #[derive(Debug, Clone)]

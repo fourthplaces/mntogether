@@ -2,34 +2,17 @@
 //
 // Effects are thin orchestrators that delegate to domain functions.
 // Domain logic lives in separate function modules.
+//
+// Note: Most effects moved to listings domain. Organization domain now only
+// provides utility functions for scraping and source management.
 
-pub mod ai;
-pub mod composite;
-pub mod deps;
-pub mod intelligent_crawler;
-pub mod need;
-pub mod need_extraction; // Domain functions for AI extraction
-pub mod need_operations; // Domain functions for need CRUD operations
-pub mod scraper;
 pub mod scraping; // Domain functions for web scraping
-pub mod submit;
-pub mod sync;
-pub mod syncing; // Domain functions for need synchronization
-pub mod utils;
+pub mod source_operations; // Domain functions for source CRUD operations
 
-pub use ai::*;
-pub use composite::*;
-pub use deps::*;
-pub use intelligent_crawler::*;
-pub use need::*;
-pub use scraper::*;
-pub use submit::*;
-pub use sync::*;
-pub use utils::*;
+// Re-export common utilities from the utils module
+pub use crate::domains::organization::utils::*;
 
 // Domain function modules are available via:
-//   - `effects::need_extraction::*` - AI extraction functions
-//   - `effects::need_operations::*` - Need CRUD operations
 //   - `effects::scraping::*` - Web scraping functions
-//   - `effects::syncing::*` - Need synchronization functions
+//   - `effects::source_operations::*` - Source CRUD operations
 // (not re-exported at top level to avoid namespace pollution)

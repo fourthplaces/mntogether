@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ListingId, OrganizationId, DomainId};
+use crate::common::{ContainerId, ListingId, OrganizationId, DomainId};
 
 /// Listing - a service, opportunity, or business listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -656,5 +656,47 @@ impl Listing {
         .fetch_one(pool)
         .await?;
         Ok(listing)
+    }
+
+    /// Get or create a comments container for this listing
+    pub async fn get_or_create_comments_container(&self, pool: &PgPool) -> Result<ContainerId> {
+        // Check if container already exists
+        let existing: Option<uuid::Uuid> = sqlx::query_scalar(
+            "SELECT id FROM containers WHERE container_type = 'listing_comments' AND entity_id = $1",
+        )
+        .bind(self.id.as_uuid())
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(container_id) = existing {
+            return Ok(ContainerId::from(container_id));
+        }
+
+        // Create new container
+        let container_id: uuid::Uuid = sqlx::query_scalar(
+            r#"
+            INSERT INTO containers (container_type, entity_id, language)
+            VALUES ('listing_comments', $1, $2)
+            RETURNING id
+            "#,
+        )
+        .bind(self.id.as_uuid())
+        .bind(&self.source_language)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(ContainerId::from(container_id))
+    }
+
+    /// Get comments container ID if it exists
+    pub async fn get_comments_container_id(&self, pool: &PgPool) -> Result<Option<ContainerId>> {
+        let container_id: Option<uuid::Uuid> = sqlx::query_scalar(
+            "SELECT id FROM containers WHERE container_type = 'listing_comments' AND entity_id = $1",
+        )
+        .bind(self.id.as_uuid())
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(container_id.map(ContainerId::from))
     }
 }

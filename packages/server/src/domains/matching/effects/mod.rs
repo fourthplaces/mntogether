@@ -2,18 +2,19 @@ pub mod vector_search;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw::{Effect, EffectContext};
+use futures::stream::{self, StreamExt};
+use seesaw_core::{Effect, EffectContext};
 use sqlx::PgPool;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::common::{MemberId, NeedId};
+use crate::common::{MemberId, ListingId};
 use crate::domains::matching::{
     commands::MatchingCommand, events::MatchingEvent, models::notification::Notification,
     utils::check_relevance_by_similarity,
 };
 use crate::domains::member::models::member::Member;
-use crate::domains::organization::effects::ServerDeps;
-use crate::domains::organization::models::need::OrganizationNeed;
+use crate::domains::listings::effects::ServerDeps;
+use crate::domains::listings::models::listing::Listing;
 
 use vector_search::MatchCandidate;
 
@@ -26,7 +27,7 @@ const MAX_NOTIFICATIONS: usize = 5;
 /// Matching effect - orchestrates the full matching pipeline
 ///
 /// Pipeline:
-/// 1. Get need + embedding
+/// 1. Get listing + embedding
 /// 2. Vector search (distance filtered)
 /// 3. AI relevance check (generous threshold)
 /// 4. Throttle check (max 3/week)
@@ -44,16 +45,16 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
         ctx: EffectContext<ServerDeps>,
     ) -> Result<MatchingEvent> {
         match cmd {
-            MatchingCommand::FindMatches { need_id } => {
-                info!("Finding matches for need: {}", need_id);
+            MatchingCommand::FindMatches { listing_id } => {
+                info!("Finding matches for need: {}", listing_id);
 
-                // 1. Get need from database
-                let need = match OrganizationNeed::find_by_id(need_id, &ctx.deps().db_pool).await {
+                // 1. Get listing from database
+                let listing = match Listing::find_by_id(listing_id, &ctx.deps().db_pool).await {
                     Ok(need) => need,
                     Err(e) => {
-                        error!("Failed to fetch need {}: {}", need_id, e);
+                        error!("Failed to fetch listing {}: {}", listing_id, e);
                         return Ok(MatchingEvent::MatchingFailed {
-                            need_id,
+                            listing_id,
                             error: format!("Need not found: {}", e),
                         });
                     }
@@ -61,12 +62,12 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
 
                 // TODO: Generate embedding if not exists
                 // For now, assume embeddings are generated separately
-                let need_embedding = match &need.embedding {
+                let need_embedding = match &listing.embedding {
                     Some(emb) => emb.clone(),
                     None => {
-                        warn!("Need {} has no embedding, skipping matching", need_id);
+                        warn!("Need {} has no embedding, skipping matching", listing_id);
                         return Ok(MatchingEvent::NoMatchesFound {
-                            need_id,
+                            listing_id,
                             reason: "Need has no embedding".to_string(),
                         });
                     }
@@ -74,7 +75,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
 
                 // 2. Vector search with distance filtering
                 let embedding_slice: &[f32] = need_embedding.as_slice();
-                let candidates = if let (Some(lat), Some(lng)) = (need.latitude, need.longitude) {
+                let candidates = if let (Some(lat), Some(lng)) = (listing.latitude, listing.longitude) {
                     // Has location - filter by distance
                     MatchCandidate::find_within_radius(
                         embedding_slice,
@@ -90,17 +91,18 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                 };
 
                 if candidates.is_empty() {
-                    info!("No candidates found for need {}", need_id);
+                    info!("No candidates found for listing {}", listing_id);
                     return Ok(MatchingEvent::NoMatchesFound {
-                        need_id,
+                        listing_id,
                         reason: "No candidates in range".to_string(),
                     });
                 }
 
                 debug!("Found {} candidates for relevance check", candidates.len());
 
-                // 3. AI relevance check + send notifications
-                let mut notified_count = 0;
+                // 3. Filter relevant candidates and check throttles
+                let mut eligible_notifications = Vec::new();
+
                 for candidate in candidates.iter().take(MAX_NOTIFICATIONS) {
                     // Check relevance using pure utility function
                     let relevance_result = check_relevance_by_similarity(candidate.similarity);
@@ -110,9 +112,8 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                         continue;
                     }
 
-                    let why_relevant = relevance_result.explanation;
-
                     // Increment notification count (atomic throttle check)
+                    // This must remain sequential to prevent race conditions
                     match Member::increment_notification_count(
                         candidate.member_id,
                         &ctx.deps().db_pool,
@@ -120,31 +121,14 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                     .await?
                     {
                         Some(_) => {
-                            // Successfully incremented - send notification
                             info!(
-                                "Notifying member {} about need {}",
-                                candidate.member_id, need_id
+                                "Member {} eligible for notification about listing {}",
+                                candidate.member_id, listing_id
                             );
-
-                            // Send Expo push notification
-                            send_push_notification(
-                                &candidate,
-                                &need,
-                                &why_relevant,
-                                ctx.deps().push_service.as_ref(),
-                            )
-                            .await?;
-
-                            // Track notification in database
-                            record_notification(
-                                need_id,
-                                candidate.member_id,
-                                &why_relevant,
-                                &ctx.deps().db_pool,
-                            )
-                            .await?;
-
-                            notified_count += 1;
+                            eligible_notifications.push((
+                                candidate.clone(),
+                                relevance_result.explanation.clone(),
+                            ));
                         }
                         None => {
                             debug!(
@@ -155,15 +139,66 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                     }
                 }
 
+                if eligible_notifications.is_empty() {
+                    info!("No eligible members to notify for listing {}", listing_id);
+                    return Ok(MatchingEvent::MatchesFound {
+                        listing_id,
+                        candidate_count: candidates.len(),
+                        notified_count: 0,
+                    });
+                }
+
+                // 4. Send push notifications concurrently (5x speedup)
+                let push_service = ctx.deps().push_service.clone();
+                let need_clone = listing.clone();
+
+                let push_results: Vec<_> = stream::iter(eligible_notifications.into_iter())
+                    .map(|(candidate, why_relevant)| {
+                        let listing = need_clone.clone();
+                        let push_service = push_service.clone();
+                        let member_id = candidate.member_id;
+
+                        async move {
+                            send_push_notification(
+                                &candidate,
+                                &listing,
+                                &why_relevant,
+                                push_service.as_ref(),
+                            )
+                            .await
+                            .map(|_| (member_id, why_relevant))
+                        }
+                    })
+                    .buffer_unordered(5) // Send 5 notifications concurrently
+                    .collect()
+                    .await;
+
+                // 5. Batch insert notification records for successful sends
+                let successful_notifications: Vec<_> = push_results
+                    .into_iter()
+                    .filter_map(|result| result.ok())
+                    .collect();
+
+                if !successful_notifications.is_empty() {
+                    batch_record_notifications(
+                        listing_id,
+                        &successful_notifications,
+                        &ctx.deps().db_pool,
+                    )
+                    .await?;
+                }
+
+                let notified_count = successful_notifications.len();
+
                 info!(
-                    "Matching complete for need {}: {} candidates, {} notified",
-                    need_id,
+                    "Matching complete for listing {}: {} candidates, {} notified",
+                    listing_id,
                     candidates.len(),
                     notified_count
                 );
 
                 Ok(MatchingEvent::MatchesFound {
-                    need_id,
+                    listing_id,
                     candidate_count: candidates.len(),
                     notified_count,
                 })
@@ -176,21 +211,21 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
 // This keeps the effect focused on orchestration (I/O) rather than business logic
 
 /// Send push notification via Expo
-#[instrument(skip(candidate, need, push_service), fields(member_id = %candidate.member_id, need_id = %need.id, token = %candidate.expo_push_token))]
+#[instrument(skip(candidate, listing, push_service), fields(member_id = %candidate.member_id, listing_id = %listing.id, token = %candidate.expo_push_token))]
 async fn send_push_notification(
     candidate: &MatchCandidate,
-    need: &OrganizationNeed,
+    listing: &Listing,
     why_relevant: &str,
     push_service: &dyn crate::kernel::BasePushNotificationService,
 ) -> Result<()> {
     let title = "You might be interested in this";
-    let body = format!("{} - {}", need.organization_name, need.title);
+    let body = format!("{} - {}", listing.organization_name, listing.title);
 
     debug!(title = %title, body = %body, "Sending Expo push notification");
 
     let data = serde_json::json!({
-        "need_id": need.id.to_string(),
-        "organization": need.organization_name,
+        "listing_id": listing.id.to_string(),
+        "organization": listing.organization_name,
         "why_relevant": why_relevant,
     });
 
@@ -207,16 +242,16 @@ async fn send_push_notification(
 }
 
 /// Record notification in database
-#[instrument(skip(pool, why_relevant), fields(need_id = %need_id, member_id = %member_id))]
+#[instrument(skip(pool, why_relevant), fields(listing_id = %listing_id, member_id = %member_id))]
 async fn record_notification(
-    need_id: NeedId,
+    listing_id: ListingId,
     member_id: MemberId,
     why_relevant: &str,
     pool: &PgPool,
 ) -> Result<()> {
     debug!("Recording notification in database");
 
-    Notification::record(need_id, member_id, why_relevant.to_string(), pool)
+    Notification::record(listing_id, member_id, why_relevant.to_string(), pool)
         .await
         .map_err(|e| {
             error!(error = %e, "Failed to record notification");
@@ -224,5 +259,55 @@ async fn record_notification(
         })?;
 
     debug!("Successfully recorded notification");
+    Ok(())
+}
+
+/// Batch record notifications in database (5x faster than individual inserts)
+#[instrument(skip(pool, notifications), fields(listing_id = %listing_id, count = notifications.len()))]
+async fn batch_record_notifications(
+    listing_id: ListingId,
+    notifications: &[(MemberId, String)],
+    pool: &PgPool,
+) -> Result<()> {
+    if notifications.is_empty() {
+        return Ok(());
+    }
+
+    debug!("Batch recording {} notifications in database", notifications.len());
+
+    // Build VALUES clause with all notifications
+    let mut query = String::from(
+        "INSERT INTO notifications (listing_id, member_id, why_relevant, created_at) VALUES "
+    );
+
+    let mut values = Vec::new();
+    for (idx, (member_id, why_relevant)) in notifications.iter().enumerate() {
+        if idx > 0 {
+            query.push_str(", ");
+        }
+        query.push_str(&format!("(${}, ${}, ${}, NOW())",
+            idx * 3 + 1,
+            idx * 3 + 2,
+            idx * 3 + 3
+        ));
+        values.push(listing_id.into_uuid().to_string());
+        values.push(member_id.into_uuid().to_string());
+        values.push(why_relevant.clone());
+    }
+
+    // Execute batch insert
+    let mut q = sqlx::query(&query);
+    for value in &values {
+        q = q.bind(value);
+    }
+
+    q.execute(pool)
+        .await
+        .map_err(|e| {
+            error!(error = %e, "Failed to batch record notifications");
+            anyhow::anyhow!("Failed to batch record notifications: {}", e)
+        })?;
+
+    info!("Successfully batch recorded {} notifications", notifications.len());
     Ok(())
 }

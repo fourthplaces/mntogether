@@ -28,7 +28,7 @@
 //!
 //! ```ignore
 //! use crate::kernel::jobs::{JobWorker, PostgresJobStore};
-//! use seesaw::{CommandRegistry, Dispatcher};
+//! use seesaw_core::{CommandRegistry, Dispatcher};
 //!
 //! // Create registry with command deserializers
 //! let mut registry = CommandRegistry::new();
@@ -53,8 +53,8 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Result;
-use seesaw::CommandRegistry;
-use seesaw::job::{ClaimedJob, DeserializationError, FailureKind, JobStore};
+use seesaw_core::CommandRegistry;
+use seesaw_core::job::{ClaimedJob, DeserializationError, FailureKind, JobStore};
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};

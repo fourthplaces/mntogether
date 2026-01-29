@@ -4,8 +4,8 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw::testing::SpyJobQueue;
-use seesaw::EventBus;
+use seesaw_core::testing::SpyJobQueue;
+use seesaw_core::EventBus;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 

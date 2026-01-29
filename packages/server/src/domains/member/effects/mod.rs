@@ -1,6 +1,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw::{Effect, EffectContext};
+use seesaw_core::{Effect, EffectContext};
 use tracing::{debug, error, info, instrument};
 use uuid::Uuid;
 
@@ -8,7 +8,7 @@ use crate::common::utils::{geocoding::geocode_city, EmbeddingService};
 use crate::domains::member::{
     commands::MemberCommand, events::MemberEvent, models::member::Member,
 };
-use crate::domains::organization::effects::ServerDeps;
+use crate::domains::listings::effects::ServerDeps;
 
 /// Registration effect - handles member registration with geocoding
 pub struct RegistrationEffect;

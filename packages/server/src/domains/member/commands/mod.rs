@@ -1,4 +1,4 @@
-use seesaw::{Command, ExecutionMode, JobSpec};
+use seesaw_core::{Command, ExecutionMode, JobSpec};
 use uuid::Uuid;
 
 /// Member domain commands - intent for IO operations
@@ -39,6 +39,7 @@ impl Command for MemberCommand {
                 priority: 0,
                 version: 1,
                 reference_id: Some(*member_id),
+                container_id: None,
             }),
             _ => None,
         }

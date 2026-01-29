@@ -1,15 +1,19 @@
 use super::context::GraphQLContext;
 use crate::domains::auth::edges as auth_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
-use crate::domains::organization::data::OrganizationData;
-use crate::domains::organization::edges::{
-    add_organization_scrape_url, approve_need, archive_post, create_custom_post, delete_need,
-    edit_and_approve_need, expire_post, query_need, query_needs, query_organization_source,
-    query_organization_sources, query_post, query_posts_for_need, query_published_posts,
-    reject_need, remove_organization_scrape_url, repost_need, scrape_organization, submit_need,
-    submit_resource_link, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
-    NeedConnection, NeedStatusData, OrganizationSourceData, PostData, RepostResult, ScrapeJobResult,
-    SubmitNeedInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+use crate::domains::organization::data::{OrganizationData, PostData, SourceData as OrganizationSourceData};
+use crate::domains::organization::data::post_types::RepostResult;
+use crate::domains::listings::edges::{
+    add_organization_scrape_url, approve_listing, delete_listing,
+    edit_and_approve_listing, query_listing, query_listings,
+    reject_listing, remove_organization_scrape_url,
+    scrape_organization, submit_listing, submit_resource_link,
+    archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
+    repost_listing, track_post_click, track_post_view,
+    query_organization_source, query_organization_sources,
+    ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
+    ListingType, ScrapeJobResult, SubmitListingInput,
+    SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
@@ -31,19 +35,19 @@ pub struct Query;
 
 #[juniper::graphql_object(context = GraphQLContext)]
 impl Query {
-    /// Get a list of needs with filters
-    async fn needs(
+    /// Get a list of listings with filters
+    async fn listings(
         ctx: &GraphQLContext,
-        status: Option<NeedStatusData>,
+        status: Option<ListingStatusData>,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> FieldResult<NeedConnection> {
-        query_needs(&ctx.db_pool, status, limit, offset).await
+    ) -> FieldResult<ListingConnection> {
+        query_listings(&ctx.db_pool, status, limit, offset).await
     }
 
-    /// Get a single need by ID
-    async fn need(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<Need>> {
-        query_need(&ctx.db_pool, id).await
+    /// Get a single listing by ID
+    async fn listing(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<ListingType>> {
+        query_listing(&ctx.db_pool, id).await
     }
 
     /// Get published posts (for volunteers)
@@ -54,9 +58,9 @@ impl Query {
         query_published_posts(ctx, limit).await
     }
 
-    /// Get posts for a specific need
-    async fn posts_for_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Vec<PostData>> {
-        query_posts_for_need(ctx, need_id).await
+    /// Get posts for a specific listing
+    async fn posts_for_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<Vec<PostData>> {
+        query_posts_for_listing(ctx, listing_id).await
     }
 
     /// Get a single post by ID
@@ -161,53 +165,13 @@ impl Query {
     // Listing Queries
     // =========================================================================
 
-    /// Get a listing by ID
-    async fn listing(ctx: &GraphQLContext, id: String) -> FieldResult<Option<crate::domains::listings::ListingData>> {
-        use crate::domains::listings::edges::query_listing;
-        query_listing(&ctx.db_pool, id).await
-    }
-
-    /// Get listings by type (service, opportunity, business)
-    async fn listings_by_type(
-        ctx: &GraphQLContext,
-        listing_type: String,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
-        use crate::domains::listings::edges::query_listings_by_type;
-        query_listings_by_type(&ctx.db_pool, listing_type, limit, offset).await
-    }
-
-    /// Get listings by category (legal, healthcare, housing, etc.)
-    async fn listings_by_category(
-        ctx: &GraphQLContext,
-        category: String,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
-        use crate::domains::listings::edges::query_listings_by_category;
-        query_listings_by_category(&ctx.db_pool, category, limit, offset).await
-    }
-
-    /// Search listings with multiple filters
-    async fn search_listings(
-        ctx: &GraphQLContext,
-        listing_type: Option<String>,
-        category: Option<String>,
-        capacity_status: Option<String>,
-        limit: Option<i32>,
-        offset: Option<i32>,
-    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
-        use crate::domains::listings::edges::search_listings;
-        search_listings(&ctx.db_pool, listing_type, category, capacity_status, limit, offset).await
-    }
 }
 
 pub struct Mutation;
 
 #[juniper::graphql_object(context = GraphQLContext)]
 impl Mutation {
-    /// Scrape an organization source and extract needs (admin only)
+    /// Scrape an organization source and extract listings (admin only)
     async fn scrape_organization(
         ctx: &GraphQLContext,
         source_id: Uuid,
@@ -215,14 +179,14 @@ impl Mutation {
         scrape_organization(ctx, source_id).await
     }
 
-    /// Submit a need from a member (public, goes to pending_approval)
-    async fn submit_need(
+    /// Submit a listing from a member (public, goes to pending_approval)
+    async fn submit_listing(
         ctx: &GraphQLContext,
-        input: SubmitNeedInput,
+        input: SubmitListingInput,
         member_id: Option<Uuid>,
-    ) -> FieldResult<Need> {
+    ) -> FieldResult<ListingType> {
         // TODO: Get IP address from request context
-        submit_need(ctx, input, member_id, None).await
+        submit_listing(ctx, input, member_id, None).await
     }
 
     /// Submit a resource link (URL) for scraping (public)
@@ -233,28 +197,28 @@ impl Mutation {
         submit_resource_link(ctx, input).await
     }
 
-    /// Approve a need (make it visible to volunteers) (admin only)
-    async fn approve_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<Need> {
-        approve_need(ctx, need_id).await
+    /// Approve a listing (make it visible to volunteers) (admin only)
+    async fn approve_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<ListingType> {
+        approve_listing(ctx, listing_id).await
     }
 
-    /// Edit and approve a need (fix AI mistakes or improve user content) (admin only)
-    async fn edit_and_approve_need(
+    /// Edit and approve a listing (fix AI mistakes or improve user content) (admin only)
+    async fn edit_and_approve_listing(
         ctx: &GraphQLContext,
-        need_id: Uuid,
-        input: EditNeedInput,
-    ) -> FieldResult<Need> {
-        edit_and_approve_need(ctx, need_id, input).await
+        listing_id: Uuid,
+        input: EditListingInput,
+    ) -> FieldResult<ListingType> {
+        edit_and_approve_listing(ctx, listing_id, input).await
     }
 
-    /// Reject a need (hide forever) (admin only)
-    async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) -> FieldResult<bool> {
-        reject_need(ctx, need_id, reason).await
+    /// Reject a listing (hide forever) (admin only)
+    async fn reject_listing(ctx: &GraphQLContext, listing_id: Uuid, reason: String) -> FieldResult<bool> {
+        reject_listing(ctx, listing_id, reason).await
     }
 
-    /// Delete a need (admin only)
-    async fn delete_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<bool> {
-        delete_need(ctx, need_id).await
+    /// Delete a listing (admin only)
+    async fn delete_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<bool> {
+        delete_listing(ctx, listing_id).await
     }
 
     /// Add a scrape URL to an organization source (admin only)
@@ -297,17 +261,9 @@ impl Mutation {
         auth_edges::logout(session_token, ctx).await
     }
 
-    /// Create a custom post for a need (admin only)
-    async fn create_custom_post(
-        ctx: &GraphQLContext,
-        input: CreatePostInput,
-    ) -> FieldResult<PostData> {
-        create_custom_post(ctx, input).await
-    }
-
-    /// Repost a need (create new post for existing active need) (admin only)
-    async fn repost_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<RepostResult> {
-        repost_need(ctx, need_id).await
+    /// Repost a listing (create new post for existing active listing) (admin only)
+    async fn repost_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<RepostResult> {
+        repost_listing(ctx, listing_id).await
     }
 
     /// Expire a post (admin only)
@@ -400,65 +356,6 @@ impl Mutation {
         Ok(OrganizationData::from(org))
     }
 
-    // =========================================================================
-    // Listing Mutations
-    // =========================================================================
-
-    /// Create a new listing
-    async fn create_listing(
-        ctx: &GraphQLContext,
-        input: crate::domains::listings::CreateListingInput,
-    ) -> FieldResult<crate::domains::listings::ListingData> {
-        use crate::domains::listings::edges::create_listing;
-        create_listing(&ctx.db_pool, input).await
-    }
-
-    /// Update listing status
-    async fn update_listing_status(
-        ctx: &GraphQLContext,
-        listing_id: String,
-        status: String,
-    ) -> FieldResult<crate::domains::listings::ListingData> {
-        use crate::domains::listings::edges::update_listing_status;
-        update_listing_status(&ctx.db_pool, listing_id, status).await
-    }
-
-    /// Update listing capacity status
-    async fn update_listing_capacity(
-        ctx: &GraphQLContext,
-        listing_id: String,
-        capacity_status: String,
-    ) -> FieldResult<crate::domains::listings::ListingData> {
-        use crate::domains::listings::edges::update_listing_capacity;
-        update_listing_capacity(&ctx.db_pool, listing_id, capacity_status).await
-    }
-
-    /// Mark listing as verified
-    async fn verify_listing(
-        ctx: &GraphQLContext,
-        listing_id: String,
-    ) -> FieldResult<crate::domains::listings::ListingData> {
-        use crate::domains::listings::edges::verify_listing;
-        verify_listing(&ctx.db_pool, listing_id).await
-    }
-
-    /// Add tags to a listing
-    async fn add_listing_tags(
-        ctx: &GraphQLContext,
-        input: crate::domains::listings::AddListingTagsInput,
-    ) -> FieldResult<crate::domains::listings::ListingData> {
-        use crate::domains::listings::edges::add_listing_tags;
-        add_listing_tags(&ctx.db_pool, input).await
-    }
-
-    /// Delete a listing
-    async fn delete_listing(
-        ctx: &GraphQLContext,
-        listing_id: String,
-    ) -> FieldResult<bool> {
-        use crate::domains::listings::edges::delete_listing;
-        delete_listing(&ctx.db_pool, listing_id).await
-    }
 }
 
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;

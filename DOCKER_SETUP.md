@@ -9,6 +9,7 @@ The docker-compose setup includes:
 - **Redis** - Pub/sub for real-time features
 - **API Server** (Rust) - GraphQL backend with hot-reload
 - **Next.js App** (Node.js) - Public-facing SSR website with hot-reload
+- **Web App** (React) - SPA with public pages + admin dashboard with hot-reload
 
 ## Quick Start
 
@@ -32,7 +33,9 @@ The docker-compose setup includes:
    ```
 
 4. **Access the services**:
-   - Next.js App: http://localhost:3000
+   - Next.js App (SSR): http://localhost:3000
+   - Web App (SPA): http://localhost:3001
+   - Admin Dashboard: http://localhost:3001/admin
    - GraphQL API: http://localhost:8080/graphql
    - PostgreSQL: localhost:5432
    - Redis: localhost:6379
@@ -121,6 +124,24 @@ yarn add <package-name>
 # Restart: make web-next-restart
 ```
 
+### Web App Operations
+
+```bash
+# View web app logs
+make web-app-logs
+
+# Restart web app (if needed)
+make web-app-restart
+
+# Open shell in web app container
+make web-app-shell
+
+# Install new npm package (from host)
+cd packages/web-app
+yarn add <package-name>
+# Restart: make web-app-restart
+```
+
 ### API Server Operations
 
 ```bash
@@ -142,14 +163,16 @@ make help
 
 ## Hot Reload
 
-Both the API server and Next.js app support hot-reload:
+All services support hot-reload during development:
 
-- **Next.js**: Any changes to `packages/web-next/**` files automatically refresh
+- **Web App (React SPA)**: Any changes to `packages/web-app/**` automatically refresh
+- **Next.js (SSR)**: Any changes to `packages/web-next/**` automatically refresh
 - **API Server**: Changes to `packages/server/src/**` trigger rebuild
 
 If hot-reload isn't working:
 ```bash
 # Restart specific service
+docker-compose restart web-app
 docker-compose restart web-next
 docker-compose restart api
 
@@ -226,23 +249,27 @@ Check that `NEXT_PUBLIC_API_URL` is set correctly:
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Browser (localhost:3000)                       │
-│  Next.js SSR App                                │
-└────────────────┬────────────────────────────────┘
-                 │ HTTP
-                 ↓
-┌─────────────────────────────────────────────────┐
-│  API Server (localhost:8080)                    │
-│  Rust + GraphQL                                 │
-└────┬──────────────────────┬─────────────────────┘
-     │                      │
-     ↓                      ↓
-┌─────────────┐      ┌─────────────┐
-│ PostgreSQL  │      │   Redis     │
-│ (pgvector)  │      │  (pub/sub)  │
-│ :5432       │      │   :6379     │
-└─────────────┘      └─────────────┘
+┌─────────────────────────┐  ┌─────────────────────────┐
+│  Browser (:3000)        │  │  Browser (:3001)        │
+│  Next.js SSR (Public)   │  │  React SPA              │
+│                         │  │  Public + Admin         │
+└────────┬────────────────┘  └────────┬────────────────┘
+         │                            │
+         │ HTTP                       │ HTTP
+         ↓                            ↓
+         └────────────┬───────────────┘
+                      ↓
+         ┌────────────────────────────────┐
+         │  API Server (localhost:8080)   │
+         │  Rust + GraphQL                │
+         └────┬──────────────────┬────────┘
+              │                  │
+              ↓                  ↓
+       ┌─────────────┐    ┌─────────────┐
+       │ PostgreSQL  │    │   Redis     │
+       │ (pgvector)  │    │  (pub/sub)  │
+       │ :5432       │    │   :6379     │
+       └─────────────┘    └─────────────┘
 ```
 
 ## Performance Tips

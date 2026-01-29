@@ -42,3 +42,12 @@ web-next-shell: ## Open shell in Next.js container
 
 web-next-restart: ## Restart Next.js service
 	docker-compose restart web-next
+
+web-app-logs: ## Follow web app logs
+	docker-compose logs -f web-app
+
+web-app-shell: ## Open shell in web app container
+	docker-compose exec web-app /bin/sh
+
+web-app-restart: ## Restart web app service
+	docker-compose restart web-app

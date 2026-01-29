@@ -164,6 +164,8 @@ npm start
 - **GraphiQL Playground**: `localhost:8080/graphql`
 - **Health Check**: `localhost:8080/health`
 - **Next.js Public Site**: `localhost:3000` (SSR with hot-reload)
+- **Web App (SPA)**: `localhost:3001` (Public + Admin with hot-reload)
+- **Admin Dashboard**: `localhost:3001/admin`
 
 ### Seeding Data
 

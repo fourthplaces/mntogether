@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
-use crate::common::{MemberId, NeedId, PostId};
+use crate::common::{ListingId, MemberId, PostId};
 
 /// Post status
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::Type, PartialEq, Eq)]
@@ -27,9 +27,9 @@ impl ToString for PostStatus {
     }
 }
 
-/// Post - temporal announcement created when need is approved
+/// Post - temporal announcement created when listing is approved
 ///
-/// Key concept: Needs = reality, Posts = announcements about that reality
+/// Key concept: Listings = reality, Posts = announcements about that reality
 ///
 /// Engagement Tracking:
 /// - `last_displayed_at`: Tracks when this post was last shown in a feed query
@@ -38,7 +38,7 @@ impl ToString for PostStatus {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
     pub id: PostId,
-    pub need_id: NeedId,
+    pub listing_id: ListingId,
     pub status: PostStatus,
     pub published_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
@@ -63,7 +63,7 @@ pub struct Post {
 impl Post {
     /// Create and publish a post (default: expires in 5 days)
     pub async fn create_and_publish(
-        need_id: NeedId,
+        listing_id: ListingId,
         created_by: Option<MemberId>,
         expires_in_days: Option<i64>,
         pool: &PgPool,
@@ -74,7 +74,7 @@ impl Post {
         let post = sqlx::query_as::<_, Post>(
             r#"
             INSERT INTO posts (
-                need_id,
+                listing_id,
                 status,
                 published_at,
                 expires_at,
@@ -84,7 +84,7 @@ impl Post {
             RETURNING *
             "#,
         )
-        .bind(need_id)
+        .bind(listing_id)
         .bind(now)
         .bind(expires_at)
         .bind(created_by)
@@ -95,7 +95,7 @@ impl Post {
 
     /// Create and publish a post with customizations
     pub async fn create_and_publish_custom(
-        need_id: NeedId,
+        listing_id: ListingId,
         created_by: Option<MemberId>,
         custom_title: Option<String>,
         custom_description: Option<String>,
@@ -110,7 +110,7 @@ impl Post {
         let post = sqlx::query_as::<_, Post>(
             r#"
             INSERT INTO posts (
-                need_id,
+                listing_id,
                 status,
                 published_at,
                 expires_at,
@@ -124,7 +124,7 @@ impl Post {
             RETURNING *
             "#,
         )
-        .bind(need_id)
+        .bind(listing_id)
         .bind(now)
         .bind(expires_at)
         .bind(custom_title)
@@ -146,23 +146,23 @@ impl Post {
         Ok(post)
     }
 
-    /// Find all posts for a need
-    pub async fn find_by_need_id(need_id: NeedId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find all posts for a listing
+    pub async fn find_by_listing_id(listing_id: ListingId, pool: &PgPool) -> Result<Vec<Self>> {
         let posts = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE need_id = $1 ORDER BY published_at DESC",
+            "SELECT * FROM posts WHERE listing_id = $1 ORDER BY published_at DESC",
         )
-        .bind(need_id)
+        .bind(listing_id)
         .fetch_all(pool)
         .await?;
         Ok(posts)
     }
 
-    /// Find latest post for a need
-    pub async fn find_latest_by_need_id(need_id: NeedId, pool: &PgPool) -> Result<Option<Self>> {
+    /// Find latest post for a listing
+    pub async fn find_latest_by_listing_id(listing_id: ListingId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE need_id = $1 ORDER BY published_at DESC LIMIT 1",
+            "SELECT * FROM posts WHERE listing_id = $1 ORDER BY published_at DESC LIMIT 1",
         )
-        .bind(need_id)
+        .bind(listing_id)
         .fetch_optional(pool)
         .await?;
         Ok(post)

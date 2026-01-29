@@ -7,12 +7,11 @@ use crate::domains::matching::{
 use crate::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
-use crate::domains::organization::{
-    commands::OrganizationCommand,
-    effects::{
-        utils::FirecrawlClient, OrganizationEffect, ServerDeps,
-    },
-    machines::OrganizationMachine,
+use crate::kernel::FirecrawlClient;
+use crate::domains::listings::{
+    commands::ListingCommand,
+    effects::{ListingCompositeEffect, ServerDeps},
+    machines::ListingMachine,
 };
 use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
@@ -32,7 +31,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw::{EngineBuilder, EngineHandle, EventBus};
+use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -131,16 +130,16 @@ pub fn build_app(
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
-        // Organization domain
-        .with_machine(OrganizationMachine::new())
-        .with_effect::<OrganizationCommand, _>(OrganizationEffect::new())
+        // Listings domain (replaces Organization domain)
+        .with_machine(ListingMachine::new())
+        .with_effect::<ListingCommand, _>(ListingCompositeEffect::new())
         // Member domain
         .with_machine(MemberMachine::new())
         .with_effect::<MemberCommand, _>(RegistrationEffect)
         // Matching domain
         .with_machine(MatchingMachine::new())
         .with_effect::<MatchingCommand, _>(MatchingEffect)
-        // Cross-domain coordinator (OrganizationEvent → MatchingCommand)
+        // Cross-domain coordinator (ListingEvent → MatchingCommand)
         .with_machine(MatchingCoordinatorMachine::new())
         // Auth domain
         .with_machine(crate::domains::auth::AuthMachine::new())
