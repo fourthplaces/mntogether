@@ -3,10 +3,11 @@ use crate::domains::auth::edges as auth_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::OrganizationData;
 use crate::domains::organization::edges::{
-    approve_need, archive_post, create_custom_post, edit_and_approve_need, expire_post, query_need,
-    query_needs, query_organization_source, query_organization_sources, query_post,
-    query_posts_for_need, query_published_posts, reject_need, repost_need, scrape_organization,
-    submit_need, submit_resource_link, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
+    add_organization_scrape_url, approve_need, archive_post, create_custom_post, delete_need,
+    edit_and_approve_need, expire_post, query_need, query_needs, query_organization_source,
+    query_organization_sources, query_post, query_posts_for_need, query_published_posts,
+    reject_need, remove_organization_scrape_url, repost_need, scrape_organization, submit_need,
+    submit_resource_link, track_post_click, track_post_view, CreatePostInput, EditNeedInput, Need,
     NeedConnection, NeedStatusData, OrganizationSourceData, PostData, RepostResult, ScrapeJobResult,
     SubmitNeedInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
@@ -17,6 +18,13 @@ use uuid::Uuid;
 pub struct TagInput {
     pub kind: String,
     pub value: String,
+}
+
+#[derive(juniper::GraphQLObject)]
+#[graphql(context = GraphQLContext)]
+pub struct OrganizationMatchData {
+    pub organization: OrganizationData,
+    pub similarity_score: f64,
 }
 
 pub struct Query;
@@ -71,10 +79,11 @@ impl Query {
         ctx: &GraphQLContext,
         id: String,
     ) -> FieldResult<Option<OrganizationData>> {
+        use crate::common::OrganizationId;
         use crate::domains::organization::data::OrganizationData;
         use crate::domains::organization::models::Organization;
 
-        let org_id = Uuid::parse_str(&id)?;
+        let org_id = OrganizationId::parse(&id)?;
         match Organization::find_by_id(org_id, &ctx.db_pool).await {
             Ok(org) => Ok(Some(OrganizationData::from(org))),
             Err(_) => Ok(None),
@@ -93,6 +102,39 @@ impl Query {
         Ok(orgs.into_iter().map(OrganizationData::from).collect())
     }
 
+    /// Search organizations using AI semantic search
+    /// Example: "I need immigration legal help in Spanish"
+    async fn search_organizations_semantic(
+        ctx: &GraphQLContext,
+        query: String,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<OrganizationMatchData>> {
+        use crate::kernel::ai_matching::AIMatchingService;
+
+        // Create AI matching service using shared OpenAI client
+        let ai_matching = AIMatchingService::new((*ctx.openai_client).clone());
+
+        // Search with custom limit if provided
+        let results = if let Some(lim) = limit {
+            ai_matching
+                .find_relevant_organizations_with_config(query, 0.7, lim, &ctx.db_pool)
+                .await?
+        } else {
+            ai_matching
+                .find_relevant_organizations(query, &ctx.db_pool)
+                .await?
+        };
+
+        // Convert to GraphQL data types
+        Ok(results
+            .into_iter()
+            .map(|(org, similarity)| OrganizationMatchData {
+                organization: OrganizationData::from(org),
+                similarity_score: similarity as f64,
+            })
+            .collect())
+    }
+
     /// Get all organization sources (websites to scrape)
     async fn organization_sources(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationSourceData>> {
         query_organization_sources(&ctx.db_pool).await
@@ -106,13 +148,58 @@ impl Query {
         query_organization_source(&ctx.db_pool, id).await
     }
 
-    /// Get all active organizations
+    /// Get all verified organizations
     async fn organizations(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationData>> {
         use crate::domains::organization::data::OrganizationData;
         use crate::domains::organization::models::Organization;
 
-        let orgs = Organization::find_active(&ctx.db_pool).await?;
+        let orgs = Organization::find_verified(&ctx.db_pool).await?;
         Ok(orgs.into_iter().map(OrganizationData::from).collect())
+    }
+
+    // =========================================================================
+    // Listing Queries
+    // =========================================================================
+
+    /// Get a listing by ID
+    async fn listing(ctx: &GraphQLContext, id: String) -> FieldResult<Option<crate::domains::listings::ListingData>> {
+        use crate::domains::listings::edges::query_listing;
+        query_listing(&ctx.db_pool, id).await
+    }
+
+    /// Get listings by type (service, opportunity, business)
+    async fn listings_by_type(
+        ctx: &GraphQLContext,
+        listing_type: String,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
+        use crate::domains::listings::edges::query_listings_by_type;
+        query_listings_by_type(&ctx.db_pool, listing_type, limit, offset).await
+    }
+
+    /// Get listings by category (legal, healthcare, housing, etc.)
+    async fn listings_by_category(
+        ctx: &GraphQLContext,
+        category: String,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
+        use crate::domains::listings::edges::query_listings_by_category;
+        query_listings_by_category(&ctx.db_pool, category, limit, offset).await
+    }
+
+    /// Search listings with multiple filters
+    async fn search_listings(
+        ctx: &GraphQLContext,
+        listing_type: Option<String>,
+        category: Option<String>,
+        capacity_status: Option<String>,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<Vec<crate::domains::listings::ListingData>> {
+        use crate::domains::listings::edges::search_listings;
+        search_listings(&ctx.db_pool, listing_type, category, capacity_status, limit, offset).await
     }
 }
 
@@ -163,6 +250,29 @@ impl Mutation {
     /// Reject a need (hide forever) (admin only)
     async fn reject_need(ctx: &GraphQLContext, need_id: Uuid, reason: String) -> FieldResult<bool> {
         reject_need(ctx, need_id, reason).await
+    }
+
+    /// Delete a need (admin only)
+    async fn delete_need(ctx: &GraphQLContext, need_id: Uuid) -> FieldResult<bool> {
+        delete_need(ctx, need_id).await
+    }
+
+    /// Add a scrape URL to an organization source (admin only)
+    async fn add_organization_scrape_url(
+        ctx: &GraphQLContext,
+        source_id: Uuid,
+        url: String,
+    ) -> FieldResult<bool> {
+        add_organization_scrape_url(ctx, source_id, url).await
+    }
+
+    /// Remove a scrape URL from an organization source (admin only)
+    async fn remove_organization_scrape_url(
+        ctx: &GraphQLContext,
+        source_id: Uuid,
+        url: String,
+    ) -> FieldResult<bool> {
+        remove_organization_scrape_url(ctx, source_id, url).await
     }
 
     /// Send OTP verification code via SMS
@@ -250,35 +360,21 @@ impl Mutation {
         city: Option<String>,
     ) -> FieldResult<OrganizationData> {
         use crate::domains::organization::data::OrganizationData;
-        use crate::domains::organization::models::Organization;
+        use crate::domains::organization::models::{CreateOrganization, Organization};
 
-        let contact_info = if website.is_some() || phone.is_some() {
-            let mut map = serde_json::Map::new();
-            if let Some(w) = website {
-                map.insert("website".to_string(), serde_json::Value::String(w));
-            }
-            if let Some(p) = phone {
-                map.insert("phone".to_string(), serde_json::Value::String(p));
-            }
-            Some(serde_json::Value::Object(map))
-        } else {
-            None
-        };
+        let primary_address = city.map(|c| format!("{}, MN", c));
 
-        let org = Organization {
-            id: Uuid::new_v4(),
-            name,
-            description,
-            contact_info,
-            location: None,
-            city,
-            state: Some("MN".to_string()),
-            status: "active".to_string(),
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
+        let builder = CreateOrganization::builder()
+            .name(name)
+            .description(description)
+            .website(website)
+            .phone(phone)
+            .primary_address(primary_address)
+            .organization_type(Some("nonprofit".to_string()))
+            .build();
 
-        let created = org.insert(&ctx.db_pool).await?;
+        let created = Organization::create(builder, &ctx.db_pool).await?;
+
         Ok(OrganizationData::from(created))
     }
 
@@ -288,18 +384,80 @@ impl Mutation {
         organization_id: String,
         tags: Vec<TagInput>,
     ) -> FieldResult<OrganizationData> {
+        use crate::common::OrganizationId;
         use crate::domains::organization::data::OrganizationData;
-        use crate::domains::organization::models::{Organization, Tag, TagOnOrganization};
+        use crate::domains::organization::models::Organization;
+        use crate::kernel::tag::{Tag, Taggable};
 
-        let org_id = Uuid::parse_str(&organization_id)?;
+        let org_id = OrganizationId::parse(&organization_id)?;
 
         for tag_input in tags {
-            let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, &ctx.db_pool).await?;
-            let _ = TagOnOrganization::create(org_id, tag.id, &ctx.db_pool).await;
+            let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
+            let _ = Taggable::create_organization_tag(org_id, tag.id, &ctx.db_pool).await;
         }
 
         let org = Organization::find_by_id(org_id, &ctx.db_pool).await?;
         Ok(OrganizationData::from(org))
+    }
+
+    // =========================================================================
+    // Listing Mutations
+    // =========================================================================
+
+    /// Create a new listing
+    async fn create_listing(
+        ctx: &GraphQLContext,
+        input: crate::domains::listings::CreateListingInput,
+    ) -> FieldResult<crate::domains::listings::ListingData> {
+        use crate::domains::listings::edges::create_listing;
+        create_listing(&ctx.db_pool, input).await
+    }
+
+    /// Update listing status
+    async fn update_listing_status(
+        ctx: &GraphQLContext,
+        listing_id: String,
+        status: String,
+    ) -> FieldResult<crate::domains::listings::ListingData> {
+        use crate::domains::listings::edges::update_listing_status;
+        update_listing_status(&ctx.db_pool, listing_id, status).await
+    }
+
+    /// Update listing capacity status
+    async fn update_listing_capacity(
+        ctx: &GraphQLContext,
+        listing_id: String,
+        capacity_status: String,
+    ) -> FieldResult<crate::domains::listings::ListingData> {
+        use crate::domains::listings::edges::update_listing_capacity;
+        update_listing_capacity(&ctx.db_pool, listing_id, capacity_status).await
+    }
+
+    /// Mark listing as verified
+    async fn verify_listing(
+        ctx: &GraphQLContext,
+        listing_id: String,
+    ) -> FieldResult<crate::domains::listings::ListingData> {
+        use crate::domains::listings::edges::verify_listing;
+        verify_listing(&ctx.db_pool, listing_id).await
+    }
+
+    /// Add tags to a listing
+    async fn add_listing_tags(
+        ctx: &GraphQLContext,
+        input: crate::domains::listings::AddListingTagsInput,
+    ) -> FieldResult<crate::domains::listings::ListingData> {
+        use crate::domains::listings::edges::add_listing_tags;
+        add_listing_tags(&ctx.db_pool, input).await
+    }
+
+    /// Delete a listing
+    async fn delete_listing(
+        ctx: &GraphQLContext,
+        listing_id: String,
+    ) -> FieldResult<bool> {
+        use crate::domains::listings::edges::delete_listing;
+        delete_listing(&ctx.db_pool, listing_id).await
     }
 }
 

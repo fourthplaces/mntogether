@@ -4,6 +4,7 @@ use seesaw::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
 
 use super::deps::ServerDeps;
+use crate::common::auth::{Actor, AdminCapability, AuthError};
 use crate::common::{ExtractedNeed, JobId, MemberId, NeedId, PostId};
 use crate::domains::organization::commands::OrganizationCommand;
 use crate::domains::organization::events::OrganizationEvent;
@@ -188,6 +189,20 @@ impl Effect<OrganizationCommand, ServerDeps> for NeedEffect {
                 .await
             }
 
+            OrganizationCommand::CreateOrganizationSourceFromLink {
+                url,
+                organization_name,
+                submitter_contact,
+            } => {
+                handle_create_organization_source_from_link(
+                    url,
+                    organization_name,
+                    submitter_contact,
+                    &ctx,
+                )
+                .await
+            }
+
             _ => anyhow::bail!("NeedEffect: Unexpected command"),
         }
     }
@@ -238,15 +253,19 @@ async fn handle_update_need_status(
     status: String,
     rejection_reason: Option<String>,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can update need status
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManageNeeds)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "UpdateNeedStatus".to_string(),
-            reason: "Only administrators can approve or reject needs".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -276,15 +295,19 @@ async fn handle_update_need_and_approve(
     urgency: Option<String>,
     location: Option<String>,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can edit and approve needs
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManageNeeds)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "UpdateNeedAndApprove".to_string(),
-            reason: "Only administrators can edit and approve needs".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -364,15 +387,19 @@ async fn handle_create_custom_post(
     expires_in_days: Option<i64>,
     created_by: MemberId,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can create custom posts
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManagePosts)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "CreateCustomPost".to_string(),
-            reason: "Only administrators can create custom posts".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -399,15 +426,19 @@ async fn handle_repost_need(
     need_id: NeedId,
     created_by: MemberId,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can repost needs
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManagePosts)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "RepostNeed".to_string(),
-            reason: "Only administrators can repost needs".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -431,15 +462,19 @@ async fn handle_repost_need(
 async fn handle_expire_post(
     post_id: PostId,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can expire posts
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManagePosts)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "ExpirePost".to_string(),
-            reason: "Only administrators can expire posts".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -451,15 +486,19 @@ async fn handle_expire_post(
 async fn handle_archive_post(
     post_id: PostId,
     requested_by: MemberId,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
     // Authorization check - only admins can archive posts
-    if !is_admin {
+    if let Err(auth_err) = Actor::new(requested_by)
+        .can(AdminCapability::ManagePosts)
+        .check(ctx.deps())
+        .await
+    {
         return Ok(OrganizationEvent::AuthorizationDenied {
             user_id: requested_by,
             action: "ArchivePost".to_string(),
-            reason: "Only administrators can archive posts".to_string(),
+            reason: auth_err.to_string(),
         });
     }
 
@@ -486,14 +525,30 @@ async fn handle_increment_post_click(
 
 async fn handle_create_needs_from_resource_link(
     _job_id: JobId,
-    _url: String,
+    url: String,
     needs: Vec<ExtractedNeed>,
-    _context: Option<String>,
+    context: Option<String>,
     _submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
-    use crate::domains::organization::models::OrganizationNeed;
+    use crate::domains::organization::models::{OrganizationNeed, OrganizationSource};
     use tracing::info;
+
+    // Find the organization source that was created during submission
+    let organization_name = context.clone().unwrap_or_else(|| "Submitted Resource".to_string());
+
+    // Find the source by URL (it was created in the mutation)
+    let source = OrganizationSource::find_by_url(&url, &ctx.deps().db_pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Organization source not found for URL: {}", url))?;
+
+    let source_id = source.id;
+
+    // Update last_scraped_at now that we've processed it
+    sqlx::query("UPDATE organization_sources SET last_scraped_at = NOW() WHERE id = $1")
+        .bind(source_id.as_uuid())
+        .execute(&ctx.deps().db_pool)
+        .await?;
 
     // Create each extracted need as a user_submitted need in pending_approval status
     let mut created_count = 0;
@@ -514,7 +569,7 @@ async fn handle_create_needs_from_resource_link(
 
         let need = OrganizationNeed {
             id: crate::common::NeedId::new(),
-            organization_name: "Resource Link".to_string(), // We don't have org name from ExtractedNeed
+            organization_name: organization_name.clone(),
             title: extracted_need.title.clone(),
             description: extracted_need.description.clone(),
             description_markdown: None,
@@ -527,7 +582,8 @@ async fn handle_create_needs_from_resource_link(
             submission_type: Some("user_submitted".to_string()),
             submitted_by_member_id: None,
             submitted_from_ip: None,
-            source_id: None,
+            source_id: Some(source_id),
+            source_url: Some(url.clone()),
             last_seen_at: chrono::Utc::now(),
             disappeared_at: None,
             embedding: None,
@@ -566,5 +622,102 @@ async fn handle_create_needs_from_resource_link(
         organization_name: "Resource Link".to_string(),
         title: format!("{} needs created", created_count),
         submission_type: "user_submitted".to_string(),
+    })
+}
+
+/// Extract domain from URL (e.g., "https://example.org/path" -> "example.org")
+fn extract_domain(url: &str) -> Option<String> {
+    url::Url::parse(url).ok().and_then(|parsed| {
+        parsed.host_str().map(|host| {
+            // Remove www. prefix if present for consistent matching
+            host.strip_prefix("www.").unwrap_or(host).to_lowercase()
+        })
+    })
+}
+
+async fn handle_create_organization_source_from_link(
+    url: String,
+    organization_name: String,
+    submitter_contact: Option<String>,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<OrganizationEvent> {
+    use crate::common::{JobId, SourceId};
+    use crate::domains::organization::models::OrganizationSource;
+    use tracing::info;
+
+    // Generate a new job ID for tracking the scraping workflow
+    let job_id = JobId::new();
+
+    info!(
+        url = %url,
+        organization_name = %organization_name,
+        job_id = %job_id,
+        "Processing submitted resource link"
+    );
+
+    // Extract domain from submitted URL
+    let domain = extract_domain(&url).ok_or_else(|| {
+        anyhow::anyhow!("Invalid URL: could not extract domain")
+    })?;
+
+    info!(domain = %domain, "Extracted domain from URL");
+
+    // Check if we already have a source for this domain
+    let existing_sources = OrganizationSource::find_active(&ctx.deps().db_pool).await?;
+
+    let matching_source = existing_sources.iter().find(|source| {
+        if let Some(existing_domain) = extract_domain(&source.source_url) {
+            existing_domain == domain
+        } else {
+            false
+        }
+    });
+
+    let (source_id, event_type) = if let Some(existing) = matching_source {
+        // Domain already exists - add URL to scrape_urls
+        info!(
+            source_id = %existing.id,
+            existing_org = %existing.organization_name,
+            "Found existing source for domain, adding URL to scrape_urls"
+        );
+
+        OrganizationSource::add_scrape_url(existing.id, url.clone(), &ctx.deps().db_pool).await?;
+
+        (existing.id, "added_to_existing")
+    } else {
+        // New domain - create new source
+        info!(domain = %domain, "No existing source found, creating new organization");
+
+        let source_id = SourceId::new();
+        let source = OrganizationSource {
+            id: source_id,
+            organization_name: organization_name.clone(),
+            source_url: url.clone(),
+            scrape_urls: None, // No specific URLs configured initially
+            last_scraped_at: None,
+            scrape_frequency_hours: 24, // Default to daily scrapes
+            active: true,
+            created_at: chrono::Utc::now(),
+        };
+
+        source.insert(&ctx.deps().db_pool).await?;
+
+        (source_id, "created_new")
+    };
+
+    info!(
+        source_id = %source_id,
+        job_id = %job_id,
+        event_type = %event_type,
+        "Organization source processed successfully"
+    );
+
+    // Return event with job_id for tracking
+    Ok(OrganizationEvent::OrganizationSourceCreatedFromLink {
+        source_id,
+        job_id,
+        url,
+        organization_name,
+        submitter_contact,
     })
 }

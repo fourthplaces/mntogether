@@ -1,0 +1,3 @@
+name: mndigitalaid-core
+runtime: nodejs
+description: Core infrastructure for mndigitalaid (RDS, certificates, networking)

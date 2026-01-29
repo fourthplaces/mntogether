@@ -15,6 +15,10 @@ path = "src/server/main.rs"
 name = "seed_organizations"
 path = "src/bin/seed_organizations.rs"
 
+[[bin]]
+name = "generate_embeddings"
+path = "src/bin/generate_embeddings.rs"
+
 [dependencies]
 # Async runtime
 tokio = { workspace = true }
@@ -39,6 +43,9 @@ tracing-subscriber = { workspace = true }
 # Event-driven architecture
 seesaw = { path = "../seesaw-rs", features = ["testing"] }
 
+# Intelligent crawler
+intelligent-crawler = { path = "../intelligent-crawler" }
+
 # Authentication
 twilio = { path = "../twilio-rs" }
 jsonwebtoken = "9"
@@ -61,12 +68,14 @@ tower-http = { workspace = true }
 tower_governor = "0.4"
 hyper = { version = "1", features = ["full"] }
 
-# HTTP client (for Firecrawl, Tavily, Expo)
+# HTTP client (for Expo)
 reqwest = { workspace = true }
 urlencoding = "2.1"
+url = "2.5"
 
-# Authentication (admin only)
-clerk-rs = "0.3"
+# Web scraping and search SDKs
+firecrawl = "1.2.1"
+tavily = "2.1.0"
 
 # Cron jobs
 tokio-cron-scheduler = "0.10"
@@ -83,6 +92,10 @@ sha2 = { workspace = true }
 
 # Markdown rendering (optional - for display_markdown)
 pulldown-cmark = "0.9"
+hex = "0.4"
+
+# Builder pattern
+typed-builder = "0.20"
 
 [dev-dependencies]
 # Testing

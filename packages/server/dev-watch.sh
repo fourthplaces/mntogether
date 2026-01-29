@@ -56,11 +56,6 @@ if [ -z "$EXPO_ACCESS_TOKEN" ]; then
     MISSING_OPTIONAL=1
 fi
 
-if [ -z "$CLERK_SECRET_KEY" ]; then
-    echo "ℹ️  INFO: CLERK_SECRET_KEY is not set (optional)"
-    MISSING_OPTIONAL=1
-fi
-
 if [ $MISSING_REQUIRED -eq 1 ]; then
     echo ""
     echo "❌ ERROR: Required API keys are missing!"
@@ -101,13 +96,17 @@ echo ""
 echo "[dev-watch] Building admin-spa..."
 cd /app/packages/admin-spa
 if [ -f "package.json" ]; then
-    # Install dependencies if node_modules doesn't exist
-    if [ ! -d "node_modules" ]; then
-        echo "[dev-watch] Installing admin-spa dependencies..."
-        $INSTALL_CMD || {
-            echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
-        }
+    # Remove node_modules and lock files to ensure clean ARM64 install
+    # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
+    if [ -d "node_modules" ]; then
+        echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
+        rm -rf node_modules package-lock.json yarn.lock
     fi
+
+    echo "[dev-watch] Installing admin-spa dependencies..."
+    $INSTALL_CMD || {
+        echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
+    }
 
     # Build admin-spa
     $BUILD_CMD || {
@@ -123,13 +122,17 @@ echo ""
 echo "[dev-watch] Building web-app..."
 cd /app/packages/web-app
 if [ -f "package.json" ]; then
-    # Install dependencies if node_modules doesn't exist
-    if [ ! -d "node_modules" ]; then
-        echo "[dev-watch] Installing web-app dependencies..."
-        $INSTALL_CMD || {
-            echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
-        }
+    # Remove node_modules and lock files to ensure clean ARM64 install
+    # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
+    if [ -d "node_modules" ]; then
+        echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
+        rm -rf node_modules package-lock.json yarn.lock
     fi
+
+    echo "[dev-watch] Installing web-app dependencies..."
+    $INSTALL_CMD || {
+        echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
+    }
 
     # Build web-app
     $BUILD_CMD || {
@@ -150,8 +153,12 @@ sqlx migrate run || {
 echo ""
 
 # Run cargo watch
-# Watch all packages in the workspace and reload on changes
+# Watch only Rust packages to prevent restart loops from frontend builds
 echo "[dev-watch] Starting cargo watch..."
 exec cargo watch \
-    -w /app/packages \
+    -w /app/packages/server \
+    -w /app/packages/seesaw-rs \
+    -w /app/packages/twilio-rs \
+    -w /app/Cargo.toml \
+    -w /app/Cargo.lock \
     -s 'cargo run --bin server'

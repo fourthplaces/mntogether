@@ -8,7 +8,7 @@ pub struct Config {
     pub database_url: String,
     pub redis_url: String,
     pub port: u16,
-    pub anthropic_api_key: String,
+    pub openai_api_key: String,
     pub voyage_api_key: String,
     pub firecrawl_api_key: String,
     pub tavily_api_key: Option<String>,
@@ -37,8 +37,8 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .context("PORT must be a valid number")?,
-            anthropic_api_key: env::var("ANTHROPIC_API_KEY")
-                .context("ANTHROPIC_API_KEY must be set")?,
+            openai_api_key: env::var("OPENAI_API_KEY")
+                .context("OPENAI_API_KEY must be set")?,
             voyage_api_key: env::var("VOYAGE_API_KEY").context("VOYAGE_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,

@@ -25,6 +25,7 @@ pub struct ExtractedNeedInput {
     pub contact: Option<serde_json::Value>,
     pub urgency: Option<String>,
     pub confidence: Option<String>,
+    pub source_url: Option<String>, // Page URL where need was found
 }
 
 /// Synchronize extracted needs with database
@@ -127,6 +128,7 @@ async fn create_pending_need(
         None, // submitted_by_volunteer_id
         None, // submitted_from_ip
         Some(source_id),
+        need.source_url.clone(),
         pool,
     )
     .await?;
@@ -149,6 +151,7 @@ mod tests {
             contact: None,
             urgency: None,
             confidence: None,
+            source_url: None,
         };
 
         let hash1 =

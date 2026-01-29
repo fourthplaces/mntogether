@@ -1,0 +1,193 @@
+name: Deploy Frontend
+
+on:
+  workflow_run:
+    workflows: [Deploy Server]
+    types: [completed]
+  push:
+    branches: [main, dev]
+    paths:
+      - "packages/admin-spa/**"
+      - "packages/web-app/**"
+      - "infra/packages/admin-spa/**"
+      - "infra/packages/web-app/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+    inputs:
+      env:
+        description: "Environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+      ref:
+        description: "Git ref to deploy"
+        required: true
+
+concurrency:
+  group: deploy-frontend-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  deploy-admin-spa:
+    name: Deploy Admin SPA
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
+    env:
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=${{ inputs.env }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.env.outputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup yarn
+        run: corepack enable && corepack prepare yarn@4.1.0 --activate
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build admin SPA
+        working-directory: packages/admin-spa
+        run: yarn build
+        env:
+          NODE_ENV: production
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: yarn install
+
+      - name: Build infra
+        working-directory: infra
+        run: yarn build
+
+      - uses: pulumi/actions@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy admin SPA
+        working-directory: infra/packages/admin-spa
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          pulumi stack select ${{ steps.env.outputs.env }} --create || pulumi stack select ${{ steps.env.outputs.env }}
+          pulumi up --yes --skip-preview
+
+      - name: Get deployment URL
+        id: url
+        working-directory: infra/packages/admin-spa
+        run: |
+          URL=$(pulumi stack output targetUrl)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Admin SPA deployed successfully!"
+          echo "Environment: ${{ steps.env.outputs.env }}"
+          echo "URL: ${{ steps.url.outputs.url }}"
+
+  deploy-web-app:
+    name: Deploy Web App
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
+    env:
+      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+    steps:
+      - name: Determine environment
+        id: env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "env=${{ inputs.env }}" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
+            echo "env=prod" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "env=dev" >> "$GITHUB_OUTPUT"
+            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.env.outputs.ref }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup yarn
+        run: corepack enable && corepack prepare yarn@4.1.0 --activate
+
+      - name: Install dependencies
+        run: yarn install
+
+      - name: Build web app
+        working-directory: packages/web-app
+        run: yarn build
+        env:
+          NODE_ENV: production
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: yarn install
+
+      - name: Build infra
+        working-directory: infra
+        run: yarn build
+
+      - uses: pulumi/actions@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Deploy web app
+        working-directory: infra/packages/web-app
+        env:
+          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+        run: |
+          pulumi stack select ${{ steps.env.outputs.env }} --create || pulumi stack select ${{ steps.env.outputs.env }}
+          pulumi up --yes --skip-preview
+
+      - name: Get deployment URL
+        id: url
+        working-directory: infra/packages/web-app
+        run: |
+          URL=$(pulumi stack output targetUrl)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Web app deployed successfully!"
+          echo "Environment: ${{ steps.env.outputs.env }}"
+          echo "URL: ${{ steps.url.outputs.url }}"

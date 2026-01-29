@@ -42,10 +42,31 @@ async fn handle_sync_needs(
     needs: Vec<crate::common::ExtractedNeed>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<OrganizationEvent> {
+    tracing::info!(
+        source_id = %source_id,
+        job_id = %job_id,
+        needs_count = needs.len(),
+        "Starting database sync for extracted needs"
+    );
+
     let result =
         match super::syncing::sync_extracted_needs(source_id, needs, &ctx.deps().db_pool).await {
-            Ok(r) => r,
+            Ok(r) => {
+                tracing::info!(
+                    source_id = %source_id,
+                    new_count = r.new_count,
+                    changed_count = r.changed_count,
+                    disappeared_count = r.disappeared_count,
+                    "Database sync completed successfully"
+                );
+                r
+            }
             Err(e) => {
+                tracing::error!(
+                    source_id = %source_id,
+                    error = %e,
+                    "Database sync failed"
+                );
                 return Ok(OrganizationEvent::SyncFailed {
                     source_id,
                     job_id,
@@ -54,6 +75,11 @@ async fn handle_sync_needs(
             }
         };
 
+    tracing::info!(
+        source_id = %source_id,
+        job_id = %job_id,
+        "Emitting NeedsSynced event"
+    );
     Ok(OrganizationEvent::NeedsSynced {
         source_id,
         job_id,

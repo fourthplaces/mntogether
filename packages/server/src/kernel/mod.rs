@@ -7,12 +7,15 @@
 // Business logic belongs in domain layers.
 
 pub mod ai;
+pub mod ai_matching;
+pub mod job_queue;
 pub mod scheduled_tasks;
 pub mod server_kernel;
+pub mod tag;
 pub mod test_dependencies;
 pub mod traits;
 
-pub use ai::ClaudeClient;
+pub use ai::OpenAIClient;
 pub use server_kernel::ServerKernel;
 pub use test_dependencies::{
     MockAI, MockEmbeddingService, MockPushNotificationService, MockWebScraper, TestDependencies,

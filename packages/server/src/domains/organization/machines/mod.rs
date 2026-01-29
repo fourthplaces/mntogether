@@ -212,17 +212,28 @@ impl seesaw::Machine for OrganizationMachine {
             }
 
             // =========================================================================
-            // Resource link submission workflow: Request → Scrape → Extract → Create needs
+            // Resource link submission workflow: Request → Create Source → Scrape → Extract → Create needs
             // =========================================================================
             OrganizationEvent::SubmitResourceLinkRequested {
-                job_id,
                 url,
                 context,
                 submitter_contact,
+            } => Some(OrganizationCommand::CreateOrganizationSourceFromLink {
+                url: url.clone(),
+                organization_name: context.clone().unwrap_or_else(|| "Submitted Resource".to_string()),
+                submitter_contact: submitter_contact.clone(),
+            }),
+
+            // After source created, start scraping
+            OrganizationEvent::OrganizationSourceCreatedFromLink {
+                job_id,
+                url,
+                submitter_contact,
+                ..
             } => Some(OrganizationCommand::ScrapeResourceLink {
                 job_id: *job_id,
                 url: url.clone(),
-                context: context.clone(),
+                context: None, // Already stored in source
                 submitter_contact: submitter_contact.clone(),
             }),
 
@@ -333,6 +344,71 @@ impl seesaw::Machine for OrganizationMachine {
 
             // Authorization events - terminal events, no further action needed
             OrganizationEvent::AuthorizationDenied { .. } => None,
+
+            // =========================================================================
+            // Intelligent Crawler workflow: Request → Crawl → Detect → Extract → Relate
+            // =========================================================================
+            OrganizationEvent::SiteCrawlRequested { url, job_id } => {
+                Some(OrganizationCommand::CrawlSite {
+                    url: url.clone(),
+                    job_id: *job_id,
+                    page_limit: Some(15), // Default limit
+                })
+            }
+
+            OrganizationEvent::SiteCrawled {
+                url: _,
+                job_id,
+                snapshot_ids,
+            } => {
+                // Site was crawled, now detect information in the pages
+                Some(OrganizationCommand::DetectInformation {
+                    snapshot_ids: snapshot_ids.clone(),
+                    job_id: *job_id,
+                    detection_kind: "volunteer_opportunity".to_string(), // TODO: Make configurable
+                })
+            }
+
+            OrganizationEvent::InformationDetected {
+                job_id: _,
+                detection_ids,
+            } => {
+                // Information detected, now extract structured data
+                // For now, skip extraction if no detections found
+                if detection_ids.is_empty() {
+                    None
+                } else {
+                    // TODO: Get schema_id from configuration or detection kind
+                    // For now, we'll skip extraction as it needs a real schema
+                    None
+                }
+            }
+
+            OrganizationEvent::DataExtracted {
+                job_id,
+                extraction_ids,
+            } => {
+                // Data extracted, now resolve relationships
+                if extraction_ids.is_empty() {
+                    None
+                } else {
+                    Some(OrganizationCommand::ResolveRelationships {
+                        extraction_ids: extraction_ids.clone(),
+                        job_id: *job_id,
+                    })
+                }
+            }
+
+            OrganizationEvent::RelationshipsResolved { .. } => {
+                // Workflow complete
+                None
+            }
+
+            // Intelligent crawler failure events - terminal events
+            OrganizationEvent::SiteCrawlFailed { .. } => None,
+            OrganizationEvent::InformationDetectionFailed { .. } => None,
+            OrganizationEvent::DataExtractionFailed { .. } => None,
+            OrganizationEvent::RelationshipResolutionFailed { .. } => None,
         }
     }
 }

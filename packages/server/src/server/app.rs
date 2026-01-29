@@ -14,7 +14,7 @@ use crate::domains::organization::{
     },
     machines::OrganizationMachine,
 };
-use crate::kernel::ClaudeClient;
+use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
@@ -47,6 +47,7 @@ pub struct AppState {
     pub bus: EventBus,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
+    pub openai_client: Arc<OpenAIClient>,
 }
 
 /// Middleware to create GraphQLContext per-request
@@ -65,6 +66,7 @@ async fn create_graphql_context(
         auth_user,
         state.twilio.clone(),
         state.jwt_service.clone(),
+        state.openai_client.clone(),
     );
 
     // Add context to request extensions
@@ -77,7 +79,7 @@ async fn create_graphql_context(
 pub fn build_app(
     pool: PgPool,
     firecrawl_api_key: String,
-    anthropic_api_key: String,
+    openai_api_key: String,
     voyage_api_key: String,
     expo_access_token: Option<String>,
     twilio_account_sid: String,
@@ -100,17 +102,32 @@ pub fn build_app(
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
+    // Create intelligent crawler storage
+    let intelligent_crawler = Arc::new(intelligent_crawler::PostgresStorage::new(pool.clone()));
+
+    // Create OpenAI client (shared across effects and GraphQL)
+    let openai_client = Arc::new(OpenAIClient::new(openai_api_key));
+
     // Create server dependencies for effects (using trait objects for testability)
+    let firecrawl_client = FirecrawlClient::new(firecrawl_api_key)
+        .unwrap_or_else(|e| panic!("Failed to initialize Firecrawl client: {}. Check FIRECRAWL_API_KEY environment variable.", e));
+
     let server_deps = ServerDeps::new(
         pool.clone(),
-        Arc::new(FirecrawlClient::new(firecrawl_api_key)),
-        Arc::new(ClaudeClient::new(anthropic_api_key)),
+        Arc::new(firecrawl_client),
+        openai_client.clone(),
         Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         twilio.clone(),
+        intelligent_crawler,
         test_identifier_enabled,
         admin_identifiers,
     );
+
+    // Create job queue adapter for background commands
+    let job_queue = std::sync::Arc::new(crate::kernel::job_queue::SeesawJobQueueAdapter::new(
+        pool.clone(),
+    ));
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
@@ -128,8 +145,8 @@ pub fn build_app(
         // Auth domain
         .with_machine(crate::domains::auth::AuthMachine::new())
         .with_effect::<crate::domains::auth::AuthCommand, _>(crate::domains::auth::AuthEffect)
-        // TODO: Integrate job queue
-        // .with_job_queue(job_manager)
+        // Job queue for background commands
+        .with_job_queue(job_queue)
         .build();
 
     let handle = engine.start();
@@ -144,6 +161,7 @@ pub fn build_app(
         bus,
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
+        openai_client: openai_client.clone(),
     };
 
     // CORS configuration - whitelist specific origins for security
@@ -179,7 +197,7 @@ pub fn build_app(
             .burst_size(20) // Allow bursts up to 20
             .use_headers() // Extract IP from X-Forwarded-For header
             .finish()
-            .expect("Failed to build rate limiter"),
+            .expect("Rate limiter configuration is valid and should never fail"),
     );
 
     let rate_limit_layer = GovernorLayer {

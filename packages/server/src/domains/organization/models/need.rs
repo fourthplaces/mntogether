@@ -41,6 +41,7 @@ pub struct OrganizationNeed {
 
     // Sync tracking (for scraped needs)
     pub source_id: Option<SourceId>,
+    pub source_url: Option<String>, // Specific page URL where need was found
     pub last_seen_at: DateTime<Utc>,
     pub disappeared_at: Option<DateTime<Utc>>,
 
@@ -299,6 +300,7 @@ impl OrganizationNeed {
         submitted_by_member_id: Option<MemberId>,
         submitted_from_ip: Option<String>,
         source_id: Option<SourceId>,
+        source_url: Option<String>,
         pool: &PgPool,
     ) -> Result<Self> {
         let need = sqlx::query_as::<_, OrganizationNeed>(
@@ -316,8 +318,9 @@ impl OrganizationNeed {
                 submission_type,
                 submitted_by_member_id,
                 submitted_from_ip,
-                source_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet, $13)
+                source_id,
+                source_url
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::inet, $13, $14)
             RETURNING *
             "#,
         )
@@ -334,6 +337,7 @@ impl OrganizationNeed {
         .bind(submitted_by_member_id)
         .bind(submitted_from_ip)
         .bind(source_id)
+        .bind(source_url)
         .fetch_one(pool)
         .await?;
 
@@ -473,6 +477,15 @@ impl OrganizationNeed {
                 self.status
             );
         }
+        Ok(())
+    }
+
+    /// Delete a need by ID
+    pub async fn delete(id: NeedId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM organization_needs WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 }

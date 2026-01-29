@@ -61,7 +61,7 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-amber-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full">
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h1>
@@ -71,7 +71,7 @@ export function Login() {
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded text-sm">
+          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded text-sm">
             {error}
           </div>
         )}
@@ -87,7 +87,7 @@ export function Login() {
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 placeholder="+1234567890 or admin@example.com"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
                 disabled={sendingCode}
               />
               <p className="mt-1 text-xs text-gray-500">
@@ -98,7 +98,7 @@ export function Login() {
             <button
               type="submit"
               disabled={sendingCode}
-              className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-amber-700 text-white py-2 px-4 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sendingCode ? 'Sending...' : 'Send Verification Code'}
             </button>
@@ -114,7 +114,7 @@ export function Login() {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
                 placeholder="Enter 6-digit code"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
                 disabled={verifyingCode}
                 autoFocus
               />
@@ -127,7 +127,7 @@ export function Login() {
               <button
                 type="submit"
                 disabled={verifyingCode}
-                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full bg-amber-700 text-white py-2 px-4 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {verifyingCode ? 'Verifying...' : 'Verify & Sign In'}
               </button>
@@ -139,7 +139,7 @@ export function Login() {
                   setCode('');
                   setError(null);
                 }}
-                className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                className="w-full bg-stone-100 text-stone-700 py-2 px-4 rounded-md hover:bg-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-offset-2"
               >
                 Back
               </button>
