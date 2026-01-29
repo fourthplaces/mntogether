@@ -1,139 +1,170 @@
-# Dev CLI
+# Development CLI
 
-Interactive development CLI for Minnesota Digital Aid project.
+A comprehensive development environment management tool for the MNTogether project.
 
-## Installation
+## Quick Start
 
 ```bash
-# Build the CLI
-cargo build --bin dev
+# Run the CLI (builds automatically if needed)
+./dev.sh
 
-# Run the CLI
-cargo run --bin dev
+# Or with a specific command
+./dev.sh start          # Start development environment
+./dev.sh docker up      # Start Docker containers
+./dev.sh test          # Run tests
+./dev.sh --help        # Show all available commands
 ```
 
 ## Features
 
-### 📱 Start mobile (Expo)
-Launches the Expo development server for the mobile app.
+### Environment Management
+- **Start/Stop**: Quick commands to start/stop the full development environment
+- **Docker**: Manage containers (up, down, restart, rebuild, nuke)
+- **Logs**: Follow container logs with auto-reconnect
+- **Shell**: Open shell in running containers
 
-### 🐳 Docker Operations
-- **Docker start** - Start all Docker services (PostgreSQL, Redis, API)
-- **Docker restart** - Restart selected services
-- **Docker rebuild** - Rebuild and restart selected services
-- **Follow docker logs** - Stream logs from all services
+### Database
+- **Migrate**: Run SQL schema migrations (local or remote)
+- **Reset**: Drop and recreate database
+- **Seed**: Load test data
+- **Psql**: Open PostgreSQL shell
 
-### 🗄️ Database
-- **Run database migrations** - Execute pending migrations in the database
+### Code Quality
+- **Fmt**: Run code formatters (cargo fmt, prettier)
+- **Lint**: Run linters (clippy, eslint)
+- **Check**: Run pre-commit checks (fmt + lint + type check)
+- **Test**: Run test suites with filtering and watch mode
+- **Coverage**: Generate code coverage reports
 
-### 🔑 Environment Variables
+### Package Commands
+Packages define their own commands in `dev.toml` files:
 
-#### Check API keys status
-Shows which required and optional environment variables are set/missing.
+```toml
+# packages/server/dev.toml
+[cmd.build]
+default = "cargo build -p server"
+watch = "cargo watch -x 'build -p server'"
 
-#### 📝 Setup environment variables (wizard)
-**Interactive setup wizard** that walks you through each environment variable:
-
-1. Shows current value (masked for security)
-2. Lets you:
-   - Keep existing value
-   - Update to new value
-   - Skip (leave empty for optional vars)
-3. Saves all values to `packages/server/.env`
-4. Optionally pushes to Fly.io
-
-**Required variables:**
-- `OPENAI_API_KEY` - OpenAI API for AI features
-- `FIRECRAWL_API_KEY` - Firecrawl for web scraping
-- `TWILIO_ACCOUNT_SID` - Twilio for SMS
-- `TWILIO_AUTH_TOKEN` - Twilio authentication
-- `TWILIO_VERIFY_SERVICE_SID` - Twilio verify service
-- `JWT_SECRET` - JWT token signing (random 32+ char string)
-
-**Optional variables:**
-- `TAVILY_API_KEY` - Tavily search API
-- `EXPO_ACCESS_TOKEN` - Expo push notifications
-- `CLERK_SECRET_KEY` - Clerk authentication
-
-### 🚀 Manage Fly.io environment variables
-Interactive submenu for managing Fly.io secrets:
-
-- **List current secrets** - View all secrets on Fly.io
-- **Set a secret** - Add/update a single secret
-- **Pull secrets to .env** - View secret names (values not retrievable)
-- **Push secrets from .env** - Upload all secrets from local .env to Fly.io
-
-### 👤 Manage admin users
-Interactive submenu for managing admin email whitelist:
-
-- **Show current admin emails** - View configured admin emails from .env
-- **Add admin email** - Add new admin (validates email format)
-- **Remove admin email** - Remove existing admin from list
-- **Save to local .env** - Persist admin emails to `ADMIN_EMAILS` variable
-- **Push to Fly.io** - Deploy admin emails to production (updates `ADMIN_EMAILS` secret)
-
-**Admin Authentication:**
-- Admins are authenticated via email + OTP code
-- `ADMIN_EMAILS` environment variable whitelists authorized emails
-- Emails are case-insensitive
-- Separate identifiers must be created in the database (see docs)
-
-### 🌐 Open GraphQL Playground
-Opens the GraphQL playground in your default browser.
-
-## Quick Start
-
-1. **First run:**
-   ```bash
-   cargo run --bin dev
-   ```
-
-2. **Setup environment variables:**
-   - Select "📝 Setup environment variables (wizard)"
-   - Follow prompts to set each variable
-   - Variables are saved to `packages/server/.env`
-
-3. **Start Docker services:**
-   - Select "🐳 Docker start"
-   - Services available at:
-     - API: http://localhost:8080
-     - PostgreSQL: localhost:5432
-     - Redis: localhost:6379
-
-4. **View logs:**
-   - Select "📋 Follow docker logs"
-   - Press Ctrl+C to return to menu
-
-## Environment Setup Example
-
-```bash
-# Run the wizard
-cargo run --bin dev
-# Select: 📝 Setup environment variables (wizard)
-
-# For each variable:
-# - Shows help text with where to get the value
-# - Shows current value (if set)
-# - Lets you update, keep, or skip
-
-# Example wizard flow:
-────────────────────────────────────────────────────────────
-🔴 OPENAI_API_KEY
-   Required: OpenAI API key for AI features
-   Help: Get from https://platform.openai.com/api-keys
-   Current: Not set
-
-What would you like to do with OPENAI_API_KEY?
-> Set value now
-  Skip (leave empty)
-
-Enter value for OPENAI_API_KEY: sk-proj-...
-   ✓ Value updated
+[cmd.test]
+default = "cargo test -p server"
 ```
+
+Run with:
+```bash
+./dev.sh build              # Build all packages
+./dev.sh build --watch      # Build with watch mode
+./dev.sh cmd typecheck      # Run typecheck command
+./dev.sh cmd lint:fix       # Run lint with fix variant
+```
+
+### Watch Mode
+- Auto-rebuild on file changes
+- Supports API, app, or all targets
+
+### Environment Variables
+- Pull/push environment variables to/from Pulumi ESC
+- Set individual variables
+- Show deployment info
+
+### Utilities
+- **Doctor**: Check system prerequisites
+- **Status**: Show development environment status
+- **Sync**: Sync everything (git pull + env + migrate)
+- **Init**: First-time developer setup
+
+## Configuration
+
+### Global Configuration (.dev/config.toml)
+```toml
+[project]
+name = "mntogether"
+
+[workspaces]
+packages = ["packages/*"]
+
+[environments]
+available = ["dev", "prod"]
+default = "dev"
+
+[services]
+server = 8080
+postgres = 5432
+redis = 6379
+```
+
+### Package Configuration (packages/*/dev.toml)
+```toml
+# Mark as releasable package
+releasable = true
+
+# ECS service name (for CloudWatch logs)
+ecs_service = "mntogether-server"
+
+# Commands with variants
+[cmd.build]
+default = "cargo build -p server"
+release = "cargo build -p server --release"
+watch = "cargo watch -x 'build -p server'"
+```
+
+## Interactive Mode
+
+Run `./dev.sh` without arguments for an interactive menu with:
+- Fuzzy search through commands
+- Recent command history
+- Smart favorites based on usage
+- Visual indicators for service status
+
+## Advanced Features
+
+### AI Assistant
+- AI-powered code fixes
+- Custom lint rules
+- Task automation from markdown files
+
+### CI/CD Integration
+- View workflow runs
+- Watch build status
+- Trigger workflows
+- Re-run failed jobs
+
+### Release Management
+- Interactive package releases
+- Semantic versioning (patch, minor, major)
+- Git tagging and changelog generation
+- Rollback support
+
+### DevOps Mode
+```bash
+./dev.sh --devops
+```
+Access to:
+- ECS exec (SSH into containers)
+- Job queue debugging
+- CloudWatch logs
+- Remote database shell
 
 ## Tips
 
-- Use the wizard for initial setup - it's the easiest way to configure all variables
-- Check API key status before starting Docker to see what's missing
-- Push to Fly.io after setting local variables for production deployment
-- The wizard masks sensitive values for security (shows first/last 4 chars only)
+- Use `./dev.sh --help` to see all available commands
+- Most commands have short aliases (e.g., `d` for `docker`, `t` for `test`)
+- The CLI remembers your recent actions and suggests them
+- Configuration is hierarchical: `.dev/config.toml` → `packages/*/dev.toml`
+- All paths and patterns are configurable - no magic strings!
+
+## Development
+
+The CLI itself is a Rust package in `packages/dev-cli`. To work on it:
+
+```bash
+# Edit source files in packages/dev-cli/src/
+# The wrapper script (dev.sh) auto-rebuilds when needed
+
+# Manual build
+cargo build --release --bin dev
+
+# Run directly
+cargo run --bin dev -- <args>
+```
+
+See `packages/dev-cli/CLAUDE.md` for development guidelines.

@@ -180,7 +180,7 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                     .collect();
 
                 if !successful_notifications.is_empty() {
-                    batch_record_notifications(
+                    Notification::batch_create(
                         listing_id,
                         &successful_notifications,
                         &ctx.deps().db_pool,
@@ -259,55 +259,5 @@ async fn record_notification(
         })?;
 
     debug!("Successfully recorded notification");
-    Ok(())
-}
-
-/// Batch record notifications in database (5x faster than individual inserts)
-#[instrument(skip(pool, notifications), fields(listing_id = %listing_id, count = notifications.len()))]
-async fn batch_record_notifications(
-    listing_id: ListingId,
-    notifications: &[(MemberId, String)],
-    pool: &PgPool,
-) -> Result<()> {
-    if notifications.is_empty() {
-        return Ok(());
-    }
-
-    debug!("Batch recording {} notifications in database", notifications.len());
-
-    // Build VALUES clause with all notifications
-    let mut query = String::from(
-        "INSERT INTO notifications (listing_id, member_id, why_relevant, created_at) VALUES "
-    );
-
-    let mut values = Vec::new();
-    for (idx, (member_id, why_relevant)) in notifications.iter().enumerate() {
-        if idx > 0 {
-            query.push_str(", ");
-        }
-        query.push_str(&format!("(${}, ${}, ${}, NOW())",
-            idx * 3 + 1,
-            idx * 3 + 2,
-            idx * 3 + 3
-        ));
-        values.push(listing_id.into_uuid().to_string());
-        values.push(member_id.into_uuid().to_string());
-        values.push(why_relevant.clone());
-    }
-
-    // Execute batch insert
-    let mut q = sqlx::query(&query);
-    for value in &values {
-        q = q.bind(value);
-    }
-
-    q.execute(pool)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to batch record notifications");
-            anyhow::anyhow!("Failed to batch record notifications: {}", e)
-        })?;
-
-    info!("Successfully batch recorded {} notifications", notifications.len());
     Ok(())
 }

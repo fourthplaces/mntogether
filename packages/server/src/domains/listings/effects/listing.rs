@@ -278,7 +278,7 @@ async fn handle_update_listing_status(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can update listing status
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
@@ -320,7 +320,7 @@ async fn handle_update_listing_and_approve(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can edit and approve listings
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
@@ -412,7 +412,7 @@ async fn handle_create_custom_post(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can create custom posts
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
@@ -451,7 +451,7 @@ async fn handle_repost_listing(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can repost listings
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
@@ -487,7 +487,7 @@ async fn handle_expire_post(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can expire posts
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
@@ -511,7 +511,7 @@ async fn handle_archive_post(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Authorization check - only admins can archive posts
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
@@ -748,7 +748,7 @@ async fn handle_delete_listing(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Check authorization - only admins can delete listings
-    Actor::new(requested_by)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
         .check(ctx.deps())
         .await
@@ -779,7 +779,7 @@ async fn handle_add_scrape_url(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Check authorization - only admins can manage scrape URLs
-    Actor::new(requested_by)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
         .check(ctx.deps())
         .await
@@ -810,7 +810,7 @@ async fn handle_remove_scrape_url(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     // Check authorization - only admins can manage scrape URLs
-    Actor::new(requested_by)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
         .check(ctx.deps())
         .await

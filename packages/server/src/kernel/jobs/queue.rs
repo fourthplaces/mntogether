@@ -222,7 +222,6 @@ impl PostgresJobQueue {
         &self,
         payload: serde_json::Value,
         job_type: &str,
-        reference_id: Option<Uuid>,
         idempotency_key: Option<String>,
         command_version: i32,
         priority: JobPriority,

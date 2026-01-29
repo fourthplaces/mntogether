@@ -1,4 +1,4 @@
-use super::types::{ListingConnection, ListingStatusData, ListingType};
+use crate::domains::listings::data::{ListingConnection, ListingStatusData, ListingType};
 use crate::common::ListingId;
 use crate::domains::listings::models::Listing;
 use crate::server::graphql::context::GraphQLContext;

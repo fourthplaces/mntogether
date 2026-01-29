@@ -4,15 +4,16 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use seesaw_core::testing::SpyJobQueue;
+use seesaw_testing::SpyJobQueue;
 use seesaw_core::EventBus;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseWebScraper, ScrapeResult,
-    ServerKernel,
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseWebScraper,
+    PiiScrubResult, ScrapeResult, ServerKernel,
 };
+use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 
 // =============================================================================
 // Mock Web Scraper
@@ -193,6 +194,65 @@ impl BasePushNotificationService for MockPushNotificationService {
 }
 
 // =============================================================================
+// Mock PII Detector
+// =============================================================================
+
+pub struct MockPiiDetector {
+    scrub_enabled: bool,
+}
+
+impl MockPiiDetector {
+    pub fn new() -> Self {
+        Self {
+            scrub_enabled: true,
+        }
+    }
+
+    pub fn disabled() -> Self {
+        Self {
+            scrub_enabled: false,
+        }
+    }
+}
+
+#[async_trait]
+impl BasePiiDetector for MockPiiDetector {
+    async fn detect(&self, text: &str, context: DetectionContext) -> Result<PiiFindings> {
+        if self.scrub_enabled {
+            // Use real detection for tests
+            Ok(crate::common::pii::detect_pii_contextual(text, context))
+        } else {
+            Ok(PiiFindings::new())
+        }
+    }
+
+    async fn scrub(
+        &self,
+        text: &str,
+        context: DetectionContext,
+        strategy: RedactionStrategy,
+    ) -> Result<PiiScrubResult> {
+        if self.scrub_enabled {
+            let findings = self.detect(text, context).await?;
+            let pii_detected = !findings.is_empty();
+            let clean_text = crate::common::pii::redact_pii(text, &findings, strategy);
+
+            Ok(PiiScrubResult {
+                clean_text,
+                findings,
+                pii_detected,
+            })
+        } else {
+            Ok(PiiScrubResult {
+                clean_text: text.to_string(),
+                findings: PiiFindings::new(),
+                pii_detected: false,
+            })
+        }
+    }
+}
+
+// =============================================================================
 // TestDependencies - Builder for test dependencies
 // =============================================================================
 
@@ -202,6 +262,7 @@ pub struct TestDependencies {
     pub ai: Arc<MockAI>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
+    pub pii_detector: Arc<MockPiiDetector>,
     pub job_queue: Arc<SpyJobQueue>,
 }
 
@@ -212,6 +273,7 @@ impl TestDependencies {
             ai: Arc::new(MockAI::new()),
             embedding_service: Arc::new(MockEmbeddingService::new()),
             push_service: Arc::new(MockPushNotificationService::new()),
+            pii_detector: Arc::new(MockPiiDetector::new()),
             job_queue: Arc::new(SpyJobQueue::new()),
         }
     }
@@ -240,6 +302,12 @@ impl TestDependencies {
         self
     }
 
+    /// Set a mock PII detector
+    pub fn mock_pii(mut self, detector: MockPiiDetector) -> Self {
+        self.pii_detector = Arc::new(detector);
+        self
+    }
+
     /// Convert into a ServerKernel for testing
     pub fn into_kernel(self, db_pool: PgPool) -> Arc<ServerKernel> {
         Arc::new(ServerKernel::new(
@@ -248,6 +316,7 @@ impl TestDependencies {
             self.ai,
             self.embedding_service,
             self.push_service,
+            self.pii_detector,
             EventBus::new(),
             self.job_queue,
         ))

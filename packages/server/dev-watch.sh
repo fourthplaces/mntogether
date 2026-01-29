@@ -92,57 +92,63 @@ fi
 echo "[dev-watch] Using $PKG_MANAGER"
 echo ""
 
-# Build admin-spa on startup
-echo "[dev-watch] Building admin-spa..."
-cd /app/packages/admin-spa
-if [ -f "package.json" ]; then
-    # Remove node_modules and lock files to ensure clean ARM64 install
-    # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
-    if [ -d "node_modules" ]; then
-        echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
-        rm -rf node_modules package-lock.json yarn.lock
-    fi
-
-    echo "[dev-watch] Installing admin-spa dependencies..."
-    $INSTALL_CMD || {
-        echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
-    }
-
-    # Build admin-spa
-    $BUILD_CMD || {
-        echo "[dev-watch] WARNING: Admin-spa build failed, but continuing..."
-    }
-    echo "[dev-watch] Admin-spa built successfully!"
+# Build frontends on startup (skip if SKIP_FRONTEND_BUILD is set)
+if [ "$SKIP_FRONTEND_BUILD" = "true" ]; then
+    echo "[dev-watch] Skipping frontend builds (SKIP_FRONTEND_BUILD=true)"
+    echo ""
 else
-    echo "[dev-watch] WARNING: admin-spa package.json not found, skipping build"
-fi
-echo ""
+    # Build admin-spa on startup
+    echo "[dev-watch] Building admin-spa..."
+    cd /app/packages/admin-spa
+    if [ -f "package.json" ]; then
+        # Remove node_modules and lock files to ensure clean ARM64 install
+        # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
+        if [ -d "node_modules" ]; then
+            echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
+            rm -rf node_modules package-lock.json yarn.lock
+        fi
 
-# Build web-app on startup
-echo "[dev-watch] Building web-app..."
-cd /app/packages/web-app
-if [ -f "package.json" ]; then
-    # Remove node_modules and lock files to ensure clean ARM64 install
-    # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
-    if [ -d "node_modules" ]; then
-        echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
-        rm -rf node_modules package-lock.json yarn.lock
+        echo "[dev-watch] Installing admin-spa dependencies..."
+        $INSTALL_CMD || {
+            echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
+        }
+
+        # Build admin-spa
+        $BUILD_CMD || {
+            echo "[dev-watch] WARNING: Admin-spa build failed, but continuing..."
+        }
+        echo "[dev-watch] Admin-spa built successfully!"
+    else
+        echo "[dev-watch] WARNING: admin-spa package.json not found, skipping build"
     fi
+    echo ""
 
-    echo "[dev-watch] Installing web-app dependencies..."
-    $INSTALL_CMD || {
-        echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
-    }
+    # Build web-app on startup
+    echo "[dev-watch] Building web-app..."
+    cd /app/packages/web-app
+    if [ -f "package.json" ]; then
+        # Remove node_modules and lock files to ensure clean ARM64 install
+        # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
+        if [ -d "node_modules" ]; then
+            echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
+            rm -rf node_modules package-lock.json yarn.lock
+        fi
 
-    # Build web-app
-    $BUILD_CMD || {
-        echo "[dev-watch] WARNING: Web-app build failed, but continuing..."
-    }
-    echo "[dev-watch] Web-app built successfully!"
-else
-    echo "[dev-watch] WARNING: web-app package.json not found, skipping build"
+        echo "[dev-watch] Installing web-app dependencies..."
+        $INSTALL_CMD || {
+            echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
+        }
+
+        # Build web-app
+        $BUILD_CMD || {
+            echo "[dev-watch] WARNING: Web-app build failed, but continuing..."
+        }
+        echo "[dev-watch] Web-app built successfully!"
+    else
+        echo "[dev-watch] WARNING: web-app package.json not found, skipping build"
+    fi
+    echo ""
 fi
-echo ""
 
 # Run migrations on startup
 echo "[dev-watch] Running database migrations..."
@@ -157,8 +163,9 @@ echo ""
 echo "[dev-watch] Starting cargo watch..."
 exec cargo watch \
     -w /app/packages/server \
-    -w /app/packages/seesaw-rs \
     -w /app/packages/twilio-rs \
+    -w /app/packages/intelligent-crawler \
+    -w /app/packages/dev-cli \
     -w /app/Cargo.toml \
     -w /app/Cargo.lock \
-    -s 'cargo run --bin server'
+    -s 'cargo run --manifest-path /app/packages/server/Cargo.toml --bin server'

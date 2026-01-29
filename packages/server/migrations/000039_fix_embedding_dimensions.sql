@@ -43,4 +43,4 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- Add comment documenting the dimension standard
 COMMENT ON COLUMN organizations.embedding IS 'Semantic embedding (1024 dimensions from text-embedding-3-small)';
 COMMENT ON COLUMN members.embedding IS 'Semantic embedding (1024 dimensions from text-embedding-3-small)';
-COMMENT ON COLUMN organization_needs.embedding IS 'Semantic embedding (1024 dimensions from text-embedding-3-small)';
+COMMENT ON COLUMN listings.embedding IS 'Semantic embedding (1024 dimensions from text-embedding-3-small)';

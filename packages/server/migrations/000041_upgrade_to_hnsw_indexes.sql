@@ -16,9 +16,9 @@ CREATE INDEX idx_members_embedding ON members
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
--- Upgrade organization_needs embedding index
-DROP INDEX IF EXISTS idx_organization_needs_embedding;
-CREATE INDEX idx_organization_needs_embedding ON organization_needs
+-- Upgrade listings embedding index
+DROP INDEX IF EXISTS idx_listings_embedding;
+CREATE INDEX idx_listings_embedding ON listings
     USING hnsw (embedding vector_cosine_ops)
     WITH (m = 16, ef_construction = 64);
 
@@ -32,7 +32,7 @@ CREATE INDEX idx_organizations_embedding ON organizations
 COMMENT ON INDEX idx_members_embedding IS
     'HNSW index with m=16 (neighbors per layer), ef_construction=64 (build quality). Optimized for 100K-1M records.';
 
-COMMENT ON INDEX idx_organization_needs_embedding IS
+COMMENT ON INDEX idx_listings_embedding IS
     'HNSW index with m=16 (neighbors per layer), ef_construction=64 (build quality). Optimized for 100K-1M records.';
 
 COMMENT ON INDEX idx_organizations_embedding IS

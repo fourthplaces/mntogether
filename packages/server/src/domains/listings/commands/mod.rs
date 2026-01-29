@@ -249,8 +249,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*source_id.as_uuid()),
-                container_id: None,
             }),
             Self::ScrapeResourceLink { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "scrape_resource_link",
@@ -258,8 +256,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             Self::ExtractListings { source_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "extract_listings",
@@ -267,8 +263,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*source_id.as_uuid()),
-                container_id: None,
             }),
             Self::ExtractListingsFromResourceLink { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "extract_listings_from_resource_link",
@@ -276,8 +270,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             Self::SyncListings { source_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "sync_listings",
@@ -285,8 +277,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*source_id.as_uuid()),
-                container_id: None,
             }),
             Self::GenerateListingEmbedding { listing_id } => Some(seesaw_core::JobSpec {
                 job_type: "generate_listing_embedding",
@@ -294,8 +284,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*listing_id.as_uuid()),
-                container_id: None,
             }),
             Self::CrawlSite { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "crawl_site",
@@ -303,8 +291,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 3,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             Self::DetectInformation { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "detect_information",
@@ -312,8 +298,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             Self::ExtractData { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "extract_data",
@@ -321,8 +305,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             Self::ResolveRelationships { job_id, .. } => Some(seesaw_core::JobSpec {
                 job_type: "resolve_relationships",
@@ -330,8 +312,6 @@ impl seesaw_core::Command for ListingCommand {
                 max_retries: 2,
                 priority: 0,
                 version: 1,
-                reference_id: Some(*job_id.as_uuid()),
-                container_id: None,
             }),
             // Inline commands don't need job specs
             _ => None,

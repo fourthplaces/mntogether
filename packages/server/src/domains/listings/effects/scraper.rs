@@ -60,7 +60,7 @@ async fn handle_scrape_source(
     );
 
     // Authorization check - only admins can scrape sources
-    if let Err(auth_err) = Actor::new(requested_by)
+    if let Err(auth_err) = Actor::new(requested_by, _is_admin)
         .can(AdminCapability::TriggerScraping)
         .check(ctx.deps())
         .await

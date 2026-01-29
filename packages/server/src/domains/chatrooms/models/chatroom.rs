@@ -607,13 +607,13 @@ impl Message {
     /// Find messages for a chatroom (DEPRECATED - use find_by_container)
     #[deprecated(note = "Use find_by_container instead")]
     pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
-        Self::find_by_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
+        Self::find_by_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
     }
 
     /// Delete all messages in a chatroom (DEPRECATED - use delete_all_for_container)
     #[deprecated(note = "Use delete_all_for_container instead")]
     pub async fn delete_all_for_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<()> {
-        Self::delete_all_for_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
+        Self::delete_all_for_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
     }
 }
 
@@ -756,7 +756,7 @@ impl ReferralDocument {
     /// Find documents by chatroom (DEPRECATED - use find_by_container)
     #[deprecated(note = "Use find_by_container instead")]
     pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
-        Self::find_by_container(ContainerId::from(chatroom_id.as_uuid()), pool).await
+        Self::find_by_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
     }
 
     /// Find published documents

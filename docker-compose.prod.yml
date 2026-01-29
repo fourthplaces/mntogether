@@ -1,0 +1,131 @@
+# ============================================================================
+# Production Docker Compose Configuration
+# ============================================================================
+# This is a production-ready configuration with optimized builds and security
+#
+# IMPORTANT: For production, you should:
+# 1. Use managed database services (AWS RDS, DigitalOcean, etc.)
+# 2. Use managed Redis services (AWS ElastiCache, DigitalOcean, etc.)
+# 3. Set up proper SSL/TLS termination
+# 4. Configure monitoring and logging
+# 5. Set up automated backups
+# 6. Use secrets management (AWS Secrets Manager, HashiCorp Vault, etc.)
+#
+# Usage:
+#   docker compose -f docker-compose.prod.yml up -d
+# ============================================================================
+
+services:
+  # ========================================
+  # API Server (Production Build)
+  # ========================================
+  api:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile
+      args:
+        BUILDKIT_INLINE_CACHE: 1
+    container_name: mndigitalaid_api_prod
+    environment:
+      # Database & Cache (use external managed services)
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+
+      # Server Config
+      PORT: ${PORT:-8080}
+      RUST_LOG: ${RUST_LOG:-info,server_core=warn}
+
+      # AI Services
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
+
+      # Web Scraping & Search
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+
+      # SMS Authentication
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
+
+      # JWT Authentication
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
+
+      # Admin Authorization
+      ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS}
+
+      # Optional
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
+
+      # PII Protection
+      PII_SCRUBBING_ENABLED: ${PII_SCRUBBING_ENABLED:-true}
+      PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-true}
+
+      # Security: MUST be false in production
+      TEST_IDENTIFIER_ENABLED: false
+    ports:
+      - "8080:8080"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  # ========================================
+  # Web App (Production Build)
+  # ========================================
+  web-app:
+    build:
+      context: ./packages/web-app
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.yourdomain.com/graphql}
+    container_name: mndigitalaid_web_app_prod
+    environment:
+      NODE_ENV: production
+    ports:
+      - "3001:80"
+    restart: always
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 128M
+
+# ========================================
+# Networks
+# ========================================
+networks:
+  default:
+    name: mndigitalaid_prod_network
+    driver: bridge

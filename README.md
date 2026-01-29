@@ -17,14 +17,38 @@ This platform helps volunteers discover opportunities at immigrant resource orga
 
 ### Prerequisites
 
-- Rust 1.70+ and Cargo ([Install from rustup.rs](https://rustup.rs/))
 - Docker and Docker Compose ([Install Docker Desktop](https://www.docker.com/products/docker-desktop/))
-- PostgreSQL with pgvector extension
-- API keys: OpenAI, Firecrawl, Twilio (SMS auth)
+- API keys: OpenAI, Voyage AI, Firecrawl, Twilio (SMS auth)
 
 ### 🚀 One-Command Setup
 
-The easiest way to get started:
+**Option 1: Docker Compose (Recommended)**
+
+The fastest way to get started:
+
+```bash
+# Copy environment template
+cp .env.example .env
+# Edit .env and add your API keys
+
+# Start all services
+make up
+
+# Run migrations
+make migrate
+
+# Access the application
+# - API: http://localhost:8080
+# - GraphQL Playground: http://localhost:8080/graphql
+# - Web App: http://localhost:3001
+# - Admin Dashboard: http://localhost:3001/admin
+```
+
+See [DOCKER_GUIDE.md](DOCKER_GUIDE.md) for complete Docker setup documentation.
+
+**Option 2: Interactive CLI**
+
+For a guided interactive setup:
 
 ```bash
 ./dev.sh
@@ -38,26 +62,22 @@ This single entry point will:
    - Managing Docker services
    - Viewing logs
 
-See [DEV_CLI.md](DEV_CLI.md) for complete documentation.
+See [DEV_CLI.md](docs/setup/DEV_CLI.md) for complete CLI documentation.
 
 ### Environment Variables
 
 Before starting, create your environment file:
 
 ```bash
-cd packages/server
 cp .env.example .env
 # Edit .env and add your API keys
 ```
 
-Required keys:
+**Required keys:**
 ```env
-# Core services
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/mndigitalaid
-REDIS_URL=redis://localhost:6379
-
 # AI/ML
-OPENAI_API_KEY=sk-...                    # Required: GPT-4o + embeddings
+OPENAI_API_KEY=sk-...                    # Required: GPT-4o for need extraction
+VOYAGE_API_KEY=pa-...                    # Required: Embeddings
 
 # Web scraping
 FIRECRAWL_API_KEY=fc-...                 # Required: Source scraping
@@ -70,91 +90,70 @@ TWILIO_VERIFY_SERVICE_SID=VA...          # Required
 
 # JWT authentication
 JWT_SECRET=...                           # Required: 32+ byte secret (generate with: openssl rand -base64 32)
-JWT_ISSUER=mndigitalaid                  # Optional: JWT issuer identifier
 
-# Push notifications
-EXPO_ACCESS_TOKEN=...                    # Optional: Higher rate limits
-
-# Server
-PORT=8080
-RUST_LOG=info,server_core=debug
+# Admin access
+ADMIN_IDENTIFIERS=admin@example.com      # Required: Comma-separated admin emails/phones
 ```
+
+See [.env.example](.env.example) for complete configuration options.
 
 ### Manual Setup (Alternative)
 
-If you prefer manual control:
+If you prefer manual control without Make:
 
-#### Backend Setup (Rust + GraphQL)
+#### Docker Compose Commands
 
-1. **Navigate to server package**:
+```bash
+# Start all services
+docker compose up -d
+
+# View logs
+docker compose logs -f
+
+# Run migrations
+docker compose exec api sqlx migrate run
+
+# Stop services
+docker compose down
+```
+
+#### Standalone Development (Without Docker)
+
+If you prefer running services directly:
+
+1. **Start PostgreSQL and Redis**:
+   ```bash
+   # Install PostgreSQL 14+ with pgvector
+   # Install Redis 6+
+   ```
+
+2. **Backend (Rust + GraphQL)**:
    ```bash
    cd packages/server
+   cp .env.example .env
+   # Edit .env with your API keys
+
+   cargo sqlx migrate run
+   cargo run --bin server
+   # API: http://localhost:8080
    ```
 
-2. **Start all services**:
+3. **Web App (React + Vite)**:
    ```bash
-   make up
-   # or: docker-compose up -d
+   cd packages/web-app
+   yarn install
+   yarn dev
+   # Access: http://localhost:3001
+   # Admin: http://localhost:3001/admin
    ```
 
-3. **Run database migrations**:
+4. **Expo App (React Native)**:
    ```bash
-   make migrate
-   # or: docker-compose exec api cargo sqlx migrate run
+   cd packages/app
+   npm install
+   npm start
+   # Press 'a' for Android, 'i' for iOS, 'w' for web
    ```
-
-4. **Prepare SQLx offline data** (required for compilation):
-   ```bash
-   cargo sqlx prepare --workspace
-   # This creates .sqlx/ with cached query data for offline compilation
-   ```
-
-5. **Build the server**:
-   ```bash
-   cargo build
-   # or from packages/server: make build
-   ```
-
-6. **Check logs**:
-   ```bash
-   make logs
-   # or: docker-compose logs -f
-   ```
-
-#### Frontend Setup
-
-##### Next.js Public Site (SSR)
-The Next.js app runs automatically with docker-compose and includes hot-reload:
-```bash
-# Already running with docker-compose up
-# Access: http://localhost:3000
-```
-
-Or run standalone:
-```bash
-cd packages/web-next
-yarn install
-yarn dev
-# Access: http://localhost:3000
-```
-
-##### Web App (React + Vite)
-The unified web app includes both public pages and admin dashboard:
-```bash
-cd packages/web-app
-yarn install
-yarn dev
-# Access: http://localhost:3001
-# Admin: http://localhost:3001/admin
-```
-
-##### Expo App (React Native)
-```bash
-cd packages/app
-npm install
-npm start
-# Press 'a' for Android, 'i' for iOS, 'w' for web
-```
 
 ### Available Services
 
@@ -181,19 +180,22 @@ This imports 50+ immigrant resource organizations from JSON with AI-powered tag 
 ### Development Commands
 
 ```bash
-# From packages/server/
+# From project root
 make help          # Show all available commands
-make up            # Start services
-make down          # Stop services
-make logs          # View logs
-make migrate       # Run migrations
-make test          # Run tests
-make build         # Build Rust project
-make check         # Fast compile check
+make up            # Start all services
+make down          # Stop all services
+make logs          # View logs from all services
+make migrate       # Run database migrations
+make seed          # Seed database with organizations
+make test          # Run Rust tests
+make build         # Rebuild containers
 make shell         # Open shell in API container
 make db-shell      # Open PostgreSQL shell
 make redis-cli     # Open Redis CLI
+make health        # Check service health
 ```
+
+See [Makefile](Makefile) for all available commands.
 
 ## Workspace Packages
 
@@ -237,7 +239,7 @@ mndigitalaid/
 │   ├── seesaw-rs/                # Event-driven framework
 │   ├── twilio-rs/                # SMS authentication client
 │   ├── dev-cli/                  # Interactive development CLI
-│   ├── admin-spa/                # Admin panel (React + Vite)
+│   ├── web-app/                  # Web app (public + admin, React + Vite)
 │   └── expo-app/                 # Mobile app (React Native)
 └── docs/                         # Documentation
 ```
@@ -280,7 +282,7 @@ All core features implemented and ready for production deployment:
 - ✅ Integration test harness
 - ✅ Docker Compose setup
 
-See [MVP_COMPLETE.md](MVP_COMPLETE.md) for full details.
+See [MVP_COMPLETE.md](docs/status/MVP_COMPLETE.md) for full details.
 
 ## Architecture Highlights
 
@@ -497,12 +499,16 @@ curl http://localhost:8080/health
 4. **No notification preferences**: All members get same notification types
 5. **No retry logic**: Expo notifications don't retry on failure
 
-## Learn More
+## Documentation
 
-- [MVP_COMPLETE.md](MVP_COMPLETE.md) - Complete feature list and testing checklist
-- [REFACTORING_COMPLETE.md](REFACTORING_COMPLETE.md) - Event-driven architecture details
-- [MATCHING_IMPLEMENTATION.md](MATCHING_IMPLEMENTATION.md) - Location-based matching system
-- [DEV_CLI.md](DEV_CLI.md) - Interactive development CLI documentation
+For complete documentation, see the [docs/](docs/) directory:
+
+- **[Documentation Index](docs/README.md)** - Complete documentation overview
+- **Setup Guides**: [Quick Start](docs/setup/QUICK_START.md), [Docker Setup](docs/setup/DOCKER_SETUP.md), [Deployment](docs/setup/DEPLOYMENT.md)
+- **Architecture**: [Domain Architecture](docs/architecture/DOMAIN_ARCHITECTURE.md), [Schema Design](docs/architecture/SCHEMA_DESIGN.md)
+- **Development**: [API Integration Guide](docs/guides/API_INTEGRATION_GUIDE.md), [Designer Guide](docs/guides/DESIGNER_GUIDE.md)
+- **Security**: [Authentication Guide](docs/security/AUTHENTICATION_GUIDE.md), [Security](docs/security/SECURITY.md)
+- **Status**: [MVP Complete](docs/status/MVP_COMPLETE.md), [Current Status](docs/status/CURRENT_STATUS.md)
 
 ## License
 

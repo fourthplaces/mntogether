@@ -4,9 +4,11 @@
 
 use juniper::Variables;
 use serde_json::Value;
-use server_core::kernel::ServerKernel;
+use server_core::domains::auth::JwtService;
+use server_core::kernel::{OpenAIClient, ServerKernel};
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
 use std::sync::Arc;
+use twilio::{TwilioOptions, TwilioService};
 
 /// GraphQL client for executing queries and mutations in tests.
 pub struct GraphQLClient {
@@ -54,8 +56,32 @@ impl GraphQLResult {
 impl GraphQLClient {
     /// Creates a new GraphQL client with the given kernel.
     pub fn new(kernel: Arc<ServerKernel>) -> Self {
-        let context = GraphQLContext::new(kernel);
+        // Create test instances of services needed by GraphQLContext
+        let twilio = Arc::new(TwilioService::new(TwilioOptions {
+            account_sid: "test_account_sid".to_string(),
+            auth_token: "test_auth_token".to_string(),
+            service_id: "test_service_id".to_string(),
+        }));
+        let jwt_service = Arc::new(JwtService::new("test_secret_key", "test_issuer".to_string()));
+        let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
+        let context = GraphQLContext::new(
+            kernel.db_pool.clone(),
+            kernel.bus.clone(),
+            None, // No auth user by default
+            twilio,
+            jwt_service,
+            openai_client,
+        );
+
+        Self {
+            schema: create_schema(),
+            context,
+        }
+    }
+
+    /// Creates a new GraphQL client with a custom context (for auth testing).
+    pub fn with_context(context: GraphQLContext) -> Self {
         Self {
             schema: create_schema(),
             context,

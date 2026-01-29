@@ -1,0 +1,68 @@
+# =============================================================================
+# Global Dev Configuration
+# =============================================================================
+# Settings here are shared across ALL packages and commands.
+# If a setting only applies to one package, put it in that package's dev.toml.
+
+[project]
+# Project name (used for Pulumi stack names, ECS service prefix, etc.)
+name = "mntogether"
+
+[workspaces]
+# Glob patterns for package discovery
+packages = ["packages/*"]
+infra = ["infra/*"]
+
+# Exclude specific packages
+exclude = []  # e.g., ["packages/some-internal-lib"]
+
+[git]
+# PR and release settings (apply to all packages)
+protected_branches = ["main", "master", "dev"]
+default_pr_base = "dev"
+
+[esc]
+# Pulumi ESC namespace for secrets
+# Used as: {namespace}/{env} -> mntogether/service/dev, mntogether/service/prod
+namespace = "mntogether/service"
+
+[environments]
+# Available environments for `./dev.sh env`, `./dev.sh deploy`, etc.
+available = ["dev", "prod"]
+default = "dev"
+
+[services]
+# service = container_port (host port resolved via `docker compose port`)
+server = 8080
+postgres = 5432
+redis = 6379
+
+[act]
+# GitHub Actions local runner settings (for `./dev.sh local`)
+container_architecture = "linux/amd64"
+docker_image = "catthehacker/ubuntu:act-latest"
+artifact_dir = ".act-artifacts"
+
+[test]
+# Test runner command (e.g., "cargo test" or "cargo nextest run")
+command = "cargo test"
+# Packages that require test coverage enforcement (empty = all, or list specific packages)
+coverage_packages = ["server"]
+
+[defaults]
+# CLI default values
+coverage_format = "html"
+release_list_count = 5
+load_test_requests = 1000
+concurrency = 10
+ci_runs_limit = 10
+
+[package_defaults]
+# Defaults for packages without dev.toml
+# {name} is replaced with package directory name
+release_tag_pattern = "{name}-v*"
+
+[ai]
+# AI task/preset system
+# Glob pattern for task files (markdown with YAML frontmatter)
+tasks = "docs/ai/tasks/*.md"
