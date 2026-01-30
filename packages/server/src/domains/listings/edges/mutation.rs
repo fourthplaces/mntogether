@@ -332,9 +332,9 @@ pub async fn submit_resource_link(
     // URL validation moved to effect (SubmitResourceLinkRequested handler)
     // Edge just dispatches the event
 
-    // Dispatch request event and await DomainCreatedFromLink event
+    // Dispatch request event and await DomainCreatedFromLink or DomainPendingApproval event
     // This follows proper seesaw encapsulation - job_id is created in the effect
-    let job_id = dispatch_request(
+    let (job_id, status, message) = dispatch_request(
         ListingEvent::SubmitResourceLinkRequested {
             url: input.url.clone(),
             context: input.context,
@@ -343,8 +343,21 @@ pub async fn submit_resource_link(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
+                // Domain approved - scraping started with job_id
                 ListingEvent::DomainCreatedFromLink { job_id, .. } => {
-                    Some(Ok(*job_id))
+                    Some(Ok((
+                        *job_id,
+                        "pending".to_string(),
+                        "Resource submitted successfully! We'll process it shortly.".to_string()
+                    )))
+                }
+                // Domain pending approval - return domain_id as job_id placeholder
+                ListingEvent::DomainPendingApproval { domain_id, .. } => {
+                    Some(Ok((
+                        JobId::from_uuid(domain_id.into_uuid()),
+                        "pending_review".to_string(),
+                        "Resource submitted! The domain is pending admin approval before we can scrape it.".to_string()
+                    )))
                 }
                 _ => None,
             })
@@ -362,8 +375,8 @@ pub async fn submit_resource_link(
 
     Ok(SubmitResourceLinkResult {
         job_id: job_id.into_uuid(),
-        status: "pending".to_string(),
-        message: "Resource submitted successfully! We'll process it shortly.".to_string(),
+        status,
+        message,
     })
 }
 

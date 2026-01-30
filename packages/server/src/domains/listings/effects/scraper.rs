@@ -188,24 +188,40 @@ async fn handle_scrape_source(
         );
     }
 
-    // Try to link domain_snapshot to page_snapshot if it exists
+    // Create or update domain_snapshot for this scrape
     // This creates traceability: domain_snapshot -> page_snapshot -> listings
-    if let Ok(domain_snapshots) = DomainSnapshot::find_by_domain(&ctx.deps().db_pool, source_id).await {
-        for ds in domain_snapshots {
-            if ds.page_url == source.domain_url && ds.page_snapshot_id.is_none() {
-                tracing::info!(
-                    domain_snapshot_id = %ds.id,
-                    page_snapshot_id = %page_snapshot.id,
-                    "Linking domain_snapshot to page_snapshot"
+    tracing::info!(
+        source_id = %source_id,
+        page_url = %source.domain_url,
+        "Creating/updating domain_snapshot entry"
+    );
+
+    match DomainSnapshot::upsert(
+        &ctx.deps().db_pool,
+        source_id,
+        source.domain_url.clone(),
+        None, // No specific submitter for manual admin scrapes
+    ).await {
+        Ok(domain_snapshot) => {
+            tracing::info!(
+                domain_snapshot_id = %domain_snapshot.id,
+                page_snapshot_id = %page_snapshot.id,
+                "Linking domain_snapshot to page_snapshot"
+            );
+            if let Err(e) = domain_snapshot.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
+                tracing::warn!(
+                    domain_snapshot_id = %domain_snapshot.id,
+                    error = %e,
+                    "Failed to link domain_snapshot to page_snapshot"
                 );
-                if let Err(e) = ds.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
-                    tracing::warn!(
-                        domain_snapshot_id = %ds.id,
-                        error = %e,
-                        "Failed to link domain_snapshot to page_snapshot"
-                    );
-                }
             }
+        }
+        Err(e) => {
+            tracing::warn!(
+                source_id = %source_id,
+                error = %e,
+                "Failed to create domain_snapshot, continuing anyway"
+            );
         }
     }
 

@@ -80,6 +80,40 @@ impl GraphQLClient {
         }
     }
 
+    /// Creates a new GraphQL client with an authenticated user.
+    pub fn with_auth_user(kernel: Arc<ServerKernel>, user_id: uuid::Uuid, is_admin: bool) -> Self {
+        use server_core::server::middleware::AuthUser;
+
+        let twilio = Arc::new(TwilioService::new(TwilioOptions {
+            account_sid: "test_account_sid".to_string(),
+            auth_token: "test_auth_token".to_string(),
+            service_id: "test_service_id".to_string(),
+        }));
+        let jwt_service = Arc::new(JwtService::new("test_secret_key", "test_issuer".to_string()));
+        let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
+
+        let auth_user = AuthUser {
+            user_id: user_id.to_string(),
+            member_id: server_core::common::MemberId::from_uuid(user_id),
+            phone_number: "+15555555555".to_string(),
+            is_admin,
+        };
+
+        let context = GraphQLContext::new(
+            kernel.db_pool.clone(),
+            kernel.bus.clone(),
+            Some(auth_user),
+            twilio,
+            jwt_service,
+            openai_client,
+        );
+
+        Self {
+            schema: create_schema(),
+            context,
+        }
+    }
+
     /// Creates a new GraphQL client with a custom context (for auth testing).
     pub fn with_context(context: GraphQLContext) -> Self {
         Self {

@@ -6,6 +6,7 @@ use crate::common::auth::HasAuthContext;
 use crate::kernel::{BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseWebScraper};
 
 /// Server dependencies accessible to effects (using traits for testability)
+#[derive(Clone)]
 pub struct ServerDeps {
     pub db_pool: PgPool,
     pub web_scraper: Arc<dyn BaseWebScraper>,

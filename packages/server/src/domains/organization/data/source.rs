@@ -11,9 +11,13 @@ use uuid::Uuid;
 pub struct SourceData {
     pub id: String,
     pub source_url: String, // Maps to domain_url in database
+    pub domain_url: String, // Alias for compatibility
     pub last_scraped_at: Option<String>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
+    pub status: String, // Domain approval status
+    pub submitted_by: Option<String>,
+    pub submitter_type: Option<String>,
     pub created_at: String,
 }
 
@@ -21,10 +25,14 @@ impl From<Domain> for SourceData {
     fn from(source: Domain) -> Self {
         Self {
             id: source.id.to_string(),
-            source_url: source.domain_url, // Map domain_url to source_url for frontend compatibility
+            source_url: source.domain_url.clone(), // Map domain_url to source_url for frontend compatibility
+            domain_url: source.domain_url, // Also expose as domainUrl
             last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
             scrape_frequency_hours: source.scrape_frequency_hours,
             active: source.active,
+            status: source.status,
+            submitted_by: source.submitted_by.map(|id| id.to_string()),
+            submitter_type: source.submitter_type,
             created_at: source.created_at.to_rfc3339(),
         }
     }
@@ -40,6 +48,10 @@ impl SourceData {
         self.source_url.clone()
     }
 
+    fn domain_url(&self) -> String {
+        self.domain_url.clone()
+    }
+
     fn last_scraped_at(&self) -> Option<String> {
         self.last_scraped_at.clone()
     }
@@ -52,8 +64,46 @@ impl SourceData {
         self.active
     }
 
+    fn status(&self) -> String {
+        self.status.clone()
+    }
+
+    fn submitted_by(&self) -> Option<String> {
+        self.submitted_by.clone()
+    }
+
+    fn submitter_type(&self) -> Option<String> {
+        self.submitter_type.clone()
+    }
+
     fn created_at(&self) -> String {
         self.created_at.clone()
+    }
+
+    /// Get count of domain snapshots (submitted pages)
+    async fn snapshots_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
+        let uuid = Uuid::parse_str(&self.id)?;
+        let domain_id = DomainId::from_uuid(uuid);
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM domain_snapshots WHERE domain_id = $1"
+        )
+        .bind(domain_id)
+        .fetch_one(&context.db_pool)
+        .await?;
+        Ok(count as i32)
+    }
+
+    /// Get count of listings from this domain
+    async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
+        let uuid = Uuid::parse_str(&self.id)?;
+        let domain_id = DomainId::from_uuid(uuid);
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM listings WHERE domain_id = $1"
+        )
+        .bind(domain_id)
+        .fetch_one(&context.db_pool)
+        .await?;
+        Ok(count as i32)
     }
 
     /// Get all listings scraped from this source
