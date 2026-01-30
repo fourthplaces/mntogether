@@ -80,6 +80,7 @@ pub fn build_app(
     firecrawl_api_key: String,
     openai_api_key: String,
     voyage_api_key: String,
+    tavily_api_key: Option<String>,
     expo_access_token: Option<String>,
     twilio_account_sid: String,
     twilio_auth_token: String,
@@ -117,6 +118,23 @@ pub fn build_app(
     let firecrawl_client = FirecrawlClient::new(firecrawl_api_key)
         .unwrap_or_else(|e| panic!("Failed to initialize Firecrawl client: {}. Check FIRECRAWL_API_KEY environment variable.", e));
 
+    // Create Tavily search client (or no-op if not configured)
+    let search_service: Arc<dyn crate::kernel::BaseSearchService> = if let Some(api_key) = tavily_api_key {
+        match crate::kernel::TavilyClient::new(api_key) {
+            Ok(client) => {
+                tracing::info!("Tavily search client initialized");
+                Arc::new(client)
+            }
+            Err(e) => {
+                tracing::warn!("Failed to initialize Tavily client: {}. Search features will be disabled.", e);
+                Arc::new(crate::kernel::NoopSearchService)
+            }
+        }
+    } else {
+        tracing::info!("TAVILY_API_KEY not configured, search features will be disabled");
+        Arc::new(crate::kernel::NoopSearchService)
+    };
+
     let server_deps = ServerDeps::new(
         pool.clone(),
         Arc::new(firecrawl_client),
@@ -124,6 +142,7 @@ pub fn build_app(
         Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         twilio.clone(),
+        search_service,
         test_identifier_enabled,
         admin_identifiers,
     );

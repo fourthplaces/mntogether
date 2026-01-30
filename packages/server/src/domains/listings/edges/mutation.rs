@@ -615,3 +615,271 @@ pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResul
     .await
     .map_err(|e| FieldError::new(format!("Failed to track post click: {}", e), juniper::Value::null()))
 }
+
+// =============================================================================
+// Domain Management Mutations
+// =============================================================================
+
+/// Approve a domain for crawling (admin only)
+/// Direct database operation - no event bus needed for approval workflow
+pub async fn approve_domain(
+    ctx: &GraphQLContext,
+    domain_id: String,
+) -> FieldResult<crate::domains::organization::data::SourceData> {
+    use crate::domains::scraping::models::Domain;
+    use uuid::Uuid;
+
+    info!(domain_id = %domain_id, "Approving domain");
+
+    // Get user info - must be admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Parse domain ID
+    let uuid = Uuid::parse_str(&domain_id)
+        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
+    let domain_id = DomainId::from_uuid(uuid);
+
+    // Approve using model method
+    let domain = Domain::approve(domain_id, user.member_id, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to approve domain: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(crate::domains::organization::data::SourceData::from(domain))
+}
+
+/// Reject a domain submission (admin only)
+/// Direct database operation - no event bus needed for approval workflow
+pub async fn reject_domain(
+    ctx: &GraphQLContext,
+    domain_id: String,
+    reason: String,
+) -> FieldResult<crate::domains::organization::data::SourceData> {
+    use crate::domains::scraping::models::Domain;
+    use uuid::Uuid;
+
+    info!(domain_id = %domain_id, reason = %reason, "Rejecting domain");
+
+    // Get user info - must be admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Parse domain ID
+    let uuid = Uuid::parse_str(&domain_id)
+        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
+    let domain_id = DomainId::from_uuid(uuid);
+
+    // Reject using model method
+    let domain = Domain::reject(domain_id, user.member_id, reason, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to reject domain: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(crate::domains::organization::data::SourceData::from(domain))
+}
+
+/// Suspend a domain (admin only)
+/// Direct database operation - no event bus needed for approval workflow
+pub async fn suspend_domain(
+    ctx: &GraphQLContext,
+    domain_id: String,
+    reason: String,
+) -> FieldResult<crate::domains::organization::data::SourceData> {
+    use crate::domains::scraping::models::Domain;
+    use uuid::Uuid;
+
+    info!(domain_id = %domain_id, reason = %reason, "Suspending domain");
+
+    // Get user info - must be admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Parse domain ID
+    let uuid = Uuid::parse_str(&domain_id)
+        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
+    let domain_id = DomainId::from_uuid(uuid);
+
+    // Suspend using model method
+    let domain = Domain::suspend(domain_id, user.member_id, reason, &ctx.db_pool)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to suspend domain: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    Ok(crate::domains::organization::data::SourceData::from(domain))
+}
+
+/// Refresh a page snapshot by re-scraping (admin only)
+/// Re-scrapes a specific domain snapshot to update listings when page content changes
+pub async fn refresh_page_snapshot(
+    ctx: &GraphQLContext,
+    snapshot_id: String,
+) -> FieldResult<ScrapeJobResult> {
+    use crate::domains::scraping::models::DomainSnapshot;
+    use uuid::Uuid;
+
+    info!(snapshot_id = %snapshot_id, "Refreshing page snapshot");
+
+    // Get user info - must be admin
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Parse snapshot ID
+    let snapshot_uuid = Uuid::parse_str(&snapshot_id)
+        .map_err(|_| FieldError::new("Invalid snapshot ID", juniper::Value::null()))?;
+
+    // Get the domain snapshot
+    let snapshot = DomainSnapshot::find_by_id(&ctx.db_pool, snapshot_uuid)
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to find snapshot: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
+
+    // Get the domain to verify it's approved
+    let domain = crate::domains::scraping::models::Domain::find_by_id(
+        snapshot.get_domain_id(),
+        &ctx.db_pool,
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to find domain: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    if domain.status != "approved" {
+        return Err(FieldError::new(
+            "Domain must be approved before refreshing",
+            juniper::Value::null(),
+        ));
+    }
+
+    // Trigger re-scrape by dispatching event (same as scrapeOrganization)
+    let source_id = snapshot.get_domain_id();
+    let job_id = JobId::new();
+
+    // Dispatch request event and await completion
+    let result = dispatch_request(
+        ListingEvent::ScrapeSourceRequested {
+            source_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success - scraping workflow complete
+                ListingEvent::ListingsSynced {
+                    source_id: synced_source_id,
+                    job_id: synced_job_id,
+                    new_count,
+                    changed_count,
+                    disappeared_count,
+                } if *synced_source_id == source_id && *synced_job_id == job_id => {
+                    Some(Ok((
+                        "completed".to_string(),
+                        format!(
+                            "Refresh complete! Found {} new, {} changed, {} disappeared",
+                            new_count, changed_count, disappeared_count
+                        ),
+                    )))
+                }
+                // Failure events
+                ListingEvent::ScrapeFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Scrape failed: {}", reason)))
+                }
+                ListingEvent::ExtractFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
+                }
+                ListingEvent::SyncFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == source_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
+                }
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "ScrapeSource" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Refresh failed: {}", e), juniper::Value::null()))?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: source_id.into_uuid(),
+        status,
+        message: Some(message),
+    })
+}

@@ -439,3 +439,78 @@ export const GET_LISTINGS_BY_PAGE = gql`
     }
   }
 `;
+
+// Agent queries
+export const GET_ALL_AGENTS = gql`
+  query GetAllAgents {
+    agents {
+      id
+      name
+      queryTemplate
+      description
+      enabled
+      searchFrequencyHours
+      lastSearchedAt
+      locationContext
+      searchDepth
+      maxResults
+      daysRange
+      minRelevanceScore
+      extractionInstructions
+      systemPrompt
+      autoApproveDomains
+      autoScrape
+      autoCreateListings
+      totalSearchesRun
+      totalDomainsDiscovered
+      totalDomainsApproved
+      createdAt
+    }
+  }
+`;
+
+export const GET_AGENT = gql`
+  query GetAgent($id: ID!) {
+    agent(id: $id) {
+      id
+      name
+      queryTemplate
+      description
+      enabled
+      searchFrequencyHours
+      lastSearchedAt
+      locationContext
+      searchDepth
+      maxResults
+      daysRange
+      minRelevanceScore
+      extractionInstructions
+      systemPrompt
+      autoApproveDomains
+      autoScrape
+      autoCreateListings
+      totalSearchesRun
+      totalDomainsDiscovered
+      totalDomainsApproved
+      createdAt
+      updatedAt
+    }
+  }
+`;
+
+export const GET_ADMIN_STATS = gql`
+  query GetAdminStats {
+    domains(status: null) {
+      id
+      status
+      listingsCount
+      createdAt
+    }
+
+    listings {
+      id
+      status
+      createdAt
+    }
+  }
+`;

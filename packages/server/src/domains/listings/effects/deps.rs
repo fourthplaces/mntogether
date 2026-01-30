@@ -3,7 +3,7 @@ use std::sync::Arc;
 use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
-use crate::kernel::{BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseWebScraper};
+use crate::kernel::{BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseSearchService, BaseWebScraper};
 
 /// Server dependencies accessible to effects (using traits for testability)
 #[derive(Clone)]
@@ -14,6 +14,7 @@ pub struct ServerDeps {
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<TwilioService>,
+    pub search_service: Arc<dyn BaseSearchService>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -27,6 +28,7 @@ impl ServerDeps {
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<TwilioService>,
+        search_service: Arc<dyn BaseSearchService>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
@@ -37,6 +39,7 @@ impl ServerDeps {
             embedding_service,
             push_service,
             twilio,
+            search_service,
             test_identifier_enabled,
             admin_identifiers,
         }

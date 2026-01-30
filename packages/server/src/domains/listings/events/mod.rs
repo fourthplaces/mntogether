@@ -312,4 +312,37 @@ pub enum ListingEvent {
         job_id: JobId,
         reason: String,
     },
+
+    // =========================================================================
+    // Agent Search Events (Tavily)
+    // =========================================================================
+    /// Request to run Tavily search for an agent
+    AgentSearchRequested {
+        agent_id: uuid::Uuid,
+        job_id: JobId,
+    },
+
+    /// Agent search completed, domains discovered
+    AgentSearchCompleted {
+        agent_id: uuid::Uuid,
+        job_id: JobId,
+        results_found: usize,
+        domains_created: usize,
+    },
+
+    /// Agent search failed
+    AgentSearchFailed {
+        agent_id: uuid::Uuid,
+        job_id: JobId,
+        reason: String,
+    },
+
+    /// Domain discovered by agent
+    DomainDiscoveredByAgent {
+        domain_id: DomainId,
+        agent_id: uuid::Uuid,
+        url: String,
+        title: String,
+        relevance_score: f64,
+    },
 }

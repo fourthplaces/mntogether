@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::common::{
-    ChatroomId, ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId, ListingId,
-    MemberId, MessageId, OrganizationId,
+    ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId,
+    MemberId, MessageId,
 };
 
 /// Container - generic message container for AI chat, listing comments, org discussions, etc.
@@ -15,17 +15,6 @@ pub struct Container {
     pub container_type: String, // 'ai_chat', 'listing_comments', 'org_discussion'
     pub entity_id: Option<uuid::Uuid>, // listing_id, organization_id, etc. (null for standalone chats)
     pub language: String,       // language_code from active_languages
-    pub created_at: DateTime<Utc>,
-    pub last_activity_at: DateTime<Utc>,
-}
-
-/// Chatroom - DEPRECATED: Use Container instead
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Chatroom {
-    pub id: ChatroomId,
-    pub container_type: String,
-    pub entity_id: Option<uuid::Uuid>,
-    pub language: String,
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
@@ -380,77 +369,6 @@ impl Container {
 }
 
 // =============================================================================
-// Chatroom Queries (DEPRECATED - use Container)
-// =============================================================================
-
-impl Chatroom {
-    /// Find chatroom by ID
-    #[deprecated(note = "Use Container::find_by_id instead")]
-    pub async fn find_by_id(id: ChatroomId, pool: &PgPool) -> Result<Self> {
-        let chatroom = sqlx::query_as::<_, Chatroom>("SELECT * FROM containers WHERE id = $1")
-            .bind(id)
-            .fetch_one(pool)
-            .await?;
-        Ok(chatroom)
-    }
-
-    /// Create a new chatroom (AI chat)
-    #[deprecated(note = "Use Container::create instead")]
-    pub async fn create(language: String, pool: &PgPool) -> Result<Self> {
-        let chatroom = sqlx::query_as::<_, Chatroom>(
-            r#"
-            INSERT INTO containers (container_type, language)
-            VALUES ('ai_chat', $1)
-            RETURNING *
-            "#,
-        )
-        .bind(language)
-        .fetch_one(pool)
-        .await?;
-        Ok(chatroom)
-    }
-
-    /// Update last activity timestamp
-    #[deprecated(note = "Use Container::touch_activity instead")]
-    pub async fn touch_activity(id: ChatroomId, pool: &PgPool) -> Result<Self> {
-        let chatroom = sqlx::query_as::<_, Chatroom>(
-            r#"
-            UPDATE containers
-            SET last_activity_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
-        Ok(chatroom)
-    }
-
-    /// Find recent chatrooms
-    #[deprecated(note = "Use Container::find_recent instead")]
-    pub async fn find_recent(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
-        let chatrooms = sqlx::query_as::<_, Chatroom>(
-            "SELECT * FROM containers WHERE container_type = 'ai_chat' ORDER BY last_activity_at DESC LIMIT $1",
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
-        Ok(chatrooms)
-    }
-
-    /// Delete a chatroom
-    #[deprecated(note = "Use Container::delete instead")]
-    pub async fn delete(id: ChatroomId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM containers WHERE id = $1")
-            .bind(id)
-            .execute(pool)
-            .await?;
-        Ok(())
-    }
-}
-
-// =============================================================================
 // Message Queries
 // =============================================================================
 
@@ -604,17 +522,6 @@ impl Message {
     // DEPRECATED - for backward compatibility with chatroom terminology
     // =============================================================================
 
-    /// Find messages for a chatroom (DEPRECATED - use find_by_container)
-    #[deprecated(note = "Use find_by_container instead")]
-    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
-        Self::find_by_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
-    }
-
-    /// Delete all messages in a chatroom (DEPRECATED - use delete_all_for_container)
-    #[deprecated(note = "Use delete_all_for_container instead")]
-    pub async fn delete_all_for_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<()> {
-        Self::delete_all_for_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
-    }
 }
 
 // =============================================================================
@@ -751,12 +658,6 @@ impl ReferralDocument {
         .fetch_all(pool)
         .await?;
         Ok(documents)
-    }
-
-    /// Find documents by chatroom (DEPRECATED - use find_by_container)
-    #[deprecated(note = "Use find_by_container instead")]
-    pub async fn find_by_chatroom(chatroom_id: ChatroomId, pool: &PgPool) -> Result<Vec<Self>> {
-        Self::find_by_container(ContainerId::from(*chatroom_id.as_uuid()), pool).await
     }
 
     /// Find published documents

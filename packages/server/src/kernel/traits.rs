@@ -115,3 +115,32 @@ pub trait BasePiiDetector: Send + Sync {
         strategy: RedactionStrategy,
     ) -> Result<PiiScrubResult>;
 }
+
+// =============================================================================
+// Search Service Trait (Infrastructure)
+// =============================================================================
+
+use serde::{Deserialize, Serialize};
+
+/// Result from a web search
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub title: String,
+    pub url: String,
+    pub content: String,
+    pub score: f64,
+    pub published_date: Option<String>,
+}
+
+/// Search service trait for discovering web content
+#[async_trait]
+pub trait BaseSearchService: Send + Sync {
+    /// Search for content with optional filters
+    async fn search(
+        &self,
+        query: &str,
+        max_results: Option<usize>,
+        search_depth: Option<&str>,
+        days: Option<i32>,
+    ) -> Result<Vec<SearchResult>>;
+}

@@ -1,0 +1,238 @@
+import { useQuery } from '@apollo/client';
+import { Link } from 'react-router-dom';
+import { gql } from '@apollo/client';
+
+const GET_ADMIN_STATS = gql`
+  query GetAdminStats {
+    domains(status: null) {
+      id
+      status
+      listingsCount
+      createdAt
+    }
+
+    listings {
+      id
+      status
+      createdAt
+    }
+  }
+`;
+
+interface Domain {
+  id: string;
+  status: string;
+  listingsCount: number;
+  createdAt: string;
+}
+
+interface Listing {
+  id: string;
+  status: string;
+  createdAt: string;
+}
+
+export function Dashboard() {
+  const { data, loading } = useQuery<{ domains: Domain[]; listings: Listing[] }>(
+    GET_ADMIN_STATS
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-stone-600">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  // Calculate stats
+  const totalDomains = data?.domains.length || 0;
+  const approvedDomains = data?.domains.filter(d => d.status === 'approved').length || 0;
+  const pendingDomains = data?.domains.filter(d => d.status === 'pending_review').length || 0;
+  const totalListings = data?.listings.length || 0;
+  const pendingListings = data?.listings.filter(l => l.status === 'pending_approval').length || 0;
+  const approvedListings = data?.listings.filter(l => l.status === 'approved').length || 0;
+  const totalListingsFromDomains = data?.domains.reduce((sum, d) => sum + d.listingsCount, 0) || 0;
+
+  // Recent activity (last 7 days)
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const recentDomains = data?.domains.filter(d => new Date(d.createdAt) > sevenDaysAgo).length || 0;
+  const recentListings = data?.listings.filter(l => new Date(l.createdAt) > sevenDaysAgo).length || 0;
+
+  const stats = [
+    {
+      title: 'Total Domains',
+      value: totalDomains,
+      subtitle: `${approvedDomains} approved, ${pendingDomains} pending`,
+      color: 'bg-blue-500',
+      link: '/admin/domains',
+    },
+    {
+      title: 'Total Listings',
+      value: totalListings,
+      subtitle: `${approvedListings} approved, ${pendingListings} pending`,
+      color: 'bg-green-500',
+      link: '/admin',
+    },
+    {
+      title: 'Pending Approvals',
+      value: pendingDomains + pendingListings,
+      subtitle: `${pendingDomains} domains, ${pendingListings} listings`,
+      color: 'bg-amber-500',
+      link: '/admin',
+    },
+    {
+      title: 'Scraped Listings',
+      value: totalListingsFromDomains,
+      subtitle: `From ${approvedDomains} approved domains`,
+      color: 'bg-purple-500',
+      link: '/admin/scraped',
+    },
+  ];
+
+  const recentActivity = [
+    {
+      title: 'New Domains (7 days)',
+      value: recentDomains,
+      icon: '🌐',
+    },
+    {
+      title: 'New Listings (7 days)',
+      value: recentListings,
+      icon: '📄',
+    },
+  ];
+
+  const quickActions = [
+    {
+      title: 'Review Pending Listings',
+      description: 'Approve or reject pending listings',
+      icon: '✅',
+      link: '/admin',
+      color: 'bg-green-600 hover:bg-green-700',
+      count: pendingListings,
+    },
+    {
+      title: 'Approve Domains',
+      description: 'Review and approve pending domains',
+      icon: '🌐',
+      link: '/admin/domains',
+      color: 'bg-blue-600 hover:bg-blue-700',
+      count: pendingDomains,
+    },
+    {
+      title: 'Manage Agents',
+      description: 'Create and configure autonomous agents',
+      icon: '🤖',
+      link: '/admin/agents',
+      color: 'bg-purple-600 hover:bg-purple-700',
+    },
+    {
+      title: 'Review Scraped Content',
+      description: 'See what agents have discovered',
+      icon: '🔍',
+      link: '/admin/scraped',
+      color: 'bg-amber-600 hover:bg-amber-700',
+    },
+  ];
+
+  return (
+    <div className="min-h-screen bg-stone-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-stone-900 mb-2">Admin Dashboard</h1>
+          <p className="text-stone-600">Overview of your community resources platform</p>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {stats.map((stat, index) => (
+            <Link
+              key={index}
+              to={stat.link}
+              className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-stone-600 uppercase tracking-wide">
+                  {stat.title}
+                </h3>
+                <div className={`w-2 h-2 rounded-full ${stat.color}`} />
+              </div>
+              <p className="text-3xl font-bold text-stone-900 mb-1">{stat.value}</p>
+              <p className="text-sm text-stone-500">{stat.subtitle}</p>
+            </Link>
+          ))}
+        </div>
+
+        {/* Recent Activity */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          {recentActivity.map((activity, index) => (
+            <div
+              key={index}
+              className="bg-white rounded-lg shadow-md p-6"
+            >
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-2xl">{activity.icon}</span>
+                <h3 className="text-lg font-semibold text-stone-900">{activity.title}</h3>
+              </div>
+              <p className="text-4xl font-bold text-amber-600">{activity.value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-stone-900 mb-4">Quick Actions</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {quickActions.map((action, index) => (
+              <Link
+                key={index}
+                to={action.link}
+                className={`${action.color} text-white rounded-lg shadow-md p-6 transition-all hover:shadow-lg relative overflow-hidden`}
+              >
+                {action.count !== undefined && action.count > 0 && (
+                  <div className="absolute top-2 right-2 bg-white text-stone-900 rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold">
+                    {action.count}
+                  </div>
+                )}
+                <div className="text-4xl mb-3">{action.icon}</div>
+                <h3 className="text-lg font-semibold mb-1">{action.title}</h3>
+                <p className="text-sm opacity-90">{action.description}</p>
+              </Link>
+            ))}
+          </div>
+        </div>
+
+        {/* System Status */}
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-xl font-bold text-stone-900 mb-4">System Status</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-stone-900">Scraper</p>
+                <p className="text-xs text-stone-600">Running (hourly)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+              <div>
+                <p className="text-sm font-medium text-stone-900">Agent Search</p>
+                <p className="text-xs text-stone-600">Active (hourly)</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <div>
+                <p className="text-sm font-medium text-stone-900">Database</p>
+                <p className="text-xs text-stone-600">Healthy</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

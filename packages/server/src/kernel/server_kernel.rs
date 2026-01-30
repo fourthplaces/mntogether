@@ -8,7 +8,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use super::{
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseWebScraper,
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
+    BaseWebScraper,
 };
 
 /// ServerKernel holds all server dependencies
@@ -18,6 +19,7 @@ pub struct ServerKernel {
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
+    pub search_service: Arc<dyn BaseSearchService>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
     /// Shared event bus for all engines and edges
     pub bus: EventBus,
@@ -33,6 +35,7 @@ impl ServerKernel {
         ai: Arc<dyn BaseAI>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
+        search_service: Arc<dyn BaseSearchService>,
         pii_detector: Arc<dyn BasePiiDetector>,
         bus: EventBus,
         job_queue: Arc<dyn JobQueue>,
@@ -43,6 +46,7 @@ impl ServerKernel {
             ai,
             embedding_service,
             push_service,
+            search_service,
             pii_detector,
             bus,
             job_queue,

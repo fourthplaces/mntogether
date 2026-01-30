@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use super::{AIEffect, ListingEffect, ScraperEffect, SyncEffect};
+use super::{AIEffect, ListingEffect, ScraperEffect, SearchEffect, SyncEffect};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -16,6 +16,7 @@ pub struct ListingCompositeEffect {
     ai: AIEffect,
     sync: SyncEffect,
     listing: ListingEffect,
+    search: SearchEffect,
 }
 
 impl ListingCompositeEffect {
@@ -25,6 +26,7 @@ impl ListingCompositeEffect {
             ai: AIEffect,
             sync: SyncEffect,
             listing: ListingEffect,
+            search: SearchEffect,
         }
     }
 }
@@ -55,6 +57,9 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
 
             // Route to SyncEffect
             ListingCommand::SyncListings { .. } => self.sync.execute(cmd, ctx).await,
+
+            // Route to SearchEffect
+            ListingCommand::ExecuteSearch { .. } => self.search.execute(cmd, ctx).await,
 
             // Route to ListingEffect (all other commands)
             ListingCommand::CreateDomainFromLink { .. }

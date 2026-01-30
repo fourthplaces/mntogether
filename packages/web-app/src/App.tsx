@@ -9,6 +9,9 @@ import { SubmitResource } from './pages/SubmitResource';
 
 // Admin pages
 import { Login } from './pages/admin/Login';
+import { Dashboard } from './pages/admin/Dashboard';
+import { AgentsEnhanced as Agents } from './pages/admin/AgentsEnhanced';
+import { Domains } from './pages/admin/Domains';
 import { ListingApprovalQueue } from './pages/admin/ListingApprovalQueue';
 import ScrapedListingsReview from './pages/admin/ScrapedListingsReview';
 import { Resources } from './pages/admin/Resources';
@@ -37,28 +40,34 @@ function AdminLayout() {
               </div>
               <div className="ml-6 flex space-x-8">
                 <Link
-                  to="/admin"
+                  to="/admin/dashboard"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
-                  Approval Queue
+                  📊 Dashboard
+                </Link>
+                <Link
+                  to="/admin/agents"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  🤖 Agents
+                </Link>
+                <Link
+                  to="/admin/domains"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  🌐 Domains
+                </Link>
+                <Link
+                  to="/admin/listings"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  ✅ Listings
                 </Link>
                 <Link
                   to="/admin/scraped"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
-                  🤖 Scraped Listings
-                </Link>
-                <Link
-                  to="/admin/resources"
-                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Resources
-                </Link>
-                <Link
-                  to="/admin/organizations"
-                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  Businesses
+                  🔍 Scraped
                 </Link>
               </div>
             </div>
@@ -81,7 +90,12 @@ function AdminLayout() {
       </nav>
 
       <Routes>
-        <Route path="/" element={<ListingApprovalQueue />} />
+        <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/agents" element={<Agents />} />
+        <Route path="/domains" element={<Domains />} />
+        <Route path="/domains/:sourceId" element={<ResourceDetail />} />
+        <Route path="/listings" element={<ListingApprovalQueue />} />
         <Route path="/scraped" element={<ScrapedListingsReview />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/resources/:sourceId" element={<ResourceDetail />} />

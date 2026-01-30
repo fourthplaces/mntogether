@@ -10,6 +10,7 @@ pub mod listing;
 pub mod listing_extraction; // Domain functions for AI extraction
 pub mod listing_operations; // Domain functions for listing CRUD operations
 pub mod scraper;
+pub mod search;
 pub mod sync;
 pub mod syncing; // Domain functions for listing synchronization
 pub mod utils;
@@ -19,6 +20,7 @@ pub use composite::*;
 pub use deps::*;
 pub use listing::*;
 pub use scraper::*;
+pub use search::*;
 pub use sync::*;
 pub use utils::*;
 
