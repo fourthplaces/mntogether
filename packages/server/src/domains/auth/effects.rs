@@ -82,6 +82,15 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                 }
 
                 // 2. Send OTP via Twilio (supports phone numbers and emails)
+                // TEST IDENTIFIER BYPASS: Skip actual OTP sending for test identifiers
+                #[cfg(debug_assertions)]
+                if ctx.deps().test_identifier_enabled
+                    && (phone_number == "+1234567890" || phone_number == "test@example.com")
+                {
+                    info!("Test identifier: Skipping actual OTP send for {}", phone_number);
+                    return Ok(AuthEvent::OTPSent { phone_number });
+                }
+
                 ctx.deps()
                     .twilio
                     .send_otp(&phone_number)

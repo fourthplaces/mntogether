@@ -3,6 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
+use super::listing::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, SourceId};
 use crate::domains::listings::commands::ListingCommand;
@@ -85,8 +86,7 @@ async fn handle_scrape_source(
         Ok(s) => {
             tracing::info!(
                 source_id = %source_id,
-                url = %s.source_url,
-                org = %s.organization_name,
+                url = %s.domain_url,
                 "Source found, preparing to scrape"
             );
             s
@@ -105,36 +105,24 @@ async fn handle_scrape_source(
         }
     };
 
-    // Check if specific URLs are configured, otherwise crawl the whole site
-    let urls_to_scrape: Vec<String> = if let Some(scrape_urls_json) = &source.scrape_urls {
-        // Parse scrape_urls JSON array
-        match serde_json::from_value::<Vec<String>>(scrape_urls_json.clone()) {
-            Ok(urls) if !urls.is_empty() => {
-                tracing::info!(
-                    source_id = %source_id,
-                    url_count = urls.len(),
-                    "Using specific scrape URLs instead of crawling"
-                );
-                urls
-            }
-            _ => {
-                // If parsing failed or empty, fall back to crawling
-                tracing::info!(
-                    source_id = %source_id,
-                    url = %source.source_url,
-                    "No specific URLs configured, crawling site"
-                );
-                vec![source.source_url.clone()]
-            }
-        }
+    // Check if specific URLs are configured in domain_scrape_urls, otherwise crawl the whole site
+    let scrape_urls = OrganizationSource::get_scrape_urls(source_id, &ctx.deps().db_pool).await?;
+
+    let urls_to_scrape: Vec<String> = if !scrape_urls.is_empty() {
+        tracing::info!(
+            source_id = %source_id,
+            url_count = scrape_urls.len(),
+            "Using specific scrape URLs from domain_scrape_urls table"
+        );
+        scrape_urls
     } else {
         // No scrape_urls configured, crawl the whole site
         tracing::info!(
             source_id = %source_id,
-            url = %source.source_url,
-            "No specific URLs configured, crawling site"
+            url = %source.domain_url,
+            "No specific URLs configured, crawling domain"
         );
-        vec![source.source_url.clone()]
+        vec![source.domain_url.clone()]
     };
 
     // If multiple URLs, scrape each individually and combine
@@ -178,9 +166,9 @@ async fn handle_scrape_source(
         }
 
         crate::kernel::ScrapeResult {
-            url: source.source_url.clone(),
+            url: source.domain_url.clone(),
             markdown: combined_markdown,
-            title: Some(source.organization_name.clone()),
+            title: Some(extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()).clone()),
         }
     } else {
         // Single URL - use normal crawling behavior
@@ -231,13 +219,13 @@ async fn handle_scrape_source(
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
-        organization_name = %source.organization_name,
+        organization_name = %extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
         "Scrape completed successfully, emitting SourceScraped event"
     );
     Ok(ListingEvent::SourceScraped {
         source_id,
         job_id,
-        organization_name: source.organization_name,
+        organization_name: extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
         content: scrape_result.markdown,
     })
 }

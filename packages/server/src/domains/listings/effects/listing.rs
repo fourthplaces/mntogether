@@ -641,7 +641,7 @@ use crate::domains::organization::models::OrganizationSource;
 }
 
 /// Extract domain from URL (e.g., "https://example.org/path" -> "example.org")
-fn extract_domain(url: &str) -> Option<String> {
+pub fn extract_domain(url: &str) -> Option<String> {
     url::Url::parse(url).ok().and_then(|parsed| {
         parsed.host_str().map(|host| {
             // Remove www. prefix if present for consistent matching
@@ -684,7 +684,7 @@ async fn handle_create_organization_source_from_link(
     let existing_sources = OrganizationSource::find_active(&ctx.deps().db_pool).await?;
 
     let matching_source = existing_sources.iter().find(|source| {
-        if let Some(existing_domain) = extract_domain(&source.source_url) {
+        if let Some(existing_domain) = extract_domain(&source.domain_url) {
             existing_domain == domain
         } else {
             false
@@ -692,11 +692,11 @@ async fn handle_create_organization_source_from_link(
     });
 
     let (source_id, event_type) = if let Some(existing) = matching_source {
-        // Domain already exists - add URL to scrape_urls
+        // Domain already exists - add URL to domain_scrape_urls
         info!(
             source_id = %existing.id,
-            existing_org = %existing.organization_name,
-            "Found existing source for domain, adding URL to scrape_urls"
+            domain = %existing.domain_url,
+            "Found existing source for domain, adding URL to domain_scrape_urls"
         );
 
         OrganizationSource::add_scrape_url(existing.id, url.clone(), &ctx.deps().db_pool).await?;
@@ -704,18 +704,17 @@ async fn handle_create_organization_source_from_link(
         (existing.id, "added_to_existing")
     } else {
         // New domain - create new source
-        info!(domain = %domain, "No existing source found, creating new organization");
+        info!(domain = %domain, "No existing source found, creating new domain");
 
         let source_id = SourceId::new();
         let source = OrganizationSource {
             id: source_id,
-            organization_name: organization_name.clone(),
-            source_url: url.clone(),
-            scrape_urls: None, // No specific URLs configured initially
+            domain_url: url.clone(),
             last_scraped_at: None,
             scrape_frequency_hours: 24, // Default to daily scrapes
             active: true,
             created_at: chrono::Utc::now(),
+            updated_at: chrono::Utc::now(),
         };
 
         source.insert(&ctx.deps().db_pool).await?;

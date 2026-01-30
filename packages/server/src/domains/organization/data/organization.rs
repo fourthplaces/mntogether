@@ -11,6 +11,7 @@ pub struct OrganizationData {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub domain_id: Option<String>,
     pub contact_info: Option<ContactInfo>,
     pub location: Option<String>,
     pub verified: bool,
@@ -44,6 +45,7 @@ impl From<Organization> for OrganizationData {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
+            domain_id: org.domain_id.map(|d| d.to_string()),
             contact_info,
             location: org.primary_address,
             verified: org.verified,
@@ -104,15 +106,24 @@ impl OrganizationData {
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 
-    /// Get sources for this organization
+    /// Get domain source for this organization (if linked to a domain)
     async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
         use crate::domains::organization::models::OrganizationSource;
+        use crate::common::SourceId;
 
-        // Use model method - note: sources are linked by organization_name, not ID
-        let sources =
-            OrganizationSource::find_by_organization_name(&self.name, &context.db_pool).await?;
+        // Organizations are now linked to domains, not sources directly
+        // If organization has a domain_id, return that domain source
+        if let Some(domain_id_str) = &self.domain_id {
+            if let Ok(uuid) = uuid::Uuid::parse_str(domain_id_str) {
+                let source_id = SourceId::from_uuid(uuid);
+                if let Ok(source) = OrganizationSource::find_by_id(source_id, &context.db_pool).await {
+                    return Ok(vec![SourceData::from(source)]);
+                }
+            }
+        }
 
-        Ok(sources.into_iter().map(SourceData::from).collect())
+        // No domain linked
+        Ok(vec![])
     }
 }
 

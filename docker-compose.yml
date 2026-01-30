@@ -116,6 +116,7 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_URL: http://localhost:8080/graphql
+      DOCKER_ENV: "true"
     ports:
       - "3001:3001"
     depends_on:

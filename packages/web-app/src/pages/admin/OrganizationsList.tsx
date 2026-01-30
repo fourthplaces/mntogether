@@ -1,7 +1,7 @@
 import { useQuery } from '@apollo/client';
-import { GET_CAUSE_DRIVEN_BUSINESSES } from '../graphql/queries';
-import { BusinessInfoCard } from '../components/BusinessInfoCard';
-import type { Organization } from '../types/organization';
+import { GET_CAUSE_DRIVEN_BUSINESSES } from '@/graphql/queries';
+import { BusinessInfoCard } from '@/components/BusinessInfoCard';
+import type { Organization } from '@/types/organization';
 
 interface OrganizationsResponse {
   organizations: Organization[];

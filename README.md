@@ -1,17 +1,19 @@
-# Minnesota Digital Aid
+# MN Together
 
-A privacy-first volunteer matching platform that connects community members with immigrant resource organizations using AI-powered semantic search and location-based filtering.
+A privacy-first platform connecting volunteers with immigrant resource organizations and cause-driven businesses in Minnesota, powered by AI semantic search and location-based matching.
 
 ## Overview
 
-This platform helps volunteers discover opportunities at immigrant resource organizations in Minnesota. It features:
+This platform connects volunteers with immigrant resource organizations and cause-driven businesses in Minnesota. It features:
 
 - **Privacy-First Design**: No PII storage, only coarse location data and Expo push tokens
+- **Cause-Driven Commerce**: Track businesses that donate proceeds to immigrant causes
 - **Text-First Architecture**: Searchable text as source of truth for anti-fragile evolution
-- **AI-Powered Matching**: GPT-4o extracts needs, embeddings enable semantic search
-- **Event-Driven Architecture**: Built with seesaw-rs for clean separation of concerns
+- **AI-Powered Matching**: GPT-4o extracts content, embeddings enable semantic search
+- **Event-Driven Architecture**: Built with seesaw-core for clean separation of concerns
 - **Location-Based Filtering**: 30km radius matching using PostGIS distance calculations
 - **Smart Notifications**: Weekly throttling (max 3) with AI relevance checking
+- **Real-Time Chat**: Organization-specific chat rooms with thread support
 
 ## Quick Start
 
@@ -157,14 +159,13 @@ If you prefer running services directly:
 
 ### Available Services
 
-- **PostgreSQL**: `localhost:5432` (with pgvector extension)
-- **Redis**: `localhost:6379`
-- **API**: `localhost:8080`
-- **GraphiQL Playground**: `localhost:8080/graphql`
-- **Health Check**: `localhost:8080/health`
-- **Next.js Public Site**: `localhost:3000` (SSR with hot-reload)
-- **Web App (SPA)**: `localhost:3001` (Public + Admin with hot-reload)
-- **Admin Dashboard**: `localhost:3001/admin`
+- **PostgreSQL**: `localhost:5432` (pgvector/pgvector:pg16 with pgvector extension)
+- **Redis**: `localhost:6379` (redis:7-alpine for job queue and pub/sub)
+- **API Server**: `localhost:8080` (Rust + GraphQL with hot-reload)
+- **GraphiQL Playground**: `localhost:8080/graphql` (Interactive API explorer)
+- **Health Check**: `localhost:8080/health` (Service status endpoint)
+- **Web App**: `localhost:3001` (React + Vite - Public listings + Admin dashboard)
+- **Next.js Site**: `localhost:3000` (Optional SSR site - requires `--profile full`)
 
 ### Seeding Data
 
@@ -202,7 +203,7 @@ See [Makefile](Makefile) for all available commands.
 This project uses Cargo workspaces with the following packages:
 
 - **server**: Main GraphQL API server with event-driven architecture
-- **seesaw-rs**: Event-driven framework (events, commands, machines, effects)
+- **intelligent-crawler**: Web scraping service with content hash deduplication
 - **twilio-rs**: Twilio SMS authentication client wrapper
 - **dev-cli**: Interactive CLI for managing development tasks
 
@@ -211,61 +212,72 @@ This project uses Cargo workspaces with the following packages:
 ```
 mndigitalaid/
 ├── Cargo.toml                    # Workspace root
+├── docker-compose.yml            # Docker services configuration
+├── Makefile                      # Development commands
+├── dev.sh                        # Interactive development CLI
 ├── packages/
-│   ├── server/                   # Backend (Rust + GraphQL + seesaw-rs)
+│   ├── server/                   # Backend (Rust + GraphQL)
 │   │   ├── src/
 │   │   │   ├── common/           # Shared utilities
 │   │   │   │   └── utils/        # geocoding, embeddings, expo client
 │   │   │   ├── domains/          # Business domains (event-driven)
-│   │   │   │   ├── organization/ # Need discovery & approval
-│   │   │   │   │   ├── models/   # SQL persistence
-│   │   │   │   │   ├── data/     # GraphQL types
-│   │   │   │   │   ├── events/   # Domain events
-│   │   │   │   │   ├── commands/ # Intent definitions
-│   │   │   │   │   ├── machines/ # State machines
-│   │   │   │   │   ├── effects/  # IO handlers
-│   │   │   │   │   └── edges/    # GraphQL resolvers
-│   │   │   │   ├── member/       # Volunteer registration
-│   │   │   │   └── matching/     # Semantic search + notifications
+│   │   │   │   ├── listings/     # Organizations & business info
+│   │   │   │   ├── members/      # Volunteer registration
+│   │   │   │   ├── chatrooms/    # Real-time chat system
+│   │   │   │   ├── matching/     # Semantic search + notifications
+│   │   │   │   └── auth/         # Authentication & authorization
 │   │   │   ├── kernel/           # Core infrastructure
 │   │   │   │   ├── jobs/         # Background job queue
 │   │   │   │   └── scheduled_tasks.rs  # Cron jobs
 │   │   │   └── server/           # HTTP server + GraphQL
 │   │   ├── migrations/           # PostgreSQL migrations
-│   │   ├── tests/                # Integration tests
-│   │   ├── Cargo.toml
-│   │   ├── docker-compose.yml
-│   │   └── Makefile
-│   ├── seesaw-rs/                # Event-driven framework
+│   │   └── tests/                # Integration tests
+│   ├── intelligent-crawler/      # Web scraping service
 │   ├── twilio-rs/                # SMS authentication client
 │   ├── dev-cli/                  # Interactive development CLI
-│   ├── web-app/                  # Web app (public + admin, React + Vite)
-│   └── expo-app/                 # Mobile app (React Native)
-└── docs/                         # Documentation
+│   ├── web-app/                  # Web app (React + Vite - Public + Admin)
+│   ├── web-next/                 # Next.js SSR site (optional)
+│   ├── app/                      # Mobile app (React Native + Expo)
+│   └── admin-spa/                # Admin dashboard (React)
+├── docs/                         # Comprehensive documentation
+├── data/                         # Seed data and resources
+└── infra/                        # Infrastructure configuration
 ```
 
 ## Development Status
 
-### ✅ MVP COMPLETE - SHIPPABLE
+### ✅ PRODUCTION-READY
 
-All core features implemented and ready for production deployment:
+All core features implemented and ready for deployment:
 
-#### Organization Domain
-- ✅ Organization CRUD with tag system (services, languages, communities)
+#### Listings Domain
+- ✅ Organization CRUD with flexible tag system (services, languages, communities)
+- ✅ **Cause-Driven Commerce**: Business organizations with proceeds tracking
+- ✅ Business info: proceeds percentage, beneficiary orgs, CTA links
+- ✅ Ownership tags (women-owned, immigrant-owned, BIPOC-owned)
+- ✅ Certification tags (B-Corp, benefit corporation)
 - ✅ Web scraping with Firecrawl API
-- ✅ AI need extraction using GPT-4o via rig.rs
+- ✅ AI content extraction using GPT-4o via rig.rs
 - ✅ Content hash-based duplicate detection
 - ✅ Human-in-the-loop approval workflow
 - ✅ Post creation for temporal announcements
 - ✅ Complete GraphQL API
 
-#### Member Domain
+#### Members Domain
 - ✅ Privacy-first registration (coarse location, no PII)
 - ✅ Text-first profile (searchable_text as source of truth)
 - ✅ Auto-geocoding (city/state → lat/lng)
-- ✅ Embedding generation (text-embedding-3-small)
+- ✅ Embedding generation (OpenAI text-embedding-3-small)
 - ✅ Weekly notification throttling (max 3/week)
-- ✅ GraphQL API: register, query members
+- ✅ SMS authentication via Twilio Verify
+- ✅ JWT-based authorization
+
+#### Chatrooms Domain
+- ✅ Real-time messaging system
+- ✅ Organization-specific chat rooms
+- ✅ Thread support for organized discussions
+- ✅ Member participation tracking
+- ✅ PII scrubbing with GPT-4o detection
 
 #### Matching Domain
 - ✅ Distance-filtered vector search (30km radius)
@@ -276,18 +288,20 @@ All core features implemented and ready for production deployment:
 - ✅ Notification tracking and analytics
 
 #### Infrastructure
-- ✅ Event-driven architecture (seesaw-rs)
+- ✅ Event-driven architecture (seesaw-core)
 - ✅ Background job queue (Postgres-based)
 - ✅ Scheduled tasks (hourly scraping, weekly reset)
 - ✅ Integration test harness
-- ✅ Docker Compose setup
+- ✅ Docker Compose development environment
+- ✅ Production-ready deployment configuration
+- ✅ Health checks and monitoring
 
-See [MVP_COMPLETE.md](docs/status/MVP_COMPLETE.md) for full details.
+See [CURRENT_STATUS.md](docs/status/CURRENT_STATUS.md) for full details.
 
 ## Architecture Highlights
 
-### Event-Driven (seesaw-rs)
-Clean separation of concerns following the seesaw pattern:
+### Event-Driven Architecture
+Clean separation of concerns using the seesaw pattern (via seesaw-core 0.1.1):
 ```
 Request Event → Machine (decide) → Command → Effect (IO) → Fact Event
 ```
@@ -297,15 +311,22 @@ Request Event → Machine (decide) → Command → Effect (IO) → Fact Event
 - **Effects**: Stateless IO handlers
 - **Edges**: Thin GraphQL resolvers that dispatch requests
 
-### Domain Structure
+### Domain-Driven Design
+The codebase is organized into business domains:
+
+- **Listings**: Organizations, business info, posts, tags
+- **Members**: Volunteer profiles, preferences, location
+- **Chatrooms**: Real-time messaging and threads
+- **Matching**: Semantic search and notifications
+- **Auth**: SMS verification, JWT tokens, admin authorization
+
 Each domain follows strict layering:
 - `models/`: SQL queries only (no business logic)
 - `data/`: GraphQL types with lazy resolvers
-- `events/`: Domain event definitions
-- `commands/`: Command definitions with execution modes
-- `machines/`: State machines for decision logic
-- `effects/`: IO implementations (API calls, DB writes)
-- `edges/`: GraphQL query/mutation resolvers
+- `events/`: Domain event definitions (where applicable)
+- `commands/`: Command definitions with execution modes (where applicable)
+- `machines/`: State machines for decision logic (where applicable)
+- `effects/`: IO implementations (API calls, DB writes) (where applicable)
 
 ### Key Principles
 - **Privacy-First**: Coarse coordinates (city-level), no PII, only Expo tokens
@@ -319,12 +340,12 @@ Each domain follows strict layering:
 
 ### Backend
 - **Rust**: Type-safe, high-performance systems language
-- **seesaw-rs**: Custom event-driven framework for clean architecture
+- **seesaw-core**: Event-driven framework for clean architecture (0.1.1)
 - **Axum**: Modern async web framework
 - **Juniper**: GraphQL server implementation
 - **SQLx**: Compile-time checked SQL queries
-- **PostgreSQL + pgvector**: Vector similarity search
-- **Redis**: Job queue and caching
+- **PostgreSQL + pgvector**: Vector similarity search with IVFFlat indexes
+- **Redis**: Job queue and pub/sub messaging
 
 ### AI/ML
 - **OpenAI GPT-4o**: Need extraction and relevance checking
@@ -337,9 +358,11 @@ Each domain follows strict layering:
 - **Expo**: Push notification delivery
 - **Twilio Verify**: SMS authentication
 
-### Frontend (Planned)
-- **React + Vite**: Admin approval dashboard
-- **React Native + Expo**: Mobile volunteer app
+### Frontend
+- **React + Vite**: Web app with public listings and admin dashboard
+- **Next.js 16**: Optional SSR public site with Tailwind CSS 4
+- **React Native + Expo**: Mobile volunteer app (iOS/Android)
+- **Apollo Client**: GraphQL client for state management
 
 ## Running the Server
 
@@ -366,22 +389,24 @@ The server automatically runs:
 ## Performance Characteristics
 
 ### Query Times (Expected)
-- Member registration: ~500ms (includes geocoding)
-- Embedding generation: ~200ms per text
-- Vector search: ~10-20ms (with indexes)
-- AI relevance check: ~200ms per candidate
+- Member registration: ~500ms (includes Nominatim geocoding)
+- Embedding generation: ~200ms per text (OpenAI text-embedding-3-small)
+- Vector search: ~10-20ms with IVFFlat indexes
+- AI relevance check: ~300-500ms per candidate (GPT-4o)
+- PII scrubbing: ~500ms per message (GPT-4o detection)
 - Expo notification: ~100ms per push
-- Full matching pipeline: ~2-3s per approved need
+- Full matching pipeline: ~2-3s per approved opportunity
 
 ### Scalability
-- **Current**: Good for <10K members
-- **With indexes**: Good for <100K members
-- **For >100K**: Consider PostGIS + spatial indexes
+- **Current**: Suitable for <10K members, 1K organizations
+- **With indexes**: Scales to ~100K members, 10K organizations
+- **For >100K**: Consider distributed vector search (Pinecone, Weaviate)
 
 ### Database Indexes
-- IVFFlat indexes on embedding vectors for fast similarity search
-- Spatial indexes on latitude/longitude for distance queries
-- Hash indexes on UUIDs and tokens for fast lookups
+- IVFFlat indexes on embedding vectors (1536 dimensions)
+- PostGIS spatial indexes on location coordinates
+- B-tree indexes on foreign keys and timestamps
+- Hash indexes on UUIDs, tokens, and content hashes
 
 ## API Examples
 
@@ -426,12 +451,33 @@ query {
   searchOrganizations(query: "food assistance") {
     id
     name
+    organizationType
     tags {
       kind
       value
     }
     sources {
       sourceUrl
+    }
+  }
+}
+```
+
+### Query Cause-Driven Businesses
+```graphql
+query {
+  organization(id: "uuid-here") {
+    name
+    organizationType
+    businessInfo {
+      proceedsPercentage
+      onlineStoreUrl
+      donationUrl
+      giftCardUrl
+      isCauseDriven
+    }
+    tags(kind: "ownership") {
+      value
     }
   }
 }
@@ -491,13 +537,27 @@ curl http://localhost:8080/health
 # Should return: {"status":"healthy"}
 ```
 
+## Recent Updates
+
+### Cause-Driven Commerce (January 2026)
+- Added `business_organizations` table with proceeds tracking
+- 12 new tags for ownership and certifications (women-owned, B-Corp, etc.)
+- Business info GraphQL API with `isCauseDriven` resolver
+- Support for beneficiary organizations and CTA links
+
+### Production Fixes
+- PII scrubbing with GPT-4o detection
+- Enhanced admin authorization system
+- Improved error handling and logging
+- Database query optimizations
+
 ## Known Limitations
 
-1. **AI Relevance Check**: Currently uses similarity threshold to save costs
-2. **Geocoding**: Free tier (Nominatim) - consider paid service for production
-3. **No admin UI**: GraphQL only, frontend needed for approval workflow
-4. **No notification preferences**: All members get same notification types
-5. **No retry logic**: Expo notifications don't retry on failure
+1. **AI Costs**: GPT-4o usage for relevance checking and PII detection
+2. **Geocoding**: Free tier (Nominatim) - rate limited for production use
+3. **Frontend Integration**: Cause-driven commerce backend ready, frontend UI pending
+4. **Notification Preferences**: All members receive same notification types
+5. **Mobile App**: Basic structure in place, needs feature completion
 
 ## Documentation
 

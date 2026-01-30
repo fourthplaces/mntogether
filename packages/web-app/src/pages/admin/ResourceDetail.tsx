@@ -40,16 +40,16 @@ export function ResourceDetail() {
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [organizationName, setOrganizationName] = useState<string>('');
+  const [sourceUrl, setSourceUrl] = useState<string>('');
 
-  // Get organization source to find the name
+  // Get source URL from organization sources
   const { data: sourcesData } = useQuery(GET_ORGANIZATION_SOURCES);
 
   useEffect(() => {
     if (sourcesData?.organizationSources) {
       const source = sourcesData.organizationSources.find((s: any) => s.id === sourceId);
       if (source) {
-        setOrganizationName(source.organizationName);
+        setSourceUrl(source.sourceUrl);
       }
     }
   }, [sourcesData, sourceId]);
@@ -60,7 +60,7 @@ export function ResourceDetail() {
       variables: {
         status: 'PENDING_APPROVAL', // Scraped listings start as pending approval
       },
-      skip: !organizationName,
+      skip: !sourceId,
     }
   );
 
@@ -166,22 +166,21 @@ export function ResourceDetail() {
     );
   }
 
-  // Filter listings by organization name
-  const filteredListings = listingsData?.listings.nodes.filter(
-    (listing) => listing.organizationName === organizationName
-  ) || [];
+  // Get all listings for this source (no filtering by organization name)
+  const filteredListings = listingsData?.listings.nodes || [];
 
   return (
     <div className="min-h-screen bg-amber-50 p-6">
       <div className="max-w-6xl mx-auto">
-        <div className="flex items-center mb-6">
+        <div className="flex flex-col mb-6">
           <button
             onClick={() => navigate('/admin/resources')}
-            className="text-amber-700 hover:text-amber-900 mr-4"
+            className="text-amber-700 hover:text-amber-900 mb-2 self-start"
           >
             ← Back to Resources
           </button>
-          <h1 className="text-3xl font-bold text-stone-900">{organizationName}</h1>
+          <h1 className="text-2xl font-bold text-stone-900 break-all">{sourceUrl}</h1>
+          <p className="text-sm text-stone-600 mt-1">Listings scraped from this source</p>
         </div>
 
         {error && (

@@ -28,7 +28,7 @@ pub async fn scrape_source(
 
     // Scrape website using web scraper
     let scrape_result = web_scraper
-        .scrape(&source.source_url)
+        .scrape(&source.domain_url)
         .await
         .context("Web scraping failed")?;
 

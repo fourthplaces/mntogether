@@ -5,17 +5,16 @@ use sqlx::PgPool;
 
 use crate::common::SourceId;
 
-/// Organization source - a website to monitor for needs
+/// Domain source - a website to scrape for resources (decoupled from organizations)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct OrganizationSource {
     pub id: SourceId,
-    pub organization_name: String,
-    pub source_url: String,
-    pub scrape_urls: Option<serde_json::Value>, // Optional array of specific URLs to scrape
+    pub domain_url: String,
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 // =============================================================================
@@ -26,7 +25,7 @@ impl OrganizationSource {
     /// Find source by ID
     pub async fn find_by_id(id: SourceId, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE id = $1",
+            "SELECT * FROM domains WHERE id = $1",
         )
         .bind(id)
         .fetch_one(pool)
@@ -37,7 +36,7 @@ impl OrganizationSource {
     /// Find source by URL
     pub async fn find_by_url(url: &str, pool: &PgPool) -> Result<Option<Self>> {
         let source = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE source_url = $1",
+            "SELECT * FROM domains WHERE domain_url = $1",
         )
         .bind(url)
         .fetch_optional(pool)
@@ -48,7 +47,7 @@ impl OrganizationSource {
     /// Find all active sources
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         let sources = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE active = true ORDER BY created_at",
+            "SELECT * FROM domains WHERE active = true ORDER BY created_at",
         )
         .fetch_all(pool)
         .await?;
@@ -59,7 +58,7 @@ impl OrganizationSource {
     pub async fn find_due_for_scraping(pool: &PgPool) -> Result<Vec<Self>> {
         let sources = sqlx::query_as::<_, OrganizationSource>(
             r#"
-            SELECT * FROM organization_sources
+            SELECT * FROM domains
             WHERE active = true
               AND (last_scraped_at IS NULL
                    OR last_scraped_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
@@ -75,16 +74,15 @@ impl OrganizationSource {
     pub async fn insert(&self, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             r#"
-            INSERT INTO organization_sources (
-                id, organization_name, source_url, scrape_frequency_hours, active, created_at
+            INSERT INTO domains (
+                id, domain_url, scrape_frequency_hours, active, created_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5)
             RETURNING *
             "#,
         )
         .bind(self.id)
-        .bind(&self.organization_name)
-        .bind(&self.source_url)
+        .bind(&self.domain_url)
         .bind(self.scrape_frequency_hours)
         .bind(self.active)
         .bind(self.created_at)
@@ -97,8 +95,8 @@ impl OrganizationSource {
     pub async fn update_last_scraped(id: SourceId, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             r#"
-            UPDATE organization_sources
-            SET last_scraped_at = NOW()
+            UPDATE domains
+            SET last_scraped_at = NOW(), updated_at = NOW()
             WHERE id = $1
             RETURNING *
             "#,
@@ -113,8 +111,8 @@ impl OrganizationSource {
     pub async fn set_active(id: SourceId, active: bool, pool: &PgPool) -> Result<Self> {
         let source = sqlx::query_as::<_, OrganizationSource>(
             r#"
-            UPDATE organization_sources
-            SET active = $2
+            UPDATE domains
+            SET active = $2, updated_at = NOW()
             WHERE id = $1
             RETURNING *
             "#,
@@ -126,29 +124,13 @@ impl OrganizationSource {
         Ok(source)
     }
 
-    /// Find sources by organization name
-    ///
-    /// Returns all sources for a given organization, ordered by creation date
-    pub async fn find_by_organization_name(
-        organization_name: &str,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let sources = sqlx::query_as::<_, OrganizationSource>(
-            "SELECT * FROM organization_sources WHERE organization_name = $1 ORDER BY created_at DESC",
-        )
-        .bind(organization_name)
-        .fetch_all(pool)
-        .await?;
-        Ok(sources)
-    }
-
-    /// Add a URL to the scrape_urls array
+    /// Add a URL to domain_scrape_urls table
     pub async fn add_scrape_url(id: SourceId, url: String, pool: &PgPool) -> Result<()> {
         sqlx::query(
             r#"
-            UPDATE organization_sources
-            SET scrape_urls = COALESCE(scrape_urls, '[]'::jsonb) || jsonb_build_array($2::text)
-            WHERE id = $1
+            INSERT INTO domain_scrape_urls (domain_id, url)
+            VALUES ($1, $2)
+            ON CONFLICT (domain_id, url) DO NOTHING
             "#,
         )
         .bind(id)
@@ -158,17 +140,12 @@ impl OrganizationSource {
         Ok(())
     }
 
-    /// Remove a URL from the scrape_urls array
+    /// Remove a URL from domain_scrape_urls table
     pub async fn remove_scrape_url(id: SourceId, url: String, pool: &PgPool) -> Result<()> {
         sqlx::query(
             r#"
-            UPDATE organization_sources
-            SET scrape_urls = (
-                SELECT jsonb_agg(elem)
-                FROM jsonb_array_elements(scrape_urls) elem
-                WHERE elem::text != to_jsonb($2::text)::text
-            )
-            WHERE id = $1
+            DELETE FROM domain_scrape_urls
+            WHERE domain_id = $1 AND url = $2
             "#,
         )
         .bind(id)
@@ -176,5 +153,21 @@ impl OrganizationSource {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /// Get all scrape URLs for this domain from domain_scrape_urls table
+    pub async fn get_scrape_urls(id: SourceId, pool: &PgPool) -> Result<Vec<String>> {
+        let rows = sqlx::query!(
+            r#"
+            SELECT url FROM domain_scrape_urls
+            WHERE domain_id = $1 AND active = true
+            ORDER BY added_at
+            "#,
+            id.as_uuid()
+        )
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|row| row.url).collect())
     }
 }

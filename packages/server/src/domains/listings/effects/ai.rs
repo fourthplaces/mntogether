@@ -63,7 +63,7 @@ async fn handle_extract_listings(
     // Get source for URL info
     let source = match OrganizationSource::find_by_id(source_id, &ctx.deps().db_pool).await {
         Ok(s) => {
-            tracing::info!(source_id = %source_id, url = %s.source_url, "Source found for extraction");
+            tracing::info!(source_id = %source_id, url = %s.domain_url, "Source found for extraction");
             s
         }
         Err(e) => {
@@ -82,7 +82,7 @@ async fn handle_extract_listings(
 
     tracing::info!(
         source_id = %source_id,
-        url = %source.source_url,
+        url = %source.domain_url,
         "Calling AI service to extract listings"
     );
 
@@ -91,7 +91,7 @@ async fn handle_extract_listings(
         ctx.deps().ai.as_ref(),
         &organization_name,
         &content,
-        &source.source_url,
+        &source.domain_url,
     )
     .await
     {

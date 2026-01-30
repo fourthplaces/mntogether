@@ -60,10 +60,10 @@ export function Home() {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900">
-                Emergency Resource Aggregator
+                MN Together
               </h1>
               <p className="mt-2 text-gray-600">
-                Find help and resources for organizations in need
+                Connecting volunteers with organizations and communities in need
               </p>
             </div>
             <Link
@@ -100,7 +100,7 @@ export function Home() {
       <footer className="bg-white border-t border-gray-200 mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <p className="text-center text-gray-500 text-sm">
-            Minnesota Digital Aid - Connecting resources with those who need them
+            MN Together - Connecting resources with those who need them
           </p>
         </div>
       </footer>
