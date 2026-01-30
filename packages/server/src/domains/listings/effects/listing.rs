@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
@@ -6,7 +6,7 @@ use tracing::info;
 
 use super::deps::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability, AuthError};
-use crate::common::{DomainId, ExtractedListing, JobId, ListingId, MemberId, PostId, SourceId};
+use crate::common::{DomainId, ExtractedListing, JobId, ListingId, MemberId, PostId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -178,20 +178,6 @@ impl Effect<ListingCommand, ServerDeps> for ListingEffect {
                 is_admin,
             } => handle_delete_listing(listing_id, requested_by, is_admin, &ctx).await,
 
-            ListingCommand::AddScrapeUrl {
-                source_id,
-                url,
-                requested_by,
-                is_admin,
-            } => handle_add_scrape_url(source_id, url, requested_by, is_admin, &ctx).await,
-
-            ListingCommand::RemoveScrapeUrl {
-                source_id,
-                url,
-                requested_by,
-                is_admin,
-            } => handle_remove_scrape_url(source_id, url, requested_by, is_admin, &ctx).await,
-
             ListingCommand::CreateListingsFromResourceLink {
                 job_id,
                 url,
@@ -210,7 +196,7 @@ impl Effect<ListingCommand, ServerDeps> for ListingEffect {
                 .await
             }
 
-            ListingCommand::CreateOrganizationSourceFromLink {
+            ListingCommand::CreateDomainFromLink {
                 url,
                 organization_name,
                 submitter_contact,
@@ -553,14 +539,14 @@ async fn handle_create_listings_from_resource_link(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     use crate::domains::listings::models::Listing;
-use crate::domains::organization::models::OrganizationSource;
+use crate::domains::scraping::models::Domain;
     use tracing::info;
 
     // Find the organization source that was created during submission
     let organization_name = context.clone().unwrap_or_else(|| "Submitted Resource".to_string());
 
     // Find the source by URL (it was created in the mutation)
-    let source = OrganizationSource::find_by_url(&url, &ctx.deps().db_pool)
+    let source = Domain::find_by_url(&url, &ctx.deps().db_pool)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Organization source not found for URL: {}", url))?;
 
@@ -656,12 +642,12 @@ async fn handle_create_organization_source_from_link(
     submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
-    use crate::common::{JobId, SourceId};
-    use crate::domains::organization::models::OrganizationSource;
+    use crate::common::{JobId, DomainId};
+    use crate::domains::scraping::models::Domain;
     use tracing::info;
 
-    // Validate URL format (moved from edge to effect)
-    super::source_operations::validate_url(&url)?;
+    // Validate URL format
+    url::Url::parse(&url).context("Invalid URL format")?;
 
     // Generate a new job ID for tracking the scraping workflow
     let job_id = JobId::new();
@@ -680,47 +666,30 @@ async fn handle_create_organization_source_from_link(
 
     info!(domain = %domain, "Extracted domain from URL");
 
-    // Check if we already have a source for this domain
-    let existing_sources = OrganizationSource::find_active(&ctx.deps().db_pool).await?;
+    // Find or create domain (handles race conditions gracefully)
+    let source = Domain::find_or_create(
+        url.clone(),
+        None, // Public submission (no logged-in user)
+        "public_user".to_string(),
+        submitter_contact.clone(),
+        3, // max_crawl_depth - reasonable default
+        &ctx.deps().db_pool,
+    )
+    .await?;
 
-    let matching_source = existing_sources.iter().find(|source| {
-        if let Some(existing_domain) = extract_domain(&source.domain_url) {
-            existing_domain == domain
+    info!(
+        source_id = %source.id,
+        domain = %source.domain_url,
+        status = %source.status,
+        "Found or created domain"
+    );
+
+    let (source_id, event_type) = (source.id,
+        if source.status == "pending_review" {
+            "created_pending_review"
         } else {
-            false
-        }
-    });
-
-    let (source_id, event_type) = if let Some(existing) = matching_source {
-        // Domain already exists - add URL to domain_scrape_urls
-        info!(
-            source_id = %existing.id,
-            domain = %existing.domain_url,
-            "Found existing source for domain, adding URL to domain_scrape_urls"
-        );
-
-        OrganizationSource::add_scrape_url(existing.id, url.clone(), &ctx.deps().db_pool).await?;
-
-        (existing.id, "added_to_existing")
-    } else {
-        // New domain - create new source
-        info!(domain = %domain, "No existing source found, creating new domain");
-
-        let source_id = SourceId::new();
-        let source = OrganizationSource {
-            id: source_id,
-            domain_url: url.clone(),
-            last_scraped_at: None,
-            scrape_frequency_hours: 24, // Default to daily scrapes
-            active: true,
-            created_at: chrono::Utc::now(),
-            updated_at: chrono::Utc::now(),
-        };
-
-        source.insert(&ctx.deps().db_pool).await?;
-
-        (source_id, "created_new")
-    };
+            "existing_domain"
+        });
 
     info!(
         source_id = %source_id,
@@ -729,14 +698,25 @@ async fn handle_create_organization_source_from_link(
         "Organization source processed successfully"
     );
 
-    // Return event with job_id for tracking
-    Ok(ListingEvent::OrganizationSourceCreatedFromLink {
-        source_id,
-        job_id,
-        url,
-        organization_name,
-        submitter_contact,
-    })
+    // Return appropriate event based on domain status
+    if event_type == "created_pending_review" {
+        // Domain needs approval before scraping
+        Ok(ListingEvent::DomainPendingApproval {
+            domain_id: source_id,
+            domain_url: domain,
+            submitted_url: url,
+            submitter_contact,
+        })
+    } else {
+        // Domain exists and approved - proceed with scraping
+        Ok(ListingEvent::DomainCreatedFromLink {
+            source_id,
+            job_id,
+            url,
+            organization_name,
+            submitter_contact,
+        })
+    }
 }
 
 /// Handle DeleteListing command
@@ -769,64 +749,3 @@ async fn handle_delete_listing(
     Ok(ListingEvent::ListingDeleted { listing_id })
 }
 
-/// Handle AddScrapeUrl command
-async fn handle_add_scrape_url(
-    source_id: SourceId,
-    url: String,
-    requested_by: MemberId,
-    is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
-) -> Result<ListingEvent> {
-    // Check authorization - only admins can manage scrape URLs
-    Actor::new(requested_by, is_admin)
-        .can(AdminCapability::FullAdmin)
-        .check(ctx.deps())
-        .await
-        .map_err(|e| {
-            info!(
-                user_id = %requested_by,
-                action = "AddScrapeUrl",
-                error = ?e,
-                "Authorization denied"
-            );
-            anyhow::anyhow!("Authorization denied: {:?}", e)
-        })?;
-
-    info!(source_id = %source_id, url = %url, "Adding scrape URL");
-
-    // Add the URL (includes validation)
-    super::source_operations::add_scrape_url(source_id, url.clone(), &ctx.deps().db_pool).await?;
-
-    Ok(ListingEvent::ScrapeUrlAdded { source_id, url })
-}
-
-/// Handle RemoveScrapeUrl command
-async fn handle_remove_scrape_url(
-    source_id: SourceId,
-    url: String,
-    requested_by: MemberId,
-    is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
-) -> Result<ListingEvent> {
-    // Check authorization - only admins can manage scrape URLs
-    Actor::new(requested_by, is_admin)
-        .can(AdminCapability::FullAdmin)
-        .check(ctx.deps())
-        .await
-        .map_err(|e| {
-            info!(
-                user_id = %requested_by,
-                action = "RemoveScrapeUrl",
-                error = ?e,
-                "Authorization denied"
-            );
-            anyhow::anyhow!("Authorization denied: {:?}", e)
-        })?;
-
-    info!(source_id = %source_id, url = %url, "Removing scrape URL");
-
-    // Remove the URL
-    super::source_operations::remove_scrape_url(source_id, url.clone(), &ctx.deps().db_pool).await?;
-
-    Ok(ListingEvent::ScrapeUrlRemoved { source_id, url })
-}

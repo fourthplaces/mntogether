@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use crate::common::{JobId, SourceId};
+use crate::common::{JobId, DomainId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -37,7 +37,7 @@ impl Effect<ListingCommand, ServerDeps> for SyncEffect {
 // ============================================================================
 
 async fn handle_sync_listings(
-    source_id: SourceId,
+    source_id: DomainId,
     job_id: JobId,
     listings: Vec<crate::common::ExtractedListing>,
     ctx: &EffectContext<ServerDeps>,

@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE page_snapshots\n            SET extraction_status = 'completed',\n                extraction_completed_at = NOW()\n            WHERE id = $1\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4a6f225c514f802a0bb3904082504331eddd4fa4bd8975fa99ffe1afb6598d9c"
+}

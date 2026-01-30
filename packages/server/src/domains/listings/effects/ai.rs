@@ -3,10 +3,10 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::{listing_extraction, ServerDeps};
-use crate::common::{JobId, SourceId};
+use crate::common::{JobId, DomainId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::organization::models::source::OrganizationSource;
+use crate::domains::scraping::models::Domain;
 
 /// AI Effect - Handles ExtractListings command
 ///
@@ -46,7 +46,7 @@ impl Effect<ListingCommand, ServerDeps> for AIEffect {
 // ============================================================================
 
 async fn handle_extract_listings(
-    source_id: SourceId,
+    source_id: DomainId,
     job_id: JobId,
     organization_name: String,
     content: String,
@@ -61,7 +61,7 @@ async fn handle_extract_listings(
     );
 
     // Get source for URL info
-    let source = match OrganizationSource::find_by_id(source_id, &ctx.deps().db_pool).await {
+    let source = match Domain::find_by_id(source_id, &ctx.deps().db_pool).await {
         Ok(s) => {
             tracing::info!(source_id = %source_id, url = %s.domain_url, "Source found for extraction");
             s

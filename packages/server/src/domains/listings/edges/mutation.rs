@@ -1,5 +1,5 @@
 use crate::domains::listings::data::{EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
-use crate::common::{JobId, ListingId, MemberId, SourceId};
+use crate::common::{JobId, ListingId, MemberId, DomainId};
 use crate::domains::listings::events::ListingEvent;
 use crate::domains::listings::models::Listing;
 use crate::server::graphql::context::GraphQLContext;
@@ -24,7 +24,7 @@ pub async fn scrape_organization(
         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed IDs
-    let source_id = SourceId::from_uuid(source_id);
+    let source_id = DomainId::from_uuid(source_id);
     let job_id = JobId::new();
 
     // Dispatch request event and await completion (ListingsSynced or failure)
@@ -332,7 +332,7 @@ pub async fn submit_resource_link(
     // URL validation moved to effect (SubmitResourceLinkRequested handler)
     // Edge just dispatches the event
 
-    // Dispatch request event and await OrganizationSourceCreatedFromLink event
+    // Dispatch request event and await DomainCreatedFromLink event
     // This follows proper seesaw encapsulation - job_id is created in the effect
     let job_id = dispatch_request(
         ListingEvent::SubmitResourceLinkRequested {
@@ -343,7 +343,7 @@ pub async fn submit_resource_link(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::OrganizationSourceCreatedFromLink { job_id, .. } => {
+                ListingEvent::DomainCreatedFromLink { job_id, .. } => {
                     Some(Ok(*job_id))
                 }
                 _ => None,
@@ -404,88 +404,6 @@ pub async fn delete_listing(
     )
     .await
     .map_err(|e| FieldError::new(format!("Failed to delete listing: {}", e), juniper::Value::null()))
-}
-
-/// Add a scrape URL to an organization source (admin only)
-pub async fn add_organization_scrape_url(
-    ctx: &GraphQLContext,
-    source_id: Uuid,
-    url: String,
-) -> FieldResult<bool> {
-    info!(source_id = %source_id, url = %url, "Add scrape URL requested");
-
-    // Get user info (auth check moved to effect)
-    let user = ctx
-        .auth_user
-        .as_ref()
-        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-    // Convert to typed ID
-    let source_id = SourceId::from_uuid(source_id);
-
-    // Dispatch request event - effect will handle authorization and URL validation
-    dispatch_request(
-        ListingEvent::AddScrapeUrlRequested {
-            source_id,
-            url,
-            requested_by: user.member_id,
-            is_admin: user.is_admin,
-        },
-        &ctx.bus,
-        |m| {
-            m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::ScrapeUrlAdded { .. } => Some(Ok(true)),
-                ListingEvent::AuthorizationDenied { .. } => {
-                    Some(Err(anyhow::anyhow!("Only administrators can manage scrape URLs")))
-                }
-                _ => None,
-            })
-            .result()
-        },
-    )
-    .await
-    .map_err(|e| FieldError::new(format!("Failed to add scrape URL: {}", e), juniper::Value::null()))
-}
-
-/// Remove a scrape URL from an organization source (admin only)
-pub async fn remove_organization_scrape_url(
-    ctx: &GraphQLContext,
-    source_id: Uuid,
-    url: String,
-) -> FieldResult<bool> {
-    info!(source_id = %source_id, url = %url, "Remove scrape URL requested");
-
-    // Get user info (auth check moved to effect)
-    let user = ctx
-        .auth_user
-        .as_ref()
-        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-    // Convert to typed ID
-    let source_id = SourceId::from_uuid(source_id);
-
-    // Dispatch request event - effect will handle authorization
-    dispatch_request(
-        ListingEvent::RemoveScrapeUrlRequested {
-            source_id,
-            url,
-            requested_by: user.member_id,
-            is_admin: user.is_admin,
-        },
-        &ctx.bus,
-        |m| {
-            m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::ScrapeUrlRemoved { .. } => Some(Ok(true)),
-                ListingEvent::AuthorizationDenied { .. } => {
-                    Some(Err(anyhow::anyhow!("Only administrators can manage scrape URLs")))
-                }
-                _ => None,
-            })
-            .result()
-        },
-    )
-    .await
-    .map_err(|e| FieldError::new(format!("Failed to remove scrape URL: {}", e), juniper::Value::null()))
 }
 
 /// Repost a listing (create new post for existing active listing)

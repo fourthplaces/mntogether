@@ -32,7 +32,7 @@ function AdminLayout() {
             <div className="flex">
               <div className="flex-shrink-0 flex items-center">
                 <h1 className="text-xl font-bold text-stone-900">
-                  Emergency Resource Aggregator - Admin
+                  MN Together - Admin
                 </h1>
               </div>
               <div className="ml-6 flex space-x-8">

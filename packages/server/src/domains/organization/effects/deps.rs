@@ -13,7 +13,6 @@ pub struct ServerDeps {
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<TwilioService>,
-    pub intelligent_crawler: Arc<intelligent_crawler::PostgresStorage>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -27,7 +26,6 @@ impl ServerDeps {
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<TwilioService>,
-        intelligent_crawler: Arc<intelligent_crawler::PostgresStorage>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
@@ -38,7 +36,6 @@ impl ServerDeps {
             embedding_service,
             push_service,
             twilio,
-            intelligent_crawler,
             test_identifier_enabled,
             admin_identifiers,
         }

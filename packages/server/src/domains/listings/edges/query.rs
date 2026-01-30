@@ -124,9 +124,9 @@ pub async fn query_organization_sources(
     pool: &PgPool,
 ) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
     use crate::domains::organization::data::SourceData;
-    use crate::domains::organization::models::source::OrganizationSource;
+    use crate::domains::scraping::models::Domain;
 
-    let sources = OrganizationSource::find_active(pool)
+    let sources = Domain::find_active(pool)
         .await
         .map_err(|e| juniper::FieldError::new(
             format!("Failed to fetch organization sources: {}", e),
@@ -141,13 +141,13 @@ pub async fn query_organization_source(
     pool: &PgPool,
     id: Uuid,
 ) -> FieldResult<Option<crate::domains::organization::data::SourceData>> {
-    use crate::common::SourceId;
+    use crate::common::DomainId;
     use crate::domains::organization::data::SourceData;
-    use crate::domains::organization::models::source::OrganizationSource;
+    use crate::domains::scraping::models::Domain;
 
-    let source_id = SourceId::from_uuid(id);
+    let source_id = DomainId::from_uuid(id);
     
-    match OrganizationSource::find_by_id(source_id, pool).await {
+    match Domain::find_by_id(source_id, pool).await {
         Ok(source) => Ok(Some(SourceData::from(source))),
         Err(_) => Ok(None),
     }

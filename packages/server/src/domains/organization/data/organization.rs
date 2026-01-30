@@ -108,15 +108,15 @@ impl OrganizationData {
 
     /// Get domain source for this organization (if linked to a domain)
     async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
-        use crate::domains::organization::models::OrganizationSource;
-        use crate::common::SourceId;
+        use crate::domains::scraping::models::Domain;
+        use crate::common::DomainId;
 
         // Organizations are now linked to domains, not sources directly
         // If organization has a domain_id, return that domain source
         if let Some(domain_id_str) = &self.domain_id {
             if let Ok(uuid) = uuid::Uuid::parse_str(domain_id_str) {
-                let source_id = SourceId::from_uuid(uuid);
-                if let Ok(source) = OrganizationSource::find_by_id(source_id, &context.db_pool).await {
+                let source_id = DomainId::from_uuid(uuid);
+                if let Ok(source) = Domain::find_by_id(source_id, &context.db_pool).await {
                     return Ok(vec![SourceData::from(source)]);
                 }
             }

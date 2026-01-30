@@ -45,8 +45,7 @@ tracing-subscriber = { workspace = true }
 seesaw_core = "0.1.1"
 seesaw-testing = "0.1.1"
 
-# Intelligent crawler
-intelligent-crawler = { path = "../intelligent-crawler" }
+# NOTE: Scraping done via Firecrawl (see kernel/firecrawl_client.rs)
 
 # Authentication
 twilio = { path = "../twilio-rs" }

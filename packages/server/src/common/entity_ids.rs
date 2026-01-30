@@ -42,9 +42,6 @@ pub struct Domain;
 /// Marker type for Post entities (published posts for matching).
 pub struct Post;
 
-/// Marker type for OrganizationSource entities (website sources).
-/// DEPRECATED: Use Domain instead.
-pub struct OrganizationSource;
 
 /// Marker type for ScrapeJob entities (scraping jobs).
 pub struct ScrapeJob;
@@ -97,9 +94,6 @@ pub type DomainId = Id<Domain>;
 /// Typed ID for Post entities.
 pub type PostId = Id<Post>;
 
-/// Typed ID for OrganizationSource entities.
-/// DEPRECATED: Use DomainId instead.
-pub type SourceId = Id<OrganizationSource>;
 
 /// Typed ID for ScrapeJob entities.
 pub type JobId = Id<ScrapeJob>;

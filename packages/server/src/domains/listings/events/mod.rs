@@ -3,7 +3,7 @@ use std::net::IpAddr;
 
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedListing};
-use crate::common::{JobId, ListingId, MemberId, PostId, SourceId};
+use crate::common::{JobId, ListingId, MemberId, PostId, DomainId};
 
 /// Listings domain events
 /// Following seesaw-rs pattern: Events are immutable facts
@@ -14,7 +14,7 @@ pub enum ListingEvent {
     // =========================================================================
     /// Admin requests to scrape an organization source
     ScrapeSourceRequested {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
         is_admin: bool,         // Whether user is admin (checked in effect)
@@ -40,11 +40,19 @@ pub enum ListingEvent {
     },
 
     /// Organization source created from user-submitted link
-    OrganizationSourceCreatedFromLink {
-        source_id: SourceId,
+    DomainCreatedFromLink {
+        source_id: DomainId,
         job_id: JobId,
         url: String,
         organization_name: String,
+        submitter_contact: Option<String>,
+    },
+
+    /// Domain created but pending admin approval before scraping
+    DomainPendingApproval {
+        domain_id: DomainId,
+        domain_url: String,
+        submitted_url: String,
         submitter_contact: Option<String>,
     },
 
@@ -123,31 +131,16 @@ pub enum ListingEvent {
         is_admin: bool,
     },
 
-    /// Admin adds a scrape URL to an organization source
-    AddScrapeUrlRequested {
-        source_id: SourceId,
-        url: String,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Admin removes a scrape URL from an organization source
-    RemoveScrapeUrlRequested {
-        source_id: SourceId,
-        url: String,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
     // =========================================================================
     // Fact Events (from effects - what actually happened)
     // =========================================================================
     /// Source was scraped successfully
     SourceScraped {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         organization_name: String,
         content: String,
+        page_snapshot_id: Option<uuid::Uuid>, // Link to cached page content
     },
 
     /// User-submitted resource link was scraped successfully
@@ -157,11 +150,12 @@ pub enum ListingEvent {
         content: String,
         context: Option<String>,
         submitter_contact: Option<String>,
+        page_snapshot_id: Option<uuid::Uuid>, // Link to cached page content
     },
 
     /// AI extracted listings from scraped content
     ListingsExtracted {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         listings: Vec<ExtractedListing>,
     },
@@ -177,7 +171,7 @@ pub enum ListingEvent {
 
     /// Listings were synced with database
     ListingsSynced {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         new_count: usize,
         changed_count: usize,
@@ -186,7 +180,7 @@ pub enum ListingEvent {
 
     /// Scraping failed (terminal event - clears pending state)
     ScrapeFailed {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         reason: String,
     },
@@ -199,14 +193,14 @@ pub enum ListingEvent {
 
     /// Listing extraction failed (terminal event - clears pending state)
     ExtractFailed {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         reason: String,
     },
 
     /// Listing sync failed (terminal event - clears pending state)
     SyncFailed {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         reason: String,
     },
@@ -245,18 +239,6 @@ pub enum ListingEvent {
 
     /// A listing was deleted
     ListingDeleted { listing_id: ListingId },
-
-    /// A scrape URL was added to an organization source
-    ScrapeUrlAdded {
-        source_id: SourceId,
-        url: String,
-    },
-
-    /// A scrape URL was removed from an organization source
-    ScrapeUrlRemoved {
-        source_id: SourceId,
-        url: String,
-    },
 
     /// Embedding generated for a listing
     ListingEmbeddingGenerated { listing_id: ListingId, dimensions: usize },

@@ -25,7 +25,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use crate::common::{JobId, MemberId};
 use crate::domains::member::models::member::Member;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::organization::models::OrganizationSource;
+use crate::domains::scraping::models::Domain;
 
 /// Start all scheduled tasks
 pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler> {
@@ -74,7 +74,7 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
     tracing::info!("Running periodic scrape task");
 
     // Find sources due for scraping
-    let sources = OrganizationSource::find_due_for_scraping(pool).await?;
+    let sources = Domain::find_due_for_scraping(pool).await?;
 
     if sources.is_empty() {
         tracing::info!("No sources due for scraping");

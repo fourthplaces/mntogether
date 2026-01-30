@@ -5,10 +5,10 @@ use seesaw_core::{Effect, EffectContext};
 use super::deps::ServerDeps;
 use super::listing::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{JobId, MemberId, SourceId};
+use crate::common::{JobId, MemberId, DomainId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::organization::models::source::OrganizationSource;
+use crate::domains::scraping::models::{Domain, DomainSnapshot, PageSnapshot};
 
 /// Scraper Effect - Handles ScrapeSource command
 ///
@@ -47,7 +47,7 @@ impl Effect<ListingCommand, ServerDeps> for ScraperEffect {
 // ============================================================================
 
 async fn handle_scrape_source(
-    source_id: SourceId,
+    source_id: DomainId,
     job_id: JobId,
     requested_by: MemberId,
     _is_admin: bool,
@@ -82,7 +82,7 @@ async fn handle_scrape_source(
     tracing::info!(source_id = %source_id, "Authorization passed, fetching source from database");
 
     // Get source from database using model layer
-    let source = match OrganizationSource::find_by_id(source_id, &ctx.deps().db_pool).await {
+    let source = match Domain::find_by_id(source_id, &ctx.deps().db_pool).await {
         Ok(s) => {
             tracing::info!(
                 source_id = %source_id,
@@ -105,108 +105,113 @@ async fn handle_scrape_source(
         }
     };
 
-    // Check if specific URLs are configured in domain_scrape_urls, otherwise crawl the whole site
-    let scrape_urls = OrganizationSource::get_scrape_urls(source_id, &ctx.deps().db_pool).await?;
+    // Scrape the domain URL via Firecrawl
+    tracing::info!(
+        source_id = %source_id,
+        url = %source.domain_url,
+        max_depth = source.max_crawl_depth,
+        rate_limit = source.crawl_rate_limit_seconds,
+        "Starting domain scrape via Firecrawl"
+    );
 
-    let urls_to_scrape: Vec<String> = if !scrape_urls.is_empty() {
-        tracing::info!(
-            source_id = %source_id,
-            url_count = scrape_urls.len(),
-            "Using specific scrape URLs from domain_scrape_urls table"
-        );
-        scrape_urls
-    } else {
-        // No scrape_urls configured, crawl the whole site
-        tracing::info!(
-            source_id = %source_id,
-            url = %source.domain_url,
-            "No specific URLs configured, crawling domain"
-        );
-        vec![source.domain_url.clone()]
-    };
-
-    // If multiple URLs, scrape each individually and combine
-    // If single URL, it will crawl the site (as before)
-    let scrape_result = if urls_to_scrape.len() > 1 {
-        tracing::info!(
-            source_id = %source_id,
-            url_count = urls_to_scrape.len(),
-            "Scraping multiple specific URLs"
-        );
-
-        let mut combined_markdown = String::new();
-        for (idx, url) in urls_to_scrape.iter().enumerate() {
+    let scrape_result = match ctx.deps().web_scraper.scrape(&source.domain_url).await {
+        Ok(r) => {
             tracing::info!(
                 source_id = %source_id,
-                url = %url,
-                index = idx + 1,
-                total = urls_to_scrape.len(),
-                "Scraping URL"
+                content_length = r.markdown.len(),
+                "Scrape completed successfully"
             );
+            r
+        }
+        Err(e) => {
+            tracing::error!(
+                source_id = %source_id,
+                url = %source.domain_url,
+                error = %e,
+                "Scraping failed"
+            );
+            return Ok(ListingEvent::ScrapeFailed {
+                source_id,
+                job_id,
+                reason: format!("Scraping failed: {}", e),
+            });
+        }
+    };
 
-            match ctx.deps().web_scraper.scrape(url).await {
-                Ok(result) => {
-                    combined_markdown.push_str(&format!(
-                        "\n\n--- Source {}/{}: {} ---\n\n{}",
-                        idx + 1,
-                        urls_to_scrape.len(),
-                        url,
-                        result.markdown
-                    ));
-                }
-                Err(e) => {
+    // Store scraped content in page_snapshots (with deduplication)
+    // Note: Using markdown for html field until we add html to ScrapeResult
+    tracing::info!(source_id = %source_id, "Storing page snapshot");
+    let (page_snapshot, is_new) = match PageSnapshot::upsert(
+        &ctx.deps().db_pool,
+        source.domain_url.clone(),
+        scrape_result.markdown.clone(), // Use markdown as html for now
+        Some(scrape_result.markdown.clone()),
+        "firecrawl".to_string(),
+    )
+    .await
+    {
+        Ok(snapshot) => snapshot,
+        Err(e) => {
+            tracing::error!(
+                source_id = %source_id,
+                error = %e,
+                "Failed to store page snapshot"
+            );
+            // Continue anyway - we have the content to extract from
+            (PageSnapshot {
+                id: uuid::Uuid::new_v4(),
+                url: source.domain_url.clone(),
+                content_hash: vec![],
+                html: scrape_result.markdown.clone(),
+                markdown: Some(scrape_result.markdown.clone()),
+                fetched_via: "firecrawl".to_string(),
+                metadata: serde_json::json!({}),
+                crawled_at: chrono::Utc::now(),
+                listings_extracted_count: Some(0),
+                extraction_completed_at: None,
+                extraction_status: Some("pending".to_string()),
+            }, true)
+        }
+    };
+
+    if is_new {
+        tracing::info!(
+            source_id = %source_id,
+            page_snapshot_id = %page_snapshot.id,
+            "Created new page snapshot"
+        );
+    } else {
+        tracing::info!(
+            source_id = %source_id,
+            page_snapshot_id = %page_snapshot.id,
+            "Reused existing page snapshot (content unchanged)"
+        );
+    }
+
+    // Try to link domain_snapshot to page_snapshot if it exists
+    // This creates traceability: domain_snapshot -> page_snapshot -> listings
+    if let Ok(domain_snapshots) = DomainSnapshot::find_by_domain(&ctx.deps().db_pool, source_id).await {
+        for ds in domain_snapshots {
+            if ds.page_url == source.domain_url && ds.page_snapshot_id.is_none() {
+                tracing::info!(
+                    domain_snapshot_id = %ds.id,
+                    page_snapshot_id = %page_snapshot.id,
+                    "Linking domain_snapshot to page_snapshot"
+                );
+                if let Err(e) = ds.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
                     tracing::warn!(
-                        source_id = %source_id,
-                        url = %url,
+                        domain_snapshot_id = %ds.id,
                         error = %e,
-                        "Failed to scrape URL, continuing with others"
+                        "Failed to link domain_snapshot to page_snapshot"
                     );
                 }
             }
         }
-
-        crate::kernel::ScrapeResult {
-            url: source.domain_url.clone(),
-            markdown: combined_markdown,
-            title: Some(extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()).clone()),
-        }
-    } else {
-        // Single URL - use normal crawling behavior
-        let url = &urls_to_scrape[0];
-        tracing::info!(
-            source_id = %source_id,
-            url = %url,
-            "Starting web scrape/crawl via Firecrawl"
-        );
-
-        match ctx.deps().web_scraper.scrape(url).await {
-            Ok(r) => {
-                tracing::info!(
-                    source_id = %source_id,
-                    content_length = r.markdown.len(),
-                    "Web scrape completed successfully"
-                );
-                r
-            }
-            Err(e) => {
-                tracing::error!(
-                    source_id = %source_id,
-                    url = %url,
-                    error = %e,
-                    "Web scraping failed"
-                );
-                return Ok(ListingEvent::ScrapeFailed {
-                    source_id,
-                    job_id,
-                    reason: format!("Web scraping failed: {}", e),
-                });
-            }
-        }
-    };
+    }
 
     // Update last_scraped_at timestamp
     tracing::info!(source_id = %source_id, "Updating last_scraped_at timestamp");
-    if let Err(e) = OrganizationSource::update_last_scraped(source_id, &ctx.deps().db_pool).await {
+    if let Err(e) = Domain::update_last_scraped(source_id, &ctx.deps().db_pool).await {
         // Log warning but don't fail the scrape - this is non-critical
         tracing::warn!(
             source_id = %source_id,
@@ -219,6 +224,7 @@ async fn handle_scrape_source(
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
+        page_snapshot_id = %page_snapshot.id,
         organization_name = %extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
         "Scrape completed successfully, emitting SourceScraped event"
     );
@@ -227,6 +233,7 @@ async fn handle_scrape_source(
         job_id,
         organization_name: extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
         content: scrape_result.markdown,
+        page_snapshot_id: Some(page_snapshot.id),
     })
 }
 
@@ -270,10 +277,61 @@ async fn handle_scrape_resource_link(
         }
     };
 
+    // Store scraped content in page_snapshots (with deduplication)
+    // Note: Using markdown for html field until we add html to ScrapeResult
+    tracing::info!(job_id = %job_id, "Storing page snapshot for resource link");
+    let (page_snapshot, is_new) = match PageSnapshot::upsert(
+        &ctx.deps().db_pool,
+        url.clone(),
+        scrape_result.markdown.clone(), // Use markdown as html for now
+        Some(scrape_result.markdown.clone()),
+        "firecrawl".to_string(),
+    )
+    .await
+    {
+        Ok(snapshot) => snapshot,
+        Err(e) => {
+            tracing::warn!(
+                job_id = %job_id,
+                error = %e,
+                "Failed to store page snapshot, continuing with extraction"
+            );
+            // Continue anyway - we have the content to extract from
+            (PageSnapshot {
+                id: uuid::Uuid::new_v4(),
+                url: url.clone(),
+                content_hash: vec![],
+                html: scrape_result.markdown.clone(),
+                markdown: Some(scrape_result.markdown.clone()),
+                fetched_via: "firecrawl".to_string(),
+                metadata: serde_json::json!({}),
+                crawled_at: chrono::Utc::now(),
+                listings_extracted_count: Some(0),
+                extraction_completed_at: None,
+                extraction_status: Some("pending".to_string()),
+            }, true)
+        }
+    };
+
+    if is_new {
+        tracing::info!(
+            job_id = %job_id,
+            page_snapshot_id = %page_snapshot.id,
+            "Created new page snapshot for resource link"
+        );
+    } else {
+        tracing::info!(
+            job_id = %job_id,
+            page_snapshot_id = %page_snapshot.id,
+            "Reused existing page snapshot (content unchanged)"
+        );
+    }
+
     // Return fact event with scraped content
     tracing::info!(
         job_id = %job_id,
         url = %url,
+        page_snapshot_id = %page_snapshot.id,
         "Emitting ResourceLinkScraped event"
     );
     Ok(ListingEvent::ResourceLinkScraped {
@@ -282,5 +340,6 @@ async fn handle_scrape_resource_link(
         content: scrape_result.markdown,
         context,
         submitter_contact,
+        page_snapshot_id: Some(page_snapshot.id),
     })
 }
