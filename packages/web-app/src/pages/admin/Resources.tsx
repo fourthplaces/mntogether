@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_ORGANIZATION_SOURCES } from '../../graphql/queries';
+import { GET_ALL_DOMAINS } from '../../graphql/queries';
 import { SCRAPE_ORGANIZATION, SUBMIT_RESOURCE_LINK } from '../../graphql/mutations';
 import { useNavigate } from 'react-router-dom';
 
-interface ResourceSource {
+interface Domain {
   id: string;
-  sourceUrl: string;
+  domainUrl: string;
+  status: string;
   lastScrapedAt: string | null;
-  scrapeFrequencyHours: number;
-  active: boolean;
+  snapshotsCount?: number;
+  listingsCount?: number;
+  submitterType?: string;
   createdAt: string;
 }
 
@@ -20,8 +22,11 @@ export function Resources() {
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ organizationSources: ResourceSource[] }>(
-    GET_ORGANIZATION_SOURCES
+  const { data, loading, refetch } = useQuery<{ domains: Domain[] }>(
+    GET_ALL_DOMAINS,
+    {
+      variables: { status: null }, // Get all domains
+    }
   );
 
   const [scrapeOrganization] = useMutation(SCRAPE_ORGANIZATION, {
@@ -89,12 +94,12 @@ export function Resources() {
     <div className="min-h-screen bg-amber-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-stone-900">Resource Sources</h1>
+          <h1 className="text-3xl font-bold text-stone-900">Domains</h1>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-amber-700 text-white px-4 py-2 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
-            {showAddForm ? 'Cancel' : '+ Add Source URL'}
+            {showAddForm ? 'Cancel' : '+ Add Domain'}
           </button>
         </div>
 
@@ -140,13 +145,16 @@ export function Resources() {
             <thead className="bg-stone-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Source URL
+                  Domain URL
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                  Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Last Scraped
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Status
+                  Listings
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Actions
@@ -154,46 +162,51 @@ export function Resources() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
-              {data?.organizationSources.map((source) => (
-                <tr key={source.id} className="hover:bg-stone-50">
+              {data?.domains.map((domain) => (
+                <tr key={domain.id} className="hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <a
-                      href={source.sourceUrl}
+                      href={domain.domainUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-700 hover:text-amber-900 font-medium break-all"
                     >
-                      {source.sourceUrl}
+                      {domain.domainUrl}
                     </a>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                    {formatDate(source.lastScrapedAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${
-                        source.active
+                        domain.status === 'approved'
                           ? 'bg-green-100 text-green-800'
-                          : 'bg-stone-100 text-stone-800'
+                          : domain.status === 'pending_review'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
                       }`}
                     >
-                      {source.active ? 'Active' : 'Inactive'}
+                      {domain.status.replace('_', ' ')}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
+                    {formatDate(domain.lastScrapedAt)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
+                    {domain.listingsCount || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                     <div className="flex gap-2 justify-end">
                       <button
-                        onClick={() => navigate(`/resources/${source.id}`)}
+                        onClick={() => navigate(`/resources/${domain.id}`)}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                       >
                         View Listings
                       </button>
                       <button
-                        onClick={() => handleScrape(source.id)}
-                        disabled={scrapingId === source.id}
+                        onClick={() => handleScrape(domain.id)}
+                        disabled={scrapingId === domain.id}
                         className="bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {scrapingId === source.id ? 'Scraping...' : 'Run Scraper'}
+                        {scrapingId === domain.id ? 'Scraping...' : 'Run Scraper'}
                       </button>
                     </div>
                   </td>
