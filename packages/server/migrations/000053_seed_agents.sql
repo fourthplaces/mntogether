@@ -144,7 +144,8 @@ VALUES
         true,
         true,
         true
-    );
+    )
+ON CONFLICT (name) DO NOTHING;
 
 -- Add comment
 COMMENT ON TABLE agents IS 'Seeded with 8 autonomous agents focused on Twin Cities community resources. Each agent searches, scrapes, and extracts automatically.';
