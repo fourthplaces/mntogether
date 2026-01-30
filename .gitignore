@@ -43,3 +43,6 @@ Thumbs.db
 
 # SQLx (keep for offline mode)
 # .sqlx/
+# devkit
+/.env.*.local
+/dev/cli/target/

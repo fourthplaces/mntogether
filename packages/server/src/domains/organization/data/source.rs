@@ -6,12 +6,11 @@ use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// GraphQL-friendly representation of an organization source
+/// GraphQL-friendly representation of a domain source (decoupled from organizations)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceData {
     pub id: String,
-    pub organization_name: String,
-    pub source_url: String,
+    pub source_url: String, // Maps to domain_url in database
     pub last_scraped_at: Option<String>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
@@ -22,8 +21,7 @@ impl From<OrganizationSource> for SourceData {
     fn from(source: OrganizationSource) -> Self {
         Self {
             id: source.id.to_string(),
-            organization_name: source.organization_name,
-            source_url: source.source_url,
+            source_url: source.domain_url, // Map domain_url to source_url for frontend compatibility
             last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
             scrape_frequency_hours: source.scrape_frequency_hours,
             active: source.active,
@@ -36,10 +34,6 @@ impl From<OrganizationSource> for SourceData {
 impl SourceData {
     fn id(&self) -> String {
         self.id.clone()
-    }
-
-    fn organization_name(&self) -> String {
-        self.organization_name.clone()
     }
 
     fn source_url(&self) -> String {

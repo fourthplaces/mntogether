@@ -18,11 +18,6 @@ export const GET_PUBLISHED_POSTS = gql`
         title
         tldr
         description
-        contactInfo {
-          email
-          phone
-          website
-        }
         location
         urgency
         createdAt
@@ -41,11 +36,6 @@ export const GET_PENDING_LISTINGS = gql`
         title
         tldr
         description
-        contactInfo {
-          email
-          phone
-          website
-        }
         urgency
         location
         submissionType
@@ -73,11 +63,6 @@ export const GET_SCRAPED_PENDING_LISTINGS = gql`
         title
         tldr
         description
-        contactInfo {
-          email
-          phone
-          website
-        }
         urgency
         location
         category
@@ -156,11 +141,6 @@ export const GET_LISTING_DETAIL = gql`
       tldr
       description
       descriptionMarkdown
-      contactInfo {
-        email
-        phone
-        website
-      }
       urgency
       location
       status

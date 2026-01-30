@@ -7,6 +7,7 @@ use anyhow::{Context, Result};
 use sqlx::PgPool;
 
 use super::utils::sync_utils::{sync_listings, ExtractedListingInput};
+use super::listing::extract_domain;
 use crate::common::{DomainId, SourceId};
 use crate::domains::listings::events::ExtractedListing;
 use crate::domains::organization::models::source::OrganizationSource;
@@ -39,7 +40,7 @@ pub async fn sync_extracted_listings(
     let sync_input: Vec<ExtractedListingInput> = listings
         .into_iter()
         .map(|listing| ExtractedListingInput {
-            organization_name: source.organization_name.clone(),
+            organization_name: extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
             title: listing.title,
             description: listing.description,
             description_markdown: None,
@@ -55,7 +56,7 @@ pub async fn sync_extracted_listings(
             }),
             urgency: listing.urgency,
             confidence: listing.confidence,
-            source_url: Some(source.source_url.clone()), // Use main source URL for now
+            source_url: Some(source.domain_url.clone()), // Use main source URL for now
         })
         .collect();
 

@@ -100,7 +100,7 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
             "Queued scrape job {} for source {} ({})",
             job_id,
             source.id,
-            source.organization_name
+            source.domain_url
         );
     }
 

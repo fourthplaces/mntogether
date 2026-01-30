@@ -2,10 +2,11 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use uuid::Uuid;
 
-use crate::common::DomainId;
+use crate::common::{DomainId, MemberId};
 
-/// Domain - a website we scrape for listings
+/// Domain - a website we scrape for listings (requires approval before crawling)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Domain {
     pub id: DomainId,
@@ -13,18 +14,58 @@ pub struct Domain {
     pub scrape_frequency_hours: i32,
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub active: bool,
+
+    // Approval workflow
+    pub status: String, // 'pending_review', 'approved', 'rejected', 'suspended'
+    pub submitted_by: Option<MemberId>,
+    pub submitter_type: Option<String>, // 'admin', 'public_user', 'system'
+    pub submission_context: Option<String>,
+    pub reviewed_by: Option<MemberId>,
+    pub reviewed_at: Option<DateTime<Utc>>,
+    pub rejection_reason: Option<String>,
+
+    // Crawling configuration
+    pub max_crawl_depth: i32,
+    pub crawl_rate_limit_seconds: i32,
+    pub is_trusted_domain: bool,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-/// DomainScrapeUrl - specific pages to scrape within a domain
-#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct DomainScrapeUrl {
-    pub id: uuid::Uuid,
-    pub domain_id: DomainId,
-    pub url: String,
-    pub active: bool,
-    pub added_at: DateTime<Utc>,
+/// Domain status enum
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DomainStatus {
+    PendingReview,
+    Approved,
+    Rejected,
+    Suspended,
+}
+
+impl std::fmt::Display for DomainStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DomainStatus::PendingReview => write!(f, "pending_review"),
+            DomainStatus::Approved => write!(f, "approved"),
+            DomainStatus::Rejected => write!(f, "rejected"),
+            DomainStatus::Suspended => write!(f, "suspended"),
+        }
+    }
+}
+
+impl std::str::FromStr for DomainStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "pending_review" => Ok(DomainStatus::PendingReview),
+            "approved" => Ok(DomainStatus::Approved),
+            "rejected" => Ok(DomainStatus::Rejected),
+            "suspended" => Ok(DomainStatus::Suspended),
+            _ => Err(anyhow::anyhow!("Invalid domain status: {}", s)),
+        }
+    }
 }
 
 // =============================================================================
@@ -53,19 +94,40 @@ impl Domain {
     /// Find all active domains
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         let domains = sqlx::query_as::<_, Domain>(
-            "SELECT * FROM domains WHERE active = true ORDER BY created_at",
+            "SELECT * FROM domains WHERE active = true AND status = 'approved' ORDER BY created_at",
         )
         .fetch_all(pool)
         .await?;
         Ok(domains)
     }
 
-    /// Find domains due for scraping
+    /// Find all approved domains (ready for crawling)
+    pub async fn find_approved(pool: &PgPool) -> Result<Vec<Self>> {
+        let domains = sqlx::query_as::<_, Domain>(
+            "SELECT * FROM domains WHERE status = 'approved' ORDER BY created_at",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(domains)
+    }
+
+    /// Find domains pending review
+    pub async fn find_pending_review(pool: &PgPool) -> Result<Vec<Self>> {
+        let domains = sqlx::query_as::<_, Domain>(
+            "SELECT * FROM domains WHERE status = 'pending_review' ORDER BY created_at DESC",
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(domains)
+    }
+
+    /// Find approved domains due for scraping
     pub async fn find_due_for_scraping(pool: &PgPool) -> Result<Vec<Self>> {
         let domains = sqlx::query_as::<_, Domain>(
             r#"
             SELECT * FROM domains
-            WHERE active = true
+            WHERE status = 'approved'
+              AND active = true
               AND (last_scraped_at IS NULL
                    OR last_scraped_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
             ORDER BY last_scraped_at NULLS FIRST
@@ -76,23 +138,114 @@ impl Domain {
         Ok(domains)
     }
 
-    /// Create a new domain
+    /// Create a new domain submission (starts as pending_review)
     pub async fn create(
         domain_url: String,
-        scrape_frequency_hours: i32,
-        active: bool,
+        submitted_by: Option<MemberId>,
+        submitter_type: String,
+        submission_context: Option<String>,
+        max_crawl_depth: i32,
         pool: &PgPool,
     ) -> Result<Self> {
         let domain = sqlx::query_as::<_, Domain>(
             r#"
-            INSERT INTO domains (domain_url, scrape_frequency_hours, active)
-            VALUES ($1, $2, $3)
+            INSERT INTO domains (
+                domain_url,
+                submitted_by,
+                submitter_type,
+                submission_context,
+                max_crawl_depth,
+                status
+            )
+            VALUES ($1, $2, $3, $4, $5, 'pending_review')
             RETURNING *
             "#,
         )
         .bind(domain_url)
-        .bind(scrape_frequency_hours)
-        .bind(active)
+        .bind(submitted_by)
+        .bind(submitter_type)
+        .bind(submission_context)
+        .bind(max_crawl_depth)
+        .fetch_one(pool)
+        .await?;
+        Ok(domain)
+    }
+
+    /// Approve a domain for crawling
+    pub async fn approve(
+        id: DomainId,
+        reviewed_by: MemberId,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let domain = sqlx::query_as::<_, Domain>(
+            r#"
+            UPDATE domains
+            SET
+                status = 'approved',
+                reviewed_by = $2,
+                reviewed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(reviewed_by)
+        .fetch_one(pool)
+        .await?;
+        Ok(domain)
+    }
+
+    /// Reject a domain submission
+    pub async fn reject(
+        id: DomainId,
+        reviewed_by: MemberId,
+        rejection_reason: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let domain = sqlx::query_as::<_, Domain>(
+            r#"
+            UPDATE domains
+            SET
+                status = 'rejected',
+                reviewed_by = $2,
+                reviewed_at = NOW(),
+                rejection_reason = $3,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(reviewed_by)
+        .bind(rejection_reason)
+        .fetch_one(pool)
+        .await?;
+        Ok(domain)
+    }
+
+    /// Check if a domain is approved (for auto-approving URLs from this domain)
+    pub async fn is_domain_approved(domain_url: &str, pool: &PgPool) -> Result<bool> {
+        let result = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM domains WHERE domain_url = $1 AND status = 'approved')",
+        )
+        .bind(domain_url)
+        .fetch_one(pool)
+        .await?;
+        Ok(result)
+    }
+
+    /// Mark domain as trusted (URLs from this domain are auto-approved)
+    pub async fn mark_as_trusted(id: DomainId, pool: &PgPool) -> Result<Self> {
+        let domain = sqlx::query_as::<_, Domain>(
+            r#"
+            UPDATE domains
+            SET is_trusted_domain = true, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
         .fetch_one(pool)
         .await?;
         Ok(domain)
@@ -161,63 +314,13 @@ impl Domain {
         Ok(())
     }
 
-    /// Get scrape URLs for this domain
-    pub async fn get_scrape_urls(&self, pool: &PgPool) -> Result<Vec<DomainScrapeUrl>> {
-        DomainScrapeUrl::find_by_domain(self.id, pool).await
-    }
-}
-
-impl DomainScrapeUrl {
-    /// Find scrape URLs by domain ID
-    pub async fn find_by_domain(domain_id: DomainId, pool: &PgPool) -> Result<Vec<Self>> {
-        let urls = sqlx::query_as::<_, DomainScrapeUrl>(
-            "SELECT * FROM domain_scrape_urls WHERE domain_id = $1 AND active = true",
-        )
-        .bind(domain_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(urls)
-    }
-
-    /// Add a scrape URL to a domain
-    pub async fn create(domain_id: DomainId, url: String, pool: &PgPool) -> Result<Self> {
-        let scrape_url = sqlx::query_as::<_, DomainScrapeUrl>(
-            r#"
-            INSERT INTO domain_scrape_urls (domain_id, url)
-            VALUES ($1, $2)
-            RETURNING *
-            "#,
-        )
-        .bind(domain_id)
-        .bind(url)
-        .fetch_one(pool)
-        .await?;
-        Ok(scrape_url)
-    }
-
-    /// Set scrape URL active status
-    pub async fn set_active(id: uuid::Uuid, active: bool, pool: &PgPool) -> Result<Self> {
-        let scrape_url = sqlx::query_as::<_, DomainScrapeUrl>(
-            r#"
-            UPDATE domain_scrape_urls
-            SET active = $2
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(active)
-        .fetch_one(pool)
-        .await?;
-        Ok(scrape_url)
-    }
-
-    /// Delete a scrape URL
-    pub async fn delete(id: uuid::Uuid, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM domain_scrape_urls WHERE id = $1")
-            .bind(id)
-            .execute(pool)
-            .await?;
-        Ok(())
+    /// Extract domain from URL (e.g., "https://example.org/page" -> "example.org")
+    pub fn extract_domain_from_url(url: &str) -> Result<String> {
+        let url = url::Url::parse(url)?;
+        let domain = url
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("No host in URL"))?
+            .to_string();
+        Ok(domain)
     }
 }

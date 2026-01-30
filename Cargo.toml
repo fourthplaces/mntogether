@@ -3,14 +3,13 @@ resolver = "2"
 members = [
     "packages/server",
     "packages/twilio-rs",
-    "packages/dev-cli",
     "packages/intelligent-crawler",
 ]
 
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-authors = ["Minnesota Digital Aid"]
+authors = ["MN Together"]
 license = "MIT"
 
 [workspace.dependencies]
