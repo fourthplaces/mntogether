@@ -348,6 +348,7 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
     impl crate::kernel::BaseAI for MockOpenAI {
         async fn complete(&self, _prompt: &str) -> Result<String> {
             Ok("Mock response".to_string())
