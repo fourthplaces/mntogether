@@ -5,8 +5,8 @@
 use anyhow::{Context, Result};
 use sqlx::PgPool;
 
-use crate::common::SourceId;
-use crate::domains::organization::models::source::OrganizationSource;
+use crate::common::DomainId;
+use crate::domains::scraping::models::Domain;
 use crate::kernel::{BaseWebScraper, ScrapeResult};
 
 /// Scrape a website source and return the content
@@ -17,12 +17,12 @@ use crate::kernel::{BaseWebScraper, ScrapeResult};
 /// 3. Updates the last_scraped_at timestamp
 /// 4. Returns the scrape result
 pub async fn scrape_source(
-    source_id: SourceId,
+    source_id: DomainId,
     web_scraper: &dyn BaseWebScraper,
     db_pool: &PgPool,
-) -> Result<(OrganizationSource, ScrapeResult)> {
+) -> Result<(Domain, ScrapeResult)> {
     // Get source from database using model layer
-    let source = OrganizationSource::find_by_id(source_id, db_pool)
+    let source = Domain::find_by_id(source_id, db_pool)
         .await
         .context("Failed to find source")?;
 
@@ -33,7 +33,7 @@ pub async fn scrape_source(
         .context("Web scraping failed")?;
 
     // Update last_scraped_at timestamp
-    OrganizationSource::update_last_scraped(source_id, db_pool)
+    Domain::update_last_scraped(source_id, db_pool)
         .await
         .context("Failed to update last_scraped_at")?;
 

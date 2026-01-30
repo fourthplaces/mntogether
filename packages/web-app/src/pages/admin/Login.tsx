@@ -66,7 +66,7 @@ export function Login() {
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h1>
           <p className="text-gray-600 text-sm">
-            Emergency Resource Aggregator
+            MN Together
           </p>
         </div>
 

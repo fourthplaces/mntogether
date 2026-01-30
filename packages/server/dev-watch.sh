@@ -164,8 +164,6 @@ echo "[dev-watch] Starting cargo watch..."
 exec cargo watch \
     -w /app/packages/server \
     -w /app/packages/twilio-rs \
-    -w /app/packages/intelligent-crawler \
-    -w /app/packages/dev-cli \
     -w /app/Cargo.toml \
     -w /app/Cargo.lock \
     -s 'cargo run --manifest-path /app/packages/server/Cargo.toml --bin server'

@@ -5,8 +5,8 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "MN Digital Aid",
-  description: "Connecting immigrants with essential services in Minnesota",
+  title: "MN Together",
+  description: "Connecting volunteers with organizations and communities in need",
 };
 
 export default function RootLayout({

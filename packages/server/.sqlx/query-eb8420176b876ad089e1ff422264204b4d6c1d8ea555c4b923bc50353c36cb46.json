@@ -1,0 +1,84 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO domain_snapshots (domain_id, page_url, submitted_by)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (domain_id, page_url) DO UPDATE\n            SET updated_at = NOW()\n            RETURNING *\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "domain_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "page_url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "page_snapshot_id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 4,
+        "name": "submitted_by",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 5,
+        "name": "submitted_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "last_scraped_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "scrape_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "scrape_error",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "eb8420176b876ad089e1ff422264204b4d6c1d8ea555c4b923bc50353c36cb46"
+}

@@ -274,3 +274,167 @@ export const GET_SCRAPED_LISTINGS_STATS = gql`
     }
   }
 `;
+
+// Domain management queries
+export const GET_PENDING_DOMAINS = gql`
+  query GetPendingDomains {
+    pendingDomains {
+      id
+      domainUrl
+      status
+      submittedBy
+      submitterType
+      submissionContext
+      createdAt
+    }
+  }
+`;
+
+export const GET_ALL_DOMAINS = gql`
+  query GetAllDomains($status: String) {
+    domains(status: $status) {
+      id
+      domainUrl
+      status
+      submittedBy
+      submitterType
+      createdAt
+      snapshotsCount
+      listingsCount
+    }
+  }
+`;
+
+export const GET_DOMAIN_DETAIL = gql`
+  query GetDomainDetail($id: ID!) {
+    domain(id: $id) {
+      id
+      domainUrl
+      status
+      submittedBy
+      submitterType
+      submissionContext
+      reviewedBy
+      reviewedAt
+      rejectionReason
+      createdAt
+      updatedAt
+      snapshots {
+        id
+        pageUrl
+        scrapeStatus
+        lastScrapedAt
+        scrapeError
+        submittedAt
+      }
+      listings {
+        id
+        title
+        status
+        createdAt
+      }
+    }
+  }
+`;
+
+// Domain mutations
+export const APPROVE_DOMAIN = gql`
+  mutation ApproveDomain($domainId: ID!) {
+    approveDomain(domainId: $domainId) {
+      id
+      status
+    }
+  }
+`;
+
+export const REJECT_DOMAIN = gql`
+  mutation RejectDomain($domainId: ID!, $reason: String!) {
+    rejectDomain(domainId: $domainId, reason: $reason) {
+      id
+      status
+      rejectionReason
+    }
+  }
+`;
+
+export const SUSPEND_DOMAIN = gql`
+  mutation SuspendDomain($domainId: ID!, $reason: String!) {
+    suspendDomain(domainId: $domainId, reason: $reason) {
+      id
+      status
+      rejectionReason
+    }
+  }
+`;
+
+// Enhanced domain detail with snapshot -> listing traceability
+export const GET_DOMAIN_WITH_SNAPSHOT_DETAILS = gql`
+  query GetDomainWithSnapshotDetails($id: ID!) {
+    domain(id: $id) {
+      id
+      domainUrl
+      status
+      submittedBy
+      submitterType
+      submissionContext
+      reviewedBy
+      reviewedAt
+      rejectionReason
+      createdAt
+      updatedAt
+      
+      snapshots {
+        id
+        pageUrl
+        scrapeStatus
+        lastScrapedAt
+        scrapeError
+        submittedAt
+        
+        # Show cached page content if available
+        pageSnapshot {
+          id
+          contentHash
+          crawledAt
+          markdown
+        }
+        
+        # Show listings extracted from this specific page
+        listings {
+          id
+          title
+          status
+          urgency
+          createdAt
+          organizationName
+        }
+      }
+      
+      # Total listings from all pages in this domain
+      totalListings: listings {
+        id
+        title
+        status
+        sourceUrl
+        createdAt
+      }
+    }
+  }
+`;
+
+// Query to see listings by source page
+export const GET_LISTINGS_BY_PAGE = gql`
+  query GetListingsByPage($domainId: ID!, $pageUrl: String!) {
+    listingsByPage(domainId: $domainId, pageUrl: $pageUrl) {
+      id
+      title
+      description
+      status
+      urgency
+      organizationName
+      sourceUrl
+      createdAt
+      extractionConfidence
+    }
+  }
+`;

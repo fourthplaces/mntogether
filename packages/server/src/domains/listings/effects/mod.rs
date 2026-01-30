@@ -10,7 +10,6 @@ pub mod listing;
 pub mod listing_extraction; // Domain functions for AI extraction
 pub mod listing_operations; // Domain functions for listing CRUD operations
 pub mod scraper;
-pub mod source_operations; // Domain functions for source CRUD operations
 pub mod sync;
 pub mod syncing; // Domain functions for listing synchronization
 pub mod utils;
@@ -26,6 +25,5 @@ pub use utils::*;
 // Domain function modules are available via:
 //   - `effects::listing_extraction::*` - AI extraction functions
 //   - `effects::listing_operations::*` - Listing CRUD operations
-//   - `effects::source_operations::*` - Source CRUD operations
 //   - `effects::syncing::*` - Listing synchronization functions
 // (not re-exported at top level to avoid namespace pollution)

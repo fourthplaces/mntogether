@@ -57,7 +57,7 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             ListingCommand::SyncListings { .. } => self.sync.execute(cmd, ctx).await,
 
             // Route to ListingEffect (all other commands)
-            ListingCommand::CreateOrganizationSourceFromLink { .. }
+            ListingCommand::CreateDomainFromLink { .. }
             | ListingCommand::CreateListing { .. }
             | ListingCommand::CreateListingsFromResourceLink { .. }
             | ListingCommand::UpdateListingStatus { .. }
@@ -71,8 +71,6 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             | ListingCommand::IncrementPostView { .. }
             | ListingCommand::IncrementPostClick { .. }
             | ListingCommand::DeleteListing { .. }
-            | ListingCommand::AddScrapeUrl { .. }
-            | ListingCommand::RemoveScrapeUrl { .. }
             | ListingCommand::CrawlSite { .. }
             | ListingCommand::DetectInformation { .. }
             | ListingCommand::ExtractData { .. }

@@ -1,7 +1,7 @@
-use crate::common::{DomainId, SourceId};
+use crate::common::DomainId;
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
-use crate::domains::organization::models::source::OrganizationSource;
+use crate::domains::scraping::models::Domain;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -17,8 +17,8 @@ pub struct SourceData {
     pub created_at: String,
 }
 
-impl From<OrganizationSource> for SourceData {
-    fn from(source: OrganizationSource) -> Self {
+impl From<Domain> for SourceData {
+    fn from(source: Domain) -> Self {
         Self {
             id: source.id.to_string(),
             source_url: source.domain_url, // Map domain_url to source_url for frontend compatibility
@@ -59,8 +59,7 @@ impl SourceData {
     /// Get all listings scraped from this source
     async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
         let uuid = Uuid::parse_str(&self.id)?;
-        let source_id = SourceId::from_uuid(uuid);
-        let domain_id = DomainId::from_uuid(source_id.into_uuid());
+        let domain_id = DomainId::from_uuid(uuid);
         let listings = Listing::find_by_domain_id(domain_id, &context.db_pool).await?;
         Ok(listings.into_iter().map(ListingData::from).collect())
     }

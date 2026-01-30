@@ -1,0 +1,83 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id,\n                url,\n                content_hash,\n                html,\n                markdown,\n                fetched_via,\n                metadata,\n                crawled_at,\n                listings_extracted_count,\n                extraction_completed_at,\n                extraction_status\n            FROM page_snapshots\n            WHERE url = $1 AND content_hash = $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "url",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 2,
+        "name": "content_hash",
+        "type_info": "Bytea"
+      },
+      {
+        "ordinal": 3,
+        "name": "html",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "markdown",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "fetched_via",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "metadata",
+        "type_info": "Jsonb"
+      },
+      {
+        "ordinal": 7,
+        "name": "crawled_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 8,
+        "name": "listings_extracted_count",
+        "type_info": "Int4"
+      },
+      {
+        "ordinal": 9,
+        "name": "extraction_completed_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 10,
+        "name": "extraction_status",
+        "type_info": "Text"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "8a17311f2779f44340aed68a5c5ce130d61a26303ea684be8662a8833ddaaaf7"
+}

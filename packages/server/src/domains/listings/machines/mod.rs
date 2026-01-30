@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::common::SourceId;
+use crate::common::DomainId;
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -8,7 +8,7 @@ use crate::domains::listings::events::ListingEvent;
 /// Pure decision logic - NO IO, only state transitions
 pub struct ListingMachine {
     /// Track pending scrapes to prevent duplicates
-    pending_scrapes: HashSet<SourceId>,
+    pending_scrapes: HashSet<DomainId>,
 }
 
 impl ListingMachine {
@@ -59,6 +59,7 @@ impl seesaw_core::Machine for ListingMachine {
                 job_id,
                 organization_name,
                 content,
+                page_snapshot_id: _,
             } => {
                 // Source was scraped, now extract listings from content
                 Some(ListingCommand::ExtractListings {
@@ -75,6 +76,7 @@ impl seesaw_core::Machine for ListingMachine {
                 content,
                 context,
                 submitter_contact,
+                page_snapshot_id: _,
             } => {
                 // Resource link was scraped, now extract listings from content
                 Some(ListingCommand::ExtractListingsFromResourceLink {
@@ -218,14 +220,17 @@ impl seesaw_core::Machine for ListingMachine {
                 url,
                 context,
                 submitter_contact,
-            } => Some(ListingCommand::CreateOrganizationSourceFromLink {
+            } => Some(ListingCommand::CreateDomainFromLink {
                 url: url.clone(),
                 organization_name: context.clone().unwrap_or_else(|| "Submitted Resource".to_string()),
                 submitter_contact: submitter_contact.clone(),
             }),
 
+            // Domain pending approval - no scraping yet
+            ListingEvent::DomainPendingApproval { .. } => None,
+
             // After source created, start scraping
-            ListingEvent::OrganizationSourceCreatedFromLink {
+            ListingEvent::DomainCreatedFromLink {
                 job_id,
                 url,
                 submitter_contact,
@@ -328,30 +333,6 @@ impl seesaw_core::Machine for ListingMachine {
                 is_admin: *is_admin,
             }),
 
-            ListingEvent::AddScrapeUrlRequested {
-                source_id,
-                url,
-                requested_by,
-                is_admin,
-            } => Some(ListingCommand::AddScrapeUrl {
-                source_id: *source_id,
-                url: url.clone(),
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
-            ListingEvent::RemoveScrapeUrlRequested {
-                source_id,
-                url,
-                requested_by,
-                is_admin,
-            } => Some(ListingCommand::RemoveScrapeUrl {
-                source_id: *source_id,
-                url: url.clone(),
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
             // Terminal events - no further commands needed
             ListingEvent::ListingApproved { listing_id } => {
                 // When listing is approved, create a post
@@ -372,8 +353,6 @@ impl seesaw_core::Machine for ListingMachine {
             ListingEvent::PostArchived { .. } => None,
             ListingEvent::PostViewed { .. } => None,
             ListingEvent::PostClicked { .. } => None,
-            ListingEvent::ScrapeUrlAdded { .. } => None,
-            ListingEvent::ScrapeUrlRemoved { .. } => None,
 
             // Embedding events - no further action needed
             ListingEvent::ListingEmbeddingGenerated { .. } => None,

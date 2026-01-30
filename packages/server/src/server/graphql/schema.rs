@@ -1,12 +1,12 @@
 use super::context::GraphQLContext;
 use crate::domains::auth::edges as auth_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
-use crate::domains::organization::data::{OrganizationData, PostData, SourceData as OrganizationSourceData};
+use crate::domains::organization::data::{OrganizationData, PostData, SourceData as DomainData};
 use crate::domains::organization::data::post_types::RepostResult;
 use crate::domains::listings::edges::{
-    add_organization_scrape_url, approve_listing, delete_listing,
+    approve_listing, delete_listing,
     edit_and_approve_listing, query_listing, query_listings,
-    reject_listing, remove_organization_scrape_url,
+    reject_listing,
     scrape_organization, submit_listing, submit_resource_link,
     archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
     repost_listing, track_post_click, track_post_view,
@@ -142,7 +142,7 @@ impl Query {
     }
 
     /// Get all organization sources (websites to scrape)
-    async fn organization_sources(ctx: &GraphQLContext) -> FieldResult<Vec<OrganizationSourceData>> {
+    async fn organization_sources(ctx: &GraphQLContext) -> FieldResult<Vec<DomainData>> {
         query_organization_sources(&ctx.db_pool).await
     }
 
@@ -150,7 +150,7 @@ impl Query {
     async fn organization_source(
         ctx: &GraphQLContext,
         id: Uuid,
-    ) -> FieldResult<Option<OrganizationSourceData>> {
+    ) -> FieldResult<Option<DomainData>> {
         query_organization_source(&ctx.db_pool, id).await
     }
 
@@ -221,24 +221,6 @@ impl Mutation {
     /// Delete a listing (admin only)
     async fn delete_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<bool> {
         delete_listing(ctx, listing_id).await
-    }
-
-    /// Add a scrape URL to an organization source (admin only)
-    async fn add_organization_scrape_url(
-        ctx: &GraphQLContext,
-        source_id: Uuid,
-        url: String,
-    ) -> FieldResult<bool> {
-        add_organization_scrape_url(ctx, source_id, url).await
-    }
-
-    /// Remove a scrape URL from an organization source (admin only)
-    async fn remove_organization_scrape_url(
-        ctx: &GraphQLContext,
-        source_id: Uuid,
-        url: String,
-    ) -> FieldResult<bool> {
-        remove_organization_scrape_url(ctx, source_id, url).await
     }
 
     /// Send OTP verification code via SMS

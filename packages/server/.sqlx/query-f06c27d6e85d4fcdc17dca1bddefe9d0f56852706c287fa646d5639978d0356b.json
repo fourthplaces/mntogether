@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE domain_snapshots\n            SET page_snapshot_id = $1,\n                scrape_status = 'scraped',\n                last_scraped_at = NOW(),\n                scrape_error = NULL,\n                updated_at = NOW()\n            WHERE id = $2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f06c27d6e85d4fcdc17dca1bddefe9d0f56852706c287fa646d5639978d0356b"
+}

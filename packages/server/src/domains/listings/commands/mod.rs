@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 use std::net::IpAddr;
 
-use crate::common::{JobId, ListingId, MemberId, PostId, SourceId};
+use crate::common::{JobId, ListingId, MemberId, PostId, DomainId};
 use crate::domains::listings::events::ExtractedListing;
 
 /// Listings domain commands
@@ -11,14 +11,14 @@ use crate::domains::listings::events::ExtractedListing;
 pub enum ListingCommand {
     /// Scrape a source URL using Firecrawl
     ScrapeSource {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         requested_by: MemberId,
         is_admin: bool,
     },
 
     /// Create organization source from user-submitted link
-    CreateOrganizationSourceFromLink {
+    CreateDomainFromLink {
         url: String,
         organization_name: String,
         submitter_contact: Option<String>,
@@ -34,7 +34,7 @@ pub enum ListingCommand {
 
     /// Extract listings from scraped content using AI
     ExtractListings {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         organization_name: String,
         content: String,
@@ -51,7 +51,7 @@ pub enum ListingCommand {
 
     /// Sync extracted listings with database
     SyncListings {
-        source_id: SourceId,
+        source_id: DomainId,
         job_id: JobId,
         listings: Vec<ExtractedListing>,
     },
@@ -161,23 +161,7 @@ pub enum ListingCommand {
         is_admin: bool,
     },
 
-    /// Add a scrape URL to an organization source
-    AddScrapeUrl {
-        source_id: SourceId,
-        url: String,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Remove a scrape URL from an organization source
-    RemoveScrapeUrl {
-        source_id: SourceId,
-        url: String,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    // Intelligent Crawler Commands
+    // Intelligent Crawler Commands (future use)
     /// Crawl a site using intelligent crawler
     CrawlSite {
         url: String,
@@ -219,7 +203,7 @@ impl seesaw_core::Command for ListingCommand {
             Self::ExtractListingsFromResourceLink { .. } => ExecutionMode::Inline,
             Self::SyncListings { .. } => ExecutionMode::Inline,
             Self::CreateListing { .. } => ExecutionMode::Inline,
-            Self::CreateOrganizationSourceFromLink { .. } => ExecutionMode::Inline,
+            Self::CreateDomainFromLink { .. } => ExecutionMode::Inline,
             Self::CreateListingsFromResourceLink { .. } => ExecutionMode::Inline,
             Self::UpdateListingStatus { .. } => ExecutionMode::Inline,
             Self::UpdateListingAndApprove { .. } => ExecutionMode::Inline,
@@ -231,8 +215,6 @@ impl seesaw_core::Command for ListingCommand {
             Self::IncrementPostView { .. } => ExecutionMode::Inline,
             Self::IncrementPostClick { .. } => ExecutionMode::Inline,
             Self::DeleteListing { .. } => ExecutionMode::Inline,
-            Self::AddScrapeUrl { .. } => ExecutionMode::Inline,
-            Self::RemoveScrapeUrl { .. } => ExecutionMode::Inline,
             Self::GenerateListingEmbedding { .. } => ExecutionMode::Inline,
             Self::CrawlSite { .. } => ExecutionMode::Inline,
             Self::DetectInformation { .. } => ExecutionMode::Inline,

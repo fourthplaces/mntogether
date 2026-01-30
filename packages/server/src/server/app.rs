@@ -103,9 +103,6 @@ pub fn build_app(
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create intelligent crawler storage
-    let intelligent_crawler = Arc::new(intelligent_crawler::PostgresStorage::new(pool.clone()));
-
     // Create OpenAI client (shared across effects and GraphQL)
     let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
 
@@ -127,7 +124,6 @@ pub fn build_app(
         Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         twilio.clone(),
-        intelligent_crawler,
         test_identifier_enabled,
         admin_identifiers,
     );

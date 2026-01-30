@@ -138,7 +138,36 @@ impl Domain {
         Ok(domains)
     }
 
+    /// Find or create a domain (handles race conditions)
+    ///
+    /// This method uses INSERT ... ON CONFLICT to atomically handle concurrent
+    /// requests. If the domain already exists, it returns the existing domain.
+    /// This prevents duplicate key errors in high-concurrency scenarios.
+    pub async fn find_or_create(
+        domain_url: String,
+        submitted_by: Option<MemberId>,
+        submitter_type: String,
+        submission_context: Option<String>,
+        max_crawl_depth: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        // The create method now uses INSERT ... ON CONFLICT,
+        // so it handles both creation and finding existing domains atomically
+        Self::create(
+            domain_url,
+            submitted_by,
+            submitter_type,
+            submission_context,
+            max_crawl_depth,
+            pool,
+        )
+        .await
+    }
+
     /// Create a new domain submission (starts as pending_review)
+    ///
+    /// Uses INSERT ... ON CONFLICT to handle concurrent requests gracefully.
+    /// If the domain already exists, returns the existing domain.
     pub async fn create(
         domain_url: String,
         submitted_by: Option<MemberId>,
@@ -158,6 +187,8 @@ impl Domain {
                 status
             )
             VALUES ($1, $2, $3, $4, $5, 'pending_review')
+            ON CONFLICT (domain_url) DO UPDATE
+            SET domain_url = EXCLUDED.domain_url  -- No-op update to return existing row
             RETURNING *
             "#,
         )
@@ -219,6 +250,34 @@ impl Domain {
         .bind(id)
         .bind(reviewed_by)
         .bind(rejection_reason)
+        .fetch_one(pool)
+        .await?;
+        Ok(domain)
+    }
+
+    /// Suspend an approved domain
+    pub async fn suspend(
+        id: DomainId,
+        reviewed_by: MemberId,
+        reason: String,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let domain = sqlx::query_as::<_, Domain>(
+            r#"
+            UPDATE domains
+            SET
+                status = 'suspended',
+                reviewed_by = $2,
+                reviewed_at = NOW(),
+                rejection_reason = $3,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(reviewed_by)
+        .bind(reason)
         .fetch_one(pool)
         .await?;
         Ok(domain)

@@ -9,10 +9,10 @@ export default async function HomePage() {
       <div className="container mx-auto px-4 py-16">
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            MN Digital Aid
+            MN Together
           </h1>
           <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-            Connecting immigrants with essential services in Minnesota
+            Connecting volunteers with organizations and communities in need
           </p>
         </div>
 

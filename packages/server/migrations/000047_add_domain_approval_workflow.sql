@@ -2,32 +2,22 @@
 -- Domains must be reviewed/approved before crawling
 
 -- Add approval workflow columns to domains
-ALTER TABLE domains ADD COLUMN IF NOT EXISTS (
-  -- Approval workflow
-  status TEXT NOT NULL DEFAULT 'pending_review' CHECK (status IN (
+ALTER TABLE domains
+  ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending_review' CHECK (status IN (
     'pending_review',   -- Submitted, waiting for admin review
     'approved',         -- Approved for crawling
     'rejected',         -- Admin rejected (spam, not relevant, etc.)
     'suspended'         -- Temporarily suspended (rate limiting, errors, etc.)
   )),
-
-  -- Submission metadata
-  submitted_by UUID REFERENCES members(id) ON DELETE SET NULL,
-  submitter_type TEXT CHECK (submitter_type IN ('admin', 'public_user', 'system')),
-  submission_context TEXT, -- Why they think this domain has resources
-
-  -- Review metadata
-  reviewed_by UUID REFERENCES members(id) ON DELETE SET NULL,
-  reviewed_at TIMESTAMPTZ,
-  rejection_reason TEXT,
-
-  -- Crawling configuration
-  max_crawl_depth INT DEFAULT 3, -- Prevent runaway crawling
-  crawl_rate_limit_seconds INT DEFAULT 2, -- Politeness delay between requests
-
-  -- Trust level (for auto-approval of URLs from this domain)
-  is_trusted_domain BOOL DEFAULT false -- If true, URLs from this domain are auto-approved
-);
+  ADD COLUMN IF NOT EXISTS submitted_by UUID REFERENCES members(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS submitter_type TEXT CHECK (submitter_type IN ('admin', 'public_user', 'system')),
+  ADD COLUMN IF NOT EXISTS submission_context TEXT,
+  ADD COLUMN IF NOT EXISTS reviewed_by UUID REFERENCES members(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS rejection_reason TEXT,
+  ADD COLUMN IF NOT EXISTS max_crawl_depth INT DEFAULT 3,
+  ADD COLUMN IF NOT EXISTS crawl_rate_limit_seconds INT DEFAULT 2,
+  ADD COLUMN IF NOT EXISTS is_trusted_domain BOOL DEFAULT false;
 
 -- Update existing domains to 'approved' (assume pre-existing are approved)
 UPDATE domains SET status = 'approved' WHERE status IS NULL;
