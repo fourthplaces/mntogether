@@ -146,9 +146,54 @@ pub async fn query_organization_source(
     use crate::domains::scraping::models::Domain;
 
     let source_id = DomainId::from_uuid(id);
-    
+
     match Domain::find_by_id(source_id, pool).await {
         Ok(source) => Ok(Some(SourceData::from(source))),
         Err(_) => Ok(None),
     }
+}
+
+/// Query all domains with optional status filter
+pub async fn query_domains(
+    pool: &PgPool,
+    status: Option<String>,
+) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
+    use crate::domains::organization::data::SourceData;
+    use crate::domains::scraping::models::Domain;
+
+    let domains = if let Some(status_filter) = status {
+        match status_filter.as_str() {
+            "pending_review" => Domain::find_pending_review(pool).await,
+            "approved" => Domain::find_approved(pool).await,
+            _ => Domain::find_active(pool).await,
+        }
+    } else {
+        // Return all domains if no filter specified
+        sqlx::query_as::<_, Domain>("SELECT * FROM domains ORDER BY created_at DESC")
+            .fetch_all(pool)
+            .await
+    }
+    .map_err(|e| juniper::FieldError::new(
+        format!("Failed to fetch domains: {}", e),
+        juniper::Value::null(),
+    ))?;
+
+    Ok(domains.into_iter().map(SourceData::from).collect())
+}
+
+/// Query domains pending review (for admin approval queue)
+pub async fn query_pending_domains(
+    pool: &PgPool,
+) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
+    use crate::domains::organization::data::SourceData;
+    use crate::domains::scraping::models::Domain;
+
+    let domains = Domain::find_pending_review(pool)
+        .await
+        .map_err(|e| juniper::FieldError::new(
+            format!("Failed to fetch pending domains: {}", e),
+            juniper::Value::null(),
+        ))?;
+
+    Ok(domains.into_iter().map(SourceData::from).collect())
 }

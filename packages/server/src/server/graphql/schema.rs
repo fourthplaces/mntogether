@@ -11,6 +11,7 @@ use crate::domains::listings::edges::{
     archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
     repost_listing, track_post_click, track_post_view,
     query_organization_source, query_organization_sources,
+    query_domains, query_pending_domains,
 };
 use crate::domains::listings::data::{
     ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
@@ -152,6 +153,20 @@ impl Query {
         id: Uuid,
     ) -> FieldResult<Option<DomainData>> {
         query_organization_source(&ctx.db_pool, id).await
+    }
+
+    /// Get all domains with optional status filter
+    /// Status can be: "pending_review", "approved", or null for all
+    async fn domains(
+        ctx: &GraphQLContext,
+        status: Option<String>,
+    ) -> FieldResult<Vec<DomainData>> {
+        query_domains(&ctx.db_pool, status).await
+    }
+
+    /// Get domains pending review (for admin approval queue)
+    async fn pending_domains(ctx: &GraphQLContext) -> FieldResult<Vec<DomainData>> {
+        query_pending_domains(&ctx.db_pool).await
     }
 
     /// Get all verified organizations
