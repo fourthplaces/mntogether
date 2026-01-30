@@ -160,6 +160,7 @@ pub async fn query_domains(
 ) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
     use crate::domains::organization::data::SourceData;
     use crate::domains::scraping::models::Domain;
+    use anyhow::Context;
 
     let domains = if let Some(status_filter) = status {
         match status_filter.as_str() {
@@ -172,6 +173,7 @@ pub async fn query_domains(
         sqlx::query_as::<_, Domain>("SELECT * FROM domains ORDER BY created_at DESC")
             .fetch_all(pool)
             .await
+            .context("Failed to query all domains")
     }
     .map_err(|e| juniper::FieldError::new(
         format!("Failed to fetch domains: {}", e),
