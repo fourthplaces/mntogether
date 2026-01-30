@@ -242,6 +242,7 @@ impl TestHarness {
             kernel.embedding_service.clone(),
             kernel.push_service.clone(),
             twilio,
+            kernel.search_service.clone(),
             true, // test_identifier_enabled
             vec![], // admin_identifiers
         );
