@@ -12,6 +12,9 @@ use crate::domains::listings::edges::{
     repost_listing, track_post_click, track_post_view,
     query_organization_source, query_organization_sources,
     query_domains, query_pending_domains,
+    approve_domain, reject_domain, suspend_domain, refresh_page_snapshot,
+    generate_agent_config_from_description, GenerateAgentConfigResult,
+    trigger_agent_search, TriggerSearchResult,
 };
 use crate::domains::listings::data::{
     ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
@@ -353,6 +356,59 @@ impl Mutation {
 
         let org = Organization::find_by_id(org_id, &ctx.db_pool).await?;
         Ok(OrganizationData::from(org))
+    }
+
+    /// Approve a domain for crawling (admin only)
+    async fn approve_domain(
+        ctx: &GraphQLContext,
+        domain_id: String,
+    ) -> FieldResult<DomainData> {
+        approve_domain(ctx, domain_id).await
+    }
+
+    /// Reject a domain submission (admin only)
+    async fn reject_domain(
+        ctx: &GraphQLContext,
+        domain_id: String,
+        reason: String,
+    ) -> FieldResult<DomainData> {
+        reject_domain(ctx, domain_id, reason).await
+    }
+
+    /// Suspend a domain (admin only)
+    async fn suspend_domain(
+        ctx: &GraphQLContext,
+        domain_id: String,
+        reason: String,
+    ) -> FieldResult<DomainData> {
+        suspend_domain(ctx, domain_id, reason).await
+    }
+
+    /// Refresh a page snapshot by re-scraping (admin only)
+    async fn refresh_page_snapshot(
+        ctx: &GraphQLContext,
+        snapshot_id: String,
+    ) -> FieldResult<crate::domains::listings::data::ScrapeJobResult> {
+        refresh_page_snapshot(ctx, snapshot_id).await
+    }
+
+    /// Generate agent configuration from natural language description (admin only)
+    /// Uses AI to convert user intent into search query and extraction instructions
+    async fn generate_agent_config(
+        ctx: &GraphQLContext,
+        description: String,
+        location_context: String,
+    ) -> FieldResult<GenerateAgentConfigResult> {
+        generate_agent_config_from_description(ctx, description, location_context).await
+    }
+
+    /// Trigger an agent search manually (admin only)
+    /// Immediately dispatches a Tavily search for the specified agent
+    async fn trigger_agent_search(
+        ctx: &GraphQLContext,
+        agent_id: String,
+    ) -> FieldResult<TriggerSearchResult> {
+        trigger_agent_search(ctx, agent_id).await
     }
 
 }

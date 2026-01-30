@@ -16,9 +16,6 @@ pub struct ExtractedListing {
     pub confidence: Option<String>, // "high" | "medium" | "low"
 }
 
-/// Legacy alias for ExtractedListing (for backward compatibility during migration)
-pub type ExtractedNeed = ExtractedListing;
-
 /// Contact information for a need/opportunity
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactInfo {

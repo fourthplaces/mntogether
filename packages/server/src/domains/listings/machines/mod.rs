@@ -425,6 +425,21 @@ impl seesaw_core::Machine for ListingMachine {
             ListingEvent::InformationDetectionFailed { .. } => None,
             ListingEvent::DataExtractionFailed { .. } => None,
             ListingEvent::RelationshipResolutionFailed { .. } => None,
+
+            // =========================================================================
+            // Agent Search workflow: Request → Execute → Discover domains
+            // =========================================================================
+            ListingEvent::AgentSearchRequested { agent_id, job_id } => {
+                Some(ListingCommand::ExecuteSearch {
+                    agent_id: *agent_id,
+                    job_id: *job_id,
+                })
+            }
+
+            // Agent search completed, no further action needed
+            ListingEvent::AgentSearchCompleted { .. } => None,
+            ListingEvent::AgentSearchFailed { .. } => None,
+            ListingEvent::DomainDiscoveredByAgent { .. } => None,
         }
     }
 }

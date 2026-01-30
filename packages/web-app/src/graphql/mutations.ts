@@ -118,3 +118,106 @@ export const REMOVE_ORGANIZATION_SCRAPE_URL = gql`
     removeOrganizationScrapeUrl(sourceId: $sourceId, url: $url)
   }
 `;
+
+// Agent mutations
+export const CREATE_AGENT = gql`
+  mutation CreateAgent($input: CreateAgentInput!) {
+    createAgent(input: $input) {
+      id
+      name
+      queryTemplate
+      description
+      enabled
+      locationContext
+      extractionInstructions
+      systemPrompt
+      autoApproveDomains
+      autoScrape
+      autoCreateListings
+    }
+  }
+`;
+
+export const UPDATE_AGENT = gql`
+  mutation UpdateAgent($id: ID!, $input: UpdateAgentInput!) {
+    updateAgent(id: $id, input: $input) {
+      id
+      name
+      queryTemplate
+      description
+      enabled
+      extractionInstructions
+      systemPrompt
+      autoApproveDomains
+      autoScrape
+      autoCreateListings
+    }
+  }
+`;
+
+export const DELETE_AGENT = gql`
+  mutation DeleteAgent($id: ID!) {
+    deleteAgent(id: $id)
+  }
+`;
+
+export const TRIGGER_AGENT_SEARCH = gql`
+  mutation TriggerAgentSearch($agentId: ID!) {
+    triggerAgentSearch(agentId: $agentId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
+export const GENERATE_AGENT_CONFIG = gql`
+  mutation GenerateAgentConfig($description: String!, $locationContext: String!) {
+    generateAgentConfig(description: $description, locationContext: $locationContext) {
+      name
+      queryTemplate
+      extractionInstructions
+      systemPrompt
+    }
+  }
+`;
+
+// Domain mutations (if not already defined)
+export const APPROVE_DOMAIN = gql`
+  mutation ApproveDomain($domainId: String!) {
+    approveDomain(domainId: $domainId) {
+      id
+      status
+    }
+  }
+`;
+
+export const REJECT_DOMAIN = gql`
+  mutation RejectDomain($domainId: String!, $reason: String!) {
+    rejectDomain(domainId: $domainId, reason: $reason) {
+      id
+      status
+      rejectionReason
+    }
+  }
+`;
+
+export const SUSPEND_DOMAIN = gql`
+  mutation SuspendDomain($domainId: String!, $reason: String!) {
+    suspendDomain(domainId: $domainId, reason: $reason) {
+      id
+      status
+      rejectionReason
+    }
+  }
+`;
+
+export const REFRESH_PAGE_SNAPSHOT = gql`
+  mutation RefreshPageSnapshot($snapshotId: ID!) {
+    refreshPageSnapshot(snapshotId: $snapshotId) {
+      jobId
+      status
+      message
+    }
+  }
+`;

@@ -28,9 +28,11 @@ pub struct ExtractedListingInput {
     pub source_url: Option<String>, // Page URL where listing was found
 }
 
-/// Synchronize extracted listings with database (with transaction)
+/// Synchronize extracted listings with database
 ///
-/// Algorithm:
+/// Current implementation: Creates all extracted listings as new pending_approval listings.
+///
+/// TODO: Implement full sync logic with deduplication:
 /// 1. Calculate content hash for each extracted listing
 /// 2. Find existing listings from same domain
 /// 3. Compare hashes:
@@ -39,21 +41,17 @@ pub struct ExtractedListingInput {
 ///    - Not found = new (create pending_approval)
 /// 4. Mark listings not in extracted set as disappeared
 ///
-/// All operations are wrapped in a transaction to ensure atomicity.
-/// If any operation fails, all changes are rolled back.
+/// This requires implementing transaction-scoped methods in the Listing model
+/// to enable proper atomic updates within a database transaction.
 pub async fn sync_listings(
     pool: &PgPool,
     domain_id: DomainId,
     extracted_listings: Vec<ExtractedListingInput>,
 ) -> Result<SyncResult> {
-    // TODO: Re-implement with transaction-scoped Listing model methods
-    // The Listing model currently doesn't have transaction-aware methods (_tx suffix)
-    // This is a temporary stub to allow compilation
-
-    tracing::warn!(
+    tracing::info!(
         domain_id = %domain_id,
         listing_count = extracted_listings.len(),
-        "Syncing logic temporarily disabled - transaction-scoped methods not yet implemented"
+        "Creating listings from extracted data (deduplication not yet implemented)"
     );
 
     // For now, just create new listings without deduplication
@@ -99,18 +97,6 @@ pub async fn sync_listings(
         changed_listings: Vec::new(),
         disappeared_listings: Vec::new(),
     })
-}
-
-/// Create a new pending listing (transaction-aware)
-/// TODO: Re-implement when transaction-scoped Listing methods are available
-#[allow(dead_code)]
-async fn create_pending_listing_tx(
-    _tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    _domain_id: DomainId,
-    _listing: &ExtractedListingInput,
-    _content_hash: &str,
-) -> Result<ListingId> {
-    anyhow::bail!("create_pending_listing_tx not yet implemented with new Listing model")
 }
 
 #[cfg(test)]

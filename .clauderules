@@ -26,11 +26,21 @@ For EVERY feature, bug fix, or change to GraphQL edges:
    - Improve names and structure
    - Tests must still pass after each refactor
 
-## ALWAYS TEST AT THE EDGES
+## ABSOLUTE HARD RULE: GRAPHQL TESTING ONLY
 
-**NEVER emit bus code in tests**
-**NEVER test internal implementation details**
-**ALWAYS use GraphQL layer**
+**NEVER EVER UNDER ANY CIRCUMSTANCES:**
+- ❌ `test_harness.bus().send(event).await` - FORBIDDEN
+- ❌ `harness.settle().await` - FORBIDDEN
+- ❌ Direct event bus access in tests - FORBIDDEN
+- ❌ Test internal implementation details - FORBIDDEN
+
+**ALWAYS AND ONLY:**
+- ✅ Test through GraphQL mutations and queries
+- ✅ Use `ctx.graphql()` client
+- ✅ Verify results via GraphQL response AND model queries
+- ✅ Mock external services via TestDependencies
+
+This is a VERY VERY VERY HARD RULE. No exceptions.
 
 ### ✅ GOOD - Testing through GraphQL edges:
 ```rust
@@ -55,10 +65,14 @@ async fn test_scrape_creates_snapshots(ctx: &TestHarness) {
 }
 ```
 
-### ❌ BAD - Testing internal bus:
+### ❌ ABSOLUTELY FORBIDDEN:
 ```rust
-// DON'T DO THIS!
+// DON'T DO THIS! EVER! NEVER! FORBIDDEN!
 test_harness.bus().send(ListingEvent::...).await;
+test_harness.settle().await;  // ALSO FORBIDDEN!
+
+// These bypass the GraphQL layer and test internal implementation.
+// Tests MUST go through the actual API surface that users call.
 ```
 
 ## Use Models, Not Raw SQL

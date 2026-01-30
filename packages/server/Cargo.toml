@@ -101,6 +101,7 @@ typed-builder = "0.20"
 # PII Detection and Redaction
 regex = "1.10"
 lazy_static = "1.4"
+rust_decimal = { version = "1.40.0", features = ["db-postgres", "serde", "std"] }
 
 [dev-dependencies]
 # Testing

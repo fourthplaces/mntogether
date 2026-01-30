@@ -25,7 +25,7 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 use crate::common::{JobId, MemberId};
 use crate::domains::member::models::member::Member;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::Domain;
+use crate::domains::scraping::models::{Domain, Agent};
 
 /// Start all scheduled tasks
 pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler> {
@@ -46,6 +46,21 @@ pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler
 
     scheduler.add(scrape_job).await?;
 
+    // Periodic search task - runs every hour
+    let search_pool = pool.clone();
+    let search_bus = bus.clone();
+    let search_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
+        let pool = search_pool.clone();
+        let bus = search_bus.clone();
+        Box::pin(async move {
+            if let Err(e) = run_periodic_searches(&pool, &bus).await {
+                tracing::error!("Periodic search task failed: {}", e);
+            }
+        })
+    })?;
+
+    scheduler.add(search_job).await?;
+
     // Weekly notification reset - runs every Monday at midnight
     let reset_pool = pool.clone();
     let reset_job = Job::new_async("0 0 0 * * MON", move |_uuid, _lock| {
@@ -61,7 +76,7 @@ pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler
     scheduler.start().await?;
 
     tracing::info!(
-        "Scheduled tasks started (periodic scraping every hour, weekly reset every Monday)"
+        "Scheduled tasks started (periodic scraping every hour, periodic search every hour, weekly reset every Monday)"
     );
     Ok(scheduler)
 }
@@ -101,6 +116,44 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
             job_id,
             source.id,
             source.domain_url
+        );
+    }
+
+    Ok(())
+}
+
+/// Run periodic search task
+///
+/// Queries all agents due for searching and dispatches search events.
+/// Each search runs asynchronously via the event system.
+async fn run_periodic_searches(pool: &PgPool, bus: &EventBus) -> Result<()> {
+    tracing::info!("Running periodic agent search task");
+
+    // Find agents due for searching
+    let agents = Agent::find_due_for_searching(pool).await?;
+
+    if agents.is_empty() {
+        tracing::info!("No agents due for searching");
+        return Ok(());
+    }
+
+    tracing::info!("Found {} agents due for searching", agents.len());
+
+    // Emit search event for each agent
+    for agent in agents {
+        let job_id = JobId::new();
+
+        // Emit event (fire-and-forget, non-blocking)
+        bus.emit(ListingEvent::AgentSearchRequested {
+            agent_id: agent.id,
+            job_id,
+        });
+
+        tracing::info!(
+            "Queued agent search job {} for agent {} ({})",
+            job_id,
+            agent.id,
+            agent.name
         );
     }
 

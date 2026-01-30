@@ -10,8 +10,8 @@ use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
 use super::{
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseWebScraper,
-    PiiScrubResult, ScrapeResult, ServerKernel,
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
+    BaseWebScraper, PiiScrubResult, ScrapeResult, SearchResult, ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 
@@ -194,6 +194,46 @@ impl BasePushNotificationService for MockPushNotificationService {
 }
 
 // =============================================================================
+// Mock Search Service
+// =============================================================================
+
+pub struct MockSearchService {
+    responses: Arc<Mutex<Vec<Vec<SearchResult>>>>,
+}
+
+impl MockSearchService {
+    pub fn new() -> Self {
+        Self {
+            responses: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub fn with_results(self, results: Vec<SearchResult>) -> Self {
+        self.responses.lock().unwrap().push(results);
+        self
+    }
+}
+
+#[async_trait]
+impl BaseSearchService for MockSearchService {
+    async fn search(
+        &self,
+        _query: &str,
+        _max_results: Option<usize>,
+        _search_depth: Option<&str>,
+        _days: Option<i32>,
+    ) -> Result<Vec<SearchResult>> {
+        let mut responses = self.responses.lock().unwrap();
+        if !responses.is_empty() {
+            Ok(responses.remove(0))
+        } else {
+            // Return empty results by default
+            Ok(vec![])
+        }
+    }
+}
+
+// =============================================================================
 // Mock PII Detector
 // =============================================================================
 
@@ -262,6 +302,7 @@ pub struct TestDependencies {
     pub ai: Arc<MockAI>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
+    pub search_service: Arc<MockSearchService>,
     pub pii_detector: Arc<MockPiiDetector>,
     pub job_queue: Arc<SpyJobQueue>,
 }
@@ -273,6 +314,7 @@ impl TestDependencies {
             ai: Arc::new(MockAI::new()),
             embedding_service: Arc::new(MockEmbeddingService::new()),
             push_service: Arc::new(MockPushNotificationService::new()),
+            search_service: Arc::new(MockSearchService::new()),
             pii_detector: Arc::new(MockPiiDetector::new()),
             job_queue: Arc::new(SpyJobQueue::new()),
         }
@@ -302,6 +344,12 @@ impl TestDependencies {
         self
     }
 
+    /// Set a mock search service
+    pub fn mock_search(mut self, service: MockSearchService) -> Self {
+        self.search_service = Arc::new(service);
+        self
+    }
+
     /// Set a mock PII detector
     pub fn mock_pii(mut self, detector: MockPiiDetector) -> Self {
         self.pii_detector = Arc::new(detector);
@@ -316,6 +364,7 @@ impl TestDependencies {
             self.ai,
             self.embedding_service,
             self.push_service,
+            self.search_service,
             self.pii_detector,
             EventBus::new(),
             self.job_queue,
