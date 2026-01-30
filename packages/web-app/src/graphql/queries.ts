@@ -296,6 +296,7 @@ export const GET_ALL_DOMAINS = gql`
       id
       domainUrl
       status
+      lastScrapedAt
       submittedBy
       submitterType
       createdAt

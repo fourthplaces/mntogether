@@ -215,9 +215,9 @@ export function Resources() {
             </tbody>
           </table>
 
-          {data?.organizationSources.length === 0 && (
+          {data?.domains?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
-              No source URLs found. Add a source URL to get started.
+              No domains found. Add a domain to get started.
             </div>
           )}
         </div>

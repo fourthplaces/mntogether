@@ -11,22 +11,26 @@ use server_core::domains::matching::{
 use server_core::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
-use server_core::domains::organization::{
-    commands::OrganizationCommand,
-    effects::{AIEffect, NeedEffect, ScraperEffect, ServerDeps, SyncEffect},
-    machines::OrganizationMachine,
+use server_core::domains::listings::{
+    commands::ListingCommand,
+    effects::{ListingCompositeEffect, ServerDeps},
+    machines::ListingMachine,
 };
 use server_core::kernel::{ServerKernel, TestDependencies};
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt};
-use testcontainers_modules::postgres::Postgres;
+use testcontainers::{ContainerAsync, ImageExt, GenericImage};
 use testcontainers_modules::redis::Redis;
 use tokio::sync::OnceCell;
 
 use super::GraphQLClient;
+use twilio::{TwilioService, TwilioOptions};
+
+// =============================================================================
+// Shared Test Infrastructure
+// =============================================================================
 
 /// Shared test infrastructure that persists across all tests.
 /// Containers are started once and reused, migrations run once.
@@ -34,7 +38,7 @@ struct SharedTestInfra {
     db_url: String,
     redis_url: String,
     // Keep containers alive for the entire test run
-    _postgres: ContainerAsync<Postgres>,
+    _postgres: ContainerAsync<GenericImage>,
     _redis: ContainerAsync<Redis>,
 }
 
@@ -54,9 +58,15 @@ impl SharedTestInfra {
             .try_init();
 
         // Start Postgres container with pgvector
-        let postgres = Postgres::default()
-            .with_tag("16")
-            .with_cmd(["-c", "max_connections=200"])
+        // Use pgvector/pgvector image which includes the vector extension
+        let postgres = GenericImage::new("pgvector/pgvector", "pg16")
+            .with_wait_for(testcontainers::core::WaitFor::message_on_stderr(
+                "database system is ready to accept connections",
+            ))
+            .with_exposed_port(testcontainers::core::ContainerPort::Tcp(5432))
+            .with_env_var("POSTGRES_PASSWORD", "postgres")
+            .with_env_var("POSTGRES_USER", "postgres")
+            .with_env_var("POSTGRES_DB", "postgres")
             .start()
             .await
             .context("Failed to start Postgres container")?;
@@ -112,18 +122,15 @@ fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw_core::Engine<Ser
     handles.push(engine.start());
 }
 
-fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
+fn start_domain_engines(deps: ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
     let mut handles = Vec::new();
 
-    // Organization domain
+    // Listings domain
     start_engine(
         &mut handles,
         EngineBuilder::new(deps.clone())
-            .with_machine(OrganizationMachine::new())
-            .with_effect::<OrganizationCommand, _>(ScraperEffect)
-            .with_effect::<OrganizationCommand, _>(AIEffect)
-            .with_effect::<OrganizationCommand, _>(SyncEffect)
-            .with_effect::<OrganizationCommand, _>(NeedEffect)
+            .with_machine(ListingMachine::new())
+            .with_effect::<ListingCommand, _>(ListingCompositeEffect::new())
             .with_bus(bus.clone())
             .build(),
     );
@@ -141,7 +148,7 @@ fn start_domain_engines(deps: &ServerDeps, bus: &EventBus) -> Vec<EngineHandle> 
     // Matching domain
     start_engine(
         &mut handles,
-        EngineBuilder::new(deps.clone())
+        EngineBuilder::new(deps)
             .with_machine(MatchingMachine::new())
             .with_effect::<MatchingCommand, _>(MatchingEffect)
             .with_bus(bus.clone())
@@ -221,17 +228,27 @@ impl TestHarness {
         let kernel = deps.clone().into_kernel(db_pool.clone());
 
         // Create ServerDeps for engines (from kernel dependencies)
+        // Use dummy Twilio credentials for testing (won't make real API calls in tests)
+        let twilio = Arc::new(TwilioService::new(TwilioOptions {
+            account_sid: "test_account_sid".to_string(),
+            auth_token: "test_auth_token".to_string(),
+            service_id: "test_service_id".to_string(),
+        }));
+
         let server_deps = ServerDeps::new(
             kernel.db_pool.clone(),
             kernel.web_scraper.clone(),
-            kernel.need_extractor.clone(),
+            kernel.ai.clone(),
             kernel.embedding_service.clone(),
             kernel.push_service.clone(),
+            twilio,
+            true, // test_identifier_enabled
+            vec![], // admin_identifiers
         );
 
         // Start domain engines (same as production)
         let bus = kernel.bus.clone();
-        let engine_handles = start_domain_engines(&server_deps, &bus);
+        let engine_handles = start_domain_engines(server_deps, &bus);
 
         // Give engines time to subscribe to the event bus
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
@@ -303,7 +320,6 @@ impl Drop for TestHarness {
     }
 }
 
-#[async_trait::async_trait]
 impl AsyncTestContext for TestHarness {
     async fn setup() -> Self {
         Self::new().await.expect("Failed to create test harness")

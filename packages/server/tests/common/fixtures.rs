@@ -1,145 +1,88 @@
 //! Test fixtures for creating test data.
+//!
+//! NOTE: These fixtures are for legacy organization_needs tests.
+//! New tests should use model methods directly.
 
 use anyhow::Result;
 use chrono::Utc;
-use server_core::domains::organization::models::{
-    NeedStatus, OrganizationNeed, OrganizationSource,
-};
+// TODO: Update these imports after organization domain refactor
+// use server_core::domains::organization::models::{
+//     NeedStatus, OrganizationNeed, OrganizationSource,
+// };
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// Create a test organization source
-pub async fn create_test_source(
-    pool: &PgPool,
-    organization_name: &str,
-    source_url: &str,
-) -> Result<Uuid> {
-    let row = sqlx::query!(
-        r#"
-        INSERT INTO organization_sources (organization_name, source_url, active)
-        VALUES ($1, $2, true)
-        RETURNING id
-        "#,
-        organization_name,
-        source_url
-    )
-    .fetch_one(pool)
-    .await?;
+// Temporary NeedStatus enum for fixtures
+#[allow(dead_code)]
+enum NeedStatus {
+    PendingApproval,
+    Active,
+}
 
-    Ok(row.id)
+impl NeedStatus {
+    fn to_string(&self) -> String {
+        match self {
+            Self::PendingApproval => "pending_approval".to_string(),
+            Self::Active => "active".to_string(),
+        }
+    }
+}
+
+/// Create a test organization source
+#[allow(dead_code)]
+pub async fn create_test_source(
+    _pool: &PgPool,
+    _organization_name: &str,
+    _source_url: &str,
+) -> Result<Uuid> {
+    // Disabled - table no longer exists after domain refactor
+    unimplemented!("create_test_source is deprecated - use Domain::create instead")
 }
 
 /// Create a test need with pending_approval status
+#[allow(dead_code)]
 pub async fn create_test_need_pending(
-    pool: &PgPool,
-    source_id: Option<Uuid>,
-    title: &str,
-    description: &str,
+    _pool: &PgPool,
+    _source_id: Option<Uuid>,
+    _title: &str,
+    _description: &str,
 ) -> Result<Uuid> {
-    let row = sqlx::query!(
-        r#"
-        INSERT INTO organization_needs (
-            organization_name,
-            title,
-            description,
-            tldr,
-            status,
-            source_id
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-        RETURNING id
-        "#,
-        "Test Organization",
-        title,
-        description,
-        "Test TLDR",
-        NeedStatus::PendingApproval.to_string(),
-        source_id
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(row.id)
+    unimplemented!("create_test_need_pending is deprecated - use model methods instead")
 }
 
 /// Create a test need with active status
+#[allow(dead_code)]
 pub async fn create_test_need_active(
-    pool: &PgPool,
-    title: &str,
-    description: &str,
+    _pool: &PgPool,
+    _title: &str,
+    _description: &str,
 ) -> Result<Uuid> {
-    let row = sqlx::query!(
-        r#"
-        INSERT INTO organization_needs (
-            organization_name,
-            title,
-            description,
-            tldr,
-            status
-        ) VALUES ($1, $2, $3, $4, $5)
-        RETURNING id
-        "#,
-        "Test Organization",
-        title,
-        description,
-        "Test TLDR",
-        NeedStatus::Active.to_string()
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(row.id)
+    unimplemented!("create_test_need_active is deprecated - use model methods instead")
 }
 
 /// Create a full test need with all fields
+#[allow(dead_code)]
 pub async fn create_test_need_full(
-    pool: &PgPool,
-    organization_name: &str,
-    title: &str,
-    description: &str,
-    tldr: &str,
-    contact_json: Option<serde_json::Value>,
-    urgency: Option<&str>,
-    status: NeedStatus,
+    _pool: &PgPool,
+    _organization_name: &str,
+    _title: &str,
+    _description: &str,
+    _tldr: &str,
+    _contact_json: Option<serde_json::Value>,
+    _urgency: Option<&str>,
+    _status: NeedStatus,
 ) -> Result<Uuid> {
-    let row = sqlx::query!(
-        r#"
-        INSERT INTO organization_needs (
-            organization_name,
-            title,
-            description,
-            tldr,
-            contact_info,
-            urgency,
-            status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-        RETURNING id
-        "#,
-        organization_name,
-        title,
-        description,
-        tldr,
-        contact_json,
-        urgency,
-        status.to_string()
-    )
-    .fetch_one(pool)
-    .await?;
-
-    Ok(row.id)
+    unimplemented!("create_test_need_full is deprecated - use model methods instead")
 }
 
 /// Clean all needs from database (for test isolation)
-pub async fn clean_needs(pool: &PgPool) -> Result<()> {
-    sqlx::query!("DELETE FROM organization_needs")
-        .execute(pool)
-        .await?;
-    Ok(())
+#[allow(dead_code)]
+pub async fn clean_needs(_pool: &PgPool) -> Result<()> {
+    unimplemented!("clean_needs is deprecated")
 }
 
 /// Clean all sources from database (for test isolation)
-pub async fn clean_sources(pool: &PgPool) -> Result<()> {
-    sqlx::query!("DELETE FROM organization_sources")
-        .execute(pool)
-        .await?;
-    Ok(())
+#[allow(dead_code)]
+pub async fn clean_sources(_pool: &PgPool) -> Result<()> {
+    unimplemented!("clean_sources is deprecated - use Domain::delete or database cleanup")
 }
