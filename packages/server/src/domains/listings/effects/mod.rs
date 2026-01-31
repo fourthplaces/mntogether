@@ -9,6 +9,7 @@ pub mod deps;
 pub mod listing;
 pub mod listing_extraction; // Domain functions for AI extraction
 pub mod listing_operations; // Domain functions for listing CRUD operations
+pub mod listing_report;
 pub mod scraper;
 pub mod search;
 pub mod sync;

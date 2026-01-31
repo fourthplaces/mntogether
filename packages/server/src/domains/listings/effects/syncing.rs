@@ -8,9 +8,9 @@ use sqlx::PgPool;
 
 use super::utils::sync_utils::{sync_listings, ExtractedListingInput};
 use super::listing::extract_domain;
-use crate::common::DomainId;
+use crate::common::WebsiteId;
 use crate::domains::listings::events::ExtractedListing;
-use crate::domains::scraping::models::Domain;
+use crate::domains::scraping::models::Website;
 
 /// Result of syncing listings with the database
 pub struct ListingSyncResult {
@@ -27,12 +27,12 @@ pub struct ListingSyncResult {
 /// 3. Performs sync operation with database
 /// 4. Returns summary of changes
 pub async fn sync_extracted_listings(
-    source_id: DomainId,
+    source_id: WebsiteId,
     listings: Vec<ExtractedListing>,
     pool: &PgPool,
 ) -> Result<ListingSyncResult> {
     // Get source to fetch organization_name
-    let source = Domain::find_by_id(source_id, pool)
+    let source = Website::find_by_id(source_id, pool)
         .await
         .context("Failed to find source")?;
 
@@ -40,7 +40,7 @@ pub async fn sync_extracted_listings(
     let sync_input: Vec<ExtractedListingInput> = listings
         .into_iter()
         .map(|listing| ExtractedListingInput {
-            organization_name: extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
+            organization_name: extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
             title: listing.title,
             description: listing.description,
             description_markdown: None,
@@ -56,13 +56,13 @@ pub async fn sync_extracted_listings(
             }),
             urgency: listing.urgency,
             confidence: listing.confidence,
-            source_url: Some(source.domain_url.clone()), // Use main source URL for now
+            source_url: Some(source.url.clone()), // Use main source URL for now
         })
         .collect();
 
-    // Sync with database (convert DomainId to DomainId)
-    let domain_id = DomainId::from_uuid(source_id.into_uuid());
-    let sync_result = sync_listings(pool, domain_id, sync_input)
+    // Sync with database
+    let website_id = WebsiteId::from_uuid(source_id.into_uuid());
+    let sync_result = sync_listings(pool, website_id, sync_input)
         .await
         .context("Sync failed")?;
 

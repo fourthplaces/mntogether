@@ -1,6 +1,7 @@
 // Business domains
 pub mod auth;
 pub mod chatrooms;
+pub mod domain_approval;
 pub mod listings;
 pub mod matching;
 pub mod member;

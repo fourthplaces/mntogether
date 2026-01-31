@@ -36,8 +36,8 @@ pub struct Listing;
 /// Marker type for Organization entities.
 pub struct Organization;
 
-/// Marker type for Domain entities (websites we scrape).
-pub struct Domain;
+/// Marker type for Website entities (websites we scrape).
+pub struct Website;
 
 /// Marker type for Post entities (published posts for matching).
 pub struct Post;
@@ -84,8 +84,8 @@ pub type ListingId = Id<Listing>;
 /// Typed ID for Organization entities.
 pub type OrganizationId = Id<Organization>;
 
-/// Typed ID for Domain entities (websites we scrape).
-pub type DomainId = Id<Domain>;
+/// Typed ID for Website entities (websites we scrape).
+pub type WebsiteId = Id<Website>;
 
 /// Typed ID for Post entities.
 pub type PostId = Id<Post>;

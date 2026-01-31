@@ -1,5 +1,7 @@
 use crate::domains::listings::data::{EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
-use crate::common::{JobId, ListingId, MemberId, DomainId};
+use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
+use crate::domains::listings::models::listing_report::{ListingReportId, ListingReportRecord};
+use crate::common::{JobId, ListingId, MemberId, WebsiteId};
 use crate::domains::listings::events::ListingEvent;
 use crate::domains::listings::models::Listing;
 use crate::server::graphql::context::GraphQLContext;
@@ -24,7 +26,7 @@ pub async fn scrape_organization(
         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     // Convert to typed IDs
-    let source_id = DomainId::from_uuid(source_id);
+    let source_id = WebsiteId::from_uuid(source_id);
     let job_id = JobId::new();
 
     // Dispatch request event and await completion (ListingsSynced or failure)
@@ -332,7 +334,7 @@ pub async fn submit_resource_link(
     // URL validation moved to effect (SubmitResourceLinkRequested handler)
     // Edge just dispatches the event
 
-    // Dispatch request event and await DomainCreatedFromLink or DomainPendingApproval event
+    // Dispatch request event and await WebsiteCreatedFromLink or WebsitePendingApproval event
     // This follows proper seesaw encapsulation - job_id is created in the effect
     let (job_id, status, message) = dispatch_request(
         ListingEvent::SubmitResourceLinkRequested {
@@ -343,20 +345,20 @@ pub async fn submit_resource_link(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                // Domain approved - scraping started with job_id
-                ListingEvent::DomainCreatedFromLink { job_id, .. } => {
+                // Website approved - scraping started with job_id
+                ListingEvent::WebsiteCreatedFromLink { job_id, .. } => {
                     Some(Ok((
                         *job_id,
                         "pending".to_string(),
                         "Resource submitted successfully! We'll process it shortly.".to_string()
                     )))
                 }
-                // Domain pending approval - return domain_id as job_id placeholder
-                ListingEvent::DomainPendingApproval { domain_id, .. } => {
+                // Website pending approval - return website_id as job_id placeholder
+                ListingEvent::WebsitePendingApproval { website_id, .. } => {
                     Some(Ok((
-                        JobId::from_uuid(domain_id.into_uuid()),
+                        JobId::from_uuid(website_id.into_uuid()),
                         "pending_review".to_string(),
-                        "Resource submitted! The domain is pending admin approval before we can scrape it.".to_string()
+                        "Resource submitted! The website is pending admin approval before we can scrape it.".to_string()
                     )))
                 }
                 _ => None,
@@ -620,16 +622,17 @@ pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResul
 // Domain Management Mutations
 // =============================================================================
 
-/// Approve a domain for crawling (admin only)
+/// Approve a website for crawling (admin only)
 /// Direct database operation - no event bus needed for approval workflow
 pub async fn approve_domain(
     ctx: &GraphQLContext,
     domain_id: String,
 ) -> FieldResult<crate::domains::organization::data::SourceData> {
-    use crate::domains::scraping::models::Domain;
+    use crate::common::WebsiteId;
+    use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, "Approving domain");
+    info!(domain_id = %domain_id, "Approving website");
 
     // Get user info - must be admin
     let user = ctx
@@ -644,22 +647,22 @@ pub async fn approve_domain(
         ));
     }
 
-    // Parse domain ID
+    // Parse website ID
     let uuid = Uuid::parse_str(&domain_id)
-        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
-    let domain_id = DomainId::from_uuid(uuid);
+        .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
+    let website_id = WebsiteId::from_uuid(uuid);
 
     // Approve using model method
-    let domain = Domain::approve(domain_id, user.member_id, &ctx.db_pool)
+    let website = Website::approve(website_id, user.member_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
-                format!("Failed to approve domain: {}", e),
+                format!("Failed to approve website: {}", e),
                 juniper::Value::null(),
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(domain))
+    Ok(crate::domains::organization::data::SourceData::from(website))
 }
 
 /// Reject a domain submission (admin only)
@@ -669,10 +672,10 @@ pub async fn reject_domain(
     domain_id: String,
     reason: String,
 ) -> FieldResult<crate::domains::organization::data::SourceData> {
-    use crate::domains::scraping::models::Domain;
+    use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, reason = %reason, "Rejecting domain");
+    info!(domain_id = %domain_id, reason = %reason, "Rejecting website");
 
     // Get user info - must be admin
     let user = ctx
@@ -687,35 +690,36 @@ pub async fn reject_domain(
         ));
     }
 
-    // Parse domain ID
+    // Parse website ID
     let uuid = Uuid::parse_str(&domain_id)
-        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
-    let domain_id = DomainId::from_uuid(uuid);
+        .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
+    let website_id = WebsiteId::from_uuid(uuid);
 
     // Reject using model method
-    let domain = Domain::reject(domain_id, user.member_id, reason, &ctx.db_pool)
+    let website = Website::reject(website_id, user.member_id, reason, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
-                format!("Failed to reject domain: {}", e),
+                format!("Failed to reject website: {}", e),
                 juniper::Value::null(),
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(domain))
+    Ok(crate::domains::organization::data::SourceData::from(website))
 }
 
-/// Suspend a domain (admin only)
+/// Suspend a website (admin only)
 /// Direct database operation - no event bus needed for approval workflow
 pub async fn suspend_domain(
     ctx: &GraphQLContext,
     domain_id: String,
     reason: String,
 ) -> FieldResult<crate::domains::organization::data::SourceData> {
-    use crate::domains::scraping::models::Domain;
+    use crate::common::WebsiteId;
+    use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, reason = %reason, "Suspending domain");
+    info!(domain_id = %domain_id, reason = %reason, "Suspending website");
 
     // Get user info - must be admin
     let user = ctx
@@ -730,22 +734,22 @@ pub async fn suspend_domain(
         ));
     }
 
-    // Parse domain ID
+    // Parse website ID
     let uuid = Uuid::parse_str(&domain_id)
-        .map_err(|_| FieldError::new("Invalid domain ID", juniper::Value::null()))?;
-    let domain_id = DomainId::from_uuid(uuid);
+        .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
+    let website_id = WebsiteId::from_uuid(uuid);
 
     // Suspend using model method
-    let domain = Domain::suspend(domain_id, user.member_id, reason, &ctx.db_pool)
+    let website = Website::suspend(website_id, user.member_id, reason, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
-                format!("Failed to suspend domain: {}", e),
+                format!("Failed to suspend website: {}", e),
                 juniper::Value::null(),
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(domain))
+    Ok(crate::domains::organization::data::SourceData::from(website))
 }
 
 /// Refresh a page snapshot by re-scraping (admin only)
@@ -754,7 +758,7 @@ pub async fn refresh_page_snapshot(
     ctx: &GraphQLContext,
     snapshot_id: String,
 ) -> FieldResult<ScrapeJobResult> {
-    use crate::domains::scraping::models::DomainSnapshot;
+    use crate::domains::scraping::models::WebsiteSnapshot;
     use uuid::Uuid;
 
     info!(snapshot_id = %snapshot_id, "Refreshing page snapshot");
@@ -777,7 +781,7 @@ pub async fn refresh_page_snapshot(
         .map_err(|_| FieldError::new("Invalid snapshot ID", juniper::Value::null()))?;
 
     // Get the domain snapshot
-    let snapshot = DomainSnapshot::find_by_id(&ctx.db_pool, snapshot_uuid)
+    let snapshot = WebsiteSnapshot::find_by_id(&ctx.db_pool, snapshot_uuid)
         .await
         .map_err(|e| {
             FieldError::new(
@@ -786,28 +790,28 @@ pub async fn refresh_page_snapshot(
             )
         })?;
 
-    // Get the domain to verify it's approved
-    let domain = crate::domains::scraping::models::Domain::find_by_id(
-        snapshot.get_domain_id(),
+    // Get the website to verify it's approved
+    let website = crate::domains::scraping::models::Website::find_by_id(
+        snapshot.get_website_id(),
         &ctx.db_pool,
     )
     .await
     .map_err(|e| {
         FieldError::new(
-            format!("Failed to find domain: {}", e),
+            format!("Failed to find website: {}", e),
             juniper::Value::null(),
         )
     })?;
 
-    if domain.status != "approved" {
+    if website.status != "approved" {
         return Err(FieldError::new(
-            "Domain must be approved before refreshing",
+            "Website must be approved before refreshing",
             juniper::Value::null(),
         ));
     }
 
     // Trigger re-scrape by dispatching event (same as scrapeOrganization)
-    let source_id = snapshot.get_domain_id();
+    let source_id = snapshot.get_website_id();
     let job_id = JobId::new();
 
     // Dispatch request event and await completion
@@ -882,4 +886,133 @@ pub async fn refresh_page_snapshot(
         status,
         message: Some(message),
     })
+}
+
+/// Submit a report for a listing (public or authenticated)
+pub async fn report_listing(
+    ctx: &GraphQLContext,
+    listing_id: Uuid,
+    reason: String,
+    category: String,
+    reporter_email: Option<String>,
+) -> FieldResult<ListingReport> {
+    let listing_id = ListingId::from_uuid(listing_id);
+
+    // Get user context if authenticated
+    let reported_by = ctx.auth_user.as_ref().map(|u| u.member_id);
+
+    let report_id = Uuid::new_v4();
+    let report_id_typed = ListingReportId::from_uuid(report_id);
+
+    dispatch_request(
+        ListingEvent::ReportListingRequested {
+            listing_id,
+            reported_by,
+            reporter_email,
+            reason,
+            category,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                ListingEvent::ListingReported { report_id: rid, .. } if *rid == report_id_typed => {
+                    Some(Ok(()))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Failed to report listing: {}", e), juniper::Value::null()))?;
+
+    // Fetch the created report
+    let report = ListingReportRecord::query_for_listing(listing_id, &ctx.db_pool)
+        .await
+        .map_err(|e| FieldError::new(format!("Failed to fetch report: {}", e), juniper::Value::null()))?
+        .into_iter()
+        .find(|r| r.id == report_id_typed)
+        .ok_or_else(|| FieldError::new("Report not found after creation", juniper::Value::null()))?;
+
+    Ok(report.into())
+}
+
+/// Resolve a report and optionally take action (admin only)
+pub async fn resolve_report(
+    ctx: &GraphQLContext,
+    report_id: Uuid,
+    resolution_notes: Option<String>,
+    action_taken: String,
+) -> FieldResult<bool> {
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+    let report_id = ListingReportId::from_uuid(report_id);
+
+    dispatch_request(
+        ListingEvent::ResolveReportRequested {
+            report_id,
+            resolved_by: user.member_id,
+            resolution_notes,
+            action_taken,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                ListingEvent::ReportResolved { report_id: rid, .. } if *rid == report_id => {
+                    Some(Ok(()))
+                }
+                ListingEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Failed to resolve report: {}", e), juniper::Value::null()))?;
+
+    Ok(true)
+}
+
+/// Dismiss a report without taking action (admin only)
+pub async fn dismiss_report(
+    ctx: &GraphQLContext,
+    report_id: Uuid,
+    resolution_notes: Option<String>,
+) -> FieldResult<bool> {
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+    let report_id = ListingReportId::from_uuid(report_id);
+
+    dispatch_request(
+        ListingEvent::DismissReportRequested {
+            report_id,
+            resolved_by: user.member_id,
+            resolution_notes,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                ListingEvent::ReportDismissed { report_id: rid } if *rid == report_id => {
+                    Some(Ok(()))
+                }
+                ListingEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Failed to dismiss report: {}", e), juniper::Value::null()))?;
+
+    Ok(true)
 }

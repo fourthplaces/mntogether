@@ -78,6 +78,16 @@ impl Agent {
         Ok(agents)
     }
 
+    /// Find all agents (for admin panel)
+    pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM agents ORDER BY created_at DESC"
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find an agent by ID
     pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
         let agent = sqlx::query_as::<_, Agent>(
@@ -152,6 +162,47 @@ impl Agent {
         .bind(id)
         .bind(extraction_instructions)
         .bind(system_prompt)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(agent)
+    }
+
+    /// Update agent details
+    pub async fn update(
+        id: Uuid,
+        name: String,
+        query_template: String,
+        description: Option<String>,
+        extraction_instructions: Option<String>,
+        system_prompt: Option<String>,
+        location_context: String,
+        enabled: bool,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let agent = sqlx::query_as::<_, Agent>(
+            r#"
+            UPDATE agents
+            SET name = $2,
+                query_template = $3,
+                description = $4,
+                extraction_instructions = $5,
+                system_prompt = $6,
+                location_context = $7,
+                enabled = $8,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#
+        )
+        .bind(id)
+        .bind(name)
+        .bind(query_template)
+        .bind(description)
+        .bind(extraction_instructions)
+        .bind(system_prompt)
+        .bind(location_context)
+        .bind(enabled)
         .fetch_one(pool)
         .await?;
 

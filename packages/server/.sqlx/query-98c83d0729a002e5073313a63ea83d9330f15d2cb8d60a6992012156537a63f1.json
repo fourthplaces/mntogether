@@ -1,0 +1,101 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            SELECT\n                id as \"id: ListingReportId\",\n                listing_id as \"listing_id: ListingId\",\n                reason, category, status, created_at, resolved_at, resolution_notes, action_taken,\n                listing_title, organization_name, listing_type, listing_status, report_count_for_listing\n            FROM listing_reports_with_details\n            WHERE status = 'pending'\n            ORDER BY created_at DESC\n            LIMIT $1 OFFSET $2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ListingReportId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "listing_id: ListingId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 3,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 6,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 7,
+        "name": "resolution_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 8,
+        "name": "action_taken",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 9,
+        "name": "listing_title",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "organization_name",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "listing_type",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 12,
+        "name": "listing_status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 13,
+        "name": "report_count_for_listing",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "98c83d0729a002e5073313a63ea83d9330f15d2cb8d60a6992012156537a63f1"
+}

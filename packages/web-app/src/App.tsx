@@ -11,7 +11,7 @@ import { SubmitResource } from './pages/SubmitResource';
 import { Login } from './pages/admin/Login';
 import { Dashboard } from './pages/admin/Dashboard';
 import { AgentsEnhanced as Agents } from './pages/admin/AgentsEnhanced';
-import { Domains } from './pages/admin/Domains';
+import { Websites } from './pages/admin/Websites';
 import { ListingApprovalQueue } from './pages/admin/ListingApprovalQueue';
 import ScrapedListingsReview from './pages/admin/ScrapedListingsReview';
 import { Resources } from './pages/admin/Resources';
@@ -52,10 +52,10 @@ function AdminLayout() {
                   🤖 Agents
                 </Link>
                 <Link
-                  to="/admin/domains"
+                  to="/admin/websites"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
-                  🌐 Domains
+                  🌐 Websites
                 </Link>
                 <Link
                   to="/admin/listings"
@@ -93,8 +93,8 @@ function AdminLayout() {
         <Route path="/" element={<Dashboard />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/agents" element={<Agents />} />
-        <Route path="/domains" element={<Domains />} />
-        <Route path="/domains/:sourceId" element={<ResourceDetail />} />
+        <Route path="/websites" element={<Websites />} />
+        <Route path="/websites/:sourceId" element={<ResourceDetail />} />
         <Route path="/listings" element={<ListingApprovalQueue />} />
         <Route path="/scraped" element={<ScrapedListingsReview />} />
         <Route path="/resources" element={<Resources />} />

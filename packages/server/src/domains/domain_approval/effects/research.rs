@@ -1,0 +1,136 @@
+use crate::common::{WebsiteId, JobId, MemberId};
+use crate::domains::domain_approval::commands::DomainApprovalCommand;
+use crate::domains::domain_approval::events::DomainApprovalEvent;
+use crate::domains::listings::effects::deps::ServerDeps;
+use crate::domains::scraping::models::{Website, WebsiteResearch, WebsiteResearchHomepage};
+use anyhow::{Context, Result};
+use async_trait::async_trait;
+use seesaw_core::{Effect, EffectContext};
+use tracing::info;
+
+/// Research Effect - Handles fetching or creating domain research
+///
+/// This effect is a thin orchestration layer that dispatches to handler functions.
+pub struct ResearchEffect;
+
+#[async_trait]
+impl Effect<DomainApprovalCommand, ServerDeps> for ResearchEffect {
+    type Event = DomainApprovalEvent;
+
+    async fn execute(
+        &self,
+        cmd: DomainApprovalCommand,
+        ctx: EffectContext<ServerDeps>,
+    ) -> Result<DomainApprovalEvent> {
+        match cmd {
+            DomainApprovalCommand::FetchOrCreateResearch {
+                website_id,
+                job_id,
+                requested_by,
+            } => handle_fetch_or_create_research(website_id, job_id, requested_by, &ctx).await,
+            _ => anyhow::bail!("ResearchEffect: Unexpected command"),
+        }
+    }
+}
+
+// ============================================================================
+// Handler Functions (Business Logic)
+// ============================================================================
+
+async fn handle_fetch_or_create_research(
+    website_id: WebsiteId,
+    job_id: JobId,
+    requested_by: MemberId,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<DomainApprovalEvent> {
+    info!(
+        website_id = %website_id,
+        job_id = %job_id,
+        "Fetching or creating research"
+    );
+
+    // Step 1: Fetch website to ensure it exists
+    let website = Website::find_by_id(website_id.into(), &ctx.deps().db_pool)
+        .await
+        .context(format!("Website not found: {}", website_id))?;
+
+    info!(
+        website_id = %website_id,
+        website_url = %website.url,
+        "Website found"
+    );
+
+    // Step 2: Check for existing research (<7 days old)
+    let existing = WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool)
+        .await?;
+
+    if let Some(research) = existing {
+        let age_days = (chrono::Utc::now() - research.created_at).num_days();
+
+        info!(
+            research_id = %research.id,
+            age_days = age_days,
+            "Found existing research"
+        );
+
+        if age_days < 7 {
+            return Ok(DomainApprovalEvent::WebsiteResearchFound {
+                research_id: research.id,
+                website_id,
+                job_id,
+                age_days,
+                requested_by,
+            });
+        }
+
+        info!(research_id = %research.id, "Research is stale, creating fresh research");
+    }
+
+    // Step 3: Create fresh research - scrape homepage
+    info!(website_url = %website.url, "Scraping homepage");
+
+    let scrape_result = ctx
+        .deps()
+        .web_scraper
+        .scrape(&website.url)
+        .await
+        .context("Failed to scrape homepage")?;
+
+    info!(
+        website_url = %website.url,
+        markdown_length = scrape_result.markdown.len(),
+        "Homepage scraped successfully"
+    );
+
+    // Step 4: Create research record
+    let research = WebsiteResearch::create(
+        website_id.into(),
+        website.url.clone(),
+        Some(requested_by.into()),
+        &ctx.deps().db_pool,
+    )
+    .await
+    .context("Failed to create research record")?;
+
+    info!(research_id = %research.id, "Research record created");
+
+    // Step 5: Store homepage content
+    WebsiteResearchHomepage::create(
+        research.id,
+        Some(scrape_result.markdown.clone()),
+        Some(scrape_result.markdown),
+        &ctx.deps().db_pool,
+    )
+    .await
+    .context("Failed to store homepage content")?;
+
+    info!(research_id = %research.id, "Homepage content stored");
+
+    // Step 6: Emit event - research created, needs searches
+    Ok(DomainApprovalEvent::WebsiteResearchCreated {
+        research_id: research.id,
+        website_id,
+        job_id,
+        homepage_url: website.url,
+    })
+}

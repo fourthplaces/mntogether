@@ -1,4 +1,4 @@
-use crate::common::{DomainId, ListingId};
+use crate::common::{WebsiteId, ListingId};
 use crate::domains::listings::models::{ListingStatus, Listing};
 use crate::domains::organization::utils::{generate_need_content_hash as generate_listing_content_hash, generate_tldr};
 use anyhow::Result;
@@ -34,7 +34,7 @@ pub struct ExtractedListingInput {
 ///
 /// TODO: Implement full sync logic with deduplication:
 /// 1. Calculate content hash for each extracted listing
-/// 2. Find existing listings from same domain
+/// 2. Find existing listings from same website
 /// 3. Compare hashes:
 ///    - Same hash = unchanged (update last_seen_at)
 ///    - Different hash = changed (create new pending_approval)
@@ -45,11 +45,11 @@ pub struct ExtractedListingInput {
 /// to enable proper atomic updates within a database transaction.
 pub async fn sync_listings(
     pool: &PgPool,
-    domain_id: DomainId,
+    website_id: WebsiteId,
     extracted_listings: Vec<ExtractedListingInput>,
 ) -> Result<SyncResult> {
     tracing::info!(
-        domain_id = %domain_id,
+        website_id = %website_id,
         listing_count = extracted_listings.len(),
         "Creating listings from extracted data (deduplication not yet implemented)"
     );
@@ -81,7 +81,7 @@ pub async fn sync_listings(
             "en".to_string(), // source_language
             Some("scraped".to_string()),
             None, // submitted_by_admin_id
-            Some(domain_id),
+            Some(website_id),
             listing.source_url,
             None, // organization_id
             pool,

@@ -1,5 +1,9 @@
 use super::context::GraphQLContext;
 use crate::domains::auth::edges as auth_edges;
+use crate::domains::domain_approval::data::WebsiteAssessmentData;
+use crate::domains::domain_approval::edges::{
+    website_assessment, generate_website_assessment,
+};
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::{OrganizationData, PostData, SourceData as DomainData};
 use crate::domains::organization::data::post_types::RepostResult;
@@ -11,16 +15,21 @@ use crate::domains::listings::edges::{
     archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
     repost_listing, track_post_click, track_post_view,
     query_organization_source, query_organization_sources,
-    query_domains, query_pending_domains,
+    query_websites, query_pending_websites,
     approve_domain, reject_domain, suspend_domain, refresh_page_snapshot,
     generate_agent_config_from_description, GenerateAgentConfigResult,
     trigger_agent_search, TriggerSearchResult,
+    report_listing, resolve_report, dismiss_report,
+    query_listing_reports, query_reports_for_listing,
+    get_all_agents, update_agent, UpdateAgentInput,
 };
 use crate::domains::listings::data::{
     ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
     ListingType, ScrapeJobResult, SubmitListingInput,
     SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
+use crate::domains::listings::data::agent::AgentData;
+use crate::domains::listings::data::listing_report::{ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData};
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -164,12 +173,12 @@ impl Query {
         ctx: &GraphQLContext,
         status: Option<String>,
     ) -> FieldResult<Vec<DomainData>> {
-        query_domains(&ctx.db_pool, status).await
+        query_websites(&ctx.db_pool, status).await
     }
 
-    /// Get domains pending review (for admin approval queue)
+    /// Get websites pending review (for admin approval queue)
     async fn pending_domains(ctx: &GraphQLContext) -> FieldResult<Vec<DomainData>> {
-        query_pending_domains(&ctx.db_pool).await
+        query_pending_websites(&ctx.db_pool).await
     }
 
     /// Get all verified organizations
@@ -184,6 +193,37 @@ impl Query {
     // =========================================================================
     // Listing Queries
     // =========================================================================
+
+    /// Get all listing reports (admin only)
+    async fn listing_reports(
+        ctx: &GraphQLContext,
+        status: Option<String>,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<Vec<ListingReportDetailData>> {
+        query_listing_reports(ctx, status, limit, offset).await
+    }
+
+    /// Get reports for a specific listing (admin only)
+    async fn reports_for_listing(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+    ) -> FieldResult<Vec<ListingReportData>> {
+        query_reports_for_listing(ctx, listing_id).await
+    }
+
+    /// Get all agents (admin only)
+    async fn agents(ctx: &GraphQLContext) -> FieldResult<Vec<AgentData>> {
+        get_all_agents(ctx).await
+    }
+
+    /// Get the latest assessment for a website (admin only)
+    async fn domain_assessment(
+        ctx: &GraphQLContext,
+        domain_id: String,
+    ) -> FieldResult<Option<WebsiteAssessmentData>> {
+        website_assessment(ctx, domain_id).await
+    }
 
 }
 
@@ -409,6 +449,54 @@ impl Mutation {
         agent_id: String,
     ) -> FieldResult<TriggerSearchResult> {
         trigger_agent_search(ctx, agent_id).await
+    }
+
+    /// Update an agent (admin only)
+    async fn update_agent(
+        ctx: &GraphQLContext,
+        agent_id: String,
+        input: UpdateAgentInput,
+    ) -> FieldResult<AgentData> {
+        update_agent(ctx, agent_id, input).await
+    }
+
+    /// Generate a comprehensive assessment report for a website (admin only)
+    /// Creates a "background check" style markdown report to help with approval decisions
+    async fn generate_domain_assessment(
+        ctx: &GraphQLContext,
+        domain_id: String,
+    ) -> FieldResult<String> {
+        generate_website_assessment(ctx, domain_id).await
+    }
+
+    /// Report a listing (public or authenticated)
+    async fn report_listing(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+        reason: String,
+        category: String,
+        reporter_email: Option<String>,
+    ) -> FieldResult<ListingReportData> {
+        report_listing(ctx, listing_id, reason, category, reporter_email).await
+    }
+
+    /// Resolve a report (admin only)
+    async fn resolve_report(
+        ctx: &GraphQLContext,
+        report_id: Uuid,
+        resolution_notes: Option<String>,
+        action_taken: String,
+    ) -> FieldResult<bool> {
+        resolve_report(ctx, report_id, resolution_notes, action_taken).await
+    }
+
+    /// Dismiss a report (admin only)
+    async fn dismiss_report(
+        ctx: &GraphQLContext,
+        report_id: Uuid,
+        resolution_notes: Option<String>,
+    ) -> FieldResult<bool> {
+        dismiss_report(ctx, report_id, resolution_notes).await
     }
 
 }

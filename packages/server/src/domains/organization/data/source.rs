@@ -1,32 +1,32 @@
-use crate::common::DomainId;
+use crate::common::WebsiteId;
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
-use crate::domains::scraping::models::Domain;
+use crate::domains::scraping::models::Website;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// GraphQL-friendly representation of a domain source (decoupled from organizations)
+/// GraphQL-friendly representation of a website source (decoupled from organizations)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceData {
     pub id: String,
-    pub source_url: String, // Maps to domain_url in database
-    pub domain_url: String, // Alias for compatibility
+    pub source_url: String, // Maps to website_url in database
+    pub website_url: String, // New canonical field name
     pub last_scraped_at: Option<String>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
-    pub status: String, // Domain approval status
+    pub status: String, // Website approval status
     pub submitted_by: Option<String>,
     pub submitter_type: Option<String>,
     pub created_at: String,
 }
 
-impl From<Domain> for SourceData {
-    fn from(source: Domain) -> Self {
+impl From<Website> for SourceData {
+    fn from(source: Website) -> Self {
         Self {
             id: source.id.to_string(),
-            source_url: source.domain_url.clone(), // Map domain_url to source_url for frontend compatibility
-            domain_url: source.domain_url, // Also expose as domainUrl
+            source_url: source.url.clone(), // Map url to source_url for frontend compatibility
+            website_url: source.url, // Also expose as websiteUrl
             last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
             scrape_frequency_hours: source.scrape_frequency_hours,
             active: source.active,
@@ -48,8 +48,8 @@ impl SourceData {
         self.source_url.clone()
     }
 
-    fn domain_url(&self) -> String {
-        self.domain_url.clone()
+    fn website_url(&self) -> String {
+        self.website_url.clone()
     }
 
     fn last_scraped_at(&self) -> Option<String> {
@@ -80,27 +80,27 @@ impl SourceData {
         self.created_at.clone()
     }
 
-    /// Get count of domain snapshots (submitted pages)
+    /// Get count of website snapshots (submitted pages)
     async fn snapshots_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let uuid = Uuid::parse_str(&self.id)?;
-        let domain_id = DomainId::from_uuid(uuid);
+        let website_id = WebsiteId::from_uuid(uuid);
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM domain_snapshots WHERE domain_id = $1"
+            "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1"
         )
-        .bind(domain_id)
+        .bind(website_id)
         .fetch_one(&context.db_pool)
         .await?;
         Ok(count as i32)
     }
 
-    /// Get count of listings from this domain
+    /// Get count of listings from this website
     async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let uuid = Uuid::parse_str(&self.id)?;
-        let domain_id = DomainId::from_uuid(uuid);
+        let website_id = WebsiteId::from_uuid(uuid);
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM listings WHERE domain_id = $1"
+            "SELECT COUNT(*) FROM listings WHERE website_id = $1"
         )
-        .bind(domain_id)
+        .bind(website_id)
         .fetch_one(&context.db_pool)
         .await?;
         Ok(count as i32)
@@ -109,8 +109,8 @@ impl SourceData {
     /// Get all listings scraped from this source
     async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
         let uuid = Uuid::parse_str(&self.id)?;
-        let domain_id = DomainId::from_uuid(uuid);
-        let listings = Listing::find_by_domain_id(domain_id, &context.db_pool).await?;
+        let website_id = WebsiteId::from_uuid(uuid);
+        let listings = Listing::find_by_website_id(website_id, &context.db_pool).await?;
         Ok(listings.into_iter().map(ListingData::from).collect())
     }
 }

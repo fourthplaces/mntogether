@@ -280,7 +280,7 @@ export const GET_PENDING_DOMAINS = gql`
   query GetPendingDomains {
     pendingDomains {
       id
-      domainUrl
+      websiteUrl
       status
       submittedBy
       submitterType
@@ -294,7 +294,7 @@ export const GET_ALL_DOMAINS = gql`
   query GetAllDomains($status: String) {
     domains(status: $status) {
       id
-      domainUrl
+      websiteUrl
       status
       lastScrapedAt
       submittedBy
@@ -310,7 +310,7 @@ export const GET_DOMAIN_DETAIL = gql`
   query GetDomainDetail($id: ID!) {
     domain(id: $id) {
       id
-      domainUrl
+      websiteUrl
       status
       submittedBy
       submitterType
@@ -340,8 +340,8 @@ export const GET_DOMAIN_DETAIL = gql`
 
 // Domain mutations
 export const APPROVE_DOMAIN = gql`
-  mutation ApproveDomain($domainId: ID!) {
-    approveDomain(domainId: $domainId) {
+  mutation ApproveDomain($websiteId: ID!) {
+    approveDomain(websiteId: $websiteId) {
       id
       status
     }
@@ -349,8 +349,8 @@ export const APPROVE_DOMAIN = gql`
 `;
 
 export const REJECT_DOMAIN = gql`
-  mutation RejectDomain($domainId: ID!, $reason: String!) {
-    rejectDomain(domainId: $domainId, reason: $reason) {
+  mutation RejectDomain($websiteId: ID!, $reason: String!) {
+    rejectDomain(websiteId: $websiteId, reason: $reason) {
       id
       status
       rejectionReason
@@ -359,8 +359,8 @@ export const REJECT_DOMAIN = gql`
 `;
 
 export const SUSPEND_DOMAIN = gql`
-  mutation SuspendDomain($domainId: ID!, $reason: String!) {
-    suspendDomain(domainId: $domainId, reason: $reason) {
+  mutation SuspendDomain($websiteId: ID!, $reason: String!) {
+    suspendDomain(websiteId: $websiteId, reason: $reason) {
       id
       status
       rejectionReason
@@ -373,7 +373,7 @@ export const GET_DOMAIN_WITH_SNAPSHOT_DETAILS = gql`
   query GetDomainWithSnapshotDetails($id: ID!) {
     domain(id: $id) {
       id
-      domainUrl
+      websiteUrl
       status
       submittedBy
       submitterType
@@ -425,8 +425,8 @@ export const GET_DOMAIN_WITH_SNAPSHOT_DETAILS = gql`
 
 // Query to see listings by source page
 export const GET_LISTINGS_BY_PAGE = gql`
-  query GetListingsByPage($domainId: ID!, $pageUrl: String!) {
-    listingsByPage(domainId: $domainId, pageUrl: $pageUrl) {
+  query GetListingsByPage($websiteId: ID!, $pageUrl: String!) {
+    listingsByPage(websiteId: $websiteId, pageUrl: $pageUrl) {
       id
       title
       description

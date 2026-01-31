@@ -19,7 +19,7 @@ const GET_ADMIN_STATS = gql`
   }
 `;
 
-interface Domain {
+interface Website {
   id: string;
   status: string;
   listingsCount: number;
@@ -33,7 +33,7 @@ interface Listing {
 }
 
 export function Dashboard() {
-  const { data, loading } = useQuery<{ domains: Domain[]; listings: Listing[] }>(
+  const { data, loading } = useQuery<{ domains: Website[]; listings: Listing[] }>(
     GET_ADMIN_STATS
   );
 

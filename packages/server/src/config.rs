@@ -11,7 +11,7 @@ pub struct Config {
     pub openai_api_key: String,
     pub voyage_api_key: String,
     pub firecrawl_api_key: String,
-    pub tavily_api_key: Option<String>,
+    pub tavily_api_key: String,
     pub expo_access_token: Option<String>,
     pub twilio_account_sid: String,
     pub twilio_auth_token: String,
@@ -31,6 +31,9 @@ impl Config {
         // Load .env file if present (development)
         let _ = dotenv();
 
+        // Validate required environment variables and warn about optional ones
+        Self::validate_env_vars();
+
         Ok(Self {
             database_url: env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
             redis_url: env::var("REDIS_URL")
@@ -44,7 +47,8 @@ impl Config {
             voyage_api_key: env::var("VOYAGE_API_KEY").context("VOYAGE_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,
-            tavily_api_key: env::var("TAVILY_API_KEY").ok(),
+            tavily_api_key: env::var("TAVILY_API_KEY")
+                .context("TAVILY_API_KEY must be set")?,
             expo_access_token: env::var("EXPO_ACCESS_TOKEN").ok(),
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID")
                 .context("TWILIO_ACCOUNT_SID must be set")?,
@@ -88,5 +92,67 @@ impl Config {
                 .parse()
                 .unwrap_or(true),
         })
+    }
+
+    /// Validate environment variables and print warnings
+    fn validate_env_vars() {
+        let required_vars = vec![
+            "DATABASE_URL",
+            "OPENAI_API_KEY",
+            "VOYAGE_API_KEY",
+            "FIRECRAWL_API_KEY",
+            "TAVILY_API_KEY",
+            "TWILIO_ACCOUNT_SID",
+            "TWILIO_AUTH_TOKEN",
+            "TWILIO_VERIFY_SERVICE_SID",
+            "JWT_SECRET",
+        ];
+
+        let optional_vars = vec![
+            ("REDIS_URL", "redis://localhost:6379"),
+            ("PORT", "8080"),
+            ("JWT_ISSUER", "mndigitalaid"),
+            ("EXPO_ACCESS_TOKEN", "none"),
+            ("ALLOWED_ORIGINS", "auto-configured"),
+            ("TEST_IDENTIFIER_ENABLED", "false"),
+            ("ADMIN_IDENTIFIERS", "empty"),
+            ("PII_SCRUBBING_ENABLED", "true"),
+            ("PII_USE_GPT_DETECTION", "true"),
+        ];
+
+        let mut missing_required = Vec::new();
+        let mut missing_optional = Vec::new();
+
+        // Check required variables
+        for var in &required_vars {
+            if env::var(var).is_err() {
+                missing_required.push(*var);
+            }
+        }
+
+        // Check optional variables
+        for (var, default) in &optional_vars {
+            if env::var(var).is_err() {
+                missing_optional.push((*var, *default));
+            }
+        }
+
+        // Print warnings
+        if !missing_optional.is_empty() {
+            tracing::warn!("Optional environment variables not set (using defaults):");
+            for (var, default) in missing_optional {
+                tracing::warn!("  ⚠️  {} (default: {})", var, default);
+            }
+        }
+
+        if !missing_required.is_empty() {
+            tracing::error!("❌ Required environment variables are missing:");
+            for var in &missing_required {
+                tracing::error!("  ❌  {}", var);
+            }
+            tracing::error!("Server will fail to start without these variables!");
+        } else {
+            tracing::info!("✅ All required environment variables are present");
+        }
     }
 }

@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::common::DomainId;
+use crate::common::WebsiteId;
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -8,7 +8,7 @@ use crate::domains::listings::events::ListingEvent;
 /// Pure decision logic - NO IO, only state transitions
 pub struct ListingMachine {
     /// Track pending scrapes to prevent duplicates
-    pending_scrapes: HashSet<DomainId>,
+    pending_scrapes: HashSet<WebsiteId>,
 }
 
 impl ListingMachine {
@@ -220,17 +220,17 @@ impl seesaw_core::Machine for ListingMachine {
                 url,
                 context,
                 submitter_contact,
-            } => Some(ListingCommand::CreateDomainFromLink {
+            } => Some(ListingCommand::CreateWebsiteFromLink {
                 url: url.clone(),
                 organization_name: context.clone().unwrap_or_else(|| "Submitted Resource".to_string()),
                 submitter_contact: submitter_contact.clone(),
             }),
 
-            // Domain pending approval - no scraping yet
-            ListingEvent::DomainPendingApproval { .. } => None,
+            // Website pending approval - no scraping yet
+            ListingEvent::WebsitePendingApproval { .. } => None,
 
             // After source created, start scraping
-            ListingEvent::DomainCreatedFromLink {
+            ListingEvent::WebsiteCreatedFromLink {
                 job_id,
                 url,
                 submitter_contact,
@@ -333,6 +333,46 @@ impl seesaw_core::Machine for ListingMachine {
                 is_admin: *is_admin,
             }),
 
+            ListingEvent::ReportListingRequested {
+                listing_id,
+                reported_by,
+                reporter_email,
+                reason,
+                category,
+            } => Some(ListingCommand::CreateReport {
+                listing_id: *listing_id,
+                reported_by: *reported_by,
+                reporter_email: reporter_email.clone(),
+                reason: reason.clone(),
+                category: category.clone(),
+            }),
+
+            ListingEvent::ResolveReportRequested {
+                report_id,
+                resolved_by,
+                resolution_notes,
+                action_taken,
+                is_admin,
+            } => Some(ListingCommand::ResolveReport {
+                report_id: *report_id,
+                resolved_by: *resolved_by,
+                resolution_notes: resolution_notes.clone(),
+                action_taken: action_taken.clone(),
+                is_admin: *is_admin,
+            }),
+
+            ListingEvent::DismissReportRequested {
+                report_id,
+                resolved_by,
+                resolution_notes,
+                is_admin,
+            } => Some(ListingCommand::DismissReport {
+                report_id: *report_id,
+                resolved_by: *resolved_by,
+                resolution_notes: resolution_notes.clone(),
+                is_admin: *is_admin,
+            }),
+
             // Terminal events - no further commands needed
             ListingEvent::ListingApproved { listing_id } => {
                 // When listing is approved, create a post
@@ -348,6 +388,9 @@ impl seesaw_core::Machine for ListingMachine {
             ListingEvent::ListingRejected { .. } => None,
             ListingEvent::ListingUpdated { .. } => None,
             ListingEvent::ListingDeleted { .. } => None,
+            ListingEvent::ListingReported { .. } => None,
+            ListingEvent::ReportResolved { .. } => None,
+            ListingEvent::ReportDismissed { .. } => None,
             ListingEvent::PostCreated { .. } => None,
             ListingEvent::PostExpired { .. } => None,
             ListingEvent::PostArchived { .. } => None,

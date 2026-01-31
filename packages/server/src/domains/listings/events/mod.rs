@@ -3,7 +3,8 @@ use std::net::IpAddr;
 
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedListing};
-use crate::common::{JobId, ListingId, MemberId, PostId, DomainId};
+use crate::common::{JobId, ListingId, MemberId, PostId, WebsiteId};
+use crate::domains::listings::models::listing_report::ListingReportId;
 
 /// Listings domain events
 /// Following seesaw-rs pattern: Events are immutable facts
@@ -14,7 +15,7 @@ pub enum ListingEvent {
     // =========================================================================
     /// Admin requests to scrape an organization source
     ScrapeSourceRequested {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
         is_admin: bool,         // Whether user is admin (checked in effect)
@@ -40,18 +41,18 @@ pub enum ListingEvent {
     },
 
     /// Organization source created from user-submitted link
-    DomainCreatedFromLink {
-        source_id: DomainId,
+    WebsiteCreatedFromLink {
+        source_id: WebsiteId,
         job_id: JobId,
         url: String,
         organization_name: String,
         submitter_contact: Option<String>,
     },
 
-    /// Domain created but pending admin approval before scraping
-    DomainPendingApproval {
-        domain_id: DomainId,
-        domain_url: String,
+    /// Website created but pending admin approval before scraping
+    WebsitePendingApproval {
+        website_id: WebsiteId,
+        url: String,
         submitted_url: String,
         submitter_contact: Option<String>,
     },
@@ -131,12 +132,38 @@ pub enum ListingEvent {
         is_admin: bool,
     },
 
+    /// User reports a listing for moderation
+    ReportListingRequested {
+        listing_id: ListingId,
+        reported_by: Option<MemberId>,
+        reporter_email: Option<String>,
+        reason: String,
+        category: String,
+    },
+
+    /// Admin resolves a report
+    ResolveReportRequested {
+        report_id: ListingReportId,
+        resolved_by: MemberId,
+        resolution_notes: Option<String>,
+        action_taken: String,
+        is_admin: bool,
+    },
+
+    /// Admin dismisses a report
+    DismissReportRequested {
+        report_id: ListingReportId,
+        resolved_by: MemberId,
+        resolution_notes: Option<String>,
+        is_admin: bool,
+    },
+
     // =========================================================================
     // Fact Events (from effects - what actually happened)
     // =========================================================================
     /// Source was scraped successfully
     SourceScraped {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         organization_name: String,
         content: String,
@@ -155,7 +182,7 @@ pub enum ListingEvent {
 
     /// AI extracted listings from scraped content
     ListingsExtracted {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         listings: Vec<ExtractedListing>,
     },
@@ -171,7 +198,7 @@ pub enum ListingEvent {
 
     /// Listings were synced with database
     ListingsSynced {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         new_count: usize,
         changed_count: usize,
@@ -180,7 +207,7 @@ pub enum ListingEvent {
 
     /// Scraping failed (terminal event - clears pending state)
     ScrapeFailed {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         reason: String,
     },
@@ -193,14 +220,14 @@ pub enum ListingEvent {
 
     /// Listing extraction failed (terminal event - clears pending state)
     ExtractFailed {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         reason: String,
     },
 
     /// Listing sync failed (terminal event - clears pending state)
     SyncFailed {
-        source_id: DomainId,
+        source_id: WebsiteId,
         job_id: JobId,
         reason: String,
     },
@@ -239,6 +266,23 @@ pub enum ListingEvent {
 
     /// A listing was deleted
     ListingDeleted { listing_id: ListingId },
+
+    /// A listing was reported
+    ListingReported {
+        report_id: ListingReportId,
+        listing_id: ListingId,
+    },
+
+    /// A report was resolved
+    ReportResolved {
+        report_id: ListingReportId,
+        action_taken: String,
+    },
+
+    /// A report was dismissed
+    ReportDismissed {
+        report_id: ListingReportId,
+    },
 
     /// Embedding generated for a listing
     ListingEmbeddingGenerated { listing_id: ListingId, dimensions: usize },
@@ -339,7 +383,7 @@ pub enum ListingEvent {
 
     /// Domain discovered by agent
     DomainDiscoveredByAgent {
-        domain_id: DomainId,
+        website_id: WebsiteId,
         agent_id: uuid::Uuid,
         url: String,
         title: String,

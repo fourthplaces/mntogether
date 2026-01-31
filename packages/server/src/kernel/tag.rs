@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{DomainId, ListingId, OrganizationId, TagId, TaggableId};
+use crate::common::{WebsiteId, ListingId, OrganizationId, TagId, TaggableId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -189,18 +189,18 @@ impl Tag {
         Ok(tags)
     }
 
-    /// Find all tags for a domain
-    pub async fn find_for_domain(domain_id: DomainId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find all tags for a website
+    pub async fn find_for_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let tags = sqlx::query_as::<_, Tag>(
             r#"
             SELECT t.*
             FROM tags t
             INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'domain' AND tg.taggable_id = $1
+            WHERE tg.taggable_type = 'website' AND tg.taggable_id = $1
             ORDER BY t.kind, t.value
             "#,
         )
-        .bind(domain_id.as_uuid())
+        .bind(website_id.as_uuid())
         .fetch_all(pool)
         .await?;
         Ok(tags)
@@ -264,13 +264,13 @@ impl Taggable {
         Self::create(tag_id, "organization", organization_id.as_uuid(), pool).await
     }
 
-    /// Associate a tag with a domain
-    pub async fn create_domain_tag(
-        domain_id: DomainId,
+    /// Associate a tag with a website
+    pub async fn create_website_tag(
+        website_id: WebsiteId,
         tag_id: TagId,
         pool: &PgPool,
     ) -> Result<Self> {
-        Self::create(tag_id, "domain", domain_id.as_uuid(), pool).await
+        Self::create(tag_id, "website", website_id.as_uuid(), pool).await
     }
 
     /// Associate a tag with a referral document
@@ -324,13 +324,13 @@ impl Taggable {
         Self::delete(tag_id, "organization", organization_id.as_uuid(), pool).await
     }
 
-    /// Remove a tag from a domain
-    pub async fn delete_domain_tag(
-        domain_id: DomainId,
+    /// Remove a tag from a website
+    pub async fn delete_website_tag(
+        website_id: WebsiteId,
         tag_id: TagId,
         pool: &PgPool,
     ) -> Result<()> {
-        Self::delete(tag_id, "domain", domain_id.as_uuid(), pool).await
+        Self::delete(tag_id, "website", website_id.as_uuid(), pool).await
     }
 
     /// Remove a tag from a referral document

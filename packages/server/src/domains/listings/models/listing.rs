@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContainerId, ListingId, OrganizationId, DomainId};
+use crate::common::{ContainerId, ListingId, OrganizationId, WebsiteId};
 
 /// Listing - a service, opportunity, or business listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -41,12 +41,9 @@ pub struct Listing {
     pub submission_type: Option<String>, // 'scraped', 'admin', 'org_submitted'
     pub submitted_by_admin_id: Option<Uuid>,
 
-    // Sync tracking (for scraped listings)
-    pub domain_id: Option<DomainId>,
-    pub source_url: Option<String>, // Specific page URL where listing was found
-    pub last_seen_at: DateTime<Utc>,
-    pub disappeared_at: Option<DateTime<Utc>>,
-    pub content_hash: Option<String>,
+    // Source tracking (for scraped listings)
+    pub website_id: Option<WebsiteId>,
+    pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
 
     // Vector search (for semantic matching)
     pub embedding: Option<pgvector::Vector>,
@@ -295,10 +292,10 @@ impl Listing {
     }
 
     /// Find listings by domain ID
-    pub async fn find_by_domain_id(domain_id: DomainId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings =
-            sqlx::query_as::<_, Listing>("SELECT * FROM listings WHERE domain_id = $1")
-                .bind(domain_id)
+            sqlx::query_as::<_, Listing>("SELECT * FROM listings WHERE website_id = $1")
+                .bind(website_id)
                 .fetch_all(pool)
                 .await?;
         Ok(listings)
@@ -331,7 +328,7 @@ impl Listing {
         source_language: String,
         submission_type: Option<String>,
         submitted_by_admin_id: Option<Uuid>,
-        domain_id: Option<DomainId>,
+        website_id: Option<WebsiteId>,
         source_url: Option<String>,
         organization_id: Option<OrganizationId>,
         pool: &PgPool,
@@ -353,7 +350,7 @@ impl Listing {
                 source_language,
                 submission_type,
                 submitted_by_admin_id,
-                domain_id,
+                website_id,
                 source_url,
                 organization_id
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
@@ -374,7 +371,7 @@ impl Listing {
         .bind(source_language)
         .bind(submission_type)
         .bind(submitted_by_admin_id)
-        .bind(domain_id)
+        .bind(website_id)
         .bind(source_url)
         .bind(organization_id)
         .fetch_one(pool)
@@ -508,17 +505,17 @@ impl Listing {
     }
 
     /// Find existing active listings from a domain (for sync)
-    pub async fn find_active_by_domain(domain_id: DomainId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_active_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Listing>(
             r#"
             SELECT *
             FROM listings
-            WHERE domain_id = $1
+            WHERE website_id = $1
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
             "#,
         )
-        .bind(domain_id)
+        .bind(website_id)
         .fetch_all(pool)
         .await?;
         Ok(listings)
@@ -526,7 +523,7 @@ impl Listing {
 
     /// Find listing by domain and title (for sync - detecting changed listings)
     pub async fn find_by_domain_and_title(
-        domain_id: DomainId,
+        website_id: WebsiteId,
         title: &str,
         pool: &PgPool,
     ) -> Result<Option<Self>> {
@@ -534,14 +531,14 @@ impl Listing {
             r#"
             SELECT *
             FROM listings
-            WHERE domain_id = $1
+            WHERE website_id = $1
               AND title = $2
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
             LIMIT 1
             "#,
         )
-        .bind(domain_id)
+        .bind(website_id)
         .bind(title)
         .fetch_optional(pool)
         .await?;
@@ -550,7 +547,7 @@ impl Listing {
 
     /// Mark listings as disappeared that are not in the provided content hash list (for sync)
     pub async fn mark_disappeared_except(
-        domain_id: DomainId,
+        website_id: WebsiteId,
         content_hashes: &[String],
         pool: &PgPool,
     ) -> Result<Vec<ListingId>> {
@@ -558,14 +555,14 @@ impl Listing {
             r#"
             UPDATE listings
             SET disappeared_at = NOW(), updated_at = NOW()
-            WHERE domain_id = $1
+            WHERE website_id = $1
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
               AND content_hash NOT IN (SELECT * FROM UNNEST($2::text[]))
             RETURNING id
             "#,
         )
-        .bind(domain_id)
+        .bind(website_id)
         .bind(content_hashes)
         .fetch_all(pool)
         .await?;
