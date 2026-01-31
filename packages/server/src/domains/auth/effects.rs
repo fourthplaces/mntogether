@@ -31,7 +31,7 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
 
                 // 1. Check if identifier is registered
                 let phone_hash = hash_phone_number(&phone_number);
-                let mut identifier =
+                let identifier =
                     Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await?;
 
                 // 2. Auto-create identifier for admin emails if not registered
@@ -68,20 +68,18 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                             anyhow::anyhow!("Failed to create admin member: {}", e)
                         })?;
 
-                        // Create identifier record
-                        identifier = Some(
-                            Identifier::create(
-                                member.id,
-                                phone_hash.clone(),
-                                true,
-                                &ctx.deps().db_pool,
-                            )
-                            .await
-                            .map_err(|e| {
-                                error!("Failed to create admin identifier: {}", e);
-                                anyhow::anyhow!("Failed to create admin identifier: {}", e)
-                            })?,
-                        );
+                        // Create identifier record (for side effect, result not needed)
+                        Identifier::create(
+                            member.id,
+                            phone_hash.clone(),
+                            true,
+                            &ctx.deps().db_pool,
+                        )
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to create admin identifier: {}", e);
+                            anyhow::anyhow!("Failed to create admin identifier: {}", e)
+                        })?;
 
                         info!(
                             "Admin member and identifier created successfully for {}",

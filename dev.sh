@@ -52,8 +52,8 @@ fi
 export REPO_ROOT
 
 # Build once and reuse for faster startup
-DEV_CLI_BIN="$REPO_ROOT/target/release/dev-cli"
 DEV_CLI_DIR="$REPO_ROOT/dev/cli"
+DEV_CLI_BIN="$DEV_CLI_DIR/target/release/dev-cli"
 
 needs_rebuild() {
   [[ ! -f "$DEV_CLI_BIN" ]] && return 0

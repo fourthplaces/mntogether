@@ -7,6 +7,8 @@ use clap::{Parser, Subcommand};
 use devkit_core::AppContext;
 use std::process::ExitCode;
 
+mod cmd;
+
 #[derive(Parser)]
 #[command(name = "dev")]
 #[command(about = "Development environment CLI")]
@@ -22,11 +24,23 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Start development environment
-    Start,
+    /// Start development environment (Docker + migrations)
+    Up {
+        /// Start all services
+        #[arg(short, long)]
+        all: bool,
+
+        /// Include optional services (web-next)
+        #[arg(long)]
+        full: bool,
+    },
 
     /// Stop all services
-    Stop,
+    Down {
+        /// Remove volumes (WARNING: deletes data)
+        #[arg(short, long)]
+        volumes: bool,
+    },
 
     /// Show environment status
     Status,
@@ -54,6 +68,22 @@ enum Commands {
         #[arg(long)]
         list: bool,
     },
+
+    /// Docker service management
+    #[command(subcommand)]
+    Docker(cmd::docker::DockerCommand),
+
+    /// Database schema operations (sqlx migrations)
+    #[command(subcommand)]
+    Db(cmd::db::DbCommand),
+
+    /// Data migrations for surgical database transformations
+    #[command(subcommand)]
+    Migrate(cmd::migrate::MigrateCommand),
+
+    /// Run utility scripts (seed, embeddings, etc.)
+    #[command(subcommand)]
+    Scripts(cmd::scripts::ScriptsCommand),
 }
 
 fn main() -> ExitCode {
@@ -72,8 +102,8 @@ fn run() -> Result<()> {
     let ctx = AppContext::new(cli.quiet)?;
 
     match cli.command {
-        Some(Commands::Start) => cmd_start(&ctx),
-        Some(Commands::Stop) => cmd_stop(&ctx),
+        Some(Commands::Up { all, full }) => cmd_up(&ctx, all, full),
+        Some(Commands::Down { volumes }) => cmd_down(&ctx, volumes),
         Some(Commands::Status) => cmd_status(&ctx),
         Some(Commands::Doctor) => cmd_doctor(&ctx),
         Some(Commands::Cmd {
@@ -82,24 +112,58 @@ fn run() -> Result<()> {
             package,
             list,
         }) => cmd_run(&ctx, command, parallel, package, list),
+        Some(Commands::Docker(cmd)) => cmd::docker::run(&ctx, cmd),
+        Some(Commands::Db(cmd)) => cmd::db::run(&ctx, cmd),
+        Some(Commands::Migrate(cmd)) => cmd::migrate::run(&ctx, cmd),
+        Some(Commands::Scripts(cmd)) => cmd::scripts::run(&ctx, cmd),
         None => interactive_menu(&ctx),
     }
 }
 
-fn cmd_start(ctx: &AppContext) -> Result<()> {
+fn cmd_up(ctx: &AppContext, all: bool, full: bool) -> Result<()> {
     ctx.print_header("Starting development environment");
-    ctx.print_info("TODO: Implement start command");
-    ctx.print_info("Suggestions:");
-    ctx.print_info("  - Start Docker containers");
-    ctx.print_info("  - Pull environment variables");
-    ctx.print_info("  - Run database migrations");
+
+    // Start Docker services
+    cmd::docker::run(
+        ctx,
+        cmd::docker::DockerCommand::Up {
+            services: vec![],
+            all,
+            full,
+            detach: true,
+        },
+    )?;
+
+    // Run database migrations
+    ctx.print_info("Running database migrations...");
+    if let Err(e) = cmd::db::run(ctx, cmd::db::DbCommand::Migrate) {
+        ctx.print_warning(&format!("Migration warning: {}", e));
+        ctx.print_info("You may need to install sqlx-cli: cargo install sqlx-cli");
+    }
+
+    ctx.print_success("Development environment is ready!");
+    println!();
+    ctx.print_info("Services:");
+    ctx.print_info("  • API:     http://localhost:8080");
+    ctx.print_info("  • GraphQL: http://localhost:8080/graphql");
+    ctx.print_info("  • Web App: http://localhost:3001");
+    if full {
+        ctx.print_info("  • Next.js: http://localhost:3000");
+    }
+
     Ok(())
 }
 
-fn cmd_stop(ctx: &AppContext) -> Result<()> {
+fn cmd_down(ctx: &AppContext, volumes: bool) -> Result<()> {
     ctx.print_header("Stopping development environment");
-    ctx.print_info("TODO: Implement stop command");
-    Ok(())
+
+    cmd::docker::run(
+        ctx,
+        cmd::docker::DockerCommand::Down {
+            services: vec![],
+            volumes,
+        },
+    )
 }
 
 fn cmd_status(ctx: &AppContext) -> Result<()> {
@@ -191,37 +255,191 @@ fn cmd_run(
 }
 
 fn interactive_menu(ctx: &AppContext) -> Result<()> {
-    use dialoguer::Select;
+    use dialoguer::FuzzySelect;
 
     let items = vec![
-        "Start development environment",
-        "Stop services",
-        "Run commands (cmd)",
-        "Status",
-        "Doctor",
-        "Exit",
+        "🚀 Start environment (up)",
+        "🛑 Stop environment (down)",
+        "🐳 Docker services →",
+        "🗄️  Database →",
+        "📦 Data migrations →",
+        "🔧 Scripts →",
+        "📊 Status",
+        "🩺 Doctor",
+        "❌ Exit",
     ];
 
     loop {
         println!();
-        let choice = Select::with_theme(&ctx.theme())
+        let choice = FuzzySelect::with_theme(&ctx.theme())
             .with_prompt("What would you like to do?")
             .items(&items)
             .default(0)
             .interact()?;
 
         match choice {
-            0 => cmd_start(ctx)?,
-            1 => cmd_stop(ctx)?,
-            2 => {
-                // Show available commands
-                cmd_run(ctx, None, false, vec![], true)?;
-            }
-            3 => cmd_status(ctx)?,
-            4 => cmd_doctor(ctx)?,
+            0 => cmd_up(ctx, false, false)?,
+            1 => cmd_down(ctx, false)?,
+            2 => docker_submenu(ctx)?,
+            3 => db_submenu(ctx)?,
+            4 => migrate_submenu(ctx)?,
+            5 => scripts_submenu(ctx)?,
+            6 => cmd_status(ctx)?,
+            7 => cmd_doctor(ctx)?,
             _ => break,
         }
     }
 
     Ok(())
+}
+
+fn docker_submenu(ctx: &AppContext) -> Result<()> {
+    use dialoguer::Select;
+
+    let items = vec![
+        "Start services",
+        "Stop services",
+        "Restart services",
+        "Rebuild images",
+        "Follow logs",
+        "Status",
+        "Shell into container",
+        "PostgreSQL shell",
+        "← Back",
+    ];
+
+    let choice = Select::with_theme(&ctx.theme())
+        .with_prompt("Docker")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    match choice {
+        0 => cmd::docker::run(
+            ctx,
+            cmd::docker::DockerCommand::Up {
+                services: vec![],
+                all: false,
+                full: false,
+                detach: true,
+            },
+        ),
+        1 => cmd::docker::run(
+            ctx,
+            cmd::docker::DockerCommand::Down {
+                services: vec![],
+                volumes: false,
+            },
+        ),
+        2 => cmd::docker::run(
+            ctx,
+            cmd::docker::DockerCommand::Restart {
+                services: vec![],
+                all: false,
+            },
+        ),
+        3 => cmd::docker::run(
+            ctx,
+            cmd::docker::DockerCommand::Build {
+                services: vec![],
+                all: false,
+                no_cache: false,
+            },
+        ),
+        4 => cmd::docker::run(
+            ctx,
+            cmd::docker::DockerCommand::Logs {
+                services: vec![],
+                all: false,
+                tail: "100".to_string(),
+                no_follow: false,
+            },
+        ),
+        5 => cmd::docker::run(ctx, cmd::docker::DockerCommand::Status),
+        6 => cmd::docker::run(ctx, cmd::docker::DockerCommand::Shell { service: None }),
+        7 => cmd::docker::run(ctx, cmd::docker::DockerCommand::Psql),
+        _ => Ok(()),
+    }
+}
+
+fn db_submenu(ctx: &AppContext) -> Result<()> {
+    use dialoguer::Select;
+
+    let items = vec![
+        "Run migrations",
+        "Reset database (drop + migrate)",
+        "Migration status",
+        "PostgreSQL shell",
+        "← Back",
+    ];
+
+    let choice = Select::with_theme(&ctx.theme())
+        .with_prompt("Database")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    match choice {
+        0 => cmd::db::run(ctx, cmd::db::DbCommand::Migrate),
+        1 => cmd::db::run(ctx, cmd::db::DbCommand::Reset),
+        2 => cmd::db::run(ctx, cmd::db::DbCommand::Status),
+        3 => cmd::db::run(ctx, cmd::db::DbCommand::Psql),
+        _ => Ok(()),
+    }
+}
+
+fn migrate_submenu(ctx: &AppContext) -> Result<()> {
+    use dialoguer::Select;
+
+    let items = vec![
+        "Status (all migrations)",
+        "Run all pending (dry-run)",
+        "Start all pending",
+        "Run one (dry-run)",
+        "Start one",
+        "Check one status",
+        "Verify one",
+        "← Back",
+    ];
+
+    let choice = Select::with_theme(&ctx.theme())
+        .with_prompt("Data Migrations")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    match choice {
+        0 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::StatusAll),
+        1 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::RunAll),
+        2 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::StartAll),
+        3 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::Run { name: None }),
+        4 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::Start { name: None }),
+        5 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::Status { name: None }),
+        6 => cmd::migrate::run(ctx, cmd::migrate::MigrateCommand::Verify { name: None }),
+        _ => Ok(()),
+    }
+}
+
+fn scripts_submenu(ctx: &AppContext) -> Result<()> {
+    use dialoguer::Select;
+
+    let items = vec![
+        "List scripts",
+        "Seed organizations",
+        "Generate embeddings",
+        "← Back",
+    ];
+
+    let choice = Select::with_theme(&ctx.theme())
+        .with_prompt("Scripts")
+        .items(&items)
+        .default(0)
+        .interact()?;
+
+    match choice {
+        0 => cmd::scripts::run(ctx, cmd::scripts::ScriptsCommand::List),
+        1 => cmd::scripts::run(ctx, cmd::scripts::ScriptsCommand::Seed),
+        2 => cmd::scripts::run(ctx, cmd::scripts::ScriptsCommand::Embeddings),
+        _ => Ok(()),
+    }
 }

@@ -136,6 +136,7 @@ pub fn build_app(
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         twilio.clone(),
         search_service,
+        pii_detector,
         test_identifier_enabled,
         admin_identifiers,
     );

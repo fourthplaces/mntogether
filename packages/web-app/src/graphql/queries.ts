@@ -154,7 +154,7 @@ export const GET_WEBSITES = gql`
   query GetWebsites {
     websites {
       id
-      url
+      domain
       lastScrapedAt
       scrapeFrequencyHours
       active
@@ -279,7 +279,7 @@ export const GET_PENDING_WEBSITES = gql`
   query GetPendingWebsites {
     pendingWebsites {
       id
-      url
+      domain
       status
       submittedBy
       submitterType
@@ -292,7 +292,7 @@ export const GET_ALL_WEBSITES = gql`
   query GetAllWebsites($status: String, $agentId: String) {
     websites(status: $status, agentId: $agentId) {
       id
-      url
+      domain
       status
       lastScrapedAt
       submittedBy
@@ -309,7 +309,7 @@ export const GET_WEBSITE_DETAIL = gql`
   query GetWebsiteDetail($id: Uuid!) {
     website(id: $id) {
       id
-      url
+      domain
       status
       submittedBy
       submitterType
@@ -353,7 +353,7 @@ export const GET_WEBSITE_WITH_SNAPSHOT_DETAILS = gql`
   query GetWebsiteWithSnapshotDetails($id: Uuid!) {
     website(id: $id) {
       id
-      url
+      domain
       status
       submittedBy
       submitterType
@@ -467,7 +467,7 @@ export const SEARCH_WEBSITES = gql`
     searchWebsites(query: $query, limit: $limit, threshold: $threshold) {
       websiteId
       assessmentId
-      websiteUrl
+      websiteDomain
       organizationName
       recommendation
       assessmentMarkdown

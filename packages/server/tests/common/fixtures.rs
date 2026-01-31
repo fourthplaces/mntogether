@@ -1,88 +1,106 @@
 //! Test fixtures for creating test data.
 //!
-//! NOTE: These fixtures are for legacy organization_needs tests.
-//! New tests should use model methods directly.
+//! These fixtures use the model methods directly to create test data.
 
 use anyhow::Result;
-use chrono::Utc;
-// TODO: Update these imports after organization domain refactor
-// use server_core::domains::organization::models::{
-//     NeedStatus, OrganizationNeed, OrganizationSource,
-// };
+use server_core::common::{ListingId, MemberId, WebsiteId};
+use server_core::domains::listings::models::Listing;
+use server_core::domains::website::models::Website;
 use sqlx::PgPool;
-use uuid::Uuid;
 
-// Temporary NeedStatus enum for fixtures
-#[allow(dead_code)]
-enum NeedStatus {
-    PendingApproval,
-    Active,
+/// Create a test listing with pending_approval status
+pub async fn create_test_listing_pending(
+    pool: &PgPool,
+    title: &str,
+    description: &str,
+) -> Result<ListingId> {
+    let listing = Listing::create(
+        "Test Organization".to_string(),
+        title.to_string(),
+        description.to_string(),
+        None,                                // tldr
+        "service".to_string(),               // listing_type
+        "community_support".to_string(),     // category
+        Some("accepting".to_string()),       // capacity_status
+        Some("medium".to_string()),          // urgency
+        Some("Minneapolis, MN".to_string()), // location
+        "pending_approval".to_string(),      // status
+        "en".to_string(),                    // source_language
+        Some("user_submitted".to_string()),  // submission_type
+        None,                                // submitted_by_admin_id
+        None,                                // website_id
+        None,                                // source_url
+        None,                                // organization_id
+        pool,
+    )
+    .await?;
+
+    Ok(listing.id)
 }
 
-impl NeedStatus {
-    fn to_string(&self) -> String {
-        match self {
-            Self::PendingApproval => "pending_approval".to_string(),
-            Self::Active => "active".to_string(),
-        }
-    }
+/// Create a test listing with active status
+pub async fn create_test_listing_active(
+    pool: &PgPool,
+    title: &str,
+    description: &str,
+) -> Result<ListingId> {
+    let listing = Listing::create(
+        "Test Organization".to_string(),
+        title.to_string(),
+        description.to_string(),
+        None,                                // tldr
+        "service".to_string(),               // listing_type
+        "community_support".to_string(),     // category
+        Some("accepting".to_string()),       // capacity_status
+        Some("medium".to_string()),          // urgency
+        Some("Minneapolis, MN".to_string()), // location
+        "active".to_string(),                // status
+        "en".to_string(),                    // source_language
+        Some("admin".to_string()),           // submission_type
+        None,                                // submitted_by_admin_id
+        None,                                // website_id
+        None,                                // source_url
+        None,                                // organization_id
+        pool,
+    )
+    .await?;
+
+    Ok(listing.id)
 }
 
-/// Create a test organization source
-#[allow(dead_code)]
-pub async fn create_test_source(
-    _pool: &PgPool,
-    _organization_name: &str,
-    _source_url: &str,
-) -> Result<Uuid> {
-    // Disabled - table no longer exists after domain refactor
-    unimplemented!("create_test_source is deprecated - use Domain::create instead")
+/// Create a test website (for scraping tests)
+pub async fn create_test_website(pool: &PgPool, url: &str) -> Result<WebsiteId> {
+    let website = Website::create(
+        url.to_string(),
+        None,                // submitted_by
+        "admin".to_string(), // submitter_type
+        None,                // submission_context
+        2,                   // max_crawl_depth
+        pool,
+    )
+    .await?;
+
+    Ok(website.id)
 }
 
-/// Create a test need with pending_approval status
-#[allow(dead_code)]
-pub async fn create_test_need_pending(
-    _pool: &PgPool,
-    _source_id: Option<Uuid>,
-    _title: &str,
-    _description: &str,
-) -> Result<Uuid> {
-    unimplemented!("create_test_need_pending is deprecated - use model methods instead")
-}
+/// Create an approved test website (ready for crawling)
+pub async fn create_test_website_approved(
+    pool: &PgPool,
+    url: &str,
+    admin_member_id: MemberId,
+) -> Result<WebsiteId> {
+    let website = Website::create(
+        url.to_string(),
+        None,                // submitted_by
+        "admin".to_string(), // submitter_type
+        None,                // submission_context
+        2,                   // max_crawl_depth
+        pool,
+    )
+    .await?;
 
-/// Create a test need with active status
-#[allow(dead_code)]
-pub async fn create_test_need_active(
-    _pool: &PgPool,
-    _title: &str,
-    _description: &str,
-) -> Result<Uuid> {
-    unimplemented!("create_test_need_active is deprecated - use model methods instead")
-}
+    // Approve the website
+    Website::approve(website.id, admin_member_id, pool).await?;
 
-/// Create a full test need with all fields
-#[allow(dead_code)]
-pub async fn create_test_need_full(
-    _pool: &PgPool,
-    _organization_name: &str,
-    _title: &str,
-    _description: &str,
-    _tldr: &str,
-    _contact_json: Option<serde_json::Value>,
-    _urgency: Option<&str>,
-    _status: NeedStatus,
-) -> Result<Uuid> {
-    unimplemented!("create_test_need_full is deprecated - use model methods instead")
-}
-
-/// Clean all needs from database (for test isolation)
-#[allow(dead_code)]
-pub async fn clean_needs(_pool: &PgPool) -> Result<()> {
-    unimplemented!("clean_needs is deprecated")
-}
-
-/// Clean all sources from database (for test isolation)
-#[allow(dead_code)]
-pub async fn clean_sources(_pool: &PgPool) -> Result<()> {
-    unimplemented!("clean_sources is deprecated - use Domain::delete or database cleanup")
+    Ok(website.id)
 }

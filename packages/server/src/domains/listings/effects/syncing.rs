@@ -40,7 +40,7 @@ pub async fn sync_extracted_listings(
     let sync_input: Vec<ExtractedListingInput> = listings
         .into_iter()
         .map(|listing| ExtractedListingInput {
-            organization_name: extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
+            organization_name: extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
             title: listing.title,
             description: listing.description,
             description_markdown: None,
@@ -56,7 +56,7 @@ pub async fn sync_extracted_listings(
             }),
             urgency: listing.urgency,
             confidence: listing.confidence,
-            source_url: Some(source.url.clone()), // Use main source URL for now
+            source_url: Some(source.domain.clone()), // Use main source domain for now
         })
         .collect();
 

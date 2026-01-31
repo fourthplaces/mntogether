@@ -1,9 +1,13 @@
 // Business domains
 pub mod auth;
 pub mod chatrooms;
+pub mod contacts;
 pub mod domain_approval;
 pub mod listings;
 pub mod matching;
 pub mod member;
 pub mod organization;
+pub mod providers;
 pub mod scraping;
+pub mod tag;
+pub mod website;

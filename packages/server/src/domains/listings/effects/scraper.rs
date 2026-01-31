@@ -86,7 +86,7 @@ async fn handle_scrape_source(
         Ok(s) => {
             tracing::info!(
                 source_id = %source_id,
-                url = %s.url,
+                domain = %s.domain,
                 "Source found, preparing to scrape"
             );
             s
@@ -105,16 +105,16 @@ async fn handle_scrape_source(
         }
     };
 
-    // Scrape the domain URL via Firecrawl
+    // Scrape the domain via Firecrawl
     tracing::info!(
         source_id = %source_id,
-        url = %source.url,
+        domain = %source.domain,
         max_depth = source.max_crawl_depth,
         rate_limit = source.crawl_rate_limit_seconds,
         "Starting domain scrape via Firecrawl"
     );
 
-    let scrape_result = match ctx.deps().web_scraper.scrape(&source.url).await {
+    let scrape_result = match ctx.deps().web_scraper.scrape(&source.domain).await {
         Ok(r) => {
             tracing::info!(
                 source_id = %source_id,
@@ -126,7 +126,7 @@ async fn handle_scrape_source(
         Err(e) => {
             tracing::error!(
                 source_id = %source_id,
-                url = %source.url,
+                domain = %source.domain,
                 error = %e,
                 "Scraping failed"
             );
@@ -143,7 +143,7 @@ async fn handle_scrape_source(
     tracing::info!(source_id = %source_id, "Storing page snapshot");
     let (page_snapshot, is_new) = match PageSnapshot::upsert(
         &ctx.deps().db_pool,
-        source.url.clone(),
+        source.domain.clone(),
         scrape_result.markdown.clone(), // Use markdown as html for now
         Some(scrape_result.markdown.clone()),
         "firecrawl".to_string(),
@@ -161,7 +161,7 @@ async fn handle_scrape_source(
             (
                 PageSnapshot {
                     id: uuid::Uuid::new_v4(),
-                    url: source.url.clone(),
+                    url: source.domain.clone(),
                     content_hash: vec![],
                     html: scrape_result.markdown.clone(),
                     markdown: Some(scrape_result.markdown.clone()),
@@ -195,14 +195,14 @@ async fn handle_scrape_source(
     // This creates traceability: website_snapshot -> page_snapshot -> listings
     tracing::info!(
         source_id = %source_id,
-        page_url = %source.url,
+        page_url = %source.domain,
         "Creating/updating website_snapshot entry"
     );
 
     match WebsiteSnapshot::upsert(
         &ctx.deps().db_pool,
         source_id,
-        source.url.clone(),
+        source.domain.clone(),
         None, // No specific submitter for manual admin scrapes
     )
     .await
@@ -249,13 +249,13 @@ async fn handle_scrape_source(
         source_id = %source_id,
         job_id = %job_id,
         page_snapshot_id = %page_snapshot.id,
-        organization_name = %extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
+        organization_name = %extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
         "Scrape completed successfully, emitting SourceScraped event"
     );
     Ok(ListingEvent::SourceScraped {
         source_id,
         job_id,
-        organization_name: extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
+        organization_name: extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
         content: scrape_result.markdown,
         page_snapshot_id: Some(page_snapshot.id),
     })

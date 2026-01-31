@@ -49,7 +49,7 @@ export function ResourceDetail() {
     if (websitesData?.websites) {
       const website = websitesData.websites.find((s: any) => s.id === sourceId);
       if (website) {
-        setSourceUrl(website.url);
+        setSourceUrl(website.domain);
       }
     }
   }, [websitesData, sourceId]);

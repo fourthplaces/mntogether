@@ -62,6 +62,12 @@ pub struct ReferralDocumentTranslation;
 /// Marker type for DocumentReference entities (document references for staleness detection).
 pub struct DocumentReference;
 
+/// Marker type for Provider entities (professionals in the provider directory).
+pub struct Provider;
+
+/// Marker type for Contact entities (polymorphic contact information).
+pub struct Contact;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -104,3 +110,9 @@ pub type DocumentTranslationId = Id<ReferralDocumentTranslation>;
 
 /// Typed ID for DocumentReference entities.
 pub type DocumentReferenceId = Id<DocumentReference>;
+
+/// Typed ID for Provider entities.
+pub type ProviderId = Id<Provider>;
+
+/// Typed ID for Contact entities.
+pub type ContactId = Id<Contact>;

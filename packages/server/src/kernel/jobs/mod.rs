@@ -25,12 +25,7 @@
 //!
 //! # Domain-Specific Background Commands
 //!
-//! Background commands and effects live in their respective domains:
-//! - `domains/agent/commands/messaging.rs` and `domains/agent/effects/messaging.rs` - Agent messaging
-//! - `domains/entry/commands/background.rs` and `domains/entry/effects/background.rs` - Entry analysis
-//! - `domains/deck/commands/background.rs` and `domains/deck/effects/background.rs` - Deck card generation
-//! - `domains/container/commands/` and `domains/container/effects/` - Container-specific commands
-//!
+//! Background commands and effects live in their respective domains.
 //! This module only provides the infrastructure - business logic stays in domains.
 
 pub mod events;
@@ -49,19 +44,3 @@ pub use manager::{DefaultJobManager, JobManager, MockJobHandler, ScheduleOptions
 pub use queue::{ClaimedJob, CommandMeta, EnqueueResult, JobQueue, PostgresJobQueue};
 pub use seesaw_adapter::SeesawJobQueueAdapter;
 pub use worker::{JobWorker, JobWorkerConfig, SeesawCommandHandler};
-
-/// Register all background commands with the command registry.
-///
-/// This function registers deserializers for all background commands across all domains,
-/// enabling the `JobWorker` to deserialize job payloads back to typed commands.
-///
-/// Call this during job worker startup.
-///
-/// NOTE: Currently commented out as this codebase doesn't use the job queue system yet.
-/// Uncomment and adapt when background job processing is needed.
-#[allow(dead_code)]
-pub fn register_commands(_registry: &mut seesaw::CommandRegistry) {
-    // TODO: Register organization domain background commands when needed
-    // use crate::domains::organization::commands::{...};
-    // registry.register::<SomeBackgroundCommand>("job_type", vec![1]);
-}

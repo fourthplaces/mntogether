@@ -29,7 +29,7 @@ pub struct WebsiteAssessment {
 pub struct WebsiteSearchResult {
     pub website_id: Uuid,
     pub assessment_id: Uuid,
-    pub website_url: String,
+    pub website_domain: String,
     pub organization_name: Option<String>,
     pub recommendation: String,
     pub assessment_markdown: String,
@@ -110,7 +110,7 @@ impl WebsiteAssessment {
             SELECT
                 w.id as website_id,
                 wa.id as assessment_id,
-                w.url as website_url,
+                w.domain as website_domain,
                 wa.organization_name,
                 wa.recommendation,
                 wa.assessment_markdown,

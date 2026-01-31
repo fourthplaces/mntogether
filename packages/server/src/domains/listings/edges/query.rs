@@ -1,12 +1,37 @@
 use crate::common::ListingId;
 use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
-use crate::domains::listings::data::{ListingConnection, ListingStatusData, ListingType};
+use crate::domains::listings::data::{BusinessInfo, ListingConnection, ListingStatusData, ListingType};
 use crate::domains::listings::models::listing_report::ListingReportRecord;
-use crate::domains::listings::models::Listing;
+use crate::domains::listings::models::{BusinessListing, Listing};
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
 use sqlx::PgPool;
 use uuid::Uuid;
+
+/// Convert a Listing to ListingType, loading business_info for business listings
+async fn listing_to_listing_type(listing: Listing, pool: &PgPool) -> ListingType {
+    let mut listing_type = ListingType::from(listing.clone());
+
+    // Load business_info if this is a business listing
+    if listing.listing_type == "business" {
+        if let Ok(Some(business)) = BusinessListing::find_by_listing_id(listing.id, pool).await {
+            listing_type.business_info = Some(BusinessInfo {
+                accepts_donations: business.accepts_donations,
+                donation_link: business.donation_link,
+                gift_cards_available: business.gift_cards_available,
+                gift_card_link: business.gift_card_link,
+                online_ordering_link: business.online_ordering_link,
+                delivery_available: business.delivery_available,
+                proceeds_percentage: business.proceeds_percentage,
+                proceeds_beneficiary_id: business.proceeds_beneficiary_id.map(|id| id.into_uuid()),
+                proceeds_description: business.proceeds_description,
+                impact_statement: business.impact_statement,
+            });
+        }
+    }
+
+    listing_type
+}
 
 /// Query listings with filters and pagination
 pub async fn query_listings(
@@ -39,8 +64,14 @@ pub async fn query_listings(
 
     let has_next_page = (offset + limit) < total_count as i32;
 
+    // Convert listings with business_info
+    let mut nodes = Vec::with_capacity(listings.len());
+    for listing in listings {
+        nodes.push(listing_to_listing_type(listing, pool).await);
+    }
+
     Ok(ListingConnection {
-        nodes: listings.into_iter().map(ListingType::from).collect(),
+        nodes,
         total_count: total_count as i32,
         has_next_page,
     })
@@ -54,7 +85,11 @@ pub async fn query_listing(pool: &PgPool, id: Uuid) -> FieldResult<Option<Listin
     // Use model method - converts Result to Option for non-existent records
     let listing = Listing::find_by_id(listing_id, pool).await.ok(); // Convert Result<Listing> to Option<Listing>
 
-    Ok(listing.map(ListingType::from))
+    // Convert with business_info loading
+    match listing {
+        Some(l) => Ok(Some(listing_to_listing_type(l, pool).await)),
+        None => Ok(None),
+    }
 }
 
 /// Get a single post by ID
@@ -120,91 +155,10 @@ pub async fn query_published_posts(
     Ok(posts.into_iter().map(PostData::from).collect())
 }
 
-/// Get a single website by ID
-pub async fn query_website(
-    pool: &PgPool,
-    id: Uuid,
-) -> FieldResult<Option<crate::domains::organization::data::WebsiteData>> {
-    use crate::common::WebsiteId;
-    use crate::domains::organization::data::WebsiteData;
-    use crate::domains::scraping::models::Website;
-
-    let website_id = WebsiteId::from_uuid(id);
-
-    match Website::find_by_id(website_id, pool).await {
-        Ok(website) => Ok(Some(WebsiteData::from(website))),
-        Err(_) => Ok(None),
-    }
-}
-
-/// Query all websites with optional status and agent filters
-pub async fn query_websites(
-    pool: &PgPool,
-    status: Option<String>,
-    agent_id: Option<String>,
-) -> FieldResult<Vec<crate::domains::organization::data::WebsiteData>> {
-    use crate::domains::organization::data::WebsiteData;
-    use crate::domains::scraping::models::Website;
-    use anyhow::Context;
-    use uuid::Uuid;
-
-    // If agent_id is provided, filter by agent
-    if let Some(agent_id_str) = agent_id {
-        let agent_uuid = Uuid::parse_str(&agent_id_str).map_err(|_| {
-            juniper::FieldError::new("Invalid agent ID format", juniper::Value::null())
-        })?;
-
-        let websites = Website::find_by_agent_id(agent_uuid, pool)
-            .await
-            .map_err(|e| {
-                juniper::FieldError::new(
-                    format!("Failed to fetch websites by agent: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        return Ok(websites.into_iter().map(WebsiteData::from).collect());
-    }
-
-    let websites = if let Some(status_filter) = status {
-        match status_filter.as_str() {
-            "pending_review" => Website::find_pending_review(pool).await,
-            "approved" => Website::find_approved(pool).await,
-            _ => Website::find_active(pool).await,
-        }
-    } else {
-        // Return all websites if no filter specified
-        sqlx::query_as::<_, Website>("SELECT * FROM websites ORDER BY created_at DESC")
-            .fetch_all(pool)
-            .await
-            .context("Failed to query all websites")
-    }
-    .map_err(|e| {
-        juniper::FieldError::new(
-            format!("Failed to fetch websites: {}", e),
-            juniper::Value::null(),
-        )
-    })?;
-
-    Ok(websites.into_iter().map(WebsiteData::from).collect())
-}
-
-/// Query websites pending review (for admin approval queue)
-pub async fn query_pending_websites(
-    pool: &PgPool,
-) -> FieldResult<Vec<crate::domains::organization::data::WebsiteData>> {
-    use crate::domains::organization::data::WebsiteData;
-    use crate::domains::scraping::models::Website;
-
-    let websites = Website::find_pending_review(pool).await.map_err(|e| {
-        juniper::FieldError::new(
-            format!("Failed to fetch pending websites: {}", e),
-            juniper::Value::null(),
-        )
-    })?;
-
-    Ok(websites.into_iter().map(WebsiteData::from).collect())
-}
+// Re-export website queries from the website domain
+pub use crate::domains::website::edges::query::{
+    query_pending_websites, query_website, query_websites,
+};
 
 /// Get all reports (admin only)
 pub async fn query_listing_reports(

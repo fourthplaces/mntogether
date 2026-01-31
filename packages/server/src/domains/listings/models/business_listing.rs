@@ -1,7 +1,6 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::common::{ListingId, OrganizationId};
 

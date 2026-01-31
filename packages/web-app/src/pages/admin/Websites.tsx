@@ -72,7 +72,7 @@ const SEARCH_WEBSITES = gql`
     searchWebsites(query: $query, limit: $limit, threshold: $threshold) {
       websiteId
       assessmentId
-      websiteUrl
+      websiteDomain
       organizationName
       recommendation
       assessmentMarkdown
@@ -84,7 +84,7 @@ const SEARCH_WEBSITES = gql`
 interface WebsiteSearchResult {
   websiteId: string;
   assessmentId: string;
-  websiteUrl: string;
+  websiteDomain: string;
   organizationName: string | null;
   recommendation: string;
   assessmentMarkdown: string;
@@ -93,7 +93,7 @@ interface WebsiteSearchResult {
 
 interface Website {
   id: string;
-  url: string;
+  domain: string;
   status: string;
   submitterType: string;
   lastScrapedAt: string | null;
@@ -369,13 +369,13 @@ export function Websites() {
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <a
-                            href={`https://${result.websiteUrl}`}
+                            href={result.websiteDomain.startsWith('http') ? result.websiteDomain : `https://${result.websiteDomain}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-blue-600 hover:text-blue-800 font-medium"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            {result.websiteUrl}
+                            {result.websiteDomain}
                           </a>
                           <span
                             className={`px-2 py-0.5 text-xs rounded-full font-medium ${
@@ -488,111 +488,93 @@ export function Websites() {
           </div>
         )}
 
-        {/* Websites Table */}
+        {/* Websites - Mobile Cards / Desktop Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <table className="min-w-full divide-y divide-stone-200">
-            <thead className="bg-stone-50">
-              <tr>
-                <th className="px-4 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedWebsites(
-                          new Set(filteredWebsites?.map((d) => d.id) || [])
-                        );
-                      } else {
-                        setSelectedWebsites(new Set());
-                      }
-                    }}
-                    className="rounded"
-                  />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Website
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Source
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Last Scraped
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Listings
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Crawl Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-stone-200">
-              {filteredWebsites?.map((website) => (
-                <tr key={website.id} className="hover:bg-stone-50">
-                  <td className="px-4 py-4">
+          {/* Desktop Table - Hidden on mobile */}
+          <div className="hidden lg:block overflow-x-auto">
+            <table className="min-w-full divide-y divide-stone-200">
+              <thead className="bg-stone-50">
+                <tr>
+                  <th className="px-4 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedWebsites.has(website.id)}
-                      onChange={() => toggleWebsiteSelection(website.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedWebsites(
+                            new Set(filteredWebsites?.map((d) => d.id) || [])
+                          );
+                        } else {
+                          setSelectedWebsites(new Set());
+                        }
+                      }}
                       className="rounded"
                     />
-                  </td>
-                  <td className="px-6 py-4">
-                    <a
-                      href={`https://${website.url}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 font-medium break-all"
-                    >
-                      {website.url}
-                    </a>
-                    {website.agentId && (
-                      <div className="mt-1">
-                        <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
-                          🤖 Discovered by Agent
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                    Website
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                    Listings
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                    Crawl
+                  </th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-stone-700 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-stone-200">
+                {filteredWebsites?.map((website) => (
+                  <tr key={website.id} className="hover:bg-stone-50">
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedWebsites.has(website.id)}
+                        onChange={() => toggleWebsiteSelection(website.id)}
+                        className="rounded"
+                      />
+                    </td>
+                    <td className="px-4 py-4 max-w-xs">
+                      <a
+                        href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 font-medium text-sm break-all line-clamp-2"
+                      >
+                        {website.domain}
+                      </a>
+                      {website.agentId && (
+                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded mt-1 inline-block">
+                          Agent
                         </span>
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        website.status === 'approved'
-                          ? 'bg-green-100 text-green-800'
-                          : website.status === 'pending_review'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}
-                    >
-                      {website.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-stone-600">{website.submitterType}</span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                    {formatDate(website.lastScrapedAt)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-semibold text-stone-900">
-                      {website.listingsCount || 0}
-                    </span>
-                    {website.snapshotsCount > 0 && (
-                      <span className="text-xs text-stone-500 ml-2">
-                        ({website.snapshotsCount} snapshots)
+                      )}
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span
+                        className={`px-2 py-1 text-xs rounded-full font-medium ${
+                          website.status === 'approved'
+                            ? 'bg-green-100 text-green-800'
+                            : website.status === 'pending_review'
+                            ? 'bg-amber-100 text-amber-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}
+                      >
+                        {website.status === 'pending_review' ? 'pending' : website.status}
                       </span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {website.crawlStatus ? (
-                      <div className="flex flex-col">
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm font-semibold text-stone-900">
+                        {website.listingsCount || 0}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      {website.crawlStatus ? (
                         <span
-                          className={`px-2 py-0.5 text-xs rounded-full inline-block w-fit ${
+                          className={`px-2 py-0.5 text-xs rounded-full ${
                             website.crawlStatus === 'completed'
                               ? 'bg-green-100 text-green-800'
                               : website.crawlStatus === 'crawling'
@@ -604,67 +586,139 @@ export function Websites() {
                               : 'bg-stone-100 text-stone-800'
                           }`}
                         >
-                          {website.crawlStatus.replace('_', ' ')}
+                          {website.crawlStatus === 'no_listings_found' ? 'no listings' : website.crawlStatus}
                         </span>
-                        {website.pagesCrawledCount != null && website.pagesCrawledCount > 0 && (
-                          <span className="text-xs text-stone-500 mt-1">
-                            {website.pagesCrawledCount} pages
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-xs text-stone-400">-</span>
-                    )}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                    <div className="flex gap-2 justify-end">
-                      {website.status === 'pending_review' && (
-                        <>
-                          <button
-                            onClick={() => handleApprove(website.id)}
-                            className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
-                          >
-                            Approve
-                          </button>
-                          <button
-                            onClick={() => handleReject(website.id)}
-                            className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
-                          >
-                            Reject
-                          </button>
-                        </>
+                      ) : (
+                        <span className="text-xs text-stone-400">-</span>
                       )}
-                      <button
-                        onClick={() => navigate(`/admin/websites/${website.id}`)}
-                        className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                      >
-                        View
-                      </button>
-                      {website.status === 'approved' && (
-                        <>
-                          <button
-                            onClick={() => handleScrape(website.id)}
-                            disabled={scrapingId === website.id}
-                            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {scrapingId === website.id ? 'Scraping...' : 'Scrape'}
-                          </button>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
+                      <div className="flex gap-1 justify-end flex-wrap">
+                        {website.status === 'pending_review' && (
+                          <>
+                            <button
+                              onClick={() => handleApprove(website.id)}
+                              className="bg-green-600 text-white px-2 py-1 rounded text-xs hover:bg-green-700"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleReject(website.id)}
+                              className="bg-red-600 text-white px-2 py-1 rounded text-xs hover:bg-red-700"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => navigate(`/admin/websites/${website.id}`)}
+                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
+                        >
+                          View
+                        </button>
+                        {website.status === 'approved' && (
                           <button
                             onClick={() => handleCrawl(website.id)}
                             disabled={crawlingId === website.id}
-                            className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Full multi-page crawl"
+                            className="bg-indigo-600 text-white px-2 py-1 rounded text-xs hover:bg-indigo-700 disabled:opacity-50"
                           >
-                            {crawlingId === website.id ? 'Crawling...' : 'Crawl'}
+                            {crawlingId === website.id ? '...' : 'Crawl'}
                           </button>
-                        </>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile Cards - Shown only on mobile/tablet */}
+          <div className="lg:hidden divide-y divide-stone-200">
+            {filteredWebsites?.map((website) => (
+              <div key={website.id} className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex-1 min-w-0">
+                    <a
+                      href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 font-medium text-sm break-all"
+                    >
+                      {website.domain}
+                    </a>
+                  </div>
+                  <span
+                    className={`px-2 py-1 text-xs rounded-full font-medium whitespace-nowrap ${
+                      website.status === 'approved'
+                        ? 'bg-green-100 text-green-800'
+                        : website.status === 'pending_review'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}
+                  >
+                    {website.status === 'pending_review' ? 'pending' : website.status}
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs text-stone-600 mb-3">
+                  <span>Listings: <strong className="text-stone-900">{website.listingsCount || 0}</strong></span>
+                  {website.crawlStatus && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded ${
+                        website.crawlStatus === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : website.crawlStatus === 'crawling'
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      {website.crawlStatus}
+                    </span>
+                  )}
+                  {website.agentId && (
+                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
+                      Agent
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {website.status === 'pending_review' && (
+                    <>
+                      <button
+                        onClick={() => handleApprove(website.id)}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded text-sm hover:bg-green-700"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleReject(website.id)}
+                        className="bg-red-600 text-white px-3 py-1.5 rounded text-sm hover:bg-red-700"
+                      >
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => navigate(`/admin/websites/${website.id}`)}
+                    className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
+                  >
+                    View
+                  </button>
+                  {website.status === 'approved' && (
+                    <button
+                      onClick={() => handleCrawl(website.id)}
+                      disabled={crawlingId === website.id}
+                      className="bg-indigo-600 text-white px-3 py-1.5 rounded text-sm hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {crawlingId === website.id ? 'Crawling...' : 'Crawl'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
 
           {filteredWebsites?.length === 0 && (
             <div className="text-center py-12 text-stone-600">

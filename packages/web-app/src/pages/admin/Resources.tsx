@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 
 interface Website {
   id: string;
-  url: string;
+  domain: string;
   status: string;
   lastScrapedAt: string | null;
   snapshotsCount?: number;
@@ -166,12 +166,12 @@ export function Resources() {
                 <tr key={website.id} className="hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <a
-                      href={website.url}
+                      href={website.domain}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-700 hover:text-amber-900 font-medium break-all"
                     >
-                      {website.url}
+                      {website.domain}
                     </a>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

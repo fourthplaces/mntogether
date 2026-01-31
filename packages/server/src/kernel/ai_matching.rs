@@ -44,7 +44,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
 
-use crate::common::embedding::Embeddable;
 use crate::domains::organization::models::Organization;
 use crate::kernel::ai::OpenAIClient;
 
@@ -250,8 +249,8 @@ impl AIMatchingService {
         let failed_ref = failed_count.clone();
         let processed_ref = processed_count.clone();
 
-        // Create stream of futures and process concurrently
-        let results: Vec<_> = stream::iter(orgs_without_embeddings)
+        // Create stream of futures and process concurrently (result values unused, tracking via atomic counters)
+        let _results: Vec<_> = stream::iter(orgs_without_embeddings)
             .map(|org| {
                 let pool = pool.clone();
                 let updated = updated_ref.clone();

@@ -4,8 +4,6 @@ use crate::domains::organization::models::{Post, PostStatus};
 use crate::server::graphql::GraphQLContext;
 use chrono::{DateTime, Utc};
 use juniper::{FieldResult, GraphQLEnum, GraphQLInputObject, GraphQLObject};
-use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
 /// GraphQL type for post

@@ -1,7 +1,7 @@
 use crate::common::WebsiteId;
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
-use crate::domains::scraping::models::{Website, WebsiteSnapshot};
+use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -61,7 +61,7 @@ impl WebsiteSnapshotData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebsiteData {
     pub id: String,
-    pub url: String,
+    pub domain: String,
     pub last_scraped_at: Option<String>,
     pub scrape_frequency_hours: i32,
     pub active: bool,
@@ -84,7 +84,7 @@ impl From<Website> for WebsiteData {
     fn from(website: Website) -> Self {
         Self {
             id: website.id.to_string(),
-            url: website.url,
+            domain: website.domain,
             last_scraped_at: website.last_scraped_at.map(|dt| dt.to_rfc3339()),
             scrape_frequency_hours: website.scrape_frequency_hours,
             active: website.active,
@@ -111,8 +111,8 @@ impl WebsiteData {
         self.id.clone()
     }
 
-    fn url(&self) -> String {
-        self.url.clone()
+    fn domain(&self) -> String {
+        self.domain.clone()
     }
 
     fn last_scraped_at(&self) -> Option<String> {

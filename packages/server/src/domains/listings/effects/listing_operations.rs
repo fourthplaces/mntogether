@@ -8,14 +8,14 @@ use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
 use crate::common::{ListingId, MemberId, PostId, WebsiteId};
-use crate::domains::listings::models::{listing::Listing, ListingStatus};
+use crate::domains::listings::models::{listing::Listing, ListingContact, ListingStatus};
 use crate::domains::organization::models::post::Post;
 use crate::domains::organization::utils::generate_tldr;
 use crate::kernel::BaseAI;
 
 /// Create a new listing with generated content hash and TLDR
 pub async fn create_listing(
-    member_id: Option<MemberId>,
+    _member_id: Option<MemberId>, // TODO: Store submitted_by_member_id for tracking
     organization_name: String,
     title: String,
     description: String,
@@ -28,6 +28,11 @@ pub async fn create_listing(
     ai: &dyn BaseAI,
     pool: &PgPool,
 ) -> Result<Listing> {
+    // Log IP for spam tracking
+    if let Some(ref ip) = ip_address {
+        tracing::info!(ip_address = %ip, "Listing submitted from IP");
+    }
+
     // Generate TLDR using AI
     let tldr = super::listing_extraction::generate_summary(ai, &description)
         .await
@@ -58,6 +63,17 @@ pub async fn create_listing(
     )
     .await
     .context("Failed to create listing")?;
+
+    // Save contact info if provided
+    if let Some(ref contact) = contact_info {
+        if let Err(e) = ListingContact::create_from_json(listing.id, contact, pool).await {
+            tracing::warn!(
+                listing_id = %listing.id,
+                error = %e,
+                "Failed to save contact info for user-submitted listing"
+            );
+        }
+    }
 
     Ok(listing)
 }
@@ -101,6 +117,20 @@ pub async fn update_and_approve_listing(
     )
     .await
     .context("Failed to update listing content")?;
+
+    // Update contact info if provided (replace existing)
+    if let Some(ref contact) = contact_info {
+        // Delete existing contacts first
+        ListingContact::delete_all_for_listing(listing_id, pool).await?;
+        // Create new contacts
+        if let Err(e) = ListingContact::create_from_json(listing_id, contact, pool).await {
+            tracing::warn!(
+                listing_id = %listing_id,
+                error = %e,
+                "Failed to update contact info"
+            );
+        }
+    }
 
     // Set status to active
     Listing::update_status(listing_id, "active", pool)

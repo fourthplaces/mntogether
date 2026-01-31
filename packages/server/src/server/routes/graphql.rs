@@ -6,7 +6,6 @@ use axum::{
     Json,
 };
 use juniper::http::{GraphQLBatchRequest, GraphQLRequest};
-use serde_json::Value;
 use std::sync::Arc;
 
 /// GraphQL POST endpoint

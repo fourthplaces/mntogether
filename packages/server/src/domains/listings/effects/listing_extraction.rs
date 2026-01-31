@@ -4,8 +4,9 @@
 
 use anyhow::{Context, Result};
 
-use crate::common::{ContactInfo, ExtractedListing};
-use crate::kernel::BaseAI;
+use crate::common::pii::{DetectionContext, RedactionStrategy};
+use crate::common::ExtractedListing;
+use crate::kernel::{BaseAI, BasePiiDetector};
 
 /// Sanitize user input before inserting into AI prompts
 /// Prevents prompt injection attacks by filtering malicious keywords and characters
@@ -71,11 +72,101 @@ fn validate_extracted_listings(listings: &[ExtractedListing]) -> Result<()> {
     Ok(())
 }
 
-/// Extract listings from scraped website content using AI
+/// Extract listings from scraped website content using AI with PII scrubbing
+///
+/// This is the preferred entry point that handles PII scrubbing automatically.
+/// It scrubs PII from input before sending to AI, and from output after extraction.
+pub async fn extract_listings_with_pii_scrub(
+    ai: &dyn BaseAI,
+    pii_detector: &dyn BasePiiDetector,
+    organization_name: &str,
+    website_content: &str,
+    source_url: &str,
+) -> Result<Vec<ExtractedListing>> {
+    // Step 1: Scrub PII from website content before sending to AI
+    // This protects user privacy by not sending personal data to OpenAI
+    let scrub_result = pii_detector
+        .scrub(
+            website_content,
+            DetectionContext::PublicContent,
+            RedactionStrategy::TokenReplacement,
+        )
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "PII scrubbing failed, proceeding with original content");
+            crate::kernel::PiiScrubResult {
+                clean_text: website_content.to_string(),
+                findings: crate::common::pii::PiiFindings::new(),
+                pii_detected: false,
+            }
+        });
+
+    if scrub_result.pii_detected {
+        tracing::info!(
+            findings_count = scrub_result.findings.matches.len(),
+            "PII detected and scrubbed from website content before AI extraction"
+        );
+    }
+
+    // Step 2: Extract listings using AI (with PII-scrubbed content)
+    let mut listings =
+        extract_listings_raw(ai, organization_name, &scrub_result.clean_text, source_url).await?;
+
+    // Step 3: Scrub any PII that might have been generated/hallucinated by AI
+    for listing in &mut listings {
+        // Scrub description
+        if let Ok(desc_result) = pii_detector
+            .scrub(
+                &listing.description,
+                DetectionContext::PublicContent,
+                RedactionStrategy::PartialMask,
+            )
+            .await
+        {
+            if desc_result.pii_detected {
+                listing.description = desc_result.clean_text;
+            }
+        }
+
+        // Scrub title
+        if let Ok(title_result) = pii_detector
+            .scrub(
+                &listing.title,
+                DetectionContext::PublicContent,
+                RedactionStrategy::PartialMask,
+            )
+            .await
+        {
+            if title_result.pii_detected {
+                listing.title = title_result.clean_text;
+            }
+        }
+
+        // Scrub tldr
+        if let Ok(tldr_result) = pii_detector
+            .scrub(
+                &listing.tldr,
+                DetectionContext::PublicContent,
+                RedactionStrategy::PartialMask,
+            )
+            .await
+        {
+            if tldr_result.pii_detected {
+                listing.tldr = tldr_result.clean_text;
+            }
+        }
+    }
+
+    Ok(listings)
+}
+
+/// Extract listings from scraped website content using AI (raw, no PII scrubbing)
 ///
 /// This is a domain function that constructs the business-specific prompt
 /// and uses the generic AI capability from the kernel.
-pub async fn extract_listings(
+///
+/// NOTE: Prefer `extract_listings_with_pii_scrub` which handles PII automatically.
+pub async fn extract_listings_raw(
     ai: &dyn BaseAI,
     organization_name: &str,
     website_content: &str,
@@ -348,7 +439,7 @@ No experience necessary. Contact Sarah at (612) 555-5678.
 
         let ai = OpenAIClient::new(api_key);
 
-        let listings = extract_listings(
+        let listings = extract_listings_raw(
             &ai,
             "Community Center",
             SAMPLE_CONTENT,

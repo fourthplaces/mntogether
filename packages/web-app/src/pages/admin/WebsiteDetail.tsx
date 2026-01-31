@@ -70,6 +70,15 @@ const SCRAPE_WEBSITE = gql`
   }
 `;
 
+const UPDATE_CRAWL_SETTINGS = gql`
+  mutation UpdateWebsiteCrawlSettings($websiteId: String!, $maxPagesPerCrawl: Int!) {
+    updateWebsiteCrawlSettings(websiteId: $websiteId, maxPagesPerCrawl: $maxPagesPerCrawl) {
+      id
+      maxPagesPerCrawl
+    }
+  }
+`;
+
 interface WebsiteSnapshot {
   id: string;
   pageUrl: string;
@@ -88,7 +97,7 @@ interface Listing {
 
 interface Website {
   id: string;
-  url: string;
+  domain: string;
   status: string;
   submittedBy: string | null;
   submitterType: string;
@@ -127,6 +136,8 @@ export function WebsiteDetail() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
+  const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
+  const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
 
   const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
     website: Website | null;
@@ -187,6 +198,16 @@ export function WebsiteDetail() {
     },
   });
 
+  const [updateCrawlSettings] = useMutation(UPDATE_CRAWL_SETTINGS, {
+    onCompleted: () => {
+      setIsEditingMaxPages(false);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
+
   const handleGenerateAssessment = async () => {
     setError(null);
     setIsGenerating(true);
@@ -216,6 +237,22 @@ export function WebsiteDetail() {
     setError(null);
     setIsCrawling(true);
     await crawlWebsite({ variables: { websiteId } });
+  };
+
+  const handleSaveMaxPages = async () => {
+    setError(null);
+    await updateCrawlSettings({
+      variables: { websiteId, maxPagesPerCrawl: maxPagesInput },
+    });
+  };
+
+  const startEditingMaxPages = () => {
+    setMaxPagesInput(website?.maxPagesPerCrawl ?? 20);
+    setIsEditingMaxPages(true);
+  };
+
+  const scrollToSection = (sectionId: string) => {
+    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -301,12 +338,12 @@ export function WebsiteDetail() {
             <div>
               <h1 className="text-2xl font-bold text-stone-900 mb-2">
                 <a
-                  href={`https://${website.url}`}
+                  href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800"
                 >
-                  {website.url}
+                  {website.domain}
                 </a>
               </h1>
               <div className="flex items-center gap-3 mb-4">
@@ -371,22 +408,32 @@ export function WebsiteDetail() {
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Snapshots</span>
-              <p className="text-sm font-medium text-stone-900">{website.snapshotsCount}</p>
+              <button
+                onClick={() => scrollToSection('snapshots-section')}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {website.snapshotsCount}
+              </button>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Listings</span>
-              <p className="text-sm font-medium text-stone-900">{website.listingsCount}</p>
+              <button
+                onClick={() => scrollToSection('listings-section')}
+                className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {website.listingsCount}
+              </button>
             </div>
           </div>
 
           {/* Crawl Status Section */}
-          {website.crawlStatus && (
-            <div className="mt-4 pt-4 border-t border-stone-200">
-              <h3 className="text-sm font-semibold text-stone-700 mb-2">Crawl Status</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div>
-                  <span className="text-xs text-stone-500 uppercase">Status</span>
-                  <p className="text-sm font-medium">
+          <div className="mt-4 pt-4 border-t border-stone-200">
+            <h3 className="text-sm font-semibold text-stone-700 mb-2">Crawl Settings</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <span className="text-xs text-stone-500 uppercase">Status</span>
+                <p className="text-sm font-medium">
+                  {website.crawlStatus ? (
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs ${
                         website.crawlStatus === 'completed'
@@ -402,34 +449,68 @@ export function WebsiteDetail() {
                     >
                       {website.crawlStatus.replace('_', ' ')}
                     </span>
-                  </p>
-                </div>
-                <div>
-                  <span className="text-xs text-stone-500 uppercase">Attempts</span>
+                  ) : (
+                    <span className="text-stone-400 text-xs">Not crawled</span>
+                  )}
+                </p>
+              </div>
+              <div>
+                <span className="text-xs text-stone-500 uppercase">Attempts</span>
+                <p className="text-sm font-medium text-stone-900">
+                  {website.crawlAttemptCount ?? 0} / {website.maxCrawlRetries ?? 5}
+                </p>
+              </div>
+              <div>
+                <span className="text-xs text-stone-500 uppercase">Max Pages</span>
+                {isEditingMaxPages ? (
+                  <div className="flex items-center gap-1 mt-1">
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={maxPagesInput}
+                      onChange={(e) => setMaxPagesInput(parseInt(e.target.value) || 20)}
+                      className="w-16 px-2 py-1 text-sm border border-stone-300 rounded"
+                    />
+                    <button
+                      onClick={handleSaveMaxPages}
+                      className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => setIsEditingMaxPages(false)}
+                      className="px-2 py-1 text-xs bg-stone-200 text-stone-700 rounded hover:bg-stone-300"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                ) : (
                   <p className="text-sm font-medium text-stone-900">
-                    {website.crawlAttemptCount ?? 0} / {website.maxCrawlRetries ?? 5}
+                    {website.pagesCrawledCount ?? 0} /{' '}
+                    <button
+                      onClick={startEditingMaxPages}
+                      className="text-blue-600 hover:text-blue-800 hover:underline"
+                      title="Click to edit max pages"
+                    >
+                      {website.maxPagesPerCrawl ?? 20}
+                    </button>
                   </p>
-                </div>
-                <div>
-                  <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
-                  <p className="text-sm font-medium text-stone-900">
-                    {website.pagesCrawledCount ?? 0} / {website.maxPagesPerCrawl ?? 20}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-xs text-stone-500 uppercase">Last Crawl</span>
-                  <p className="text-sm font-medium text-stone-900">
-                    {formatDate(website.lastCrawlCompletedAt)}
-                  </p>
-                </div>
+                )}
+              </div>
+              <div>
+                <span className="text-xs text-stone-500 uppercase">Last Crawl</span>
+                <p className="text-sm font-medium text-stone-900">
+                  {formatDate(website.lastCrawlCompletedAt)}
+                </p>
               </div>
             </div>
-          )}
+          </div>
         </div>
 
         {/* Listings Section */}
         {website.listings && website.listings.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div id="listings-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-semibold text-stone-900 mb-4">
               Listings ({website.listings.length})
             </h2>
@@ -473,7 +554,7 @@ export function WebsiteDetail() {
 
         {/* Scraped Pages Section */}
         {website.snapshots && website.snapshots.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <div id="snapshots-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-xl font-semibold text-stone-900 mb-4">
               Scraped Pages ({website.snapshots.length})
             </h2>

@@ -210,7 +210,7 @@ impl Agent {
     /// Update search statistics after a search run
     pub async fn update_stats(
         id: Uuid,
-        results_found: usize,
+        _results_found: usize, // TODO: Track total search results if needed
         domains_created: usize,
         pool: &PgPool,
     ) -> Result<()> {

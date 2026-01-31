@@ -1,6 +1,5 @@
-use anyhow::Result;
 use juniper::FieldResult;
-use seesaw_core::{dispatch_request, EnvelopeMatch};
+use seesaw_core::dispatch_request;
 use tracing::{error, info};
 use uuid::Uuid;
 

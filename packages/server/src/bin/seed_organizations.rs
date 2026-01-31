@@ -1,11 +1,9 @@
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
-use serde_json::Value as JsonValue;
 use server_core::config::Config;
 use server_core::domains::organization::models::Organization;
 use server_core::kernel::tag::{Tag, Taggable};
 use sqlx::PgPool;
-use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 struct SeedData {
@@ -188,19 +186,6 @@ fn extract_city(address: &Option<String>, county: &Option<String>) -> Option<Str
 
     // Fallback to county
     county.clone().map(|c| format!("{} County", c))
-}
-
-fn create_contact_info(phone: &Option<String>, website: &Option<String>) -> JsonValue {
-    let mut contact = HashMap::new();
-    if let Some(p) = phone {
-        contact.insert("phone".to_string(), JsonValue::String(p.clone()));
-    }
-    if let Some(w) = website {
-        contact.insert("website".to_string(), JsonValue::String(w.clone()));
-    }
-    serde_json::to_value(contact).expect(
-        "Failed to serialize contact info - this should never fail for HashMap<String, String>",
-    )
 }
 
 async fn extract_tags_with_ai(description: &str, api_key: &str) -> Result<ExtractedTags> {
