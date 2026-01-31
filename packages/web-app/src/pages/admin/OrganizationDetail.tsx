@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_ORGANIZATION_SOURCES } from '../../graphql/queries';
+import { GET_WEBSITES } from '../../graphql/queries';
 import { ADD_ORGANIZATION_SCRAPE_URL, REMOVE_ORGANIZATION_SCRAPE_URL } from '../../graphql/mutations';
 
-interface OrganizationSource {
+interface Website {
   id: string;
-  organizationName: string;
-  sourceUrl: string;
-  scrapeUrls: string[] | null;
+  url: string;
   lastScrapedAt: string | null;
   scrapeFrequencyHours: number;
   active: boolean;
+  status: string;
   createdAt: string;
 }
 
@@ -20,17 +19,15 @@ export function OrganizationDetail() {
   const navigate = useNavigate();
   const [newUrl, setNewUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [addingUrl, setAddingUrl] = useState(false);
 
-  const { data, loading, refetch } = useQuery<{ organizationSources: OrganizationSource[] }>(
-    GET_ORGANIZATION_SOURCES
+  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(
+    GET_WEBSITES
   );
 
   const [addUrl] = useMutation(ADD_ORGANIZATION_SCRAPE_URL, {
     onCompleted: () => {
       setNewUrl('');
       setError(null);
-      setAddingUrl(false);
       refetch();
     },
     onError: (err) => {
@@ -48,7 +45,7 @@ export function OrganizationDetail() {
     },
   });
 
-  const source = data?.organizationSources.find((s) => s.id === sourceId);
+  const website = data?.websites.find((s) => s.id === sourceId);
 
   const handleAddUrl = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,153 +88,87 @@ export function OrganizationDetail() {
     );
   }
 
-  if (!source) {
+  if (!website) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-amber-50">
-        <div className="text-stone-600">Organization not found</div>
+        <div className="text-stone-600">Website not found</div>
       </div>
     );
   }
 
-  const scrapeUrls = source.scrapeUrls || [];
-  const hasSpecificUrls = scrapeUrls.length > 0;
-
   return (
     <div className="min-h-screen bg-amber-50 p-6">
       <div className="max-w-4xl mx-auto">
-        <div className="flex items-center mb-6">
-          <button
-            onClick={() => navigate('/resources')}
-            className="text-amber-700 hover:text-amber-900 mr-4"
+        <button
+          onClick={() => navigate('/admin/websites')}
+          className="mb-6 text-stone-600 hover:text-stone-900 flex items-center gap-2"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
           >
-            ← Back to Resources
-          </button>
-          <h1 className="text-3xl font-bold text-stone-900">{source.organizationName}</h1>
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+          Back to Websites
+        </button>
+
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h1 className="text-2xl font-bold text-stone-900 mb-2">
+            {website.url}
+          </h1>
+          <div className="flex gap-4 text-sm text-stone-600">
+            <span>Status: {website.status}</span>
+            <span>
+              Last scraped:{' '}
+              {website.lastScrapedAt
+                ? new Date(website.lastScrapedAt).toLocaleString()
+                : 'Never'}
+            </span>
+          </div>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded text-sm">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
             {error}
           </div>
         )}
 
-        {/* Source Info */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold text-stone-900 mb-4">Organization Source</h2>
-          <div className="space-y-2 text-sm">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">
+            Website Details
+          </h2>
+
+          <div className="space-y-4">
             <div>
-              <span className="font-medium text-stone-700">Base URL:</span>{' '}
-              <a
-                href={source.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-amber-700 hover:underline"
-              >
-                {source.sourceUrl}
-              </a>
+              <span className="text-sm text-stone-500">URL</span>
+              <p className="font-medium">{website.url}</p>
             </div>
             <div>
-              <span className="font-medium text-stone-700">Last Scraped:</span>{' '}
-              <span className="text-stone-600">
-                {source.lastScrapedAt
-                  ? new Date(source.lastScrapedAt).toLocaleString()
-                  : 'Never'}
-              </span>
+              <span className="text-sm text-stone-500">Status</span>
+              <p className="font-medium">{website.status}</p>
             </div>
             <div>
-              <span className="font-medium text-stone-700">Scrape Frequency:</span>{' '}
-              <span className="text-stone-600">Every {source.scrapeFrequencyHours} hours</span>
+              <span className="text-sm text-stone-500">Scrape Frequency</span>
+              <p className="font-medium">{website.scrapeFrequencyHours} hours</p>
+            </div>
+            <div>
+              <span className="text-sm text-stone-500">Active</span>
+              <p className="font-medium">{website.active ? 'Yes' : 'No'}</p>
+            </div>
+            <div>
+              <span className="text-sm text-stone-500">Created</span>
+              <p className="font-medium">
+                {new Date(website.createdAt).toLocaleString()}
+              </p>
             </div>
           </div>
-        </div>
-
-        {/* Scraping Strategy Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-          <h3 className="text-sm font-semibold text-blue-900 mb-2">
-            {hasSpecificUrls ? '🎯 Targeted Scraping' : '🌐 Site-Wide Crawling'}
-          </h3>
-          <p className="text-sm text-blue-800">
-            {hasSpecificUrls
-              ? `Scraping ${scrapeUrls.length} specific URL${scrapeUrls.length !== 1 ? 's' : ''}. Only these pages will be processed.`
-              : 'No specific URLs configured. The entire site will be crawled when scraping (up to 15 pages).'}
-          </p>
-        </div>
-
-        {/* Scrape URLs Management */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-xl font-semibold text-stone-900 mb-4">Specific URLs to Scrape</h2>
-
-          {/* Add URL Form */}
-          {!addingUrl ? (
-            <button
-              onClick={() => setAddingUrl(true)}
-              className="mb-4 bg-amber-700 text-white px-4 py-2 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
-            >
-              + Add URL
-            </button>
-          ) : (
-            <form onSubmit={handleAddUrl} className="mb-6">
-              <div className="flex gap-2">
-                <input
-                  type="url"
-                  value={newUrl}
-                  onChange={(e) => setNewUrl(e.target.value)}
-                  placeholder="https://example.com/volunteer-opportunities"
-                  className="flex-1 px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
-                  autoFocus
-                />
-                <button
-                  type="submit"
-                  className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                >
-                  Add
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setAddingUrl(false);
-                    setNewUrl('');
-                    setError(null);
-                  }}
-                  className="bg-stone-100 text-stone-700 px-4 py-2 rounded-md hover:bg-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-500"
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* URL List */}
-          {scrapeUrls.length > 0 ? (
-            <div className="space-y-2">
-              {scrapeUrls.map((url, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-stone-50 rounded border border-stone-200"
-                >
-                  <a
-                    href={url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-amber-700 hover:underline flex-1 mr-4 break-all"
-                  >
-                    {url}
-                  </a>
-                  <button
-                    onClick={() => handleRemoveUrl(url)}
-                    className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 flex-shrink-0"
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-8 text-stone-600 bg-stone-50 rounded-lg border border-stone-200">
-              <p className="mb-2">No specific URLs configured</p>
-              <p className="text-sm">Add URLs to scrape specific pages, or leave empty to crawl the entire site.</p>
-            </div>
-          )}
         </div>
       </div>
     </div>

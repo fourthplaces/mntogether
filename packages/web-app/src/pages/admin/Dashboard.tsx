@@ -4,7 +4,7 @@ import { gql } from '@apollo/client';
 
 const GET_ADMIN_STATS = gql`
   query GetAdminStats {
-    domains(status: null) {
+    websites(status: null) {
       id
       status
       listingsCount
@@ -33,7 +33,7 @@ interface Listing {
 }
 
 export function Dashboard() {
-  const { data, loading } = useQuery<{ domains: Website[]; listings: Listing[] }>(
+  const { data, loading } = useQuery<{ websites: Website[]; listings: Listing[] }>(
     GET_ADMIN_STATS
   );
 
@@ -46,27 +46,27 @@ export function Dashboard() {
   }
 
   // Calculate stats
-  const totalDomains = data?.domains.length || 0;
-  const approvedDomains = data?.domains.filter(d => d.status === 'approved').length || 0;
-  const pendingDomains = data?.domains.filter(d => d.status === 'pending_review').length || 0;
+  const totalWebsites = data?.websites.length || 0;
+  const approvedWebsites = data?.websites.filter(d => d.status === 'approved').length || 0;
+  const pendingWebsites = data?.websites.filter(d => d.status === 'pending_review').length || 0;
   const totalListings = data?.listings.length || 0;
   const pendingListings = data?.listings.filter(l => l.status === 'pending_approval').length || 0;
   const approvedListings = data?.listings.filter(l => l.status === 'approved').length || 0;
-  const totalListingsFromDomains = data?.domains.reduce((sum, d) => sum + d.listingsCount, 0) || 0;
+  const totalListingsFromWebsites = data?.websites.reduce((sum, d) => sum + d.listingsCount, 0) || 0;
 
   // Recent activity (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const recentDomains = data?.domains.filter(d => new Date(d.createdAt) > sevenDaysAgo).length || 0;
+  const recentWebsites = data?.websites.filter(d => new Date(d.createdAt) > sevenDaysAgo).length || 0;
   const recentListings = data?.listings.filter(l => new Date(l.createdAt) > sevenDaysAgo).length || 0;
 
   const stats = [
     {
-      title: 'Total Domains',
-      value: totalDomains,
-      subtitle: `${approvedDomains} approved, ${pendingDomains} pending`,
+      title: 'Total Websites',
+      value: totalWebsites,
+      subtitle: `${approvedWebsites} approved, ${pendingWebsites} pending`,
       color: 'bg-blue-500',
-      link: '/admin/domains',
+      link: '/admin/websites',
     },
     {
       title: 'Total Listings',
@@ -77,15 +77,15 @@ export function Dashboard() {
     },
     {
       title: 'Pending Approvals',
-      value: pendingDomains + pendingListings,
-      subtitle: `${pendingDomains} domains, ${pendingListings} listings`,
+      value: pendingWebsites + pendingListings,
+      subtitle: `${pendingWebsites} websites, ${pendingListings} listings`,
       color: 'bg-amber-500',
       link: '/admin',
     },
     {
       title: 'Scraped Listings',
-      value: totalListingsFromDomains,
-      subtitle: `From ${approvedDomains} approved domains`,
+      value: totalListingsFromWebsites,
+      subtitle: `From ${approvedWebsites} approved websites`,
       color: 'bg-purple-500',
       link: '/admin/scraped',
     },
@@ -93,8 +93,8 @@ export function Dashboard() {
 
   const recentActivity = [
     {
-      title: 'New Domains (7 days)',
-      value: recentDomains,
+      title: 'New Websites (7 days)',
+      value: recentWebsites,
       icon: '🌐',
     },
     {
@@ -114,12 +114,12 @@ export function Dashboard() {
       count: pendingListings,
     },
     {
-      title: 'Approve Domains',
-      description: 'Review and approve pending domains',
+      title: 'Approve Websites',
+      description: 'Review and approve pending websites',
       icon: '🌐',
-      link: '/admin/domains',
+      link: '/admin/websites',
       color: 'bg-blue-600 hover:bg-blue-700',
-      count: pendingDomains,
+      count: pendingWebsites,
     },
     {
       title: 'Manage Agents',

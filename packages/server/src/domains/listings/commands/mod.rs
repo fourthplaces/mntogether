@@ -1,9 +1,8 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::net::IpAddr;
 
 use crate::common::{JobId, ListingId, MemberId, PostId, WebsiteId};
-use crate::domains::listings::events::ExtractedListing;
+use crate::domains::listings::events::{CrawledPageInfo, ExtractedListing};
 use crate::domains::listings::models::listing_report::ListingReportId;
 
 /// Listings domain commands
@@ -188,36 +187,46 @@ pub enum ListingCommand {
         is_admin: bool,
     },
 
-    // Intelligent Crawler Commands (future use)
-    /// Crawl a site using intelligent crawler
-    CrawlSite {
-        url: String,
-        job_id: JobId,
-        page_limit: Option<usize>,
-    },
-
-    /// Detect information in crawled pages
-    DetectInformation {
-        snapshot_ids: Vec<uuid::Uuid>,
-        job_id: JobId,
-        detection_kind: String,
-    },
-
-    /// Extract structured data from detections
-    ExtractData {
-        detection_ids: Vec<uuid::Uuid>,
-        job_id: JobId,
-        schema_id: uuid::Uuid,
-    },
-
-    /// Resolve relationships between extractions
-    ResolveRelationships {
-        extraction_ids: Vec<uuid::Uuid>,
-        job_id: JobId,
-    },
-
     /// Execute search for an agent
     ExecuteSearch { agent_id: uuid::Uuid, job_id: JobId },
+
+    // =========================================================================
+    // Website Crawling Commands (multi-page crawling workflow)
+    // =========================================================================
+    /// Crawl a website (multiple pages) using Firecrawl
+    CrawlWebsite {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Extract listings from all crawled pages
+    ExtractListingsFromPages {
+        website_id: WebsiteId,
+        job_id: JobId,
+        pages: Vec<CrawledPageInfo>,
+    },
+
+    /// Retry website crawl after no listings found
+    RetryWebsiteCrawl {
+        website_id: WebsiteId,
+        job_id: JobId,
+    },
+
+    /// Mark website as having no listings (terminal state after max retries)
+    MarkWebsiteNoListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+    },
+
+    /// Sync listings extracted from crawled pages with database
+    SyncCrawledListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+        listings: Vec<ExtractedListing>,
+        page_results: Vec<crate::domains::listings::events::PageExtractionResult>,
+    },
 }
 
 // Implement Command trait for seesaw-rs integration
@@ -249,11 +258,13 @@ impl seesaw_core::Command for ListingCommand {
             Self::ResolveReport { .. } => ExecutionMode::Inline,
             Self::DismissReport { .. } => ExecutionMode::Inline,
             Self::GenerateListingEmbedding { .. } => ExecutionMode::Inline,
-            Self::CrawlSite { .. } => ExecutionMode::Inline,
-            Self::DetectInformation { .. } => ExecutionMode::Inline,
-            Self::ExtractData { .. } => ExecutionMode::Inline,
-            Self::ResolveRelationships { .. } => ExecutionMode::Inline,
             Self::ExecuteSearch { .. } => ExecutionMode::Inline,
+            // Crawling commands
+            Self::CrawlWebsite { .. } => ExecutionMode::Inline,
+            Self::ExtractListingsFromPages { .. } => ExecutionMode::Inline,
+            Self::RetryWebsiteCrawl { .. } => ExecutionMode::Inline,
+            Self::MarkWebsiteNoListings { .. } => ExecutionMode::Inline,
+            Self::SyncCrawledListings { .. } => ExecutionMode::Inline,
         }
     }
 
@@ -301,37 +312,30 @@ impl seesaw_core::Command for ListingCommand {
                 priority: 0,
                 version: 1,
             }),
-            Self::CrawlSite { job_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "crawl_site",
-                idempotency_key: Some(job_id.to_string()),
+            Self::ExecuteSearch { agent_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "execute_search",
+                idempotency_key: Some(agent_id.to_string()),
                 max_retries: 3,
                 priority: 0,
                 version: 1,
             }),
-            Self::DetectInformation { job_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "detect_information",
-                idempotency_key: Some(job_id.to_string()),
+            Self::CrawlWebsite { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "crawl_website",
+                idempotency_key: Some(website_id.to_string()),
+                max_retries: 3,
+                priority: 0,
+                version: 1,
+            }),
+            Self::ExtractListingsFromPages { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "extract_listings_from_pages",
+                idempotency_key: Some(website_id.to_string()),
                 max_retries: 2,
                 priority: 0,
                 version: 1,
             }),
-            Self::ExtractData { job_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "extract_data",
-                idempotency_key: Some(job_id.to_string()),
-                max_retries: 2,
-                priority: 0,
-                version: 1,
-            }),
-            Self::ResolveRelationships { job_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "resolve_relationships",
-                idempotency_key: Some(job_id.to_string()),
-                max_retries: 2,
-                priority: 0,
-                version: 1,
-            }),
-            Self::ExecuteSearch { agent_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "execute_search",
-                idempotency_key: Some(agent_id.to_string()),
+            Self::SyncCrawledListings { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "sync_crawled_listings",
+                idempotency_key: Some(website_id.to_string()),
                 max_retries: 3,
                 priority: 0,
                 version: 1,

@@ -6,14 +6,14 @@
 //! # Example
 //!
 //! ```rust
-//! use crate::common::{MemberId, NeedId, PostId};
+//! use crate::common::{MemberId, ListingId, PostId};
 //!
 //! // These are incompatible types - compiler prevents mixing them up
 //! let member_id: MemberId = MemberId::new();
-//! let need_id: NeedId = NeedId::new();
+//! let listing_id: ListingId = ListingId::new();
 //!
 //! // This would be a compile error:
-//! // let wrong: NeedId = member_id;
+//! // let wrong: ListingId = member_id;
 //! ```
 
 // Re-export the core Id type and version markers
@@ -25,10 +25,6 @@ pub use super::id::{Id, V4, V7};
 
 /// Marker type for Member entities (users).
 pub struct Member;
-
-/// Marker type for OrganizationNeed entities (needs/opportunities).
-/// DEPRECATED: Use Listing instead.
-pub struct OrganizationNeed;
 
 /// Marker type for Listing entities (services, opportunities, businesses).
 pub struct Listing;
@@ -72,10 +68,6 @@ pub struct DocumentReference;
 
 /// Typed ID for Member entities.
 pub type MemberId = Id<Member>;
-
-/// Typed ID for OrganizationNeed entities.
-/// DEPRECATED: Use ListingId instead.
-pub type NeedId = Id<OrganizationNeed>;
 
 /// Typed ID for Listing entities (services, opportunities, businesses).
 pub type ListingId = Id<Listing>;

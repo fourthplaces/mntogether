@@ -673,20 +673,20 @@ pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResul
 }
 
 // =============================================================================
-// Domain Management Mutations
+// Website Management Mutations
 // =============================================================================
 
 /// Approve a website for crawling (admin only)
 /// Direct database operation - no event bus needed for approval workflow
-pub async fn approve_domain(
+pub async fn approve_website(
     ctx: &GraphQLContext,
-    domain_id: String,
-) -> FieldResult<crate::domains::organization::data::SourceData> {
+    website_id: String,
+) -> FieldResult<crate::domains::organization::data::WebsiteData> {
     use crate::common::WebsiteId;
     use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, "Approving website");
+    info!(website_id = %website_id, "Approving website");
 
     // Get user info - must be admin
     let user = ctx
@@ -702,12 +702,12 @@ pub async fn approve_domain(
     }
 
     // Parse website ID
-    let uuid = Uuid::parse_str(&domain_id)
+    let uuid = Uuid::parse_str(&website_id)
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
-    let website_id = WebsiteId::from_uuid(uuid);
+    let id = WebsiteId::from_uuid(uuid);
 
     // Approve using model method
-    let website = Website::approve(website_id, user.member_id, &ctx.db_pool)
+    let website = Website::approve(id, user.member_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
@@ -716,22 +716,23 @@ pub async fn approve_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(
+    Ok(crate::domains::organization::data::WebsiteData::from(
         website,
     ))
 }
 
-/// Reject a domain submission (admin only)
+/// Reject a website submission (admin only)
 /// Direct database operation - no event bus needed for approval workflow
-pub async fn reject_domain(
+pub async fn reject_website(
     ctx: &GraphQLContext,
-    domain_id: String,
+    website_id: String,
     reason: String,
-) -> FieldResult<crate::domains::organization::data::SourceData> {
+) -> FieldResult<crate::domains::organization::data::WebsiteData> {
+    use crate::common::WebsiteId;
     use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, reason = %reason, "Rejecting website");
+    info!(website_id = %website_id, reason = %reason, "Rejecting website");
 
     // Get user info - must be admin
     let user = ctx
@@ -747,12 +748,12 @@ pub async fn reject_domain(
     }
 
     // Parse website ID
-    let uuid = Uuid::parse_str(&domain_id)
+    let uuid = Uuid::parse_str(&website_id)
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
-    let website_id = WebsiteId::from_uuid(uuid);
+    let id = WebsiteId::from_uuid(uuid);
 
     // Reject using model method
-    let website = Website::reject(website_id, user.member_id, reason, &ctx.db_pool)
+    let website = Website::reject(id, user.member_id, reason, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
@@ -761,23 +762,23 @@ pub async fn reject_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(
+    Ok(crate::domains::organization::data::WebsiteData::from(
         website,
     ))
 }
 
 /// Suspend a website (admin only)
 /// Direct database operation - no event bus needed for approval workflow
-pub async fn suspend_domain(
+pub async fn suspend_website(
     ctx: &GraphQLContext,
-    domain_id: String,
+    website_id: String,
     reason: String,
-) -> FieldResult<crate::domains::organization::data::SourceData> {
+) -> FieldResult<crate::domains::organization::data::WebsiteData> {
     use crate::common::WebsiteId;
     use crate::domains::scraping::models::Website;
     use uuid::Uuid;
 
-    info!(domain_id = %domain_id, reason = %reason, "Suspending website");
+    info!(website_id = %website_id, reason = %reason, "Suspending website");
 
     // Get user info - must be admin
     let user = ctx
@@ -793,12 +794,12 @@ pub async fn suspend_domain(
     }
 
     // Parse website ID
-    let uuid = Uuid::parse_str(&domain_id)
+    let uuid = Uuid::parse_str(&website_id)
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
-    let website_id = WebsiteId::from_uuid(uuid);
+    let id = WebsiteId::from_uuid(uuid);
 
     // Suspend using model method
-    let website = Website::suspend(website_id, user.member_id, reason, &ctx.db_pool)
+    let website = Website::suspend(id, user.member_id, reason, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
@@ -807,7 +808,7 @@ pub async fn suspend_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(
+    Ok(crate::domains::organization::data::WebsiteData::from(
         website,
     ))
 }
@@ -1051,6 +1052,108 @@ pub async fn resolve_report(
     })?;
 
     Ok(true)
+}
+
+/// Crawl a website (multi-page) to discover and extract listings
+/// This performs a full crawl of the website, extracting listings from all pages found
+pub async fn crawl_website(
+    ctx: &GraphQLContext,
+    website_id: Uuid,
+) -> FieldResult<ScrapeJobResult> {
+    info!(website_id = %website_id, "Crawling website (multi-page)");
+
+    // Get user info (authorization will be checked in effect)
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    // Convert to typed IDs
+    let website_id = WebsiteId::from_uuid(website_id);
+    let job_id = JobId::new();
+
+    // Dispatch crawl request and await completion
+    let result = dispatch_request(
+        ListingEvent::CrawlWebsiteRequested {
+            website_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success - crawl workflow complete (listings synced)
+                ListingEvent::ListingsSynced {
+                    source_id: synced_source_id,
+                    job_id: synced_job_id,
+                    new_count,
+                    changed_count,
+                    disappeared_count,
+                } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!(
+                        "Crawl complete! Found {} new, {} changed, {} disappeared listings",
+                        new_count, changed_count, disappeared_count
+                    ),
+                ))),
+                // No listings found but may retry
+                ListingEvent::WebsiteMarkedNoListings {
+                    website_id: marked_id,
+                    job_id: marked_job_id,
+                    total_attempts,
+                } if *marked_id == website_id && *marked_job_id == job_id => Some(Ok((
+                    "no_listings".to_string(),
+                    format!(
+                        "No listings found after {} attempts. Website marked as no_listings_found.",
+                        total_attempts
+                    ),
+                ))),
+                // Failure events
+                ListingEvent::WebsiteCrawlFailed {
+                    website_id: failed_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Crawl failed: {}", reason)))
+                }
+                ListingEvent::ExtractFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
+                }
+                ListingEvent::SyncFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
+                }
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "CrawlWebsite" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Crawl failed: {}", e), juniper::Value::null()))?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: website_id.into_uuid(),
+        status,
+        message: Some(message),
+    })
 }
 
 /// Dismiss a report without taking action (admin only)

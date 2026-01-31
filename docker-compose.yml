@@ -1,5 +1,26 @@
 services:
   # ========================================
+  # NATS for real-time messaging
+  # ========================================
+  nats:
+    image: nats:2.10-alpine
+    container_name: mndigitalaid_nats
+    command: -js -p 4222
+    restart: always
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8222/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - mndigitalaid
+
+  # ========================================
   # PostgreSQL with pgvector extension
   # ========================================
   postgres:
@@ -48,9 +69,10 @@ services:
       dockerfile: packages/server/Dockerfile.dev
     container_name: mndigitalaid_api
     environment:
-      # Database & Cache
+      # Database, Cache & Messaging
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
       REDIS_URL: redis://redis:6379
+      NATS_CONNECTION_URL: nats://nats:4222
 
       # Server Config
       PORT: ${PORT:-8080}
@@ -93,6 +115,8 @@ services:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      nats:
         condition: service_healthy
     volumes:
       # Mount source code for hot-reload in development
@@ -164,6 +188,8 @@ services:
 # Volumes for data persistence
 # ========================================
 volumes:
+  nats_data:
+    name: mndigitalaid_nats_data
   postgres_data:
     name: mndigitalaid_postgres_data
   redis_data:

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { ApolloProvider } from '@apollo/client';
 import { BrowserRouter, Routes, Route, Link, Navigate } from 'react-router-dom';
 import { apolloClient } from './graphql/client';
@@ -20,9 +21,13 @@ import { OrganizationDetail } from './pages/admin/OrganizationDetail';
 import { OrganizationsList } from './pages/admin/OrganizationsList';
 import { WebsiteDetail } from './pages/admin/WebsiteDetail';
 
+// Components
+import { Chatroom } from './components/Chatroom';
+
 // Admin protected layout
 function AdminLayout() {
   const { isAuthenticated, logout } = useAuth();
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" replace />;
@@ -72,10 +77,36 @@ function AdminLayout() {
                 </Link>
               </div>
             </div>
-            <div className="flex items-center">
+            <div className="flex items-center gap-4">
+              {/* Chat toggle button */}
+              <button
+                onClick={() => setIsChatOpen(!isChatOpen)}
+                className={`relative p-2 rounded-lg transition-colors ${
+                  isChatOpen
+                    ? 'bg-amber-500 text-white'
+                    : 'text-stone-600 hover:text-stone-900 hover:bg-stone-100'
+                }`}
+                title="Admin Assistant"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                  />
+                </svg>
+                {/* Notification dot for new messages - can be wired to real state later */}
+                <span className="absolute -top-1 -right-1 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></span>
+              </button>
               <Link
                 to="/"
-                className="text-stone-600 hover:text-stone-900 text-sm font-medium mr-4"
+                className="text-stone-600 hover:text-stone-900 text-sm font-medium"
               >
                 Public Site
               </Link>
@@ -90,19 +121,25 @@ function AdminLayout() {
         </div>
       </nav>
 
-      <Routes>
-        <Route path="/" element={<Dashboard />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/agents" element={<Agents />} />
-        <Route path="/websites" element={<Websites />} />
-        <Route path="/websites/:domainId" element={<WebsiteDetail />} />
-        <Route path="/listings" element={<ListingApprovalQueue />} />
-        <Route path="/scraped" element={<ScrapedListingsReview />} />
-        <Route path="/resources" element={<Resources />} />
-        <Route path="/resources/:sourceId" element={<ResourceDetail />} />
-        <Route path="/organizations" element={<OrganizationsList />} />
-        <Route path="/organizations/:sourceId" element={<OrganizationDetail />} />
-      </Routes>
+      {/* Main content with adjusted width when chat is open */}
+      <div className={`transition-all duration-300 ${isChatOpen ? 'mr-96' : ''}`}>
+        <Routes>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/websites" element={<Websites />} />
+          <Route path="/websites/:websiteId" element={<WebsiteDetail />} />
+          <Route path="/listings" element={<ListingApprovalQueue />} />
+          <Route path="/scraped" element={<ScrapedListingsReview />} />
+          <Route path="/resources" element={<Resources />} />
+          <Route path="/resources/:sourceId" element={<ResourceDetail />} />
+          <Route path="/organizations" element={<OrganizationsList />} />
+          <Route path="/organizations/:sourceId" element={<OrganizationDetail />} />
+        </Routes>
+      </div>
+
+      {/* Chatroom slide-out panel */}
+      <Chatroom isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   );
 }

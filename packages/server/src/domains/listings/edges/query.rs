@@ -120,36 +120,19 @@ pub async fn query_published_posts(
     Ok(posts.into_iter().map(PostData::from).collect())
 }
 
-/// Get all organization sources
-pub async fn query_organization_sources(
-    pool: &PgPool,
-) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
-    use crate::domains::organization::data::SourceData;
-    use crate::domains::scraping::models::Website;
-
-    let sources = Website::find_active(pool).await.map_err(|e| {
-        juniper::FieldError::new(
-            format!("Failed to fetch organization sources: {}", e),
-            juniper::Value::null(),
-        )
-    })?;
-
-    Ok(sources.into_iter().map(SourceData::from).collect())
-}
-
-/// Get a single organization source by ID
-pub async fn query_organization_source(
+/// Get a single website by ID
+pub async fn query_website(
     pool: &PgPool,
     id: Uuid,
-) -> FieldResult<Option<crate::domains::organization::data::SourceData>> {
+) -> FieldResult<Option<crate::domains::organization::data::WebsiteData>> {
     use crate::common::WebsiteId;
-    use crate::domains::organization::data::SourceData;
+    use crate::domains::organization::data::WebsiteData;
     use crate::domains::scraping::models::Website;
 
-    let source_id = WebsiteId::from_uuid(id);
+    let website_id = WebsiteId::from_uuid(id);
 
-    match Website::find_by_id(source_id, pool).await {
-        Ok(source) => Ok(Some(SourceData::from(source))),
+    match Website::find_by_id(website_id, pool).await {
+        Ok(website) => Ok(Some(WebsiteData::from(website))),
         Err(_) => Ok(None),
     }
 }
@@ -159,8 +142,8 @@ pub async fn query_websites(
     pool: &PgPool,
     status: Option<String>,
     agent_id: Option<String>,
-) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
-    use crate::domains::organization::data::SourceData;
+) -> FieldResult<Vec<crate::domains::organization::data::WebsiteData>> {
+    use crate::domains::organization::data::WebsiteData;
     use crate::domains::scraping::models::Website;
     use anyhow::Context;
     use uuid::Uuid;
@@ -180,7 +163,7 @@ pub async fn query_websites(
                 )
             })?;
 
-        return Ok(websites.into_iter().map(SourceData::from).collect());
+        return Ok(websites.into_iter().map(WebsiteData::from).collect());
     }
 
     let websites = if let Some(status_filter) = status {
@@ -203,14 +186,14 @@ pub async fn query_websites(
         )
     })?;
 
-    Ok(websites.into_iter().map(SourceData::from).collect())
+    Ok(websites.into_iter().map(WebsiteData::from).collect())
 }
 
 /// Query websites pending review (for admin approval queue)
 pub async fn query_pending_websites(
     pool: &PgPool,
-) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
-    use crate::domains::organization::data::SourceData;
+) -> FieldResult<Vec<crate::domains::organization::data::WebsiteData>> {
+    use crate::domains::organization::data::WebsiteData;
     use crate::domains::scraping::models::Website;
 
     let websites = Website::find_pending_review(pool).await.map_err(|e| {
@@ -220,7 +203,7 @@ pub async fn query_pending_websites(
         )
     })?;
 
-    Ok(websites.into_iter().map(SourceData::from).collect())
+    Ok(websites.into_iter().map(WebsiteData::from).collect())
 }
 
 /// Get all reports (admin only)

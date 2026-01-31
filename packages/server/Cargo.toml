@@ -25,6 +25,10 @@ tokio = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 
+# Real-time messaging
+async-nats = "0.38"
+bytes = "1.7"
+
 # Error handling
 anyhow = { workspace = true }
 thiserror = { workspace = true }

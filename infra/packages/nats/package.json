@@ -1,0 +1,14 @@
+{
+  "name": "@infra/nats",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "devDependencies": {
+    "@types/node": "^22"
+  },
+  "dependencies": {
+    "@pulumi/aws": "^6.0.0",
+    "@pulumi/awsx": "^2.0.0",
+    "@pulumi/pulumi": "^3.0.0",
+    "@infra/common": "1.0.0"
+  }
+}

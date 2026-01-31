@@ -32,6 +32,15 @@ pub struct Website {
     pub crawl_rate_limit_seconds: i32,
     pub is_trusted: bool,
 
+    // Crawl tracking (for multi-page crawling with retry)
+    pub crawl_status: Option<String>, // 'pending', 'crawling', 'completed', 'no_listings_found', 'failed'
+    pub crawl_attempt_count: Option<i32>,
+    pub max_crawl_retries: Option<i32>,
+    pub last_crawl_started_at: Option<DateTime<Utc>>,
+    pub last_crawl_completed_at: Option<DateTime<Utc>>,
+    pub pages_crawled_count: Option<i32>,
+    pub max_pages_per_crawl: Option<i32>,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -67,6 +76,44 @@ impl std::str::FromStr for WebsiteStatus {
             "rejected" => Ok(WebsiteStatus::Rejected),
             "suspended" => Ok(WebsiteStatus::Suspended),
             _ => Err(anyhow::anyhow!("Invalid website status: {}", s)),
+        }
+    }
+}
+
+/// Crawl status enum for multi-page crawling workflow
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CrawlStatus {
+    Pending,
+    Crawling,
+    Completed,
+    NoListingsFound,
+    Failed,
+}
+
+impl std::fmt::Display for CrawlStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CrawlStatus::Pending => write!(f, "pending"),
+            CrawlStatus::Crawling => write!(f, "crawling"),
+            CrawlStatus::Completed => write!(f, "completed"),
+            CrawlStatus::NoListingsFound => write!(f, "no_listings_found"),
+            CrawlStatus::Failed => write!(f, "failed"),
+        }
+    }
+}
+
+impl std::str::FromStr for CrawlStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "pending" => Ok(CrawlStatus::Pending),
+            "crawling" => Ok(CrawlStatus::Crawling),
+            "completed" => Ok(CrawlStatus::Completed),
+            "no_listings_found" => Ok(CrawlStatus::NoListingsFound),
+            "failed" => Ok(CrawlStatus::Failed),
+            _ => Err(anyhow::anyhow!("Invalid crawl status: {}", s)),
         }
     }
 }
@@ -388,6 +435,134 @@ impl Website {
             "SELECT * FROM websites WHERE agent_id = $1 ORDER BY created_at DESC",
         )
         .bind(agent_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(websites)
+    }
+
+    // =========================================================================
+    // Crawl Tracking Methods
+    // =========================================================================
+
+    /// Mark website as starting a crawl
+    pub async fn start_crawl(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET
+                crawl_status = 'crawling',
+                last_crawl_started_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
+    /// Mark website crawl as complete with status and pages count
+    pub async fn complete_crawl(
+        id: WebsiteId,
+        status: &str,
+        pages_count: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET
+                crawl_status = $2,
+                pages_crawled_count = $3,
+                last_crawl_completed_at = NOW(),
+                last_scraped_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(status)
+        .bind(pages_count)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
+    /// Increment crawl attempt count and return new count
+    pub async fn increment_crawl_attempt(id: WebsiteId, pool: &PgPool) -> Result<i32> {
+        let result = sqlx::query_scalar::<_, i32>(
+            r#"
+            UPDATE websites
+            SET
+                crawl_attempt_count = COALESCE(crawl_attempt_count, 0) + 1,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING crawl_attempt_count
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(result)
+    }
+
+    /// Reset crawl attempt count (used after successful extraction)
+    pub async fn reset_crawl_attempts(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET
+                crawl_attempt_count = 0,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
+    /// Check if website should retry crawl (has retries left)
+    pub fn should_retry_crawl(&self) -> bool {
+        let attempt_count = self.crawl_attempt_count.unwrap_or(0);
+        let max_retries = self.max_crawl_retries.unwrap_or(5);
+        attempt_count < max_retries
+    }
+
+    /// Find approved websites that need initial crawling
+    pub async fn find_pending_initial_crawl(pool: &PgPool) -> Result<Vec<Self>> {
+        let websites = sqlx::query_as::<_, Website>(
+            r#"
+            SELECT * FROM websites
+            WHERE status = 'approved'
+              AND active = true
+              AND (crawl_status IS NULL OR crawl_status = 'pending')
+            ORDER BY created_at ASC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(websites)
+    }
+
+    /// Find approved websites due for re-crawling (completed crawls that are stale)
+    pub async fn find_due_for_recrawl(pool: &PgPool) -> Result<Vec<Self>> {
+        let websites = sqlx::query_as::<_, Website>(
+            r#"
+            SELECT * FROM websites
+            WHERE status = 'approved'
+              AND active = true
+              AND crawl_status = 'completed'
+              AND (last_crawl_completed_at IS NULL
+                   OR last_crawl_completed_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
+            ORDER BY last_crawl_completed_at NULLS FIRST
+            "#,
+        )
         .fetch_all(pool)
         .await?;
         Ok(websites)

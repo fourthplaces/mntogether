@@ -11,7 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseWebScraper, PiiScrubResult, ScrapeResult, SearchResult, ServerKernel,
+    BaseWebScraper, CrawlResult, CrawledPage, PiiScrubResult, ScrapeResult, SearchResult,
+    ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 
@@ -54,6 +55,45 @@ impl BaseWebScraper for MockWebScraper {
                 title: Some("Mock Page".to_string()),
             })
         }
+    }
+
+    async fn crawl(
+        &self,
+        url: &str,
+        _max_depth: i32,
+        max_pages: i32,
+        _delay_seconds: i32,
+    ) -> Result<CrawlResult> {
+        // Return mock crawled pages based on the responses or default pages
+        let mut responses = self.responses.lock().unwrap();
+        let pages: Vec<CrawledPage> = if !responses.is_empty() {
+            // Use queued responses as pages
+            responses
+                .drain(..)
+                .take(max_pages as usize)
+                .map(|r| CrawledPage {
+                    url: r.url,
+                    markdown: r.markdown,
+                    title: r.title,
+                })
+                .collect()
+        } else {
+            // Return default mock pages
+            vec![
+                CrawledPage {
+                    url: url.to_string(),
+                    markdown: "# Homepage\n\nThis is the mock homepage.".to_string(),
+                    title: Some("Homepage".to_string()),
+                },
+                CrawledPage {
+                    url: format!("{}/about", url),
+                    markdown: "# About\n\nThis is the mock about page.".to_string(),
+                    title: Some("About".to_string()),
+                },
+            ]
+        };
+
+        Ok(CrawlResult { pages })
     }
 }
 

@@ -131,7 +131,7 @@ export const CREATE_AGENT = gql`
       locationContext
       extractionInstructions
       systemPrompt
-      autoApproveDomains
+      autoApproveWebsites
       autoScrape
       autoCreateListings
     }
@@ -148,7 +148,7 @@ export const UPDATE_AGENT = gql`
       enabled
       extractionInstructions
       systemPrompt
-      autoApproveDomains
+      autoApproveWebsites
       autoScrape
       autoCreateListings
     }
@@ -182,38 +182,36 @@ export const GENERATE_AGENT_CONFIG = gql`
   }
 `;
 
-// Domain mutations (if not already defined)
-export const APPROVE_DOMAIN = gql`
-  mutation ApproveDomain($domainId: String!) {
-    approveDomain(domainId: $domainId) {
+// Website mutations
+export const APPROVE_WEBSITE = gql`
+  mutation ApproveWebsite($websiteId: String!) {
+    approveWebsite(websiteId: $websiteId) {
       id
       status
     }
   }
 `;
 
-export const REJECT_DOMAIN = gql`
-  mutation RejectDomain($domainId: String!, $reason: String!) {
-    rejectDomain(domainId: $domainId, reason: $reason) {
+export const REJECT_WEBSITE = gql`
+  mutation RejectWebsite($websiteId: String!, $reason: String!) {
+    rejectWebsite(websiteId: $websiteId, reason: $reason) {
       id
       status
-      rejectionReason
     }
   }
 `;
 
-export const SUSPEND_DOMAIN = gql`
-  mutation SuspendDomain($domainId: String!, $reason: String!) {
-    suspendDomain(domainId: $domainId, reason: $reason) {
+export const SUSPEND_WEBSITE = gql`
+  mutation SuspendWebsite($websiteId: String!, $reason: String!) {
+    suspendWebsite(websiteId: $websiteId, reason: $reason) {
       id
       status
-      rejectionReason
     }
   }
 `;
 
 export const REFRESH_PAGE_SNAPSHOT = gql`
-  mutation RefreshPageSnapshot($snapshotId: ID!) {
+  mutation RefreshPageSnapshot($snapshotId: String!) {
     refreshPageSnapshot(snapshotId: $snapshotId) {
       jobId
       status
@@ -222,8 +220,50 @@ export const REFRESH_PAGE_SNAPSHOT = gql`
   }
 `;
 
-export const GENERATE_DOMAIN_ASSESSMENT = gql`
-  mutation GenerateDomainAssessment($domainId: String!) {
-    generateDomainAssessment(domainId: $domainId)
+export const GENERATE_WEBSITE_ASSESSMENT = gql`
+  mutation GenerateWebsiteAssessment($websiteId: String!) {
+    generateWebsiteAssessment(websiteId: $websiteId)
+  }
+`;
+
+export const CRAWL_WEBSITE = gql`
+  mutation CrawlWebsite($websiteId: Uuid!) {
+    crawlWebsite(websiteId: $websiteId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
+// Chat mutations
+export const CREATE_CHAT = gql`
+  mutation CreateChat($language: String) {
+    createChat(language: $language) {
+      id
+      containerType
+      language
+      createdAt
+      lastActivityAt
+    }
+  }
+`;
+
+export const SEND_MESSAGE = gql`
+  mutation SendMessage($containerId: String!, $content: String!) {
+    sendMessage(containerId: $containerId, content: $content) {
+      id
+      containerId
+      role
+      content
+      authorId
+      createdAt
+    }
+  }
+`;
+
+export const SIGNAL_TYPING = gql`
+  mutation SignalTyping($containerId: String!) {
+    signalTyping(containerId: $containerId)
   }
 `;

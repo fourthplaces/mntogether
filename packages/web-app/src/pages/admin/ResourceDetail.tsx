@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
 import {
   GET_ORGANIZATION_SOURCE_LISTINGS,
-  GET_ORGANIZATION_SOURCES,
+  GET_WEBSITES,
   GET_POSTS_FOR_LISTING,
 } from '../../graphql/queries';
 import {
@@ -42,17 +42,17 @@ export function ResourceDetail() {
   const [error, setError] = useState<string | null>(null);
   const [sourceUrl, setSourceUrl] = useState<string>('');
 
-  // Get source URL from organization sources
-  const { data: sourcesData } = useQuery(GET_ORGANIZATION_SOURCES);
+  // Get website URL from websites
+  const { data: websitesData } = useQuery(GET_WEBSITES);
 
   useEffect(() => {
-    if (sourcesData?.organizationSources) {
-      const source = sourcesData.organizationSources.find((s: any) => s.id === sourceId);
-      if (source) {
-        setSourceUrl(source.sourceUrl);
+    if (websitesData?.websites) {
+      const website = websitesData.websites.find((s: any) => s.id === sourceId);
+      if (website) {
+        setSourceUrl(website.url);
       }
     }
-  }, [sourcesData, sourceId]);
+  }, [websitesData, sourceId]);
 
   const { data: listingsData, loading, refetch } = useQuery<{ listings: { nodes: Listing[] } }>(
     GET_ORGANIZATION_SOURCE_LISTINGS,

@@ -14,19 +14,20 @@ use crate::domains::listings::data::{
     ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use crate::domains::listings::edges::{
-    approve_domain, approve_listing, archive_post, create_agent, delete_listing, dismiss_report,
-    edit_and_approve_listing, expire_post, generate_agent_config_from_description, get_all_agents,
-    query_listing, query_listing_reports, query_listings, query_organization_source,
-    query_organization_sources, query_pending_websites, query_post, query_posts_for_listing,
-    query_published_posts, query_reports_for_listing, query_websites, refresh_page_snapshot,
-    reject_domain, reject_listing, report_listing, repost_listing, resolve_report,
-    scrape_organization, submit_listing, submit_resource_link, suspend_domain, track_post_click,
-    track_post_view, trigger_agent_search, update_agent, CreateAgentInput,
-    GenerateAgentConfigResult, TriggerSearchResult, UpdateAgentInput,
+    approve_listing, approve_website, archive_post, crawl_website, create_agent, delete_listing,
+    dismiss_report, edit_and_approve_listing, expire_post, generate_agent_config_from_description,
+    get_all_agents, query_listing, query_listing_reports, query_listings, query_pending_websites,
+    query_post, query_posts_for_listing, query_published_posts, query_reports_for_listing,
+    query_website, query_websites, refresh_page_snapshot, reject_listing, reject_website,
+    report_listing, repost_listing, resolve_report, scrape_organization, submit_listing,
+    submit_resource_link, suspend_website, track_post_click, track_post_view, trigger_agent_search,
+    update_agent, CreateAgentInput, GenerateAgentConfigResult, TriggerSearchResult, UpdateAgentInput,
 };
+use crate::domains::chatrooms::data::{ContainerData, MessageData};
+use crate::domains::chatrooms::edges as chatroom_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::post_types::RepostResult;
-use crate::domains::organization::data::{OrganizationData, PostData, SourceData as DomainData};
+use crate::domains::organization::data::{OrganizationData, PostData, WebsiteData};
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -154,32 +155,24 @@ impl Query {
             .collect())
     }
 
-    /// Get all organization sources (websites to scrape)
-    async fn organization_sources(ctx: &GraphQLContext) -> FieldResult<Vec<DomainData>> {
-        query_organization_sources(&ctx.db_pool).await
-    }
-
-    /// Get a single organization source by ID
-    async fn organization_source(
-        ctx: &GraphQLContext,
-        id: Uuid,
-    ) -> FieldResult<Option<DomainData>> {
-        query_organization_source(&ctx.db_pool, id).await
-    }
-
-    /// Get all domains with optional status and agent filters
+    /// Get all websites with optional status and agent filters
     /// Status can be: "pending_review", "approved", or null for all
     /// agent_id filters to websites discovered by a specific agent
-    async fn domains(
+    async fn websites(
         ctx: &GraphQLContext,
         status: Option<String>,
         agent_id: Option<String>,
-    ) -> FieldResult<Vec<DomainData>> {
+    ) -> FieldResult<Vec<WebsiteData>> {
         query_websites(&ctx.db_pool, status, agent_id).await
     }
 
+    /// Get a single website by ID
+    async fn website(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<WebsiteData>> {
+        query_website(&ctx.db_pool, id).await
+    }
+
     /// Get websites pending review (for admin approval queue)
-    async fn pending_domains(ctx: &GraphQLContext) -> FieldResult<Vec<DomainData>> {
+    async fn pending_websites(ctx: &GraphQLContext) -> FieldResult<Vec<WebsiteData>> {
         query_pending_websites(&ctx.db_pool).await
     }
 
@@ -220,11 +213,11 @@ impl Query {
     }
 
     /// Get the latest assessment for a website (admin only)
-    async fn domain_assessment(
+    async fn website_assessment(
         ctx: &GraphQLContext,
-        domain_id: String,
+        website_id: String,
     ) -> FieldResult<Option<WebsiteAssessmentData>> {
-        website_assessment(ctx, domain_id).await
+        website_assessment(ctx, website_id).await
     }
 
     /// Search websites semantically using natural language queries
@@ -241,6 +234,28 @@ impl Query {
     ) -> FieldResult<Vec<WebsiteSearchResultData>> {
         search_websites_semantic(ctx, query, limit, threshold).await
     }
+
+    // =========================================================================
+    // Chatrooms
+    // =========================================================================
+
+    /// Get a chat container by ID
+    async fn container(ctx: &GraphQLContext, id: String) -> FieldResult<Option<ContainerData>> {
+        chatroom_edges::get_container(ctx, id).await
+    }
+
+    /// Get messages for a chat container
+    async fn messages(ctx: &GraphQLContext, container_id: String) -> FieldResult<Vec<MessageData>> {
+        chatroom_edges::get_messages(ctx, container_id).await
+    }
+
+    /// Get recent AI chat containers
+    async fn recent_chats(
+        ctx: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<ContainerData>> {
+        chatroom_edges::get_recent_chats(ctx, limit).await
+    }
 }
 
 pub struct Mutation;
@@ -253,6 +268,12 @@ impl Mutation {
         source_id: Uuid,
     ) -> FieldResult<ScrapeJobResult> {
         scrape_organization(ctx, source_id).await
+    }
+
+    /// Crawl a website (multi-page) to discover and extract listings (admin only)
+    /// This performs a full crawl using Firecrawl, discovering multiple pages and extracting listings from each.
+    async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
+        crawl_website(ctx, website_id).await
     }
 
     /// Submit a listing from a member (public, goes to pending_approval)
@@ -419,27 +440,30 @@ impl Mutation {
         Ok(OrganizationData::from(org))
     }
 
-    /// Approve a domain for crawling (admin only)
-    async fn approve_domain(ctx: &GraphQLContext, domain_id: String) -> FieldResult<DomainData> {
-        approve_domain(ctx, domain_id).await
+    /// Approve a website for crawling (admin only)
+    async fn approve_website(
+        ctx: &GraphQLContext,
+        website_id: String,
+    ) -> FieldResult<WebsiteData> {
+        approve_website(ctx, website_id).await
     }
 
-    /// Reject a domain submission (admin only)
-    async fn reject_domain(
+    /// Reject a website submission (admin only)
+    async fn reject_website(
         ctx: &GraphQLContext,
-        domain_id: String,
+        website_id: String,
         reason: String,
-    ) -> FieldResult<DomainData> {
-        reject_domain(ctx, domain_id, reason).await
+    ) -> FieldResult<WebsiteData> {
+        reject_website(ctx, website_id, reason).await
     }
 
-    /// Suspend a domain (admin only)
-    async fn suspend_domain(
+    /// Suspend a website (admin only)
+    async fn suspend_website(
         ctx: &GraphQLContext,
-        domain_id: String,
+        website_id: String,
         reason: String,
-    ) -> FieldResult<DomainData> {
-        suspend_domain(ctx, domain_id, reason).await
+    ) -> FieldResult<WebsiteData> {
+        suspend_website(ctx, website_id, reason).await
     }
 
     /// Refresh a page snapshot by re-scraping (admin only)
@@ -485,11 +509,11 @@ impl Mutation {
 
     /// Generate a comprehensive assessment report for a website (admin only)
     /// Creates a "background check" style markdown report to help with approval decisions
-    async fn generate_domain_assessment(
+    async fn generate_website_assessment(
         ctx: &GraphQLContext,
-        domain_id: String,
+        website_id: String,
     ) -> FieldResult<String> {
-        generate_website_assessment(ctx, domain_id).await
+        generate_website_assessment(ctx, website_id).await
     }
 
     /// Report a listing (public or authenticated)
@@ -520,6 +544,33 @@ impl Mutation {
         resolution_notes: Option<String>,
     ) -> FieldResult<bool> {
         dismiss_report(ctx, report_id, resolution_notes).await
+    }
+
+    // =========================================================================
+    // Chatrooms
+    // =========================================================================
+
+    /// Create a new AI chat container
+    async fn create_chat(
+        ctx: &GraphQLContext,
+        language: Option<String>,
+    ) -> FieldResult<ContainerData> {
+        chatroom_edges::create_chat(ctx, language).await
+    }
+
+    /// Send a message to a chat container
+    /// Triggers agent reply flow for AI chat containers
+    async fn send_message(
+        ctx: &GraphQLContext,
+        container_id: String,
+        content: String,
+    ) -> FieldResult<MessageData> {
+        chatroom_edges::send_message(ctx, container_id, content).await
+    }
+
+    /// Signal that the user is typing (for real-time indicators)
+    async fn signal_typing(ctx: &GraphQLContext, container_id: String) -> FieldResult<bool> {
+        chatroom_edges::signal_typing(ctx, container_id).await
     }
 }
 

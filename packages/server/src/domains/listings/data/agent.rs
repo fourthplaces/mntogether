@@ -19,12 +19,12 @@ pub struct AgentData {
     pub min_relevance_score: f64,
     pub extraction_instructions: Option<String>,
     pub system_prompt: Option<String>,
-    pub auto_approve_domains: bool,
+    pub auto_approve_websites: bool,
     pub auto_scrape: bool,
     pub auto_create_listings: bool,
     pub total_searches_run: i32,
-    pub total_domains_discovered: i32,
-    pub total_domains_approved: i32,
+    pub total_websites_discovered: i32,
+    pub total_websites_approved: i32,
     pub created_at: DateTime<Utc>,
 }
 
@@ -86,8 +86,8 @@ impl AgentData {
         self.system_prompt.as_deref()
     }
 
-    fn auto_approve_domains(&self) -> bool {
-        self.auto_approve_domains
+    fn auto_approve_websites(&self) -> bool {
+        self.auto_approve_websites
     }
 
     fn auto_scrape(&self) -> bool {
@@ -102,12 +102,12 @@ impl AgentData {
         self.total_searches_run
     }
 
-    fn total_domains_discovered(&self) -> i32 {
-        self.total_domains_discovered
+    fn total_websites_discovered(&self) -> i32 {
+        self.total_websites_discovered
     }
 
-    fn total_domains_approved(&self) -> i32 {
-        self.total_domains_approved
+    fn total_websites_approved(&self) -> i32 {
+        self.total_websites_approved
     }
 
     fn created_at(&self) -> DateTime<Utc> {
@@ -132,12 +132,12 @@ impl From<AgentModel> for AgentData {
             min_relevance_score: agent.min_relevance_score,
             extraction_instructions: agent.extraction_instructions,
             system_prompt: agent.system_prompt,
-            auto_approve_domains: agent.auto_approve_domains,
+            auto_approve_websites: agent.auto_approve_websites,
             auto_scrape: agent.auto_scrape,
             auto_create_listings: agent.auto_create_listings,
             total_searches_run: agent.total_searches_run,
-            total_domains_discovered: agent.total_domains_discovered,
-            total_domains_approved: agent.total_domains_approved,
+            total_websites_discovered: agent.total_websites_discovered,
+            total_websites_approved: agent.total_websites_approved,
             created_at: agent.created_at,
         }
     }
