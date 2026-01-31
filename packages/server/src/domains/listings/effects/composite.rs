@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use super::{AIEffect, ListingEffect, ScraperEffect, SearchEffect, SyncEffect};
+use super::{AIEffect, CrawlerEffect, ListingEffect, ScraperEffect, SearchEffect, SyncEffect};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -13,6 +13,7 @@ use crate::domains::listings::events::ListingEvent;
 /// The dispatcher requires one effect per command type, so this effect routes based on the command variant.
 pub struct ListingCompositeEffect {
     scraper: ScraperEffect,
+    crawler: CrawlerEffect,
     ai: AIEffect,
     sync: SyncEffect,
     listing: ListingEffect,
@@ -23,6 +24,7 @@ impl ListingCompositeEffect {
     pub fn new() -> Self {
         Self {
             scraper: ScraperEffect,
+            crawler: CrawlerEffect,
             ai: AIEffect,
             sync: SyncEffect,
             listing: ListingEffect,
@@ -63,6 +65,13 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             // Route to SearchEffect
             ListingCommand::ExecuteSearch { .. } => self.search.execute(cmd, ctx).await,
 
+            // Route to CrawlerEffect (multi-page crawling commands)
+            ListingCommand::CrawlWebsite { .. }
+            | ListingCommand::ExtractListingsFromPages { .. }
+            | ListingCommand::RetryWebsiteCrawl { .. }
+            | ListingCommand::MarkWebsiteNoListings { .. }
+            | ListingCommand::SyncCrawledListings { .. } => self.crawler.execute(cmd, ctx).await,
+
             // Route to ListingEffect (all other commands)
             ListingCommand::CreateWebsiteFromLink { .. }
             | ListingCommand::CreateListing { .. }
@@ -80,11 +89,7 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             | ListingCommand::DeleteListing { .. }
             | ListingCommand::CreateReport { .. }
             | ListingCommand::ResolveReport { .. }
-            | ListingCommand::DismissReport { .. }
-            | ListingCommand::CrawlSite { .. }
-            | ListingCommand::DetectInformation { .. }
-            | ListingCommand::ExtractData { .. }
-            | ListingCommand::ResolveRelationships { .. } => self.listing.execute(cmd, ctx).await,
+            | ListingCommand::DismissReport { .. } => self.listing.execute(cmd, ctx).await,
         }
     }
 }

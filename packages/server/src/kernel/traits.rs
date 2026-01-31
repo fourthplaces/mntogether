@@ -12,7 +12,7 @@ use async_trait::async_trait;
 // Web Scraping Trait (Infrastructure)
 // =============================================================================
 
-/// Result of scraping a website
+/// Result of scraping a single page
 #[derive(Debug, Clone)]
 pub struct ScrapeResult {
     pub url: String,
@@ -20,10 +20,39 @@ pub struct ScrapeResult {
     pub title: Option<String>,
 }
 
+/// Result of crawling multiple pages from a website
+#[derive(Debug, Clone)]
+pub struct CrawlResult {
+    pub pages: Vec<CrawledPage>,
+}
+
+/// A single page that was crawled
+#[derive(Debug, Clone)]
+pub struct CrawledPage {
+    pub url: String,
+    pub markdown: String,
+    pub title: Option<String>,
+}
+
 #[async_trait]
 pub trait BaseWebScraper: Send + Sync {
-    /// Scrape a website and return clean text content
+    /// Scrape a single page and return clean text content
     async fn scrape(&self, url: &str) -> Result<ScrapeResult>;
+
+    /// Crawl multiple pages from a website starting from the given URL
+    ///
+    /// # Arguments
+    /// * `url` - The starting URL to crawl from
+    /// * `max_depth` - Maximum depth to crawl (0 = only the starting page)
+    /// * `max_pages` - Maximum number of pages to crawl
+    /// * `delay_seconds` - Delay between requests (rate limiting)
+    async fn crawl(
+        &self,
+        url: &str,
+        max_depth: i32,
+        max_pages: i32,
+        delay_seconds: i32,
+    ) -> Result<CrawlResult>;
 }
 
 // =============================================================================

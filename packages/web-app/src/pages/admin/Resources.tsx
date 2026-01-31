@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_ALL_DOMAINS } from '../../graphql/queries';
+import { GET_ALL_WEBSITES } from '../../graphql/queries';
 import { SCRAPE_ORGANIZATION, SUBMIT_RESOURCE_LINK } from '../../graphql/mutations';
 import { useNavigate } from 'react-router-dom';
 
 interface Website {
   id: string;
-  websiteUrl: string;
+  url: string;
   status: string;
   lastScrapedAt: string | null;
   snapshotsCount?: number;
@@ -22,10 +22,10 @@ export function Resources() {
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ domains: Website[] }>(
-    GET_ALL_DOMAINS,
+  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(
+    GET_ALL_WEBSITES,
     {
-      variables: { status: null }, // Get all domains
+      variables: { status: null }, // Get all websites
     }
   );
 
@@ -94,7 +94,7 @@ export function Resources() {
     <div className="min-h-screen bg-amber-50 p-6">
       <div className="max-w-6xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-stone-900">Domains</h1>
+          <h1 className="text-3xl font-bold text-stone-900">Websites</h1>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-amber-700 text-white px-4 py-2 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
@@ -162,16 +162,16 @@ export function Resources() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
-              {data?.domains.map((domain) => (
+              {data?.websites.map((website) => (
                 <tr key={website.id} className="hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <a
-                      href={website.websiteUrl}
+                      href={website.url}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-700 hover:text-amber-900 font-medium break-all"
                     >
-                      {website.websiteUrl}
+                      {website.url}
                     </a>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -215,7 +215,7 @@ export function Resources() {
             </tbody>
           </table>
 
-          {data?.domains?.length === 0 && (
+          {data?.websites?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
               No websites found. Add a website to get started.
             </div>

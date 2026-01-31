@@ -4,9 +4,9 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const GET_ALL_WEBSITES = gql`
   query GetAllWebsites($agentId: String) {
-    domains(status: null, agentId: $agentId) {
+    websites(status: null, agentId: $agentId) {
       id
-      websiteUrl
+      url
       status
       submitterType
       lastScrapedAt
@@ -14,13 +14,16 @@ const GET_ALL_WEBSITES = gql`
       listingsCount
       agentId
       createdAt
+      crawlStatus
+      crawlAttemptCount
+      pagesCrawledCount
     }
   }
 `;
 
 const APPROVE_WEBSITE = gql`
-  mutation ApproveDomain($domainId: String!) {
-    approveWebsite(domainId: $domainId) {
+  mutation ApproveWebsite($websiteId: String!) {
+    approveWebsite(websiteId: $websiteId) {
       id
       status
     }
@@ -28,8 +31,8 @@ const APPROVE_WEBSITE = gql`
 `;
 
 const REJECT_WEBSITE = gql`
-  mutation RejectDomain($domainId: String!, $reason: String!) {
-    rejectWebsite(domainId: $domainId, reason: $reason) {
+  mutation RejectWebsite($websiteId: String!, $reason: String!) {
+    rejectWebsite(websiteId: $websiteId, reason: $reason) {
       id
       status
     }
@@ -41,6 +44,16 @@ const SCRAPE_ORGANIZATION = gql`
     scrapeOrganization(sourceId: $sourceId) {
       jobId
       status
+    }
+  }
+`;
+
+const CRAWL_WEBSITE = gql`
+  mutation CrawlWebsite($websiteId: Uuid!) {
+    crawlWebsite(websiteId: $websiteId) {
+      jobId
+      status
+      message
     }
   }
 `;
@@ -80,7 +93,7 @@ interface WebsiteSearchResult {
 
 interface Website {
   id: string;
-  websiteUrl: string;
+  url: string;
   status: string;
   submitterType: string;
   lastScrapedAt: string | null;
@@ -88,7 +101,9 @@ interface Website {
   listingsCount: number;
   createdAt: string;
   agentId: string | null;
-  tavilyRelevanceScore: number | null;
+  crawlStatus: string | null;
+  crawlAttemptCount: number | null;
+  pagesCrawledCount: number | null;
 }
 
 export function Websites() {
@@ -100,11 +115,12 @@ export function Websites() {
   const [newResourceUrl, setNewResourceUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
-  const [selectedWebsites, setSelectedDomains] = useState<Set<string>>(new Set());
+  const [selectedWebsites, setSelectedWebsites] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [crawlingId, setCrawlingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ domains: Website[] }>(GET_ALL_WEBSITES, {
+  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(GET_ALL_WEBSITES, {
     variables: { agentId: agentIdFilter },
   });
 
@@ -137,6 +153,17 @@ export function Websites() {
     },
   });
 
+  const [crawlWebsite] = useMutation(CRAWL_WEBSITE, {
+    onCompleted: () => {
+      setCrawlingId(null);
+      refetch();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setCrawlingId(null);
+    },
+  });
+
   const [submitResourceLink] = useMutation(SUBMIT_RESOURCE_LINK, {
     onCompleted: () => {
       setShowAddForm(false);
@@ -149,7 +176,7 @@ export function Websites() {
 
   const handleApprove = async (websiteId: string) => {
     setError(null);
-    await approveWebsite({ variables: { domainId: websiteId } });
+    await approveWebsite({ variables: { websiteId } });
   };
 
   const handleReject = async (websiteId: string) => {
@@ -157,13 +184,19 @@ export function Websites() {
     if (!reason) return;
 
     setError(null);
-    await rejectWebsite({ variables: { domainId: websiteId, reason } });
+    await rejectWebsite({ variables: { websiteId, reason } });
   };
 
   const handleScrape = async (sourceId: string) => {
     setScrapingId(sourceId);
     setError(null);
     await scrapeOrganization({ variables: { sourceId } });
+  };
+
+  const handleCrawl = async (websiteId: string) => {
+    setCrawlingId(websiteId);
+    setError(null);
+    await crawlWebsite({ variables: { websiteId } });
   };
 
   const handleSubmitResource = async (e: React.FormEvent) => {
@@ -212,7 +245,7 @@ export function Websites() {
     } else {
       newSelection.add(websiteId);
     }
-    setSelectedDomains(newSelection);
+    setSelectedWebsites(newSelection);
   };
 
   const formatDate = (dateString: string | null) => {
@@ -220,15 +253,15 @@ export function Websites() {
     return new Date(dateString).toLocaleString();
   };
 
-  // Filter domains
-  const filteredWebsites = data?.domains.filter((domain) => {
+  // Filter websites
+  const filteredWebsites = data?.websites.filter((website) => {
     if (statusFilter === 'all') return true;
-    return domain.status === statusFilter;
+    return website.status === statusFilter;
   });
 
-  const pendingCount = data?.domains.filter((d) => d.status === 'pending_review').length || 0;
-  const approvedCount = data?.domains.filter((d) => d.status === 'approved').length || 0;
-  const rejectedCount = data?.domains.filter((d) => d.status === 'rejected').length || 0;
+  const pendingCount = data?.websites.filter((d) => d.status === 'pending_review').length || 0;
+  const approvedCount = data?.websites.filter((d) => d.status === 'approved').length || 0;
+  const rejectedCount = data?.websites.filter((d) => d.status === 'rejected').length || 0;
 
   if (loading) {
     return (
@@ -395,7 +428,7 @@ export function Websites() {
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              All ({data?.domains.length || 0})
+              All ({data?.websites.length || 0})
             </button>
             <button
               onClick={() => setStatusFilter('pending_review')}
@@ -435,7 +468,7 @@ export function Websites() {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-blue-900">
-                {selectedWebsites.size} domain(s) selected
+                {selectedWebsites.size} website(s) selected
               </span>
               <div className="flex gap-2">
                 <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm">
@@ -445,7 +478,7 @@ export function Websites() {
                   Reject Selected
                 </button>
                 <button
-                  onClick={() => setSelectedDomains(new Set())}
+                  onClick={() => setSelectedWebsites(new Set())}
                   className="bg-stone-600 text-white px-4 py-2 rounded hover:bg-stone-700 text-sm"
                 >
                   Clear
@@ -455,7 +488,7 @@ export function Websites() {
           </div>
         )}
 
-        {/* Domains Table */}
+        {/* Websites Table */}
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <table className="min-w-full divide-y divide-stone-200">
             <thead className="bg-stone-50">
@@ -465,18 +498,18 @@ export function Websites() {
                     type="checkbox"
                     onChange={(e) => {
                       if (e.target.checked) {
-                        setSelectedDomains(
+                        setSelectedWebsites(
                           new Set(filteredWebsites?.map((d) => d.id) || [])
                         );
                       } else {
-                        setSelectedDomains(new Set());
+                        setSelectedWebsites(new Set());
                       }
                     }}
                     className="rounded"
                   />
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Domain
+                  Website
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Status
@@ -490,32 +523,35 @@ export function Websites() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Listings
                 </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
+                  Crawl Status
+                </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
-              {filteredWebsites?.map((domain) => (
-                <tr key={domain.id} className="hover:bg-stone-50">
+              {filteredWebsites?.map((website) => (
+                <tr key={website.id} className="hover:bg-stone-50">
                   <td className="px-4 py-4">
                     <input
                       type="checkbox"
-                      checked={selectedWebsites.has(domain.id)}
-                      onChange={() => toggleWebsiteSelection(domain.id)}
+                      checked={selectedWebsites.has(website.id)}
+                      onChange={() => toggleWebsiteSelection(website.id)}
                       className="rounded"
                     />
                   </td>
                   <td className="px-6 py-4">
                     <a
-                      href={`https://${domain.websiteUrl}`}
+                      href={`https://${website.url}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 font-medium break-all"
                     >
-                      {domain.websiteUrl}
+                      {website.url}
                     </a>
-                    {domain.agentId && (
+                    {website.agentId && (
                       <div className="mt-1">
                         <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
                           🤖 Discovered by Agent
@@ -526,44 +562,72 @@ export function Websites() {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        domain.status === 'approved'
+                        website.status === 'approved'
                           ? 'bg-green-100 text-green-800'
-                          : domain.status === 'pending_review'
+                          : website.status === 'pending_review'
                           ? 'bg-amber-100 text-amber-800'
                           : 'bg-red-100 text-red-800'
                       }`}
                     >
-                      {domain.status.replace('_', ' ')}
+                      {website.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-stone-600">{domain.submitterType}</span>
+                    <span className="text-sm text-stone-600">{website.submitterType}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                    {formatDate(domain.lastScrapedAt)}
+                    {formatDate(website.lastScrapedAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="text-sm font-semibold text-stone-900">
-                      {domain.listingsCount || 0}
+                      {website.listingsCount || 0}
                     </span>
-                    {domain.snapshotsCount > 0 && (
+                    {website.snapshotsCount > 0 && (
                       <span className="text-xs text-stone-500 ml-2">
-                        ({domain.snapshotsCount} snapshots)
+                        ({website.snapshotsCount} snapshots)
                       </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {website.crawlStatus ? (
+                      <div className="flex flex-col">
+                        <span
+                          className={`px-2 py-0.5 text-xs rounded-full inline-block w-fit ${
+                            website.crawlStatus === 'completed'
+                              ? 'bg-green-100 text-green-800'
+                              : website.crawlStatus === 'crawling'
+                              ? 'bg-blue-100 text-blue-800'
+                              : website.crawlStatus === 'no_listings_found'
+                              ? 'bg-amber-100 text-amber-800'
+                              : website.crawlStatus === 'failed'
+                              ? 'bg-red-100 text-red-800'
+                              : 'bg-stone-100 text-stone-800'
+                          }`}
+                        >
+                          {website.crawlStatus.replace('_', ' ')}
+                        </span>
+                        {website.pagesCrawledCount != null && website.pagesCrawledCount > 0 && (
+                          <span className="text-xs text-stone-500 mt-1">
+                            {website.pagesCrawledCount} pages
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-stone-400">-</span>
                     )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                     <div className="flex gap-2 justify-end">
-                      {domain.status === 'pending_review' && (
+                      {website.status === 'pending_review' && (
                         <>
                           <button
-                            onClick={() => handleApprove(domain.id)}
+                            onClick={() => handleApprove(website.id)}
                             className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700"
                           >
                             Approve
                           </button>
                           <button
-                            onClick={() => handleReject(domain.id)}
+                            onClick={() => handleReject(website.id)}
                             className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
                           >
                             Reject
@@ -571,19 +635,29 @@ export function Websites() {
                         </>
                       )}
                       <button
-                        onClick={() => navigate(`/admin/websites/${domain.id}`)}
+                        onClick={() => navigate(`/admin/websites/${website.id}`)}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                       >
                         View
                       </button>
-                      {domain.status === 'approved' && (
-                        <button
-                          onClick={() => handleScrape(domain.id)}
-                          disabled={scrapingId === domain.id}
-                          className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {scrapingId === domain.id ? 'Scraping...' : 'Scrape'}
-                        </button>
+                      {website.status === 'approved' && (
+                        <>
+                          <button
+                            onClick={() => handleScrape(website.id)}
+                            disabled={scrapingId === website.id}
+                            className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {scrapingId === website.id ? 'Scraping...' : 'Scrape'}
+                          </button>
+                          <button
+                            onClick={() => handleCrawl(website.id)}
+                            disabled={crawlingId === website.id}
+                            className="bg-indigo-600 text-white px-3 py-1 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Full multi-page crawl"
+                          >
+                            {crawlingId === website.id ? 'Crawling...' : 'Crawl'}
+                          </button>
+                        </>
                       )}
                     </div>
                   </td>
@@ -594,13 +668,13 @@ export function Websites() {
 
           {filteredWebsites?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
-              No domains found with status: {statusFilter}
+              No websites found with status: {statusFilter}
             </div>
           )}
         </div>
       </div>
 
-      {/* Add Domain Modal */}
+      {/* Add Website Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-6">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">

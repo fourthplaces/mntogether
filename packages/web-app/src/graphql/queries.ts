@@ -150,16 +150,15 @@ export const GET_LISTING_DETAIL = gql`
   }
 `;
 
-export const GET_ORGANIZATION_SOURCES = gql`
-  query GetOrganizationSources {
-    organizationSources {
+export const GET_WEBSITES = gql`
+  query GetWebsites {
+    websites {
       id
-      organizationName
-      sourceUrl
-      scrapeUrls
+      url
       lastScrapedAt
       scrapeFrequencyHours
       active
+      status
       createdAt
     }
   }
@@ -275,26 +274,25 @@ export const GET_SCRAPED_LISTINGS_STATS = gql`
   }
 `;
 
-// Domain management queries
-export const GET_PENDING_DOMAINS = gql`
-  query GetPendingDomains {
-    pendingDomains {
+// Website management queries
+export const GET_PENDING_WEBSITES = gql`
+  query GetPendingWebsites {
+    pendingWebsites {
       id
-      websiteUrl
+      url
       status
       submittedBy
       submitterType
-      submissionContext
       createdAt
     }
   }
 `;
 
-export const GET_ALL_DOMAINS = gql`
-  query GetAllDomains($status: String, $agentId: String) {
-    domains(status: $status, agentId: $agentId) {
+export const GET_ALL_WEBSITES = gql`
+  query GetAllWebsites($status: String, $agentId: String) {
+    websites(status: $status, agentId: $agentId) {
       id
-      websiteUrl
+      url
       status
       lastScrapedAt
       submittedBy
@@ -307,136 +305,67 @@ export const GET_ALL_DOMAINS = gql`
   }
 `;
 
-export const GET_DOMAIN_DETAIL = gql`
-  query GetDomainDetail($id: ID!) {
-    domain(id: $id) {
+export const GET_WEBSITE_DETAIL = gql`
+  query GetWebsiteDetail($id: Uuid!) {
+    website(id: $id) {
       id
-      websiteUrl
+      url
       status
       submittedBy
       submitterType
-      submissionContext
-      reviewedBy
-      reviewedAt
-      rejectionReason
       createdAt
-      updatedAt
-      snapshots {
-        id
-        pageUrl
-        scrapeStatus
-        lastScrapedAt
-        scrapeError
-        submittedAt
-      }
+      snapshotsCount
+      listingsCount
+    }
+  }
+`;
+
+// Website mutations
+export const APPROVE_WEBSITE = gql`
+  mutation ApproveWebsite($websiteId: String!) {
+    approveWebsite(websiteId: $websiteId) {
+      id
+      status
+    }
+  }
+`;
+
+export const REJECT_WEBSITE = gql`
+  mutation RejectWebsite($websiteId: String!, $reason: String!) {
+    rejectWebsite(websiteId: $websiteId, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
+export const SUSPEND_WEBSITE = gql`
+  mutation SuspendWebsite($websiteId: String!, $reason: String!) {
+    suspendWebsite(websiteId: $websiteId, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
+// Enhanced website detail with snapshot -> listing traceability
+export const GET_WEBSITE_WITH_SNAPSHOT_DETAILS = gql`
+  query GetWebsiteWithSnapshotDetails($id: Uuid!) {
+    website(id: $id) {
+      id
+      url
+      status
+      submittedBy
+      submitterType
+      createdAt
+      snapshotsCount
+      listingsCount
       listings {
         id
         title
         status
         createdAt
       }
-    }
-  }
-`;
-
-// Domain mutations
-export const APPROVE_DOMAIN = gql`
-  mutation ApproveDomain($websiteId: ID!) {
-    approveDomain(websiteId: $websiteId) {
-      id
-      status
-    }
-  }
-`;
-
-export const REJECT_DOMAIN = gql`
-  mutation RejectDomain($websiteId: ID!, $reason: String!) {
-    rejectDomain(websiteId: $websiteId, reason: $reason) {
-      id
-      status
-      rejectionReason
-    }
-  }
-`;
-
-export const SUSPEND_DOMAIN = gql`
-  mutation SuspendDomain($websiteId: ID!, $reason: String!) {
-    suspendDomain(websiteId: $websiteId, reason: $reason) {
-      id
-      status
-      rejectionReason
-    }
-  }
-`;
-
-// Enhanced domain detail with snapshot -> listing traceability
-export const GET_DOMAIN_WITH_SNAPSHOT_DETAILS = gql`
-  query GetDomainWithSnapshotDetails($id: ID!) {
-    domain(id: $id) {
-      id
-      websiteUrl
-      status
-      submittedBy
-      submitterType
-      submissionContext
-      reviewedBy
-      reviewedAt
-      rejectionReason
-      createdAt
-      updatedAt
-      
-      snapshots {
-        id
-        pageUrl
-        scrapeStatus
-        lastScrapedAt
-        scrapeError
-        submittedAt
-        
-        # Show cached page content if available
-        pageSnapshot {
-          id
-          contentHash
-          crawledAt
-          markdown
-        }
-        
-        # Show listings extracted from this specific page
-        listings {
-          id
-          title
-          status
-          urgency
-          createdAt
-          organizationName
-        }
-      }
-      
-      # Total listings from all pages in this domain
-      totalListings: listings {
-        id
-        title
-        status
-        sourceUrl
-        createdAt
-      }
-    }
-  }
-`;
-
-// Query to see listings by source page
-export const GET_LISTINGS_BY_PAGE = gql`
-  query GetListingsByPage($websiteId: ID!, $pageUrl: String!) {
-    listingsByPage(websiteId: $websiteId, pageUrl: $pageUrl) {
-      id
-      title
-      description
-      status
-      urgency
-      organizationName
-      sourceUrl
-      createdAt
-      extractionConfidence
     }
   }
 `;
@@ -459,12 +388,12 @@ export const GET_ALL_AGENTS = gql`
       minRelevanceScore
       extractionInstructions
       systemPrompt
-      autoApproveDomains
+      autoApproveWebsites
       autoScrape
       autoCreateListings
       totalSearchesRun
-      totalDomainsDiscovered
-      totalDomainsApproved
+      totalWebsitesDiscovered
+      totalWebsitesApproved
       createdAt
     }
   }
@@ -487,12 +416,12 @@ export const GET_AGENT = gql`
       minRelevanceScore
       extractionInstructions
       systemPrompt
-      autoApproveDomains
+      autoApproveWebsites
       autoScrape
       autoCreateListings
       totalSearchesRun
-      totalDomainsDiscovered
-      totalDomainsApproved
+      totalWebsitesDiscovered
+      totalWebsitesApproved
       createdAt
       updatedAt
     }
@@ -501,7 +430,7 @@ export const GET_AGENT = gql`
 
 export const GET_ADMIN_STATS = gql`
   query GetAdminStats {
-    domains(status: null) {
+    websites(status: null) {
       id
       status
       listingsCount
@@ -516,9 +445,9 @@ export const GET_ADMIN_STATS = gql`
   }
 `;
 
-export const GET_DOMAIN_ASSESSMENT = gql`
-  query GetDomainAssessment($domainId: String!) {
-    domainAssessment(domainId: $domainId) {
+export const GET_WEBSITE_ASSESSMENT = gql`
+  query GetWebsiteAssessment($websiteId: String!) {
+    websiteAssessment(websiteId: $websiteId) {
       id
       websiteId
       assessmentMarkdown
@@ -543,6 +472,49 @@ export const SEARCH_WEBSITES = gql`
       recommendation
       assessmentMarkdown
       similarity
+    }
+  }
+`;
+
+// Chat queries
+export const GET_CONTAINER = gql`
+  query GetContainer($id: String!) {
+    container(id: $id) {
+      id
+      containerType
+      language
+      createdAt
+      lastActivityAt
+    }
+  }
+`;
+
+export const GET_MESSAGES = gql`
+  query GetMessages($containerId: String!) {
+    messages(containerId: $containerId) {
+      id
+      containerId
+      role
+      content
+      authorId
+      moderationStatus
+      parentMessageId
+      sequenceNumber
+      createdAt
+      updatedAt
+      editedAt
+    }
+  }
+`;
+
+export const GET_RECENT_CHATS = gql`
+  query GetRecentChats($limit: Int) {
+    recentChats(limit: $limit) {
+      id
+      containerType
+      language
+      createdAt
+      lastActivityAt
     }
   }
 `;

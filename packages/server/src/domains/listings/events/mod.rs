@@ -1,10 +1,27 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
-use std::net::IpAddr;
 
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedListing};
 use crate::common::{JobId, ListingId, MemberId, PostId, WebsiteId};
 use crate::domains::listings::models::listing_report::ListingReportId;
+
+/// Information about a crawled page (used in WebsiteCrawled event)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrawledPageInfo {
+    pub url: String,
+    pub title: Option<String>,
+    pub snapshot_id: Option<uuid::Uuid>,
+}
+
+/// Result of extracting listings from a single page
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageExtractionResult {
+    pub url: String,
+    pub snapshot_id: Option<uuid::Uuid>,
+    pub listings_count: usize,
+    pub has_listings: bool,
+}
 
 /// Listings domain events
 /// Following seesaw-rs pattern: Events are immutable facts
@@ -19,6 +36,14 @@ pub enum ListingEvent {
         job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
         is_admin: bool,         // Whether user is admin (checked in effect)
+    },
+
+    /// Admin requests to crawl a website (multi-page)
+    CrawlWebsiteRequested {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
     },
 
     /// Member submits a listing they encountered
@@ -306,51 +331,45 @@ pub enum ListingEvent {
     },
 
     // =========================================================================
-    // Intelligent Crawler Events
+    // Website Crawl Events (multi-page crawling workflow)
     // =========================================================================
-    /// Request to crawl a site intelligently
-    SiteCrawlRequested { url: String, job_id: JobId },
-
-    /// Site was crawled successfully
-    SiteCrawled {
-        url: String,
+    /// Website was crawled (multiple pages discovered)
+    WebsiteCrawled {
+        website_id: WebsiteId,
         job_id: JobId,
-        snapshot_ids: Vec<uuid::Uuid>,
+        pages: Vec<CrawledPageInfo>,
     },
 
-    /// Site crawl failed
-    SiteCrawlFailed {
-        url: String,
+    /// No listings found after crawling all pages
+    WebsiteCrawlNoListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+        attempt_number: i32,
+        pages_crawled: usize,
+        should_retry: bool,
+    },
+
+    /// Terminal: website marked as having no listings after max retries
+    WebsiteMarkedNoListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+        total_attempts: i32,
+    },
+
+    /// Website crawl failed
+    WebsiteCrawlFailed {
+        website_id: WebsiteId,
         job_id: JobId,
         reason: String,
     },
 
-    /// Information was detected in crawled pages
-    InformationDetected {
+    /// Listings extracted from multiple crawled pages
+    ListingsExtractedFromPages {
+        website_id: WebsiteId,
         job_id: JobId,
-        detection_ids: Vec<uuid::Uuid>,
+        listings: Vec<ExtractedListing>,
+        page_results: Vec<PageExtractionResult>,
     },
-
-    /// Information detection failed
-    InformationDetectionFailed { job_id: JobId, reason: String },
-
-    /// Structured data was extracted from detections
-    DataExtracted {
-        job_id: JobId,
-        extraction_ids: Vec<uuid::Uuid>,
-    },
-
-    /// Data extraction failed
-    DataExtractionFailed { job_id: JobId, reason: String },
-
-    /// Relationships were resolved between extractions
-    RelationshipsResolved {
-        job_id: JobId,
-        relationship_ids: Vec<uuid::Uuid>,
-    },
-
-    /// Relationship resolution failed
-    RelationshipResolutionFailed { job_id: JobId, reason: String },
 
     // =========================================================================
     // Agent Search Events (Tavily)

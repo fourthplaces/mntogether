@@ -2,7 +2,8 @@ use crate::common::{JobId, WebsiteId};
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
-use seesaw_core::dispatch_request;
+use seesaw_core::dispatch_request_timeout;
+use std::time::Duration;
 use tracing::info;
 use uuid::Uuid;
 
@@ -44,13 +45,15 @@ pub async fn generate_website_assessment(
     let job_id = JobId::new();
 
     // Emit event to trigger assessment workflow and await completion
-    let assessment_id = dispatch_request(
+    // Use 3 minute timeout since assessment involves multiple AI calls and web scraping
+    let assessment_id = dispatch_request_timeout(
         DomainApprovalEvent::AssessWebsiteRequested {
             website_id: website_id_typed,
             job_id,
             requested_by: user.member_id,
         },
         &ctx.bus,
+        Duration::from_secs(180),
         |m| {
             m.try_match(|e: &DomainApprovalEvent| match e {
                 // Success - assessment workflow complete

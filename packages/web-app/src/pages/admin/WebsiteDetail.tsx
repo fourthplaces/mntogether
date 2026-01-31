@@ -2,14 +2,14 @@ import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import ReactMarkdown from 'react-markdown';
-import { GET_DOMAIN_ASSESSMENT } from '../../graphql/queries';
-import { GENERATE_DOMAIN_ASSESSMENT } from '../../graphql/mutations';
+import { GET_WEBSITE_ASSESSMENT } from '../../graphql/queries';
+import { GENERATE_WEBSITE_ASSESSMENT, CRAWL_WEBSITE } from '../../graphql/mutations';
 
-const GET_ALL_DOMAINS = gql`
-  query GetAllDomains {
-    domains(status: null) {
+const GET_WEBSITE_WITH_SNAPSHOTS = gql`
+  query GetWebsiteWithSnapshots($id: Uuid!) {
+    website(id: $id) {
       id
-      websiteUrl
+      url
       status
       submittedBy
       submitterType
@@ -17,22 +17,43 @@ const GET_ALL_DOMAINS = gql`
       snapshotsCount
       listingsCount
       createdAt
+      crawlStatus
+      crawlAttemptCount
+      maxCrawlRetries
+      lastCrawlStartedAt
+      lastCrawlCompletedAt
+      pagesCrawledCount
+      maxPagesPerCrawl
+      snapshots {
+        id
+        pageUrl
+        scrapeStatus
+        scrapeError
+        lastScrapedAt
+        submittedAt
+      }
+      listings {
+        id
+        title
+        status
+        createdAt
+      }
     }
   }
 `;
 
-const APPROVE_DOMAIN = gql`
-  mutation ApproveDomain($domainId: String!) {
-    approveDomain(domainId: $domainId) {
+const APPROVE_WEBSITE = gql`
+  mutation ApproveWebsite($websiteId: String!) {
+    approveWebsite(websiteId: $websiteId) {
       id
       status
     }
   }
 `;
 
-const REJECT_DOMAIN = gql`
-  mutation RejectDomain($domainId: String!, $reason: String!) {
-    rejectDomain(domainId: $domainId, reason: $reason) {
+const REJECT_WEBSITE = gql`
+  mutation RejectWebsite($websiteId: String!, $reason: String!) {
+    rejectWebsite(websiteId: $websiteId, reason: $reason) {
       id
       status
     }
@@ -49,9 +70,25 @@ const SCRAPE_WEBSITE = gql`
   }
 `;
 
+interface WebsiteSnapshot {
+  id: string;
+  pageUrl: string;
+  scrapeStatus: string;
+  scrapeError: string | null;
+  lastScrapedAt: string | null;
+  submittedAt: string;
+}
+
+interface Listing {
+  id: string;
+  title: string;
+  status: string;
+  createdAt: string;
+}
+
 interface Website {
   id: string;
-  websiteUrl: string;
+  url: string;
   status: string;
   submittedBy: string | null;
   submitterType: string;
@@ -59,6 +96,16 @@ interface Website {
   snapshotsCount: number;
   listingsCount: number;
   createdAt: string;
+  // Crawl tracking
+  crawlStatus: string | null;
+  crawlAttemptCount: number | null;
+  maxCrawlRetries: number | null;
+  lastCrawlStartedAt: string | null;
+  lastCrawlCompletedAt: string | null;
+  pagesCrawledCount: number | null;
+  maxPagesPerCrawl: number | null;
+  snapshots: WebsiteSnapshot[];
+  listings: Listing[];
 }
 
 interface Assessment {
@@ -75,25 +122,29 @@ interface Assessment {
 }
 
 export function WebsiteDetail() {
-  const { domainId } = useParams<{ domainId: string }>();
+  const { websiteId } = useParams<{ websiteId: string }>();
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isScraping, setIsScraping] = useState(false);
+  const [isCrawling, setIsCrawling] = useState(false);
 
-  const { data: domainsData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
-    domains: Website[];
-  }>(GET_ALL_DOMAINS);
-
-  const website = domainsData?.domains.find((d) => d.id === domainId);
-
-  const { data: assessmentData, loading: assessmentLoading, refetch: refetchAssessment } = useQuery<{
-    domainAssessment: Assessment | null;
-  }>(GET_DOMAIN_ASSESSMENT, {
-    variables: { domainId },
-    skip: !domainId,
+  const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
+    website: Website | null;
+  }>(GET_WEBSITE_WITH_SNAPSHOTS, {
+    variables: { id: websiteId },
+    skip: !websiteId,
   });
 
-  const [generateAssessment] = useMutation(GENERATE_DOMAIN_ASSESSMENT, {
+  const website = websiteData?.website;
+
+  const { data: assessmentData, loading: assessmentLoading, refetch: refetchAssessment } = useQuery<{
+    websiteAssessment: Assessment | null;
+  }>(GET_WEBSITE_ASSESSMENT, {
+    variables: { websiteId },
+    skip: !websiteId,
+  });
+
+  const [generateAssessment] = useMutation(GENERATE_WEBSITE_ASSESSMENT, {
     onCompleted: () => {
       setIsGenerating(false);
       refetchAssessment();
@@ -104,12 +155,12 @@ export function WebsiteDetail() {
     },
   });
 
-  const [approveDomain] = useMutation(APPROVE_DOMAIN, {
+  const [approveWebsite] = useMutation(APPROVE_WEBSITE, {
     onCompleted: () => refetchWebsite(),
     onError: (err) => setError(err.message),
   });
 
-  const [rejectDomain] = useMutation(REJECT_DOMAIN, {
+  const [rejectWebsite] = useMutation(REJECT_WEBSITE, {
     onCompleted: () => refetchWebsite(),
     onError: (err) => setError(err.message),
   });
@@ -125,15 +176,26 @@ export function WebsiteDetail() {
     },
   });
 
+  const [crawlWebsite] = useMutation(CRAWL_WEBSITE, {
+    onCompleted: () => {
+      setIsCrawling(false);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setIsCrawling(false);
+    },
+  });
+
   const handleGenerateAssessment = async () => {
     setError(null);
     setIsGenerating(true);
-    await generateAssessment({ variables: { domainId } });
+    await generateAssessment({ variables: { websiteId } });
   };
 
   const handleApprove = async () => {
     setError(null);
-    await approveDomain({ variables: { domainId } });
+    await approveWebsite({ variables: { websiteId } });
   };
 
   const handleReject = async () => {
@@ -141,13 +203,19 @@ export function WebsiteDetail() {
     if (!reason) return;
 
     setError(null);
-    await rejectDomain({ variables: { domainId, reason } });
+    await rejectWebsite({ variables: { websiteId, reason } });
   };
 
   const handleScrape = async () => {
     setError(null);
     setIsScraping(true);
-    await scrapeWebsite({ variables: { sourceId: domainId } });
+    await scrapeWebsite({ variables: { sourceId: websiteId } });
+  };
+
+  const handleCrawl = async () => {
+    setError(null);
+    setIsCrawling(true);
+    await crawlWebsite({ variables: { websiteId } });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -190,7 +258,7 @@ export function WebsiteDetail() {
     );
   }
 
-  const assessment = assessmentData?.domainAssessment;
+  const assessment = assessmentData?.websiteAssessment;
 
   if (!website) {
     return (
@@ -233,12 +301,12 @@ export function WebsiteDetail() {
             <div>
               <h1 className="text-2xl font-bold text-stone-900 mb-2">
                 <a
-                  href={`https://${website.websiteUrl}`}
+                  href={`https://${website.url}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800"
                 >
-                  {website.websiteUrl}
+                  {website.url}
                 </a>
               </h1>
               <div className="flex items-center gap-3 mb-4">
@@ -280,6 +348,14 @@ export function WebsiteDetail() {
               >
                 {isScraping ? 'Scraping...' : 'Scrape'}
               </button>
+              <button
+                onClick={handleCrawl}
+                disabled={isCrawling || website.status !== 'approved'}
+                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={website.status !== 'approved' ? 'Website must be approved to crawl' : 'Crawl multiple pages'}
+              >
+                {isCrawling ? 'Crawling...' : 'Full Crawl'}
+              </button>
             </div>
           </div>
 
@@ -302,7 +378,142 @@ export function WebsiteDetail() {
               <p className="text-sm font-medium text-stone-900">{website.listingsCount}</p>
             </div>
           </div>
+
+          {/* Crawl Status Section */}
+          {website.crawlStatus && (
+            <div className="mt-4 pt-4 border-t border-stone-200">
+              <h3 className="text-sm font-semibold text-stone-700 mb-2">Crawl Status</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <span className="text-xs text-stone-500 uppercase">Status</span>
+                  <p className="text-sm font-medium">
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs ${
+                        website.crawlStatus === 'completed'
+                          ? 'bg-green-100 text-green-800'
+                          : website.crawlStatus === 'crawling'
+                          ? 'bg-blue-100 text-blue-800'
+                          : website.crawlStatus === 'no_listings_found'
+                          ? 'bg-amber-100 text-amber-800'
+                          : website.crawlStatus === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      {website.crawlStatus.replace('_', ' ')}
+                    </span>
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs text-stone-500 uppercase">Attempts</span>
+                  <p className="text-sm font-medium text-stone-900">
+                    {website.crawlAttemptCount ?? 0} / {website.maxCrawlRetries ?? 5}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
+                  <p className="text-sm font-medium text-stone-900">
+                    {website.pagesCrawledCount ?? 0} / {website.maxPagesPerCrawl ?? 20}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-xs text-stone-500 uppercase">Last Crawl</span>
+                  <p className="text-sm font-medium text-stone-900">
+                    {formatDate(website.lastCrawlCompletedAt)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* Listings Section */}
+        {website.listings && website.listings.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold text-stone-900 mb-4">
+              Listings ({website.listings.length})
+            </h2>
+            <div className="space-y-2">
+              {website.listings.map((listing) => (
+                <div
+                  key={listing.id}
+                  className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                >
+                  <div className="flex-1 min-w-0">
+                    <Link
+                      to={`/admin/listings/${listing.id}`}
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    >
+                      {listing.title}
+                    </Link>
+                    <p className="text-xs text-stone-500 mt-1">
+                      Created: {formatDate(listing.createdAt)}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        listing.status === 'active'
+                          ? 'bg-green-100 text-green-800'
+                          : listing.status === 'pending_approval'
+                          ? 'bg-amber-100 text-amber-800'
+                          : listing.status === 'rejected'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-stone-100 text-stone-800'
+                      }`}
+                    >
+                      {listing.status.replace('_', ' ')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Scraped Pages Section */}
+        {website.snapshots && website.snapshots.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-xl font-semibold text-stone-900 mb-4">
+              Scraped Pages ({website.snapshots.length})
+            </h2>
+            <div className="space-y-2">
+              {website.snapshots.map((snapshot) => (
+                <div
+                  key={snapshot.id}
+                  className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                >
+                  <div className="flex-1 min-w-0">
+                    <a
+                      href={snapshot.pageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:text-blue-800 text-sm font-medium truncate block"
+                    >
+                      {snapshot.pageUrl}
+                    </a>
+                    <p className="text-xs text-stone-500 mt-1">
+                      Last scraped: {formatDate(snapshot.lastScrapedAt)}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex items-center gap-2">
+                    <span
+                      className={`px-2 py-1 text-xs rounded-full ${
+                        snapshot.scrapeStatus === 'scraped'
+                          ? 'bg-green-100 text-green-800'
+                          : snapshot.scrapeStatus === 'failed'
+                          ? 'bg-red-100 text-red-800'
+                          : 'bg-amber-100 text-amber-800'
+                      }`}
+                    >
+                      {snapshot.scrapeStatus}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Assessment Section */}
         <div className="bg-white rounded-lg shadow-md p-6">

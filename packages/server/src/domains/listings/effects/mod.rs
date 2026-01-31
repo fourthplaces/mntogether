@@ -5,6 +5,7 @@
 
 pub mod ai;
 pub mod composite;
+pub mod crawler;
 pub mod deps;
 pub mod listing;
 pub mod listing_extraction; // Domain functions for AI extraction
@@ -18,6 +19,7 @@ pub mod utils;
 
 pub use ai::*;
 pub use composite::*;
+pub use crawler::*;
 pub use deps::*;
 pub use listing::*;
 pub use scraper::*;

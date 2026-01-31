@@ -144,8 +144,8 @@ async fn auto_approve_website_if_enabled(
     // Load agent
     let agent = Agent::find_by_id(agent_id, pool).await?;
 
-    // Check if agent has auto_approve_domains enabled
-    if !agent.auto_approve_domains {
+    // Check if agent has auto_approve_websites enabled
+    if !agent.auto_approve_websites {
         return Ok(false);
     }
 

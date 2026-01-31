@@ -2,8 +2,27 @@ use crate::common::{ListingId, WebsiteId};
 use crate::domains::listings::models::{Listing, ListingStatus};
 use crate::domains::organization::utils::generate_tldr;
 use anyhow::Result;
-use chrono::Utc;
 use sqlx::PgPool;
+
+/// Valid urgency values per database constraint
+const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
+
+/// Normalize urgency value to a valid database value
+/// Returns None if the input is invalid or None
+fn normalize_urgency(urgency: Option<String>) -> Option<String> {
+    urgency.and_then(|u| {
+        let normalized = u.to_lowercase();
+        if VALID_URGENCY_VALUES.contains(&normalized.as_str()) {
+            Some(normalized)
+        } else {
+            tracing::warn!(
+                urgency = %u,
+                "Invalid urgency value from AI, ignoring"
+            );
+            None
+        }
+    })
+}
 
 /// Sync result showing what changed
 #[derive(Debug)]
@@ -62,6 +81,9 @@ pub async fn sync_listings(
             .tldr
             .or_else(|| Some(generate_tldr(&listing.description, 100)));
 
+        // Validate urgency value against database constraint
+        let urgency = normalize_urgency(listing.urgency);
+
         match Listing::create(
             listing.organization_name,
             listing.title,
@@ -70,7 +92,7 @@ pub async fn sync_listings(
             "opportunity".to_string(),
             "general".to_string(),
             Some("accepting".to_string()),
-            listing.urgency,
+            urgency,
             None, // location
             ListingStatus::PendingApproval.to_string(),
             "en".to_string(), // source_language
@@ -101,33 +123,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_content_hash_generation() {
-        let listing = ExtractedListingInput {
-            organization_name: "Test Org".to_string(),
-            title: "Help Needed".to_string(),
-            description: "We need volunteers".to_string(),
-            description_markdown: None,
-            tldr: None,
-            contact: None,
-            urgency: None,
-            confidence: None,
-            source_url: None,
-        };
+    fn test_normalize_urgency_valid_values() {
+        assert_eq!(normalize_urgency(Some("low".to_string())), Some("low".to_string()));
+        assert_eq!(normalize_urgency(Some("medium".to_string())), Some("medium".to_string()));
+        assert_eq!(normalize_urgency(Some("high".to_string())), Some("high".to_string()));
+        assert_eq!(normalize_urgency(Some("urgent".to_string())), Some("urgent".to_string()));
+    }
 
-        let hash1 = generate_listing_content_hash(
-            &listing.title,
-            &listing.description,
-            &listing.organization_name,
-        );
+    #[test]
+    fn test_normalize_urgency_case_insensitive() {
+        assert_eq!(normalize_urgency(Some("LOW".to_string())), Some("low".to_string()));
+        assert_eq!(normalize_urgency(Some("High".to_string())), Some("high".to_string()));
+        assert_eq!(normalize_urgency(Some("URGENT".to_string())), Some("urgent".to_string()));
+    }
 
-        // Same content should produce same hash
-        let hash2 = generate_listing_content_hash(
-            &listing.title,
-            &listing.description,
-            &listing.organization_name,
-        );
-
-        assert_eq!(hash1, hash2);
-        assert_eq!(hash1.len(), 64); // SHA256 is 64 hex chars
+    #[test]
+    fn test_normalize_urgency_invalid_values() {
+        assert_eq!(normalize_urgency(Some("critical".to_string())), None);
+        assert_eq!(normalize_urgency(Some("asap".to_string())), None);
+        assert_eq!(normalize_urgency(Some("normal".to_string())), None);
+        assert_eq!(normalize_urgency(None), None);
     }
 }

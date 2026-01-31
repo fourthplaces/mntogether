@@ -1,5 +1,5 @@
 use crate::common::OrganizationId;
-use crate::domains::organization::data::SourceData;
+use crate::domains::organization::data::WebsiteData;
 use crate::domains::organization::models::Organization;
 use crate::kernel::tag::Tag;
 use crate::server::graphql::context::GraphQLContext;
@@ -106,24 +106,21 @@ impl OrganizationData {
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 
-    /// Get website source for this organization (if linked to a website)
-    async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
+    /// Get the website linked to this organization (if any)
+    async fn website(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<WebsiteData>> {
         use crate::common::WebsiteId;
         use crate::domains::scraping::models::Website;
 
-        // Organizations are now linked to websites, not sources directly
-        // If organization has a website_id, return that website source
         if let Some(website_id_str) = &self.website_id {
             if let Ok(uuid) = uuid::Uuid::parse_str(website_id_str) {
-                let source_id = WebsiteId::from_uuid(uuid);
-                if let Ok(source) = Website::find_by_id(source_id, &context.db_pool).await {
-                    return Ok(vec![SourceData::from(source)]);
+                let website_id = WebsiteId::from_uuid(uuid);
+                if let Ok(website) = Website::find_by_id(website_id, &context.db_pool).await {
+                    return Ok(Some(WebsiteData::from(website)));
                 }
             }
         }
 
-        // No website linked
-        Ok(vec![])
+        Ok(None)
     }
 }
 

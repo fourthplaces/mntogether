@@ -52,7 +52,7 @@ async fn handle_execute_search(
         agent_name = %agent.name,
         query_template = %agent.query_template,
         auto_scrape = agent.auto_scrape,
-        auto_approve = agent.auto_approve_domains,
+        auto_approve = agent.auto_approve_websites,
         "Executing Tavily search for agent"
     );
 

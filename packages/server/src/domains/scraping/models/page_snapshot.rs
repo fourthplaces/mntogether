@@ -145,4 +145,29 @@ impl PageSnapshot {
         .await?;
         Ok(())
     }
+
+    /// Update extraction status with count
+    pub async fn update_extraction_status(
+        pool: &PgPool,
+        id: PageSnapshotId,
+        listings_count: i32,
+        status: &str,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE page_snapshots
+            SET
+                extraction_status = $2,
+                listings_extracted_count = $3,
+                extraction_completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE extraction_completed_at END
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(status)
+        .bind(listings_count)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
 }

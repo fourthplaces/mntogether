@@ -31,14 +31,14 @@ pub struct Agent {
     pub system_prompt: Option<String>,
 
     // Automation flags
-    pub auto_approve_domains: bool,
+    pub auto_approve_websites: bool,
     pub auto_scrape: bool,
     pub auto_create_listings: bool,
 
     // Statistics
     pub total_searches_run: i32,
-    pub total_domains_discovered: i32,
-    pub total_domains_approved: i32,
+    pub total_websites_discovered: i32,
+    pub total_websites_approved: i32,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -120,7 +120,7 @@ impl Agent {
                 system_prompt,
                 location_context,
                 enabled,
-                auto_approve_domains,
+                auto_approve_websites,
                 auto_scrape,
                 auto_create_listings
             )
@@ -219,7 +219,7 @@ impl Agent {
             UPDATE agents
             SET last_searched_at = NOW(),
                 total_searches_run = total_searches_run + 1,
-                total_domains_discovered = total_domains_discovered + $2,
+                total_websites_discovered = total_websites_discovered + $2,
                 updated_at = NOW()
             WHERE id = $1
             "#,
@@ -237,7 +237,7 @@ impl Agent {
         sqlx::query(
             r#"
             UPDATE agents
-            SET total_domains_approved = total_domains_approved + 1,
+            SET total_websites_approved = total_websites_approved + 1,
                 updated_at = NOW()
             WHERE id = $1
             "#,

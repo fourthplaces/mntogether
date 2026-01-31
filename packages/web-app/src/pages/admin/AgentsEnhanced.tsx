@@ -19,12 +19,12 @@ const GET_ALL_AGENTS = gql`
       minRelevanceScore
       extractionInstructions
       systemPrompt
-      autoApproveDomains
+      autoApproveWebsites
       autoScrape
       autoCreateListings
       totalSearchesRun
-      totalDomainsDiscovered
-      totalDomainsApproved
+      totalWebsitesDiscovered
+      totalWebsitesApproved
       createdAt
     }
   }
@@ -89,12 +89,12 @@ interface Agent {
   minRelevanceScore: number;
   extractionInstructions: string | null;
   systemPrompt: string | null;
-  autoApproveDomains: boolean;
+  autoApproveWebsites: boolean;
   autoScrape: boolean;
   autoCreateListings: boolean;
   totalSearchesRun: number;
-  totalDomainsDiscovered: number;
-  totalDomainsApproved: number;
+  totalWebsitesDiscovered: number;
+  totalWebsitesApproved: number;
   createdAt: string;
 }
 
@@ -144,7 +144,7 @@ export function AgentsEnhanced() {
     onCompleted: (data) => {
       setSearchingAgentId(null);
       setSearchSuccess(
-        `Search queued successfully! The agent will search Tavily and discover domains.`
+        `Search queued successfully! The agent will search Tavily and discover websites.`
       );
       setTimeout(() => setSearchSuccess(null), 5000);
       refetch();
@@ -537,14 +537,14 @@ export function AgentsEnhanced() {
                   className="cursor-pointer hover:bg-purple-50 rounded p-1 -m-1 transition-colors"
                   title="Click to view websites"
                 >
-                  <p className="text-xs text-stone-600 mb-1">Domains Found</p>
+                  <p className="text-xs text-stone-600 mb-1">Websites Found</p>
                   <p className="text-lg font-bold text-purple-600 hover:underline">
-                    {agent.totalDomainsDiscovered}
+                    {agent.totalWebsitesDiscovered}
                   </p>
                 </div>
                 <div>
                   <p className="text-xs text-stone-600 mb-1">Auto-Approved</p>
-                  <p className="text-lg font-bold text-green-600">{agent.totalDomainsApproved}</p>
+                  <p className="text-lg font-bold text-green-600">{agent.totalWebsitesApproved}</p>
                 </div>
               </div>
 
@@ -575,7 +575,7 @@ export function AgentsEnhanced() {
                     🤖 Auto-Scrape
                   </span>
                 )}
-                {agent.autoApproveDomains && (
+                {agent.autoApproveWebsites && (
                   <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
                     ✅ Auto-Approve
                   </span>

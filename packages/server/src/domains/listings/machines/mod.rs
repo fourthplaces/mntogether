@@ -409,69 +409,19 @@ impl seesaw_core::Machine for ListingMachine {
             ListingEvent::AuthorizationDenied { .. } => None,
 
             // =========================================================================
-            // Intelligent Crawler workflow: Request → Crawl → Detect → Extract → Relate
+            // Website Crawl workflow: Request → Crawl → Extract → Sync
             // =========================================================================
-            ListingEvent::SiteCrawlRequested { url, job_id } => {
-                Some(ListingCommand::CrawlSite {
-                    url: url.clone(),
-                    job_id: *job_id,
-                    page_limit: Some(15), // Default limit
-                })
-            }
-
-            ListingEvent::SiteCrawled {
-                url: _,
+            ListingEvent::CrawlWebsiteRequested {
+                website_id,
                 job_id,
-                snapshot_ids,
-            } => {
-                // Site was crawled, now detect information in the pages
-                Some(ListingCommand::DetectInformation {
-                    snapshot_ids: snapshot_ids.clone(),
-                    job_id: *job_id,
-                    detection_kind: "volunteer_opportunity".to_string(), // TODO: Make configurable
-                })
-            }
-
-            ListingEvent::InformationDetected {
-                job_id: _,
-                detection_ids,
-            } => {
-                // Information detected, now extract structured data
-                // For now, skip extraction if no detections found
-                if detection_ids.is_empty() {
-                    None
-                } else {
-                    // TODO: Get schema_id from configuration or detection kind
-                    // For now, we'll skip extraction as it needs a real schema
-                    None
-                }
-            }
-
-            ListingEvent::DataExtracted {
-                job_id,
-                extraction_ids,
-            } => {
-                // Data extracted, now resolve relationships
-                if extraction_ids.is_empty() {
-                    None
-                } else {
-                    Some(ListingCommand::ResolveRelationships {
-                        extraction_ids: extraction_ids.clone(),
-                        job_id: *job_id,
-                    })
-                }
-            }
-
-            ListingEvent::RelationshipsResolved { .. } => {
-                // Workflow complete
-                None
-            }
-
-            // Intelligent crawler failure events - terminal events
-            ListingEvent::SiteCrawlFailed { .. } => None,
-            ListingEvent::InformationDetectionFailed { .. } => None,
-            ListingEvent::DataExtractionFailed { .. } => None,
-            ListingEvent::RelationshipResolutionFailed { .. } => None,
+                requested_by,
+                is_admin,
+            } => Some(ListingCommand::CrawlWebsite {
+                website_id: *website_id,
+                job_id: *job_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
 
             // =========================================================================
             // Agent Search workflow: Request → Execute → Discover domains
@@ -487,6 +437,71 @@ impl seesaw_core::Machine for ListingMachine {
             ListingEvent::AgentSearchCompleted { .. } => None,
             ListingEvent::AgentSearchFailed { .. } => None,
             ListingEvent::DomainDiscoveredByAgent { .. } => None,
+
+            // =========================================================================
+            // Website Crawl workflow: Crawl → Extract → Sync (or retry)
+            // =========================================================================
+            ListingEvent::WebsiteCrawled {
+                website_id,
+                job_id,
+                pages,
+            } => {
+                // Website was crawled, now extract listings from all pages
+                Some(ListingCommand::ExtractListingsFromPages {
+                    website_id: *website_id,
+                    job_id: *job_id,
+                    pages: pages.clone(),
+                })
+            }
+
+            ListingEvent::ListingsExtractedFromPages {
+                website_id,
+                job_id,
+                listings,
+                page_results,
+            } => {
+                // Listings extracted from crawled pages, now sync to database
+                Some(ListingCommand::SyncCrawledListings {
+                    website_id: *website_id,
+                    job_id: *job_id,
+                    listings: listings.clone(),
+                    page_results: page_results.clone(),
+                })
+            }
+
+            ListingEvent::WebsiteCrawlNoListings {
+                website_id,
+                job_id,
+                should_retry,
+                ..
+            } => {
+                if *should_retry {
+                    // Retry the crawl
+                    Some(ListingCommand::RetryWebsiteCrawl {
+                        website_id: *website_id,
+                        job_id: *job_id,
+                    })
+                } else {
+                    // Max retries reached, mark as no listings
+                    Some(ListingCommand::MarkWebsiteNoListings {
+                        website_id: *website_id,
+                        job_id: *job_id,
+                    })
+                }
+            }
+
+            // Terminal crawl events - no further action needed
+            ListingEvent::WebsiteMarkedNoListings { website_id, .. } => {
+                // Clean up pending state
+                self.pending_scrapes.remove(website_id);
+                None
+            }
+
+            ListingEvent::WebsiteCrawlFailed { website_id, .. } => {
+                // Clean up pending state on failure
+                self.pending_scrapes.remove(website_id);
+                None
+            }
         }
     }
 }
