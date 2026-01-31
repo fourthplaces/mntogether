@@ -1,15 +1,15 @@
 //! Integration tests for resource link submission via GraphQL.
 //!
 //! Tests the submit_resource_link mutation, which handles:
-//! 1. Submitting new domains (should return pending_review status)
-//! 2. Submitting pages from approved domains (should start scraping)
+//! 1. Submitting new websites (should return pending_review status)
+//! 2. Submitting pages from approved websites (should start scraping)
 
 mod common;
 
 use crate::common::TestHarness;
 use indexmap::IndexMap;
 use juniper::{InputValue, Variables};
-use server_core::domains::scraping::models::Domain;
+use server_core::domains::scraping::models::Website;
 use test_context::test_context;
 
 // Helper function to create mutation variables
@@ -28,10 +28,10 @@ fn create_resource_link_input(url: &str, context: &str, submitter_contact: &str)
 // Resource Link Submission Tests
 // =============================================================================
 
-/// Submitting a new domain should return pending_review status
+/// Submitting a new website should return pending_review status
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn submit_new_domain_returns_pending_review(ctx: &TestHarness) {
+async fn submit_new_website_returns_pending_review(ctx: &TestHarness) {
     let client = ctx.graphql();
 
     let mutation = r#"
@@ -45,7 +45,7 @@ async fn submit_new_domain_returns_pending_review(ctx: &TestHarness) {
     "#;
 
     let vars = create_resource_link_input(
-        "https://newdomain.org/resources",
+        "https://newwebsite.org/resources",
         "",
         "test@example.com"
     );
@@ -62,27 +62,27 @@ async fn submit_new_domain_returns_pending_review(ctx: &TestHarness) {
         .unwrap()
         .contains("pending admin approval"));
 
-    // Verify domain was created in database with pending_review status
-    let domain = sqlx::query!(
-        r#"SELECT id, domain_url, status FROM domains WHERE domain_url = $1"#,
-        "https://newdomain.org"
+    // Verify website was created in database with pending_review status
+    let website = sqlx::query!(
+        r#"SELECT id, url, status FROM websites WHERE url = $1"#,
+        "https://newwebsite.org"
     )
     .fetch_one(&ctx.db_pool)
     .await
-    .expect("Domain should be created");
+    .expect("Website should be created");
 
-    assert_eq!(domain.status, "pending_review");
+    assert_eq!(website.status, "pending_review");
 }
 
-/// Submitting a page from an approved domain should start scraping
+/// Submitting a page from an approved website should start scraping
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn submit_approved_domain_returns_pending_status(ctx: &TestHarness) {
+async fn submit_approved_website_returns_pending_status(ctx: &TestHarness) {
     let client = ctx.graphql();
 
-    // Setup: Create an approved domain
-    let domain = Domain::create(
-        "https://approveddomain.org".to_string(),
+    // Setup: Create an approved website
+    let website = Website::create(
+        "https://approvedwebsite.org".to_string(),
         None,
         "test".to_string(),
         Some("test@example.com".to_string()),
@@ -90,16 +90,16 @@ async fn submit_approved_domain_returns_pending_status(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    // Approve the domain
+    // Approve the website
     sqlx::query!(
-        r#"UPDATE domains SET status = 'approved' WHERE id = $1"#,
-        domain.id.into_uuid()
+        r#"UPDATE websites SET status = 'approved' WHERE id = $1"#,
+        website.id.into_uuid()
     )
     .execute(&ctx.db_pool)
     .await
-    .expect("Failed to approve domain");
+    .expect("Failed to approve website");
 
     let mutation = r#"
         mutation SubmitResourceLink($input: SubmitResourceLinkInput!) {
@@ -112,7 +112,7 @@ async fn submit_approved_domain_returns_pending_status(ctx: &TestHarness) {
     "#;
 
     let vars = create_resource_link_input(
-        "https://approveddomain.org/volunteer-page",
+        "https://approvedwebsite.org/volunteer-page",
         "",
         "test@example.com"
     );
@@ -130,10 +130,10 @@ async fn submit_approved_domain_returns_pending_status(ctx: &TestHarness) {
         .contains("process it shortly"));
 }
 
-/// Submitting same domain twice should not cause duplicate key error
+/// Submitting same website twice should not cause duplicate key error
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn submit_existing_pending_domain_returns_pending_review(ctx: &TestHarness) {
+async fn submit_existing_pending_website_returns_pending_review(ctx: &TestHarness) {
     let client = ctx.graphql();
 
     let mutation = r#"
@@ -148,7 +148,7 @@ async fn submit_existing_pending_domain_returns_pending_review(ctx: &TestHarness
 
     // First submission
     let vars1 = create_resource_link_input(
-        "https://samedomain.org/page1",
+        "https://samewebsite.org/page1",
         "",
         "test@example.com"
     );
@@ -160,9 +160,9 @@ async fn submit_existing_pending_domain_returns_pending_review(ctx: &TestHarness
         "pending_review"
     );
 
-    // Second submission of same domain - should not error
+    // Second submission of same website - should not error
     let vars2 = create_resource_link_input(
-        "https://samedomain.org/page1",
+        "https://samewebsite.org/page1",
         "",
         "test@example.com"
     );
@@ -174,19 +174,19 @@ async fn submit_existing_pending_domain_returns_pending_review(ctx: &TestHarness
         "pending_review"
     );
 
-    // Verify only one domain was created
+    // Verify only one website was created
     let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM domains WHERE domain_url = $1"
+        "SELECT COUNT(*) FROM websites WHERE url = $1"
     )
-    .bind("https://samedomain.org")
+    .bind("https://samewebsite.org")
     .fetch_one(&ctx.db_pool)
     .await
-    .expect("Failed to count domains");
+    .expect("Failed to count websites");
 
-    assert_eq!(count, 1, "Should only have one domain record");
+    assert_eq!(count, 1, "Should only have one website record");
 }
 
-/// Concurrent submissions of same domain should not cause race condition
+/// Concurrent submissions of same website should not cause race condition
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
@@ -230,24 +230,24 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
         "pending_review"
     );
 
-    // Verify only one domain was created (no duplicate key error)
+    // Verify only one website was created (no duplicate key error)
     let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM domains WHERE domain_url = $1"
+        "SELECT COUNT(*) FROM websites WHERE url = $1"
     )
     .bind("https://concurrent.org")
     .fetch_one(&ctx.db_pool)
     .await
-    .expect("Failed to count domains");
+    .expect("Failed to count websites");
 
-    assert_eq!(count, 1, "Should only have one domain despite concurrent requests");
+    assert_eq!(count, 1, "Should only have one website despite concurrent requests");
 }
 
-/// Test: Manual scrape via GraphQL should create domain_snapshot entries
+/// Test: Manual scrape via GraphQL should create website_snapshot entries
 /// This is what happens when admin clicks "Run Scraper" button in UI
 #[tokio::test]
-async fn test_manual_scrape_creates_domain_snapshot() {
+async fn test_manual_scrape_creates_website_snapshot() {
     use server_core::common::MemberId;
-    use server_core::domains::scraping::models::{Domain, DomainSnapshot};
+    use server_core::domains::scraping::models::{Website, WebsiteSnapshot};
     use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 
     // Setup: Create test harness with mocked AI and web scraper
@@ -277,8 +277,8 @@ async fn test_manual_scrape_creates_domain_snapshot() {
         .await
         .expect("Failed to create test member");
 
-    // Setup: Create an approved domain (no domain_snapshots yet)
-    let domain = Domain::create(
+    // Setup: Create an approved website (no website_snapshots yet)
+    let website = Website::create(
         "https://scrapetest.org".to_string(),
         None,
         "system".to_string(),
@@ -287,19 +287,19 @@ async fn test_manual_scrape_creates_domain_snapshot() {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    // Approve the domain using model method
-    Domain::approve(domain.id, reviewer_id, &ctx.db_pool)
+    // Approve the website using model method
+    Website::approve(website.id, reviewer_id, &ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
-    // Verify no domain_snapshots exist yet using model method
-    let initial_snapshots = DomainSnapshot::find_by_domain(&ctx.db_pool, domain.id)
+    // Verify no website_snapshots exist yet using model method
+    let initial_snapshots = WebsiteSnapshot::find_by_website(&ctx.db_pool, website.id)
         .await
         .unwrap_or_default();
 
-    assert_eq!(initial_snapshots.len(), 0, "Expected no domain_snapshots before scraping");
+    assert_eq!(initial_snapshots.len(), 0, "Expected no website_snapshots before scraping");
 
     // Use authenticated client (admin) for scraping mutation
     use crate::common::GraphQLClient;
@@ -319,7 +319,7 @@ async fn test_manual_scrape_creates_domain_snapshot() {
     let result = client
         .query_with_vars(
             mutation,
-            vars!("sourceId" => domain.id.to_string())
+            vars!("sourceId" => website.id.to_string())
         )
         .await;
 
@@ -329,29 +329,29 @@ async fn test_manual_scrape_creates_domain_snapshot() {
         "completed"
     );
 
-    // Verify: domain_snapshot should be created using model method
-    let snapshots = DomainSnapshot::find_by_domain(&ctx.db_pool, domain.id)
+    // Verify: website_snapshot should be created using model method
+    let snapshots = WebsiteSnapshot::find_by_website(&ctx.db_pool, website.id)
         .await
-        .expect("Failed to fetch domain_snapshots");
+        .expect("Failed to fetch website_snapshots");
 
     assert_eq!(
         snapshots.len(), 1,
-        "Expected exactly one domain_snapshot to be created when manually scraping"
+        "Expected exactly one website_snapshot to be created when manually scraping"
     );
 
-    let domain_snapshot = &snapshots[0];
+    let website_snapshot = &snapshots[0];
 
-    // Verify: domain_snapshot should be linked to page_snapshot
+    // Verify: website_snapshot should be linked to page_snapshot
     assert!(
-        domain_snapshot.page_snapshot_id.is_some(),
-        "Expected domain_snapshot to be linked to page_snapshot"
+        website_snapshot.page_snapshot_id.is_some(),
+        "Expected website_snapshot to be linked to page_snapshot"
     );
     assert_eq!(
-        domain_snapshot.scrape_status, "scraped",
+        website_snapshot.scrape_status, "scraped",
         "Expected scrape_status to be 'scraped'"
     );
     assert_eq!(
-        domain_snapshot.page_url, "https://scrapetest.org",
-        "Expected page_url to match domain URL"
+        website_snapshot.page_url, "https://scrapetest.org",
+        "Expected page_url to match website URL"
     );
 }

@@ -86,19 +86,19 @@ impl WebsiteSnapshot {
         .context("Failed to fetch pending domain snapshots")
     }
 
-    /// Find all snapshots for a domain
-    pub async fn find_by_domain(pool: &PgPool, website_id: WebsiteId) -> Result<Vec<Self>> {
-        let domain_uuid = website_id.into_uuid();
+    /// Find all snapshots for a website
+    pub async fn find_by_website(pool: &PgPool, website_id: WebsiteId) -> Result<Vec<Self>> {
+        let website_uuid = website_id.into_uuid();
 
         sqlx::query_as::<_, Self>(
             "SELECT * FROM website_snapshots
              WHERE website_id = $1
              ORDER BY submitted_at DESC"
         )
-        .bind(domain_uuid)
+        .bind(website_uuid)
         .fetch_all(pool)
         .await
-        .context("Failed to fetch domain snapshots")
+        .context("Failed to fetch website snapshots")
     }
 
     /// Link to a page snapshot after successful scrape

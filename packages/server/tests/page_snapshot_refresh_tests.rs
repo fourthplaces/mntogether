@@ -1,13 +1,13 @@
 //! Integration tests for refreshing page snapshots via GraphQL.
 //!
-//! Tests the refreshPageSnapshot mutation which re-scrapes a specific domain snapshot
+//! Tests the refreshPageSnapshot mutation which re-scrapes a specific website snapshot
 //! to update listings when page content changes.
 
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::MemberId;
-use server_core::domains::scraping::models::{Domain, DomainSnapshot};
+use server_core::domains::scraping::models::{Website, WebsiteSnapshot};
 use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
@@ -60,8 +60,8 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     // Create admin user
     let admin_id = create_admin_user(&test_ctx).await;
 
-    // Create and approve a domain
-    let domain = Domain::create(
+    // Create and approve a website
+    let website = Website::create(
         "https://test-refresh.org".to_string(),
         None,
         "public_user".to_string(),
@@ -70,11 +70,11 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         &test_ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     // Initial scrape
     let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
@@ -90,14 +90,14 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     let mut scrape_vars = juniper::Variables::new();
     scrape_vars.insert(
         "sourceId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
     assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
 
-    // Get the domain snapshot ID
-    let snapshots = DomainSnapshot::find_by_domain(&test_ctx.db_pool, domain.id)
+    // Get the website snapshot ID
+    let snapshots = WebsiteSnapshot::find_by_website(&test_ctx.db_pool, website.id)
         .await
         .expect("Failed to fetch snapshots");
     assert_eq!(snapshots.len(), 1, "Expected one snapshot after initial scrape");
@@ -108,8 +108,8 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         r#"
         SELECT ps.content_hash
         FROM page_snapshots ps
-        JOIN domain_snapshots ds ON ds.page_snapshot_id = ps.id
-        WHERE ds.id = $1
+        JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
+        WHERE ws.id = $1
         "#
     )
     .bind(snapshot_id)
@@ -146,8 +146,8 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         r#"
         SELECT ps.content_hash
         FROM page_snapshots ps
-        JOIN domain_snapshots ds ON ds.page_snapshot_id = ps.id
-        WHERE ds.id = $1
+        JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
+        WHERE ws.id = $1
         "#
     )
     .bind(snapshot_id)
@@ -166,9 +166,9 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
-    // Create a domain and snapshot
+    // Create a website and snapshot
     let admin_id = create_admin_user(ctx).await;
-    let domain = Domain::create(
+    let website = Website::create(
         "https://test-refresh-auth.org".to_string(),
         None,
         "public_user".to_string(),
@@ -177,21 +177,21 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
-    // Create a domain snapshot manually
+    // Create a website snapshot manually
     let snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
-        INSERT INTO domain_snapshots (domain_id, page_url, scrape_status)
+        INSERT INTO website_snapshots (website_id, page_url, scrape_status)
         VALUES ($1, $2, 'pending')
         RETURNING id
         "#,
     )
-    .bind(domain.id.into_uuid())
+    .bind(website.id.into_uuid())
     .bind("https://test-refresh-auth.org")
     .fetch_one(&ctx.db_pool)
     .await
@@ -279,8 +279,8 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
 
     let admin_id = create_admin_user(&test_ctx).await;
 
-    // Create and approve domain
-    let domain = Domain::create(
+    // Create and approve website
+    let website = Website::create(
         "https://test-unchanged.org".to_string(),
         None,
         "public_user".to_string(),
@@ -289,11 +289,11 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
         &test_ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     // Initial scrape
     let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
@@ -309,13 +309,13 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     let mut scrape_vars = juniper::Variables::new();
     scrape_vars.insert(
         "sourceId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     client.query_with_vars(scrape_mutation, scrape_vars).await;
 
     // Get snapshot ID
-    let snapshots = DomainSnapshot::find_by_domain(&test_ctx.db_pool, domain.id)
+    let snapshots = WebsiteSnapshot::find_by_website(&test_ctx.db_pool, website.id)
         .await
         .expect("Failed to fetch snapshots");
     let snapshot_id = snapshots[0].id;
@@ -324,7 +324,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     let initial_page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         SELECT page_snapshot_id
-        FROM domain_snapshots
+        FROM website_snapshots
         WHERE id = $1
         "#
     )
@@ -354,7 +354,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     let updated_page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         SELECT page_snapshot_id
-        FROM domain_snapshots
+        FROM website_snapshots
         WHERE id = $1
         "#
     )

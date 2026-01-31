@@ -1,15 +1,15 @@
-//! Integration tests for nested GraphQL queries: Domain → Snapshots → Listings
+//! Integration tests for nested GraphQL queries: Website → Snapshots → Listings
 //!
 //! Tests the ability to query:
-//! - domain.snapshots - Get all domain snapshots for a domain
-//! - domain.snapshots.pageSnapshot - Get page content
-//! - domain.snapshots.listings - Get listings extracted from a page
+//! - website.snapshots - Get all website snapshots for a website
+//! - website.snapshots.pageSnapshot - Get page content
+//! - website.snapshots.listings - Get listings extracted from a page
 
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
-use server_core::common::{DomainId, MemberId};
-use server_core::domains::scraping::models::Domain;
+use server_core::common::{WebsiteId, MemberId};
+use server_core::domains::scraping::models::Website;
 use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
@@ -31,13 +31,13 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 }
 
 // =============================================================================
-// Domain Query with Nested Snapshots
+// Website Query with Nested Snapshots
 // =============================================================================
 
-/// RED: This test will FAIL because domain query doesn't have nested snapshots resolver yet
+/// RED: This test will FAIL because website query doesn't have nested snapshots resolver yet
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn query_domain_with_snapshots(ctx: &TestHarness) {
+async fn query_website_with_snapshots(ctx: &TestHarness) {
     // Arrange: Set up mocked external services
     let mock_scraper = MockWebScraper::new()
         .with_response("# Food Bank\n\nWe provide food assistance to families in need.");
@@ -58,8 +58,8 @@ async fn query_domain_with_snapshots(ctx: &TestHarness) {
     // Create admin user
     let admin_id = create_admin_user(&test_ctx).await;
 
-    // Create and approve a domain
-    let domain = Domain::create(
+    // Create and approve a website
+    let website = Website::create(
         "https://test-nested.org".to_string(),
         None,
         "public_user".to_string(),
@@ -68,11 +68,11 @@ async fn query_domain_with_snapshots(ctx: &TestHarness) {
         &test_ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     // Trigger scrape via GraphQL mutation
     let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
@@ -88,18 +88,18 @@ async fn query_domain_with_snapshots(ctx: &TestHarness) {
     let mut scrape_vars = juniper::Variables::new();
     scrape_vars.insert(
         "sourceId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
     assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
 
-    // Act: Query domain with nested snapshots
+    // Act: Query website with nested snapshots
     let query = r#"
-        query GetDomain($id: Uuid!) {
+        query GetWebsite($id: Uuid!) {
             organizationSource(id: $id) {
                 id
-                domainUrl
+                websiteUrl
                 status
                 snapshotsCount
             }
@@ -109,15 +109,15 @@ async fn query_domain_with_snapshots(ctx: &TestHarness) {
     let mut vars = juniper::Variables::new();
     vars.insert(
         "id".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let result = client.query_with_vars(query, vars).await;
 
-    // Assert: Verify we can query the domain and get snapshots count
+    // Assert: Verify we can query the website and get snapshots count
     assert_eq!(
         result["organizationSource"]["id"].as_str().unwrap(),
-        domain.id.to_string()
+        website.id.to_string()
     );
     assert_eq!(
         result["organizationSource"]["status"].as_str().unwrap(),
@@ -129,10 +129,10 @@ async fn query_domain_with_snapshots(ctx: &TestHarness) {
     assert!(snapshots_count > 0, "Expected at least one snapshot after scraping");
 }
 
-/// Test querying domain with full nested structure: snapshots → pageSnapshot → listings
+/// Test querying website with full nested structure: snapshots → pageSnapshot → listings
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
+async fn query_website_with_full_nested_data(ctx: &TestHarness) {
     // Arrange: Set up mocked external services with listing data
     let mock_scraper = MockWebScraper::new()
         .with_response("# Volunteer Opportunities\n\n## Food Bank Helper\nHelp sort and distribute food to families.");
@@ -153,8 +153,8 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
     // Create admin user
     let admin_id = create_admin_user(&test_ctx).await;
 
-    // Create and approve a domain
-    let domain = Domain::create(
+    // Create and approve a website
+    let website = Website::create(
         "https://test-nested-full.org".to_string(),
         None,
         "public_user".to_string(),
@@ -163,11 +163,11 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
         &test_ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &test_ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     // Trigger scrape via GraphQL mutation
     let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
@@ -183,18 +183,18 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
     let mut scrape_vars = juniper::Variables::new();
     scrape_vars.insert(
         "sourceId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
     assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
 
-    // Act: Query domain with listings (should go through: domain → listings)
+    // Act: Query website with listings (should go through: website → listings)
     let query = r#"
-        query GetDomain($id: Uuid!) {
+        query GetWebsite($id: Uuid!) {
             organizationSource(id: $id) {
                 id
-                domainUrl
+                websiteUrl
                 listingsCount
                 listings {
                     id
@@ -208,7 +208,7 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
     let mut vars = juniper::Variables::new();
     vars.insert(
         "id".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let result = client.query_with_vars(query, vars).await;
@@ -216,7 +216,7 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
     // Assert: Verify nested data structure works
     assert_eq!(
         result["organizationSource"]["id"].as_str().unwrap(),
-        domain.id.to_string()
+        website.id.to_string()
     );
 
     // Verify we can query listingsCount (may be 0 with empty AI mock)
@@ -228,15 +228,15 @@ async fn query_domain_with_full_nested_data(ctx: &TestHarness) {
     assert!(listings.len() as i64 == listings_count, "Listings array should match count");
 }
 
-/// Test that query works for domain with no snapshots yet
+/// Test that query works for website with no snapshots yet
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn query_domain_with_no_snapshots(ctx: &TestHarness) {
+async fn query_website_with_no_snapshots(ctx: &TestHarness) {
     // Create admin user
     let admin_id = create_admin_user(ctx).await;
 
-    // Create a domain but don't scrape it
-    let domain = Domain::create(
+    // Create a website but don't scrape it
+    let website = Website::create(
         "https://test-no-snapshots.org".to_string(),
         None,
         "public_user".to_string(),
@@ -245,20 +245,20 @@ async fn query_domain_with_no_snapshots(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
 
-    // Query domain
+    // Query website
     let query = r#"
-        query GetDomain($id: Uuid!) {
+        query GetWebsite($id: Uuid!) {
             organizationSource(id: $id) {
                 id
-                domainUrl
+                websiteUrl
                 snapshotsCount
                 listingsCount
             }
@@ -268,7 +268,7 @@ async fn query_domain_with_no_snapshots(ctx: &TestHarness) {
     let mut vars = juniper::Variables::new();
     vars.insert(
         "id".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let result = client.query_with_vars(query, vars).await;
