@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ListingId, OrganizationId, ProviderId, TagId, TaggableId, WebsiteId};
+use crate::common::{ContainerId, ListingId, OrganizationId, ProviderId, TagId, TaggableId, WebsiteId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -39,6 +39,10 @@ pub enum TagKind {
     ProviderCategory,  // 'wellness_coach', 'therapist', etc.
     ProviderSpecialty, // 'grief', 'anxiety', etc.
     ProviderLanguage,  // 'en', 'es', 'hmn'
+    // Listing audience role
+    AudienceRole, // 'recipient', 'donor', 'volunteer', 'participant'
+    // Container agent configuration
+    WithAgent, // 'default', 'admin', etc. - enables AI agent for container
 }
 
 impl std::fmt::Display for TagKind {
@@ -52,6 +56,8 @@ impl std::fmt::Display for TagKind {
             TagKind::ProviderCategory => write!(f, "provider_category"),
             TagKind::ProviderSpecialty => write!(f, "provider_specialty"),
             TagKind::ProviderLanguage => write!(f, "provider_language"),
+            TagKind::AudienceRole => write!(f, "audience_role"),
+            TagKind::WithAgent => write!(f, "with_agent"),
         }
     }
 }
@@ -69,6 +75,8 @@ impl std::str::FromStr for TagKind {
             "provider_category" => Ok(TagKind::ProviderCategory),
             "provider_specialty" => Ok(TagKind::ProviderSpecialty),
             "provider_language" => Ok(TagKind::ProviderLanguage),
+            "audience_role" => Ok(TagKind::AudienceRole),
+            "with_agent" => Ok(TagKind::WithAgent),
             _ => Err(anyhow::anyhow!("Invalid tag kind: {}", s)),
         }
     }
@@ -83,6 +91,7 @@ pub enum TaggableType {
     ReferralDocument,
     Domain,
     Provider,
+    Container,
 }
 
 impl std::fmt::Display for TaggableType {
@@ -93,6 +102,7 @@ impl std::fmt::Display for TaggableType {
             TaggableType::ReferralDocument => write!(f, "referral_document"),
             TaggableType::Domain => write!(f, "domain"),
             TaggableType::Provider => write!(f, "provider"),
+            TaggableType::Container => write!(f, "container"),
         }
     }
 }
@@ -107,6 +117,7 @@ impl std::str::FromStr for TaggableType {
             "referral_document" => Ok(TaggableType::ReferralDocument),
             "domain" => Ok(TaggableType::Domain),
             "provider" => Ok(TaggableType::Provider),
+            "container" => Ok(TaggableType::Container),
             _ => Err(anyhow::anyhow!("Invalid taggable type: {}", s)),
         }
     }
@@ -260,6 +271,73 @@ impl Tag {
         Ok(tags)
     }
 
+    /// Find all tags for a container
+    pub async fn find_for_container(container_id: ContainerId, pool: &PgPool) -> Result<Vec<Self>> {
+        let tags = sqlx::query_as::<_, Tag>(
+            r#"
+            SELECT t.*
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            WHERE tg.taggable_type = 'container' AND tg.taggable_id = $1
+            ORDER BY t.kind, t.value
+            "#,
+        )
+        .bind(container_id.as_uuid())
+        .fetch_all(pool)
+        .await?;
+        Ok(tags)
+    }
+
+    /// Check if container has a specific tag kind/value
+    pub async fn container_has_tag(
+        container_id: ContainerId,
+        kind: &str,
+        value: &str,
+        pool: &PgPool,
+    ) -> Result<bool> {
+        let exists = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS(
+                SELECT 1
+                FROM tags t
+                INNER JOIN taggables tg ON tg.tag_id = t.id
+                WHERE tg.taggable_type = 'container'
+                  AND tg.taggable_id = $1
+                  AND t.kind = $2
+                  AND t.value = $3
+            )
+            "#,
+        )
+        .bind(container_id.as_uuid())
+        .bind(kind)
+        .bind(value)
+        .fetch_one(pool)
+        .await?;
+        Ok(exists)
+    }
+
+    /// Get the with_agent tag value for a container (if exists)
+    pub async fn get_container_agent_config(
+        container_id: ContainerId,
+        pool: &PgPool,
+    ) -> Result<Option<String>> {
+        let value = sqlx::query_scalar::<_, String>(
+            r#"
+            SELECT t.value
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            WHERE tg.taggable_type = 'container'
+              AND tg.taggable_id = $1
+              AND t.kind = 'with_agent'
+            LIMIT 1
+            "#,
+        )
+        .bind(container_id.as_uuid())
+        .fetch_optional(pool)
+        .await?;
+        Ok(value)
+    }
+
     /// Count tags
     pub async fn count(pool: &PgPool) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM tags")
@@ -326,6 +404,15 @@ impl Taggable {
         pool: &PgPool,
     ) -> Result<Self> {
         Self::create(tag_id, "provider", provider_id.as_uuid(), pool).await
+    }
+
+    /// Associate a tag with a container
+    pub async fn create_container_tag(
+        container_id: ContainerId,
+        tag_id: TagId,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        Self::create(tag_id, "container", container_id.as_uuid(), pool).await
     }
 
     /// Generic create method
@@ -395,6 +482,24 @@ impl Taggable {
         pool: &PgPool,
     ) -> Result<()> {
         Self::delete(tag_id, "provider", provider_id.as_uuid(), pool).await
+    }
+
+    /// Remove a tag from a container
+    pub async fn delete_container_tag(
+        container_id: ContainerId,
+        tag_id: TagId,
+        pool: &PgPool,
+    ) -> Result<()> {
+        Self::delete(tag_id, "container", container_id.as_uuid(), pool).await
+    }
+
+    /// Remove all tags from a container
+    pub async fn delete_all_for_container(container_id: ContainerId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM taggables WHERE taggable_type = 'container' AND taggable_id = $1")
+            .bind(container_id.as_uuid())
+            .execute(pool)
+            .await?;
+        Ok(())
     }
 
     /// Generic delete method

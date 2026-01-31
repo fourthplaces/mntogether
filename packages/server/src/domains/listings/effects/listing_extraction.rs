@@ -202,6 +202,11 @@ For each listing, provide:
    - "high": Explicitly stated listing with clear details
    - "medium": Mentioned but some details are inferred
    - "low": Vague or unclear, might not be a real listing
+7. **audience_roles**: Array of who this listing is for. One or more of:
+   - "recipient": People receiving services/benefits (food, housing, healthcare, etc.)
+   - "donor": People giving money, food, goods, or other resources
+   - "volunteer": People giving their time to help
+   - "participant": People attending events, classes, groups, or programs
 
 IMPORTANT RULES:
 - ONLY extract REAL listings explicitly stated on the page
@@ -228,7 +233,8 @@ Example format:
     "description": "...",
     "contact": {{ "phone": "...", "email": "...", "website": "..." }},
     "urgency": "normal",
-    "confidence": "high"
+    "confidence": "high",
+    "audience_roles": ["recipient"]
   }}
 ]"#,
         organization_name = safe_org_name,

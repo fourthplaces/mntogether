@@ -1,0 +1,8 @@
+schema: "http://localhost:3000/graphql"
+documents: "src/**/*.{ts,tsx}"
+generates:
+  ./src/gql/:
+    preset: client
+    config:
+      documentMode: string
+      useTypeImports: true

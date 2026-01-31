@@ -47,13 +47,21 @@ async fn main() -> Result<()> {
         .context("Failed to set statement timeout")?;
     tracing::info!("Database statement timeout set to 30s");
 
-    // Run migrations
-    tracing::info!("Running database migrations...");
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await
-        .context("Failed to run migrations")?;
-    tracing::info!("Migrations complete");
+    // Run migrations (skip if SKIP_MIGRATIONS=true, migrations handled by dev.sh)
+    let skip_migrations = std::env::var("SKIP_MIGRATIONS")
+        .map(|v| v == "true" || v == "1")
+        .unwrap_or(false);
+
+    if skip_migrations {
+        tracing::info!("Skipping database migrations (SKIP_MIGRATIONS=true)");
+    } else {
+        tracing::info!("Running database migrations...");
+        sqlx::migrate!("./migrations")
+            .run(&pool)
+            .await
+            .context("Failed to run migrations")?;
+        tracing::info!("Migrations complete");
+    }
 
     // Build application
     let (app, handle) = build_app(

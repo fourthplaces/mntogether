@@ -1,4 +1,9 @@
 use crate::domains::auth::JwtService;
+use crate::domains::chatrooms::{
+    commands::{ChatCommand, GenerateAgentGreetingCommand, GenerateChatReplyCommand},
+    effects::{ChatEffect, GenerateAgentGreetingEffect, GenerateChatReplyEffect},
+    machines::{AgentGreetingMachine, AgentMessagingMachine, AgentReplyMachine, ChatEventMachine},
+};
 use crate::domains::domain_approval::{
     commands::DomainApprovalCommand, effects::DomainApprovalCompositeEffect,
     machines::DomainApprovalMachine,
@@ -165,6 +170,14 @@ pub fn build_app(
         // Domain approval domain
         .with_machine(DomainApprovalMachine::new())
         .with_effect::<DomainApprovalCommand, _>(DomainApprovalCompositeEffect::new())
+        // Chat domain - AI chat, comments, discussions
+        .with_machine(ChatEventMachine::default())
+        .with_machine(AgentReplyMachine::default())
+        .with_machine(AgentMessagingMachine::default())
+        .with_machine(AgentGreetingMachine::default())
+        .with_effect::<ChatCommand, _>(ChatEffect)
+        .with_effect::<GenerateChatReplyCommand, _>(GenerateChatReplyEffect)
+        .with_effect::<GenerateAgentGreetingCommand, _>(GenerateAgentGreetingEffect)
         // Job queue for background commands
         .with_job_queue(job_queue)
         .build();

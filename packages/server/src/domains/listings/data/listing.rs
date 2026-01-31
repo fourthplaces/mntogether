@@ -34,6 +34,9 @@ pub struct ListingData {
     // Timestamps
     pub created_at: String,
     pub updated_at: String,
+
+    // Source tracking
+    pub source_url: Option<String>,
 }
 
 /// Tag data for GraphQL
@@ -92,6 +95,7 @@ impl From<Listing> for ListingData {
             longitude: listing.longitude,
             created_at: listing.created_at.to_rfc3339(),
             updated_at: listing.updated_at.to_rfc3339(),
+            source_url: listing.source_url,
         }
     }
 }
@@ -175,6 +179,10 @@ impl ListingData {
 
     fn updated_at(&self) -> String {
         self.updated_at.clone()
+    }
+
+    fn source_url(&self) -> Option<String> {
+        self.source_url.clone()
     }
 
     /// Get tags for this listing

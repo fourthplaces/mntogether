@@ -86,21 +86,34 @@ async fn handle_fetch_or_create_research(
         info!(research_id = %research.id, "Research is stale, creating fresh research");
     }
 
-    // Step 3: Create fresh research - scrape homepage
+    // Step 3: Create fresh research - scrape homepage (with graceful error handling)
     info!(website_domain = %website.domain, "Scraping homepage");
 
-    let scrape_result = ctx
+    let homepage_content = match ctx
         .deps()
         .web_scraper
-        .scrape(&website.domain)
+        .scrape(&format!("https://{}", &website.domain))
         .await
-        .context("Failed to scrape homepage")?;
-
-    info!(
-        website_domain = %website.domain,
-        markdown_length = scrape_result.markdown.len(),
-        "Homepage scraped successfully"
-    );
+    {
+        Ok(result) => {
+            info!(
+                website_domain = %website.domain,
+                markdown_length = result.markdown.len(),
+                "Homepage scraped successfully"
+            );
+            Some(result.markdown)
+        }
+        Err(e) => {
+            // Log warning but continue - homepage scraping is not critical
+            // The Firecrawl SDK has a known bug with metadata arrays (Issue #1304)
+            tracing::warn!(
+                website_domain = %website.domain,
+                error = %e,
+                "Failed to scrape homepage, continuing with search-based research"
+            );
+            None
+        }
+    };
 
     // Step 4: Create research record
     let research = WebsiteResearch::create(
@@ -114,17 +127,21 @@ async fn handle_fetch_or_create_research(
 
     info!(research_id = %research.id, "Research record created");
 
-    // Step 5: Store homepage content
-    WebsiteResearchHomepage::create(
-        research.id,
-        Some(scrape_result.markdown.clone()),
-        Some(scrape_result.markdown),
-        &ctx.deps().db_pool,
-    )
-    .await
-    .context("Failed to store homepage content")?;
+    // Step 5: Store homepage content (if available)
+    if let Some(content) = homepage_content {
+        WebsiteResearchHomepage::create(
+            research.id,
+            Some(content.clone()),
+            Some(content),
+            &ctx.deps().db_pool,
+        )
+        .await
+        .context("Failed to store homepage content")?;
 
-    info!(research_id = %research.id, "Homepage content stored");
+        info!(research_id = %research.id, "Homepage content stored");
+    } else {
+        info!(research_id = %research.id, "Skipping homepage storage (scrape failed)");
+    }
 
     // Step 6: Emit event - research created, needs searches
     Ok(DomainApprovalEvent::WebsiteResearchCreated {

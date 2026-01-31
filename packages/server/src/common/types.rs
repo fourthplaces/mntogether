@@ -14,6 +14,10 @@ pub struct ExtractedListing {
     pub contact: Option<ContactInfo>,
     pub urgency: Option<String>,
     pub confidence: Option<String>, // "high" | "medium" | "low"
+    /// Target audience roles: who should engage with this listing
+    /// Values: "recipient", "donor", "volunteer", "participant"
+    #[serde(default)]
+    pub audience_roles: Vec<String>,
 }
 
 /// Contact information for a need/opportunity

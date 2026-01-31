@@ -588,11 +588,14 @@ impl Mutation {
     // =========================================================================
 
     /// Create a new AI chat container
+    /// If withAgent is provided, the container will be tagged with the agent config
+    /// and the agent will generate a greeting message
     async fn create_chat(
         ctx: &GraphQLContext,
         language: Option<String>,
+        with_agent: Option<String>,
     ) -> FieldResult<ContainerData> {
-        chatroom_edges::create_chat(ctx, language).await
+        chatroom_edges::create_chat(ctx, language, with_agent).await
     }
 
     /// Send a message to a chat container
@@ -704,6 +707,90 @@ impl Mutation {
     /// Delete a provider (admin only)
     async fn delete_provider(ctx: &GraphQLContext, provider_id: String) -> FieldResult<bool> {
         provider_edges::delete_provider(ctx, provider_id).await
+    }
+
+    // =========================================================================
+    // Listing Tags
+    // =========================================================================
+
+    /// Update listing tags (replaces all existing tags with new ones) (admin only)
+    async fn update_listing_tags(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+        tags: Vec<TagInput>,
+    ) -> FieldResult<ListingType> {
+        use crate::common::ListingId;
+        use crate::domains::listings::models::Listing;
+        use crate::kernel::tag::{Tag, Taggable};
+
+        // Check admin auth
+        let _user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        let listing_id = ListingId::from_uuid(listing_id);
+
+        // Clear existing tags
+        Taggable::delete_all_for_listing(listing_id, &ctx.db_pool).await?;
+
+        // Add new tags
+        for tag_input in tags {
+            let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
+            Taggable::create_listing_tag(listing_id, tag.id, &ctx.db_pool).await?;
+        }
+
+        // Return updated listing
+        let listing = Listing::find_by_id(listing_id, &ctx.db_pool).await?;
+        Ok(ListingType::from(listing))
+    }
+
+    /// Add a single tag to a listing (admin only)
+    async fn add_listing_tag(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+        tag_kind: String,
+        tag_value: String,
+        display_name: Option<String>,
+    ) -> FieldResult<crate::domains::tag::TagData> {
+        use crate::common::ListingId;
+        use crate::domains::tag::TagData;
+        use crate::kernel::tag::{Tag, Taggable};
+
+        // Check admin auth
+        let _user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        let listing_id = ListingId::from_uuid(listing_id);
+
+        let tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, &ctx.db_pool).await?;
+        Taggable::create_listing_tag(listing_id, tag.id, &ctx.db_pool).await?;
+
+        Ok(TagData::from(tag))
+    }
+
+    /// Remove a tag from a listing (admin only)
+    async fn remove_listing_tag(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+        tag_id: String,
+    ) -> FieldResult<bool> {
+        use crate::common::{ListingId, TagId};
+        use crate::kernel::tag::Taggable;
+
+        // Check admin auth
+        let _user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        let listing_id = ListingId::from_uuid(listing_id);
+        let tag_id = TagId::parse(&tag_id)?;
+
+        Taggable::delete_listing_tag(listing_id, tag_id, &ctx.db_pool).await?;
+        Ok(true)
     }
 }
 

@@ -7,4 +7,4 @@ pub mod chat;
 pub mod messaging;
 
 pub use chat::ChatEffect;
-pub use messaging::GenerateChatReplyEffect;
+pub use messaging::{GenerateAgentGreetingEffect, GenerateChatReplyEffect};

@@ -236,10 +236,42 @@ export const CRAWL_WEBSITE = gql`
   }
 `;
 
+// Listing tag mutations
+export const UPDATE_LISTING_TAGS = gql`
+  mutation UpdateListingTags($listingId: Uuid!, $tags: [TagInput!]!) {
+    updateListingTags(listingId: $listingId, tags: $tags) {
+      id
+      tags {
+        id
+        kind
+        value
+        displayName
+      }
+    }
+  }
+`;
+
+export const ADD_LISTING_TAG = gql`
+  mutation AddListingTag($listingId: Uuid!, $tagKind: String!, $tagValue: String!, $displayName: String) {
+    addListingTag(listingId: $listingId, tagKind: $tagKind, tagValue: $tagValue, displayName: $displayName) {
+      id
+      kind
+      value
+      displayName
+    }
+  }
+`;
+
+export const REMOVE_LISTING_TAG = gql`
+  mutation RemoveListingTag($listingId: Uuid!, $tagId: String!) {
+    removeListingTag(listingId: $listingId, tagId: $tagId)
+  }
+`;
+
 // Chat mutations
 export const CREATE_CHAT = gql`
-  mutation CreateChat($language: String) {
-    createChat(language: $language) {
+  mutation CreateChat($language: String, $withAgent: String) {
+    createChat(language: $language, withAgent: $withAgent) {
       id
       containerType
       language

@@ -109,6 +109,9 @@ services:
 
       # Skip frontend builds in container (we serve them separately)
       SKIP_FRONTEND_BUILD: "true"
+
+      # Skip migrations in container (handled by dev.sh before starting)
+      SKIP_MIGRATIONS: "true"
     ports:
       - "8080:8080"
     depends_on:

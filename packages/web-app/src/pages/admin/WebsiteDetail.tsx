@@ -9,7 +9,7 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
   query GetWebsiteWithSnapshots($id: Uuid!) {
     website(id: $id) {
       id
-      url
+      domain
       status
       submittedBy
       submitterType
@@ -37,6 +37,7 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
         title
         status
         createdAt
+        sourceUrl
       }
     }
   }
@@ -79,6 +80,16 @@ const UPDATE_CRAWL_SETTINGS = gql`
   }
 `;
 
+const REFRESH_PAGE_SNAPSHOT = gql`
+  mutation RefreshPageSnapshot($snapshotId: String!) {
+    refreshPageSnapshot(snapshotId: $snapshotId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
 interface WebsiteSnapshot {
   id: string;
   pageUrl: string;
@@ -93,6 +104,7 @@ interface Listing {
   title: string;
   status: string;
   createdAt: string;
+  sourceUrl: string | null;
 }
 
 interface Website {
@@ -130,6 +142,8 @@ interface Assessment {
   reviewedByHuman: boolean;
 }
 
+type TabType = 'listings' | 'snapshots' | 'assessment';
+
 export function WebsiteDetail() {
   const { websiteId } = useParams<{ websiteId: string }>();
   const [error, setError] = useState<string | null>(null);
@@ -138,6 +152,9 @@ export function WebsiteDetail() {
   const [isCrawling, setIsCrawling] = useState(false);
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
+  const [activeTab, setActiveTab] = useState<TabType>('listings');
+  const [rescrapingSnapshotId, setRescrapingSnapshotId] = useState<string | null>(null);
+  const [expandedSnapshotId, setExpandedSnapshotId] = useState<string | null>(null);
 
   const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
     website: Website | null;
@@ -208,6 +225,17 @@ export function WebsiteDetail() {
     },
   });
 
+  const [refreshPageSnapshot] = useMutation(REFRESH_PAGE_SNAPSHOT, {
+    onCompleted: () => {
+      setRescrapingSnapshotId(null);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setRescrapingSnapshotId(null);
+    },
+  });
+
   const handleGenerateAssessment = async () => {
     setError(null);
     setIsGenerating(true);
@@ -220,11 +248,8 @@ export function WebsiteDetail() {
   };
 
   const handleReject = async () => {
-    const reason = prompt('Why are you rejecting this website?');
-    if (!reason) return;
-
     setError(null);
-    await rejectWebsite({ variables: { websiteId, reason } });
+    await rejectWebsite({ variables: { websiteId, reason: 'Rejected by admin' } });
   };
 
   const handleScrape = async () => {
@@ -251,8 +276,14 @@ export function WebsiteDetail() {
     setIsEditingMaxPages(true);
   };
 
-  const scrollToSection = (sectionId: string) => {
-    document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth' });
+  const handleRefreshSnapshot = async (snapshotId: string) => {
+    setError(null);
+    setRescrapingSnapshotId(snapshotId);
+    await refreshPageSnapshot({ variables: { snapshotId } });
+  };
+
+  const getListingsForSnapshot = (snapshotUrl: string) => {
+    return website?.listings?.filter((listing) => listing.sourceUrl === snapshotUrl) || [];
   };
 
   const formatDate = (dateString: string | null) => {
@@ -336,25 +367,27 @@ export function WebsiteDetail() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-start">
             <div>
-              <h1 className="text-2xl font-bold text-stone-900 mb-2">
+              <h1 className="text-2xl font-bold text-stone-900 mb-2 select-text">
+                <span className="cursor-text">{website.domain}</span>
                 <a
                   href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-blue-600 hover:text-blue-800"
+                  className="ml-2 text-blue-600 hover:text-blue-800 text-base align-middle"
+                  title="Open in new tab"
                 >
-                  {website.domain}
+                  ↗
                 </a>
               </h1>
-              <div className="flex items-center gap-3 mb-4">
+              <div className="flex items-center gap-3 mb-4 select-text">
                 <span
-                  className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusBadgeClass(
+                  className={`px-3 py-1 text-sm rounded-full font-medium cursor-text ${getStatusBadgeClass(
                     website.status
                   )}`}
                 >
                   {website.status.replace('_', ' ')}
                 </span>
-                <span className="text-sm text-stone-600">
+                <span className="text-sm text-stone-600 cursor-text">
                   Submitted by: {website.submitterType}
                 </span>
               </div>
@@ -398,31 +431,21 @@ export function WebsiteDetail() {
 
           {/* Website Details Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-4 border-t border-stone-200">
-            <div>
+            <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Created</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(website.createdAt)}</p>
+              <p className="text-sm font-medium text-stone-900 cursor-text">{formatDate(website.createdAt)}</p>
             </div>
-            <div>
+            <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Last Scraped</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(website.lastScrapedAt)}</p>
+              <p className="text-sm font-medium text-stone-900 cursor-text">{formatDate(website.lastScrapedAt)}</p>
             </div>
-            <div>
+            <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Snapshots</span>
-              <button
-                onClick={() => scrollToSection('snapshots-section')}
-                className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                {website.snapshotsCount}
-              </button>
+              <p className="text-sm font-medium text-stone-900 cursor-text">{website.snapshotsCount}</p>
             </div>
-            <div>
+            <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Listings</span>
-              <button
-                onClick={() => scrollToSection('listings-section')}
-                className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline"
-              >
-                {website.listingsCount}
-              </button>
+              <p className="text-sm font-medium text-stone-900 cursor-text">{website.listingsCount}</p>
             </div>
           </div>
 
@@ -430,9 +453,9 @@ export function WebsiteDetail() {
           <div className="mt-4 pt-4 border-t border-stone-200">
             <h3 className="text-sm font-semibold text-stone-700 mb-2">Crawl Settings</h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
+              <div className="select-text">
                 <span className="text-xs text-stone-500 uppercase">Status</span>
-                <p className="text-sm font-medium">
+                <p className="text-sm font-medium cursor-text">
                   {website.crawlStatus ? (
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs ${
@@ -454,14 +477,27 @@ export function WebsiteDetail() {
                   )}
                 </p>
               </div>
-              <div>
+              <div className="select-text">
                 <span className="text-xs text-stone-500 uppercase">Attempts</span>
-                <p className="text-sm font-medium text-stone-900">
+                <p className="text-sm font-medium text-stone-900 cursor-text">
                   {website.crawlAttemptCount ?? 0} / {website.maxCrawlRetries ?? 5}
                 </p>
               </div>
-              <div>
-                <span className="text-xs text-stone-500 uppercase">Max Pages</span>
+              <div className="select-text">
+                <span className="text-xs text-stone-500 uppercase flex items-center gap-1">
+                  Max Pages
+                  {!isEditingMaxPages && (
+                    <button
+                      onClick={startEditingMaxPages}
+                      className="text-stone-400 hover:text-stone-600"
+                      title="Edit max pages"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                  )}
+                </span>
                 {isEditingMaxPages ? (
                   <div className="flex items-center gap-1 mt-1">
                     <input
@@ -482,25 +518,18 @@ export function WebsiteDetail() {
                       onClick={() => setIsEditingMaxPages(false)}
                       className="px-2 py-1 text-xs bg-stone-200 text-stone-700 rounded hover:bg-stone-300"
                     >
-                      Cancel
+                      ✕
                     </button>
                   </div>
                 ) : (
-                  <p className="text-sm font-medium text-stone-900">
-                    {website.pagesCrawledCount ?? 0} /{' '}
-                    <button
-                      onClick={startEditingMaxPages}
-                      className="text-blue-600 hover:text-blue-800 hover:underline"
-                      title="Click to edit max pages"
-                    >
-                      {website.maxPagesPerCrawl ?? 20}
-                    </button>
+                  <p className="text-sm font-medium text-stone-900 cursor-text">
+                    {website.pagesCrawledCount ?? 0} / {website.maxPagesPerCrawl ?? 20}
                   </p>
                 )}
               </div>
-              <div>
+              <div className="select-text">
                 <span className="text-xs text-stone-500 uppercase">Last Crawl</span>
-                <p className="text-sm font-medium text-stone-900">
+                <p className="text-sm font-medium text-stone-900 cursor-text">
                   {formatDate(website.lastCrawlCompletedAt)}
                 </p>
               </div>
@@ -508,96 +537,227 @@ export function WebsiteDetail() {
           </div>
         </div>
 
-        {/* Listings Section */}
-        {website.listings && website.listings.length > 0 && (
-          <div id="listings-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold text-stone-900 mb-4">
-              Listings ({website.listings.length})
-            </h2>
-            <div className="space-y-2">
-              {website.listings.map((listing) => (
-                <div
-                  key={listing.id}
-                  className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
-                >
-                  <div className="flex-1 min-w-0">
-                    <Link
-                      to={`/admin/listings/${listing.id}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      {listing.title}
-                    </Link>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Created: {formatDate(listing.createdAt)}
-                    </p>
-                  </div>
-                  <div className="ml-4 flex items-center gap-2">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        listing.status === 'active'
-                          ? 'bg-green-100 text-green-800'
-                          : listing.status === 'pending_approval'
-                          ? 'bg-amber-100 text-amber-800'
-                          : listing.status === 'rejected'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-stone-100 text-stone-800'
-                      }`}
-                    >
-                      {listing.status.replace('_', ' ')}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
+        {/* Tabs */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+          {/* Tab Headers */}
+          <div className="flex border-b border-stone-200">
+            <button
+              onClick={() => setActiveTab('listings')}
+              className={`px-6 py-3 font-medium text-sm ${
+                activeTab === 'listings'
+                  ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              Listings ({website.listings?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('snapshots')}
+              className={`px-6 py-3 font-medium text-sm ${
+                activeTab === 'snapshots'
+                  ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              Scraped Pages ({website.snapshots?.length || 0})
+            </button>
+            <button
+              onClick={() => setActiveTab('assessment')}
+              className={`px-6 py-3 font-medium text-sm ${
+                activeTab === 'assessment'
+                  ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              AI Assessment {assessment ? '✓' : ''}
+            </button>
           </div>
-        )}
 
-        {/* Scraped Pages Section */}
-        {website.snapshots && website.snapshots.length > 0 && (
-          <div id="snapshots-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-xl font-semibold text-stone-900 mb-4">
-              Scraped Pages ({website.snapshots.length})
-            </h2>
-            <div className="space-y-2">
-              {website.snapshots.map((snapshot) => (
-                <div
-                  key={snapshot.id}
-                  className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
-                >
-                  <div className="flex-1 min-w-0">
-                    <a
-                      href={snapshot.pageUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium truncate block"
-                    >
-                      {snapshot.pageUrl}
-                    </a>
-                    <p className="text-xs text-stone-500 mt-1">
-                      Last scraped: {formatDate(snapshot.lastScrapedAt)}
-                    </p>
+          {/* Tab Content */}
+          <div className="p-6">
+            {/* Listings Tab */}
+            {activeTab === 'listings' && (
+              <div>
+                {website.listings && website.listings.length > 0 ? (
+                  <div className="space-y-2">
+                    {website.listings.map((listing) => (
+                      <div
+                        key={listing.id}
+                        className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <Link
+                            to={`/admin/listings/${listing.id}`}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            {listing.title}
+                          </Link>
+                          <p className="text-xs text-stone-500 mt-1">
+                            Created: {formatDate(listing.createdAt)}
+                          </p>
+                        </div>
+                        <div className="ml-4 flex items-center gap-2">
+                          <span
+                            className={`px-2 py-1 text-xs rounded-full ${
+                              listing.status === 'active'
+                                ? 'bg-green-100 text-green-800'
+                                : listing.status === 'pending_approval'
+                                ? 'bg-amber-100 text-amber-800'
+                                : listing.status === 'rejected'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-stone-100 text-stone-800'
+                            }`}
+                          >
+                            {listing.status.replace('_', ' ')}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="ml-4 flex items-center gap-2">
-                    <span
-                      className={`px-2 py-1 text-xs rounded-full ${
-                        snapshot.scrapeStatus === 'scraped'
-                          ? 'bg-green-100 text-green-800'
-                          : snapshot.scrapeStatus === 'failed'
-                          ? 'bg-red-100 text-red-800'
-                          : 'bg-amber-100 text-amber-800'
-                      }`}
-                    >
-                      {snapshot.scrapeStatus}
-                    </span>
+                ) : (
+                  <div className="text-center py-8 text-stone-500">
+                    No listings extracted from this website yet.
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+                )}
+              </div>
+            )}
 
-        {/* Assessment Section */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+            {/* Scraped Pages Tab */}
+            {activeTab === 'snapshots' && (
+              <div>
+                {website.snapshots && website.snapshots.length > 0 ? (
+                  <div className="space-y-2">
+                    {website.snapshots.map((snapshot) => {
+                      const snapshotListings = getListingsForSnapshot(snapshot.pageUrl);
+                      const isExpanded = expandedSnapshotId === snapshot.id;
+
+                      return (
+                        <div key={snapshot.id} className="bg-stone-50 rounded-lg overflow-hidden">
+                          <div
+                            className="flex items-center justify-between p-3 cursor-pointer hover:bg-stone-100"
+                            onClick={() => setExpandedSnapshotId(isExpanded ? null : snapshot.id)}
+                          >
+                            <div className="flex-1 min-w-0 select-text">
+                              <div className="flex items-center gap-2">
+                                <svg
+                                  className={`w-4 h-4 text-stone-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                                <span className="text-sm font-medium text-stone-900 truncate cursor-text">
+                                  {snapshot.pageUrl}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 mt-1 ml-6">
+                                <a
+                                  href={snapshot.pageUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  Open ↗
+                                </a>
+                                <span className="text-xs text-stone-500">
+                                  {formatDate(snapshot.lastScrapedAt)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="ml-4 flex items-center gap-2">
+                              <span
+                                className={`px-2 py-1 text-xs rounded-full ${
+                                  snapshot.scrapeStatus === 'scraped'
+                                    ? 'bg-green-100 text-green-800'
+                                    : snapshot.scrapeStatus === 'failed'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-amber-100 text-amber-800'
+                                }`}
+                              >
+                                {snapshot.scrapeStatus}
+                              </span>
+                              {snapshotListings.length > 0 && (
+                                <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                  {snapshotListings.length} listing{snapshotListings.length !== 1 ? 's' : ''}
+                                </span>
+                              )}
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRefreshSnapshot(snapshot.id);
+                                }}
+                                disabled={rescrapingSnapshotId === snapshot.id}
+                                className="p-1 text-stone-400 hover:text-purple-600 disabled:opacity-50"
+                                title="Re-run scraper"
+                              >
+                                {rescrapingSnapshotId === snapshot.id ? (
+                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Expanded Listings */}
+                          {isExpanded && (
+                            <div className="border-t border-stone-200 bg-white p-3">
+                              {snapshotListings.length > 0 ? (
+                                <div className="space-y-2">
+                                  {snapshotListings.map((listing) => (
+                                    <div
+                                      key={listing.id}
+                                      className="flex items-center justify-between p-2 bg-stone-50 rounded"
+                                    >
+                                      <Link
+                                        to={`/admin/listings/${listing.id}`}
+                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                      >
+                                        {listing.title}
+                                      </Link>
+                                      <span
+                                        className={`px-2 py-0.5 text-xs rounded-full ${
+                                          listing.status === 'active'
+                                            ? 'bg-green-100 text-green-800'
+                                            : listing.status === 'pending_approval'
+                                            ? 'bg-amber-100 text-amber-800'
+                                            : 'bg-stone-100 text-stone-800'
+                                        }`}
+                                      >
+                                        {listing.status.replace('_', ' ')}
+                                      </span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-sm text-stone-500 text-center py-2">
+                                  No listings extracted from this page
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-stone-500">
+                    No pages scraped from this website yet.
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Assessment Tab */}
+            {activeTab === 'assessment' && (
+              <div>
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold text-stone-900">AI Assessment</h2>
             <button
@@ -668,94 +828,97 @@ export function WebsiteDetail() {
             </div>
           )}
 
-          {assessment && (
-            <div>
-              {/* Assessment Header */}
-              <div className="flex flex-wrap items-center gap-3 mb-4 pb-4 border-b border-stone-200">
-                <span
-                  className={`px-3 py-1 text-sm rounded-full font-medium border ${
-                    getRecommendationBadge(assessment.recommendation).class
-                  }`}
-                >
-                  {getRecommendationBadge(assessment.recommendation).label}
-                </span>
-
-                {assessment.confidenceScore !== null && (
-                  <span className="text-sm text-stone-600">
-                    Confidence: {Math.round(assessment.confidenceScore * 100)}%
-                  </span>
-                )}
-
-                {assessment.organizationName && (
-                  <span className="text-sm text-stone-600">
-                    Org: <strong>{assessment.organizationName}</strong>
-                  </span>
-                )}
-
-                {assessment.foundedYear && (
-                  <span className="text-sm text-stone-600">
-                    Founded: {assessment.foundedYear}
-                  </span>
-                )}
-              </div>
-
-              {/* Assessment Metadata */}
-              <div className="flex flex-wrap gap-4 text-xs text-stone-500 mb-4">
-                <span>Generated: {formatDate(assessment.generatedAt)}</span>
-                <span>Model: {assessment.modelUsed}</span>
-                {assessment.reviewedByHuman && (
-                  <span className="text-green-600">Reviewed by human</span>
-                )}
-              </div>
-
-              {/* Markdown Content */}
-              <div className="prose prose-stone max-w-none">
-                <ReactMarkdown
-                  components={{
-                    h1: ({ children }) => (
-                      <h1 className="text-xl font-bold text-stone-900 mt-6 mb-3">{children}</h1>
-                    ),
-                    h2: ({ children }) => (
-                      <h2 className="text-lg font-semibold text-stone-800 mt-5 mb-2">{children}</h2>
-                    ),
-                    h3: ({ children }) => (
-                      <h3 className="text-base font-medium text-stone-700 mt-4 mb-2">{children}</h3>
-                    ),
-                    p: ({ children }) => (
-                      <p className="text-stone-700 mb-3 leading-relaxed">{children}</p>
-                    ),
-                    ul: ({ children }) => (
-                      <ul className="list-disc list-inside mb-3 space-y-1">{children}</ul>
-                    ),
-                    ol: ({ children }) => (
-                      <ol className="list-decimal list-inside mb-3 space-y-1">{children}</ol>
-                    ),
-                    li: ({ children }) => <li className="text-stone-700">{children}</li>,
-                    strong: ({ children }) => (
-                      <strong className="font-semibold text-stone-900">{children}</strong>
-                    ),
-                    a: ({ href, children }) => (
-                      <a
-                        href={href}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 underline"
+                {assessment && (
+                  <div>
+                    {/* Assessment Header */}
+                    <div className="flex flex-wrap items-center gap-3 mb-4 pb-4 border-b border-stone-200">
+                      <span
+                        className={`px-3 py-1 text-sm rounded-full font-medium border ${
+                          getRecommendationBadge(assessment.recommendation).class
+                        }`}
                       >
-                        {children}
-                      </a>
-                    ),
-                    blockquote: ({ children }) => (
-                      <blockquote className="border-l-4 border-stone-300 pl-4 italic text-stone-600 my-3">
-                        {children}
-                      </blockquote>
-                    ),
-                  }}
-                >
-                  {assessment.assessmentMarkdown}
-                </ReactMarkdown>
+                        {getRecommendationBadge(assessment.recommendation).label}
+                      </span>
+
+                      {assessment.confidenceScore !== null && (
+                        <span className="text-sm text-stone-600">
+                          Confidence: {Math.round(assessment.confidenceScore * 100)}%
+                        </span>
+                      )}
+
+                      {assessment.organizationName && (
+                        <span className="text-sm text-stone-600">
+                          Org: <strong>{assessment.organizationName}</strong>
+                        </span>
+                      )}
+
+                      {assessment.foundedYear && (
+                        <span className="text-sm text-stone-600">
+                          Founded: {assessment.foundedYear}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Assessment Metadata */}
+                    <div className="flex flex-wrap gap-4 text-xs text-stone-500 mb-4">
+                      <span>Generated: {formatDate(assessment.generatedAt)}</span>
+                      <span>Model: {assessment.modelUsed}</span>
+                      {assessment.reviewedByHuman && (
+                        <span className="text-green-600">Reviewed by human</span>
+                      )}
+                    </div>
+
+                    {/* Markdown Content */}
+                    <div className="prose prose-stone max-w-none">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => (
+                            <h1 className="text-xl font-bold text-stone-900 mt-6 mb-3">{children}</h1>
+                          ),
+                          h2: ({ children }) => (
+                            <h2 className="text-lg font-semibold text-stone-800 mt-5 mb-2">{children}</h2>
+                          ),
+                          h3: ({ children }) => (
+                            <h3 className="text-base font-medium text-stone-700 mt-4 mb-2">{children}</h3>
+                          ),
+                          p: ({ children }) => (
+                            <p className="text-stone-700 mb-3 leading-relaxed">{children}</p>
+                          ),
+                          ul: ({ children }) => (
+                            <ul className="list-disc list-inside mb-3 space-y-1">{children}</ul>
+                          ),
+                          ol: ({ children }) => (
+                            <ol className="list-decimal list-inside mb-3 space-y-1">{children}</ol>
+                          ),
+                          li: ({ children }) => <li className="text-stone-700">{children}</li>,
+                          strong: ({ children }) => (
+                            <strong className="font-semibold text-stone-900">{children}</strong>
+                          ),
+                          a: ({ href, children }) => (
+                            <a
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:text-blue-800 underline"
+                            >
+                              {children}
+                            </a>
+                          ),
+                          blockquote: ({ children }) => (
+                            <blockquote className="border-l-4 border-stone-300 pl-4 italic text-stone-600 my-3">
+                              {children}
+                            </blockquote>
+                          ),
+                        }}
+                      >
+                        {assessment.assessmentMarkdown}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>
