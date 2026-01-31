@@ -131,7 +131,7 @@ async fn handle_crawl_website(
 
     info!(
         website_id = %website_id,
-        url = %website.url,
+        url = %website.domain,
         max_depth = %max_depth,
         max_pages = %max_pages,
         "Initiating Firecrawl crawl"
@@ -140,7 +140,7 @@ async fn handle_crawl_website(
     let crawl_result = match ctx
         .deps()
         .web_scraper
-        .crawl(&website.url, max_depth, max_pages, delay)
+        .crawl(&website.domain, max_depth, max_pages, delay)
         .await
     {
         Ok(r) => r,
@@ -266,7 +266,7 @@ async fn handle_extract_from_pages(
     // Get website for organization name
     let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
     let organization_name =
-        extract_domain(&website.url).unwrap_or_else(|| "Unknown Organization".to_string());
+        extract_domain(&website.domain).unwrap_or_else(|| "Unknown Organization".to_string());
 
     let mut all_listings: Vec<ExtractedListing> = Vec::new();
     let mut page_results: Vec<PageExtractionResult> = Vec::new();
@@ -286,11 +286,12 @@ async fn handle_extract_from_pages(
             continue;
         };
 
-        // Extract listings from this page
+        // Extract listings from this page with PII scrubbing
         info!(url = %page.url, content_length = content.len(), "Extracting listings from page");
 
-        let listings = match listing_extraction::extract_listings(
+        let listings = match listing_extraction::extract_listings_with_pii_scrub(
             ctx.deps().ai.as_ref(),
+            ctx.deps().pii_detector.as_ref(),
             &organization_name,
             &content,
             &page.url,

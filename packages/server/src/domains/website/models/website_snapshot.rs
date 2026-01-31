@@ -4,9 +4,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::{MemberId, WebsiteId};
+use crate::domains::scraping::models::PageSnapshotId;
 
 pub type WebsiteSnapshotId = Uuid;
-pub type PageSnapshotId = Uuid;
 
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct WebsiteSnapshot {

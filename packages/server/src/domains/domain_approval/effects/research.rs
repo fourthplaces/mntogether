@@ -56,7 +56,7 @@ async fn handle_fetch_or_create_research(
 
     info!(
         website_id = %website_id,
-        website_url = %website.url,
+        website_domain = %website.domain,
         "Website found"
     );
 
@@ -87,17 +87,17 @@ async fn handle_fetch_or_create_research(
     }
 
     // Step 3: Create fresh research - scrape homepage
-    info!(website_url = %website.url, "Scraping homepage");
+    info!(website_domain = %website.domain, "Scraping homepage");
 
     let scrape_result = ctx
         .deps()
         .web_scraper
-        .scrape(&website.url)
+        .scrape(&website.domain)
         .await
         .context("Failed to scrape homepage")?;
 
     info!(
-        website_url = %website.url,
+        website_domain = %website.domain,
         markdown_length = scrape_result.markdown.len(),
         "Homepage scraped successfully"
     );
@@ -105,7 +105,7 @@ async fn handle_fetch_or_create_research(
     // Step 4: Create research record
     let research = WebsiteResearch::create(
         website_id.into(),
-        website.url.clone(),
+        website.domain.clone(),
         Some(requested_by.into()),
         &ctx.deps().db_pool,
     )
@@ -131,6 +131,6 @@ async fn handle_fetch_or_create_research(
         research_id: research.id,
         website_id,
         job_id,
-        homepage_url: website.url,
+        homepage_url: website.domain,
     })
 }

@@ -4,7 +4,8 @@ use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::kernel::{
-    BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseSearchService, BaseWebScraper,
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
+    BaseWebScraper,
 };
 
 /// Server dependencies accessible to effects (using traits for testability)
@@ -17,6 +18,7 @@ pub struct ServerDeps {
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<TwilioService>,
     pub search_service: Arc<dyn BaseSearchService>,
+    pub pii_detector: Arc<dyn BasePiiDetector>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -31,6 +33,7 @@ impl ServerDeps {
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<TwilioService>,
         search_service: Arc<dyn BaseSearchService>,
+        pii_detector: Arc<dyn BasePiiDetector>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
@@ -42,6 +45,7 @@ impl ServerDeps {
             push_service,
             twilio,
             search_service,
+            pii_detector,
             test_identifier_enabled,
             admin_identifiers,
         }

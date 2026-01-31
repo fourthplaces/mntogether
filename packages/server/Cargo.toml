@@ -19,6 +19,10 @@ path = "src/bin/seed_organizations.rs"
 name = "generate_embeddings"
 path = "src/bin/generate_embeddings.rs"
 
+[[bin]]
+name = "migrate_cli"
+path = "src/bin/migrate_cli.rs"
+
 [dependencies]
 # Async runtime
 tokio = { workspace = true }
@@ -54,6 +58,9 @@ seesaw-testing = "0.1.1"
 # Authentication
 twilio = { path = "../twilio-rs" }
 jsonwebtoken = "9"
+
+# Hashing
+md5 = "0.7"
 
 # Database
 sqlx = { workspace = true, features = ["migrate"] }
@@ -106,6 +113,9 @@ typed-builder = "0.20"
 regex = "1.10"
 lazy_static = "1.4"
 rust_decimal = { version = "1.40.0", features = ["db-postgres", "serde", "std"] }
+
+# CLI (for migrate_cli)
+clap = { version = "4.5", features = ["derive"] }
 
 [dev-dependencies]
 # Testing

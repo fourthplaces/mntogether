@@ -5,7 +5,7 @@ use serde_json::Value as JsonValue;
 use tracing::info;
 
 use super::deps::ServerDeps;
-use crate::common::auth::{Actor, AdminCapability, AuthError};
+use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedListing, JobId, ListingId, MemberId, PostId, WebsiteId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
@@ -602,8 +602,8 @@ async fn handle_create_listings_from_resource_link(
         .clone()
         .unwrap_or_else(|| "Submitted Resource".to_string());
 
-    // Find the source by URL (it was created in the mutation)
-    let source = Website::find_by_url(&url, &ctx.deps().db_pool)
+    // Find the source by URL/domain (it was created in the mutation)
+    let source = Website::find_by_domain(&url, &ctx.deps().db_pool)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Website source not found for URL: {}", url))?;
 
@@ -619,7 +619,8 @@ async fn handle_create_listings_from_resource_link(
     let mut created_count = 0;
 
     for extracted_listing in listings {
-        let contact_json = extracted_listing
+        // TODO: Store contact info when Listing model supports it
+        let _contact_json = extracted_listing
             .contact
             .and_then(|c| serde_json::to_value(c).ok());
 
@@ -691,7 +692,7 @@ async fn handle_create_organization_source_from_link(
     submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
-    use crate::common::{JobId, WebsiteId};
+    use crate::common::JobId;
     use crate::domains::scraping::models::Website;
     use tracing::info;
 
@@ -727,7 +728,7 @@ async fn handle_create_organization_source_from_link(
 
     info!(
         source_id = %source.id,
-        url = %source.url,
+        domain = %source.domain,
         status = %source.status,
         "Found or created website"
     );

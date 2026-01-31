@@ -5,6 +5,7 @@
 
 pub mod common;
 pub mod config;
+pub mod data_migrations;
 pub mod domains;
 pub mod kernel;
 pub mod server;

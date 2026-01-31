@@ -70,10 +70,10 @@ async fn handle_extract_listings(
         "Starting AI listing extraction"
     );
 
-    // Get source for URL info
+    // Get source for domain info
     let source = match Website::find_by_id(source_id, &ctx.deps().db_pool).await {
         Ok(s) => {
-            tracing::info!(source_id = %source_id, url = %s.url, "Source found for extraction");
+            tracing::info!(source_id = %source_id, domain = %s.domain, "Source found for extraction");
             s
         }
         Err(e) => {
@@ -92,16 +92,17 @@ async fn handle_extract_listings(
 
     tracing::info!(
         source_id = %source_id,
-        url = %source.url,
+        domain = %source.domain,
         "Calling AI service to extract listings"
     );
 
-    // Delegate to domain function
-    let extracted_listings = match listing_extraction::extract_listings(
+    // Delegate to domain function with PII scrubbing
+    let extracted_listings = match listing_extraction::extract_listings_with_pii_scrub(
         ctx.deps().ai.as_ref(),
+        ctx.deps().pii_detector.as_ref(),
         &organization_name,
         &content,
-        &source.url,
+        &source.domain,
     )
     .await
     {
@@ -181,9 +182,10 @@ async fn handle_extract_listings_from_resource_link(
 
     tracing::info!(job_id = %job_id, "Calling AI service to extract listings from resource link");
 
-    // Delegate to domain function
-    let extracted_listings = match listing_extraction::extract_listings(
+    // Delegate to domain function with PII scrubbing
+    let extracted_listings = match listing_extraction::extract_listings_with_pii_scrub(
         ctx.deps().ai.as_ref(),
+        ctx.deps().pii_detector.as_ref(),
         &organization_name,
         &content_with_context,
         &url,

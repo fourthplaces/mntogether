@@ -4,10 +4,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::stream::{self, StreamExt};
 use seesaw_core::{Effect, EffectContext};
-use sqlx::PgPool;
 use tracing::{debug, error, info, instrument, warn};
-
-use crate::common::{ListingId, MemberId};
 use crate::domains::listings::effects::ServerDeps;
 use crate::domains::listings::models::listing::Listing;
 use crate::domains::matching::{
@@ -237,26 +234,5 @@ async fn send_push_notification(
         })?;
 
     info!("Successfully sent push notification");
-    Ok(())
-}
-
-/// Record notification in database
-#[instrument(skip(pool, why_relevant), fields(listing_id = %listing_id, member_id = %member_id))]
-async fn record_notification(
-    listing_id: ListingId,
-    member_id: MemberId,
-    why_relevant: &str,
-    pool: &PgPool,
-) -> Result<()> {
-    debug!("Recording notification in database");
-
-    Notification::record(listing_id, member_id, why_relevant.to_string(), pool)
-        .await
-        .map_err(|e| {
-            error!(error = %e, "Failed to record notification");
-            e
-        })?;
-
-    debug!("Successfully recorded notification");
     Ok(())
 }

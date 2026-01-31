@@ -10,7 +10,7 @@ use crate::common::{MemberId, WebsiteId};
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Website {
     pub id: WebsiteId,
-    pub url: String,
+    pub domain: String,
     pub scrape_frequency_hours: i32,
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub active: bool,
@@ -132,10 +132,11 @@ impl Website {
         Ok(website)
     }
 
-    /// Find website by URL
-    pub async fn find_by_url(url: &str, pool: &PgPool) -> Result<Option<Self>> {
-        let website = sqlx::query_as::<_, Website>("SELECT * FROM websites WHERE url = $1")
-            .bind(url)
+    /// Find website by domain (normalizes the input URL/domain before searching)
+    pub async fn find_by_domain(url_or_domain: &str, pool: &PgPool) -> Result<Option<Self>> {
+        let normalized = Self::normalize_domain(url_or_domain)?;
+        let website = sqlx::query_as::<_, Website>("SELECT * FROM websites WHERE domain = $1")
+            .bind(normalized)
             .fetch_optional(pool)
             .await?;
         Ok(website)
@@ -218,18 +219,22 @@ impl Website {
     ///
     /// Uses INSERT ... ON CONFLICT to handle concurrent requests gracefully.
     /// If the website already exists, returns the existing website.
+    /// Input is normalized to just the domain (lowercase, no www prefix).
     pub async fn create(
-        url: String,
+        url_or_domain: String,
         submitted_by: Option<MemberId>,
         submitter_type: String,
         submission_context: Option<String>,
         max_crawl_depth: i32,
         pool: &PgPool,
     ) -> Result<Self> {
+        // Normalize to just the domain
+        let normalized = Self::normalize_domain(&url_or_domain)?;
+
         let website = sqlx::query_as::<_, Website>(
             r#"
             INSERT INTO websites (
-                url,
+                domain,
                 submitted_by,
                 submitter_type,
                 submission_context,
@@ -237,12 +242,12 @@ impl Website {
                 status
             )
             VALUES ($1, $2, $3, $4, $5, 'pending_review')
-            ON CONFLICT (url) DO UPDATE
-            SET url = EXCLUDED.url  -- No-op update to return existing row
+            ON CONFLICT (domain) DO UPDATE
+            SET domain = EXCLUDED.domain  -- No-op update to return existing row
             RETURNING *
             "#,
         )
-        .bind(url)
+        .bind(normalized)
         .bind(submitted_by)
         .bind(submitter_type)
         .bind(submission_context)
@@ -329,12 +334,13 @@ impl Website {
         Ok(website)
     }
 
-    /// Check if a website is approved (for auto-approving URLs from this website)
-    pub async fn is_website_approved(url: &str, pool: &PgPool) -> Result<bool> {
+    /// Check if a website is approved (for auto-approving URLs from this domain)
+    pub async fn is_domain_approved(url_or_domain: &str, pool: &PgPool) -> Result<bool> {
+        let normalized = Self::normalize_domain(url_or_domain)?;
         let result = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM websites WHERE url = $1 AND status = 'approved')",
+            "SELECT EXISTS(SELECT 1 FROM websites WHERE domain = $1 AND status = 'approved')",
         )
-        .bind(url)
+        .bind(normalized)
         .fetch_one(pool)
         .await?;
         Ok(result)
@@ -427,6 +433,38 @@ impl Website {
             .ok_or_else(|| anyhow::anyhow!("No host in URL"))?
             .to_string();
         Ok(domain)
+    }
+
+    /// Normalize a URL or domain to just the domain for consistent storage
+    ///
+    /// Examples:
+    /// - "https://www.example.org/page" -> "example.org"
+    /// - "http://EXAMPLE.ORG" -> "example.org"
+    /// - "www.example.org" -> "example.org"
+    /// - "example.org" -> "example.org"
+    pub fn normalize_domain(url_or_domain: &str) -> Result<String> {
+        let input = url_or_domain.trim();
+
+        // If no protocol, try adding https:// to parse it
+        let with_protocol = if input.starts_with("http://") || input.starts_with("https://") {
+            input.to_string()
+        } else {
+            format!("https://{}", input)
+        };
+
+        let parsed = url::Url::parse(&with_protocol)?;
+        let host = parsed
+            .host_str()
+            .ok_or_else(|| anyhow::anyhow!("No host in input: {}", url_or_domain))?;
+
+        // Normalize: lowercase and strip www. prefix
+        let normalized = host
+            .to_lowercase()
+            .strip_prefix("www.")
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| host.to_lowercase());
+
+        Ok(normalized)
     }
 
     /// Find websites discovered by a specific agent
@@ -566,5 +604,96 @@ impl Website {
         .fetch_all(pool)
         .await?;
         Ok(websites)
+    }
+
+    /// Update max pages per crawl setting
+    pub async fn update_max_pages_per_crawl(
+        id: WebsiteId,
+        max_pages: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET
+                max_pages_per_crawl = $2,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(max_pages)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_domain() {
+        // Full URLs with protocol
+        assert_eq!(
+            Website::normalize_domain("https://www.example.org/page").unwrap(),
+            "example.org"
+        );
+        assert_eq!(
+            Website::normalize_domain("http://www.example.org").unwrap(),
+            "example.org"
+        );
+        assert_eq!(
+            Website::normalize_domain("https://example.org/path/to/page").unwrap(),
+            "example.org"
+        );
+
+        // Without protocol
+        assert_eq!(
+            Website::normalize_domain("www.example.org").unwrap(),
+            "example.org"
+        );
+        assert_eq!(
+            Website::normalize_domain("example.org").unwrap(),
+            "example.org"
+        );
+
+        // Uppercase should be lowercased
+        assert_eq!(
+            Website::normalize_domain("https://WWW.EXAMPLE.ORG").unwrap(),
+            "example.org"
+        );
+        assert_eq!(
+            Website::normalize_domain("EXAMPLE.ORG").unwrap(),
+            "example.org"
+        );
+
+        // Subdomains (not www) should be preserved
+        assert_eq!(
+            Website::normalize_domain("https://blog.example.org").unwrap(),
+            "blog.example.org"
+        );
+        assert_eq!(
+            Website::normalize_domain("https://www.blog.example.org").unwrap(),
+            "blog.example.org"
+        );
+
+        // Real-world examples
+        assert_eq!(
+            Website::normalize_domain("https://www.dhhmn.com/").unwrap(),
+            "dhhmn.com"
+        );
+        assert_eq!(
+            Website::normalize_domain("http://dhhmn.com").unwrap(),
+            "dhhmn.com"
+        );
+
+        // Whitespace should be trimmed
+        assert_eq!(
+            Website::normalize_domain("  https://example.org  ").unwrap(),
+            "example.org"
+        );
     }
 }

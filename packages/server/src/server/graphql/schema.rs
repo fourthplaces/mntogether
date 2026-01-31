@@ -10,8 +10,8 @@ use crate::domains::listings::data::listing_report::{
     ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData,
 };
 use crate::domains::listings::data::{
-    ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData, ListingType,
-    ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+    EditListingInput, ListingConnection, ListingStatusData, ListingType, ScrapeJobResult,
+    SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use crate::domains::listings::edges::{
     approve_listing, approve_website, archive_post, crawl_website, create_agent, delete_listing,
@@ -23,11 +23,14 @@ use crate::domains::listings::edges::{
     submit_resource_link, suspend_website, track_post_click, track_post_view, trigger_agent_search,
     update_agent, CreateAgentInput, GenerateAgentConfigResult, TriggerSearchResult, UpdateAgentInput,
 };
+use crate::domains::website::edges::update_website_crawl_settings;
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
 use crate::domains::chatrooms::edges as chatroom_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::post_types::RepostResult;
 use crate::domains::organization::data::{OrganizationData, PostData, WebsiteData};
+use crate::domains::providers::data::{ProviderData, SubmitProviderInput, UpdateProviderInput};
+use crate::domains::providers::edges as provider_edges;
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -256,6 +259,31 @@ impl Query {
     ) -> FieldResult<Vec<ContainerData>> {
         chatroom_edges::get_recent_chats(ctx, limit).await
     }
+
+    // =========================================================================
+    // Providers
+    // =========================================================================
+
+    /// Get a provider by ID
+    async fn provider(ctx: &GraphQLContext, id: String) -> FieldResult<Option<ProviderData>> {
+        provider_edges::get_provider(ctx, id).await
+    }
+
+    /// Get all providers with optional filters
+    async fn providers(
+        ctx: &GraphQLContext,
+        status: Option<String>,
+        accepting_clients: Option<bool>,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<Vec<ProviderData>> {
+        provider_edges::get_providers(ctx, status, accepting_clients, limit, offset).await
+    }
+
+    /// Get all pending providers (for admin approval queue)
+    async fn pending_providers(ctx: &GraphQLContext) -> FieldResult<Vec<ProviderData>> {
+        provider_edges::get_pending_providers(ctx).await
+    }
 }
 
 pub struct Mutation;
@@ -466,6 +494,15 @@ impl Mutation {
         suspend_website(ctx, website_id, reason).await
     }
 
+    /// Update website crawl settings (admin only)
+    async fn update_website_crawl_settings(
+        ctx: &GraphQLContext,
+        website_id: String,
+        max_pages_per_crawl: i32,
+    ) -> FieldResult<WebsiteData> {
+        update_website_crawl_settings(ctx, website_id, max_pages_per_crawl).await
+    }
+
     /// Refresh a page snapshot by re-scraping (admin only)
     async fn refresh_page_snapshot(
         ctx: &GraphQLContext,
@@ -571,6 +608,102 @@ impl Mutation {
     /// Signal that the user is typing (for real-time indicators)
     async fn signal_typing(ctx: &GraphQLContext, container_id: String) -> FieldResult<bool> {
         chatroom_edges::signal_typing(ctx, container_id).await
+    }
+
+    // =========================================================================
+    // Providers
+    // =========================================================================
+
+    /// Submit a new provider (public, goes to pending_review)
+    async fn submit_provider(
+        ctx: &GraphQLContext,
+        input: SubmitProviderInput,
+        member_id: Option<Uuid>,
+    ) -> FieldResult<ProviderData> {
+        provider_edges::submit_provider(ctx, input, member_id).await
+    }
+
+    /// Update a provider (admin only)
+    async fn update_provider(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        input: UpdateProviderInput,
+    ) -> FieldResult<ProviderData> {
+        provider_edges::update_provider(ctx, provider_id, input).await
+    }
+
+    /// Approve a provider (admin only)
+    async fn approve_provider(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        reviewed_by_id: Uuid,
+    ) -> FieldResult<ProviderData> {
+        provider_edges::approve_provider(ctx, provider_id, reviewed_by_id).await
+    }
+
+    /// Reject a provider (admin only)
+    async fn reject_provider(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        reason: String,
+        reviewed_by_id: Uuid,
+    ) -> FieldResult<ProviderData> {
+        provider_edges::reject_provider(ctx, provider_id, reason, reviewed_by_id).await
+    }
+
+    /// Add a tag to a provider (admin only)
+    async fn add_provider_tag(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        tag_kind: String,
+        tag_value: String,
+        display_name: Option<String>,
+    ) -> FieldResult<crate::domains::tag::TagData> {
+        provider_edges::add_provider_tag(ctx, provider_id, tag_kind, tag_value, display_name).await
+    }
+
+    /// Remove a tag from a provider (admin only)
+    async fn remove_provider_tag(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        tag_id: String,
+    ) -> FieldResult<bool> {
+        provider_edges::remove_provider_tag(ctx, provider_id, tag_id).await
+    }
+
+    /// Add a contact to a provider (admin only)
+    async fn add_provider_contact(
+        ctx: &GraphQLContext,
+        provider_id: String,
+        contact_type: String,
+        contact_value: String,
+        contact_label: Option<String>,
+        is_public: Option<bool>,
+        display_order: Option<i32>,
+    ) -> FieldResult<crate::domains::contacts::ContactData> {
+        provider_edges::add_provider_contact(
+            ctx,
+            provider_id,
+            contact_type,
+            contact_value,
+            contact_label,
+            is_public,
+            display_order,
+        )
+        .await
+    }
+
+    /// Remove a contact (admin only)
+    async fn remove_provider_contact(
+        ctx: &GraphQLContext,
+        contact_id: String,
+    ) -> FieldResult<bool> {
+        provider_edges::remove_provider_contact(ctx, contact_id).await
+    }
+
+    /// Delete a provider (admin only)
+    async fn delete_provider(ctx: &GraphQLContext, provider_id: String) -> FieldResult<bool> {
+        provider_edges::delete_provider(ctx, provider_id).await
     }
 }
 

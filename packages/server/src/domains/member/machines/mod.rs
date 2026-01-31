@@ -1,6 +1,5 @@
 use seesaw_core::Machine;
 use std::collections::HashMap;
-use uuid::Uuid;
 
 use crate::domains::member::{commands::MemberCommand, events::MemberEvent};
 

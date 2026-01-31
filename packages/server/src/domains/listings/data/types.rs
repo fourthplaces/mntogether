@@ -69,7 +69,7 @@ impl From<Listing> for ListingType {
             submission_type: listing.submission_type,
             source_url: listing.source_url,
             created_at: listing.created_at,
-            business_info: None, // TODO: Populate from business_listings table when listing_type = 'business'
+            business_info: None, // Populated by query layer when listing_type = 'business'
         }
     }
 }

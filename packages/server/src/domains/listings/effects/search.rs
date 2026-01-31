@@ -127,7 +127,7 @@ async fn handle_execute_search(
         };
 
         // Skip if domain exists
-        if Website::find_by_url(&domain_url, &ctx.deps().db_pool)
+        if Website::find_by_domain(&domain_url, &ctx.deps().db_pool)
             .await?
             .is_some()
         {

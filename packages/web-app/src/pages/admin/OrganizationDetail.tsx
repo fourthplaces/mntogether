@@ -6,7 +6,7 @@ import { ADD_ORGANIZATION_SCRAPE_URL, REMOVE_ORGANIZATION_SCRAPE_URL } from '../
 
 interface Website {
   id: string;
-  url: string;
+  domain: string;
   lastScrapedAt: string | null;
   scrapeFrequencyHours: number;
   active: boolean;
@@ -121,7 +121,7 @@ export function OrganizationDetail() {
 
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h1 className="text-2xl font-bold text-stone-900 mb-2">
-            {website.url}
+            {website.domain}
           </h1>
           <div className="flex gap-4 text-sm text-stone-600">
             <span>Status: {website.status}</span>
@@ -147,8 +147,8 @@ export function OrganizationDetail() {
 
           <div className="space-y-4">
             <div>
-              <span className="text-sm text-stone-500">URL</span>
-              <p className="font-medium">{website.url}</p>
+              <span className="text-sm text-stone-500">Domain</span>
+              <p className="font-medium">{website.domain}</p>
             </div>
             <div>
               <span className="text-sm text-stone-500">Status</span>

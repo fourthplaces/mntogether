@@ -66,13 +66,10 @@ async fn submit_new_website_returns_pending_review(ctx: &TestHarness) {
         .contains("pending admin approval"));
 
     // Verify website was created in database with pending_review status
-    let website = sqlx::query!(
-        r#"SELECT id, url, status FROM websites WHERE url = $1"#,
-        "https://newwebsite.org"
-    )
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Website should be created");
+    let website = Website::find_by_domain("https://newwebsite.org", &ctx.db_pool)
+        .await
+        .expect("Failed to query website")
+        .expect("Website should be created");
 
     assert_eq!(website.status, "pending_review");
 }
@@ -96,13 +93,11 @@ async fn submit_approved_website_returns_pending_status(ctx: &TestHarness) {
     .expect("Failed to create website");
 
     // Approve the website
-    sqlx::query!(
-        r#"UPDATE websites SET status = 'approved' WHERE id = $1"#,
-        website.id.into_uuid()
-    )
-    .execute(&ctx.db_pool)
-    .await
-    .expect("Failed to approve website");
+    sqlx::query("UPDATE websites SET status = 'approved' WHERE id = $1")
+        .bind(website.id.into_uuid())
+        .execute(&ctx.db_pool)
+        .await
+        .expect("Failed to approve website");
 
     let mutation = r#"
         mutation SubmitResourceLink($input: SubmitResourceLinkInput!) {
@@ -170,8 +165,8 @@ async fn submit_existing_pending_website_returns_pending_review(ctx: &TestHarnes
     );
 
     // Verify only one website was created
-    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE url = $1")
-        .bind("https://samewebsite.org")
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE domain = $1")
+        .bind("samewebsite.org")
         .fetch_one(&ctx.db_pool)
         .await
         .expect("Failed to count websites");
@@ -216,8 +211,8 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
     );
 
     // Verify only one website was created (no duplicate key error)
-    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE url = $1")
-        .bind("https://concurrent.org")
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE domain = $1")
+        .bind("concurrent.org")
         .fetch_one(&ctx.db_pool)
         .await
         .expect("Failed to count websites");

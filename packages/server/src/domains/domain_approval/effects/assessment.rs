@@ -3,8 +3,7 @@ use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::domains::listings::effects::deps::ServerDeps;
 use crate::domains::scraping::models::{
-    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearch,
-    WebsiteResearchHomepage,
+    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearchHomepage,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -249,7 +248,7 @@ Then provide:
 ## Source Data
 
 "#,
-        website.url
+        website.domain
     );
 
     // Add homepage content
