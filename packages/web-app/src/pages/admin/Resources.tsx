@@ -4,9 +4,9 @@ import { GET_ALL_DOMAINS } from '../../graphql/queries';
 import { SCRAPE_ORGANIZATION, SUBMIT_RESOURCE_LINK } from '../../graphql/mutations';
 import { useNavigate } from 'react-router-dom';
 
-interface Domain {
+interface Website {
   id: string;
-  domainUrl: string;
+  websiteUrl: string;
   status: string;
   lastScrapedAt: string | null;
   snapshotsCount?: number;
@@ -22,7 +22,7 @@ export function Resources() {
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ domains: Domain[] }>(
+  const { data, loading, refetch } = useQuery<{ domains: Website[] }>(
     GET_ALL_DOMAINS,
     {
       variables: { status: null }, // Get all domains
@@ -99,7 +99,7 @@ export function Resources() {
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-amber-700 text-white px-4 py-2 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500"
           >
-            {showAddForm ? 'Cancel' : '+ Add Domain'}
+            {showAddForm ? 'Cancel' : '+ Add Website'}
           </button>
         </div>
 
@@ -145,7 +145,7 @@ export function Resources() {
             <thead className="bg-stone-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Domain URL
+                  Website URL
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Status
@@ -163,50 +163,50 @@ export function Resources() {
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
               {data?.domains.map((domain) => (
-                <tr key={domain.id} className="hover:bg-stone-50">
+                <tr key={website.id} className="hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <a
-                      href={domain.domainUrl}
+                      href={website.websiteUrl}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-amber-700 hover:text-amber-900 font-medium break-all"
                     >
-                      {domain.domainUrl}
+                      {website.websiteUrl}
                     </a>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span
                       className={`px-2 py-1 text-xs rounded-full ${
-                        domain.status === 'approved'
+                        website.status === 'approved'
                           ? 'bg-green-100 text-green-800'
-                          : domain.status === 'pending_review'
+                          : website.status === 'pending_review'
                           ? 'bg-yellow-100 text-yellow-800'
                           : 'bg-red-100 text-red-800'
                       }`}
                     >
-                      {domain.status.replace('_', ' ')}
+                      {website.status.replace('_', ' ')}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                    {formatDate(domain.lastScrapedAt)}
+                    {formatDate(website.lastScrapedAt)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                    {domain.listingsCount || 0}
+                    {website.listingsCount || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                     <div className="flex gap-2 justify-end">
                       <button
-                        onClick={() => navigate(`/resources/${domain.id}`)}
+                        onClick={() => navigate(`/resources/${website.id}`)}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                       >
                         View Listings
                       </button>
                       <button
-                        onClick={() => handleScrape(domain.id)}
-                        disabled={scrapingId === domain.id}
+                        onClick={() => handleScrape(website.id)}
+                        disabled={scrapingId === website.id}
                         className="bg-amber-600 text-white px-3 py-1 rounded hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {scrapingId === domain.id ? 'Scraping...' : 'Run Scraper'}
+                        {scrapingId === website.id ? 'Scraping...' : 'Run Scraper'}
                       </button>
                     </div>
                   </td>
@@ -217,7 +217,7 @@ export function Resources() {
 
           {data?.domains?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
-              No domains found. Add a domain to get started.
+              No websites found. Add a website to get started.
             </div>
           )}
         </div>

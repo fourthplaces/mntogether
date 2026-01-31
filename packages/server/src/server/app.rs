@@ -1,4 +1,9 @@
 use crate::domains::auth::JwtService;
+use crate::domains::domain_approval::{
+    commands::DomainApprovalCommand,
+    effects::DomainApprovalCompositeEffect,
+    machines::DomainApprovalMachine,
+};
 use crate::domains::matching::{
     commands::MatchingCommand,
     effects::MatchingEffect,
@@ -80,7 +85,7 @@ pub fn build_app(
     firecrawl_api_key: String,
     openai_api_key: String,
     voyage_api_key: String,
-    tavily_api_key: Option<String>,
+    tavily_api_key: String,
     expo_access_token: Option<String>,
     twilio_account_sid: String,
     twilio_auth_token: String,
@@ -118,22 +123,11 @@ pub fn build_app(
     let firecrawl_client = FirecrawlClient::new(firecrawl_api_key)
         .unwrap_or_else(|e| panic!("Failed to initialize Firecrawl client: {}. Check FIRECRAWL_API_KEY environment variable.", e));
 
-    // Create Tavily search client (or no-op if not configured)
-    let search_service: Arc<dyn crate::kernel::BaseSearchService> = if let Some(api_key) = tavily_api_key {
-        match crate::kernel::TavilyClient::new(api_key) {
-            Ok(client) => {
-                tracing::info!("Tavily search client initialized");
-                Arc::new(client)
-            }
-            Err(e) => {
-                tracing::warn!("Failed to initialize Tavily client: {}. Search features will be disabled.", e);
-                Arc::new(crate::kernel::NoopSearchService)
-            }
-        }
-    } else {
-        tracing::info!("TAVILY_API_KEY not configured, search features will be disabled");
-        Arc::new(crate::kernel::NoopSearchService)
-    };
+    // Create Tavily search client (required)
+    let search_service: Arc<dyn crate::kernel::BaseSearchService> = Arc::new(
+        crate::kernel::TavilyClient::new(tavily_api_key)
+            .unwrap_or_else(|e| panic!("Failed to initialize Tavily client: {}. Check TAVILY_API_KEY environment variable.", e))
+    );
 
     let server_deps = ServerDeps::new(
         pool.clone(),
@@ -168,6 +162,9 @@ pub fn build_app(
         // Auth domain
         .with_machine(crate::domains::auth::AuthMachine::new())
         .with_effect::<crate::domains::auth::AuthCommand, _>(crate::domains::auth::AuthEffect)
+        // Domain approval domain
+        .with_machine(DomainApprovalMachine::new())
+        .with_effect::<DomainApprovalCommand, _>(DomainApprovalCompositeEffect::new())
         // Job queue for background commands
         .with_job_queue(job_queue)
         .build();

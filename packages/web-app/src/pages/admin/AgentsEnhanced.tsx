@@ -50,10 +50,25 @@ const GENERATE_AGENT_CONFIG = gql`
 `;
 
 const TRIGGER_AGENT_SEARCH = gql`
-  mutation TriggerAgentSearch($agentId: ID!) {
+  mutation TriggerAgentSearch($agentId: String!) {
     triggerAgentSearch(agentId: $agentId) {
       jobId
       status
+    }
+  }
+`;
+
+const UPDATE_AGENT = gql`
+  mutation UpdateAgent($agentId: String!, $input: UpdateAgentInput!) {
+    updateAgent(agentId: $agentId, input: $input) {
+      id
+      name
+      queryTemplate
+      description
+      enabled
+      locationContext
+      extractionInstructions
+      systemPrompt
     }
   }
 `;
@@ -84,6 +99,7 @@ interface Agent {
 
 export function AgentsEnhanced() {
   const [showCreateWizard, setShowCreateWizard] = useState(false);
+  const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [wizardStep, setWizardStep] = useState<'intent' | 'review'>('intent');
   const [userIntent, setUserIntent] = useState('');
   const [locationContext, setLocationContext] = useState('Minnesota');
@@ -92,6 +108,7 @@ export function AgentsEnhanced() {
   const [error, setError] = useState<string | null>(null);
   const [searchingAgentId, setSearchingAgentId] = useState<string | null>(null);
   const [searchSuccess, setSearchSuccess] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const { data, loading, refetch } = useQuery<{ agents: Agent[] }>(GET_ALL_AGENTS);
 
@@ -136,6 +153,21 @@ export function AgentsEnhanced() {
     },
   });
 
+  const [updateAgent] = useMutation(UPDATE_AGENT, {
+    onCompleted: () => {
+      console.log('Agent updated successfully');
+      setIsUpdating(false);
+      setEditingAgent(null);
+      setError(null);
+      refetch();
+    },
+    onError: (err) => {
+      console.error('Error updating agent:', err);
+      setIsUpdating(false);
+      setError(err.message);
+    },
+  });
+
   const handleGenerateConfig = async () => {
     if (!userIntent.trim()) {
       setError('Please describe what the agent should search for');
@@ -175,6 +207,34 @@ export function AgentsEnhanced() {
     setSearchSuccess(null);
     setSearchingAgentId(agentId);
     await triggerSearch({ variables: { agentId } });
+  };
+
+  const handleUpdateAgent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setIsUpdating(true);
+
+    if (!editingAgent) {
+      setIsUpdating(false);
+      return;
+    }
+
+    console.log('Updating agent:', editingAgent.id);
+
+    await updateAgent({
+      variables: {
+        agentId: editingAgent.id,
+        input: {
+          name: editingAgent.name,
+          queryTemplate: editingAgent.queryTemplate,
+          description: editingAgent.description || null,
+          extractionInstructions: editingAgent.extractionInstructions || null,
+          systemPrompt: editingAgent.systemPrompt || null,
+          locationContext: editingAgent.locationContext,
+          enabled: editingAgent.enabled,
+        },
+      },
+    });
   };
 
   const formatDate = (dateString: string | null) => {
@@ -539,7 +599,10 @@ export function AgentsEnhanced() {
                     </>
                   )}
                 </button>
-                <button className="px-4 py-2 border border-stone-300 rounded hover:bg-stone-50 text-sm font-medium">
+                <button
+                  onClick={() => setEditingAgent(agent)}
+                  className="px-4 py-2 border border-stone-300 rounded hover:bg-stone-50 text-sm font-medium"
+                >
                   Edit
                 </button>
               </div>
@@ -561,6 +624,158 @@ export function AgentsEnhanced() {
             >
               <span>✨</span> Create First Agent with AI
             </button>
+          </div>
+        )}
+
+        {/* Edit Agent Modal */}
+        {editingAgent && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-6">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-semibold text-stone-900">Edit Agent</h2>
+                  <button
+                    onClick={() => setEditingAgent(null)}
+                    className="text-stone-400 hover:text-stone-600 text-2xl"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <form onSubmit={handleUpdateAgent} className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">
+                        Agent Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={editingAgent.name}
+                        onChange={(e) =>
+                          setEditingAgent({ ...editingAgent, name: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-stone-700 mb-2">
+                        Location Context
+                      </label>
+                      <input
+                        type="text"
+                        value={editingAgent.locationContext}
+                        onChange={(e) =>
+                          setEditingAgent({ ...editingAgent, locationContext: e.target.value })
+                        }
+                        className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      Search Query Template *
+                    </label>
+                    <input
+                      type="text"
+                      value={editingAgent.queryTemplate}
+                      onChange={(e) =>
+                        setEditingAgent({ ...editingAgent, queryTemplate: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={editingAgent.description || ''}
+                      onChange={(e) =>
+                        setEditingAgent({ ...editingAgent, description: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      Extraction Instructions
+                    </label>
+                    <textarea
+                      value={editingAgent.extractionInstructions || ''}
+                      onChange={(e) =>
+                        setEditingAgent({
+                          ...editingAgent,
+                          extractionInstructions: e.target.value,
+                        })
+                      }
+                      rows={3}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-stone-700 mb-2">
+                      System Prompt
+                    </label>
+                    <textarea
+                      value={editingAgent.systemPrompt || ''}
+                      onChange={(e) =>
+                        setEditingAgent({ ...editingAgent, systemPrompt: e.target.value })
+                      }
+                      rows={2}
+                      className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="enabled"
+                      checked={editingAgent.enabled}
+                      onChange={(e) =>
+                        setEditingAgent({ ...editingAgent, enabled: e.target.checked })
+                      }
+                      className="w-4 h-4 text-purple-600 border-stone-300 rounded focus:ring-purple-500"
+                    />
+                    <label htmlFor="enabled" className="text-sm font-medium text-stone-700">
+                      Agent Enabled
+                    </label>
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      type="submit"
+                      disabled={isUpdating}
+                      className="flex-1 bg-purple-600 text-white px-6 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {isUpdating ? (
+                        <>
+                          <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingAgent(null)}
+                      disabled={isUpdating}
+                      className="px-6 py-2 border border-stone-300 rounded-md hover:bg-stone-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
           </div>
         )}
       </div>

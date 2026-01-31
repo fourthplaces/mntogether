@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::{DomainId, OrganizationId};
+use crate::common::{WebsiteId, OrganizationId};
 
 // Builder for creating organizations
 #[derive(TypedBuilder)]
@@ -15,7 +15,7 @@ pub struct CreateOrganization {
     #[builder(default)]
     pub summary: Option<String>,
     #[builder(default)]
-    pub domain_id: Option<DomainId>,
+    pub website_id: Option<WebsiteId>,
     #[builder(default)]
     pub website: Option<String>,
     #[builder(default)]
@@ -36,7 +36,7 @@ struct OrganizationWithSimilarity {
     name: String,
     description: Option<String>,
     summary: Option<String>,
-    domain_id: Option<DomainId>,
+    website_id: Option<WebsiteId>,
     website: Option<String>,
     phone: Option<String>,
     email: Option<String>,
@@ -64,7 +64,7 @@ impl From<OrganizationWithSimilarity> for (Organization, f32) {
             name: result.name,
             description: result.description,
             summary: result.summary,
-            domain_id: result.domain_id,
+            website_id: result.website_id,
             website: result.website,
             phone: result.phone,
             email: result.email,
@@ -92,7 +92,7 @@ pub struct Organization {
     pub name: String,
     pub description: Option<String>,
     pub summary: Option<String>, // Rich summary for AI matching (used with description for embeddings)
-    pub domain_id: Option<DomainId>,
+    pub website_id: Option<WebsiteId>,
 
     // Contact
     pub website: Option<String>,
@@ -222,12 +222,12 @@ impl Organization {
         Ok(orgs)
     }
 
-    /// Find organizations by domain
-    pub async fn find_by_domain(domain_id: DomainId, pool: &PgPool) -> Result<Vec<Self>> {
+    /// Find organizations by website
+    pub async fn find_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let orgs = sqlx::query_as::<_, Organization>(
-            "SELECT * FROM organizations WHERE domain_id = $1 ORDER BY name",
+            "SELECT * FROM organizations WHERE website_id = $1 ORDER BY name",
         )
-        .bind(domain_id)
+        .bind(website_id)
         .fetch_all(pool)
         .await?;
         Ok(orgs)
@@ -252,7 +252,7 @@ impl Organization {
                 name,
                 description,
                 summary,
-                domain_id,
+                website_id,
                 website,
                 phone,
                 email,
@@ -266,7 +266,7 @@ impl Organization {
         .bind(builder.name)
         .bind(builder.description)
         .bind(builder.summary)
-        .bind(builder.domain_id)
+        .bind(builder.website_id)
         .bind(builder.website)
         .bind(builder.phone)
         .bind(builder.email)

@@ -4,13 +4,13 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{DomainId, MemberId};
+use crate::common::{WebsiteId, MemberId};
 
-/// Domain - a website we scrape for listings (requires approval before crawling)
+/// Website - a website we scrape for listings (requires approval before crawling)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
-pub struct Domain {
-    pub id: DomainId,
-    pub domain_url: String,
+pub struct Website {
+    pub id: WebsiteId,
+    pub url: String,
     pub scrape_frequency_hours: i32,
     pub last_scraped_at: Option<DateTime<Utc>>,
     pub active: bool,
@@ -27,43 +27,43 @@ pub struct Domain {
     // Crawling configuration
     pub max_crawl_depth: i32,
     pub crawl_rate_limit_seconds: i32,
-    pub is_trusted_domain: bool,
+    pub is_trusted: bool,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
-/// Domain status enum
+/// Website status enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
-pub enum DomainStatus {
+pub enum WebsiteStatus {
     PendingReview,
     Approved,
     Rejected,
     Suspended,
 }
 
-impl std::fmt::Display for DomainStatus {
+impl std::fmt::Display for WebsiteStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DomainStatus::PendingReview => write!(f, "pending_review"),
-            DomainStatus::Approved => write!(f, "approved"),
-            DomainStatus::Rejected => write!(f, "rejected"),
-            DomainStatus::Suspended => write!(f, "suspended"),
+            WebsiteStatus::PendingReview => write!(f, "pending_review"),
+            WebsiteStatus::Approved => write!(f, "approved"),
+            WebsiteStatus::Rejected => write!(f, "rejected"),
+            WebsiteStatus::Suspended => write!(f, "suspended"),
         }
     }
 }
 
-impl std::str::FromStr for DomainStatus {
+impl std::str::FromStr for WebsiteStatus {
     type Err = anyhow::Error;
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "pending_review" => Ok(DomainStatus::PendingReview),
-            "approved" => Ok(DomainStatus::Approved),
-            "rejected" => Ok(DomainStatus::Rejected),
-            "suspended" => Ok(DomainStatus::Suspended),
-            _ => Err(anyhow::anyhow!("Invalid domain status: {}", s)),
+            "pending_review" => Ok(WebsiteStatus::PendingReview),
+            "approved" => Ok(WebsiteStatus::Approved),
+            "rejected" => Ok(WebsiteStatus::Rejected),
+            "suspended" => Ok(WebsiteStatus::Suspended),
+            _ => Err(anyhow::anyhow!("Invalid website status: {}", s)),
         }
     }
 }
@@ -72,60 +72,60 @@ impl std::str::FromStr for DomainStatus {
 // SQL Queries - ALL queries must be in models/
 // =============================================================================
 
-impl Domain {
-    /// Find domain by ID
-    pub async fn find_by_id(id: DomainId, pool: &PgPool) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>("SELECT * FROM domains WHERE id = $1")
+impl Website {
+    /// Find website by ID
+    pub async fn find_by_id(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>("SELECT * FROM websites WHERE id = $1")
             .bind(id)
             .fetch_one(pool)
             .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Find domain by URL
+    /// Find website by URL
     pub async fn find_by_url(url: &str, pool: &PgPool) -> Result<Option<Self>> {
-        let domain = sqlx::query_as::<_, Domain>("SELECT * FROM domains WHERE domain_url = $1")
+        let website = sqlx::query_as::<_, Website>("SELECT * FROM websites WHERE url = $1")
             .bind(url)
             .fetch_optional(pool)
             .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Find all active domains
+    /// Find all active websites
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
-        let domains = sqlx::query_as::<_, Domain>(
-            "SELECT * FROM domains WHERE active = true AND status = 'approved' ORDER BY created_at",
+        let websites = sqlx::query_as::<_, Website>(
+            "SELECT * FROM websites WHERE active = true AND status = 'approved' ORDER BY created_at",
         )
         .fetch_all(pool)
         .await?;
-        Ok(domains)
+        Ok(websites)
     }
 
-    /// Find all approved domains (ready for crawling)
+    /// Find all approved websites (ready for crawling)
     pub async fn find_approved(pool: &PgPool) -> Result<Vec<Self>> {
-        let domains = sqlx::query_as::<_, Domain>(
-            "SELECT * FROM domains WHERE status = 'approved' ORDER BY created_at",
+        let websites = sqlx::query_as::<_, Website>(
+            "SELECT * FROM websites WHERE status = 'approved' ORDER BY created_at",
         )
         .fetch_all(pool)
         .await?;
-        Ok(domains)
+        Ok(websites)
     }
 
-    /// Find domains pending review
+    /// Find websites pending review
     pub async fn find_pending_review(pool: &PgPool) -> Result<Vec<Self>> {
-        let domains = sqlx::query_as::<_, Domain>(
-            "SELECT * FROM domains WHERE status = 'pending_review' ORDER BY created_at DESC",
+        let websites = sqlx::query_as::<_, Website>(
+            "SELECT * FROM websites WHERE status = 'pending_review' ORDER BY created_at DESC",
         )
         .fetch_all(pool)
         .await?;
-        Ok(domains)
+        Ok(websites)
     }
 
-    /// Find approved domains due for scraping
+    /// Find approved websites due for scraping
     pub async fn find_due_for_scraping(pool: &PgPool) -> Result<Vec<Self>> {
-        let domains = sqlx::query_as::<_, Domain>(
+        let websites = sqlx::query_as::<_, Website>(
             r#"
-            SELECT * FROM domains
+            SELECT * FROM websites
             WHERE status = 'approved'
               AND active = true
               AND (last_scraped_at IS NULL
@@ -135,16 +135,16 @@ impl Domain {
         )
         .fetch_all(pool)
         .await?;
-        Ok(domains)
+        Ok(websites)
     }
 
-    /// Find or create a domain (handles race conditions)
+    /// Find or create a website (handles race conditions)
     ///
     /// This method uses INSERT ... ON CONFLICT to atomically handle concurrent
-    /// requests. If the domain already exists, it returns the existing domain.
+    /// requests. If the website already exists, it returns the existing website.
     /// This prevents duplicate key errors in high-concurrency scenarios.
     pub async fn find_or_create(
-        domain_url: String,
+        url: String,
         submitted_by: Option<MemberId>,
         submitter_type: String,
         submission_context: Option<String>,
@@ -152,9 +152,9 @@ impl Domain {
         pool: &PgPool,
     ) -> Result<Self> {
         // The create method now uses INSERT ... ON CONFLICT,
-        // so it handles both creation and finding existing domains atomically
+        // so it handles both creation and finding existing websites atomically
         Self::create(
-            domain_url,
+            url,
             submitted_by,
             submitter_type,
             submission_context,
@@ -164,22 +164,22 @@ impl Domain {
         .await
     }
 
-    /// Create a new domain submission (starts as pending_review)
+    /// Create a new website submission (starts as pending_review)
     ///
     /// Uses INSERT ... ON CONFLICT to handle concurrent requests gracefully.
-    /// If the domain already exists, returns the existing domain.
+    /// If the website already exists, returns the existing website.
     pub async fn create(
-        domain_url: String,
+        url: String,
         submitted_by: Option<MemberId>,
         submitter_type: String,
         submission_context: Option<String>,
         max_crawl_depth: i32,
         pool: &PgPool,
     ) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            INSERT INTO domains (
-                domain_url,
+            INSERT INTO websites (
+                url,
                 submitted_by,
                 submitter_type,
                 submission_context,
@@ -187,30 +187,30 @@ impl Domain {
                 status
             )
             VALUES ($1, $2, $3, $4, $5, 'pending_review')
-            ON CONFLICT (domain_url) DO UPDATE
-            SET domain_url = EXCLUDED.domain_url  -- No-op update to return existing row
+            ON CONFLICT (url) DO UPDATE
+            SET url = EXCLUDED.url  -- No-op update to return existing row
             RETURNING *
             "#,
         )
-        .bind(domain_url)
+        .bind(url)
         .bind(submitted_by)
         .bind(submitter_type)
         .bind(submission_context)
         .bind(max_crawl_depth)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Approve a domain for crawling
+    /// Approve a website for crawling
     pub async fn approve(
-        id: DomainId,
+        id: WebsiteId,
         reviewed_by: MemberId,
         pool: &PgPool,
     ) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET
                 status = 'approved',
                 reviewed_by = $2,
@@ -224,19 +224,19 @@ impl Domain {
         .bind(reviewed_by)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Reject a domain submission
+    /// Reject a website submission
     pub async fn reject(
-        id: DomainId,
+        id: WebsiteId,
         reviewed_by: MemberId,
         rejection_reason: String,
         pool: &PgPool,
     ) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET
                 status = 'rejected',
                 reviewed_by = $2,
@@ -252,19 +252,19 @@ impl Domain {
         .bind(rejection_reason)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Suspend an approved domain
+    /// Suspend an approved website
     pub async fn suspend(
-        id: DomainId,
+        id: WebsiteId,
         reviewed_by: MemberId,
         reason: String,
         pool: &PgPool,
     ) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET
                 status = 'suspended',
                 reviewed_by = $2,
@@ -280,26 +280,26 @@ impl Domain {
         .bind(reason)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Check if a domain is approved (for auto-approving URLs from this domain)
-    pub async fn is_domain_approved(domain_url: &str, pool: &PgPool) -> Result<bool> {
+    /// Check if a website is approved (for auto-approving URLs from this website)
+    pub async fn is_website_approved(url: &str, pool: &PgPool) -> Result<bool> {
         let result = sqlx::query_scalar::<_, bool>(
-            "SELECT EXISTS(SELECT 1 FROM domains WHERE domain_url = $1 AND status = 'approved')",
+            "SELECT EXISTS(SELECT 1 FROM websites WHERE url = $1 AND status = 'approved')",
         )
-        .bind(domain_url)
+        .bind(url)
         .fetch_one(pool)
         .await?;
         Ok(result)
     }
 
-    /// Mark domain as trusted (URLs from this domain are auto-approved)
-    pub async fn mark_as_trusted(id: DomainId, pool: &PgPool) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+    /// Mark website as trusted (URLs from this website are auto-approved)
+    pub async fn mark_as_trusted(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
-            SET is_trusted_domain = true, updated_at = NOW()
+            UPDATE websites
+            SET is_trusted = true, updated_at = NOW()
             WHERE id = $1
             RETURNING *
             "#,
@@ -307,14 +307,14 @@ impl Domain {
         .bind(id)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
     /// Update last_scraped_at timestamp
-    pub async fn update_last_scraped(id: DomainId, pool: &PgPool) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+    pub async fn update_last_scraped(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET last_scraped_at = NOW(), updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -323,18 +323,18 @@ impl Domain {
         .bind(id)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
     /// Update scrape frequency
     pub async fn update_frequency(
-        id: DomainId,
+        id: WebsiteId,
         scrape_frequency_hours: i32,
         pool: &PgPool,
     ) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET scrape_frequency_hours = $2, updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -344,14 +344,14 @@ impl Domain {
         .bind(scrape_frequency_hours)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Set domain active status
-    pub async fn set_active(id: DomainId, active: bool, pool: &PgPool) -> Result<Self> {
-        let domain = sqlx::query_as::<_, Domain>(
+    /// Set website active status
+    pub async fn set_active(id: WebsiteId, active: bool, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET active = $2, updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -361,12 +361,12 @@ impl Domain {
         .bind(active)
         .fetch_one(pool)
         .await?;
-        Ok(domain)
+        Ok(website)
     }
 
-    /// Delete a domain
-    pub async fn delete(id: DomainId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM domains WHERE id = $1")
+    /// Delete a website
+    pub async fn delete(id: WebsiteId, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM websites WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;

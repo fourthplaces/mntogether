@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
-use crate::common::{DomainId, ListingId, MemberId, PostId};
+use crate::common::{WebsiteId, ListingId, MemberId, PostId};
 use crate::domains::listings::models::{listing::Listing, ListingStatus};
 use crate::domains::organization::models::post::Post;
 use crate::domains::organization::utils::{generate_need_content_hash as generate_listing_content_hash, generate_tldr};
@@ -24,7 +24,7 @@ pub async fn create_listing(
     location: Option<String>,
     ip_address: Option<String>,
     submission_type: String,
-    domain_id: Option<DomainId>,
+    website_id: Option<WebsiteId>,
     ai: &dyn BaseAI,
     pool: &PgPool,
 ) -> Result<Listing> {
@@ -55,7 +55,7 @@ pub async fn create_listing(
         "en".to_string(), // Default language
         Some(submission_type),
         None, // submitted_by_admin_id
-        domain_id,
+        website_id,
         None, // source_url - not applicable for user-submitted listings
         None, // organization_id
         pool,

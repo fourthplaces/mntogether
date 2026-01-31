@@ -3,10 +3,10 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use crate::common::{DomainId, JobId, MemberId};
+use crate::common::{WebsiteId, JobId, MemberId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::{Agent, Domain};
+use crate::domains::scraping::models::{Agent, Website};
 
 /// Sync Effect - Handles SyncListings command
 ///
@@ -38,7 +38,7 @@ impl Effect<ListingCommand, ServerDeps> for SyncEffect {
 // ============================================================================
 
 async fn handle_sync_listings(
-    source_id: DomainId,
+    source_id: WebsiteId,
     job_id: JobId,
     listings: Vec<crate::common::ExtractedListing>,
     ctx: &EffectContext<ServerDeps>,
@@ -76,15 +76,15 @@ async fn handle_sync_listings(
             }
         };
 
-    // Auto-approve domain if agent has auto_approve_domains enabled and listings were found
+    // Auto-approve website if agent has auto_approve_websites enabled and listings were found
     if result.new_count > 0 {
-        match auto_approve_domain_if_enabled(source_id, &ctx.deps().db_pool).await {
+        match auto_approve_website_if_enabled(source_id, &ctx.deps().db_pool).await {
             Ok(approved) => {
                 if approved {
                     tracing::info!(
                         source_id = %source_id,
                         new_listings = result.new_count,
-                        "Domain auto-approved by agent after finding listings"
+                        "Website auto-approved by agent after finding listings"
                     );
                 }
             }
@@ -92,7 +92,7 @@ async fn handle_sync_listings(
                 tracing::warn!(
                     source_id = %source_id,
                     error = %e,
-                    "Failed to auto-approve domain (continuing anyway)"
+                    "Failed to auto-approve website (continuing anyway)"
                 );
             }
         }
@@ -112,26 +112,26 @@ async fn handle_sync_listings(
     })
 }
 
-/// Auto-approve domain if it has an agent with auto_approve_domains enabled
+/// Auto-approve website if it has an agent with auto_approve_websites enabled
 ///
-/// Returns: Ok(true) if domain was auto-approved, Ok(false) if not applicable, Err on failure
-async fn auto_approve_domain_if_enabled(
-    domain_id: DomainId,
+/// Returns: Ok(true) if website was auto-approved, Ok(false) if not applicable, Err on failure
+async fn auto_approve_website_if_enabled(
+    website_id: WebsiteId,
     pool: &sqlx::PgPool,
 ) -> Result<bool> {
-    // Load domain
-    let domain = Domain::find_by_id(domain_id, pool).await?;
+    // Load website
+    let website = Website::find_by_id(website_id, pool).await?;
 
-    // Check if domain is still pending review (only auto-approve if pending)
-    if domain.status != "pending_review" {
+    // Check if website is still pending review (only auto-approve if pending)
+    if website.status != "pending_review" {
         return Ok(false);
     }
 
-    // Check if domain has an agent_id
+    // Check if website has an agent_id
     let agent_id = sqlx::query_scalar::<_, Option<uuid::Uuid>>(
-        "SELECT agent_id FROM domains WHERE id = $1"
+        "SELECT agent_id FROM websites WHERE id = $1"
     )
-    .bind(domain.id)
+    .bind(website.id)
     .fetch_one(pool)
     .await?;
 
@@ -148,14 +148,14 @@ async fn auto_approve_domain_if_enabled(
         return Ok(false);
     }
 
-    // Auto-approve the domain (system user)
+    // Auto-approve the website (system user)
     tracing::info!(
-        domain_id = %domain_id,
+        website_id = %website_id,
         agent_name = %agent.name,
-        "Auto-approving domain discovered by agent"
+        "Auto-approving website discovered by agent"
     );
 
-    Domain::approve(domain_id, MemberId::nil(), pool).await?;
+    Website::approve(website_id, MemberId::nil(), pool).await?;
 
     // Increment agent's approved count
     Agent::increment_approved_count(agent_id, pool).await?;

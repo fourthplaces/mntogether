@@ -62,7 +62,7 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             ListingCommand::ExecuteSearch { .. } => self.search.execute(cmd, ctx).await,
 
             // Route to ListingEffect (all other commands)
-            ListingCommand::CreateDomainFromLink { .. }
+            ListingCommand::CreateWebsiteFromLink { .. }
             | ListingCommand::CreateListing { .. }
             | ListingCommand::CreateListingsFromResourceLink { .. }
             | ListingCommand::UpdateListingStatus { .. }
@@ -76,6 +76,9 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             | ListingCommand::IncrementPostView { .. }
             | ListingCommand::IncrementPostClick { .. }
             | ListingCommand::DeleteListing { .. }
+            | ListingCommand::CreateReport { .. }
+            | ListingCommand::ResolveReport { .. }
+            | ListingCommand::DismissReport { .. }
             | ListingCommand::CrawlSite { .. }
             | ListingCommand::DetectInformation { .. }
             | ListingCommand::ExtractData { .. }

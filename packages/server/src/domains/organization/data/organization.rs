@@ -11,7 +11,7 @@ pub struct OrganizationData {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
-    pub domain_id: Option<String>,
+    pub website_id: Option<String>,
     pub contact_info: Option<ContactInfo>,
     pub location: Option<String>,
     pub verified: bool,
@@ -45,7 +45,7 @@ impl From<Organization> for OrganizationData {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
-            domain_id: org.domain_id.map(|d| d.to_string()),
+            website_id: org.website_id.map(|d| d.to_string()),
             contact_info,
             location: org.primary_address,
             verified: org.verified,
@@ -106,23 +106,23 @@ impl OrganizationData {
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 
-    /// Get domain source for this organization (if linked to a domain)
+    /// Get website source for this organization (if linked to a website)
     async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
-        use crate::domains::scraping::models::Domain;
-        use crate::common::DomainId;
+        use crate::domains::scraping::models::Website;
+        use crate::common::WebsiteId;
 
-        // Organizations are now linked to domains, not sources directly
-        // If organization has a domain_id, return that domain source
-        if let Some(domain_id_str) = &self.domain_id {
-            if let Ok(uuid) = uuid::Uuid::parse_str(domain_id_str) {
-                let source_id = DomainId::from_uuid(uuid);
-                if let Ok(source) = Domain::find_by_id(source_id, &context.db_pool).await {
+        // Organizations are now linked to websites, not sources directly
+        // If organization has a website_id, return that website source
+        if let Some(website_id_str) = &self.website_id {
+            if let Ok(uuid) = uuid::Uuid::parse_str(website_id_str) {
+                let source_id = WebsiteId::from_uuid(uuid);
+                if let Ok(source) = Website::find_by_id(source_id, &context.db_pool).await {
                     return Ok(vec![SourceData::from(source)]);
                 }
             }
         }
 
-        // No domain linked
+        // No website linked
         Ok(vec![])
     }
 }

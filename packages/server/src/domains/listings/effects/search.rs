@@ -8,7 +8,7 @@ use super::deps::ServerDeps;
 use crate::common::JobId;
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::{Agent, Domain};
+use crate::domains::scraping::models::{Agent, Website};
 
 pub struct SearchEffect;
 
@@ -127,7 +127,7 @@ async fn handle_execute_search(
         };
 
         // Skip if domain exists
-        if Domain::find_by_url(&domain_url, &ctx.deps().db_pool)
+        if Website::find_by_url(&domain_url, &ctx.deps().db_pool)
             .await?
             .is_some()
         {
@@ -138,18 +138,18 @@ async fn handle_execute_search(
             continue;
         }
 
-        // Create pending domain
-        let domain = match Domain::create(
+        // Create pending website
+        let website = match Website::create(
             domain_url.clone(),
             None, // No member submitted this
-            "tavily_search".to_string(),
-            Some(format!("Discovered via agent: {}", agent.name)),
+            "system".to_string(),
+            Some(format!("Discovered via Tavily agent: {}", agent.name)),
             3, // Default max_crawl_depth
             &ctx.deps().db_pool,
         )
         .await
         {
-            Ok(domain) => domain,
+            Ok(website) => website,
             Err(e) => {
                 tracing::error!(
                     domain_url = %domain_url,
@@ -169,7 +169,7 @@ async fn handle_execute_search(
 
         if let Err(e) = sqlx::query(
             r#"
-            UPDATE domains
+            UPDATE websites
             SET agent_id = $1,
                 tavily_relevance_score = $2,
                 tavily_search_metadata = $3
@@ -179,33 +179,33 @@ async fn handle_execute_search(
         .bind(agent_id)
         .bind(result.score)
         .bind(metadata)
-        .bind(domain.id)
+        .bind(website.id)
         .execute(&ctx.deps().db_pool)
         .await
         {
             tracing::error!(
-                domain_id = %domain.id,
+                website_id = %website.id,
                 error = %e,
-                "Failed to link domain to agent, skipping"
+                "Failed to link website to agent, skipping"
             );
             continue;
         }
 
         tracing::info!(
-            domain_id = %domain.id,
+            website_id = %website.id,
             domain_url = %domain_url,
             relevance_score = result.score,
             agent_name = %agent.name,
-            "Created domain from agent search"
+            "Created website from agent search"
         );
 
         domains_created += 1;
 
         // Note: Auto-scraping handled by scheduled scraper (runs hourly)
-        // Domains discovered by agents are prioritized based on:
+        // Websites discovered by agents are prioritized based on:
         // 1. last_scraped_at IS NULL (never scraped)
         // 2. Agent auto_scrape setting
-        // Once listings are extracted and domain is auto-approved, it becomes active
+        // Once listings are extracted and website is auto-approved, it becomes active
     }
 
     // 6. Update statistics

@@ -1,0 +1,96 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            UPDATE listing_reports\n            SET status = 'dismissed', resolved_by = $2, resolved_at = NOW(),\n                resolution_notes = $3, updated_at = NOW()\n            WHERE id = $1\n            RETURNING id as \"id: ListingReportId\", listing_id as \"listing_id: ListingId\",\n                      reported_by as \"reported_by: Option<MemberId>\", reporter_email, reason, category,\n                      status, resolved_by as \"resolved_by: Option<MemberId>\", resolved_at,\n                      resolution_notes, action_taken, created_at, updated_at\n            ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id: ListingReportId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 1,
+        "name": "listing_id: ListingId",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 2,
+        "name": "reported_by: Option<MemberId>",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 3,
+        "name": "reporter_email",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 4,
+        "name": "reason",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 5,
+        "name": "category",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 6,
+        "name": "status",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 7,
+        "name": "resolved_by: Option<MemberId>",
+        "type_info": "Uuid"
+      },
+      {
+        "ordinal": 8,
+        "name": "resolved_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 9,
+        "name": "resolution_notes",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 10,
+        "name": "action_taken",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at",
+        "type_info": "Timestamptz"
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at",
+        "type_info": "Timestamptz"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "691af3c5ecdf8bb4bef4026b2b4ad26a881efdd36b87784f2b3058986aa28e95"
+}

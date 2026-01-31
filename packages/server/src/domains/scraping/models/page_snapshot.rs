@@ -38,27 +38,12 @@ impl PageSnapshot {
         let content_hash = hasher.finalize().to_vec();
 
         // Try to find existing snapshot with same URL and content
-        let existing = sqlx::query_as!(
-            PageSnapshot,
-            r#"
-            SELECT
-                id,
-                url,
-                content_hash,
-                html,
-                markdown,
-                fetched_via,
-                metadata,
-                crawled_at,
-                listings_extracted_count,
-                extraction_completed_at,
-                extraction_status
-            FROM page_snapshots
-            WHERE url = $1 AND content_hash = $2
-            "#,
-            url,
-            content_hash
+        let existing: Option<Self> = sqlx::query_as::<_, Self>(
+            "SELECT * FROM page_snapshots
+             WHERE url = $1 AND content_hash = $2"
         )
+        .bind(&url)
+        .bind(&content_hash)
         .fetch_optional(pool)
         .await
         .context("Failed to check for existing page snapshot")?;
@@ -74,35 +59,21 @@ impl PageSnapshot {
 
         // Create new snapshot
         let id = PageSnapshotId::new_v4();
-        let snapshot = sqlx::query_as!(
-            PageSnapshot,
-            r#"
-            INSERT INTO page_snapshots (
+        let snapshot: Self = sqlx::query_as::<_, Self>(
+            "INSERT INTO page_snapshots (
                 id, url, content_hash, html, markdown, fetched_via,
                 metadata, crawled_at, extraction_status
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending')
-            RETURNING
-                id,
-                url,
-                content_hash,
-                html,
-                markdown,
-                fetched_via,
-                metadata,
-                crawled_at,
-                listings_extracted_count,
-                extraction_completed_at,
-                extraction_status
-            "#,
-            id,
-            url,
-            content_hash,
-            html,
-            markdown,
-            fetched_via,
-            serde_json::json!({})
+             )
+             VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending')
+             RETURNING *"
         )
+        .bind(id)
+        .bind(&url)
+        .bind(&content_hash)
+        .bind(&html)
+        .bind(&markdown)
+        .bind(&fetched_via)
+        .bind(serde_json::json!({}))
         .fetch_one(pool)
         .await
         .context("Failed to create page snapshot")?;
@@ -119,26 +90,11 @@ impl PageSnapshot {
 
     /// Find page snapshot by ID
     pub async fn find_by_id(pool: &PgPool, id: PageSnapshotId) -> Result<Self> {
-        sqlx::query_as!(
-            PageSnapshot,
-            r#"
-            SELECT
-                id,
-                url,
-                content_hash,
-                html,
-                markdown,
-                fetched_via,
-                metadata,
-                crawled_at,
-                listings_extracted_count,
-                extraction_completed_at,
-                extraction_status
-            FROM page_snapshots
-            WHERE id = $1
-            "#,
-            id
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM page_snapshots
+             WHERE id = $1"
         )
+        .bind(id)
         .fetch_one(pool)
         .await
         .context("Page snapshot not found")

@@ -5,10 +5,10 @@ use seesaw_core::{Effect, EffectContext};
 use super::deps::ServerDeps;
 use super::listing::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{JobId, MemberId, DomainId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::{Domain, DomainSnapshot, PageSnapshot};
+use crate::domains::scraping::models::{Website, WebsiteSnapshot, PageSnapshot};
 
 /// Scraper Effect - Handles ScrapeSource command
 ///
@@ -47,7 +47,7 @@ impl Effect<ListingCommand, ServerDeps> for ScraperEffect {
 // ============================================================================
 
 async fn handle_scrape_source(
-    source_id: DomainId,
+    source_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
     _is_admin: bool,
@@ -82,11 +82,11 @@ async fn handle_scrape_source(
     tracing::info!(source_id = %source_id, "Authorization passed, fetching source from database");
 
     // Get source from database using model layer
-    let source = match Domain::find_by_id(source_id, &ctx.deps().db_pool).await {
+    let source = match Website::find_by_id(source_id, &ctx.deps().db_pool).await {
         Ok(s) => {
             tracing::info!(
                 source_id = %source_id,
-                url = %s.domain_url,
+                url = %s.url,
                 "Source found, preparing to scrape"
             );
             s
@@ -108,13 +108,13 @@ async fn handle_scrape_source(
     // Scrape the domain URL via Firecrawl
     tracing::info!(
         source_id = %source_id,
-        url = %source.domain_url,
+        url = %source.url,
         max_depth = source.max_crawl_depth,
         rate_limit = source.crawl_rate_limit_seconds,
         "Starting domain scrape via Firecrawl"
     );
 
-    let scrape_result = match ctx.deps().web_scraper.scrape(&source.domain_url).await {
+    let scrape_result = match ctx.deps().web_scraper.scrape(&source.url).await {
         Ok(r) => {
             tracing::info!(
                 source_id = %source_id,
@@ -126,7 +126,7 @@ async fn handle_scrape_source(
         Err(e) => {
             tracing::error!(
                 source_id = %source_id,
-                url = %source.domain_url,
+                url = %source.url,
                 error = %e,
                 "Scraping failed"
             );
@@ -143,7 +143,7 @@ async fn handle_scrape_source(
     tracing::info!(source_id = %source_id, "Storing page snapshot");
     let (page_snapshot, is_new) = match PageSnapshot::upsert(
         &ctx.deps().db_pool,
-        source.domain_url.clone(),
+        source.url.clone(),
         scrape_result.markdown.clone(), // Use markdown as html for now
         Some(scrape_result.markdown.clone()),
         "firecrawl".to_string(),
@@ -160,7 +160,7 @@ async fn handle_scrape_source(
             // Continue anyway - we have the content to extract from
             (PageSnapshot {
                 id: uuid::Uuid::new_v4(),
-                url: source.domain_url.clone(),
+                url: source.url.clone(),
                 content_hash: vec![],
                 html: scrape_result.markdown.clone(),
                 markdown: Some(scrape_result.markdown.clone()),
@@ -188,31 +188,31 @@ async fn handle_scrape_source(
         );
     }
 
-    // Create or update domain_snapshot for this scrape
-    // This creates traceability: domain_snapshot -> page_snapshot -> listings
+    // Create or update website_snapshot for this scrape
+    // This creates traceability: website_snapshot -> page_snapshot -> listings
     tracing::info!(
         source_id = %source_id,
-        page_url = %source.domain_url,
-        "Creating/updating domain_snapshot entry"
+        page_url = %source.url,
+        "Creating/updating website_snapshot entry"
     );
 
-    match DomainSnapshot::upsert(
+    match WebsiteSnapshot::upsert(
         &ctx.deps().db_pool,
         source_id,
-        source.domain_url.clone(),
+        source.url.clone(),
         None, // No specific submitter for manual admin scrapes
     ).await {
-        Ok(domain_snapshot) => {
+        Ok(website_snapshot) => {
             tracing::info!(
-                domain_snapshot_id = %domain_snapshot.id,
+                website_snapshot_id = %website_snapshot.id,
                 page_snapshot_id = %page_snapshot.id,
-                "Linking domain_snapshot to page_snapshot"
+                "Linking website_snapshot to page_snapshot"
             );
-            if let Err(e) = domain_snapshot.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
+            if let Err(e) = website_snapshot.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
                 tracing::warn!(
-                    domain_snapshot_id = %domain_snapshot.id,
+                    website_snapshot_id = %website_snapshot.id,
                     error = %e,
-                    "Failed to link domain_snapshot to page_snapshot"
+                    "Failed to link website_snapshot to page_snapshot"
                 );
             }
         }
@@ -220,14 +220,14 @@ async fn handle_scrape_source(
             tracing::warn!(
                 source_id = %source_id,
                 error = %e,
-                "Failed to create domain_snapshot, continuing anyway"
+                "Failed to create website_snapshot, continuing anyway"
             );
         }
     }
 
     // Update last_scraped_at timestamp
     tracing::info!(source_id = %source_id, "Updating last_scraped_at timestamp");
-    if let Err(e) = Domain::update_last_scraped(source_id, &ctx.deps().db_pool).await {
+    if let Err(e) = Website::update_last_scraped(source_id, &ctx.deps().db_pool).await {
         // Log warning but don't fail the scrape - this is non-critical
         tracing::warn!(
             source_id = %source_id,
@@ -241,13 +241,13 @@ async fn handle_scrape_source(
         source_id = %source_id,
         job_id = %job_id,
         page_snapshot_id = %page_snapshot.id,
-        organization_name = %extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
+        organization_name = %extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
         "Scrape completed successfully, emitting SourceScraped event"
     );
     Ok(ListingEvent::SourceScraped {
         source_id,
         job_id,
-        organization_name: extract_domain(&source.domain_url).unwrap_or_else(|| source.domain_url.clone()),
+        organization_name: extract_domain(&source.url).unwrap_or_else(|| source.url.clone()),
         content: scrape_result.markdown,
         page_snapshot_id: Some(page_snapshot.id),
     })

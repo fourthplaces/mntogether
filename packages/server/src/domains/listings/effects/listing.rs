@@ -6,7 +6,7 @@ use tracing::info;
 
 use super::deps::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability, AuthError};
-use crate::common::{DomainId, ExtractedListing, JobId, ListingId, MemberId, PostId};
+use crate::common::{WebsiteId, ExtractedListing, JobId, ListingId, MemberId, PostId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -196,7 +196,7 @@ impl Effect<ListingCommand, ServerDeps> for ListingEffect {
                 .await
             }
 
-            ListingCommand::CreateDomainFromLink {
+            ListingCommand::CreateWebsiteFromLink {
                 url,
                 organization_name,
                 submitter_contact,
@@ -205,6 +205,58 @@ impl Effect<ListingCommand, ServerDeps> for ListingEffect {
                     url,
                     organization_name,
                     submitter_contact,
+                    &ctx,
+                )
+                .await
+            }
+
+            ListingCommand::CreateReport {
+                listing_id,
+                reported_by,
+                reporter_email,
+                reason,
+                category,
+            } => {
+                super::listing_report::handle_create_report(
+                    listing_id,
+                    reported_by,
+                    reporter_email,
+                    reason,
+                    category,
+                    &ctx,
+                )
+                .await
+            }
+
+            ListingCommand::ResolveReport {
+                report_id,
+                resolved_by,
+                resolution_notes,
+                action_taken,
+                is_admin,
+            } => {
+                super::listing_report::handle_resolve_report(
+                    report_id,
+                    resolved_by,
+                    resolution_notes,
+                    action_taken,
+                    is_admin,
+                    &ctx,
+                )
+                .await
+            }
+
+            ListingCommand::DismissReport {
+                report_id,
+                resolved_by,
+                resolution_notes,
+                is_admin,
+            } => {
+                super::listing_report::handle_dismiss_report(
+                    report_id,
+                    resolved_by,
+                    resolution_notes,
+                    is_admin,
                     &ctx,
                 )
                 .await
@@ -539,21 +591,21 @@ async fn handle_create_listings_from_resource_link(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     use crate::domains::listings::models::Listing;
-use crate::domains::scraping::models::Domain;
+use crate::domains::scraping::models::Website;
     use tracing::info;
 
     // Find the organization source that was created during submission
     let organization_name = context.clone().unwrap_or_else(|| "Submitted Resource".to_string());
 
     // Find the source by URL (it was created in the mutation)
-    let source = Domain::find_by_url(&url, &ctx.deps().db_pool)
+    let source = Website::find_by_url(&url, &ctx.deps().db_pool)
         .await?
-        .ok_or_else(|| anyhow::anyhow!("Organization source not found for URL: {}", url))?;
+        .ok_or_else(|| anyhow::anyhow!("Website source not found for URL: {}", url))?;
 
     let source_id = source.id;
 
     // Update last_scraped_at now that we've processed it
-    sqlx::query("UPDATE organization_sources SET last_scraped_at = NOW() WHERE id = $1")
+    sqlx::query("UPDATE websites SET last_scraped_at = NOW() WHERE id = $1")
         .bind(source_id.as_uuid())
         .execute(&ctx.deps().db_pool)
         .await?;
@@ -590,7 +642,7 @@ use crate::domains::scraping::models::Domain;
             "en".to_string(), // source_language
             Some("user_submitted".to_string()),
             None, // submitted_by_admin_id
-            Some(DomainId::from_uuid(source_id.into_uuid())),
+            Some(WebsiteId::from_uuid(source_id.into_uuid())),
             Some(url.clone()),
             None, // organization_id
             &ctx.deps().db_pool,
@@ -642,8 +694,8 @@ async fn handle_create_organization_source_from_link(
     submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
-    use crate::common::{JobId, DomainId};
-    use crate::domains::scraping::models::Domain;
+    use crate::common::{JobId, WebsiteId};
+    use crate::domains::scraping::models::Website;
     use tracing::info;
 
     // Validate URL format
@@ -666,8 +718,8 @@ async fn handle_create_organization_source_from_link(
 
     info!(domain = %domain, "Extracted domain from URL");
 
-    // Find or create domain (handles race conditions gracefully)
-    let source = Domain::find_or_create(
+    // Find or create website (handles race conditions gracefully)
+    let source = Website::find_or_create(
         url.clone(),
         None, // Public submission (no logged-in user)
         "public_user".to_string(),
@@ -679,37 +731,37 @@ async fn handle_create_organization_source_from_link(
 
     info!(
         source_id = %source.id,
-        domain = %source.domain_url,
+        url = %source.url,
         status = %source.status,
-        "Found or created domain"
+        "Found or created website"
     );
 
     let (source_id, event_type) = (source.id,
         if source.status == "pending_review" {
             "created_pending_review"
         } else {
-            "existing_domain"
+            "existing_website"
         });
 
     info!(
         source_id = %source_id,
         job_id = %job_id,
         event_type = %event_type,
-        "Organization source processed successfully"
+        "Website source processed successfully"
     );
 
-    // Return appropriate event based on domain status
+    // Return appropriate event based on website status
     if event_type == "created_pending_review" {
-        // Domain needs approval before scraping
-        Ok(ListingEvent::DomainPendingApproval {
-            domain_id: source_id,
-            domain_url: domain,
+        // Website needs approval before scraping
+        Ok(ListingEvent::WebsitePendingApproval {
+            website_id: source_id,
+            url: domain,
             submitted_url: url,
             submitter_contact,
         })
     } else {
         // Domain exists and approved - proceed with scraping
-        Ok(ListingEvent::DomainCreatedFromLink {
+        Ok(ListingEvent::WebsiteCreatedFromLink {
             source_id,
             job_id,
             url,

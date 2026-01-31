@@ -2,35 +2,33 @@ import { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
 
-const GET_ALL_DOMAINS = gql`
-  query GetAllDomains {
+const GET_ALL_WEBSITES = gql`
+  query GetAllWebsites {
     domains(status: null) {
       id
-      domainUrl
+      websiteUrl
       status
       submitterType
       lastScrapedAt
       snapshotsCount
       listingsCount
       createdAt
-      agentId
-      tavilyRelevanceScore
     }
   }
 `;
 
-const APPROVE_DOMAIN = gql`
+const APPROVE_WEBSITE = gql`
   mutation ApproveDomain($domainId: String!) {
-    approveDomain(domainId: $domainId) {
+    approveWebsite(domainId: $domainId) {
       id
       status
     }
   }
 `;
 
-const REJECT_DOMAIN = gql`
+const REJECT_WEBSITE = gql`
   mutation RejectDomain($domainId: String!, $reason: String!) {
-    rejectDomain(domainId: $domainId, reason: $reason) {
+    rejectWebsite(domainId: $domainId, reason: $reason) {
       id
       status
     }
@@ -55,9 +53,9 @@ const SUBMIT_RESOURCE_LINK = gql`
   }
 `;
 
-interface Domain {
+interface Website {
   id: string;
-  domainUrl: string;
+  websiteUrl: string;
   status: string;
   submitterType: string;
   lastScrapedAt: string | null;
@@ -68,23 +66,23 @@ interface Domain {
   tavilyRelevanceScore: number | null;
 }
 
-export function Domains() {
+export function Websites() {
   const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newResourceUrl, setNewResourceUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
-  const [selectedDomains, setSelectedDomains] = useState<Set<string>>(new Set());
+  const [selectedWebsites, setSelectedDomains] = useState<Set<string>>(new Set());
 
-  const { data, loading, refetch } = useQuery<{ domains: Domain[] }>(GET_ALL_DOMAINS);
+  const { data, loading, refetch } = useQuery<{ domains: Website[] }>(GET_ALL_WEBSITES);
 
-  const [approveDomain] = useMutation(APPROVE_DOMAIN, {
+  const [approveWebsite] = useMutation(APPROVE_WEBSITE, {
     onCompleted: () => refetch(),
     onError: (err) => setError(err.message),
   });
 
-  const [rejectDomain] = useMutation(REJECT_DOMAIN, {
+  const [rejectWebsite] = useMutation(REJECT_WEBSITE, {
     onCompleted: () => refetch(),
     onError: (err) => setError(err.message),
   });
@@ -110,17 +108,17 @@ export function Domains() {
     onError: (err) => setError(err.message),
   });
 
-  const handleApprove = async (domainId: string) => {
+  const handleApprove = async (websiteId: string) => {
     setError(null);
-    await approveDomain({ variables: { domainId } });
+    await approveWebsite({ variables: { domainId } });
   };
 
-  const handleReject = async (domainId: string) => {
-    const reason = prompt('Why are you rejecting this domain?');
+  const handleReject = async (websiteId: string) => {
+    const reason = prompt('Why are you rejecting this website?');
     if (!reason) return;
 
     setError(null);
-    await rejectDomain({ variables: { domainId, reason } });
+    await rejectWebsite({ variables: { domainId, reason } });
   };
 
   const handleScrape = async (sourceId: string) => {
@@ -148,8 +146,8 @@ export function Domains() {
     });
   };
 
-  const toggleDomainSelection = (domainId: string) => {
-    const newSelection = new Set(selectedDomains);
+  const toggleWebsiteSelection = (websiteId: string) => {
+    const newSelection = new Set(selectedWebsites);
     if (newSelection.has(domainId)) {
       newSelection.delete(domainId);
     } else {
@@ -164,7 +162,7 @@ export function Domains() {
   };
 
   // Filter domains
-  const filteredDomains = data?.domains.filter((domain) => {
+  const filteredWebsites = data?.domains.filter((domain) => {
     if (statusFilter === 'all') return true;
     return domain.status === statusFilter;
   });
@@ -176,7 +174,7 @@ export function Domains() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading domains...</div>
+        <div className="text-stone-600">Loading websites...</div>
       </div>
     );
   }
@@ -187,16 +185,16 @@ export function Domains() {
         {/* Header */}
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-stone-900 mb-2">Domain Management</h1>
+            <h1 className="text-3xl font-bold text-stone-900 mb-2">Website Management</h1>
             <p className="text-stone-600">
-              Approve domains for scraping, monitor extraction, and manage content sources
+              Approve websites for scraping, monitor extraction, and manage content sources
             </p>
           </div>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
             className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
           >
-            {showAddForm ? 'Cancel' : '+ Add Domain'}
+            {showAddForm ? 'Cancel' : '+ Add Website'}
           </button>
         </div>
 
@@ -286,11 +284,11 @@ export function Domains() {
         </div>
 
         {/* Bulk Actions */}
-        {selectedDomains.size > 0 && (
+        {selectedWebsites.size > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-blue-900">
-                {selectedDomains.size} domain(s) selected
+                {selectedWebsites.size} domain(s) selected
               </span>
               <div className="flex gap-2">
                 <button className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm">
@@ -321,7 +319,7 @@ export function Domains() {
                     onChange={(e) => {
                       if (e.target.checked) {
                         setSelectedDomains(
-                          new Set(filteredDomains?.map((d) => d.id) || [])
+                          new Set(filteredWebsites?.map((d) => d.id) || [])
                         );
                       } else {
                         setSelectedDomains(new Set());
@@ -351,24 +349,24 @@ export function Domains() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
-              {filteredDomains?.map((domain) => (
+              {filteredWebsites?.map((domain) => (
                 <tr key={domain.id} className="hover:bg-stone-50">
                   <td className="px-4 py-4">
                     <input
                       type="checkbox"
-                      checked={selectedDomains.has(domain.id)}
-                      onChange={() => toggleDomainSelection(domain.id)}
+                      checked={selectedWebsites.has(domain.id)}
+                      onChange={() => toggleWebsiteSelection(domain.id)}
                       className="rounded"
                     />
                   </td>
                   <td className="px-6 py-4">
                     <a
-                      href={`https://${domain.domainUrl}`}
+                      href={`https://${domain.websiteUrl}`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-blue-600 hover:text-blue-800 font-medium break-all"
                     >
-                      {domain.domainUrl}
+                      {domain.websiteUrl}
                     </a>
                     {domain.agentId && (
                       <div className="mt-1">
@@ -447,7 +445,7 @@ export function Domains() {
             </tbody>
           </table>
 
-          {filteredDomains?.length === 0 && (
+          {filteredWebsites?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
               No domains found with status: {statusFilter}
             </div>
