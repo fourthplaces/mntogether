@@ -212,7 +212,10 @@ mod tests {
     fn test_mask_email() {
         assert_eq!(mask_email("john@example.com"), "j***@example.com");
         assert_eq!(mask_email("a@test.org"), "a***@test.org");
-        assert_eq!(mask_email("long.email.address@domain.com"), "l***@domain.com");
+        assert_eq!(
+            mask_email("long.email.address@domain.com"),
+            "l***@domain.com"
+        );
     }
 
     #[test]

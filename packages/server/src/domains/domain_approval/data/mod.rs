@@ -1,4 +1,4 @@
-use crate::domains::scraping::models::WebsiteAssessment;
+use crate::domains::scraping::models::{WebsiteAssessment, WebsiteSearchResult};
 use chrono::{DateTime, Utc};
 use juniper::GraphQLObject;
 use uuid::Uuid;
@@ -32,6 +32,33 @@ impl From<WebsiteAssessment> for WebsiteAssessmentData {
             generated_at: assessment.generated_at,
             model_used: assessment.model_used,
             reviewed_by_human: assessment.reviewed_by_human,
+        }
+    }
+}
+
+/// GraphQL representation of a website search result
+#[derive(Debug, Clone, GraphQLObject)]
+#[graphql(description = "Website found via semantic search")]
+pub struct WebsiteSearchResultData {
+    pub website_id: Uuid,
+    pub assessment_id: Uuid,
+    pub website_url: String,
+    pub organization_name: Option<String>,
+    pub recommendation: String,
+    pub assessment_markdown: String,
+    pub similarity: f64,
+}
+
+impl From<WebsiteSearchResult> for WebsiteSearchResultData {
+    fn from(result: WebsiteSearchResult) -> Self {
+        Self {
+            website_id: result.website_id,
+            assessment_id: result.assessment_id,
+            website_url: result.website_url,
+            organization_name: result.organization_name,
+            recommendation: result.recommendation,
+            assessment_markdown: result.assessment_markdown,
+            similarity: result.similarity,
         }
     }
 }

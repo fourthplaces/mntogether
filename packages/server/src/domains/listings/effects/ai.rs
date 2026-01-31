@@ -35,7 +35,17 @@ impl Effect<ListingCommand, ServerDeps> for AIEffect {
                 content,
                 context,
                 submitter_contact,
-            } => handle_extract_listings_from_resource_link(job_id, url, content, context, submitter_contact, &ctx).await,
+            } => {
+                handle_extract_listings_from_resource_link(
+                    job_id,
+                    url,
+                    content,
+                    context,
+                    submitter_contact,
+                    &ctx,
+                )
+                .await
+            }
             _ => anyhow::bail!("AIEffect: Unexpected command"),
         }
     }

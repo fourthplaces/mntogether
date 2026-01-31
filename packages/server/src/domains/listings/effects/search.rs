@@ -209,7 +209,14 @@ async fn handle_execute_search(
     }
 
     // 6. Update statistics
-    if let Err(e) = Agent::update_stats(agent_id, filtered.len(), domains_created, &ctx.deps().db_pool).await {
+    if let Err(e) = Agent::update_stats(
+        agent_id,
+        filtered.len(),
+        domains_created,
+        &ctx.deps().db_pool,
+    )
+    .await
+    {
         tracing::warn!(
             agent_id = %agent_id,
             error = %e,
@@ -236,8 +243,7 @@ async fn handle_execute_search(
 
 /// Extract domain from full URL (e.g., "https://example.com/path" -> "example.com")
 fn extract_domain_from_url(url: &str) -> Result<String> {
-    let parsed = Url::parse(url)
-        .map_err(|e| anyhow::anyhow!("Invalid URL: {}", e))?;
+    let parsed = Url::parse(url).map_err(|e| anyhow::anyhow!("Invalid URL: {}", e))?;
 
     let host = parsed
         .host_str()

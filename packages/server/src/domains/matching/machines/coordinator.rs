@@ -1,5 +1,5 @@
-use crate::domains::matching::commands::MatchingCommand;
 use crate::domains::listings::events::ListingEvent;
+use crate::domains::matching::commands::MatchingCommand;
 use seesaw_core::Machine;
 use tracing::info;
 
@@ -22,7 +22,9 @@ impl Machine for MatchingCoordinatorMachine {
             // When a listing is approved, trigger matching
             ListingEvent::ListingApproved { listing_id } => {
                 info!(listing_id = %listing_id, "Listing approved, triggering member matching");
-                Some(MatchingCommand::FindMatches { listing_id: *listing_id })
+                Some(MatchingCommand::FindMatches {
+                    listing_id: *listing_id,
+                })
             }
             _ => None,
         }

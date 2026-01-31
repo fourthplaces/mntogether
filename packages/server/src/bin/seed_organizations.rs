@@ -198,7 +198,9 @@ fn create_contact_info(phone: &Option<String>, website: &Option<String>) -> Json
     if let Some(w) = website {
         contact.insert("website".to_string(), JsonValue::String(w.clone()));
     }
-    serde_json::to_value(contact).expect("Failed to serialize contact info - this should never fail for HashMap<String, String>")
+    serde_json::to_value(contact).expect(
+        "Failed to serialize contact info - this should never fail for HashMap<String, String>",
+    )
 }
 
 async fn extract_tags_with_ai(description: &str, api_key: &str) -> Result<ExtractedTags> {

@@ -1,8 +1,11 @@
-use crate::domains::listings::data::{EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult};
-use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
-use crate::domains::listings::models::listing_report::{ListingReportId, ListingReportRecord};
 use crate::common::{JobId, ListingId, MemberId, WebsiteId};
+use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
+use crate::domains::listings::data::{
+    EditListingInput, ListingType, ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput,
+    SubmitResourceLinkResult,
+};
 use crate::domains::listings::events::ListingEvent;
+use crate::domains::listings::models::listing_report::{ListingReportId, ListingReportRecord};
 use crate::domains::listings::models::Listing;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
@@ -47,15 +50,13 @@ pub async fn scrape_organization(
                     new_count,
                     changed_count,
                     disappeared_count,
-                } if *synced_source_id == source_id && *synced_job_id == job_id => {
-                    Some(Ok((
-                        "completed".to_string(),
-                        format!(
-                            "Scraping complete! Found {} new, {} changed, {} disappeared",
-                            new_count, changed_count, disappeared_count
-                        ),
-                    )))
-                }
+                } if *synced_source_id == source_id && *synced_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!(
+                        "Scraping complete! Found {} new, {} changed, {} disappeared",
+                        new_count, changed_count, disappeared_count
+                    ),
+                ))),
                 // Failure events
                 ListingEvent::ScrapeFailed {
                     source_id: failed_source_id,
@@ -190,7 +191,9 @@ pub async fn approve_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldRes
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::ListingApproved { listing_id: lid } if *lid == listing_id => Some(Ok(())),
+                ListingEvent::ListingApproved { listing_id: lid } if *lid == listing_id => {
+                    Some(Ok(()))
+                }
                 ListingEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -250,7 +253,9 @@ pub async fn edit_and_approve_listing(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::ListingApproved { listing_id: lid } if *lid == listing_id => Some(Ok(())),
+                ListingEvent::ListingApproved { listing_id: lid } if *lid == listing_id => {
+                    Some(Ok(()))
+                }
                 ListingEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -277,7 +282,11 @@ pub async fn edit_and_approve_listing(
 
 /// Reject a listing (hide forever)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn reject_listing(ctx: &GraphQLContext, listing_id: Uuid, reason: String) -> FieldResult<bool> {
+pub async fn reject_listing(
+    ctx: &GraphQLContext,
+    listing_id: Uuid,
+    reason: String,
+) -> FieldResult<bool> {
     info!(listing_id = %listing_id, reason = %reason, "Rejecting listing");
 
     // Get user info (authorization will be checked in effect)
@@ -300,9 +309,9 @@ pub async fn reject_listing(ctx: &GraphQLContext, listing_id: Uuid, reason: Stri
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::ListingRejected { listing_id: lid, .. } if *lid == listing_id => {
-                    Some(Ok(()))
-                }
+                ListingEvent::ListingRejected {
+                    listing_id: lid, ..
+                } if *lid == listing_id => Some(Ok(())),
                 ListingEvent::AuthorizationDenied { reason, .. } => {
                     Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
                 }
@@ -383,10 +392,7 @@ pub async fn submit_resource_link(
 }
 
 /// Delete a listing (admin only)
-pub async fn delete_listing(
-    ctx: &GraphQLContext,
-    listing_id: Uuid,
-) -> FieldResult<bool> {
+pub async fn delete_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<bool> {
     info!(listing_id = %listing_id, "Delete listing requested");
 
     // Get user info (auth check moved to effect)
@@ -409,16 +415,21 @@ pub async fn delete_listing(
         |m| {
             m.try_match(|e: &ListingEvent| match e {
                 ListingEvent::ListingDeleted { listing_id: _ } => Some(Ok(true)),
-                ListingEvent::AuthorizationDenied { .. } => {
-                    Some(Err(anyhow::anyhow!("Only administrators can delete listings")))
-                }
+                ListingEvent::AuthorizationDenied { .. } => Some(Err(anyhow::anyhow!(
+                    "Only administrators can delete listings"
+                ))),
                 _ => None,
             })
             .result()
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to delete listing: {}", e), juniper::Value::null()))
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to delete listing: {}", e),
+            juniper::Value::null(),
+        )
+    })
 }
 
 /// Repost a listing (create new post for existing active listing)
@@ -427,7 +438,7 @@ pub async fn repost_listing(
     listing_id: Uuid,
 ) -> FieldResult<crate::domains::organization::data::post_types::RepostResult> {
     use crate::domains::organization::data::PostData;
-    
+
     info!(listing_id = %listing_id, "Reposting listing");
 
     let user = ctx
@@ -446,32 +457,45 @@ pub async fn repost_listing(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::PostCreated { post_id, .. } => {
-                    Some(Ok(*post_id))
-                }
-                ListingEvent::AuthorizationDenied { .. } => {
-                    Some(Err(anyhow::anyhow!("Only administrators can repost listings")))
-                }
+                ListingEvent::PostCreated { post_id, .. } => Some(Ok(*post_id)),
+                ListingEvent::AuthorizationDenied { .. } => Some(Err(anyhow::anyhow!(
+                    "Only administrators can repost listings"
+                ))),
                 _ => None,
             })
             .result()
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to repost listing: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to repost listing: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Fetch the created post
-    let post = crate::domains::organization::models::Post::find_by_listing_id(listing_id, &ctx.db_pool)
-        .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch post: {}", e), juniper::Value::null()))?
-        .into_iter()
-        .next()
-        .ok_or_else(|| FieldError::new("Post not found after creation", juniper::Value::null()))?;
+    let post =
+        crate::domains::organization::models::Post::find_by_listing_id(listing_id, &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to fetch post: {}", e),
+                    juniper::Value::null(),
+                )
+            })?
+            .into_iter()
+            .next()
+            .ok_or_else(|| {
+                FieldError::new("Post not found after creation", juniper::Value::null())
+            })?;
 
-    Ok(crate::domains::organization::data::post_types::RepostResult {
-        post: PostData::from(post),
-        message: "Listing reposted successfully".to_string(),
-    })
+    Ok(
+        crate::domains::organization::data::post_types::RepostResult {
+            post: PostData::from(post),
+            message: "Listing reposted successfully".to_string(),
+        },
+    )
 }
 
 /// Expire a post
@@ -481,7 +505,7 @@ pub async fn expire_post(
 ) -> FieldResult<crate::domains::organization::data::PostData> {
     use crate::common::PostId;
     use crate::domains::organization::data::PostData;
-    
+
     info!(post_id = %post_id, "Expiring post");
 
     let user = ctx
@@ -500,9 +524,9 @@ pub async fn expire_post(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::PostExpired { post_id: expired_id } if *expired_id == post_id => {
-                    Some(Ok(()))
-                }
+                ListingEvent::PostExpired {
+                    post_id: expired_id,
+                } if *expired_id == post_id => Some(Ok(())),
                 ListingEvent::AuthorizationDenied { .. } => {
                     Some(Err(anyhow::anyhow!("Only administrators can expire posts")))
                 }
@@ -512,12 +536,22 @@ pub async fn expire_post(
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to expire post: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to expire post: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Fetch the updated post
     let post = crate::domains::organization::models::Post::find_by_id(post_id, &ctx.db_pool)
         .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch post: {}", e), juniper::Value::null()))?
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to fetch post: {}", e),
+                juniper::Value::null(),
+            )
+        })?
         .ok_or_else(|| FieldError::new("Post not found after expiring", juniper::Value::null()))?;
 
     Ok(PostData::from(post))
@@ -530,7 +564,7 @@ pub async fn archive_post(
 ) -> FieldResult<crate::domains::organization::data::PostData> {
     use crate::common::PostId;
     use crate::domains::organization::data::PostData;
-    
+
     info!(post_id = %post_id, "Archiving post");
 
     let user = ctx
@@ -549,24 +583,34 @@ pub async fn archive_post(
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::PostArchived { post_id: archived_id } if *archived_id == post_id => {
-                    Some(Ok(()))
-                }
-                ListingEvent::AuthorizationDenied { .. } => {
-                    Some(Err(anyhow::anyhow!("Only administrators can archive posts")))
-                }
+                ListingEvent::PostArchived {
+                    post_id: archived_id,
+                } if *archived_id == post_id => Some(Ok(())),
+                ListingEvent::AuthorizationDenied { .. } => Some(Err(anyhow::anyhow!(
+                    "Only administrators can archive posts"
+                ))),
                 _ => None,
             })
             .result()
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to archive post: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to archive post: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Fetch the updated post
     let post = crate::domains::organization::models::Post::find_by_id(post_id, &ctx.db_pool)
         .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch post: {}", e), juniper::Value::null()))?
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to fetch post: {}", e),
+                juniper::Value::null(),
+            )
+        })?
         .ok_or_else(|| FieldError::new("Post not found after archiving", juniper::Value::null()))?;
 
     Ok(PostData::from(post))
@@ -575,7 +619,7 @@ pub async fn archive_post(
 /// Track post view (analytics)
 pub async fn track_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
     use crate::common::PostId;
-    
+
     let post_id = PostId::from_uuid(post_id);
 
     dispatch_request(
@@ -592,13 +636,18 @@ pub async fn track_post_view(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to track post view: {}", e), juniper::Value::null()))
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to track post view: {}", e),
+            juniper::Value::null(),
+        )
+    })
 }
 
 /// Track post click (analytics)
 pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
     use crate::common::PostId;
-    
+
     let post_id = PostId::from_uuid(post_id);
 
     dispatch_request(
@@ -606,16 +655,21 @@ pub async fn track_post_click(ctx: &GraphQLContext, post_id: Uuid) -> FieldResul
         &ctx.bus,
         |m| {
             m.try_match(|e: &ListingEvent| match e {
-                ListingEvent::PostClicked { post_id: clicked_id } if *clicked_id == post_id => {
-                    Some(Ok(true))
-                }
+                ListingEvent::PostClicked {
+                    post_id: clicked_id,
+                } if *clicked_id == post_id => Some(Ok(true)),
                 _ => None,
             })
             .result()
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to track post click: {}", e), juniper::Value::null()))
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to track post click: {}", e),
+            juniper::Value::null(),
+        )
+    })
 }
 
 // =============================================================================
@@ -662,7 +716,9 @@ pub async fn approve_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(website))
+    Ok(crate::domains::organization::data::SourceData::from(
+        website,
+    ))
 }
 
 /// Reject a domain submission (admin only)
@@ -705,7 +761,9 @@ pub async fn reject_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(website))
+    Ok(crate::domains::organization::data::SourceData::from(
+        website,
+    ))
 }
 
 /// Suspend a website (admin only)
@@ -749,7 +807,9 @@ pub async fn suspend_domain(
             )
         })?;
 
-    Ok(crate::domains::organization::data::SourceData::from(website))
+    Ok(crate::domains::organization::data::SourceData::from(
+        website,
+    ))
 }
 
 /// Refresh a page snapshot by re-scraping (admin only)
@@ -832,15 +892,13 @@ pub async fn refresh_page_snapshot(
                     new_count,
                     changed_count,
                     disappeared_count,
-                } if *synced_source_id == source_id && *synced_job_id == job_id => {
-                    Some(Ok((
-                        "completed".to_string(),
-                        format!(
-                            "Refresh complete! Found {} new, {} changed, {} disappeared",
-                            new_count, changed_count, disappeared_count
-                        ),
-                    )))
-                }
+                } if *synced_source_id == source_id && *synced_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!(
+                        "Refresh complete! Found {} new, {} changed, {} disappeared",
+                        new_count, changed_count, disappeared_count
+                    ),
+                ))),
                 // Failure events
                 ListingEvent::ScrapeFailed {
                     source_id: failed_source_id,
@@ -924,15 +982,27 @@ pub async fn report_listing(
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to report listing: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to report listing: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Fetch the created report
     let report = ListingReportRecord::query_for_listing(listing_id, &ctx.db_pool)
         .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch report: {}", e), juniper::Value::null()))?
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to fetch report: {}", e),
+                juniper::Value::null(),
+            )
+        })?
         .into_iter()
         .find(|r| r.id == report_id_typed)
-        .ok_or_else(|| FieldError::new("Report not found after creation", juniper::Value::null()))?;
+        .ok_or_else(|| {
+            FieldError::new("Report not found after creation", juniper::Value::null())
+        })?;
 
     Ok(report.into())
 }
@@ -973,7 +1043,12 @@ pub async fn resolve_report(
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to resolve report: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to resolve report: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(true)
 }
@@ -1012,7 +1087,12 @@ pub async fn dismiss_report(
         },
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to dismiss report: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to dismiss report: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(true)
 }

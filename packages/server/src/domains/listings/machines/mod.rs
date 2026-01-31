@@ -222,7 +222,9 @@ impl seesaw_core::Machine for ListingMachine {
                 submitter_contact,
             } => Some(ListingCommand::CreateWebsiteFromLink {
                 url: url.clone(),
-                organization_name: context.clone().unwrap_or_else(|| "Submitted Resource".to_string()),
+                organization_name: context
+                    .clone()
+                    .unwrap_or_else(|| "Submitted Resource".to_string()),
                 submitter_contact: submitter_contact.clone(),
             }),
 
@@ -268,7 +270,9 @@ impl seesaw_core::Machine for ListingMachine {
 
             ListingEvent::ListingCreated { listing_id, .. } => {
                 // Listing created, generate embedding
-                Some(ListingCommand::GenerateListingEmbedding { listing_id: *listing_id })
+                Some(ListingCommand::GenerateListingEmbedding {
+                    listing_id: *listing_id,
+                })
             }
 
             // =========================================================================

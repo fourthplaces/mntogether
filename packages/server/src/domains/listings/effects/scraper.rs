@@ -8,7 +8,7 @@ use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::{Website, WebsiteSnapshot, PageSnapshot};
+use crate::domains::scraping::models::{PageSnapshot, Website, WebsiteSnapshot};
 
 /// Scraper Effect - Handles ScrapeSource command
 ///
@@ -158,19 +158,22 @@ async fn handle_scrape_source(
                 "Failed to store page snapshot"
             );
             // Continue anyway - we have the content to extract from
-            (PageSnapshot {
-                id: uuid::Uuid::new_v4(),
-                url: source.url.clone(),
-                content_hash: vec![],
-                html: scrape_result.markdown.clone(),
-                markdown: Some(scrape_result.markdown.clone()),
-                fetched_via: "firecrawl".to_string(),
-                metadata: serde_json::json!({}),
-                crawled_at: chrono::Utc::now(),
-                listings_extracted_count: Some(0),
-                extraction_completed_at: None,
-                extraction_status: Some("pending".to_string()),
-            }, true)
+            (
+                PageSnapshot {
+                    id: uuid::Uuid::new_v4(),
+                    url: source.url.clone(),
+                    content_hash: vec![],
+                    html: scrape_result.markdown.clone(),
+                    markdown: Some(scrape_result.markdown.clone()),
+                    fetched_via: "firecrawl".to_string(),
+                    metadata: serde_json::json!({}),
+                    crawled_at: chrono::Utc::now(),
+                    listings_extracted_count: Some(0),
+                    extraction_completed_at: None,
+                    extraction_status: Some("pending".to_string()),
+                },
+                true,
+            )
         }
     };
 
@@ -201,14 +204,19 @@ async fn handle_scrape_source(
         source_id,
         source.url.clone(),
         None, // No specific submitter for manual admin scrapes
-    ).await {
+    )
+    .await
+    {
         Ok(website_snapshot) => {
             tracing::info!(
                 website_snapshot_id = %website_snapshot.id,
                 page_snapshot_id = %page_snapshot.id,
                 "Linking website_snapshot to page_snapshot"
             );
-            if let Err(e) = website_snapshot.link_snapshot(&ctx.deps().db_pool, page_snapshot.id).await {
+            if let Err(e) = website_snapshot
+                .link_snapshot(&ctx.deps().db_pool, page_snapshot.id)
+                .await
+            {
                 tracing::warn!(
                     website_snapshot_id = %website_snapshot.id,
                     error = %e,
@@ -313,19 +321,22 @@ async fn handle_scrape_resource_link(
                 "Failed to store page snapshot, continuing with extraction"
             );
             // Continue anyway - we have the content to extract from
-            (PageSnapshot {
-                id: uuid::Uuid::new_v4(),
-                url: url.clone(),
-                content_hash: vec![],
-                html: scrape_result.markdown.clone(),
-                markdown: Some(scrape_result.markdown.clone()),
-                fetched_via: "firecrawl".to_string(),
-                metadata: serde_json::json!({}),
-                crawled_at: chrono::Utc::now(),
-                listings_extracted_count: Some(0),
-                extraction_completed_at: None,
-                extraction_status: Some("pending".to_string()),
-            }, true)
+            (
+                PageSnapshot {
+                    id: uuid::Uuid::new_v4(),
+                    url: url.clone(),
+                    content_hash: vec![],
+                    html: scrape_result.markdown.clone(),
+                    markdown: Some(scrape_result.markdown.clone()),
+                    fetched_via: "firecrawl".to_string(),
+                    metadata: serde_json::json!({}),
+                    crawled_at: chrono::Utc::now(),
+                    listings_extracted_count: Some(0),
+                    extraction_completed_at: None,
+                    extraction_status: Some("pending".to_string()),
+                },
+                true,
+            )
         }
     };
 

@@ -217,10 +217,7 @@ pub enum ListingCommand {
     },
 
     /// Execute search for an agent
-    ExecuteSearch {
-        agent_id: uuid::Uuid,
-        job_id: JobId,
-    },
+    ExecuteSearch { agent_id: uuid::Uuid, job_id: JobId },
 }
 
 // Implement Command trait for seesaw-rs integration

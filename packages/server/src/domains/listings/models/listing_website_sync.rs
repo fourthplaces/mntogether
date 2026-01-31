@@ -235,10 +235,7 @@ impl ListingWebsiteSync {
     }
 
     /// Get count of disappeared listings for a website
-    pub async fn count_disappeared_by_website(
-        website_id: WebsiteId,
-        pool: &PgPool,
-    ) -> Result<i64> {
+    pub async fn count_disappeared_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<i64> {
         let website_uuid = website_id.into_uuid();
 
         let count = sqlx::query_scalar::<_, i64>(

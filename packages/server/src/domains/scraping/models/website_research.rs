@@ -1,8 +1,8 @@
-use sqlx::FromRow;
-use uuid::Uuid;
-use chrono::{DateTime, Utc};
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use sqlx::FromRow;
 use sqlx::PgPool;
+use uuid::Uuid;
 
 #[derive(Debug, Clone, FromRow)]
 pub struct WebsiteResearch {
@@ -17,9 +17,12 @@ pub struct WebsiteResearch {
 }
 
 impl WebsiteResearch {
-    pub async fn find_latest_by_website_id(website_id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_latest_by_website_id(
+        website_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM website_research WHERE website_id = $1 ORDER BY created_at DESC LIMIT 1"
+            "SELECT * FROM website_research WHERE website_id = $1 ORDER BY created_at DESC LIMIT 1",
         )
         .bind(website_id)
         .fetch_optional(pool)
@@ -48,10 +51,12 @@ impl WebsiteResearch {
     }
 
     pub async fn mark_tavily_complete(&self, pool: &PgPool) -> Result<()> {
-        sqlx::query("UPDATE website_research SET tavily_searches_completed_at = NOW() WHERE id = $1")
-            .bind(self.id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE website_research SET tavily_searches_completed_at = NOW() WHERE id = $1",
+        )
+        .bind(self.id)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 }
@@ -74,7 +79,7 @@ impl WebsiteResearchHomepage {
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "INSERT INTO website_research_homepage (website_research_id, html, markdown)
-             VALUES ($1, $2, $3) RETURNING *"
+             VALUES ($1, $2, $3) RETURNING *",
         )
         .bind(website_research_id)
         .bind(html)
@@ -86,7 +91,7 @@ impl WebsiteResearchHomepage {
 
     pub async fn find_by_research_id(research_id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM website_research_homepage WHERE website_research_id = $1"
+            "SELECT * FROM website_research_homepage WHERE website_research_id = $1",
         )
         .bind(research_id)
         .fetch_optional(pool)
@@ -179,7 +184,7 @@ impl TavilySearchResult {
 
     pub async fn find_by_query_id(query_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM tavily_search_results WHERE query_id = $1 ORDER BY score DESC"
+            "SELECT * FROM tavily_search_results WHERE query_id = $1 ORDER BY score DESC",
         )
         .bind(query_id)
         .fetch_all(pool)

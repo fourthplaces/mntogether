@@ -55,7 +55,7 @@ impl Agent {
               AND (last_searched_at IS NULL
                    OR last_searched_at < NOW() - (search_frequency_hours || ' hours')::INTERVAL)
             ORDER BY last_searched_at NULLS FIRST
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await?;
@@ -70,7 +70,7 @@ impl Agent {
             SELECT * FROM agents
             WHERE enabled = true
             ORDER BY name
-            "#
+            "#,
         )
         .fetch_all(pool)
         .await?;
@@ -80,12 +80,10 @@ impl Agent {
 
     /// Find all agents (for admin panel)
     pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM agents ORDER BY created_at DESC"
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM agents ORDER BY created_at DESC")
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find an agent by ID
@@ -93,7 +91,7 @@ impl Agent {
         let agent = sqlx::query_as::<_, Agent>(
             r#"
             SELECT * FROM agents WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .fetch_one(pool)
@@ -128,7 +126,7 @@ impl Agent {
             )
             VALUES ($1, $2, $3, $4, $5, $6, true, true, true, true)
             RETURNING *
-            "#
+            "#,
         )
         .bind(name)
         .bind(query_template)
@@ -157,7 +155,7 @@ impl Agent {
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .bind(extraction_instructions)
@@ -193,7 +191,7 @@ impl Agent {
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
-            "#
+            "#,
         )
         .bind(id)
         .bind(name)
@@ -224,7 +222,7 @@ impl Agent {
                 total_domains_discovered = total_domains_discovered + $2,
                 updated_at = NOW()
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .bind(domains_created as i32)
@@ -242,7 +240,7 @@ impl Agent {
             SET total_domains_approved = total_domains_approved + 1,
                 updated_at = NOW()
             WHERE id = $1
-            "#
+            "#,
         )
         .bind(id)
         .execute(pool)

@@ -1,4 +1,4 @@
-use crate::common::{WebsiteId, JobId, MemberId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use uuid::Uuid;
 
 #[derive(Debug, Clone)]
@@ -15,7 +15,6 @@ pub enum DomainApprovalEvent {
     // ========================================================================
     // Research Phase Events
     // ========================================================================
-
     /// Research already exists and is recent enough to reuse
     WebsiteResearchFound {
         research_id: Uuid,
@@ -43,7 +42,6 @@ pub enum DomainApprovalEvent {
     // ========================================================================
     // Search Phase Events
     // ========================================================================
-
     /// All Tavily searches completed and results stored
     ResearchSearchesCompleted {
         research_id: Uuid,
@@ -64,7 +62,6 @@ pub enum DomainApprovalEvent {
     // ========================================================================
     // Assessment Phase Events
     // ========================================================================
-
     /// AI assessment generated and stored
     WebsiteAssessmentCompleted {
         website_id: WebsiteId,

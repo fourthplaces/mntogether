@@ -42,8 +42,7 @@ Contact: foodbank@example.org
 "#,
     );
 
-    let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let test_deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let test_harness = TestHarness::with_deps(test_deps)
         .await
@@ -65,13 +64,12 @@ Contact: foodbank@example.org
     test_harness.settle().await;
 
     // Verify: Check that page_snapshot was created
-    let page_snapshot_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM page_snapshots WHERE url = $1",
-    )
-    .bind("https://example.org")
-    .fetch_one(&test_harness.db_pool)
-    .await
-    .expect("Failed to query page_snapshots");
+    let page_snapshot_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM page_snapshots WHERE url = $1")
+            .bind("https://example.org")
+            .fetch_one(&test_harness.db_pool)
+            .await
+            .expect("Failed to query page_snapshots");
 
     assert_eq!(
         page_snapshot_count, 1,
@@ -91,7 +89,10 @@ Contact: foodbank@example.org
     .await
     .expect("Failed to fetch page_snapshot");
 
-    assert!(page_snapshot.markdown.is_some(), "Expected markdown content");
+    assert!(
+        page_snapshot.markdown.is_some(),
+        "Expected markdown content"
+    );
     assert!(
         page_snapshot
             .markdown
@@ -131,8 +132,7 @@ This is test content that will be scraped twice.
         .with_response(scrape_content)
         .with_response(scrape_content); // Same content twice
 
-    let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let test_deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let test_harness = TestHarness::with_deps(test_deps)
         .await
@@ -167,13 +167,12 @@ This is test content that will be scraped twice.
     test_harness.settle().await;
 
     // Verify: Should only have ONE page_snapshot (deduplication by content_hash)
-    let page_snapshot_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM page_snapshots WHERE url = $1",
-    )
-    .bind("https://example.org")
-    .fetch_one(&test_harness.db_pool)
-    .await
-    .expect("Failed to query page_snapshots");
+    let page_snapshot_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM page_snapshots WHERE url = $1")
+            .bind("https://example.org")
+            .fetch_one(&test_harness.db_pool)
+            .await
+            .expect("Failed to query page_snapshots");
 
     assert_eq!(
         page_snapshot_count, 1,
@@ -201,8 +200,7 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
         .with_response("# First Version\nOriginal content")
         .with_response("# Second Version\nUpdated content");
 
-    let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let test_deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let test_harness = TestHarness::with_deps(test_deps)
         .await
@@ -237,13 +235,12 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
     test_harness.settle().await;
 
     // Verify: Should have TWO page_snapshots (different content_hash)
-    let page_snapshot_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM page_snapshots WHERE url = $1",
-    )
-    .bind("https://example.org")
-    .fetch_one(&test_harness.db_pool)
-    .await
-    .expect("Failed to query page_snapshots");
+    let page_snapshot_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM page_snapshots WHERE url = $1")
+            .bind("https://example.org")
+            .fetch_one(&test_harness.db_pool)
+            .await
+            .expect("Failed to query page_snapshots");
 
     assert_eq!(
         page_snapshot_count, 2,
@@ -269,8 +266,7 @@ async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
     // Configure mock web scraper with no responses (will cause error)
     let mock_scraper = MockWebScraper::new(); // No responses configured
 
-    let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let test_deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let test_harness = TestHarness::with_deps(test_deps)
         .await
@@ -291,13 +287,12 @@ async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
     test_harness.settle().await;
 
     // Verify: No page_snapshot should be created on failure
-    let page_snapshot_count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM page_snapshots WHERE url = $1",
-    )
-    .bind("https://example.org")
-    .fetch_one(&test_harness.db_pool)
-    .await
-    .expect("Failed to query page_snapshots");
+    let page_snapshot_count =
+        sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM page_snapshots WHERE url = $1")
+            .bind("https://example.org")
+            .fetch_one(&test_harness.db_pool)
+            .await
+            .expect("Failed to query page_snapshots");
 
     assert_eq!(
         page_snapshot_count, 0,
@@ -337,8 +332,7 @@ async fn test_website_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
     // Configure mock web scraper
     let mock_scraper = MockWebScraper::new().with_response("# Test Page\nTest content");
 
-    let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let test_deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let test_harness = TestHarness::with_deps(test_deps)
         .await

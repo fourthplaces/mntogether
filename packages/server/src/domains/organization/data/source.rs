@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceData {
     pub id: String,
-    pub source_url: String, // Maps to website_url in database
+    pub source_url: String,  // Maps to website_url in database
     pub website_url: String, // New canonical field name
     pub last_scraped_at: Option<String>,
     pub scrape_frequency_hours: i32,
@@ -18,6 +18,7 @@ pub struct SourceData {
     pub status: String, // Website approval status
     pub submitted_by: Option<String>,
     pub submitter_type: Option<String>,
+    pub agent_id: Option<String>, // Agent that discovered this website
     pub created_at: String,
 }
 
@@ -26,13 +27,14 @@ impl From<Website> for SourceData {
         Self {
             id: source.id.to_string(),
             source_url: source.url.clone(), // Map url to source_url for frontend compatibility
-            website_url: source.url, // Also expose as websiteUrl
+            website_url: source.url,        // Also expose as websiteUrl
             last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
             scrape_frequency_hours: source.scrape_frequency_hours,
             active: source.active,
             status: source.status,
             submitted_by: source.submitted_by.map(|id| id.to_string()),
             submitter_type: source.submitter_type,
+            agent_id: source.agent_id.map(|id| id.to_string()),
             created_at: source.created_at.to_rfc3339(),
         }
     }
@@ -80,12 +82,16 @@ impl SourceData {
         self.created_at.clone()
     }
 
+    fn agent_id(&self) -> Option<String> {
+        self.agent_id.clone()
+    }
+
     /// Get count of website snapshots (submitted pages)
     async fn snapshots_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1"
+            "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1",
         )
         .bind(website_id)
         .fetch_one(&context.db_pool)
@@ -97,12 +103,11 @@ impl SourceData {
     async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM listings WHERE website_id = $1"
-        )
-        .bind(website_id)
-        .fetch_one(&context.db_pool)
-        .await?;
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM listings WHERE website_id = $1")
+                .bind(website_id)
+                .fetch_one(&context.db_pool)
+                .await?;
         Ok(count as i32)
     }
 

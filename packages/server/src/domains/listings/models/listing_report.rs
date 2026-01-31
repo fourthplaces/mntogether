@@ -1,8 +1,8 @@
 use crate::common::entity_ids::{Id, ListingId, MemberId};
+use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
-use anyhow::Result;
 
 pub struct ListingReport;
 pub type ListingReportId = Id<ListingReport>;
@@ -68,7 +68,11 @@ impl ListingReportRecord {
         .map_err(Into::into)
     }
 
-    pub async fn query_pending(limit: i64, offset: i64, pool: &PgPool) -> Result<Vec<ListingReportWithDetails>> {
+    pub async fn query_pending(
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<ListingReportWithDetails>> {
         sqlx::query_as::<_, ListingReportWithDetails>(
             "SELECT id, listing_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
@@ -77,7 +81,7 @@ impl ListingReportRecord {
              FROM listing_reports_with_details
              WHERE status = 'pending'
              ORDER BY created_at DESC
-             LIMIT $1 OFFSET $2"
+             LIMIT $1 OFFSET $2",
         )
         .bind(limit)
         .bind(offset)
@@ -86,7 +90,11 @@ impl ListingReportRecord {
         .map_err(Into::into)
     }
 
-    pub async fn query_all(limit: i64, offset: i64, pool: &PgPool) -> Result<Vec<ListingReportWithDetails>> {
+    pub async fn query_all(
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<ListingReportWithDetails>> {
         sqlx::query_as::<_, ListingReportWithDetails>(
             "SELECT id, listing_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
@@ -94,7 +102,7 @@ impl ListingReportRecord {
                     report_count_for_listing
              FROM listing_reports_with_details
              ORDER BY created_at DESC
-             LIMIT $1 OFFSET $2"
+             LIMIT $1 OFFSET $2",
         )
         .bind(limit)
         .bind(offset)
@@ -107,7 +115,7 @@ impl ListingReportRecord {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM listing_reports
              WHERE listing_id = $1
-             ORDER BY created_at DESC"
+             ORDER BY created_at DESC",
         )
         .bind(listing_id.into_uuid())
         .fetch_all(pool)
@@ -127,7 +135,7 @@ impl ListingReportRecord {
              SET status = 'resolved', resolved_by = $2, resolved_at = NOW(),
                  resolution_notes = $3, action_taken = $4, updated_at = NOW()
              WHERE id = $1
-             RETURNING *"
+             RETURNING *",
         )
         .bind(id.into_uuid())
         .bind(resolved_by.into_uuid())
@@ -149,7 +157,7 @@ impl ListingReportRecord {
              SET status = 'dismissed', resolved_by = $2, resolved_at = NOW(),
                  resolution_notes = $3, updated_at = NOW()
              WHERE id = $1
-             RETURNING *"
+             RETURNING *",
         )
         .bind(id.into_uuid())
         .bind(resolved_by.into_uuid())

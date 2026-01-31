@@ -35,9 +35,8 @@ pub async fn trigger_agent_search(
     }
 
     // Parse agent ID
-    let agent_uuid = Uuid::parse_str(&agent_id).map_err(|_| {
-        FieldError::new("Invalid agent ID format", juniper::Value::null())
-    })?;
+    let agent_uuid = Uuid::parse_str(&agent_id)
+        .map_err(|_| FieldError::new("Invalid agent ID format", juniper::Value::null()))?;
 
     // Verify agent exists
     use crate::domains::scraping::models::Agent;
@@ -86,12 +85,66 @@ pub async fn get_all_agents(ctx: &GraphQLContext) -> FieldResult<Vec<AgentData>>
     }
 
     // Fetch all agents
-    let agents = Agent::find_all(&ctx.db_pool)
-        .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch agents: {}", e), juniper::Value::null()))?;
+    let agents = Agent::find_all(&ctx.db_pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch agents: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     // Convert to GraphQL data type
     Ok(agents.into_iter().map(AgentData::from).collect())
+}
+
+/// Create a new agent (admin only)
+pub async fn create_agent(ctx: &GraphQLContext, input: CreateAgentInput) -> FieldResult<AgentData> {
+    // Verify admin access
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    tracing::info!(
+        name = %input.name,
+        created_by = %user.member_id,
+        "Admin creating new agent"
+    );
+
+    let agent = Agent::create(
+        input.name,
+        input.query_template,
+        input.description,
+        input.extraction_instructions,
+        input.system_prompt,
+        input.location_context,
+        &ctx.db_pool,
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to create agent: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    Ok(AgentData::from(agent))
+}
+
+#[derive(GraphQLInputObject, Clone)]
+pub struct CreateAgentInput {
+    pub name: String,
+    pub query_template: String,
+    pub description: Option<String>,
+    pub extraction_instructions: Option<String>,
+    pub system_prompt: Option<String>,
+    pub location_context: String,
 }
 
 #[derive(GraphQLInputObject, Clone)]
@@ -125,9 +178,8 @@ pub async fn update_agent(
     }
 
     // Parse agent ID
-    let agent_uuid = Uuid::parse_str(&agent_id).map_err(|_| {
-        FieldError::new("Invalid agent ID format", juniper::Value::null())
-    })?;
+    let agent_uuid = Uuid::parse_str(&agent_id)
+        .map_err(|_| FieldError::new("Invalid agent ID format", juniper::Value::null()))?;
 
     tracing::info!(
         agent_id = %agent_uuid,
@@ -148,7 +200,12 @@ pub async fn update_agent(
         &ctx.db_pool,
     )
     .await
-    .map_err(|e| FieldError::new(format!("Failed to update agent: {}", e), juniper::Value::null()))?;
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to update agent: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(AgentData::from(updated_agent))
 }

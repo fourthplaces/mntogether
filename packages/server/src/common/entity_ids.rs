@@ -42,7 +42,6 @@ pub struct Website;
 /// Marker type for Post entities (published posts for matching).
 pub struct Post;
 
-
 /// Marker type for ScrapeJob entities (scraping jobs).
 pub struct ScrapeJob;
 
@@ -89,7 +88,6 @@ pub type WebsiteId = Id<Website>;
 
 /// Typed ID for Post entities.
 pub type PostId = Id<Post>;
-
 
 /// Typed ID for ScrapeJob entities.
 pub type JobId = Id<ScrapeJob>;

@@ -1,35 +1,32 @@
 use super::context::GraphQLContext;
 use crate::domains::auth::edges as auth_edges;
 use crate::domains::domain_approval::data::WebsiteAssessmentData;
+use crate::domains::domain_approval::data::WebsiteSearchResultData;
 use crate::domains::domain_approval::edges::{
-    website_assessment, generate_website_assessment,
-};
-use crate::domains::member::{data::MemberData, edges as member_edges};
-use crate::domains::organization::data::{OrganizationData, PostData, SourceData as DomainData};
-use crate::domains::organization::data::post_types::RepostResult;
-use crate::domains::listings::edges::{
-    approve_listing, delete_listing,
-    edit_and_approve_listing, query_listing, query_listings,
-    reject_listing,
-    scrape_organization, submit_listing, submit_resource_link,
-    archive_post, expire_post, query_post, query_posts_for_listing, query_published_posts,
-    repost_listing, track_post_click, track_post_view,
-    query_organization_source, query_organization_sources,
-    query_websites, query_pending_websites,
-    approve_domain, reject_domain, suspend_domain, refresh_page_snapshot,
-    generate_agent_config_from_description, GenerateAgentConfigResult,
-    trigger_agent_search, TriggerSearchResult,
-    report_listing, resolve_report, dismiss_report,
-    query_listing_reports, query_reports_for_listing,
-    get_all_agents, update_agent, UpdateAgentInput,
-};
-use crate::domains::listings::data::{
-    ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData,
-    ListingType, ScrapeJobResult, SubmitListingInput,
-    SubmitResourceLinkInput, SubmitResourceLinkResult,
+    generate_website_assessment, search_websites_semantic, website_assessment,
 };
 use crate::domains::listings::data::agent::AgentData;
-use crate::domains::listings::data::listing_report::{ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData};
+use crate::domains::listings::data::listing_report::{
+    ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData,
+};
+use crate::domains::listings::data::{
+    ContactInfoInput, EditListingInput, ListingConnection, ListingStatusData, ListingType,
+    ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+};
+use crate::domains::listings::edges::{
+    approve_domain, approve_listing, archive_post, create_agent, delete_listing, dismiss_report,
+    edit_and_approve_listing, expire_post, generate_agent_config_from_description, get_all_agents,
+    query_listing, query_listing_reports, query_listings, query_organization_source,
+    query_organization_sources, query_pending_websites, query_post, query_posts_for_listing,
+    query_published_posts, query_reports_for_listing, query_websites, refresh_page_snapshot,
+    reject_domain, reject_listing, report_listing, repost_listing, resolve_report,
+    scrape_organization, submit_listing, submit_resource_link, suspend_domain, track_post_click,
+    track_post_view, trigger_agent_search, update_agent, CreateAgentInput,
+    GenerateAgentConfigResult, TriggerSearchResult, UpdateAgentInput,
+};
+use crate::domains::member::{data::MemberData, edges as member_edges};
+use crate::domains::organization::data::post_types::RepostResult;
+use crate::domains::organization::data::{OrganizationData, PostData, SourceData as DomainData};
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -74,7 +71,10 @@ impl Query {
     }
 
     /// Get posts for a specific listing
-    async fn posts_for_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<Vec<PostData>> {
+    async fn posts_for_listing(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+    ) -> FieldResult<Vec<PostData>> {
         query_posts_for_listing(ctx, listing_id).await
     }
 
@@ -167,13 +167,15 @@ impl Query {
         query_organization_source(&ctx.db_pool, id).await
     }
 
-    /// Get all domains with optional status filter
+    /// Get all domains with optional status and agent filters
     /// Status can be: "pending_review", "approved", or null for all
+    /// agent_id filters to websites discovered by a specific agent
     async fn domains(
         ctx: &GraphQLContext,
         status: Option<String>,
+        agent_id: Option<String>,
     ) -> FieldResult<Vec<DomainData>> {
-        query_websites(&ctx.db_pool, status).await
+        query_websites(&ctx.db_pool, status, agent_id).await
     }
 
     /// Get websites pending review (for admin approval queue)
@@ -225,6 +227,20 @@ impl Query {
         website_assessment(ctx, domain_id).await
     }
 
+    /// Search websites semantically using natural language queries
+    ///
+    /// Example queries:
+    /// - "find me a law firm helping immigrants"
+    /// - "food shelves in Minneapolis"
+    /// - "mental health services for teenagers"
+    async fn search_websites(
+        ctx: &GraphQLContext,
+        query: String,
+        limit: Option<i32>,
+        threshold: Option<f64>,
+    ) -> FieldResult<Vec<WebsiteSearchResultData>> {
+        search_websites_semantic(ctx, query, limit, threshold).await
+    }
 }
 
 pub struct Mutation;
@@ -272,7 +288,11 @@ impl Mutation {
     }
 
     /// Reject a listing (hide forever) (admin only)
-    async fn reject_listing(ctx: &GraphQLContext, listing_id: Uuid, reason: String) -> FieldResult<bool> {
+    async fn reject_listing(
+        ctx: &GraphQLContext,
+        listing_id: Uuid,
+        reason: String,
+    ) -> FieldResult<bool> {
         reject_listing(ctx, listing_id, reason).await
     }
 
@@ -390,7 +410,8 @@ impl Mutation {
         let org_id = OrganizationId::parse(&organization_id)?;
 
         for tag_input in tags {
-            let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
+            let tag =
+                Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
             let _ = Taggable::create_organization_tag(org_id, tag.id, &ctx.db_pool).await;
         }
 
@@ -399,10 +420,7 @@ impl Mutation {
     }
 
     /// Approve a domain for crawling (admin only)
-    async fn approve_domain(
-        ctx: &GraphQLContext,
-        domain_id: String,
-    ) -> FieldResult<DomainData> {
+    async fn approve_domain(ctx: &GraphQLContext, domain_id: String) -> FieldResult<DomainData> {
         approve_domain(ctx, domain_id).await
     }
 
@@ -449,6 +467,11 @@ impl Mutation {
         agent_id: String,
     ) -> FieldResult<TriggerSearchResult> {
         trigger_agent_search(ctx, agent_id).await
+    }
+
+    /// Create a new agent (admin only)
+    async fn create_agent(ctx: &GraphQLContext, input: CreateAgentInput) -> FieldResult<AgentData> {
+        create_agent(ctx, input).await
     }
 
     /// Update an agent (admin only)
@@ -498,7 +521,6 @@ impl Mutation {
     ) -> FieldResult<bool> {
         dismiss_report(ctx, report_id, resolution_notes).await
     }
-
 }
 
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;

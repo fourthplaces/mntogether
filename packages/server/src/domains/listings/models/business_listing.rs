@@ -44,10 +44,7 @@ pub struct BusinessListing {
 
 impl BusinessListing {
     /// Find business listing by listing ID
-    pub async fn find_by_listing_id(
-        listing_id: ListingId,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
+    pub async fn find_by_listing_id(listing_id: ListingId, pool: &PgPool) -> Result<Option<Self>> {
         let business = sqlx::query_as::<_, BusinessListing>(
             r#"
             SELECT * FROM business_listings

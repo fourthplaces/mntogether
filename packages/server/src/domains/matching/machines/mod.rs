@@ -64,7 +64,9 @@ impl Machine for MatchingMachine {
             MatchingEvent::FindMatchesRequested { listing_id } => {
                 debug!(listing_id = %listing_id, "Manual matching request received");
                 self.pending_matches.insert(*listing_id, ());
-                Some(MatchingCommand::FindMatches { listing_id: *listing_id })
+                Some(MatchingCommand::FindMatches {
+                    listing_id: *listing_id,
+                })
             }
         }
     }

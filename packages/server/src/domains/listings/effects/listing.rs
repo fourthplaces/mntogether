@@ -6,7 +6,7 @@ use tracing::info;
 
 use super::deps::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability, AuthError};
-use crate::common::{WebsiteId, ExtractedListing, JobId, ListingId, MemberId, PostId};
+use crate::common::{ExtractedListing, JobId, ListingId, MemberId, PostId, WebsiteId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 
@@ -328,9 +328,12 @@ async fn handle_update_listing_status(
         });
     }
 
-    let updated_status =
-        super::listing_operations::update_listing_status(listing_id, status.clone(), &ctx.deps().db_pool)
-            .await?;
+    let updated_status = super::listing_operations::update_listing_status(
+        listing_id,
+        status.clone(),
+        &ctx.deps().db_pool,
+    )
+    .await?;
 
     if updated_status == "active" {
         Ok(ListingEvent::ListingApproved { listing_id })
@@ -591,11 +594,13 @@ async fn handle_create_listings_from_resource_link(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ListingEvent> {
     use crate::domains::listings::models::Listing;
-use crate::domains::scraping::models::Website;
+    use crate::domains::scraping::models::Website;
     use tracing::info;
 
     // Find the organization source that was created during submission
-    let organization_name = context.clone().unwrap_or_else(|| "Submitted Resource".to_string());
+    let organization_name = context
+        .clone()
+        .unwrap_or_else(|| "Submitted Resource".to_string());
 
     // Find the source by URL (it was created in the mutation)
     let source = Website::find_by_url(&url, &ctx.deps().db_pool)
@@ -618,15 +623,6 @@ use crate::domains::scraping::models::Website;
             .contact
             .and_then(|c| serde_json::to_value(c).ok());
 
-        // Calculate content hash for deduplication
-        let content_hash = {
-            use sha2::{Digest, Sha256};
-            let combined = format!("{}{}", extracted_listing.title, extracted_listing.description);
-            let mut hasher = Sha256::new();
-            hasher.update(combined.as_bytes());
-            format!("{:x}", hasher.finalize())
-        };
-
         match Listing::create(
             organization_name.clone(),
             extracted_listing.title.clone(),
@@ -638,7 +634,6 @@ use crate::domains::scraping::models::Website;
             extracted_listing.urgency,
             None, // location
             "pending_approval".to_string(),
-            Some(content_hash),
             "en".to_string(), // source_language
             Some("user_submitted".to_string()),
             None, // submitted_by_admin_id
@@ -646,7 +641,9 @@ use crate::domains::scraping::models::Website;
             Some(url.clone()),
             None, // organization_id
             &ctx.deps().db_pool,
-        ).await {
+        )
+        .await
+        {
             Ok(listing) => {
                 created_count += 1;
                 info!(
@@ -712,9 +709,8 @@ async fn handle_create_organization_source_from_link(
     );
 
     // Extract domain from submitted URL
-    let domain = extract_domain(&url).ok_or_else(|| {
-        anyhow::anyhow!("Invalid URL: could not extract domain")
-    })?;
+    let domain = extract_domain(&url)
+        .ok_or_else(|| anyhow::anyhow!("Invalid URL: could not extract domain"))?;
 
     info!(domain = %domain, "Extracted domain from URL");
 
@@ -736,12 +732,14 @@ async fn handle_create_organization_source_from_link(
         "Found or created website"
     );
 
-    let (source_id, event_type) = (source.id,
+    let (source_id, event_type) = (
+        source.id,
         if source.status == "pending_review" {
             "created_pending_review"
         } else {
             "existing_website"
-        });
+        },
+    );
 
     info!(
         source_id = %source_id,
@@ -800,4 +798,3 @@ async fn handle_delete_listing(
 
     Ok(ListingEvent::ListingDeleted { listing_id })
 }
-

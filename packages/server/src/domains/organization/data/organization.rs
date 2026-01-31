@@ -108,8 +108,8 @@ impl OrganizationData {
 
     /// Get website source for this organization (if linked to a website)
     async fn sources(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<SourceData>> {
-        use crate::domains::scraping::models::Website;
         use crate::common::WebsiteId;
+        use crate::domains::scraping::models::Website;
 
         // Organizations are now linked to websites, not sources directly
         // If organization has a website_id, return that website source

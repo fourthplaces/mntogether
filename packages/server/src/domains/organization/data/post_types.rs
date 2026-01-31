@@ -1,6 +1,6 @@
-use crate::domains::organization::models::{Post, PostStatus};
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
+use crate::domains::organization::models::{Post, PostStatus};
 use crate::server::graphql::GraphQLContext;
 use chrono::{DateTime, Utc};
 use juniper::{FieldResult, GraphQLEnum, GraphQLInputObject, GraphQLObject};
@@ -87,10 +87,12 @@ impl PostData {
             &ctx.db_pool,
         )
         .await
-        .map_err(|e| juniper::FieldError::new(
-            format!("Failed to fetch listing: {}", e),
-            juniper::Value::null(),
-        ))?;
+        .map_err(|e| {
+            juniper::FieldError::new(
+                format!("Failed to fetch listing: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
 
         Ok(ListingData::from(listing))
     }

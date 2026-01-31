@@ -158,7 +158,10 @@ impl Post {
     }
 
     /// Find latest post for a listing
-    pub async fn find_latest_by_listing_id(listing_id: ListingId, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_latest_by_listing_id(
+        listing_id: ListingId,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts WHERE listing_id = $1 ORDER BY published_at DESC LIMIT 1",
         )

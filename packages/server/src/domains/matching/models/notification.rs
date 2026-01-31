@@ -80,7 +80,7 @@ impl Notification {
 
         // Build VALUES clause with all notifications
         let mut query = String::from(
-            "INSERT INTO notifications (listing_id, member_id, why_relevant, created_at) VALUES "
+            "INSERT INTO notifications (listing_id, member_id, why_relevant, created_at) VALUES ",
         );
 
         let mut values = Vec::new();

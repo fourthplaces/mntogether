@@ -62,7 +62,10 @@ impl GraphQLClient {
             auth_token: "test_auth_token".to_string(),
             service_id: "test_service_id".to_string(),
         }));
-        let jwt_service = Arc::new(JwtService::new("test_secret_key", "test_issuer".to_string()));
+        let jwt_service = Arc::new(JwtService::new(
+            "test_secret_key",
+            "test_issuer".to_string(),
+        ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
         let context = GraphQLContext::new(
@@ -89,7 +92,10 @@ impl GraphQLClient {
             auth_token: "test_auth_token".to_string(),
             service_id: "test_service_id".to_string(),
         }));
-        let jwt_service = Arc::new(JwtService::new("test_secret_key", "test_issuer".to_string()));
+        let jwt_service = Arc::new(JwtService::new(
+            "test_secret_key",
+            "test_issuer".to_string(),
+        ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
         let auth_user = AuthUser {

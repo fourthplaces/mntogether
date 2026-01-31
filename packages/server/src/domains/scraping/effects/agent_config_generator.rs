@@ -3,8 +3,8 @@
 // Takes a natural language description of what an agent should do
 // and generates the technical configuration (search queries, extraction instructions)
 
-use anyhow::Result;
 use crate::kernel::BaseAI;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

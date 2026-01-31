@@ -4,14 +4,14 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{WebsiteId, ListingId, OrganizationId, TagId, TaggableId};
+use crate::common::{ListingId, OrganizationId, TagId, TaggableId, WebsiteId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Tag {
     pub id: TagId,
-    pub kind: String,                 // 'community_served', 'service_area', 'population', etc.
-    pub value: String,                // 'somali', 'minneapolis', 'seniors', etc.
+    pub kind: String,  // 'community_served', 'service_area', 'population', etc.
+    pub value: String, // 'somali', 'minneapolis', 'seniors', etc.
     pub display_name: Option<String>, // 'Somali', 'Minneapolis', 'Seniors', etc.
     pub created_at: DateTime<Utc>,
 }
@@ -137,7 +137,11 @@ impl Tag {
     }
 
     /// Find tag by kind and value
-    pub async fn find_by_kind_value(kind: &str, value: &str, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_by_kind_value(
+        kind: &str,
+        value: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
         let tag = sqlx::query_as::<_, Tag>("SELECT * FROM tags WHERE kind = $1 AND value = $2")
             .bind(kind)
             .bind(value)
@@ -173,7 +177,10 @@ impl Tag {
     }
 
     /// Find all tags for an organization
-    pub async fn find_for_organization(organization_id: OrganizationId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_for_organization(
+        organization_id: OrganizationId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
         let tags = sqlx::query_as::<_, Tag>(
             r#"
             SELECT t.*
@@ -334,7 +341,11 @@ impl Taggable {
     }
 
     /// Remove a tag from a referral document
-    pub async fn delete_document_tag(document_id: Uuid, tag_id: TagId, pool: &PgPool) -> Result<()> {
+    pub async fn delete_document_tag(
+        document_id: Uuid,
+        tag_id: TagId,
+        pool: &PgPool,
+    ) -> Result<()> {
         Self::delete(tag_id, "referral_document", &document_id, pool).await
     }
 
@@ -370,10 +381,12 @@ impl Taggable {
         organization_id: OrganizationId,
         pool: &PgPool,
     ) -> Result<()> {
-        sqlx::query("DELETE FROM taggables WHERE taggable_type = 'organization' AND taggable_id = $1")
-            .bind(organization_id.as_uuid())
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "DELETE FROM taggables WHERE taggable_type = 'organization' AND taggable_id = $1",
+        )
+        .bind(organization_id.as_uuid())
+        .execute(pool)
+        .await?;
         Ok(())
     }
 

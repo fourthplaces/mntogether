@@ -15,7 +15,10 @@ pub trait Embeddable: Sized {
     /// Update the embedding vector for this entity
     async fn update_embedding(id: Self::Id, embedding: &[f32], pool: &PgPool) -> Result<()> {
         let vector = Vector::from(embedding.to_vec());
-        let query = format!("UPDATE {} SET embedding = $2 WHERE id = $1", Self::table_name());
+        let query = format!(
+            "UPDATE {} SET embedding = $2 WHERE id = $1",
+            Self::table_name()
+        );
 
         sqlx::query(&query)
             .bind(id)

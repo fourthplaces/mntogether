@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::common::{
-    ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId,
-    MemberId, MessageId,
+    ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId, MemberId, MessageId,
 };
 
 /// Container - generic message container for AI chat, listing comments, org discussions, etc.
@@ -14,7 +13,7 @@ pub struct Container {
     pub id: ContainerId,
     pub container_type: String, // 'ai_chat', 'listing_comments', 'org_discussion'
     pub entity_id: Option<uuid::Uuid>, // listing_id, organization_id, etc. (null for standalone chats)
-    pub language: String,       // language_code from active_languages
+    pub language: String,              // language_code from active_languages
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
@@ -24,7 +23,7 @@ pub struct Container {
 pub struct Message {
     pub id: MessageId,
     pub container_id: ContainerId,
-    pub role: String,        // 'user', 'assistant', 'comment'
+    pub role: String, // 'user', 'assistant', 'comment'
     pub content: String,
     pub author_id: Option<MemberId>, // Optional member ID - null for anonymous or AI
     pub moderation_status: String,   // 'approved', 'pending', 'flagged', 'removed'
@@ -491,12 +490,11 @@ impl Message {
 
     /// Get next sequence number for a container
     pub async fn next_sequence_number(container_id: ContainerId, pool: &PgPool) -> Result<i32> {
-        let max: Option<i32> = sqlx::query_scalar(
-            "SELECT MAX(sequence_number) FROM messages WHERE container_id = $1",
-        )
-        .bind(container_id)
-        .fetch_one(pool)
-        .await?;
+        let max: Option<i32> =
+            sqlx::query_scalar("SELECT MAX(sequence_number) FROM messages WHERE container_id = $1")
+                .bind(container_id)
+                .fetch_one(pool)
+                .await?;
         Ok(max.unwrap_or(0) + 1)
     }
 
@@ -521,7 +519,6 @@ impl Message {
     // =============================================================================
     // DEPRECATED - for backward compatibility with chatroom terminology
     // =============================================================================
-
 }
 
 // =============================================================================

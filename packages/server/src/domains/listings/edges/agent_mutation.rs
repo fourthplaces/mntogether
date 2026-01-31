@@ -1,10 +1,10 @@
 // Agent management mutations
 
-use crate::server::graphql::context::GraphQLContext;
-use juniper::{FieldError, FieldResult, GraphQLObject};
 use crate::domains::scraping::effects::agent_config_generator::{
     generate_agent_config, AgentConfigRequest, AgentConfigSuggestion,
 };
+use crate::server::graphql::context::GraphQLContext;
+use juniper::{FieldError, FieldResult, GraphQLObject};
 
 #[derive(GraphQLObject, Clone)]
 pub struct GenerateAgentConfigResult {

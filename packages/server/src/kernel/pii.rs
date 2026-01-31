@@ -183,7 +183,9 @@ pub fn create_pii_detector(
                 Arc::new(HybridPiiDetector::new(key))
             }
             None => {
-                tracing::warn!("PII_USE_GPT_DETECTION=true but no OpenAI API key, falling back to regex-only");
+                tracing::warn!(
+                    "PII_USE_GPT_DETECTION=true but no OpenAI API key, falling back to regex-only"
+                );
                 Arc::new(RegexPiiDetector::new())
             }
         }

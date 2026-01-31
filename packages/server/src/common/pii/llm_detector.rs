@@ -17,10 +17,7 @@ pub struct PiiEntity {
 /// Detect PII using GPT-4 for context-aware analysis
 /// This detects unstructured PII like names, addresses, and medical info
 /// that regex patterns cannot reliably catch.
-pub async fn detect_pii_with_gpt(
-    text: &str,
-    openai_api_key: &str,
-) -> Result<Vec<PiiEntity>> {
+pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
     if text.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -76,8 +73,8 @@ If no PII is detected, return an empty array: []"#;
         .map_err(|e| anyhow::anyhow!("GPT prompt failed: {}", e))?;
 
     // Parse the JSON response
-    let entities: Vec<PiiEntity> = serde_json::from_str(&completion_text)
-        .unwrap_or_else(|_| Vec::new());
+    let entities: Vec<PiiEntity> =
+        serde_json::from_str(&completion_text).unwrap_or_else(|_| Vec::new());
 
     Ok(entities)
 }
@@ -131,10 +128,7 @@ pub fn entities_to_findings(text: &str, entities: &[PiiEntity]) -> PiiFindings {
 }
 
 /// Hybrid detection: combines regex and LLM
-pub async fn detect_pii_hybrid(
-    text: &str,
-    openai_api_key: &str,
-) -> Result<PiiFindings> {
+pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
     // Start with regex detection (fast, reliable for structured data)

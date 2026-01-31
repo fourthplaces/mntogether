@@ -1,6 +1,6 @@
-use crate::common::{WebsiteId, ListingId};
-use crate::domains::listings::models::{ListingStatus, Listing};
-use crate::domains::organization::utils::{generate_need_content_hash as generate_listing_content_hash, generate_tldr};
+use crate::common::{ListingId, WebsiteId};
+use crate::domains::listings::models::{Listing, ListingStatus};
+use crate::domains::organization::utils::generate_tldr;
 use anyhow::Result;
 use chrono::Utc;
 use sqlx::PgPool;
@@ -58,13 +58,9 @@ pub async fn sync_listings(
     let mut new_listings = Vec::new();
 
     for listing in extracted_listings {
-        let content_hash = generate_listing_content_hash(
-            &listing.title,
-            &listing.description,
-            &listing.organization_name
-        );
-
-        let tldr = listing.tldr.or_else(|| Some(generate_tldr(&listing.description, 100)));
+        let tldr = listing
+            .tldr
+            .or_else(|| Some(generate_tldr(&listing.description, 100)));
 
         match Listing::create(
             listing.organization_name,
@@ -77,7 +73,6 @@ pub async fn sync_listings(
             listing.urgency,
             None, // location
             ListingStatus::PendingApproval.to_string(),
-            Some(content_hash),
             "en".to_string(), // source_language
             Some("scraped".to_string()),
             None, // submitted_by_admin_id
@@ -85,7 +80,9 @@ pub async fn sync_listings(
             listing.source_url,
             None, // organization_id
             pool,
-        ).await {
+        )
+        .await
+        {
             Ok(created) => new_listings.push(created.id),
             Err(e) => tracing::error!(error = %e, "Failed to create listing during sync"),
         }
@@ -117,12 +114,18 @@ mod tests {
             source_url: None,
         };
 
-        let hash1 =
-            generate_listing_content_hash(&listing.title, &listing.description, &listing.organization_name);
+        let hash1 = generate_listing_content_hash(
+            &listing.title,
+            &listing.description,
+            &listing.organization_name,
+        );
 
         // Same content should produce same hash
-        let hash2 =
-            generate_listing_content_hash(&listing.title, &listing.description, &listing.organization_name);
+        let hash2 = generate_listing_content_hash(
+            &listing.title,
+            &listing.description,
+            &listing.organization_name,
+        );
 
         assert_eq!(hash1, hash2);
         assert_eq!(hash1.len(), 64); // SHA256 is 64 hex chars

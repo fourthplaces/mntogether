@@ -8,7 +8,7 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
-use server_core::common::{WebsiteId, MemberId};
+use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::scraping::models::Website;
 use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 use test_context::test_context;
@@ -18,15 +18,13 @@ use uuid::Uuid;
 async fn create_admin_user(ctx: &TestHarness) -> Uuid {
     let admin_id = Uuid::new_v4();
     let push_token = format!("admin-push-token-{}", admin_id);
-    sqlx::query(
-        "INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)"
-    )
-    .bind(admin_id)
-    .bind(push_token)
-    .bind("admin user")
-    .execute(&ctx.db_pool)
-    .await
-    .expect("Failed to create admin user");
+    sqlx::query("INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)")
+        .bind(admin_id)
+        .bind(push_token)
+        .bind("admin user")
+        .execute(&ctx.db_pool)
+        .await
+        .expect("Failed to create admin user");
     admin_id
 }
 
@@ -43,7 +41,7 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
         .with_response("# Food Bank\n\nWe provide food assistance to families in need.");
 
     let mock_ai = MockAI::new()
-        .with_response(r#"[]"#)  // Empty array - AI extraction expects a sequence
+        .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence
         .with_response(r#"[]"#)
         .with_response(r#"[]"#);
 
@@ -92,7 +90,12 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
-    assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
+    assert_eq!(
+        scrape_result["scrapeOrganization"]["status"]
+            .as_str()
+            .unwrap(),
+        "completed"
+    );
 
     // Act: Query website with nested snapshots
     let query = r#"
@@ -125,8 +128,13 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
     );
 
     // Verify snapshots count is greater than 0 (scraping created a snapshot)
-    let snapshots_count = result["organizationSource"]["snapshotsCount"].as_i64().unwrap();
-    assert!(snapshots_count > 0, "Expected at least one snapshot after scraping");
+    let snapshots_count = result["organizationSource"]["snapshotsCount"]
+        .as_i64()
+        .unwrap();
+    assert!(
+        snapshots_count > 0,
+        "Expected at least one snapshot after scraping"
+    );
 }
 
 /// Test querying website with full nested structure: snapshots → pageSnapshot → listings
@@ -138,7 +146,7 @@ async fn query_website_with_full_nested_data(ctx: &TestHarness) {
         .with_response("# Volunteer Opportunities\n\n## Food Bank Helper\nHelp sort and distribute food to families.");
 
     let mock_ai = MockAI::new()
-        .with_response(r#"[]"#)  // Empty array for simpler test
+        .with_response(r#"[]"#) // Empty array for simpler test
         .with_response(r#"[]"#)
         .with_response(r#"[]"#);
 
@@ -187,7 +195,12 @@ async fn query_website_with_full_nested_data(ctx: &TestHarness) {
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
-    assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
+    assert_eq!(
+        scrape_result["scrapeOrganization"]["status"]
+            .as_str()
+            .unwrap(),
+        "completed"
+    );
 
     // Act: Query website with listings (should go through: website → listings)
     let query = r#"
@@ -220,12 +233,17 @@ async fn query_website_with_full_nested_data(ctx: &TestHarness) {
     );
 
     // Verify we can query listingsCount (may be 0 with empty AI mock)
-    let listings_count = result["organizationSource"]["listingsCount"].as_i64().unwrap();
+    let listings_count = result["organizationSource"]["listingsCount"]
+        .as_i64()
+        .unwrap();
     assert!(listings_count >= 0, "Should have valid listings count");
 
     // Verify listings array exists and is valid (may be empty)
     let listings = result["organizationSource"]["listings"].as_array().unwrap();
-    assert!(listings.len() as i64 == listings_count, "Listings array should match count");
+    assert!(
+        listings.len() as i64 == listings_count,
+        "Listings array should match count"
+    );
 }
 
 /// Test that query works for website with no snapshots yet
@@ -275,11 +293,15 @@ async fn query_website_with_no_snapshots(ctx: &TestHarness) {
 
     // Assert: Counts should be 0
     assert_eq!(
-        result["organizationSource"]["snapshotsCount"].as_i64().unwrap(),
+        result["organizationSource"]["snapshotsCount"]
+            .as_i64()
+            .unwrap(),
         0
     );
     assert_eq!(
-        result["organizationSource"]["listingsCount"].as_i64().unwrap(),
+        result["organizationSource"]["listingsCount"]
+            .as_i64()
+            .unwrap(),
         0
     );
 }

@@ -181,10 +181,7 @@ mod tests {
 
     #[test]
     fn test_is_admin_identifier_mixed() {
-        let admin_identifiers = vec![
-            "admin@example.com".to_string(),
-            "+1234567890".to_string(),
-        ];
+        let admin_identifiers = vec!["admin@example.com".to_string(), "+1234567890".to_string()];
 
         // Both emails and phones work
         assert!(is_admin_identifier("admin@example.com", &admin_identifiers));

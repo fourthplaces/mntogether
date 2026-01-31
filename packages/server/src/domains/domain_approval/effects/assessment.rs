@@ -1,10 +1,10 @@
-use crate::common::{WebsiteId, JobId, MemberId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::domains::listings::effects::deps::ServerDeps;
 use crate::domains::scraping::models::{
-    Website, WebsiteAssessment, WebsiteResearch, WebsiteResearchHomepage, TavilySearchQuery,
-    TavilySearchResult,
+    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearch,
+    WebsiteResearchHomepage,
 };
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -133,7 +133,7 @@ async fn handle_generate_assessment_from_research(
     let assessment = WebsiteAssessment::create(
         website_id.into(),
         Some(research_id),
-        assessment_markdown,
+        assessment_markdown.clone(),
         recommendation.clone(),
         confidence,
         org_name.clone(),
@@ -151,7 +151,41 @@ async fn handle_generate_assessment_from_research(
         "Assessment stored successfully"
     );
 
-    // Step 7: Emit success event
+    // Step 7: Generate and store embedding for semantic search
+    match ctx
+        .deps()
+        .embedding_service
+        .generate(&assessment_markdown)
+        .await
+    {
+        Ok(embedding) => {
+            if let Err(e) =
+                WebsiteAssessment::update_embedding(assessment.id, &embedding, &ctx.deps().db_pool)
+                    .await
+            {
+                tracing::warn!(
+                    assessment_id = %assessment.id,
+                    error = %e,
+                    "Failed to store assessment embedding (non-fatal)"
+                );
+            } else {
+                info!(
+                    assessment_id = %assessment.id,
+                    embedding_dim = embedding.len(),
+                    "Assessment embedding stored successfully"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                assessment_id = %assessment.id,
+                error = %e,
+                "Failed to generate assessment embedding (non-fatal)"
+            );
+        }
+    }
+
+    // Step 8: Emit success event
     Ok(DomainApprovalEvent::WebsiteAssessmentCompleted {
         website_id,
         job_id,
@@ -267,9 +301,7 @@ Generate the assessment report now:
     prompt
 }
 
-fn parse_assessment_metadata(
-    markdown: &str,
-) -> (String, Option<f64>, Option<String>, Option<i32>) {
+fn parse_assessment_metadata(markdown: &str) -> (String, Option<f64>, Option<String>, Option<i32>) {
     let mut recommendation = "needs_review".to_string();
     let mut confidence: Option<f64> = None;
     let mut org_name: Option<String> = None;

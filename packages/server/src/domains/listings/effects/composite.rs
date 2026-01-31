@@ -53,7 +53,9 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
 
             // Route to AIEffect
             ListingCommand::ExtractListings { .. } => self.ai.execute(cmd, ctx).await,
-            ListingCommand::ExtractListingsFromResourceLink { .. } => self.ai.execute(cmd, ctx).await,
+            ListingCommand::ExtractListingsFromResourceLink { .. } => {
+                self.ai.execute(cmd, ctx).await
+            }
 
             // Route to SyncEffect
             ListingCommand::SyncListings { .. } => self.sync.execute(cmd, ctx).await,

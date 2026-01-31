@@ -132,12 +132,11 @@ impl Member {
         let mut tx = pool.begin().await?;
 
         // Lock the row with SELECT FOR UPDATE to prevent concurrent modifications
-        let current: Option<Self> = sqlx::query_as(
-            "SELECT * FROM members WHERE id = $1 FOR UPDATE"
-        )
-        .bind(id.into_uuid())
-        .fetch_optional(&mut *tx)
-        .await?;
+        let current: Option<Self> =
+            sqlx::query_as("SELECT * FROM members WHERE id = $1 FOR UPDATE")
+                .bind(id.into_uuid())
+                .fetch_optional(&mut *tx)
+                .await?;
 
         // Check if member exists
         let current = match current {
@@ -159,7 +158,7 @@ impl Member {
             "UPDATE members
              SET notification_count_this_week = notification_count_this_week + 1
              WHERE id = $1
-             RETURNING *"
+             RETURNING *",
         )
         .bind(id.into_uuid())
         .fetch_one(&mut *tx)

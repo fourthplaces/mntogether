@@ -7,10 +7,10 @@ use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
-use crate::common::{WebsiteId, ListingId, MemberId, PostId};
+use crate::common::{ListingId, MemberId, PostId, WebsiteId};
 use crate::domains::listings::models::{listing::Listing, ListingStatus};
 use crate::domains::organization::models::post::Post;
-use crate::domains::organization::utils::{generate_need_content_hash as generate_listing_content_hash, generate_tldr};
+use crate::domains::organization::utils::generate_tldr;
 use crate::kernel::BaseAI;
 
 /// Create a new listing with generated content hash and TLDR
@@ -28,9 +28,6 @@ pub async fn create_listing(
     ai: &dyn BaseAI,
     pool: &PgPool,
 ) -> Result<Listing> {
-    // Generate content hash for deduplication
-    let content_hash = generate_listing_content_hash(&title, &description, &organization_name);
-
     // Generate TLDR using AI
     let tldr = super::listing_extraction::generate_summary(ai, &description)
         .await
@@ -45,13 +42,12 @@ pub async fn create_listing(
         title,
         description,
         Some(tldr),
-        "opportunity".to_string(), // Default type
-        "general".to_string(),     // Default category
+        "opportunity".to_string(),     // Default type
+        "general".to_string(),         // Default category
         Some("accepting".to_string()), // Default capacity status
         urgency,
         location,
         ListingStatus::PendingApproval.to_string(),
-        Some(content_hash),
         "en".to_string(), // Default language
         Some(submission_type),
         None, // submitted_by_admin_id
@@ -67,7 +63,11 @@ pub async fn create_listing(
 }
 
 /// Update listing status and return the appropriate status string
-pub async fn update_listing_status(listing_id: ListingId, status: String, pool: &PgPool) -> Result<String> {
+pub async fn update_listing_status(
+    listing_id: ListingId,
+    status: String,
+    pool: &PgPool,
+) -> Result<String> {
     Listing::update_status(listing_id, &status, pool)
         .await
         .context("Failed to update listing status")?;

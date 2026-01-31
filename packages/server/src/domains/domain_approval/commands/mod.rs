@@ -1,6 +1,6 @@
-use crate::common::{WebsiteId, JobId, MemberId};
-use serde::{Deserialize, Serialize};
+use crate::common::{JobId, MemberId, WebsiteId};
 use seesaw_core::{Command, ExecutionMode, JobSpec};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

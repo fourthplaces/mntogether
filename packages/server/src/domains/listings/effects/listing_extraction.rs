@@ -190,12 +190,20 @@ Required format:
             })
             .context("Failed to get AI response")?;
 
-        tracing::info!(response_length = response.len(), attempt, "AI response received");
+        tracing::info!(
+            response_length = response.len(),
+            attempt,
+            "AI response received"
+        );
         last_response = response.clone();
 
         match serde_json::from_str::<Vec<ExtractedListing>>(&response) {
             Ok(parsed_listings) => {
-                tracing::info!(listings_count = parsed_listings.len(), attempt, "Successfully parsed JSON");
+                tracing::info!(
+                    listings_count = parsed_listings.len(),
+                    attempt,
+                    "Successfully parsed JSON"
+                );
                 listings = parsed_listings;
                 break;
             }

@@ -293,22 +293,20 @@ impl Listing {
 
     /// Find listings by domain ID
     pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
-        let listings =
-            sqlx::query_as::<_, Listing>("SELECT * FROM listings WHERE website_id = $1")
-                .bind(website_id)
-                .fetch_all(pool)
-                .await?;
+        let listings = sqlx::query_as::<_, Listing>("SELECT * FROM listings WHERE website_id = $1")
+            .bind(website_id)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
     /// Find listing by content hash
     pub async fn find_by_content_hash(content_hash: &str, pool: &PgPool) -> Result<Option<Self>> {
-        let listing = sqlx::query_as::<_, Listing>(
-            "SELECT * FROM listings WHERE content_hash = $1 LIMIT 1",
-        )
-        .bind(content_hash)
-        .fetch_optional(pool)
-        .await?;
+        let listing =
+            sqlx::query_as::<_, Listing>("SELECT * FROM listings WHERE content_hash = $1 LIMIT 1")
+                .bind(content_hash)
+                .fetch_optional(pool)
+                .await?;
         Ok(listing)
     }
 
@@ -324,7 +322,6 @@ impl Listing {
         urgency: Option<String>,
         location: Option<String>,
         status: String,
-        content_hash: Option<String>,
         source_language: String,
         submission_type: Option<String>,
         submitted_by_admin_id: Option<Uuid>,
@@ -346,14 +343,13 @@ impl Listing {
                 urgency,
                 location,
                 status,
-                content_hash,
                 source_language,
                 submission_type,
                 submitted_by_admin_id,
                 website_id,
                 source_url,
                 organization_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
             "#,
         )
@@ -367,7 +363,6 @@ impl Listing {
         .bind(urgency)
         .bind(location)
         .bind(status)
-        .bind(content_hash)
         .bind(source_language)
         .bind(submission_type)
         .bind(submitted_by_admin_id)
