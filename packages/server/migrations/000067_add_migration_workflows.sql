@@ -1,7 +1,7 @@
 -- Migration workflow tracking table for data migrations
 -- Tracks state, progress, and cursor position for resumable migrations
 
-CREATE TABLE migration_workflows (
+CREATE TABLE IF NOT EXISTS migration_workflows (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE,
     phase TEXT NOT NULL DEFAULT 'running',  -- running, paused, completed, failed
@@ -18,8 +18,8 @@ CREATE TABLE migration_workflows (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index for looking up workflow by name (already unique, but explicit index for clarity)
-CREATE INDEX idx_migration_workflows_name ON migration_workflows(name);
+-- Index for looking up workflow by name (idempotent)
+CREATE INDEX IF NOT EXISTS idx_migration_workflows_name ON migration_workflows(name);
 
--- Index for finding active workflows
-CREATE INDEX idx_migration_workflows_phase ON migration_workflows(phase) WHERE phase IN ('running', 'paused');
+-- Index for finding active workflows (idempotent)
+CREATE INDEX IF NOT EXISTS idx_migration_workflows_phase ON migration_workflows(phase) WHERE phase IN ('running', 'paused');

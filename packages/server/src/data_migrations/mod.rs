@@ -47,6 +47,7 @@
 //! }
 //! ```
 
+pub mod backfill_audience_roles;
 pub mod example;
 pub mod normalize_website_urls;
 mod workflow;
@@ -153,6 +154,7 @@ pub fn all_migrations() -> Vec<MigrationEntry> {
         // Register migrations here:
         MigrationEntry::new(example::ExampleMigration),
         MigrationEntry::new(normalize_website_urls::NormalizeWebsiteUrlsMigration),
+        MigrationEntry::new(backfill_audience_roles::BackfillAudienceRolesMigration),
     ]
 }
 

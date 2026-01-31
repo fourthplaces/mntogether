@@ -115,6 +115,11 @@ impl WebsiteData {
         self.domain.clone()
     }
 
+    /// Alias for domain (backward compatibility)
+    fn url(&self) -> String {
+        self.domain.clone()
+    }
+
     fn last_scraped_at(&self) -> Option<String> {
         self.last_scraped_at.clone()
     }

@@ -13,7 +13,7 @@ use seesaw_core::{Effect, EffectContext};
 use tracing::info;
 
 use crate::common::{ContainerId, MemberId, MessageId};
-use crate::domains::chatrooms::commands::GenerateChatReplyCommand;
+use crate::domains::chatrooms::commands::{GenerateAgentGreetingCommand, GenerateChatReplyCommand};
 use crate::domains::chatrooms::events::ChatMessagingEvent;
 use crate::domains::chatrooms::models::Message;
 use crate::domains::listings::effects::deps::ServerDeps;
@@ -140,5 +140,88 @@ Be helpful and proactive. If an admin asks to do something, use the appropriate 
 You can help users find resources and services in their community.
 You have access to publicly available listings and can search for relevant information.
 Be friendly and helpful in your responses."#
+    }
+}
+
+// =============================================================================
+// Agent Greeting Effect
+// =============================================================================
+
+/// Effect that generates an agent greeting when a container is created with an agent.
+///
+/// Returns ChatMessagingEvent::ReplyGenerated (a fact about AI output).
+/// The AgentMessagingMachine observes this and emits ChatCommand::CreateMessage.
+pub struct GenerateAgentGreetingEffect;
+
+#[async_trait]
+impl Effect<GenerateAgentGreetingCommand, ServerDeps> for GenerateAgentGreetingEffect {
+    type Event = ChatMessagingEvent;
+
+    async fn execute(
+        &self,
+        cmd: GenerateAgentGreetingCommand,
+        ctx: EffectContext<ServerDeps>,
+    ) -> Result<ChatMessagingEvent> {
+        handle_generate_greeting(cmd, &ctx).await
+    }
+}
+
+async fn handle_generate_greeting(
+    cmd: GenerateAgentGreetingCommand,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<ChatMessagingEvent> {
+    let container_id = ContainerId::from_uuid(cmd.container_id);
+    let agent_config = &cmd.agent_config;
+
+    info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
+
+    // Get greeting prompt based on agent config
+    let greeting_prompt = get_greeting_prompt(agent_config);
+
+    // Generate greeting using AI service
+    let ai = &ctx.deps().ai;
+    let greeting_text = ai.complete(greeting_prompt).await?;
+
+    // Create a placeholder message ID for the greeting (since there's no user message)
+    let placeholder_id = MessageId::new();
+
+    // For now, use a placeholder agent member ID
+    let agent_member_id = MemberId::new();
+
+    info!(
+        container_id = %container_id,
+        greeting_length = greeting_text.len(),
+        "Agent greeting generated"
+    );
+
+    Ok(ChatMessagingEvent::ReplyGenerated {
+        container_id,
+        response_to_id: placeholder_id,
+        author_id: agent_member_id,
+        text: greeting_text,
+    })
+}
+
+/// Get greeting prompt based on agent config.
+fn get_greeting_prompt(agent_config: &str) -> &'static str {
+    match agent_config {
+        "admin" => r#"You are an admin assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the admin.
+
+Mention that you can help with:
+- Managing websites and listings
+- Running scrapers
+- Generating assessments
+- Answering questions about the data
+
+Keep it concise and professional. Do not use asterisks for formatting.
+
+Your greeting:"#,
+        _ => r#"You are a helpful assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the user.
+
+Mention that you can help them find resources and services in their community.
+
+Keep it concise and welcoming. Do not use asterisks for formatting.
+
+Your greeting:"#,
     }
 }

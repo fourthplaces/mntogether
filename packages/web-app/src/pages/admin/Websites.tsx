@@ -6,7 +6,7 @@ const GET_ALL_WEBSITES = gql`
   query GetAllWebsites($agentId: String) {
     websites(status: null, agentId: $agentId) {
       id
-      url
+      domain
       status
       submitterType
       lastScrapedAt
@@ -180,11 +180,8 @@ export function Websites() {
   };
 
   const handleReject = async (websiteId: string) => {
-    const reason = prompt('Why are you rejecting this website?');
-    if (!reason) return;
-
     setError(null);
-    await rejectWebsite({ variables: { websiteId, reason } });
+    await rejectWebsite({ variables: { websiteId, reason: 'Rejected by admin' } });
   };
 
   const handleScrape = async (sourceId: string) => {
@@ -529,8 +526,12 @@ export function Websites() {
               </thead>
               <tbody className="bg-white divide-y divide-stone-200">
                 {filteredWebsites?.map((website) => (
-                  <tr key={website.id} className="hover:bg-stone-50">
-                    <td className="px-4 py-4">
+                  <tr
+                    key={website.id}
+                    className="hover:bg-stone-50 cursor-pointer"
+                    onClick={() => navigate(`/admin/websites/${website.id}`)}
+                  >
+                    <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedWebsites.has(website.id)}
@@ -539,14 +540,21 @@ export function Websites() {
                       />
                     </td>
                     <td className="px-4 py-4 max-w-xs">
-                      <a
-                        href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-blue-600 hover:text-blue-800 font-medium text-sm break-all line-clamp-2"
-                      >
-                        {website.domain}
-                      </a>
+                      <div className="flex items-center gap-1">
+                        <span className="text-stone-900 font-medium text-sm break-all line-clamp-2 select-text cursor-text">
+                          {website.domain}
+                        </span>
+                        <a
+                          href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                          title="Open website"
+                        >
+                          ↗
+                        </a>
+                      </div>
                       {website.agentId && (
                         <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded mt-1 inline-block">
                           Agent
@@ -592,7 +600,7 @@ export function Websites() {
                         <span className="text-xs text-stone-400">-</span>
                       )}
                     </td>
-                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm">
+                    <td className="px-4 py-4 whitespace-nowrap text-right text-sm" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1 justify-end flex-wrap">
                         {website.status === 'pending_review' && (
                           <>
@@ -610,12 +618,6 @@ export function Websites() {
                             </button>
                           </>
                         )}
-                        <button
-                          onClick={() => navigate(`/admin/websites/${website.id}`)}
-                          className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
-                        >
-                          View
-                        </button>
                         {website.status === 'approved' && (
                           <button
                             onClick={() => handleCrawl(website.id)}
@@ -636,16 +638,25 @@ export function Websites() {
           {/* Mobile Cards - Shown only on mobile/tablet */}
           <div className="lg:hidden divide-y divide-stone-200">
             {filteredWebsites?.map((website) => (
-              <div key={website.id} className="p-4">
+              <div
+                key={website.id}
+                className="p-4 cursor-pointer hover:bg-stone-50"
+                onClick={() => navigate(`/admin/websites/${website.id}`)}
+              >
                 <div className="flex items-start justify-between gap-2 mb-2">
-                  <div className="flex-1 min-w-0">
+                  <div className="flex-1 min-w-0 flex items-center gap-1">
+                    <span className="text-stone-900 font-medium text-sm break-all select-text cursor-text">
+                      {website.domain}
+                    </span>
                     <a
                       href={website.domain.startsWith('http') ? website.domain : `https://${website.domain}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:text-blue-800 font-medium text-sm break-all"
+                      className="text-blue-600 hover:text-blue-800 flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                      title="Open website"
                     >
-                      {website.domain}
+                      ↗
                     </a>
                   </div>
                   <span
@@ -683,7 +694,7 @@ export function Websites() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
                   {website.status === 'pending_review' && (
                     <>
                       <button
@@ -700,12 +711,6 @@ export function Websites() {
                       </button>
                     </>
                   )}
-                  <button
-                    onClick={() => navigate(`/admin/websites/${website.id}`)}
-                    className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
-                  >
-                    View
-                  </button>
                   {website.status === 'approved' && (
                     <button
                       onClick={() => handleCrawl(website.id)}

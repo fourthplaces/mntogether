@@ -123,7 +123,31 @@ fn run() -> Result<()> {
 fn cmd_up(ctx: &AppContext, all: bool, full: bool) -> Result<()> {
     ctx.print_header("Starting development environment");
 
-    // Start Docker services
+    // Start only the database service first (needed for migrations)
+    ctx.print_info("Starting database service...");
+    cmd::docker::run(
+        ctx,
+        cmd::docker::DockerCommand::Up {
+            services: vec!["postgres".to_string()],
+            all: false,
+            full: false,
+            detach: true,
+        },
+    )?;
+
+    // Wait for postgres to be healthy
+    ctx.print_info("Waiting for database to be ready...");
+    std::thread::sleep(std::time::Duration::from_secs(3));
+
+    // Run database migrations BEFORE starting the API
+    ctx.print_info("Running database migrations...");
+    if let Err(e) = cmd::db::run(ctx, cmd::db::DbCommand::Migrate) {
+        ctx.print_warning(&format!("Migration warning: {}", e));
+        ctx.print_info("You may need to install sqlx-cli: cargo install sqlx-cli");
+    }
+
+    // Now start remaining Docker services
+    ctx.print_info("Starting remaining services...");
     cmd::docker::run(
         ctx,
         cmd::docker::DockerCommand::Up {
@@ -133,13 +157,6 @@ fn cmd_up(ctx: &AppContext, all: bool, full: bool) -> Result<()> {
             detach: true,
         },
     )?;
-
-    // Run database migrations
-    ctx.print_info("Running database migrations...");
-    if let Err(e) = cmd::db::run(ctx, cmd::db::DbCommand::Migrate) {
-        ctx.print_warning(&format!("Migration warning: {}", e));
-        ctx.print_info("You may need to install sqlx-cli: cargo install sqlx-cli");
-    }
 
     ctx.print_success("Development environment is ready!");
     println!();

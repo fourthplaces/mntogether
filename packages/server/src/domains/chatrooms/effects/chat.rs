@@ -13,6 +13,7 @@ use crate::domains::chatrooms::commands::ChatCommand;
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::listings::effects::deps::ServerDeps;
+use crate::domains::tag::{Tag, Taggable};
 
 /// Chat Effect - Handles CreateContainer and CreateMessage commands
 pub struct ChatEffect;
@@ -32,7 +33,8 @@ impl Effect<ChatCommand, ServerDeps> for ChatEffect {
                 entity_id,
                 language,
                 requested_by: _,
-            } => handle_create_container(container_type, entity_id, language, &ctx).await,
+                with_agent,
+            } => handle_create_container(container_type, entity_id, language, with_agent, &ctx).await,
 
             ChatCommand::CreateMessage {
                 container_id,
@@ -56,9 +58,10 @@ async fn handle_create_container(
     container_type: String,
     entity_id: Option<uuid::Uuid>,
     language: String,
+    with_agent: Option<String>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<ChatEvent> {
-    info!(container_type = %container_type, "Creating chat container");
+    info!(container_type = %container_type, ?with_agent, "Creating chat container");
 
     let container = Container::create(
         container_type.clone(),
@@ -68,9 +71,23 @@ async fn handle_create_container(
     )
     .await?;
 
+    // Tag container with agent config if provided
+    if let Some(ref agent_config) = with_agent {
+        info!(container_id = %container.id, agent_config = %agent_config, "Tagging container with agent");
+        let tag = Tag::find_or_create(
+            "with_agent",
+            agent_config,
+            None,
+            &ctx.deps().db_pool,
+        )
+        .await?;
+        Taggable::create_container_tag(container.id, tag.id, &ctx.deps().db_pool).await?;
+    }
+
     Ok(ChatEvent::ContainerCreated {
         container_id: container.id,
         container_type,
+        with_agent,
     })
 }
 

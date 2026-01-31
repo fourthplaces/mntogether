@@ -21,6 +21,8 @@ pub enum ChatEvent {
         entity_id: Option<uuid::Uuid>,
         language: String,
         requested_by: Option<MemberId>,
+        /// Optional agent config - when set, tags container with with_agent tag
+        with_agent: Option<String>,
     },
 
     /// User sends a message
@@ -38,6 +40,8 @@ pub enum ChatEvent {
     ContainerCreated {
         container_id: ContainerId,
         container_type: String,
+        /// Agent config if this container has an agent enabled
+        with_agent: Option<String>,
     },
 
     /// Message was created
@@ -115,6 +119,7 @@ pub enum ChatEventPayload {
     ContainerCreated {
         container_id: String,
         container_type: String,
+        with_agent: Option<String>,
     },
 }
 
@@ -152,9 +157,11 @@ impl IntoNatsPayload for ChatEvent {
             ChatEvent::ContainerCreated {
                 container_id,
                 container_type,
+                with_agent,
             } => serde_json::to_value(ChatEventPayload::ContainerCreated {
                 container_id: container_id.to_string(),
                 container_type: container_type.clone(),
+                with_agent: with_agent.clone(),
             })
             .unwrap_or_default(),
 

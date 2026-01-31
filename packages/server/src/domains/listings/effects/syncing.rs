@@ -57,6 +57,7 @@ pub async fn sync_extracted_listings(
             urgency: listing.urgency,
             confidence: listing.confidence,
             source_url: Some(source.domain.clone()), // Use main source domain for now
+            audience_roles: vec![], // Default empty, can be enriched later
         })
         .collect();
 

@@ -1,6 +1,7 @@
 use crate::common::{ListingId, WebsiteId};
 use crate::domains::listings::models::{Listing, ListingContact, ListingStatus, ListingWebsiteSync};
 use crate::domains::organization::utils::generate_tldr;
+use crate::domains::tag::models::{Tag, Taggable};
 use anyhow::Result;
 use sqlx::PgPool;
 
@@ -56,6 +57,9 @@ pub struct ExtractedListingInput {
     pub urgency: Option<String>,
     pub confidence: Option<String>,
     pub source_url: Option<String>, // Page URL where listing was found
+    /// Audience roles: who this listing is for
+    /// Valid values: "recipient", "donor", "volunteer", "participant"
+    pub audience_roles: Vec<String>,
 }
 
 /// Synchronize extracted listings with database using content-hash deduplication
@@ -156,6 +160,32 @@ pub async fn sync_listings(
                                 error = %e,
                                 "Failed to save contact info"
                             );
+                        }
+                    }
+
+                    // Tag listing with audience roles
+                    for role in &listing.audience_roles {
+                        let normalized_role = role.to_lowercase();
+                        if let Ok(tag) =
+                            Tag::find_by_kind_value("audience_role", &normalized_role, pool).await
+                        {
+                            if let Some(tag) = tag {
+                                if let Err(e) =
+                                    Taggable::create_listing_tag(created.id, tag.id, pool).await
+                                {
+                                    tracing::warn!(
+                                        listing_id = %created.id,
+                                        role = %normalized_role,
+                                        error = %e,
+                                        "Failed to tag listing with audience role"
+                                    );
+                                }
+                            } else {
+                                tracing::warn!(
+                                    role = %normalized_role,
+                                    "Unknown audience role from AI"
+                                );
+                            }
                         }
                     }
 

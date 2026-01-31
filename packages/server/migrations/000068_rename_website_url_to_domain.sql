@@ -1,7 +1,13 @@
 -- Rename websites.url to websites.domain for semantic correctness
 -- The column stores domain names (e.g., "dhhmn.com"), not full URLs
+-- This migration is idempotent - only renames if 'url' column exists
 
-ALTER TABLE websites RENAME COLUMN url TO domain;
-
--- Update the unique constraint/index if one exists on url
--- (The unique constraint is created implicitly by the ON CONFLICT clause in queries)
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_name = 'websites' AND column_name = 'url'
+    ) THEN
+        ALTER TABLE websites RENAME COLUMN url TO domain;
+    END IF;
+END $$;

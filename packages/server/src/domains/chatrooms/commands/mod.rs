@@ -18,6 +18,8 @@ pub enum ChatCommand {
         entity_id: Option<uuid::Uuid>,
         language: String,
         requested_by: Option<MemberId>,
+        /// Optional agent config - when set, tags container with with_agent tag
+        with_agent: Option<String>,
     },
 
     /// Create a message in a container
@@ -83,6 +85,55 @@ impl seesaw_core::Command for GenerateChatReplyCommand {
             idempotency_key: Some(format!(
                 "{}:{}",
                 GENERATE_CHAT_REPLY_JOB_TYPE, self.message_id
+            )),
+            max_retries: 3,
+            priority: 0,
+            version: 1,
+        })
+    }
+
+    fn serialize_to_json(&self) -> Option<serde_json::Value> {
+        serde_json::to_value(self).ok()
+    }
+}
+
+// =============================================================================
+// Agent Greeting Command
+// =============================================================================
+
+/// Job type for agent greeting generation
+pub const GENERATE_AGENT_GREETING_JOB_TYPE: &str = "generate_agent_greeting";
+
+/// Command to generate an agent greeting when a new container is created with an agent.
+///
+/// This command is emitted by AgentGreetingMachine when a container is created
+/// with the with_agent tag.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateAgentGreetingCommand {
+    pub container_id: uuid::Uuid,
+    pub agent_config: String,
+}
+
+impl GenerateAgentGreetingCommand {
+    pub fn new(container_id: ContainerId, agent_config: String) -> Self {
+        Self {
+            container_id: container_id.into_uuid(),
+            agent_config,
+        }
+    }
+}
+
+impl seesaw_core::Command for GenerateAgentGreetingCommand {
+    fn execution_mode(&self) -> seesaw_core::ExecutionMode {
+        seesaw_core::ExecutionMode::Inline
+    }
+
+    fn job_spec(&self) -> Option<seesaw_core::JobSpec> {
+        Some(seesaw_core::JobSpec {
+            job_type: GENERATE_AGENT_GREETING_JOB_TYPE,
+            idempotency_key: Some(format!(
+                "{}:{}",
+                GENERATE_AGENT_GREETING_JOB_TYPE, self.container_id
             )),
             max_retries: 3,
             priority: 0,

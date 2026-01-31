@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useMutation, useQuery } from '@apollo/client';
 import { CREATE_CHAT, SEND_MESSAGE } from '../graphql/mutations';
 import { GET_MESSAGES, GET_RECENT_CHATS } from '../graphql/queries';
@@ -22,16 +22,19 @@ interface Container {
 interface ChatroomProps {
   isOpen: boolean;
   onClose: () => void;
+  /** Agent config - when set, enables AI agent for this chat */
+  withAgent?: string;
 }
 
-export function Chatroom({ isOpen, onClose }: ChatroomProps) {
+export function Chatroom({ isOpen, onClose, withAgent = 'admin' }: ChatroomProps) {
   const [containerId, setContainerId] = useState<string | null>(null);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [autoStarted, setAutoStarted] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch recent chats to restore session
-  const { data: recentChatsData } = useQuery<{ recentChats: Container[] }>(
+  const { data: recentChatsData, loading: loadingRecent } = useQuery<{ recentChats: Container[] }>(
     GET_RECENT_CHATS,
     { variables: { limit: 1 } }
   );
@@ -50,29 +53,57 @@ export function Chatroom({ isOpen, onClose }: ChatroomProps) {
   const [createChat, { loading: creatingChat }] = useMutation(CREATE_CHAT);
   const [sendMessage, { loading: sendingMessage }] = useMutation(SEND_MESSAGE);
 
-  // Restore last chat session on mount
-  useEffect(() => {
-    if (recentChatsData?.recentChats?.[0]) {
-      setContainerId(recentChatsData.recentChats[0].id);
+  // Start new chat with agent
+  const handleStartNewChat = useCallback(async () => {
+    try {
+      const { data } = await createChat({
+        variables: {
+          language: 'en',
+          withAgent: withAgent || undefined,
+        }
+      });
+      if (data?.createChat?.id) {
+        setContainerId(data.createChat.id);
+        // Wait a bit for the agent greeting to be generated
+        if (withAgent) {
+          setIsTyping(true);
+          setTimeout(() => {
+            refetchMessages();
+            setIsTyping(false);
+          }, 2000);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to create chat:', error);
     }
-  }, [recentChatsData]);
+  }, [createChat, withAgent, refetchMessages]);
+
+  // Restore last chat session or auto-start new one when panel opens
+  useEffect(() => {
+    if (!isOpen || loadingRecent || autoStarted) return;
+
+    if (recentChatsData?.recentChats?.[0]) {
+      // Restore existing session
+      setContainerId(recentChatsData.recentChats[0].id);
+      setAutoStarted(true);
+    } else if (!creatingChat) {
+      // Auto-start new chat with agent greeting
+      setAutoStarted(true);
+      handleStartNewChat();
+    }
+  }, [isOpen, recentChatsData, loadingRecent, autoStarted, creatingChat, handleStartNewChat]);
+
+  // Reset auto-started state when panel closes
+  useEffect(() => {
+    if (!isOpen) {
+      setAutoStarted(false);
+    }
+  }, [isOpen]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messagesData?.messages]);
-
-  // Start new chat
-  const handleStartNewChat = async () => {
-    try {
-      const { data } = await createChat({ variables: { language: 'en' } });
-      if (data?.createChat?.id) {
-        setContainerId(data.createChat.id);
-      }
-    } catch (error) {
-      console.error('Failed to create chat:', error);
-    }
-  };
 
   // Send message
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -146,23 +177,20 @@ export function Chatroom({ isOpen, onClose }: ChatroomProps) {
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {!containerId ? (
+        {!containerId || creatingChat || loadingRecent ? (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <span className="text-4xl mb-4">🤖</span>
-            <h3 className="font-medium text-stone-900 mb-2">
-              Admin Assistant
-            </h3>
-            <p className="text-sm text-stone-600 mb-4">
-              I can help you manage websites, approve listings, run scrapers,
-              and more.
-            </p>
-            <button
-              onClick={handleStartNewChat}
-              disabled={creatingChat}
-              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
-            >
-              {creatingChat ? 'Starting...' : 'Start Chat'}
-            </button>
+            <div className="flex space-x-2 mb-4">
+              <div className="w-3 h-3 bg-amber-400 rounded-full animate-bounce" />
+              <div
+                className="w-3 h-3 bg-amber-400 rounded-full animate-bounce"
+                style={{ animationDelay: '0.1s' }}
+              />
+              <div
+                className="w-3 h-3 bg-amber-400 rounded-full animate-bounce"
+                style={{ animationDelay: '0.2s' }}
+              />
+            </div>
+            <p className="text-sm text-stone-500">Starting assistant...</p>
           </div>
         ) : (
           <>

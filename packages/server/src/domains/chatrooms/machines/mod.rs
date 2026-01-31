@@ -21,7 +21,7 @@
 //!     → ChatEvent::MessageCreated
 //! ```
 
-use crate::domains::chatrooms::commands::{ChatCommand, GenerateChatReplyCommand};
+use crate::domains::chatrooms::commands::{ChatCommand, GenerateAgentGreetingCommand, GenerateChatReplyCommand};
 use crate::domains::chatrooms::events::{ChatEvent, ChatMessagingEvent};
 
 // =============================================================================
@@ -54,11 +54,13 @@ impl seesaw_core::Machine for ChatEventMachine {
                 entity_id,
                 language,
                 requested_by,
+                with_agent,
             } => Some(ChatCommand::CreateContainer {
                 container_type: container_type.clone(),
                 entity_id: *entity_id,
                 language: language.clone(),
                 requested_by: *requested_by,
+                with_agent: with_agent.clone(),
             }),
 
             ChatEvent::SendMessageRequested {
@@ -171,6 +173,43 @@ impl seesaw_core::Machine for AgentMessagingMachine {
             }),
 
             ChatMessagingEvent::Skipped { .. } => None,
+        }
+    }
+}
+
+// =============================================================================
+// AgentGreetingMachine - Generates greeting when container has agent
+// =============================================================================
+
+/// Machine that generates an agent greeting when a container is created with an agent.
+///
+/// When a container is created with the `with_agent` tag, this machine emits
+/// a `GenerateAgentGreetingCommand` which triggers the AI to generate a greeting.
+pub struct AgentGreetingMachine;
+
+impl Default for AgentGreetingMachine {
+    fn default() -> Self {
+        Self
+    }
+}
+
+impl seesaw_core::Machine for AgentGreetingMachine {
+    type Event = ChatEvent;
+    type Command = GenerateAgentGreetingCommand;
+
+    fn decide(&mut self, event: &ChatEvent) -> Option<GenerateAgentGreetingCommand> {
+        match event {
+            ChatEvent::ContainerCreated {
+                container_id,
+                with_agent: Some(agent_config),
+                ..
+            } => {
+                // Generate greeting when container has an agent
+                Some(GenerateAgentGreetingCommand::new(*container_id, agent_config.clone()))
+            }
+
+            // Other events don't trigger greetings
+            _ => None,
         }
     }
 }

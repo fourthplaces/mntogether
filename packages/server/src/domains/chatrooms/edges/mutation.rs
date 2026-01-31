@@ -14,10 +14,11 @@ use seesaw_core::dispatch_request;
 pub async fn create_chat(
     ctx: &GraphQLContext,
     language: Option<String>,
+    with_agent: Option<String>,
 ) -> FieldResult<ContainerData> {
     let member_id = ctx.auth_user.as_ref().map(|u| u.member_id);
 
-    info!(?member_id, "Creating new AI chat container");
+    info!(?member_id, ?with_agent, "Creating new AI chat container");
 
     // Dispatch through seesaw for proper event flow
     let container_id = dispatch_request(
@@ -26,6 +27,7 @@ pub async fn create_chat(
             entity_id: None,
             language: language.unwrap_or_else(|| "en".to_string()),
             requested_by: member_id,
+            with_agent,
         },
         &ctx.bus,
         |m| {
