@@ -16,8 +16,14 @@ use test_context::test_context;
 fn create_resource_link_input(url: &str, context: &str, submitter_contact: &str) -> Variables {
     let mut input_fields = IndexMap::new();
     input_fields.insert("url".to_string(), InputValue::scalar(url.to_string()));
-    input_fields.insert("context".to_string(), InputValue::scalar(context.to_string()));
-    input_fields.insert("submitterContact".to_string(), InputValue::scalar(submitter_contact.to_string()));
+    input_fields.insert(
+        "context".to_string(),
+        InputValue::scalar(context.to_string()),
+    );
+    input_fields.insert(
+        "submitterContact".to_string(),
+        InputValue::scalar(submitter_contact.to_string()),
+    );
 
     let mut vars = Variables::new();
     vars.insert("input".to_string(), InputValue::object(input_fields));
@@ -44,11 +50,8 @@ async fn submit_new_website_returns_pending_review(ctx: &TestHarness) {
         }
     "#;
 
-    let vars = create_resource_link_input(
-        "https://newwebsite.org/resources",
-        "",
-        "test@example.com"
-    );
+    let vars =
+        create_resource_link_input("https://newwebsite.org/resources", "", "test@example.com");
 
     let result = client.query_with_vars(mutation, vars).await;
 
@@ -114,7 +117,7 @@ async fn submit_approved_website_returns_pending_status(ctx: &TestHarness) {
     let vars = create_resource_link_input(
         "https://approvedwebsite.org/volunteer-page",
         "",
-        "test@example.com"
+        "test@example.com",
     );
 
     let result = client.query_with_vars(mutation, vars).await;
@@ -147,11 +150,7 @@ async fn submit_existing_pending_website_returns_pending_review(ctx: &TestHarnes
     "#;
 
     // First submission
-    let vars1 = create_resource_link_input(
-        "https://samewebsite.org/page1",
-        "",
-        "test@example.com"
-    );
+    let vars1 = create_resource_link_input("https://samewebsite.org/page1", "", "test@example.com");
 
     let result1 = client.query_with_vars(mutation, vars1).await;
 
@@ -161,11 +160,7 @@ async fn submit_existing_pending_website_returns_pending_review(ctx: &TestHarnes
     );
 
     // Second submission of same website - should not error
-    let vars2 = create_resource_link_input(
-        "https://samewebsite.org/page1",
-        "",
-        "test@example.com"
-    );
+    let vars2 = create_resource_link_input("https://samewebsite.org/page1", "", "test@example.com");
 
     let result2 = client.query_with_vars(mutation, vars2).await;
 
@@ -175,13 +170,11 @@ async fn submit_existing_pending_website_returns_pending_review(ctx: &TestHarnes
     );
 
     // Verify only one website was created
-    let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM websites WHERE url = $1"
-    )
-    .bind("https://samewebsite.org")
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count websites");
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE url = $1")
+        .bind("https://samewebsite.org")
+        .fetch_one(&ctx.db_pool)
+        .await
+        .expect("Failed to count websites");
 
     assert_eq!(count, 1, "Should only have one website record");
 }
@@ -202,17 +195,9 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
         }
     "#;
 
-    let vars1 = create_resource_link_input(
-        "https://concurrent.org/page",
-        "",
-        "test@example.com"
-    );
+    let vars1 = create_resource_link_input("https://concurrent.org/page", "", "test@example.com");
 
-    let vars2 = create_resource_link_input(
-        "https://concurrent.org/page",
-        "",
-        "test@example.com"
-    );
+    let vars2 = create_resource_link_input("https://concurrent.org/page", "", "test@example.com");
 
     // Send two concurrent requests
     let (result1, result2) = tokio::join!(
@@ -231,15 +216,16 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
     );
 
     // Verify only one website was created (no duplicate key error)
-    let count = sqlx::query_scalar::<_, i64>(
-        "SELECT COUNT(*) FROM websites WHERE url = $1"
-    )
-    .bind("https://concurrent.org")
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count websites");
+    let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM websites WHERE url = $1")
+        .bind("https://concurrent.org")
+        .fetch_one(&ctx.db_pool)
+        .await
+        .expect("Failed to count websites");
 
-    assert_eq!(count, 1, "Should only have one website despite concurrent requests");
+    assert_eq!(
+        count, 1,
+        "Should only have one website despite concurrent requests"
+    );
 }
 
 /// Test: Manual scrape via GraphQL should create website_snapshot entries
@@ -251,11 +237,11 @@ async fn test_manual_scrape_creates_website_snapshot() {
     use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 
     // Setup: Create test harness with mocked AI and web scraper
-    let mock_scraper = MockWebScraper::new()
-        .with_response("# Test Page\n\nTest volunteer opportunity content");
+    let mock_scraper =
+        MockWebScraper::new().with_response("# Test Page\n\nTest volunteer opportunity content");
 
     let mock_ai = MockAI::new()
-        .with_response(r#"[]"#)  // Empty array - AI extraction expects a sequence
+        .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence
         .with_response(r#"[]"#)
         .with_response(r#"[]"#);
 
@@ -272,7 +258,7 @@ async fn test_manual_scrape_creates_website_snapshot() {
     sqlx::query("INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)")
         .bind(reviewer_id.into_uuid())
         .bind("test-push-token")
-        .bind("")  // Empty searchable text for test member
+        .bind("") // Empty searchable text for test member
         .execute(&ctx.db_pool)
         .await
         .expect("Failed to create test member");
@@ -299,7 +285,11 @@ async fn test_manual_scrape_creates_website_snapshot() {
         .await
         .unwrap_or_default();
 
-    assert_eq!(initial_snapshots.len(), 0, "Expected no website_snapshots before scraping");
+    assert_eq!(
+        initial_snapshots.len(),
+        0,
+        "Expected no website_snapshots before scraping"
+    );
 
     // Use authenticated client (admin) for scraping mutation
     use crate::common::GraphQLClient;
@@ -317,10 +307,7 @@ async fn test_manual_scrape_creates_website_snapshot() {
     "#;
 
     let result = client
-        .query_with_vars(
-            mutation,
-            vars!("sourceId" => website.id.to_string())
-        )
+        .query_with_vars(mutation, vars!("sourceId" => website.id.to_string()))
         .await;
 
     // Verify GraphQL response
@@ -335,7 +322,8 @@ async fn test_manual_scrape_creates_website_snapshot() {
         .expect("Failed to fetch website_snapshots");
 
     assert_eq!(
-        snapshots.len(), 1,
+        snapshots.len(),
+        1,
         "Expected exactly one website_snapshot to be created when manually scraping"
     );
 

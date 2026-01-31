@@ -1,8 +1,12 @@
 use crate::domains::auth::JwtService;
 use crate::domains::domain_approval::{
-    commands::DomainApprovalCommand,
-    effects::DomainApprovalCompositeEffect,
+    commands::DomainApprovalCommand, effects::DomainApprovalCompositeEffect,
     machines::DomainApprovalMachine,
+};
+use crate::domains::listings::{
+    commands::ListingCommand,
+    effects::{ListingCompositeEffect, ServerDeps},
+    machines::ListingMachine,
 };
 use crate::domains::matching::{
     commands::MatchingCommand,
@@ -13,11 +17,6 @@ use crate::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
 use crate::kernel::FirecrawlClient;
-use crate::domains::listings::{
-    commands::ListingCommand,
-    effects::{ListingCompositeEffect, ServerDeps},
-    machines::ListingMachine,
-};
 use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};

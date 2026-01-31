@@ -9,7 +9,7 @@ mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
 use juniper::Variables;
-use server_core::common::{WebsiteId, MemberId};
+use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::scraping::models::Website;
 use test_context::test_context;
 use uuid::Uuid;
@@ -20,15 +20,13 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
     // Insert member into database so foreign key constraint is satisfied
     // Use unique expo_push_token for each test
     let push_token = format!("admin-push-token-{}", admin_id);
-    sqlx::query(
-        "INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)"
-    )
-    .bind(admin_id)
-    .bind(push_token)
-    .bind("admin user")
-    .execute(&ctx.db_pool)
-    .await
-    .expect("Failed to create admin user");
+    sqlx::query("INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)")
+        .bind(admin_id)
+        .bind(push_token)
+        .bind("admin user")
+        .execute(&ctx.db_pool)
+        .await
+        .expect("Failed to create admin user");
     admin_id
 }
 
@@ -96,10 +94,7 @@ async fn approve_website_changes_status_to_approved(ctx: &TestHarness) {
     assert_eq!(updated_website.status, "approved");
     assert!(updated_website.reviewed_by.is_some());
     assert!(updated_website.reviewed_at.is_some());
-    assert_eq!(
-        updated_website.reviewed_by.unwrap().into_uuid(),
-        admin_id
-    );
+    assert_eq!(updated_website.reviewed_by.unwrap().into_uuid(), admin_id);
 }
 
 /// Test that approving a website requires admin authentication
@@ -139,7 +134,10 @@ async fn approve_website_requires_admin_auth(ctx: &TestHarness) {
     let result = client.execute_with_vars(mutation, vars).await;
 
     // Assert: Should return an error for unauthenticated request
-    assert!(!result.is_ok(), "Expected error for unauthenticated request, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for unauthenticated request, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
@@ -170,7 +168,10 @@ async fn approve_nonexistent_website_returns_error(ctx: &TestHarness) {
     let result = client.execute_with_vars(mutation, vars).await;
 
     // Assert: Should return an error for nonexistent website
-    assert!(!result.is_ok(), "Expected error for nonexistent website, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for nonexistent website, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
@@ -281,7 +282,10 @@ async fn reject_website_requires_admin_auth(ctx: &TestHarness) {
     let result = client.execute_with_vars(mutation, vars).await;
 
     // Assert: Should return an error for unauthenticated request
-    assert!(!result.is_ok(), "Expected error for unauthenticated request, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for unauthenticated request, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
@@ -399,6 +403,9 @@ async fn suspend_website_requires_admin_auth(ctx: &TestHarness) {
     let result = client.execute_with_vars(mutation, vars).await;
 
     // Assert: Should return an error for unauthenticated request
-    assert!(!result.is_ok(), "Expected error for unauthenticated request, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for unauthenticated request, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }

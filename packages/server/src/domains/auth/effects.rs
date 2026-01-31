@@ -40,10 +40,14 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                     use crate::domains::member::models::Member;
                     use uuid::Uuid;
 
-                    let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
+                    let is_admin =
+                        is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
 
                     if is_admin {
-                        info!("Auto-creating admin member and identifier for: {}", phone_number);
+                        info!(
+                            "Auto-creating admin member and identifier for: {}",
+                            phone_number
+                        );
 
                         // Create member record first (required for foreign key)
                         let member = Member {
@@ -66,15 +70,23 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
 
                         // Create identifier record
                         identifier = Some(
-                            Identifier::create(member.id, phone_hash.clone(), true, &ctx.deps().db_pool)
-                                .await
-                                .map_err(|e| {
-                                    error!("Failed to create admin identifier: {}", e);
-                                    anyhow::anyhow!("Failed to create admin identifier: {}", e)
-                                })?
+                            Identifier::create(
+                                member.id,
+                                phone_hash.clone(),
+                                true,
+                                &ctx.deps().db_pool,
+                            )
+                            .await
+                            .map_err(|e| {
+                                error!("Failed to create admin identifier: {}", e);
+                                anyhow::anyhow!("Failed to create admin identifier: {}", e)
+                            })?,
                         );
 
-                        info!("Admin member and identifier created successfully for {}", phone_number);
+                        info!(
+                            "Admin member and identifier created successfully for {}",
+                            phone_number
+                        );
                     } else {
                         info!("Identifier not registered: {}", phone_number);
                         return Ok(AuthEvent::PhoneNotRegistered { phone_number });
@@ -87,7 +99,10 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
                 if ctx.deps().test_identifier_enabled
                     && (phone_number == "+1234567890" || phone_number == "test@example.com")
                 {
-                    info!("Test identifier: Skipping actual OTP send for {}", phone_number);
+                    info!(
+                        "Test identifier: Skipping actual OTP send for {}",
+                        phone_number
+                    );
                     return Ok(AuthEvent::OTPSent { phone_number });
                 }
 
@@ -119,38 +134,53 @@ impl Effect<AuthCommand, ServerDeps> for AuthEffect {
 
                     // Get or create member info for test identifier
                     let phone_hash = hash_phone_number(&phone_number);
-                    let identifier = match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await? {
-                        Some(id) => id,
-                        None => {
-                            use super::models::is_admin_identifier;
-                            use crate::domains::member::models::Member;
-                            use uuid::Uuid;
+                    let identifier =
+                        match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool)
+                            .await?
+                        {
+                            Some(id) => id,
+                            None => {
+                                use super::models::is_admin_identifier;
+                                use crate::domains::member::models::Member;
+                                use uuid::Uuid;
 
-                            info!("Auto-creating test member and identifier: {}", phone_number);
-                            let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
+                                info!("Auto-creating test member and identifier: {}", phone_number);
+                                let is_admin = is_admin_identifier(
+                                    &phone_number,
+                                    &ctx.deps().admin_identifiers,
+                                );
 
-                            // Create member record first
-                            let member = Member {
-                                id: Uuid::new_v4(),
-                                expo_push_token: format!("test:{}", phone_number),
-                                searchable_text: format!("Test: {}", phone_number),
-                                latitude: None,
-                                longitude: None,
-                                location_name: None,
-                                active: true,
-                                notification_count_this_week: 0,
-                                paused_until: None,
-                                created_at: chrono::Utc::now(),
-                            };
+                                // Create member record first
+                                let member = Member {
+                                    id: Uuid::new_v4(),
+                                    expo_push_token: format!("test:{}", phone_number),
+                                    searchable_text: format!("Test: {}", phone_number),
+                                    latitude: None,
+                                    longitude: None,
+                                    location_name: None,
+                                    active: true,
+                                    notification_count_this_week: 0,
+                                    paused_until: None,
+                                    created_at: chrono::Utc::now(),
+                                };
 
-                            let member = member.insert(&ctx.deps().db_pool).await
-                                .map_err(|e| anyhow::anyhow!("Failed to create test member: {}", e))?;
+                                let member =
+                                    member.insert(&ctx.deps().db_pool).await.map_err(|e| {
+                                        anyhow::anyhow!("Failed to create test member: {}", e)
+                                    })?;
 
-                            Identifier::create(member.id, phone_hash, is_admin, &ctx.deps().db_pool)
+                                Identifier::create(
+                                    member.id,
+                                    phone_hash,
+                                    is_admin,
+                                    &ctx.deps().db_pool,
+                                )
                                 .await
-                                .map_err(|e| anyhow::anyhow!("Failed to create test identifier: {}", e))?
-                        }
-                    };
+                                .map_err(|e| {
+                                    anyhow::anyhow!("Failed to create test identifier: {}", e)
+                                })?
+                            }
+                        };
 
                     return Ok(AuthEvent::OTPVerified {
                         member_id: identifier.member_id,

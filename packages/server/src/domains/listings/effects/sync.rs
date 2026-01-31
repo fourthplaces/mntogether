@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::deps::ServerDeps;
-use crate::common::{WebsiteId, JobId, MemberId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::listings::commands::ListingCommand;
 use crate::domains::listings::events::ListingEvent;
 use crate::domains::scraping::models::{Agent, Website};
@@ -51,7 +51,9 @@ async fn handle_sync_listings(
     );
 
     let result =
-        match super::syncing::sync_extracted_listings(source_id, listings, &ctx.deps().db_pool).await {
+        match super::syncing::sync_extracted_listings(source_id, listings, &ctx.deps().db_pool)
+            .await
+        {
             Ok(r) => {
                 tracing::info!(
                     source_id = %source_id,
@@ -128,12 +130,11 @@ async fn auto_approve_website_if_enabled(
     }
 
     // Check if website has an agent_id
-    let agent_id = sqlx::query_scalar::<_, Option<uuid::Uuid>>(
-        "SELECT agent_id FROM websites WHERE id = $1"
-    )
-    .bind(website.id)
-    .fetch_one(pool)
-    .await?;
+    let agent_id =
+        sqlx::query_scalar::<_, Option<uuid::Uuid>>("SELECT agent_id FROM websites WHERE id = $1")
+            .bind(website.id)
+            .fetch_one(pool)
+            .await?;
 
     let agent_id = match agent_id {
         Some(id) => id,

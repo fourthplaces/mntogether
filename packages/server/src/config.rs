@@ -42,13 +42,11 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .context("PORT must be a valid number")?,
-            openai_api_key: env::var("OPENAI_API_KEY")
-                .context("OPENAI_API_KEY must be set")?,
+            openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
             voyage_api_key: env::var("VOYAGE_API_KEY").context("VOYAGE_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY")
                 .context("FIRECRAWL_API_KEY must be set")?,
-            tavily_api_key: env::var("TAVILY_API_KEY")
-                .context("TAVILY_API_KEY must be set")?,
+            tavily_api_key: env::var("TAVILY_API_KEY").context("TAVILY_API_KEY must be set")?,
             expo_access_token: env::var("EXPO_ACCESS_TOKEN").ok(),
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID")
                 .context("TWILIO_ACCOUNT_SID must be set")?,

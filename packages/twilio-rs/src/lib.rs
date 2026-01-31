@@ -225,9 +225,9 @@ mod tests {
         assert!(is_email("test.user@domain.co.uk"));
 
         // Invalid emails
-        assert!(!is_email("user@example"));  // No TLD
-        assert!(!is_email("userexample.com"));  // No @
-        assert!(!is_email("+1234567890"));  // Phone number
+        assert!(!is_email("user@example")); // No TLD
+        assert!(!is_email("userexample.com")); // No @
+        assert!(!is_email("+1234567890")); // Phone number
     }
 
     #[test]
@@ -238,8 +238,8 @@ mod tests {
         assert!(is_phone_number("+44123456789"));
 
         // Invalid phone numbers
-        assert!(!is_phone_number("1234567890"));  // Missing +
-        assert!(!is_phone_number("+123"));  // Too short
-        assert!(!is_phone_number("user@example.com"));  // Email
+        assert!(!is_phone_number("1234567890")); // Missing +
+        assert!(!is_phone_number("+123")); // Too short
+        assert!(!is_phone_number("user@example.com")); // Email
     }
 }

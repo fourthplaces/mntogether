@@ -1,4 +1,6 @@
-use crate::domains::listings::models::listing_report::{ListingReportRecord, ListingReportWithDetails};
+use crate::domains::listings::models::listing_report::{
+    ListingReportRecord, ListingReportWithDetails,
+};
 use crate::server::graphql::context::GraphQLContext;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

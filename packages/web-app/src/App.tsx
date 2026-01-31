@@ -18,6 +18,7 @@ import { Resources } from './pages/admin/Resources';
 import { ResourceDetail } from './pages/admin/ResourceDetail';
 import { OrganizationDetail } from './pages/admin/OrganizationDetail';
 import { OrganizationsList } from './pages/admin/OrganizationsList';
+import { WebsiteDetail } from './pages/admin/WebsiteDetail';
 
 // Admin protected layout
 function AdminLayout() {
@@ -94,7 +95,7 @@ function AdminLayout() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/agents" element={<Agents />} />
         <Route path="/websites" element={<Websites />} />
-        <Route path="/websites/:sourceId" element={<ResourceDetail />} />
+        <Route path="/websites/:domainId" element={<WebsiteDetail />} />
         <Route path="/listings" element={<ListingApprovalQueue />} />
         <Route path="/scraped" element={<ScrapedListingsReview />} />
         <Route path="/resources" element={<Resources />} />

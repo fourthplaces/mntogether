@@ -10,8 +10,8 @@ pub struct FirecrawlClient {
 
 impl FirecrawlClient {
     pub fn new(api_key: String) -> Result<Self> {
-        let client = firecrawl::FirecrawlApp::new(api_key)
-            .context("Failed to create Firecrawl client")?;
+        let client =
+            firecrawl::FirecrawlApp::new(api_key).context("Failed to create Firecrawl client")?;
 
         Ok(Self { client })
     }

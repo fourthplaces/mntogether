@@ -7,14 +7,14 @@ use seesaw_core::{Effect, EffectContext};
 use sqlx::PgPool;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::common::{MemberId, ListingId};
+use crate::common::{ListingId, MemberId};
+use crate::domains::listings::effects::ServerDeps;
+use crate::domains::listings::models::listing::Listing;
 use crate::domains::matching::{
     commands::MatchingCommand, events::MatchingEvent, models::notification::Notification,
     utils::check_relevance_by_similarity,
 };
 use crate::domains::member::models::member::Member;
-use crate::domains::listings::effects::ServerDeps;
-use crate::domains::listings::models::listing::Listing;
 
 use vector_search::MatchCandidate;
 
@@ -75,20 +75,21 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
 
                 // 2. Vector search with distance filtering
                 let embedding_slice: &[f32] = need_embedding.as_slice();
-                let candidates = if let (Some(lat), Some(lng)) = (listing.latitude, listing.longitude) {
-                    // Has location - filter by distance
-                    MatchCandidate::find_within_radius(
-                        embedding_slice,
-                        lat,
-                        lng,
-                        DEFAULT_RADIUS_KM,
-                        &ctx.deps().db_pool,
-                    )
-                    .await?
-                } else {
-                    // No location - search statewide
-                    MatchCandidate::find_statewide(embedding_slice, &ctx.deps().db_pool).await?
-                };
+                let candidates =
+                    if let (Some(lat), Some(lng)) = (listing.latitude, listing.longitude) {
+                        // Has location - filter by distance
+                        MatchCandidate::find_within_radius(
+                            embedding_slice,
+                            lat,
+                            lng,
+                            DEFAULT_RADIUS_KM,
+                            &ctx.deps().db_pool,
+                        )
+                        .await?
+                    } else {
+                        // No location - search statewide
+                        MatchCandidate::find_statewide(embedding_slice, &ctx.deps().db_pool).await?
+                    };
 
                 if candidates.is_empty() {
                     info!("No candidates found for listing {}", listing_id);
@@ -125,10 +126,8 @@ impl Effect<MatchingCommand, ServerDeps> for MatchingEffect {
                                 "Member {} eligible for notification about listing {}",
                                 candidate.member_id, listing_id
                             );
-                            eligible_notifications.push((
-                                candidate.clone(),
-                                relevance_result.explanation.clone(),
-                            ));
+                            eligible_notifications
+                                .push((candidate.clone(), relevance_result.explanation.clone()));
                         }
                         None => {
                             debug!(

@@ -291,14 +291,15 @@ export const GET_PENDING_DOMAINS = gql`
 `;
 
 export const GET_ALL_DOMAINS = gql`
-  query GetAllDomains($status: String) {
-    domains(status: $status) {
+  query GetAllDomains($status: String, $agentId: String) {
+    domains(status: $status, agentId: $agentId) {
       id
       websiteUrl
       status
       lastScrapedAt
       submittedBy
       submitterType
+      agentId
       createdAt
       snapshotsCount
       listingsCount
@@ -511,6 +512,37 @@ export const GET_ADMIN_STATS = gql`
       id
       status
       createdAt
+    }
+  }
+`;
+
+export const GET_DOMAIN_ASSESSMENT = gql`
+  query GetDomainAssessment($domainId: String!) {
+    domainAssessment(domainId: $domainId) {
+      id
+      websiteId
+      assessmentMarkdown
+      recommendation
+      confidenceScore
+      organizationName
+      foundedYear
+      generatedAt
+      modelUsed
+      reviewedByHuman
+    }
+  }
+`;
+
+export const SEARCH_WEBSITES = gql`
+  query SearchWebsites($query: String!, $limit: Int, $threshold: Float) {
+    searchWebsites(query: $query, limit: $limit, threshold: $threshold) {
+      websiteId
+      assessmentId
+      websiteUrl
+      organizationName
+      recommendation
+      assessmentMarkdown
+      similarity
     }
   }
 `;

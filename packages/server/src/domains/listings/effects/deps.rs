@@ -3,7 +3,9 @@ use std::sync::Arc;
 use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
-use crate::kernel::{BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseSearchService, BaseWebScraper};
+use crate::kernel::{
+    BaseAI, BaseEmbeddingService, BasePushNotificationService, BaseSearchService, BaseWebScraper,
+};
 
 /// Server dependencies accessible to effects (using traits for testability)
 #[derive(Clone)]

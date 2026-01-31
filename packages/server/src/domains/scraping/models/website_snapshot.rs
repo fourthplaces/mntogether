@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{WebsiteId, MemberId};
+use crate::common::{MemberId, WebsiteId};
 
 pub type WebsiteSnapshotId = Uuid;
 pub type PageSnapshotId = Uuid;
@@ -34,7 +34,6 @@ impl WebsiteSnapshot {
         self.submitted_by.map(MemberId::from_uuid)
     }
 
-
     /// Create or update a domain snapshot (doesn't scrape yet)
     pub async fn upsert(
         pool: &PgPool,
@@ -50,7 +49,7 @@ impl WebsiteSnapshot {
              VALUES ($1, $2, $3)
              ON CONFLICT (website_id, page_url) DO UPDATE
              SET updated_at = NOW()
-             RETURNING *"
+             RETURNING *",
         )
         .bind(domain_uuid)
         .bind(page_url)
@@ -62,13 +61,11 @@ impl WebsiteSnapshot {
 
     /// Find domain snapshot by ID
     pub async fn find_by_id(pool: &PgPool, id: WebsiteSnapshotId) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM website_snapshots WHERE id = $1"
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .context("Domain snapshot not found")
+        sqlx::query_as::<_, Self>("SELECT * FROM website_snapshots WHERE id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .context("Domain snapshot not found")
     }
 
     /// Find all pending snapshots for approved websites
@@ -79,7 +76,7 @@ impl WebsiteSnapshot {
              INNER JOIN websites d ON ds.website_id = d.id
              WHERE d.status = 'approved'
              AND ds.scrape_status = 'pending'
-             ORDER BY ds.submitted_at ASC"
+             ORDER BY ds.submitted_at ASC",
         )
         .fetch_all(pool)
         .await
@@ -93,7 +90,7 @@ impl WebsiteSnapshot {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM website_snapshots
              WHERE website_id = $1
-             ORDER BY submitted_at DESC"
+             ORDER BY submitted_at DESC",
         )
         .bind(website_uuid)
         .fetch_all(pool)
@@ -112,7 +109,7 @@ impl WebsiteSnapshot {
                 scrape_error = NULL,
                 updated_at = NOW()
             WHERE id = $2
-            "#
+            "#,
         )
         .bind(snapshot_id)
         .bind(self.id)
@@ -130,7 +127,7 @@ impl WebsiteSnapshot {
                 scrape_error = $1,
                 updated_at = NOW()
             WHERE id = $2
-            "#
+            "#,
         )
         .bind(error)
         .bind(self.id)

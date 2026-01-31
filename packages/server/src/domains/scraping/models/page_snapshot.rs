@@ -40,7 +40,7 @@ impl PageSnapshot {
         // Try to find existing snapshot with same URL and content
         let existing: Option<Self> = sqlx::query_as::<_, Self>(
             "SELECT * FROM page_snapshots
-             WHERE url = $1 AND content_hash = $2"
+             WHERE url = $1 AND content_hash = $2",
         )
         .bind(&url)
         .bind(&content_hash)
@@ -65,7 +65,7 @@ impl PageSnapshot {
                 metadata, crawled_at, extraction_status
              )
              VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), 'pending')
-             RETURNING *"
+             RETURNING *",
         )
         .bind(id)
         .bind(&url)
@@ -92,7 +92,7 @@ impl PageSnapshot {
     pub async fn find_by_id(pool: &PgPool, id: PageSnapshotId) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM page_snapshots
-             WHERE id = $1"
+             WHERE id = $1",
         )
         .bind(id)
         .fetch_one(pool)

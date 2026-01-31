@@ -35,7 +35,6 @@
 /// - Message creation (scrub user input)
 /// - Web scraping (scrub scraped content)
 /// - Error logging (scrub Sentry reports)
-
 pub mod detector;
 pub mod llm_detector;
 pub mod redactor;

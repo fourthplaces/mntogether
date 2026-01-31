@@ -88,9 +88,14 @@ pub async fn handle_dismiss_report(
         });
     }
 
-    ListingReportRecord::dismiss(report_id, resolved_by, resolution_notes, &ctx.deps().db_pool)
-        .await
-        .context("Failed to dismiss report")?;
+    ListingReportRecord::dismiss(
+        report_id,
+        resolved_by,
+        resolution_notes,
+        &ctx.deps().db_pool,
+    )
+    .await
+    .context("Failed to dismiss report")?;
 
     Ok(ListingEvent::ReportDismissed { report_id })
 }

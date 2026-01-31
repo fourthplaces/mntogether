@@ -118,6 +118,44 @@ The `query_as` function:
 - Faster compilation
 - More flexible for complex queries
 
+## Database Migration Rules
+
+### HARD RULE: NEVER Modify Existing Migration Scripts
+
+**NEVER, under ANY circumstances, edit or modify an existing migration file. ALWAYS create a new migration file instead.**
+
+Once a migration file has been created, it is immutable. SQLx tracks migrations by their checksum - if you modify a migration that has already been applied, it will cause deployment failures with "migration was previously applied but has been modified" errors.
+
+#### What To Do Instead:
+
+1. **Need to fix a mistake?** Create a NEW migration file with the fix
+2. **Need to add something you forgot?** Create a NEW migration file
+3. **Need to change a column type?** Create a NEW migration file with `ALTER TABLE`
+4. **Need to rename something?** Create a NEW migration file
+
+#### Example:
+
+If migration `000057_add_users.sql` is missing a column:
+
+```sql
+-- ❌ WRONG: DO NOT edit 000057_add_users.sql
+
+-- ✅ CORRECT: Create 000058_add_user_email.sql
+ALTER TABLE users ADD COLUMN email TEXT;
+```
+
+#### Why This Rule Exists:
+
+- Migrations are checksummed by SQLx
+- Modifying applied migrations breaks the checksum
+- This causes "migration was previously applied but has been modified" errors
+- Recovering from this requires manual database intervention
+- It can cause data loss in production
+
+**NO EXCEPTIONS. EVER.**
+
+---
+
 ## Database Schema Rules
 
 ### HARD RULE: Avoid JSONB Columns

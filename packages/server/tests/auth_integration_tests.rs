@@ -30,7 +30,10 @@ fn create_test_services() -> (Arc<TwilioService>, Arc<JwtService>, Arc<OpenAICli
         auth_token: "test_auth_token".to_string(),
         service_id: "test_service_id".to_string(),
     }));
-    let jwt_service = Arc::new(JwtService::new("test_secret_key", "test_issuer".to_string()));
+    let jwt_service = Arc::new(JwtService::new(
+        "test_secret_key",
+        "test_issuer".to_string(),
+    ));
     let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
     (twilio, jwt_service, openai_client)
@@ -103,9 +106,10 @@ fn graphql_public(harness: &TestHarness) -> GraphQLClient {
 #[tokio::test]
 async fn test_approve_listing_requires_admin(ctx: &TestHarness) {
     // Create a test listing in pending_approval status
-    let listing_id = fixtures::create_test_need_pending(&ctx.db_pool, None, "Test Need", "Description")
-        .await
-        .unwrap();
+    let listing_id =
+        fixtures::create_test_need_pending(&ctx.db_pool, None, "Test Need", "Description")
+            .await
+            .unwrap();
 
     // Try as non-admin - should fail
     let client_user = graphql_user(ctx, Uuid::new_v4());
@@ -114,7 +118,10 @@ async fn test_approve_listing_requires_admin(ctx: &TestHarness) {
         listing_id
     );
     let result = client_user.execute(&query).await;
-    assert!(!result.is_ok(), "Non-admin should not be able to approve listings");
+    assert!(
+        !result.is_ok(),
+        "Non-admin should not be able to approve listings"
+    );
     assert!(result.errors.iter().any(|e| e.contains("Admin")));
 
     // Try as admin - should succeed
@@ -138,7 +145,10 @@ async fn test_delete_listing_requires_admin(ctx: &TestHarness) {
     );
     let result = client_user.execute(&query).await;
     assert!(!result.is_ok());
-    assert!(result.errors.iter().any(|e| e.contains("Admin") || e.contains("Authentication")));
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("Admin") || e.contains("Authentication")));
 
     // Try as admin
     let client_admin = graphql_admin(ctx);
@@ -161,7 +171,10 @@ async fn test_scrape_organization_requires_admin(ctx: &TestHarness) {
     );
     let result = client_user.execute(&query).await;
     assert!(!result.is_ok());
-    assert!(result.errors.iter().any(|e| e.contains("Admin") || e.contains("Authentication")));
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("Admin") || e.contains("Authentication")));
 
     // Admin case would work but we don't test actual scraping here
 }
@@ -181,7 +194,10 @@ async fn test_add_scrape_url_requires_admin(ctx: &TestHarness) {
     );
     let result = client_user.execute(&query).await;
     assert!(!result.is_ok());
-    assert!(result.errors.iter().any(|e| e.contains("Admin") || e.contains("Authentication")));
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("Admin") || e.contains("Authentication")));
 }
 
 #[test_context(TestHarness)]
@@ -199,7 +215,10 @@ async fn test_remove_scrape_url_requires_admin(ctx: &TestHarness) {
     );
     let result = client_user.execute(&query).await;
     assert!(!result.is_ok());
-    assert!(result.errors.iter().any(|e| e.contains("Admin") || e.contains("Authentication")));
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("Admin") || e.contains("Authentication")));
 }
 
 #[test_context(TestHarness)]
@@ -310,14 +329,20 @@ async fn test_update_own_member_status_allowed(ctx: &TestHarness) {
     let result = client.execute(&query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Member should be able to update their own status");
+    assert!(
+        result.is_ok(),
+        "Member should be able to update their own status"
+    );
 
     // Verify status was updated
     let updated_active = sqlx::query_scalar!("SELECT active FROM members WHERE id = $1", member_id)
         .fetch_one(&ctx.db_pool)
         .await
         .unwrap();
-    assert!(!updated_active, "Member status should be updated to inactive");
+    assert!(
+        !updated_active,
+        "Member status should be updated to inactive"
+    );
 }
 
 #[test_context(TestHarness)]
@@ -350,8 +375,14 @@ async fn test_update_other_member_status_denied(ctx: &TestHarness) {
     let result = client.execute(&query).await;
     ctx.settle().await;
 
-    assert!(!result.is_ok(), "Member should not be able to update another member's status");
-    assert!(result.errors.iter().any(|e| e.contains("own status") || e.contains("admin")));
+    assert!(
+        !result.is_ok(),
+        "Member should not be able to update another member's status"
+    );
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("own status") || e.contains("admin")));
 }
 
 #[test_context(TestHarness)]
@@ -376,7 +407,10 @@ async fn test_admin_can_update_any_member_status(ctx: &TestHarness) {
     let result = client.execute(&query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Admin should be able to update any member's status");
+    assert!(
+        result.is_ok(),
+        "Admin should be able to update any member's status"
+    );
 }
 
 // ============================================================================
@@ -403,7 +437,10 @@ async fn test_submit_listing_public(ctx: &TestHarness) {
     let result = client.execute(query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Public listing submission should work without auth");
+    assert!(
+        result.is_ok(),
+        "Public listing submission should work without auth"
+    );
 }
 
 #[test_context(TestHarness)]
@@ -424,7 +461,10 @@ async fn test_submit_resource_link_public(ctx: &TestHarness) {
     let result = client.execute(query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Public resource link submission should work without auth");
+    assert!(
+        result.is_ok(),
+        "Public resource link submission should work without auth"
+    );
 }
 
 #[test_context(TestHarness)]
@@ -450,7 +490,10 @@ async fn test_track_post_view_public(ctx: &TestHarness) {
     let result = client.execute(&query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Public post view tracking should work without auth");
+    assert!(
+        result.is_ok(),
+        "Public post view tracking should work without auth"
+    );
 }
 
 #[test_context(TestHarness)]
@@ -475,7 +518,10 @@ async fn test_track_post_click_public(ctx: &TestHarness) {
     let result = client.execute(&query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Public post click tracking should work without auth");
+    assert!(
+        result.is_ok(),
+        "Public post click tracking should work without auth"
+    );
 }
 
 #[test_context(TestHarness)]
@@ -499,7 +545,10 @@ async fn test_register_member_public(ctx: &TestHarness) {
     let result = client.execute(query).await;
     ctx.settle().await;
 
-    assert!(result.is_ok(), "Public member registration should work without auth");
+    assert!(
+        result.is_ok(),
+        "Public member registration should work without auth"
+    );
 }
 
 // ============================================================================
@@ -519,8 +568,14 @@ async fn test_update_member_status_requires_auth(ctx: &TestHarness) {
 
     let result = client.execute(&query).await;
 
-    assert!(!result.is_ok(), "updateMemberStatus should require authentication");
-    assert!(result.errors.iter().any(|e| e.contains("Authentication required")));
+    assert!(
+        !result.is_ok(),
+        "updateMemberStatus should require authentication"
+    );
+    assert!(result
+        .errors
+        .iter()
+        .any(|e| e.contains("Authentication required")));
 }
 
 // ============================================================================

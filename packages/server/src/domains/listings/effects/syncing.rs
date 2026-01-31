@@ -6,8 +6,8 @@
 use anyhow::{Context, Result};
 use sqlx::PgPool;
 
-use super::utils::sync_utils::{sync_listings, ExtractedListingInput};
 use super::listing::extract_domain;
+use super::utils::sync_utils::{sync_listings, ExtractedListingInput};
 use crate::common::WebsiteId;
 use crate::domains::listings::events::ExtractedListing;
 use crate::domains::scraping::models::Website;

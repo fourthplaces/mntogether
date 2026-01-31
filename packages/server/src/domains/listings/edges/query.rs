@@ -1,7 +1,7 @@
-use crate::domains::listings::data::{ListingConnection, ListingStatusData, ListingType};
-use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
-use crate::domains::listings::models::listing_report::ListingReportRecord;
 use crate::common::ListingId;
+use crate::domains::listings::data::listing_report::{ListingReport, ListingReportDetail};
+use crate::domains::listings::data::{ListingConnection, ListingStatusData, ListingType};
+use crate::domains::listings::models::listing_report::ListingReportRecord;
 use crate::domains::listings::models::Listing;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
@@ -28,14 +28,9 @@ pub async fn query_listings(
     };
 
     // Fetch listings using model method
-    let listings = Listing::find_by_status(
-        status_filter,
-        limit as i64,
-        offset as i64,
-        pool,
-    )
-    .await
-    .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
+    let listings = Listing::find_by_status(status_filter, limit as i64, offset as i64, pool)
+        .await
+        .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
 
     // Count total using model method
     let total_count = Listing::count_by_status(status_filter, pool)
@@ -72,7 +67,7 @@ pub async fn query_post(
     use crate::domains::organization::models::Post;
 
     let post_id = PostId::from_uuid(id);
-    
+
     match Post::find_by_id(post_id, &ctx.db_pool).await {
         Ok(Some(post)) => Ok(Some(PostData::from(post))),
         Ok(None) => Ok(None),
@@ -90,13 +85,15 @@ pub async fn query_posts_for_listing(
     use crate::domains::organization::models::Post;
 
     let listing_id = ListingId::from_uuid(listing_id);
-    
+
     let posts = Post::find_by_listing_id(listing_id, &ctx.db_pool)
         .await
-        .map_err(|e| juniper::FieldError::new(
-            format!("Failed to fetch posts: {}", e),
-            juniper::Value::null(),
-        ))?;
+        .map_err(|e| {
+            juniper::FieldError::new(
+                format!("Failed to fetch posts: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
 
     Ok(posts.into_iter().map(PostData::from).collect())
 }
@@ -113,10 +110,12 @@ pub async fn query_published_posts(
 
     let posts = Post::find_published(limit, &ctx.db_pool)
         .await
-        .map_err(|e| juniper::FieldError::new(
-            format!("Failed to fetch published posts: {}", e),
-            juniper::Value::null(),
-        ))?;
+        .map_err(|e| {
+            juniper::FieldError::new(
+                format!("Failed to fetch published posts: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
 
     Ok(posts.into_iter().map(PostData::from).collect())
 }
@@ -128,12 +127,12 @@ pub async fn query_organization_sources(
     use crate::domains::organization::data::SourceData;
     use crate::domains::scraping::models::Website;
 
-    let sources = Website::find_active(pool)
-        .await
-        .map_err(|e| juniper::FieldError::new(
+    let sources = Website::find_active(pool).await.map_err(|e| {
+        juniper::FieldError::new(
             format!("Failed to fetch organization sources: {}", e),
             juniper::Value::null(),
-        ))?;
+        )
+    })?;
 
     Ok(sources.into_iter().map(SourceData::from).collect())
 }
@@ -155,14 +154,34 @@ pub async fn query_organization_source(
     }
 }
 
-/// Query all websites with optional status filter
+/// Query all websites with optional status and agent filters
 pub async fn query_websites(
     pool: &PgPool,
     status: Option<String>,
+    agent_id: Option<String>,
 ) -> FieldResult<Vec<crate::domains::organization::data::SourceData>> {
     use crate::domains::organization::data::SourceData;
     use crate::domains::scraping::models::Website;
     use anyhow::Context;
+    use uuid::Uuid;
+
+    // If agent_id is provided, filter by agent
+    if let Some(agent_id_str) = agent_id {
+        let agent_uuid = Uuid::parse_str(&agent_id_str).map_err(|_| {
+            juniper::FieldError::new("Invalid agent ID format", juniper::Value::null())
+        })?;
+
+        let websites = Website::find_by_agent_id(agent_uuid, pool)
+            .await
+            .map_err(|e| {
+                juniper::FieldError::new(
+                    format!("Failed to fetch websites by agent: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
+        return Ok(websites.into_iter().map(SourceData::from).collect());
+    }
 
     let websites = if let Some(status_filter) = status {
         match status_filter.as_str() {
@@ -177,10 +196,12 @@ pub async fn query_websites(
             .await
             .context("Failed to query all websites")
     }
-    .map_err(|e| juniper::FieldError::new(
-        format!("Failed to fetch websites: {}", e),
-        juniper::Value::null(),
-    ))?;
+    .map_err(|e| {
+        juniper::FieldError::new(
+            format!("Failed to fetch websites: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(websites.into_iter().map(SourceData::from).collect())
 }
@@ -192,12 +213,12 @@ pub async fn query_pending_websites(
     use crate::domains::organization::data::SourceData;
     use crate::domains::scraping::models::Website;
 
-    let websites = Website::find_pending_review(pool)
-        .await
-        .map_err(|e| juniper::FieldError::new(
+    let websites = Website::find_pending_review(pool).await.map_err(|e| {
+        juniper::FieldError::new(
             format!("Failed to fetch pending websites: {}", e),
             juniper::Value::null(),
-        ))?;
+        )
+    })?;
 
     Ok(websites.into_iter().map(SourceData::from).collect())
 }
@@ -215,21 +236,32 @@ pub async fn query_listing_reports(
         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
     if !user.is_admin {
-        return Err(FieldError::new("Admin access required", juniper::Value::null()));
+        return Err(FieldError::new(
+            "Admin access required",
+            juniper::Value::null(),
+        ));
     }
 
     let limit = limit.unwrap_or(50) as i64;
     let offset = offset.unwrap_or(0) as i64;
 
     let reports = match status.as_deref() {
-        Some("pending") | None => {
-            ListingReportRecord::query_pending(limit, offset, &ctx.db_pool)
-                .await
-                .map_err(|e| FieldError::new(format!("Failed to fetch reports: {}", e), juniper::Value::null()))?
-        }
+        Some("pending") | None => ListingReportRecord::query_pending(limit, offset, &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to fetch reports: {}", e),
+                    juniper::Value::null(),
+                )
+            })?,
         _ => ListingReportRecord::query_all(limit, offset, &ctx.db_pool)
             .await
-            .map_err(|e| FieldError::new(format!("Failed to fetch reports: {}", e), juniper::Value::null()))?,
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to fetch reports: {}", e),
+                    juniper::Value::null(),
+                )
+            })?,
     };
 
     Ok(reports.into_iter().map(|r| r.into()).collect())
@@ -244,15 +276,23 @@ pub async fn query_reports_for_listing(
         .auth_user
         .as_ref()
         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-    
+
     if !user.is_admin {
-        return Err(FieldError::new("Admin access required", juniper::Value::null()));
+        return Err(FieldError::new(
+            "Admin access required",
+            juniper::Value::null(),
+        ));
     }
 
     let listing_id = ListingId::from_uuid(listing_id);
     let reports = ListingReportRecord::query_for_listing(listing_id, &ctx.db_pool)
         .await
-        .map_err(|e| FieldError::new(format!("Failed to fetch reports: {}", e), juniper::Value::null()))?;
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to fetch reports: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
 
     Ok(reports.into_iter().map(|r| r.into()).collect())
 }

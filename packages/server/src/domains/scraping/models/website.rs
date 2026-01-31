@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{WebsiteId, MemberId};
+use crate::common::{MemberId, WebsiteId};
 
 /// Website - a website we scrape for listings (requires approval before crawling)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -23,6 +23,9 @@ pub struct Website {
     pub reviewed_by: Option<MemberId>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub rejection_reason: Option<String>,
+
+    // Agent that discovered this website (via Tavily search)
+    pub agent_id: Option<Uuid>,
 
     // Crawling configuration
     pub max_crawl_depth: i32,
@@ -203,11 +206,7 @@ impl Website {
     }
 
     /// Approve a website for crawling
-    pub async fn approve(
-        id: WebsiteId,
-        reviewed_by: MemberId,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn approve(id: WebsiteId, reviewed_by: MemberId, pool: &PgPool) -> Result<Self> {
         let website = sqlx::query_as::<_, Website>(
             r#"
             UPDATE websites
@@ -381,5 +380,16 @@ impl Website {
             .ok_or_else(|| anyhow::anyhow!("No host in URL"))?
             .to_string();
         Ok(domain)
+    }
+
+    /// Find websites discovered by a specific agent
+    pub async fn find_by_agent_id(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+        let websites = sqlx::query_as::<_, Website>(
+            "SELECT * FROM websites WHERE agent_id = $1 ORDER BY created_at DESC",
+        )
+        .bind(agent_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(websites)
     }
 }

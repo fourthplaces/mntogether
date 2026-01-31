@@ -16,15 +16,13 @@ use uuid::Uuid;
 async fn create_admin_user(ctx: &TestHarness) -> Uuid {
     let admin_id = Uuid::new_v4();
     let push_token = format!("admin-push-token-{}", admin_id);
-    sqlx::query(
-        "INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)"
-    )
-    .bind(admin_id)
-    .bind(push_token)
-    .bind("admin user")
-    .execute(&ctx.db_pool)
-    .await
-    .expect("Failed to create admin user");
+    sqlx::query("INSERT INTO members (id, expo_push_token, searchable_text) VALUES ($1, $2, $3)")
+        .bind(admin_id)
+        .bind(push_token)
+        .bind("admin user")
+        .execute(&ctx.db_pool)
+        .await
+        .expect("Failed to create admin user");
     admin_id
 }
 
@@ -42,10 +40,10 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         .with_response("# Food Bank\n\nUPDATED content - new information!");
 
     let mock_ai = MockAI::new()
-        .with_response(r#"[]"#)  // First scrape
+        .with_response(r#"[]"#) // First scrape
         .with_response(r#"[]"#)
         .with_response(r#"[]"#)
-        .with_response(r#"[]"#)  // Second scrape (refresh)
+        .with_response(r#"[]"#) // Second scrape (refresh)
         .with_response(r#"[]"#)
         .with_response(r#"[]"#);
 
@@ -94,13 +92,22 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     );
 
     let scrape_result = client.query_with_vars(scrape_mutation, scrape_vars).await;
-    assert_eq!(scrape_result["scrapeOrganization"]["status"].as_str().unwrap(), "completed");
+    assert_eq!(
+        scrape_result["scrapeOrganization"]["status"]
+            .as_str()
+            .unwrap(),
+        "completed"
+    );
 
     // Get the website snapshot ID
     let snapshots = WebsiteSnapshot::find_by_website(&test_ctx.db_pool, website.id)
         .await
         .expect("Failed to fetch snapshots");
-    assert_eq!(snapshots.len(), 1, "Expected one snapshot after initial scrape");
+    assert_eq!(
+        snapshots.len(),
+        1,
+        "Expected one snapshot after initial scrape"
+    );
     let snapshot_id = snapshots[0].id;
 
     // Get initial page snapshot content hash
@@ -110,7 +117,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         FROM page_snapshots ps
         JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
         WHERE ws.id = $1
-        "#
+        "#,
     )
     .bind(snapshot_id)
     .fetch_one(&test_ctx.db_pool)
@@ -137,7 +144,9 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
 
     // Assert: Refresh completed successfully
     assert_eq!(
-        refresh_result["refreshPageSnapshot"]["status"].as_str().unwrap(),
+        refresh_result["refreshPageSnapshot"]["status"]
+            .as_str()
+            .unwrap(),
         "completed"
     );
 
@@ -148,7 +157,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         FROM page_snapshots ps
         JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
         WHERE ws.id = $1
-        "#
+        "#,
     )
     .bind(snapshot_id)
     .fetch_one(&test_ctx.db_pool)
@@ -214,10 +223,15 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
         juniper::InputValue::scalar(snapshot_id.to_string()),
     );
 
-    let result = client.execute_with_vars(refresh_mutation, refresh_vars).await;
+    let result = client
+        .execute_with_vars(refresh_mutation, refresh_vars)
+        .await;
 
     // Assert: Should return an error for unauthenticated request
-    assert!(!result.is_ok(), "Expected error for unauthenticated request, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for unauthenticated request, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
@@ -243,10 +257,15 @@ async fn refresh_nonexistent_snapshot_returns_error(ctx: &TestHarness) {
         juniper::InputValue::scalar(fake_id.to_string()),
     );
 
-    let result = client.execute_with_vars(refresh_mutation, refresh_vars).await;
+    let result = client
+        .execute_with_vars(refresh_mutation, refresh_vars)
+        .await;
 
     // Assert: Should return an error for nonexistent snapshot
-    assert!(!result.is_ok(), "Expected error for nonexistent snapshot, got success");
+    assert!(
+        !result.is_ok(),
+        "Expected error for nonexistent snapshot, got success"
+    );
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
@@ -259,7 +278,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
 
     let mock_scraper = MockWebScraper::new()
         .with_response(same_content)
-        .with_response(same_content);  // Same content for refresh
+        .with_response(same_content); // Same content for refresh
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#)
@@ -326,7 +345,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
         SELECT page_snapshot_id
         FROM website_snapshots
         WHERE id = $1
-        "#
+        "#,
     )
     .bind(snapshot_id)
     .fetch_one(&test_ctx.db_pool)
@@ -356,7 +375,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
         SELECT page_snapshot_id
         FROM website_snapshots
         WHERE id = $1
-        "#
+        "#,
     )
     .bind(snapshot_id)
     .fetch_one(&test_ctx.db_pool)

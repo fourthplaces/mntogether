@@ -1,8 +1,8 @@
-use crate::common::{WebsiteId, JobId};
+use crate::common::{JobId, WebsiteId};
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::domains::listings::effects::deps::ServerDeps;
-use crate::domains::scraping::models::{WebsiteResearch, TavilySearchQuery, TavilySearchResult};
+use crate::domains::scraping::models::{TavilySearchQuery, TavilySearchResult, WebsiteResearch};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
@@ -52,9 +52,10 @@ async fn handle_conduct_research_searches(
     );
 
     // Step 1: Load research to get website URL
-    let research = WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
+    let research =
+        WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
 
     // Step 2: Extract domain name from URL
     let domain_name = extract_domain_name(&research.homepage_url);

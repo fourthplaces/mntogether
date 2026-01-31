@@ -5,28 +5,28 @@
 
 use anyhow::{Context, Result};
 use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
+use server_core::domains::listings::{
+    commands::ListingCommand,
+    effects::{ListingCompositeEffect, ServerDeps},
+    machines::ListingMachine,
+};
 use server_core::domains::matching::{
     commands::MatchingCommand, effects::MatchingEffect, machines::MatchingMachine,
 };
 use server_core::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
-use server_core::domains::listings::{
-    commands::ListingCommand,
-    effects::{ListingCompositeEffect, ServerDeps},
-    machines::ListingMachine,
-};
 use server_core::kernel::{ServerKernel, TestDependencies};
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
 use testcontainers::runners::AsyncRunner;
-use testcontainers::{ContainerAsync, ImageExt, GenericImage};
+use testcontainers::{ContainerAsync, GenericImage, ImageExt};
 use testcontainers_modules::redis::Redis;
 use tokio::sync::OnceCell;
 
 use super::GraphQLClient;
-use twilio::{TwilioService, TwilioOptions};
+use twilio::{TwilioOptions, TwilioService};
 
 // =============================================================================
 // Shared Test Infrastructure
@@ -243,7 +243,7 @@ impl TestHarness {
             kernel.push_service.clone(),
             twilio,
             kernel.search_service.clone(),
-            true, // test_identifier_enabled
+            true,   // test_identifier_enabled
             vec![], // admin_identifiers
         );
 

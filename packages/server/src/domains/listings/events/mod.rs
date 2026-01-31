@@ -213,10 +213,7 @@ pub enum ListingEvent {
     },
 
     /// Resource link scraping failed (terminal event)
-    ResourceLinkScrapeFailed {
-        job_id: JobId,
-        reason: String,
-    },
+    ResourceLinkScrapeFailed { job_id: JobId, reason: String },
 
     /// Listing extraction failed (terminal event - clears pending state)
     ExtractFailed {
@@ -244,13 +241,19 @@ pub enum ListingEvent {
     ListingApproved { listing_id: ListingId },
 
     /// A listing was rejected by admin
-    ListingRejected { listing_id: ListingId, reason: String },
+    ListingRejected {
+        listing_id: ListingId,
+        reason: String,
+    },
 
     /// A listing was updated
     ListingUpdated { listing_id: ListingId },
 
     /// A post was created (when listing approved or custom post created)
-    PostCreated { post_id: PostId, listing_id: ListingId },
+    PostCreated {
+        post_id: PostId,
+        listing_id: ListingId,
+    },
 
     /// A post was expired
     PostExpired { post_id: PostId },
@@ -280,15 +283,19 @@ pub enum ListingEvent {
     },
 
     /// A report was dismissed
-    ReportDismissed {
-        report_id: ListingReportId,
-    },
+    ReportDismissed { report_id: ListingReportId },
 
     /// Embedding generated for a listing
-    ListingEmbeddingGenerated { listing_id: ListingId, dimensions: usize },
+    ListingEmbeddingGenerated {
+        listing_id: ListingId,
+        dimensions: usize,
+    },
 
     /// Embedding generation failed for a listing
-    ListingEmbeddingFailed { listing_id: ListingId, reason: String },
+    ListingEmbeddingFailed {
+        listing_id: ListingId,
+        reason: String,
+    },
 
     // Authorization failures
     /// User attempted admin action without permission
@@ -302,10 +309,7 @@ pub enum ListingEvent {
     // Intelligent Crawler Events
     // =========================================================================
     /// Request to crawl a site intelligently
-    SiteCrawlRequested {
-        url: String,
-        job_id: JobId,
-    },
+    SiteCrawlRequested { url: String, job_id: JobId },
 
     /// Site was crawled successfully
     SiteCrawled {
@@ -328,10 +332,7 @@ pub enum ListingEvent {
     },
 
     /// Information detection failed
-    InformationDetectionFailed {
-        job_id: JobId,
-        reason: String,
-    },
+    InformationDetectionFailed { job_id: JobId, reason: String },
 
     /// Structured data was extracted from detections
     DataExtracted {
@@ -340,10 +341,7 @@ pub enum ListingEvent {
     },
 
     /// Data extraction failed
-    DataExtractionFailed {
-        job_id: JobId,
-        reason: String,
-    },
+    DataExtractionFailed { job_id: JobId, reason: String },
 
     /// Relationships were resolved between extractions
     RelationshipsResolved {
@@ -352,19 +350,13 @@ pub enum ListingEvent {
     },
 
     /// Relationship resolution failed
-    RelationshipResolutionFailed {
-        job_id: JobId,
-        reason: String,
-    },
+    RelationshipResolutionFailed { job_id: JobId, reason: String },
 
     // =========================================================================
     // Agent Search Events (Tavily)
     // =========================================================================
     /// Request to run Tavily search for an agent
-    AgentSearchRequested {
-        agent_id: uuid::Uuid,
-        job_id: JobId,
-    },
+    AgentSearchRequested { agent_id: uuid::Uuid, job_id: JobId },
 
     /// Agent search completed, domains discovered
     AgentSearchCompleted {

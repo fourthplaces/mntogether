@@ -23,9 +23,9 @@ use sqlx::PgPool;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{JobId, MemberId};
-use crate::domains::member::models::member::Member;
 use crate::domains::listings::events::ListingEvent;
-use crate::domains::scraping::models::{Website, Agent};
+use crate::domains::member::models::member::Member;
+use crate::domains::scraping::models::{Agent, Website};
 
 /// Start all scheduled tasks
 pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler> {

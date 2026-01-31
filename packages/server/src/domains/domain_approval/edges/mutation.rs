@@ -1,4 +1,4 @@
-use crate::common::{WebsiteId, JobId};
+use crate::common::{JobId, WebsiteId};
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
@@ -35,8 +35,9 @@ pub async fn generate_website_assessment(
     }
 
     // Parse website ID
-    let website_uuid = Uuid::parse_str(&website_id)
-        .map_err(|e| FieldError::new(format!("Invalid website ID: {}", e), juniper::Value::null()))?;
+    let website_uuid = Uuid::parse_str(&website_id).map_err(|e| {
+        FieldError::new(format!("Invalid website ID: {}", e), juniper::Value::null())
+    })?;
     let website_id_typed = WebsiteId::from_uuid(website_uuid);
 
     // Generate job ID
@@ -81,21 +82,16 @@ pub async fn generate_website_assessment(
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
-                } if *failed_id == website_id_typed && *failed_job_id == job_id => {
-                    Some(Err(anyhow::anyhow!("Assessment generation failed: {}", reason)))
-                }
+                } if *failed_id == website_id_typed && *failed_job_id == job_id => Some(Err(
+                    anyhow::anyhow!("Assessment generation failed: {}", reason),
+                )),
                 _ => None,
             })
             .result()
         },
     )
     .await
-    .map_err(|e| {
-        FieldError::new(
-            format!("Assessment failed: {}", e),
-            juniper::Value::null(),
-        )
-    })?;
+    .map_err(|e| FieldError::new(format!("Assessment failed: {}", e), juniper::Value::null()))?;
 
     info!(
         website_id = %website_id,

@@ -1,4 +1,4 @@
-use crate::common::{WebsiteId, JobId, MemberId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::domains::listings::effects::deps::ServerDeps;
@@ -61,8 +61,8 @@ async fn handle_fetch_or_create_research(
     );
 
     // Step 2: Check for existing research (<7 days old)
-    let existing = WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool)
-        .await?;
+    let existing =
+        WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool).await?;
 
     if let Some(research) = existing {
         let age_days = (chrono::Utc::now() - research.created_at).num_days();

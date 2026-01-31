@@ -221,3 +221,9 @@ export const REFRESH_PAGE_SNAPSHOT = gql`
     }
   }
 `;
+
+export const GENERATE_DOMAIN_ASSESSMENT = gql`
+  mutation GenerateDomainAssessment($domainId: String!) {
+    generateDomainAssessment(domainId: $domainId)
+  }
+`;

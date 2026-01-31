@@ -137,9 +137,10 @@ impl AIMatchingService {
         );
 
         // Step 2: Search organizations by semantic similarity
-        let results = Organization::search_by_similarity(&embedding, similarity_threshold, limit, pool)
-            .await
-            .context("Failed to search organizations by similarity")?;
+        let results =
+            Organization::search_by_similarity(&embedding, similarity_threshold, limit, pool)
+                .await
+                .context("Failed to search organizations by similarity")?;
 
         tracing::info!(
             result_count = results.len(),
@@ -333,8 +334,8 @@ impl AIMatchingService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::{BaseEmbeddingService, test_dependencies::MockEmbeddingService};
     use crate::domains::organization::models::{CreateOrganization, Organization};
+    use crate::kernel::{test_dependencies::MockEmbeddingService, BaseEmbeddingService};
     use sqlx::PgPool;
 
     struct MockOpenAI {

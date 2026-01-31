@@ -72,11 +72,7 @@ pub async fn health_handler(
     // Determine overall health
     let is_healthy = db_health.status == "ok";
 
-    let overall_status = if is_healthy {
-        "healthy"
-    } else {
-        "unhealthy"
-    };
+    let overall_status = if is_healthy { "healthy" } else { "unhealthy" };
 
     let status_code = if is_healthy {
         StatusCode::OK

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::{WebsiteId, OrganizationId};
+use crate::common::{OrganizationId, WebsiteId};
 
 // Builder for creating organizations
 #[derive(TypedBuilder)]
@@ -191,11 +191,7 @@ impl Organization {
     }
 
     /// Find all organizations
-    pub async fn find_all(
-        limit: i64,
-        offset: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_all(limit: i64, offset: i64, pool: &PgPool) -> Result<Vec<Self>> {
         let orgs = sqlx::query_as::<_, Organization>(
             "SELECT * FROM organizations ORDER BY name LIMIT $1 OFFSET $2",
         )
@@ -235,12 +231,11 @@ impl Organization {
 
     /// Find organization by claim token
     pub async fn find_by_claim_token(claim_token: &str, pool: &PgPool) -> Result<Option<Self>> {
-        let org = sqlx::query_as::<_, Organization>(
-            "SELECT * FROM organizations WHERE claim_token = $1",
-        )
-        .bind(claim_token)
-        .fetch_optional(pool)
-        .await?;
+        let org =
+            sqlx::query_as::<_, Organization>("SELECT * FROM organizations WHERE claim_token = $1")
+                .bind(claim_token)
+                .fetch_optional(pool)
+                .await?;
         Ok(org)
     }
 

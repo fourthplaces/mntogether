@@ -37,10 +37,7 @@ pub struct OpenAIClient {
 impl OpenAIClient {
     pub fn new(api_key: String) -> Self {
         let client = openai::Client::new(&api_key);
-        Self {
-            client,
-            api_key,
-        }
+        Self { client, api_key }
     }
 
     /// Generate embeddings using OpenAI's text-embedding-ada-002 model
@@ -100,7 +97,10 @@ impl BaseAI for OpenAIClient {
             })
             .context("Failed to call OpenAI API")?;
 
-        tracing::info!(response_length = response.len(), "OpenAI API response received");
+        tracing::info!(
+            response_length = response.len(),
+            "OpenAI API response received"
+        );
 
         Ok(response)
     }
@@ -164,6 +164,10 @@ mod tests {
             .await
             .expect("Embedding generation should succeed");
 
-        assert_eq!(embedding.len(), 1536, "OpenAI embeddings should be 1536 dimensions");
+        assert_eq!(
+            embedding.len(),
+            1536,
+            "OpenAI embeddings should be 1536 dimensions"
+        );
     }
 }

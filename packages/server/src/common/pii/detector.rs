@@ -120,16 +120,12 @@ pub fn detect_pii_contextual(text: &str, context: DetectionContext) -> PiiFindin
         let email = mat.as_str();
 
         // For public content, skip organizational emails
-        if context == DetectionContext::PublicContent && is_likely_organizational_email(email, text) {
+        if context == DetectionContext::PublicContent && is_likely_organizational_email(email, text)
+        {
             continue;
         }
 
-        findings.add(
-            PiiType::Email,
-            email.to_string(),
-            mat.start(),
-            mat.end(),
-        );
+        findings.add(PiiType::Email, email.to_string(), mat.start(), mat.end());
     }
 
     // Detect phone numbers
@@ -137,16 +133,12 @@ pub fn detect_pii_contextual(text: &str, context: DetectionContext) -> PiiFindin
         let phone = mat.as_str();
 
         // For public content, skip organizational phone numbers
-        if context == DetectionContext::PublicContent && is_likely_organizational_phone(phone, text) {
+        if context == DetectionContext::PublicContent && is_likely_organizational_phone(phone, text)
+        {
             continue;
         }
 
-        findings.add(
-            PiiType::Phone,
-            phone.to_string(),
-            mat.start(),
-            mat.end(),
-        );
+        findings.add(PiiType::Phone, phone.to_string(), mat.start(), mat.end());
     }
 
     // Detect SSNs
@@ -200,10 +192,7 @@ pub fn detect_pii_contextual(text: &str, context: DetectionContext) -> PiiFindin
 
 /// Luhn algorithm for credit card validation
 fn is_valid_luhn(card_number: &str) -> bool {
-    let digits: Vec<u32> = card_number
-        .chars()
-        .filter_map(|c| c.to_digit(10))
-        .collect();
+    let digits: Vec<u32> = card_number.chars().filter_map(|c| c.to_digit(10)).collect();
 
     if digits.len() < 13 || digits.len() > 19 {
         return false;
@@ -252,22 +241,44 @@ fn is_likely_organizational_email(email: &str, context_text: &str) -> bool {
 
     // Common organizational email patterns
     let org_patterns = [
-        "info@", "contact@", "admin@", "support@", "hello@",
-        "team@", "help@", "sales@", "office@", "press@",
-        "media@", "service@", "volunteer@", "donate@",
+        "info@",
+        "contact@",
+        "admin@",
+        "support@",
+        "hello@",
+        "team@",
+        "help@",
+        "sales@",
+        "office@",
+        "press@",
+        "media@",
+        "service@",
+        "volunteer@",
+        "donate@",
     ];
 
     // Check if email starts with organizational prefix
-    if org_patterns.iter().any(|pattern| email_lower.starts_with(pattern)) {
+    if org_patterns
+        .iter()
+        .any(|pattern| email_lower.starts_with(pattern))
+    {
         return true;
     }
 
     // Look for organizational context keywords near the email
     let context_lower = context_text.to_lowercase();
     let org_keywords = [
-        "organization", "nonprofit", "charity", "foundation",
-        "contact us", "reach us", "email us", "for more information",
-        "office", "headquarters", "main office",
+        "organization",
+        "nonprofit",
+        "charity",
+        "foundation",
+        "contact us",
+        "reach us",
+        "email us",
+        "for more information",
+        "office",
+        "headquarters",
+        "main office",
     ];
 
     // Find the email position and check surrounding text (±100 chars)
@@ -276,7 +287,10 @@ fn is_likely_organizational_email(email: &str, context_text: &str) -> bool {
         let end = (email_pos + email.len() + 100).min(context_text.len());
         let surrounding = &context_lower[start..end];
 
-        if org_keywords.iter().any(|keyword| surrounding.contains(keyword)) {
+        if org_keywords
+            .iter()
+            .any(|keyword| surrounding.contains(keyword))
+        {
             return true;
         }
     }
@@ -290,9 +304,18 @@ fn is_likely_organizational_phone(phone: &str, context_text: &str) -> bool {
 
     // Look for organizational context keywords near the phone
     let org_keywords = [
-        "office", "main line", "contact", "reach us", "call us",
-        "phone:", "tel:", "telephone", "hotline", "helpline",
-        "headquarters", "main office",
+        "office",
+        "main line",
+        "contact",
+        "reach us",
+        "call us",
+        "phone:",
+        "tel:",
+        "telephone",
+        "hotline",
+        "helpline",
+        "headquarters",
+        "main office",
     ];
 
     // Find the phone position and check surrounding text (±100 chars)
@@ -301,7 +324,10 @@ fn is_likely_organizational_phone(phone: &str, context_text: &str) -> bool {
         let end = (phone_pos + phone.len() + 100).min(context_text.len());
         let surrounding = &context_lower[start..end];
 
-        if org_keywords.iter().any(|keyword| surrounding.contains(keyword)) {
+        if org_keywords
+            .iter()
+            .any(|keyword| surrounding.contains(keyword))
+        {
             return true;
         }
     }

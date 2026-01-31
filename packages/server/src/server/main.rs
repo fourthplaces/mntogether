@@ -5,7 +5,6 @@ use server_core::{kernel::scheduled_tasks, server::build_app, Config};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize logging

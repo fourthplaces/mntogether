@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, gql } from '@apollo/client';
+import { useNavigate } from 'react-router-dom';
 
 const GET_ALL_AGENTS = gql`
   query GetAllAgents {
@@ -98,6 +99,7 @@ interface Agent {
 }
 
 export function AgentsEnhanced() {
+  const navigate = useNavigate();
   const [showCreateWizard, setShowCreateWizard] = useState(false);
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [wizardStep, setWizardStep] = useState<'intent' | 'review'>('intent');
@@ -530,9 +532,13 @@ export function AgentsEnhanced() {
                   <p className="text-xs text-stone-600 mb-1">Searches Run</p>
                   <p className="text-lg font-bold text-stone-900">{agent.totalSearchesRun}</p>
                 </div>
-                <div>
+                <div
+                  onClick={() => navigate(`/admin/websites?agentId=${agent.id}`)}
+                  className="cursor-pointer hover:bg-purple-50 rounded p-1 -m-1 transition-colors"
+                  title="Click to view websites"
+                >
                   <p className="text-xs text-stone-600 mb-1">Domains Found</p>
-                  <p className="text-lg font-bold text-purple-600">
+                  <p className="text-lg font-bold text-purple-600 hover:underline">
                     {agent.totalDomainsDiscovered}
                   </p>
                 </div>

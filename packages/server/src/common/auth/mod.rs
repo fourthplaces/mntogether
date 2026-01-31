@@ -1,3 +1,5 @@
+mod builder;
+mod capability;
 /// Authorization module for MN Digital Aid
 ///
 /// Provides a fluent API for authorization checks in effect code:
@@ -17,11 +19,8 @@
 ///
 /// This pattern keeps authorization logic in the effect layer where it belongs,
 /// not in the GraphQL resolver layer.
-
 mod errors;
-mod capability;
-mod builder;
 
-pub use errors::AuthError;
-pub use capability::AdminCapability;
 pub use builder::{Actor, CapabilityBuilder, HasAuthContext};
+pub use capability::AdminCapability;
+pub use errors::AuthError;
