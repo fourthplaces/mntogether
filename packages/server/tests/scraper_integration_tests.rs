@@ -2,21 +2,21 @@ mod common;
 
 use common::harness::TestHarness;
 use server_core::domains::listings::events::ListingEvent;
-use server_core::domains::scraping::models::Domain;
+use server_core::domains::scraping::models::Website;
 use server_core::kernel::test_dependencies::MockWebScraper;
 use server_core::kernel::TestDependencies;
 use test_context::test_context;
 use uuid::Uuid;
 
 // =============================================================================
-// Tests: Domain scraping with page_snapshots
+// Tests: Website scraping with page_snapshots
 // =============================================================================
 
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_scrape_source_creates_page_snapshot(ctx: &TestHarness) {
-    // Setup: Create a test domain
-    let domain = Domain::create(
+    // Setup: Create a test website
+    let website = Website::create(
         "https://example.org".to_string(),
         None,
         "test".to_string(),
@@ -25,7 +25,7 @@ async fn test_scrape_source_creates_page_snapshot(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Configure mock web scraper with test content
     let mock_scraper = MockWebScraper::new().with_response(
@@ -53,7 +53,7 @@ Contact: foodbank@example.org
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -109,8 +109,8 @@ Contact: foodbank@example.org
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_scrape_deduplication_by_content_hash(ctx: &TestHarness) {
-    // Setup: Create a test domain
-    let domain = Domain::create(
+    // Setup: Create a test website
+    let website = Website::create(
         "https://example.org".to_string(),
         None,
         "test".to_string(),
@@ -119,7 +119,7 @@ async fn test_scrape_deduplication_by_content_hash(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     let scrape_content = r#"
 # Test Content
@@ -142,7 +142,7 @@ This is test content that will be scraped twice.
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -156,7 +156,7 @@ This is test content that will be scraped twice.
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -184,8 +184,8 @@ This is test content that will be scraped twice.
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
-    // Setup: Create a test domain
-    let domain = Domain::create(
+    // Setup: Create a test website
+    let website = Website::create(
         "https://example.org".to_string(),
         None,
         "test".to_string(),
@@ -194,7 +194,7 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Configure mock web scraper with different content for each scrape
     let mock_scraper = MockWebScraper::new()
@@ -212,7 +212,7 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -226,7 +226,7 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -254,8 +254,8 @@ async fn test_scrape_different_content_creates_new_snapshot(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
-    // Setup: Create a test domain
-    let domain = Domain::create(
+    // Setup: Create a test website
+    let website = Website::create(
         "https://example.org".to_string(),
         None,
         "test".to_string(),
@@ -264,7 +264,7 @@ async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Configure mock web scraper with no responses (will cause error)
     let mock_scraper = MockWebScraper::new(); // No responses configured
@@ -280,7 +280,7 @@ async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -307,9 +307,9 @@ async fn test_scrape_failure_does_not_create_page_snapshot(ctx: &TestHarness) {
 
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn test_domain_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
-    // Setup: Create a test domain
-    let domain = Domain::create(
+async fn test_website_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
+    // Setup: Create a test website
+    let website = Website::create(
         "https://example.org".to_string(),
         None,
         "test".to_string(),
@@ -318,21 +318,21 @@ async fn test_domain_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
-    // Create a domain_snapshot entry (simulating user submitting a specific page)
-    let domain_snapshot_id = sqlx::query_scalar::<_, Uuid>(
+    // Create a website_snapshot entry (simulating user submitting a specific page)
+    let website_snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
-        INSERT INTO domain_snapshots (domain_id, page_url, scrape_status)
+        INSERT INTO website_snapshots (website_id, page_url, scrape_status)
         VALUES ($1, $2, 'pending')
         RETURNING id
         "#,
     )
-    .bind(domain.id.into_uuid())
+    .bind(website.id.into_uuid())
     .bind("https://example.org")
     .fetch_one(&ctx.db_pool)
     .await
-    .expect("Failed to create domain_snapshot");
+    .expect("Failed to create website_snapshot");
 
     // Configure mock web scraper
     let mock_scraper = MockWebScraper::new().with_response("# Test Page\nTest content");
@@ -348,7 +348,7 @@ async fn test_domain_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
     test_harness
         .bus()
         .send(ListingEvent::ScrapeSourceRequested {
-            source_id: domain.id,
+            source_id: website.id,
             job_id: Uuid::new_v4(),
             requested_by: Uuid::new_v4(),
             is_admin: true,
@@ -358,25 +358,25 @@ async fn test_domain_snapshot_links_to_page_snapshot(ctx: &TestHarness) {
 
     test_harness.settle().await;
 
-    // Verify: domain_snapshot should be linked to page_snapshot
-    let domain_snapshot = sqlx::query!(
+    // Verify: website_snapshot should be linked to page_snapshot
+    let website_snapshot = sqlx::query!(
         r#"
         SELECT page_snapshot_id, scrape_status
-        FROM domain_snapshots
+        FROM website_snapshots
         WHERE id = $1
         "#,
-        domain_snapshot_id
+        website_snapshot_id
     )
     .fetch_one(&test_harness.db_pool)
     .await
-    .expect("Failed to fetch domain_snapshot");
+    .expect("Failed to fetch website_snapshot");
 
     assert!(
-        domain_snapshot.page_snapshot_id.is_some(),
-        "Expected domain_snapshot to be linked to page_snapshot"
+        website_snapshot.page_snapshot_id.is_some(),
+        "Expected website_snapshot to be linked to page_snapshot"
     );
     assert_eq!(
-        domain_snapshot.scrape_status, "scraped",
+        website_snapshot.scrape_status, "scraped",
         "Expected scrape_status to be 'scraped'"
     );
 }

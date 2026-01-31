@@ -1,16 +1,16 @@
-//! Integration tests for domain approval workflow via GraphQL.
+//! Integration tests for website approval workflow via GraphQL.
 //!
-//! Tests the domain management mutations:
-//! - approveDomain: Approve a pending domain
-//! - rejectDomain: Reject a pending domain with reason
-//! - suspendDomain: Suspend an approved domain with reason
+//! Tests the website management mutations:
+//! - approveWebsite: Approve a pending website
+//! - rejectWebsite: Reject a pending website with reason
+//! - suspendWebsite: Suspend an approved website with reason
 
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
 use juniper::Variables;
-use server_core::common::{DomainId, MemberId};
-use server_core::domains::scraping::models::Domain;
+use server_core::common::{WebsiteId, MemberId};
+use server_core::domains::scraping::models::Website;
 use test_context::test_context;
 use uuid::Uuid;
 
@@ -33,15 +33,15 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 }
 
 // =============================================================================
-// Approve Domain Tests
+// Approve Website Tests
 // =============================================================================
 
-/// RED: This test will FAIL because approveDomain mutation doesn't exist yet
+/// RED: This test will FAIL because approveWebsite mutation doesn't exist yet
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn approve_domain_changes_status_to_approved(ctx: &TestHarness) {
-    // Arrange: Create pending domain
-    let domain = Domain::create(
+async fn approve_website_changes_status_to_approved(ctx: &TestHarness) {
+    // Arrange: Create pending website
+    let website = Website::create(
         "https://test-approve.org".to_string(),
         None,
         "public_user".to_string(),
@@ -50,19 +50,19 @@ async fn approve_domain_changes_status_to_approved(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Verify it starts as pending_review
-    assert_eq!(domain.status, "pending_review");
+    assert_eq!(website.status, "pending_review");
 
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
 
-    // Act: Approve domain via GraphQL mutation
+    // Act: Approve website via GraphQL mutation
     let mutation = r#"
-        mutation ApproveDomain($domainId: String!) {
-            approveDomain(domainId: $domainId) {
+        mutation ApproveWebsite($websiteId: String!) {
+            approveWebsite(websiteId: $websiteId) {
                 id
                 status
                 submittedBy
@@ -72,42 +72,42 @@ async fn approve_domain_changes_status_to_approved(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let result = client.query_with_vars(mutation, vars).await;
 
     // Assert: GraphQL response shows approved status
     assert_eq!(
-        result["approveDomain"]["status"].as_str().unwrap(),
+        result["approveWebsite"]["status"].as_str().unwrap(),
         "approved"
     );
     assert_eq!(
-        result["approveDomain"]["id"].as_str().unwrap(),
-        domain.id.to_string()
+        result["approveWebsite"]["id"].as_str().unwrap(),
+        website.id.to_string()
     );
 
     // Assert: Database state is updated using model
-    let updated_domain = Domain::find_by_id(domain.id, &ctx.db_pool)
+    let updated_website = Website::find_by_id(website.id, &ctx.db_pool)
         .await
-        .expect("Failed to find updated domain");
+        .expect("Failed to find updated website");
 
-    assert_eq!(updated_domain.status, "approved");
-    assert!(updated_domain.reviewed_by.is_some());
-    assert!(updated_domain.reviewed_at.is_some());
+    assert_eq!(updated_website.status, "approved");
+    assert!(updated_website.reviewed_by.is_some());
+    assert!(updated_website.reviewed_at.is_some());
     assert_eq!(
-        updated_domain.reviewed_by.unwrap().into_uuid(),
+        updated_website.reviewed_by.unwrap().into_uuid(),
         admin_id
     );
 }
 
-/// Test that approving a domain requires admin authentication
+/// Test that approving a website requires admin authentication
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn approve_domain_requires_admin_auth(ctx: &TestHarness) {
-    // Arrange: Create pending domain
-    let domain = Domain::create(
+async fn approve_website_requires_admin_auth(ctx: &TestHarness) {
+    // Arrange: Create pending website
+    let website = Website::create(
         "https://test-approve-auth.org".to_string(),
         None,
         "public_user".to_string(),
@@ -116,14 +116,14 @@ async fn approve_domain_requires_admin_auth(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Try to approve with unauthenticated client
     let client = ctx.graphql();
 
     let mutation = r#"
-        mutation ApproveDomain($domainId: String!) {
-            approveDomain(domainId: $domainId) {
+        mutation ApproveWebsite($websiteId: String!) {
+            approveWebsite(websiteId: $websiteId) {
                 id
                 status
             }
@@ -132,8 +132,8 @@ async fn approve_domain_requires_admin_auth(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
 
     let result = client.execute_with_vars(mutation, vars).await;
@@ -143,17 +143,17 @@ async fn approve_domain_requires_admin_auth(ctx: &TestHarness) {
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
-/// Test that approving a nonexistent domain returns an error
+/// Test that approving a nonexistent website returns an error
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn approve_nonexistent_domain_returns_error(ctx: &TestHarness) {
+async fn approve_nonexistent_website_returns_error(ctx: &TestHarness) {
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
 
     let mutation = r#"
-        mutation ApproveDomain($domainId: String!) {
-            approveDomain(domainId: $domainId) {
+        mutation ApproveWebsite($websiteId: String!) {
+            approveWebsite(websiteId: $websiteId) {
                 id
                 status
             }
@@ -163,27 +163,27 @@ async fn approve_nonexistent_domain_returns_error(ctx: &TestHarness) {
     let fake_id = Uuid::new_v4();
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
+        "websiteId".to_string(),
         juniper::InputValue::scalar(fake_id.to_string()),
     );
 
     let result = client.execute_with_vars(mutation, vars).await;
 
-    // Assert: Should return an error for nonexistent domain
-    assert!(!result.is_ok(), "Expected error for nonexistent domain, got success");
+    // Assert: Should return an error for nonexistent website
+    assert!(!result.is_ok(), "Expected error for nonexistent website, got success");
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
 // =============================================================================
-// Reject Domain Tests
+// Reject Website Tests
 // =============================================================================
 
-/// RED: This test will FAIL because rejectDomain mutation doesn't exist yet
+/// RED: This test will FAIL because rejectWebsite mutation doesn't exist yet
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn reject_domain_changes_status_to_rejected(ctx: &TestHarness) {
-    // Arrange: Create pending domain
-    let domain = Domain::create(
+async fn reject_website_changes_status_to_rejected(ctx: &TestHarness) {
+    // Arrange: Create pending website
+    let website = Website::create(
         "https://test-reject.org".to_string(),
         None,
         "public_user".to_string(),
@@ -192,16 +192,16 @@ async fn reject_domain_changes_status_to_rejected(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
 
-    // Act: Reject domain via GraphQL mutation
+    // Act: Reject website via GraphQL mutation
     let mutation = r#"
-        mutation RejectDomain($domainId: String!, $reason: String!) {
-            rejectDomain(domainId: $domainId, reason: $reason) {
+        mutation RejectWebsite($websiteId: String!, $reason: String!) {
+            rejectWebsite(websiteId: $websiteId, reason: $reason) {
                 id
                 status
             }
@@ -210,42 +210,42 @@ async fn reject_domain_changes_status_to_rejected(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
     vars.insert(
         "reason".to_string(),
-        juniper::InputValue::scalar("Domain does not contain volunteer opportunities".to_string()),
+        juniper::InputValue::scalar("Website does not contain volunteer opportunities".to_string()),
     );
 
     let result = client.query_with_vars(mutation, vars).await;
 
     // Assert: GraphQL response shows rejected status
     assert_eq!(
-        result["rejectDomain"]["status"].as_str().unwrap(),
+        result["rejectWebsite"]["status"].as_str().unwrap(),
         "rejected"
     );
 
     // Assert: Database state is updated using model
-    let updated_domain = Domain::find_by_id(domain.id, &ctx.db_pool)
+    let updated_website = Website::find_by_id(website.id, &ctx.db_pool)
         .await
-        .expect("Failed to find updated domain");
+        .expect("Failed to find updated website");
 
-    assert_eq!(updated_domain.status, "rejected");
-    assert!(updated_domain.reviewed_by.is_some());
-    assert!(updated_domain.reviewed_at.is_some());
+    assert_eq!(updated_website.status, "rejected");
+    assert!(updated_website.reviewed_by.is_some());
+    assert!(updated_website.reviewed_at.is_some());
     assert_eq!(
-        updated_domain.rejection_reason.as_deref().unwrap(),
-        "Domain does not contain volunteer opportunities"
+        updated_website.rejection_reason.as_deref().unwrap(),
+        "Website does not contain volunteer opportunities"
     );
 }
 
-/// Test that rejecting a domain requires admin authentication
+/// Test that rejecting a website requires admin authentication
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn reject_domain_requires_admin_auth(ctx: &TestHarness) {
-    // Arrange: Create pending domain
-    let domain = Domain::create(
+async fn reject_website_requires_admin_auth(ctx: &TestHarness) {
+    // Arrange: Create pending website
+    let website = Website::create(
         "https://test-reject-auth.org".to_string(),
         None,
         "public_user".to_string(),
@@ -254,14 +254,14 @@ async fn reject_domain_requires_admin_auth(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Try to reject with unauthenticated client
     let client = ctx.graphql();
 
     let mutation = r#"
-        mutation RejectDomain($domainId: String!, $reason: String!) {
-            rejectDomain(domainId: $domainId, reason: $reason) {
+        mutation RejectWebsite($websiteId: String!, $reason: String!) {
+            rejectWebsite(websiteId: $websiteId, reason: $reason) {
                 id
                 status
             }
@@ -270,8 +270,8 @@ async fn reject_domain_requires_admin_auth(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
     vars.insert(
         "reason".to_string(),
@@ -286,15 +286,15 @@ async fn reject_domain_requires_admin_auth(ctx: &TestHarness) {
 }
 
 // =============================================================================
-// Suspend Domain Tests
+// Suspend Website Tests
 // =============================================================================
 
-/// RED: This test will FAIL because suspendDomain mutation doesn't exist yet
+/// RED: This test will FAIL because suspendWebsite mutation doesn't exist yet
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn suspend_domain_changes_status_to_suspended(ctx: &TestHarness) {
-    // Arrange: Create and approve a domain first
-    let domain = Domain::create(
+async fn suspend_website_changes_status_to_suspended(ctx: &TestHarness) {
+    // Arrange: Create and approve a website first
+    let website = Website::create(
         "https://test-suspend.org".to_string(),
         None,
         "public_user".to_string(),
@@ -303,23 +303,23 @@ async fn suspend_domain_changes_status_to_suspended(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Create admin user
     let admin_id = create_admin_user(ctx).await;
 
-    // Approve the domain using model method
-    Domain::approve(domain.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
+    // Approve the website using model method
+    Website::approve(website.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
         .await
-        .expect("Failed to approve domain");
+        .expect("Failed to approve website");
 
     // Get authenticated admin client
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
 
-    // Act: Suspend domain via GraphQL mutation
+    // Act: Suspend website via GraphQL mutation
     let mutation = r#"
-        mutation SuspendDomain($domainId: String!, $reason: String!) {
-            suspendDomain(domainId: $domainId, reason: $reason) {
+        mutation SuspendWebsite($websiteId: String!, $reason: String!) {
+            suspendWebsite(websiteId: $websiteId, reason: $reason) {
                 id
                 status
             }
@@ -328,42 +328,42 @@ async fn suspend_domain_changes_status_to_suspended(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
     vars.insert(
         "reason".to_string(),
-        juniper::InputValue::scalar("Domain violated terms of service".to_string()),
+        juniper::InputValue::scalar("Website violated terms of service".to_string()),
     );
 
     let result = client.query_with_vars(mutation, vars).await;
 
     // Assert: GraphQL response shows suspended status
     assert_eq!(
-        result["suspendDomain"]["status"].as_str().unwrap(),
+        result["suspendWebsite"]["status"].as_str().unwrap(),
         "suspended"
     );
 
     // Assert: Database state is updated using model
-    let updated_domain = Domain::find_by_id(domain.id, &ctx.db_pool)
+    let updated_website = Website::find_by_id(website.id, &ctx.db_pool)
         .await
-        .expect("Failed to find updated domain");
+        .expect("Failed to find updated website");
 
-    assert_eq!(updated_domain.status, "suspended");
-    assert!(updated_domain.reviewed_by.is_some());
-    assert!(updated_domain.reviewed_at.is_some());
+    assert_eq!(updated_website.status, "suspended");
+    assert!(updated_website.reviewed_by.is_some());
+    assert!(updated_website.reviewed_at.is_some());
     assert_eq!(
-        updated_domain.rejection_reason.as_deref().unwrap(),
-        "Domain violated terms of service"
+        updated_website.rejection_reason.as_deref().unwrap(),
+        "Website violated terms of service"
     );
 }
 
-/// Test that suspending a domain requires admin authentication
+/// Test that suspending a website requires admin authentication
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn suspend_domain_requires_admin_auth(ctx: &TestHarness) {
-    // Arrange: Create pending domain
-    let domain = Domain::create(
+async fn suspend_website_requires_admin_auth(ctx: &TestHarness) {
+    // Arrange: Create pending website
+    let website = Website::create(
         "https://test-suspend-auth.org".to_string(),
         None,
         "public_user".to_string(),
@@ -372,14 +372,14 @@ async fn suspend_domain_requires_admin_auth(ctx: &TestHarness) {
         &ctx.db_pool,
     )
     .await
-    .expect("Failed to create domain");
+    .expect("Failed to create website");
 
     // Try to suspend with unauthenticated client
     let client = ctx.graphql();
 
     let mutation = r#"
-        mutation SuspendDomain($domainId: String!, $reason: String!) {
-            suspendDomain(domainId: $domainId, reason: $reason) {
+        mutation SuspendWebsite($websiteId: String!, $reason: String!) {
+            suspendWebsite(websiteId: $websiteId, reason: $reason) {
                 id
                 status
             }
@@ -388,8 +388,8 @@ async fn suspend_domain_requires_admin_auth(ctx: &TestHarness) {
 
     let mut vars = Variables::new();
     vars.insert(
-        "domainId".to_string(),
-        juniper::InputValue::scalar(domain.id.to_string()),
+        "websiteId".to_string(),
+        juniper::InputValue::scalar(website.id.to_string()),
     );
     vars.insert(
         "reason".to_string(),
