@@ -371,4 +371,57 @@ pub enum ListingEvent {
         page_results: Vec<PageExtractionResult>,
     },
 
+    /// Admin requests to regenerate posts from existing page snapshots
+    /// (skips crawling, goes directly to extraction)
+    RegeneratePostsRequested {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Admin requests to regenerate page summaries for existing snapshots
+    /// (re-runs AI summarization, clears cached summaries)
+    RegeneratePageSummariesRequested {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Page summaries regenerated successfully
+    PageSummariesRegenerated {
+        website_id: WebsiteId,
+        job_id: JobId,
+        pages_processed: usize,
+    },
+
+    /// Admin requests to regenerate AI summary for a single page snapshot
+    RegeneratePageSummaryRequested {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Single page summary regenerated successfully
+    PageSummaryRegenerated {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+    },
+
+    /// Admin requests to regenerate posts for a single page snapshot
+    RegeneratePagePostsRequested {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Single page posts regenerated successfully
+    PagePostsRegenerated {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        posts_count: usize,
+    },
 }

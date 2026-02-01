@@ -1,8 +1,6 @@
-import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation } from '@apollo/client';
+import { useQuery } from '@apollo/client';
 import { GET_WEBSITES } from '../../graphql/queries';
-import { ADD_ORGANIZATION_SCRAPE_URL, REMOVE_ORGANIZATION_SCRAPE_URL } from '../../graphql/mutations';
 
 interface Website {
   id: string;
@@ -17,68 +15,12 @@ interface Website {
 export function OrganizationDetail() {
   const { sourceId } = useParams<{ sourceId: string }>();
   const navigate = useNavigate();
-  const [newUrl, setNewUrl] = useState('');
-  const [error, setError] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(
+  const { data, loading } = useQuery<{ websites: Website[] }>(
     GET_WEBSITES
   );
 
-  const [addUrl] = useMutation(ADD_ORGANIZATION_SCRAPE_URL, {
-    onCompleted: () => {
-      setNewUrl('');
-      setError(null);
-      refetch();
-    },
-    onError: (err) => {
-      setError(err.message);
-    },
-  });
-
-  const [removeUrl] = useMutation(REMOVE_ORGANIZATION_SCRAPE_URL, {
-    onCompleted: () => {
-      setError(null);
-      refetch();
-    },
-    onError: (err) => {
-      setError(err.message);
-    },
-  });
-
   const website = data?.websites.find((s) => s.id === sourceId);
-
-  const handleAddUrl = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-
-    if (!newUrl.trim()) {
-      setError('Please enter a URL');
-      return;
-    }
-
-    if (!newUrl.startsWith('http://') && !newUrl.startsWith('https://')) {
-      setError('URL must start with http:// or https://');
-      return;
-    }
-
-    await addUrl({
-      variables: {
-        sourceId,
-        url: newUrl.trim(),
-      },
-    });
-  };
-
-  const handleRemoveUrl = async (url: string) => {
-    if (window.confirm(`Remove this URL from scraping?\n\n${url}`)) {
-      await removeUrl({
-        variables: {
-          sourceId,
-          url,
-        },
-      });
-    }
-  };
 
   if (loading) {
     return (
@@ -133,12 +75,6 @@ export function OrganizationDetail() {
             </span>
           </div>
         </div>
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-            {error}
-          </div>
-        )}
 
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">

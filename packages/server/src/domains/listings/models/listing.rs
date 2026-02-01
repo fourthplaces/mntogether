@@ -694,4 +694,68 @@ impl Listing {
 
         Ok(container_id.map(ContainerId::from))
     }
+
+    /// Find listings without embeddings (for batch embedding generation)
+    pub async fn find_without_embeddings(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
+        let listings = sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM listings
+            WHERE embedding IS NULL
+              AND status IN ('pending_approval', 'active')
+            ORDER BY created_at ASC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(listings)
+    }
+
+    /// Find listings without embeddings for a specific website
+    pub async fn find_without_embeddings_for_website(
+        website_id: WebsiteId,
+        limit: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let listings = sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM listings
+            WHERE embedding IS NULL
+              AND website_id = $1
+              AND status IN ('pending_approval', 'active')
+            ORDER BY created_at ASC
+            LIMIT $2
+            "#,
+        )
+        .bind(website_id)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(listings)
+    }
+
+    /// Count listings without embeddings
+    pub async fn count_without_embeddings(pool: &PgPool) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM listings WHERE embedding IS NULL AND status IN ('pending_approval', 'active')",
+        )
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
+
+    /// Count listings without embeddings for a specific website
+    pub async fn count_without_embeddings_for_website(
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM listings WHERE embedding IS NULL AND website_id = $1 AND status IN ('pending_approval', 'active')",
+        )
+        .bind(website_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
 }

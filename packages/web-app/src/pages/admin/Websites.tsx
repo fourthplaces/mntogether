@@ -38,15 +38,6 @@ const REJECT_WEBSITE = gql`
   }
 `;
 
-const SCRAPE_ORGANIZATION = gql`
-  mutation ScrapeOrganization($sourceId: Uuid!) {
-    scrapeOrganization(sourceId: $sourceId) {
-      jobId
-      status
-    }
-  }
-`;
-
 const CRAWL_WEBSITE = gql`
   mutation CrawlWebsite($websiteId: Uuid!) {
     crawlWebsite(websiteId: $websiteId) {
@@ -110,7 +101,6 @@ export function Websites() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newResourceUrl, setNewResourceUrl] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [scrapingId, setScrapingId] = useState<string | null>(null);
   const [selectedWebsites, setSelectedWebsites] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
   const [showSearchResults, setShowSearchResults] = useState(false);
@@ -130,17 +120,6 @@ export function Websites() {
   const [rejectWebsite] = useMutation(REJECT_WEBSITE, {
     onCompleted: () => refetch(),
     onError: (err) => setError(err.message),
-  });
-
-  const [scrapeOrganization] = useMutation(SCRAPE_ORGANIZATION, {
-    onCompleted: () => {
-      setScrapingId(null);
-      refetch();
-    },
-    onError: (err) => {
-      setError(err.message);
-      setScrapingId(null);
-    },
   });
 
   const [crawlWebsite] = useMutation(CRAWL_WEBSITE, {
@@ -172,12 +151,6 @@ export function Websites() {
   const handleReject = async (websiteId: string) => {
     setError(null);
     await rejectWebsite({ variables: { websiteId, reason: 'Rejected by admin' } });
-  };
-
-  const handleScrape = async (sourceId: string) => {
-    setScrapingId(sourceId);
-    setError(null);
-    await scrapeOrganization({ variables: { sourceId } });
   };
 
   const handleCrawl = async (websiteId: string) => {
@@ -233,11 +206,6 @@ export function Websites() {
       newSelection.add(websiteId);
     }
     setSelectedWebsites(newSelection);
-  };
-
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Never';
-    return new Date(dateString).toLocaleString();
   };
 
   // Filter websites

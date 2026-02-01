@@ -86,6 +86,34 @@ impl PageSnapshotData {
         .await?;
         Ok(listings.into_iter().map(ListingData::from).collect())
     }
+
+    /// Get the website snapshot ID that references this page snapshot (for re-scraping)
+    async fn website_snapshot_id(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<String>> {
+        let page_snapshot_id: PageSnapshotId = self.id.parse()?;
+        let snapshot_id: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM website_snapshots WHERE page_snapshot_id = $1 LIMIT 1"
+        )
+        .bind(page_snapshot_id)
+        .fetch_optional(&context.db_pool)
+        .await?;
+        Ok(snapshot_id.map(|id| id.to_string()))
+    }
+
+    /// Get the website associated with this page snapshot
+    async fn website(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<WebsiteData>> {
+        let page_snapshot_id: PageSnapshotId = self.id.parse()?;
+        // Find the website via website_snapshots table
+        let website = sqlx::query_as::<_, Website>(
+            "SELECT w.* FROM websites w
+             INNER JOIN website_snapshots ws ON ws.website_id = w.id
+             WHERE ws.page_snapshot_id = $1
+             LIMIT 1"
+        )
+        .bind(page_snapshot_id)
+        .fetch_optional(&context.db_pool)
+        .await?;
+        Ok(website.map(WebsiteData::from))
+    }
 }
 
 /// GraphQL-friendly representation of a website snapshot (scraped page)

@@ -487,6 +487,70 @@ impl seesaw_core::Machine for ListingMachine {
                 self.pending_scrapes.remove(website_id);
                 None
             }
+
+            // =========================================================================
+            // Regenerate Posts workflow: Request → Extract from existing snapshots → Sync
+            // =========================================================================
+            ListingEvent::RegeneratePostsRequested {
+                website_id,
+                job_id,
+                requested_by,
+                is_admin,
+            } => Some(ListingCommand::RegeneratePosts {
+                website_id: *website_id,
+                job_id: *job_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            // =========================================================================
+            // Regenerate Page Summaries workflow: Request → Regenerate summaries
+            // =========================================================================
+            ListingEvent::RegeneratePageSummariesRequested {
+                website_id,
+                job_id,
+                requested_by,
+                is_admin,
+            } => Some(ListingCommand::RegeneratePageSummaries {
+                website_id: *website_id,
+                job_id: *job_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            // Terminal event - page summaries regenerated
+            ListingEvent::PageSummariesRegenerated { .. } => None,
+
+            // =========================================================================
+            // Single Page Regeneration workflows
+            // =========================================================================
+            ListingEvent::RegeneratePageSummaryRequested {
+                page_snapshot_id,
+                job_id,
+                requested_by,
+                is_admin,
+            } => Some(ListingCommand::RegeneratePageSummary {
+                page_snapshot_id: *page_snapshot_id,
+                job_id: *job_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            ListingEvent::RegeneratePagePostsRequested {
+                page_snapshot_id,
+                job_id,
+                requested_by,
+                is_admin,
+            } => Some(ListingCommand::RegeneratePagePosts {
+                page_snapshot_id: *page_snapshot_id,
+                job_id: *job_id,
+                requested_by: *requested_by,
+                is_admin: *is_admin,
+            }),
+
+            // Terminal events
+            ListingEvent::PageSummaryRegenerated { .. } => None,
+            ListingEvent::PagePostsRegenerated { .. } => None,
         }
     }
 }

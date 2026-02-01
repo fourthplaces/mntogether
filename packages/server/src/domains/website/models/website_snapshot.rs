@@ -98,6 +98,20 @@ impl WebsiteSnapshot {
         .context("Failed to fetch website snapshots")
     }
 
+    /// Find website snapshot by page_snapshot_id
+    pub async fn find_by_page_snapshot_id(
+        pool: &PgPool,
+        page_snapshot_id: PageSnapshotId,
+    ) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM website_snapshots WHERE page_snapshot_id = $1",
+        )
+        .bind(page_snapshot_id)
+        .fetch_optional(pool)
+        .await
+        .context("Failed to fetch website snapshot by page_snapshot_id")
+    }
+
     /// Link to a page snapshot after successful scrape
     pub async fn link_snapshot(&self, pool: &PgPool, snapshot_id: PageSnapshotId) -> Result<()> {
         sqlx::query(

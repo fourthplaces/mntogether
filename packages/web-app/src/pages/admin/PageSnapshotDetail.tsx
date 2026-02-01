@@ -1,7 +1,12 @@
 import { useParams, Link } from 'react-router-dom';
-import { useQuery, gql } from '@apollo/client';
+import { useQuery, useMutation, gql } from '@apollo/client';
 import ReactMarkdown from 'react-markdown';
 import { useState } from 'react';
+import {
+  REFRESH_PAGE_SNAPSHOT,
+  REGENERATE_PAGE_SUMMARY,
+  REGENERATE_PAGE_POSTS,
+} from '../../graphql/mutations';
 
 const GET_PAGE_SNAPSHOT = gql`
   query GetPageSnapshot($id: Uuid!) {
@@ -15,6 +20,11 @@ const GET_PAGE_SNAPSHOT = gql`
       extractionStatus
       listingsExtractedCount
       summary
+      websiteSnapshotId
+      website {
+        id
+        domain
+      }
       listings {
         id
         title
@@ -32,6 +42,11 @@ interface Listing {
   createdAt: string;
 }
 
+interface Website {
+  id: string;
+  domain: string;
+}
+
 interface PageSnapshot {
   id: string;
   url: string;
@@ -42,6 +57,8 @@ interface PageSnapshot {
   extractionStatus: string | null;
   listingsExtractedCount: number | null;
   summary: string | null;
+  websiteSnapshotId: string | null;
+  website: Website | null;
   listings: Listing[];
 }
 
@@ -49,14 +66,73 @@ type TabType = 'posts' | 'summary' | 'content';
 
 export function PageSnapshotDetail() {
   const { snapshotId } = useParams<{ snapshotId: string }>();
-  const [activeTab, setActiveTab] = useState<TabType>('posts');
+  const [activeTab, setActiveTab] = useState<TabType>('content');
   const [contentMode, setContentMode] = useState<'markdown' | 'html'>('markdown');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [isRescraping, setIsRescraping] = useState(false);
+  const [isRegeneratingSummary, setIsRegeneratingSummary] = useState(false);
+  const [isRegeneratingPosts, setIsRegeneratingPosts] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data, loading, error } = useQuery<{ pageSnapshot: PageSnapshot | null }>(GET_PAGE_SNAPSHOT, {
+  const { data, loading, error, refetch } = useQuery<{ pageSnapshot: PageSnapshot | null }>(GET_PAGE_SNAPSHOT, {
     variables: { id: snapshotId },
     skip: !snapshotId,
   });
+
+  const [refreshPageSnapshot] = useMutation(REFRESH_PAGE_SNAPSHOT, {
+    onCompleted: () => {
+      setIsRescraping(false);
+      refetch();
+    },
+    onError: (err) => {
+      setActionError(err.message);
+      setIsRescraping(false);
+    },
+  });
+
+  const [regeneratePageSummary] = useMutation(REGENERATE_PAGE_SUMMARY, {
+    onCompleted: () => {
+      setIsRegeneratingSummary(false);
+      refetch();
+    },
+    onError: (err) => {
+      setActionError(err.message);
+      setIsRegeneratingSummary(false);
+    },
+  });
+
+  const [regeneratePagePosts] = useMutation(REGENERATE_PAGE_POSTS, {
+    onCompleted: () => {
+      setIsRegeneratingPosts(false);
+      refetch();
+    },
+    onError: (err) => {
+      setActionError(err.message);
+      setIsRegeneratingPosts(false);
+    },
+  });
+
+  const handleRescrape = async () => {
+    if (!snapshot?.websiteSnapshotId) {
+      setActionError('No website snapshot linked to this page');
+      return;
+    }
+    setActionError(null);
+    setIsRescraping(true);
+    await refreshPageSnapshot({ variables: { snapshotId: snapshot.websiteSnapshotId } });
+  };
+
+  const handleRegenerateSummary = async () => {
+    setActionError(null);
+    setIsRegeneratingSummary(true);
+    await regeneratePageSummary({ variables: { pageSnapshotId: snapshotId } });
+  };
+
+  const handleRegeneratePosts = async () => {
+    setActionError(null);
+    setIsRegeneratingPosts(true);
+    await regeneratePagePosts({ variables: { pageSnapshotId: snapshotId } });
+  };
 
   const snapshot = data?.pageSnapshot;
 
@@ -134,6 +210,12 @@ export function PageSnapshotDetail() {
           Back
         </button>
 
+        {actionError && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
+            {actionError}
+          </div>
+        )}
+
         {/* Page Header */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-start">
@@ -152,6 +234,20 @@ export function PageSnapshotDetail() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>
               </a>
+              {snapshot.website && (
+                <Link
+                  to={`/admin/websites/${snapshot.website.id}`}
+                  className="mt-2 inline-flex items-center gap-1 text-sm text-stone-600 hover:text-stone-900"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                  </svg>
+                  Website: {snapshot.website.domain}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              )}
             </div>
 
             {/* More Menu */}
@@ -177,42 +273,42 @@ export function PageSnapshotDetail() {
                       <button
                         onClick={() => {
                           setShowMoreMenu(false);
-                          // TODO: Implement regenerate summary
-                          alert('Regenerate AI summary - coming soon');
+                          handleRegenerateSummary();
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                        disabled={isRegeneratingSummary}
+                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        Regenerate AI Summary
+                        {isRegeneratingSummary ? 'Regenerating...' : 'Regenerate AI Summary'}
                       </button>
                       <button
                         onClick={() => {
                           setShowMoreMenu(false);
-                          // TODO: Implement regenerate posts
-                          alert('Regenerate posts from this page - coming soon');
+                          handleRegeneratePosts();
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                        disabled={isRegeneratingPosts}
+                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                         </svg>
-                        Regenerate Posts
+                        {isRegeneratingPosts ? 'Regenerating...' : 'Regenerate Posts'}
                       </button>
                       <div className="border-t border-stone-200 my-1" />
                       <button
                         onClick={() => {
                           setShowMoreMenu(false);
-                          // TODO: Implement re-scrape
-                          alert('Re-scrape page - coming soon');
+                          handleRescrape();
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2"
+                        disabled={isRescraping || !snapshot.websiteSnapshotId}
+                        className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
-                        Re-scrape Page
+                        {isRescraping ? 'Re-scraping...' : 'Re-scrape Page'}
                       </button>
                     </div>
                   </div>
@@ -253,14 +349,14 @@ export function PageSnapshotDetail() {
           {/* Tab Headers */}
           <div className="flex border-b border-stone-200">
             <button
-              onClick={() => setActiveTab('posts')}
+              onClick={() => setActiveTab('content')}
               className={`px-6 py-3 font-medium text-sm ${
-                activeTab === 'posts'
+                activeTab === 'content'
                   ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              Posts ({snapshot.listings.length})
+              Page Content
             </button>
             <button
               onClick={() => setActiveTab('summary')}
@@ -273,84 +369,19 @@ export function PageSnapshotDetail() {
               AI Summary {snapshot.summary ? '' : '(none)'}
             </button>
             <button
-              onClick={() => setActiveTab('content')}
+              onClick={() => setActiveTab('posts')}
               className={`px-6 py-3 font-medium text-sm ${
-                activeTab === 'content'
+                activeTab === 'posts'
                   ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              Page Content
+              Posts ({snapshot.listings.length})
             </button>
           </div>
 
           {/* Tab Content */}
           <div className="p-6">
-            {/* Posts Tab */}
-            {activeTab === 'posts' && (
-              <div>
-                {snapshot.listings.length > 0 ? (
-                  <div className="space-y-2">
-                    {snapshot.listings.map((listing) => (
-                      <Link
-                        key={listing.id}
-                        to={`/admin/posts/${listing.id}`}
-                        className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium text-stone-900">{listing.title}</span>
-                          <div className="flex items-center gap-2">
-                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(listing.status)}`}>
-                              {listing.status.replace('_', ' ')}
-                            </span>
-                            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </div>
-                        <span className="text-xs text-stone-500">{formatDate(listing.createdAt)}</span>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-stone-500">
-                    No posts extracted from this page yet.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* AI Summary Tab */}
-            {activeTab === 'summary' && (
-              <div>
-                {snapshot.summary ? (
-                  <div className="prose prose-stone max-w-none select-text">
-                    <ReactMarkdown>{snapshot.summary}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">
-                    <svg
-                      className="mx-auto h-12 w-12 text-stone-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-stone-900">No AI summary</h3>
-                    <p className="mt-1 text-sm text-stone-500">
-                      Use the menu to regenerate the AI summary.
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Page Content Tab */}
             {activeTab === 'content' && (
               <div>
@@ -387,6 +418,71 @@ export function PageSnapshotDetail() {
                 ) : (
                   <div className="font-mono text-sm text-stone-700 whitespace-pre-wrap break-all max-h-[600px] overflow-y-auto bg-stone-50 p-4 rounded-lg select-text">
                     {snapshot.html}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* AI Summary Tab */}
+            {activeTab === 'summary' && (
+              <div>
+                {snapshot.summary ? (
+                  <div className="prose prose-stone max-w-none select-text">
+                    <ReactMarkdown>{snapshot.summary}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">
+                    <svg
+                      className="mx-auto h-12 w-12 text-stone-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-stone-900">No AI summary</h3>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Use the menu to regenerate the AI summary.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Posts Tab */}
+            {activeTab === 'posts' && (
+              <div>
+                {snapshot.listings.length > 0 ? (
+                  <div className="space-y-2">
+                    {snapshot.listings.map((listing) => (
+                      <Link
+                        key={listing.id}
+                        to={`/admin/posts/${listing.id}`}
+                        className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-stone-900">{listing.title}</span>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 text-xs rounded-full ${getStatusBadgeClass(listing.status)}`}>
+                              {listing.status.replace('_', ' ')}
+                            </span>
+                            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </div>
+                        <span className="text-xs text-stone-500">{formatDate(listing.createdAt)}</span>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-stone-500">
+                    No posts extracted from this page yet.
                   </div>
                 )}
               </div>

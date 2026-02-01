@@ -6,7 +6,7 @@ interface BusinessInfoCardProps {
   organizationName: string;
 }
 
-export function BusinessInfoCard({ businessInfo, tags, organizationName }: BusinessInfoCardProps) {
+export function BusinessInfoCard({ businessInfo, tags }: BusinessInfoCardProps) {
   if (!businessInfo) {
     return null;
   }
