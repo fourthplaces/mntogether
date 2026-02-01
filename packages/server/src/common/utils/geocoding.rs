@@ -160,14 +160,14 @@ mod tests {
 
     #[test]
     fn test_calculate_distance() {
-        // Minneapolis to St. Paul (≈16 km)
+        // Minneapolis to St. Paul (coarsened coords give ~14-15 km)
         let minneapolis = (44.98, -93.27);
         let st_paul = (44.95, -93.09);
 
         let distance = calculate_distance_km(minneapolis.0, minneapolis.1, st_paul.0, st_paul.1);
 
-        // Should be approximately 16 km
-        assert!(distance > 15.0 && distance < 17.0);
+        // Should be approximately 14-16 km with coarsened coordinates
+        assert!(distance > 14.0 && distance < 17.0);
 
         // Same location
         let distance = calculate_distance_km(44.98, -93.27, 44.98, -93.27);

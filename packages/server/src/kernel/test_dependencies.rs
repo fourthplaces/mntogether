@@ -261,8 +261,12 @@ impl BaseAI for MockAI {
 // =============================================================================
 
 pub struct MockEmbeddingService {
-    // Returns a fixed embedding vector for all inputs
+    // Returns a fixed embedding vector for all inputs by default
     fixed_embedding: Vec<f32>,
+    // Map of text patterns to embeddings for deduplication testing
+    pattern_embeddings: Arc<Mutex<Vec<(String, Vec<f32>)>>>,
+    // Track all texts that embeddings were generated for
+    calls: Arc<Mutex<Vec<String>>>,
 }
 
 impl MockEmbeddingService {
@@ -270,6 +274,8 @@ impl MockEmbeddingService {
         // Return a simple 1536-dimensional vector for testing
         Self {
             fixed_embedding: vec![0.1; 1536],
+            pattern_embeddings: Arc::new(Mutex::new(Vec::new())),
+            calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -277,11 +283,62 @@ impl MockEmbeddingService {
         self.fixed_embedding = embedding;
         self
     }
+
+    /// Add a pattern-based embedding: when text contains the pattern, return this embedding
+    pub fn with_pattern_embedding(self, pattern: &str, embedding: Vec<f32>) -> Self {
+        self.pattern_embeddings
+            .lock()
+            .unwrap()
+            .push((pattern.to_string(), embedding));
+        self
+    }
+
+    /// Create embeddings that will make two texts appear similar (for dedup testing)
+    /// Returns embeddings with high cosine similarity (>0.90)
+    pub fn with_similar_texts(self, text1_pattern: &str, text2_pattern: &str) -> Self {
+        // Create two very similar embeddings (cosine similarity ~0.95)
+        let base: Vec<f32> = (0..1536).map(|i| (i as f32 * 0.01).sin()).collect();
+        let similar: Vec<f32> = base.iter().map(|v| v + 0.01).collect();
+
+        self.with_pattern_embedding(text1_pattern, base)
+            .with_pattern_embedding(text2_pattern, similar)
+    }
+
+    /// Create embeddings that will make texts appear different (for non-dedup testing)
+    pub fn with_different_texts(self, patterns: Vec<&str>) -> Self {
+        let mut result = self;
+        for (i, pattern) in patterns.into_iter().enumerate() {
+            // Create distinctly different embeddings
+            let embedding: Vec<f32> = (0..1536)
+                .map(|j| ((i * 100 + j) as f32 * 0.1).sin())
+                .collect();
+            result = result.with_pattern_embedding(pattern, embedding);
+        }
+        result
+    }
+
+    /// Get all texts that embeddings were generated for
+    pub fn calls(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
 }
 
 #[async_trait]
 impl BaseEmbeddingService for MockEmbeddingService {
-    async fn generate(&self, _text: &str) -> Result<Vec<f32>> {
+    async fn generate(&self, text: &str) -> Result<Vec<f32>> {
+        // Record the call
+        self.calls.lock().unwrap().push(text.to_string());
+
+        // Check for pattern match first
+        let patterns = self.pattern_embeddings.lock().unwrap();
+        for (pattern, embedding) in patterns.iter() {
+            if text.to_lowercase().contains(&pattern.to_lowercase()) {
+                return Ok(embedding.clone());
+            }
+        }
+        drop(patterns);
+
+        // Fall back to fixed embedding
         Ok(self.fixed_embedding.clone())
     }
 }

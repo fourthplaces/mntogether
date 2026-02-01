@@ -73,7 +73,7 @@ ALTER TABLE listings
 
 -- Recreate indexes
 CREATE INDEX idx_website_snapshots_website_id ON website_snapshots(website_id);
-CREATE INDEX idx_website_snapshots_snapshot_hash ON website_snapshots(snapshot_hash);
+-- Note: snapshot_hash column doesn't exist on website_snapshots, removed invalid index
 CREATE INDEX idx_website_assessments_website_id ON website_assessments(website_id);
 CREATE INDEX idx_website_research_website_id ON website_research(website_id);
 CREATE INDEX idx_listings_website_id ON listings(website_id);
