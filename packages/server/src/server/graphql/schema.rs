@@ -23,6 +23,9 @@ use crate::domains::listings::edges::{
     submit_resource_link, suspend_website, track_post_click, track_post_view,
     DiscoverySearchResult,
 };
+use crate::domains::website::edges::{
+    regenerate_page_posts, regenerate_page_summaries, regenerate_page_summary, regenerate_posts,
+};
 use crate::domains::website::edges::update_website_crawl_settings;
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
 use crate::domains::chatrooms::edges as chatroom_edges;
@@ -552,6 +555,37 @@ impl Mutation {
         snapshot_id: String,
     ) -> FieldResult<crate::domains::listings::data::ScrapeJobResult> {
         refresh_page_snapshot(ctx, snapshot_id).await
+    }
+
+    /// Regenerate posts from existing page snapshots (admin only)
+    /// Re-runs the AI extraction and sync workflow without re-crawling the website
+    async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
+        regenerate_posts(ctx, website_id).await
+    }
+
+    /// Regenerate page summaries for existing snapshots (admin only)
+    /// Clears cached summaries and re-runs AI summarization
+    async fn regenerate_page_summaries(
+        ctx: &GraphQLContext,
+        website_id: Uuid,
+    ) -> FieldResult<ScrapeJobResult> {
+        regenerate_page_summaries(ctx, website_id).await
+    }
+
+    /// Regenerate AI summary for a single page snapshot (admin only)
+    async fn regenerate_page_summary(
+        ctx: &GraphQLContext,
+        page_snapshot_id: Uuid,
+    ) -> FieldResult<ScrapeJobResult> {
+        regenerate_page_summary(ctx, page_snapshot_id).await
+    }
+
+    /// Regenerate posts for a single page snapshot (admin only)
+    async fn regenerate_page_posts(
+        ctx: &GraphQLContext,
+        page_snapshot_id: Uuid,
+    ) -> FieldResult<ScrapeJobResult> {
+        regenerate_page_posts(ctx, page_snapshot_id).await
     }
 
     /// Run discovery search manually (admin only)

@@ -224,6 +224,38 @@ pub enum ListingCommand {
         listings: Vec<ExtractedListing>,
         page_results: Vec<crate::domains::listings::events::PageExtractionResult>,
     },
+
+    /// Regenerate posts from existing page snapshots (skip crawling)
+    RegeneratePosts {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Regenerate page summaries for existing snapshots
+    RegeneratePageSummaries {
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Regenerate AI summary for a single page snapshot
+    RegeneratePageSummary {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Regenerate posts for a single page snapshot
+    RegeneratePagePosts {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
 }
 
 // Implement Command trait for seesaw-rs integration
@@ -261,6 +293,10 @@ impl seesaw_core::Command for ListingCommand {
             Self::RetryWebsiteCrawl { .. } => ExecutionMode::Inline,
             Self::MarkWebsiteNoListings { .. } => ExecutionMode::Inline,
             Self::SyncCrawledListings { .. } => ExecutionMode::Inline,
+            Self::RegeneratePosts { .. } => ExecutionMode::Inline,
+            Self::RegeneratePageSummaries { .. } => ExecutionMode::Inline,
+            Self::RegeneratePageSummary { .. } => ExecutionMode::Inline,
+            Self::RegeneratePagePosts { .. } => ExecutionMode::Inline,
         }
     }
 
@@ -326,6 +362,38 @@ impl seesaw_core::Command for ListingCommand {
                 job_type: "sync_crawled_listings",
                 idempotency_key: Some(website_id.to_string()),
                 max_retries: 3,
+                priority: 0,
+                version: 1,
+            }),
+            Self::RegeneratePosts { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "regenerate_posts",
+                idempotency_key: Some(website_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+            }),
+            Self::RegeneratePageSummaries { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "regenerate_page_summaries",
+                idempotency_key: Some(website_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+            }),
+            Self::RegeneratePageSummary {
+                page_snapshot_id, ..
+            } => Some(seesaw_core::JobSpec {
+                job_type: "regenerate_page_summary",
+                idempotency_key: Some(page_snapshot_id.to_string()),
+                max_retries: 2,
+                priority: 0,
+                version: 1,
+            }),
+            Self::RegeneratePagePosts {
+                page_snapshot_id, ..
+            } => Some(seesaw_core::JobSpec {
+                job_type: "regenerate_page_posts",
+                idempotency_key: Some(page_snapshot_id.to_string()),
+                max_retries: 2,
                 priority: 0,
                 version: 1,
             }),

@@ -3,7 +3,12 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import ReactMarkdown from 'react-markdown';
 import { GET_WEBSITE_ASSESSMENT } from '../../graphql/queries';
-import { GENERATE_WEBSITE_ASSESSMENT, CRAWL_WEBSITE } from '../../graphql/mutations';
+import {
+  GENERATE_WEBSITE_ASSESSMENT,
+  CRAWL_WEBSITE,
+  REGENERATE_POSTS,
+  REGENERATE_PAGE_SUMMARIES,
+} from '../../graphql/mutations';
 
 const GET_WEBSITE_WITH_SNAPSHOTS = gql`
   query GetWebsiteWithSnapshots($id: Uuid!) {
@@ -133,9 +138,11 @@ export function WebsiteDetail() {
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
+  const [isRegeneratingPosts, setIsRegeneratingPosts] = useState(false);
+  const [isRegeneratingSummaries, setIsRegeneratingSummaries] = useState(false);
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
-  const [activeTab, setActiveTab] = useState<TabType>('listings');
+  const [activeTab, setActiveTab] = useState<TabType>('snapshots');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
@@ -196,6 +203,28 @@ export function WebsiteDetail() {
     },
   });
 
+  const [regeneratePosts] = useMutation(REGENERATE_POSTS, {
+    onCompleted: () => {
+      setIsRegeneratingPosts(false);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setIsRegeneratingPosts(false);
+    },
+  });
+
+  const [regeneratePageSummaries] = useMutation(REGENERATE_PAGE_SUMMARIES, {
+    onCompleted: () => {
+      setIsRegeneratingSummaries(false);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setIsRegeneratingSummaries(false);
+    },
+  });
+
   const handleGenerateAssessment = async () => {
     setError(null);
     setIsGenerating(true);
@@ -216,6 +245,18 @@ export function WebsiteDetail() {
     setError(null);
     setIsCrawling(true);
     await crawlWebsite({ variables: { websiteId } });
+  };
+
+  const handleRegeneratePosts = async () => {
+    setError(null);
+    setIsRegeneratingPosts(true);
+    await regeneratePosts({ variables: { websiteId } });
+  };
+
+  const handleRegeneratePageSummaries = async () => {
+    setError(null);
+    setIsRegeneratingSummaries(true);
+    await regeneratePageSummaries({ variables: { websiteId } });
   };
 
   const handleSaveMaxPages = async () => {
@@ -405,30 +446,30 @@ export function WebsiteDetail() {
                         <button
                           onClick={() => {
                             setShowMoreMenu(false);
-                            // TODO: Implement regenerate page summaries
-                            alert('Regenerate page summaries - coming soon');
+                            handleRegeneratePageSummaries();
                           }}
-                          disabled={!website.snapshots || website.snapshots.length === 0}
+                          disabled={isRegeneratingSummaries || website.status !== 'approved' || (website.snapshotsCount ?? 0) === 0}
                           className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          title={website.status !== 'approved' ? 'Website must be approved' : (website.snapshotsCount ?? 0) === 0 ? 'No snapshots found. Run a full crawl first.' : 'Re-run AI summarization on existing pages'}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
-                          Regenerate Page Summaries
+                          {isRegeneratingSummaries ? 'Regenerating...' : 'Regenerate Page Summaries'}
                         </button>
                         <button
                           onClick={() => {
                             setShowMoreMenu(false);
-                            // TODO: Implement regenerate posts
-                            alert('Regenerate posts - coming soon');
+                            handleRegeneratePosts();
                           }}
-                          disabled={!website.snapshots || website.snapshots.length === 0}
+                          disabled={isRegeneratingPosts || website.status !== 'approved' || (website.snapshotsCount ?? 0) === 0}
                           className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          title={website.status !== 'approved' ? 'Website must be approved' : (website.snapshotsCount ?? 0) === 0 ? 'No snapshots found. Run a full crawl first.' : 'Re-run AI extraction on existing pages'}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                           </svg>
-                          Regenerate Posts
+                          {isRegeneratingPosts ? 'Regenerating...' : 'Regenerate Posts'}
                         </button>
                         <div className="border-t border-stone-200 my-1" />
                         <button
@@ -565,16 +606,6 @@ export function WebsiteDetail() {
           {/* Tab Headers */}
           <div className="flex border-b border-stone-200">
             <button
-              onClick={() => setActiveTab('listings')}
-              className={`px-6 py-3 font-medium text-sm ${
-                activeTab === 'listings'
-                  ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
-                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
-              }`}
-            >
-              Posts ({website.listings?.length || 0})
-            </button>
-            <button
               onClick={() => setActiveTab('snapshots')}
               className={`px-6 py-3 font-medium text-sm ${
                 activeTab === 'snapshots'
@@ -594,57 +625,20 @@ export function WebsiteDetail() {
             >
               AI Assessment {assessment ? '✓' : ''}
             </button>
+            <button
+              onClick={() => setActiveTab('listings')}
+              className={`px-6 py-3 font-medium text-sm ${
+                activeTab === 'listings'
+                  ? 'border-b-2 border-blue-500 text-blue-600 bg-blue-50/50'
+                  : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
+              }`}
+            >
+              Posts ({website.listings?.length || 0})
+            </button>
           </div>
 
           {/* Tab Content */}
           <div className="p-6">
-            {/* Listings Tab */}
-            {activeTab === 'listings' && (
-              <div>
-                {website.listings && website.listings.length > 0 ? (
-                  <div className="space-y-2">
-                    {website.listings.map((listing) => (
-                      <div
-                        key={listing.id}
-                        className="flex items-center justify-between p-3 bg-stone-50 rounded-lg"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <Link
-                            to={`/admin/posts/${listing.id}`}
-                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                          >
-                            {listing.title}
-                          </Link>
-                          <p className="text-xs text-stone-500 mt-1">
-                            Created: {formatDate(listing.createdAt)}
-                          </p>
-                        </div>
-                        <div className="ml-4 flex items-center gap-2">
-                          <span
-                            className={`px-2 py-1 text-xs rounded-full ${
-                              listing.status === 'active'
-                                ? 'bg-green-100 text-green-800'
-                                : listing.status === 'pending_approval'
-                                ? 'bg-amber-100 text-amber-800'
-                                : listing.status === 'rejected'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-stone-100 text-stone-800'
-                            }`}
-                          >
-                            {listing.status.replace('_', ' ')}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-stone-500">
-                    No posts extracted from this website yet.
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Scraped Pages Tab */}
             {activeTab === 'snapshots' && (
               <div>
@@ -711,8 +705,24 @@ export function WebsiteDetail() {
                     })}
                   </div>
                 ) : (
-                  <div className="text-center py-8 text-stone-500">
-                    No pages scraped from this website yet.
+                  <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">
+                    <svg
+                      className="mx-auto h-12 w-12 text-stone-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                      />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-stone-900">No pages scraped</h3>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Run a full crawl to scrape pages from this website.
+                    </p>
                   </div>
                 )}
               </div>
@@ -877,6 +887,72 @@ export function WebsiteDetail() {
                         {assessment.assessmentMarkdown}
                       </ReactMarkdown>
                     </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Listings Tab */}
+            {activeTab === 'listings' && (
+              <div>
+                {website.listings && website.listings.length > 0 ? (
+                  <div className="space-y-2">
+                    {website.listings.map((listing) => (
+                      <Link
+                        key={listing.id}
+                        to={`/admin/posts/${listing.id}`}
+                        className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                              {listing.title}
+                            </p>
+                            <p className="text-xs text-stone-500 mt-1">
+                              Created: {formatDate(listing.createdAt)}
+                            </p>
+                          </div>
+                          <div className="ml-4 flex items-center gap-2">
+                            <span
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                listing.status === 'active'
+                                  ? 'bg-green-100 text-green-800'
+                                  : listing.status === 'pending_approval'
+                                  ? 'bg-amber-100 text-amber-800'
+                                  : listing.status === 'rejected'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-stone-100 text-stone-800'
+                              }`}
+                            >
+                              {listing.status.replace('_', ' ')}
+                            </span>
+                            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">
+                    <svg
+                      className="mx-auto h-12 w-12 text-stone-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
+                      />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-stone-900">No posts yet</h3>
+                    <p className="mt-1 text-sm text-stone-500">
+                      Run a full crawl to extract posts from this website.
+                    </p>
                   </div>
                 )}
               </div>

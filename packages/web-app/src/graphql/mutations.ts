@@ -173,6 +173,46 @@ export const CRAWL_WEBSITE = gql`
   }
 `;
 
+export const REGENERATE_POSTS = gql`
+  mutation RegeneratePosts($websiteId: Uuid!) {
+    regeneratePosts(websiteId: $websiteId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
+export const REGENERATE_PAGE_SUMMARIES = gql`
+  mutation RegeneratePageSummaries($websiteId: Uuid!) {
+    regeneratePageSummaries(websiteId: $websiteId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
+export const REGENERATE_PAGE_SUMMARY = gql`
+  mutation RegeneratePageSummary($pageSnapshotId: Uuid!) {
+    regeneratePageSummary(pageSnapshotId: $pageSnapshotId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
+export const REGENERATE_PAGE_POSTS = gql`
+  mutation RegeneratePagePosts($pageSnapshotId: Uuid!) {
+    regeneratePagePosts(pageSnapshotId: $pageSnapshotId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
 // Post tag mutations
 export const UPDATE_POST_TAGS = gql`
   mutation UpdatePostTags($listingId: Uuid!, $tags: [TagInput!]!) {

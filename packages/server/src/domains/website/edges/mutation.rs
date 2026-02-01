@@ -274,6 +274,312 @@ pub async fn update_website_crawl_settings(
     Ok(WebsiteData::from(website))
 }
 
+/// Regenerate posts from existing page snapshots (admin only)
+/// Re-runs the AI extraction and sync workflow without re-crawling
+pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
+    info!(website_id = %website_id, "Regenerating posts from existing snapshots");
+
+    // Get user info (authorization will be checked in effect)
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    // Convert to typed IDs
+    let website_id = WebsiteId::from_uuid(website_id);
+    let job_id = JobId::new();
+
+    // Dispatch regenerate posts request and await completion
+    let result = dispatch_request(
+        ListingEvent::RegeneratePostsRequested {
+            website_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success - extraction and sync workflow complete
+                ListingEvent::ListingsSynced {
+                    source_id: synced_source_id,
+                    job_id: synced_job_id,
+                    new_count,
+                    changed_count,
+                    disappeared_count,
+                } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!(
+                        "Regeneration complete! Found {} new, {} changed, {} disappeared posts",
+                        new_count, changed_count, disappeared_count
+                    ),
+                ))),
+                // No listings found
+                ListingEvent::WebsiteMarkedNoListings {
+                    website_id: marked_id,
+                    job_id: marked_job_id,
+                    total_attempts,
+                } if *marked_id == website_id && *marked_job_id == job_id => Some(Ok((
+                    "no_listings".to_string(),
+                    format!(
+                        "No listings found after {} attempts.",
+                        total_attempts
+                    ),
+                ))),
+                // Failure events
+                ListingEvent::WebsiteCrawlFailed {
+                    website_id: failed_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
+                }
+                ListingEvent::ExtractFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
+                }
+                ListingEvent::SyncFailed {
+                    source_id: failed_source_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_source_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
+                }
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "RegeneratePosts" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| FieldError::new(format!("Regeneration failed: {}", e), juniper::Value::null()))?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: website_id.into_uuid(),
+        status,
+        message: Some(message),
+    })
+}
+
+/// Regenerate page summaries for existing snapshots (admin only)
+/// Clears cached summaries and re-runs AI summarization
+pub async fn regenerate_page_summaries(
+    ctx: &GraphQLContext,
+    website_id: Uuid,
+) -> FieldResult<ScrapeJobResult> {
+    info!(website_id = %website_id, "Regenerating page summaries");
+
+    // Get user info (authorization will be checked in effect)
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    // Convert to typed IDs
+    let website_id = WebsiteId::from_uuid(website_id);
+    let job_id = JobId::new();
+
+    // Dispatch regenerate page summaries request and await completion
+    let result = dispatch_request(
+        ListingEvent::RegeneratePageSummariesRequested {
+            website_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success - page summaries regenerated
+                ListingEvent::PageSummariesRegenerated {
+                    website_id: regen_id,
+                    job_id: regen_job_id,
+                    pages_processed,
+                } if *regen_id == website_id && *regen_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!("Successfully regenerated {} page summaries", pages_processed),
+                ))),
+                // Failure events
+                ListingEvent::WebsiteCrawlFailed {
+                    website_id: failed_id,
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_id == website_id && *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
+                }
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "RegeneratePageSummaries" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Page summary regeneration failed: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: website_id.into_uuid(),
+        status,
+        message: Some(message),
+    })
+}
+
+/// Regenerate AI summary for a single page snapshot (admin only)
+pub async fn regenerate_page_summary(
+    ctx: &GraphQLContext,
+    page_snapshot_id: Uuid,
+) -> FieldResult<ScrapeJobResult> {
+    info!(page_snapshot_id = %page_snapshot_id, "Regenerating AI summary for single page");
+
+    // Get user info (authorization will be checked in effect)
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    let job_id = JobId::new();
+
+    // Dispatch regenerate page summary request and await completion
+    let result = dispatch_request(
+        ListingEvent::RegeneratePageSummaryRequested {
+            page_snapshot_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success
+                ListingEvent::PageSummaryRegenerated {
+                    page_snapshot_id: regen_id,
+                    job_id: regen_job_id,
+                } if *regen_id == page_snapshot_id && *regen_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    "AI summary regenerated successfully".to_string(),
+                ))),
+                // Failure events
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "RegeneratePageSummary" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to regenerate page summary: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: page_snapshot_id,
+        status,
+        message: Some(message),
+    })
+}
+
+/// Regenerate posts for a single page snapshot (admin only)
+pub async fn regenerate_page_posts(
+    ctx: &GraphQLContext,
+    page_snapshot_id: Uuid,
+) -> FieldResult<ScrapeJobResult> {
+    info!(page_snapshot_id = %page_snapshot_id, "Regenerating posts for single page");
+
+    // Get user info (authorization will be checked in effect)
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    let job_id = JobId::new();
+
+    // Dispatch regenerate page posts request and await completion
+    let result = dispatch_request(
+        ListingEvent::RegeneratePagePostsRequested {
+            page_snapshot_id,
+            job_id,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &ListingEvent| match e {
+                // Success
+                ListingEvent::PagePostsRegenerated {
+                    page_snapshot_id: regen_id,
+                    job_id: regen_job_id,
+                    posts_count,
+                } if *regen_id == page_snapshot_id && *regen_job_id == job_id => Some(Ok((
+                    "completed".to_string(),
+                    format!("Extracted {} posts from page", posts_count),
+                ))),
+                // Failure events
+                ListingEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "RegeneratePagePosts" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to regenerate page posts: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    let (status, message) = result;
+
+    Ok(ScrapeJobResult {
+        job_id: job_id.into_uuid(),
+        source_id: page_snapshot_id,
+        status,
+        message: Some(message),
+    })
+}
+
 /// Refresh a page snapshot by re-scraping (admin only)
 /// Re-scrapes a specific domain snapshot to update listings when page content changes
 pub async fn refresh_page_snapshot(

@@ -65,7 +65,11 @@ impl Effect<ListingCommand, ServerDeps> for ListingCompositeEffect {
             | ListingCommand::ExtractListingsFromPages { .. }
             | ListingCommand::RetryWebsiteCrawl { .. }
             | ListingCommand::MarkWebsiteNoListings { .. }
-            | ListingCommand::SyncCrawledListings { .. } => self.crawler.execute(cmd, ctx).await,
+            | ListingCommand::SyncCrawledListings { .. }
+            | ListingCommand::RegeneratePosts { .. }
+            | ListingCommand::RegeneratePageSummaries { .. }
+            | ListingCommand::RegeneratePageSummary { .. }
+            | ListingCommand::RegeneratePagePosts { .. } => self.crawler.execute(cmd, ctx).await,
 
             // Route to ListingEffect (all other commands)
             ListingCommand::CreateWebsiteFromLink { .. }
