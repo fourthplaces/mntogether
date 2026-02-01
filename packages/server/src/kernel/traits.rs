@@ -34,6 +34,48 @@ pub struct CrawledPage {
     pub title: Option<String>,
 }
 
+/// Link priorities for crawl scoring
+/// High-priority keywords are followed first, skip keywords are ignored
+#[derive(Debug, Clone, Default)]
+pub struct LinkPriorities {
+    pub high: Vec<String>,
+    pub skip: Vec<String>,
+}
+
+impl LinkPriorities {
+    /// Score a URL path based on keywords
+    /// Returns: positive for high priority, negative for skip, 0 for neutral
+    pub fn score_path(&self, path: &str) -> i32 {
+        let path_lower = path.to_lowercase();
+
+        // Check skip first (negative score)
+        for keyword in &self.skip {
+            if path_lower.contains(&keyword.to_lowercase()) {
+                return -100;
+            }
+        }
+
+        // Check high priority (positive score)
+        for keyword in &self.high {
+            if path_lower.contains(&keyword.to_lowercase()) {
+                return 100;
+            }
+        }
+
+        0
+    }
+
+    /// Check if a path should be skipped entirely
+    pub fn should_skip(&self, path: &str) -> bool {
+        self.score_path(path) < 0
+    }
+
+    /// Check if empty (no keywords configured)
+    pub fn is_empty(&self) -> bool {
+        self.high.is_empty() && self.skip.is_empty()
+    }
+}
+
 #[async_trait]
 pub trait BaseWebScraper: Send + Sync {
     /// Scrape a single page and return clean text content
@@ -46,12 +88,14 @@ pub trait BaseWebScraper: Send + Sync {
     /// * `max_depth` - Maximum depth to crawl (0 = only the starting page)
     /// * `max_pages` - Maximum number of pages to crawl
     /// * `delay_seconds` - Delay between requests (rate limiting)
+    /// * `priorities` - Optional link priorities for scoring/filtering
     async fn crawl(
         &self,
         url: &str,
         max_depth: i32,
         max_pages: i32,
         delay_seconds: i32,
+        priorities: Option<&LinkPriorities>,
     ) -> Result<CrawlResult>;
 }
 

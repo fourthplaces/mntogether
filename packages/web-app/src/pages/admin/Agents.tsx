@@ -26,6 +26,11 @@ const GET_ALL_AGENTS = gql`
       totalWebsitesDiscovered
       totalWebsitesApproved
       createdAt
+      crawlKeywords {
+        id
+        keyword
+        priority
+      }
     }
   }
 `;
@@ -63,6 +68,28 @@ const UPDATE_AGENT = gql`
   }
 `;
 
+const ADD_CRAWL_KEYWORD = gql`
+  mutation AddCrawlKeyword($input: AddCrawlKeywordInput!) {
+    addCrawlKeyword(input: $input) {
+      id
+      keyword
+      priority
+    }
+  }
+`;
+
+const REMOVE_CRAWL_KEYWORD = gql`
+  mutation RemoveCrawlKeyword($keywordId: String!) {
+    removeCrawlKeyword(keywordId: $keywordId)
+  }
+`;
+
+interface CrawlKeyword {
+  id: string;
+  keyword: string;
+  priority: string;
+}
+
 interface Agent {
   id: string;
   name: string;
@@ -85,6 +112,141 @@ interface Agent {
   totalWebsitesDiscovered: number;
   totalWebsitesApproved: number;
   createdAt: string;
+  crawlKeywords: CrawlKeyword[];
+}
+
+function CrawlKeywordsSection({
+  agentId,
+  keywords,
+  onAdd,
+  onRemove,
+}: {
+  agentId: string;
+  keywords: CrawlKeyword[];
+  onAdd: (agentId: string, keyword: string, priority: 'high' | 'skip') => void;
+  onRemove: (keywordId: string) => void;
+}) {
+  const [newKeyword, setNewKeyword] = useState('');
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Defensive: handle undefined keywords from older server
+  const safeKeywords = keywords || [];
+  const highKeywords = safeKeywords.filter((k) => k.priority === 'high');
+  const skipKeywords = safeKeywords.filter((k) => k.priority === 'skip');
+
+  const handleAdd = (priority: 'high' | 'skip') => {
+    if (newKeyword.trim()) {
+      onAdd(agentId, newKeyword, priority);
+      setNewKeyword('');
+    }
+  };
+
+  return (
+    <div className="mb-4 border border-stone-200 rounded-lg overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full px-3 py-2 bg-stone-50 flex items-center justify-between text-sm font-medium text-stone-700 hover:bg-stone-100"
+      >
+        <span>
+          Crawl Keywords ({safeKeywords.length})
+        </span>
+        <span className="text-stone-400">{isExpanded ? '▼' : '▶'}</span>
+      </button>
+
+      {isExpanded && (
+        <div className="p-3 space-y-3">
+          {/* High Priority Keywords */}
+          <div>
+            <p className="text-xs font-medium text-green-700 mb-1">
+              HIGH PRIORITY (follow these links)
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {highKeywords.length > 0 ? (
+                highKeywords.map((kw) => (
+                  <span
+                    key={kw.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs"
+                  >
+                    {kw.keyword}
+                    <button
+                      onClick={() => onRemove(kw.id)}
+                      className="text-green-600 hover:text-green-900 font-bold"
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-stone-400 italic">None</span>
+              )}
+            </div>
+          </div>
+
+          {/* Skip Keywords */}
+          <div>
+            <p className="text-xs font-medium text-red-700 mb-1">
+              SKIP (ignore these links)
+            </p>
+            <div className="flex flex-wrap gap-1">
+              {skipKeywords.length > 0 ? (
+                skipKeywords.map((kw) => (
+                  <span
+                    key={kw.id}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 rounded text-xs"
+                  >
+                    {kw.keyword}
+                    <button
+                      onClick={() => onRemove(kw.id)}
+                      className="text-red-600 hover:text-red-900 font-bold"
+                      title="Remove"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-stone-400 italic">None</span>
+              )}
+            </div>
+          </div>
+
+          {/* Add New Keyword */}
+          <div className="pt-2 border-t border-stone-200">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newKeyword}
+                onChange={(e) => setNewKeyword(e.target.value)}
+                placeholder="Add keyword..."
+                className="flex-1 px-2 py-1 text-sm border border-stone-300 rounded focus:outline-none focus:ring-1 focus:ring-purple-500"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAdd('high');
+                  }
+                }}
+              />
+              <button
+                onClick={() => handleAdd('high')}
+                className="px-2 py-1 text-xs bg-green-600 text-white rounded hover:bg-green-700"
+                title="Add as high priority"
+              >
+                +High
+              </button>
+              <button
+                onClick={() => handleAdd('skip')}
+                className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
+                title="Add as skip"
+              >
+                +Skip
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function Agents() {
@@ -142,6 +304,24 @@ export function Agents() {
     },
   });
 
+  const [addCrawlKeyword] = useMutation(ADD_CRAWL_KEYWORD, {
+    onCompleted: () => {
+      refetch();
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
+
+  const [removeCrawlKeyword] = useMutation(REMOVE_CRAWL_KEYWORD, {
+    onCompleted: () => {
+      refetch();
+    },
+    onError: (err) => {
+      setError(err.message);
+    },
+  });
+
   const handleCreateAgent = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -189,6 +369,27 @@ export function Agents() {
           enabled: editingAgent.enabled,
         },
       },
+    });
+  };
+
+  const handleAddKeyword = async (agentId: string, keyword: string, priority: 'high' | 'skip') => {
+    if (!keyword.trim()) return;
+    setError(null);
+    await addCrawlKeyword({
+      variables: {
+        input: {
+          agentId,
+          keyword: keyword.trim(),
+          priority,
+        },
+      },
+    });
+  };
+
+  const handleRemoveKeyword = async (keywordId: string) => {
+    setError(null);
+    await removeCrawlKeyword({
+      variables: { keywordId },
     });
   };
 
@@ -443,6 +644,14 @@ export function Agents() {
                   )}
                 </div>
 
+                {/* Crawl Keywords */}
+                <CrawlKeywordsSection
+                  agentId={agent.id}
+                  keywords={agent.crawlKeywords}
+                  onAdd={handleAddKeyword}
+                  onRemove={handleRemoveKeyword}
+                />
+
                 {/* Actions */}
                 <div className="flex gap-2">
                   <button
@@ -489,7 +698,6 @@ export function Agents() {
         {/* Edit Agent Modal */}
         {editingAgent && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-6">
-            {console.log('Rendering edit modal for agent:', editingAgent.id)}
             <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">

@@ -1,8 +1,8 @@
-pub mod agent;
 pub mod page_snapshot;
+pub mod page_summary;
 
-pub use agent::*;
 pub use page_snapshot::*;
+pub use page_summary::*;
 
 // Re-export website models from the website domain for backward compatibility
 pub use crate::domains::website::models::{

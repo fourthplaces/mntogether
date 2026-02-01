@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useLazyQuery, gql } from '@apollo/client';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const GET_ALL_WEBSITES = gql`
-  query GetAllWebsites($agentId: String) {
-    websites(status: null, agentId: $agentId) {
+  query GetAllWebsites {
+    websites(status: null) {
       id
       domain
       status
@@ -12,7 +12,6 @@ const GET_ALL_WEBSITES = gql`
       lastScrapedAt
       snapshotsCount
       listingsCount
-      agentId
       createdAt
       crawlStatus
       crawlAttemptCount
@@ -100,7 +99,6 @@ interface Website {
   snapshotsCount: number;
   listingsCount: number;
   createdAt: string;
-  agentId: string | null;
   crawlStatus: string | null;
   crawlAttemptCount: number | null;
   pagesCrawledCount: number | null;
@@ -108,8 +106,6 @@ interface Website {
 
 export function Websites() {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const agentIdFilter = searchParams.get('agentId');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newResourceUrl, setNewResourceUrl] = useState('');
@@ -120,13 +116,7 @@ export function Websites() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [crawlingId, setCrawlingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(GET_ALL_WEBSITES, {
-    variables: { agentId: agentIdFilter },
-  });
-
-  const clearAgentFilter = () => {
-    setSearchParams({});
-  };
+  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(GET_ALL_WEBSITES);
 
   const [executeSearch, { data: searchData, loading: searchLoading }] = useLazyQuery<{
     searchWebsites: WebsiteSearchResult[];
@@ -290,24 +280,6 @@ export function Websites() {
         {error && (
           <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg">
             {error}
-          </div>
-        )}
-
-        {/* Agent Filter Indicator */}
-        {agentIdFilter && (
-          <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-purple-700 font-medium">Filtered by Agent</span>
-              <span className="text-purple-600 text-sm">
-                Showing websites discovered by agent: {agentIdFilter.slice(0, 8)}...
-              </span>
-            </div>
-            <button
-              onClick={clearAgentFilter}
-              className="text-purple-700 hover:text-purple-900 font-medium text-sm"
-            >
-              Clear Filter
-            </button>
           </div>
         )}
 
@@ -555,11 +527,6 @@ export function Websites() {
                           ↗
                         </a>
                       </div>
-                      {website.agentId && (
-                        <span className="text-xs px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded mt-1 inline-block">
-                          Agent
-                        </span>
-                      )}
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <span
@@ -685,11 +652,6 @@ export function Websites() {
                       }`}
                     >
                       {website.crawlStatus}
-                    </span>
-                  )}
-                  {website.agentId && (
-                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 rounded">
-                      Agent
                     </span>
                   )}
                 </div>

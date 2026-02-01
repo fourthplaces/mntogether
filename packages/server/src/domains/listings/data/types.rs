@@ -1,12 +1,15 @@
+use crate::common::ListingId;
 use crate::domains::listings::models::Listing;
+use crate::domains::tag::models::Tag;
+use crate::domains::tag::TagData;
+use crate::server::graphql::context::GraphQLContext;
 use chrono::{DateTime, Utc};
 use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// GraphQL type for listing
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "A service, opportunity, or business listing")]
+#[derive(Debug, Clone)]
 pub struct ListingType {
     pub id: Uuid,
     pub organization_name: String,
@@ -22,9 +25,33 @@ pub struct ListingType {
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
-
-    // Business-specific fields (only populated when listing_type = 'business')
     pub business_info: Option<BusinessInfo>,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ListingType {
+    fn id(&self) -> Uuid { self.id }
+    fn organization_name(&self) -> &str { &self.organization_name }
+    fn title(&self) -> &str { &self.title }
+    fn tldr(&self) -> Option<&str> { self.tldr.as_deref() }
+    fn description(&self) -> &str { &self.description }
+    fn description_markdown(&self) -> Option<&str> { self.description_markdown.as_deref() }
+    fn listing_type(&self) -> &str { &self.listing_type }
+    fn category(&self) -> &str { &self.category }
+    fn status(&self) -> ListingStatusData { self.status }
+    fn urgency(&self) -> Option<&str> { self.urgency.as_deref() }
+    fn location(&self) -> Option<&str> { self.location.as_deref() }
+    fn submission_type(&self) -> Option<&str> { self.submission_type.as_deref() }
+    fn source_url(&self) -> Option<&str> { self.source_url.as_deref() }
+    fn created_at(&self) -> DateTime<Utc> { self.created_at }
+    fn business_info(&self) -> Option<&BusinessInfo> { self.business_info.as_ref() }
+
+    /// Get all tags for this listing
+    async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
+        let listing_id = ListingId::from_uuid(self.id);
+        let tags = Tag::find_for_listing(listing_id, &context.db_pool).await?;
+        Ok(tags.into_iter().map(TagData::from).collect())
+    }
 }
 
 /// Business-specific information for cause-driven commerce
@@ -140,11 +167,18 @@ pub struct ScrapeJobResult {
 }
 
 /// Connection type for paginated listings
-#[derive(Debug, Clone, GraphQLObject)]
+#[derive(Debug, Clone)]
 pub struct ListingConnection {
     pub nodes: Vec<ListingType>,
     pub total_count: i32,
     pub has_next_page: bool,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ListingConnection {
+    fn nodes(&self) -> &[ListingType] { &self.nodes }
+    fn total_count(&self) -> i32 { self.total_count }
+    fn has_next_page(&self) -> bool { self.has_next_page }
 }
 
 /// Input for submitting a resource link from the public

@@ -289,15 +289,14 @@ export const GET_PENDING_WEBSITES = gql`
 `;
 
 export const GET_ALL_WEBSITES = gql`
-  query GetAllWebsites($status: String, $agentId: String) {
-    websites(status: $status, agentId: $agentId) {
+  query GetAllWebsites($status: String) {
+    websites(status: $status) {
       id
       domain
       status
       lastScrapedAt
       submittedBy
       submitterType
-      agentId
       createdAt
       snapshotsCount
       listingsCount

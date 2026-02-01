@@ -16,30 +16,11 @@ pub async fn query_website(pool: &PgPool, id: Uuid) -> FieldResult<Option<Websit
     }
 }
 
-/// Query all websites with optional status and agent filters
+/// Query all websites with optional status filter
 pub async fn query_websites(
     pool: &PgPool,
     status: Option<String>,
-    agent_id: Option<String>,
 ) -> FieldResult<Vec<WebsiteData>> {
-    // If agent_id is provided, filter by agent
-    if let Some(agent_id_str) = agent_id {
-        let agent_uuid = Uuid::parse_str(&agent_id_str).map_err(|_| {
-            juniper::FieldError::new("Invalid agent ID format", juniper::Value::null())
-        })?;
-
-        let websites = Website::find_by_agent_id(agent_uuid, pool)
-            .await
-            .map_err(|e| {
-                juniper::FieldError::new(
-                    format!("Failed to fetch websites by agent: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        return Ok(websites.into_iter().map(WebsiteData::from).collect());
-    }
-
     let websites = if let Some(status_filter) = status {
         match status_filter.as_str() {
             "pending_review" => Website::find_pending_review(pool).await,

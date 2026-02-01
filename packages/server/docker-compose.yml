@@ -45,8 +45,7 @@ services:
       # AI API Keys
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       VOYAGE_API_KEY: ${VOYAGE_API_KEY}
-      # Web Scraping & Search
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY}
+      # Search
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       # Twilio SMS Authentication
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}

@@ -60,17 +60,19 @@ pub struct Listing {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ListingType {
-    Service,
-    Opportunity,
-    Business,
+    Service,      // Food shelf, legal aid, housing help
+    Professional, // Lawyer, doctor, social worker
+    Business,     // Restaurant, shop
+    Opportunity,  // Volunteer role, job, event
 }
 
 impl std::fmt::Display for ListingType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ListingType::Service => write!(f, "service"),
-            ListingType::Opportunity => write!(f, "opportunity"),
+            ListingType::Professional => write!(f, "professional"),
             ListingType::Business => write!(f, "business"),
+            ListingType::Opportunity => write!(f, "opportunity"),
         }
     }
 }
@@ -81,8 +83,9 @@ impl std::str::FromStr for ListingType {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "service" => Ok(ListingType::Service),
-            "opportunity" => Ok(ListingType::Opportunity),
+            "professional" => Ok(ListingType::Professional),
             "business" => Ok(ListingType::Business),
+            "opportunity" => Ok(ListingType::Opportunity),
             _ => Err(anyhow::anyhow!("Invalid listing type: {}", s)),
         }
     }

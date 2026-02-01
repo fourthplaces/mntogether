@@ -1,6 +1,7 @@
 use crate::common::WebsiteId;
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
+use crate::domains::scraping::models::{PageSnapshotId, PageSummary};
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ use uuid::Uuid;
 pub struct WebsiteSnapshotData {
     pub id: String,
     pub page_url: String,
+    pub page_snapshot_id: Option<String>,
     pub scrape_status: String,
     pub scrape_error: Option<String>,
     pub last_scraped_at: Option<String>,
@@ -22,6 +24,7 @@ impl From<WebsiteSnapshot> for WebsiteSnapshotData {
         Self {
             id: snapshot.id.to_string(),
             page_url: snapshot.page_url,
+            page_snapshot_id: snapshot.page_snapshot_id.map(|id| id.to_string()),
             scrape_status: snapshot.scrape_status,
             scrape_error: snapshot.scrape_error,
             last_scraped_at: snapshot.last_scraped_at.map(|dt| dt.to_rfc3339()),
@@ -55,6 +58,18 @@ impl WebsiteSnapshotData {
     fn submitted_at(&self) -> &str {
         &self.submitted_at
     }
+
+    /// Get the AI-generated summary for this page (if available)
+    async fn summary(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<String>> {
+        let Some(ref page_snapshot_id_str) = self.page_snapshot_id else {
+            return Ok(None);
+        };
+
+        let page_snapshot_id: PageSnapshotId = page_snapshot_id_str.parse()?;
+        let summary = PageSummary::find_by_snapshot_id(page_snapshot_id, &context.db_pool).await?;
+
+        Ok(summary.map(|s| s.content))
+    }
 }
 
 /// GraphQL-friendly representation of a website (for scraping/monitoring)
@@ -68,7 +83,6 @@ pub struct WebsiteData {
     pub status: String,
     pub submitted_by: Option<String>,
     pub submitter_type: Option<String>,
-    pub agent_id: Option<String>,
     pub created_at: String,
     // Crawl tracking fields
     pub crawl_status: Option<String>,
@@ -91,7 +105,6 @@ impl From<Website> for WebsiteData {
             status: website.status,
             submitted_by: website.submitted_by.map(|id| id.to_string()),
             submitter_type: website.submitter_type,
-            agent_id: website.agent_id.map(|id| id.to_string()),
             created_at: website.created_at.to_rfc3339(),
             // Crawl tracking fields
             crawl_status: website.crawl_status,
@@ -146,10 +159,6 @@ impl WebsiteData {
 
     fn created_at(&self) -> String {
         self.created_at.clone()
-    }
-
-    fn agent_id(&self) -> Option<String> {
-        self.agent_id.clone()
     }
 
     // Crawl tracking fields

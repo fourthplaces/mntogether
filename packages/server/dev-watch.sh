@@ -20,11 +20,6 @@ if [ -z "$OPENAI_API_KEY" ]; then
     MISSING_REQUIRED=1
 fi
 
-if [ -z "$FIRECRAWL_API_KEY" ]; then
-    echo "⚠️  WARNING: FIRECRAWL_API_KEY is not set (required)"
-    MISSING_REQUIRED=1
-fi
-
 if [ -z "$TWILIO_ACCOUNT_SID" ]; then
     echo "⚠️  WARNING: TWILIO_ACCOUNT_SID is not set (required)"
     MISSING_REQUIRED=1

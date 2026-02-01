@@ -66,10 +66,10 @@ async fn main() -> Result<()> {
     // Build application
     let (app, handle) = build_app(
         pool.clone(),
-        config.firecrawl_api_key,
         config.openai_api_key.clone(),
         config.voyage_api_key,
         config.tavily_api_key,
+        config.firecrawl_api_key,
         config.expo_access_token,
         config.twilio_account_sid,
         config.twilio_auth_token,

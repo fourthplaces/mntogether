@@ -5,23 +5,23 @@ use crate::domains::domain_approval::data::WebsiteSearchResultData;
 use crate::domains::domain_approval::edges::{
     generate_website_assessment, search_websites_semantic, website_assessment,
 };
-use crate::domains::listings::data::agent::AgentData;
 use crate::domains::listings::data::listing_report::{
     ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData,
 };
 use crate::domains::listings::data::{
-    EditListingInput, ListingConnection, ListingStatusData, ListingType, ScrapeJobResult,
-    SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+    EditListingInput, ListingConnection, ListingStatusData, ListingType,
+    ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use crate::domains::listings::edges::{
-    approve_listing, approve_website, archive_post, crawl_website, create_agent, delete_listing,
-    dismiss_report, edit_and_approve_listing, expire_post, generate_agent_config_from_description,
-    get_all_agents, query_listing, query_listing_reports, query_listings, query_pending_websites,
-    query_post, query_posts_for_listing, query_published_posts, query_reports_for_listing,
-    query_website, query_websites, refresh_page_snapshot, reject_listing, reject_website,
-    report_listing, repost_listing, resolve_report, scrape_organization, submit_listing,
-    submit_resource_link, suspend_website, track_post_click, track_post_view, trigger_agent_search,
-    update_agent, CreateAgentInput, GenerateAgentConfigResult, TriggerSearchResult, UpdateAgentInput,
+    approve_listing, approve_website, archive_post, crawl_website,
+    delete_listing, dismiss_report, edit_and_approve_listing, expire_post,
+    query_listing, query_listing_reports,
+    query_listings, query_pending_websites, query_post, query_posts_for_listing,
+    query_published_posts, query_reports_for_listing, query_website, query_websites,
+    refresh_page_snapshot, reject_listing, reject_website, report_listing,
+    repost_listing, resolve_report, run_discovery_search, scrape_organization, submit_listing,
+    submit_resource_link, suspend_website, track_post_click, track_post_view,
+    DiscoverySearchResult,
 };
 use crate::domains::website::edges::update_website_crawl_settings;
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
@@ -31,6 +31,8 @@ use crate::domains::organization::data::post_types::RepostResult;
 use crate::domains::organization::data::{OrganizationData, PostData, WebsiteData};
 use crate::domains::providers::data::{ProviderData, SubmitProviderInput, UpdateProviderInput};
 use crate::domains::providers::edges as provider_edges;
+use crate::domains::resources::data::{EditResourceInput, ResourceConnection, ResourceData, ResourceStatusData};
+use crate::domains::resources::edges as resource_edges;
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -158,15 +160,13 @@ impl Query {
             .collect())
     }
 
-    /// Get all websites with optional status and agent filters
+    /// Get all websites with optional status filter
     /// Status can be: "pending_review", "approved", or null for all
-    /// agent_id filters to websites discovered by a specific agent
     async fn websites(
         ctx: &GraphQLContext,
         status: Option<String>,
-        agent_id: Option<String>,
     ) -> FieldResult<Vec<WebsiteData>> {
-        query_websites(&ctx.db_pool, status, agent_id).await
+        query_websites(&ctx.db_pool, status).await
     }
 
     /// Get a single website by ID
@@ -208,11 +208,6 @@ impl Query {
         listing_id: Uuid,
     ) -> FieldResult<Vec<ListingReportData>> {
         query_reports_for_listing(ctx, listing_id).await
-    }
-
-    /// Get all agents (admin only)
-    async fn agents(ctx: &GraphQLContext) -> FieldResult<Vec<AgentData>> {
-        get_all_agents(ctx).await
     }
 
     /// Get the latest assessment for a website (admin only)
@@ -283,6 +278,38 @@ impl Query {
     /// Get all pending providers (for admin approval queue)
     async fn pending_providers(ctx: &GraphQLContext) -> FieldResult<Vec<ProviderData>> {
         provider_edges::get_pending_providers(ctx).await
+    }
+
+    // =========================================================================
+    // Resources (new simplified content model)
+    // =========================================================================
+
+    /// Get a single resource by ID
+    async fn resource(ctx: &GraphQLContext, id: String) -> FieldResult<Option<ResourceData>> {
+        resource_edges::get_resource(ctx, id).await
+    }
+
+    /// Get resources with pagination and optional status filter
+    async fn resources(
+        ctx: &GraphQLContext,
+        status: Option<ResourceStatusData>,
+        limit: Option<i32>,
+        offset: Option<i32>,
+    ) -> FieldResult<ResourceConnection> {
+        resource_edges::get_resources(ctx, status, limit, offset).await
+    }
+
+    /// Get pending resources (for admin approval queue)
+    async fn pending_resources(ctx: &GraphQLContext) -> FieldResult<Vec<ResourceData>> {
+        resource_edges::get_pending_resources(ctx).await
+    }
+
+    /// Get active resources
+    async fn active_resources(
+        ctx: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<ResourceData>> {
+        resource_edges::get_active_resources(ctx, limit).await
     }
 }
 
@@ -511,37 +538,10 @@ impl Mutation {
         refresh_page_snapshot(ctx, snapshot_id).await
     }
 
-    /// Generate agent configuration from natural language description (admin only)
-    /// Uses AI to convert user intent into search query and extraction instructions
-    async fn generate_agent_config(
-        ctx: &GraphQLContext,
-        description: String,
-        location_context: String,
-    ) -> FieldResult<GenerateAgentConfigResult> {
-        generate_agent_config_from_description(ctx, description, location_context).await
-    }
-
-    /// Trigger an agent search manually (admin only)
-    /// Immediately dispatches a Tavily search for the specified agent
-    async fn trigger_agent_search(
-        ctx: &GraphQLContext,
-        agent_id: String,
-    ) -> FieldResult<TriggerSearchResult> {
-        trigger_agent_search(ctx, agent_id).await
-    }
-
-    /// Create a new agent (admin only)
-    async fn create_agent(ctx: &GraphQLContext, input: CreateAgentInput) -> FieldResult<AgentData> {
-        create_agent(ctx, input).await
-    }
-
-    /// Update an agent (admin only)
-    async fn update_agent(
-        ctx: &GraphQLContext,
-        agent_id: String,
-        input: UpdateAgentInput,
-    ) -> FieldResult<AgentData> {
-        update_agent(ctx, agent_id, input).await
+    /// Run discovery search manually (admin only)
+    /// Executes all static discovery queries via Tavily and creates pending websites
+    async fn run_discovery_search(ctx: &GraphQLContext) -> FieldResult<DiscoverySearchResult> {
+        run_discovery_search(ctx).await
     }
 
     /// Generate a comprehensive assessment report for a website (admin only)
@@ -707,6 +707,50 @@ impl Mutation {
     /// Delete a provider (admin only)
     async fn delete_provider(ctx: &GraphQLContext, provider_id: String) -> FieldResult<bool> {
         provider_edges::delete_provider(ctx, provider_id).await
+    }
+
+    // =========================================================================
+    // Resources (new simplified content model)
+    // =========================================================================
+
+    /// Approve a resource (admin only)
+    async fn approve_resource(
+        ctx: &GraphQLContext,
+        resource_id: String,
+    ) -> FieldResult<ResourceData> {
+        resource_edges::approve_resource(ctx, resource_id).await
+    }
+
+    /// Reject a resource (admin only)
+    async fn reject_resource(
+        ctx: &GraphQLContext,
+        resource_id: String,
+        reason: String,
+    ) -> FieldResult<ResourceData> {
+        resource_edges::reject_resource(ctx, resource_id, reason).await
+    }
+
+    /// Edit a resource (admin only)
+    async fn edit_resource(
+        ctx: &GraphQLContext,
+        resource_id: String,
+        input: EditResourceInput,
+    ) -> FieldResult<ResourceData> {
+        resource_edges::edit_resource(ctx, resource_id, input).await
+    }
+
+    /// Edit and approve a resource in one operation (admin only)
+    async fn edit_and_approve_resource(
+        ctx: &GraphQLContext,
+        resource_id: String,
+        input: EditResourceInput,
+    ) -> FieldResult<ResourceData> {
+        resource_edges::edit_and_approve_resource(ctx, resource_id, input).await
+    }
+
+    /// Delete a resource (admin only)
+    async fn delete_resource(ctx: &GraphQLContext, resource_id: String) -> FieldResult<bool> {
+        resource_edges::delete_resource(ctx, resource_id).await
     }
 
     // =========================================================================

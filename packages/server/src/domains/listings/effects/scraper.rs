@@ -105,13 +105,13 @@ async fn handle_scrape_source(
         }
     };
 
-    // Scrape the domain via Firecrawl
+    // Scrape the domain
     tracing::info!(
         source_id = %source_id,
         domain = %source.domain,
         max_depth = source.max_crawl_depth,
         rate_limit = source.crawl_rate_limit_seconds,
-        "Starting domain scrape via Firecrawl"
+        "Starting domain scrape"
     );
 
     let scrape_result = match ctx.deps().web_scraper.scrape(&source.domain).await {
@@ -146,7 +146,7 @@ async fn handle_scrape_source(
         source.domain.clone(),
         scrape_result.markdown.clone(), // Use markdown as html for now
         Some(scrape_result.markdown.clone()),
-        "firecrawl".to_string(),
+        "simple_scraper".to_string(),
     )
     .await
     {
@@ -165,7 +165,7 @@ async fn handle_scrape_source(
                     content_hash: vec![],
                     html: scrape_result.markdown.clone(),
                     markdown: Some(scrape_result.markdown.clone()),
-                    fetched_via: "firecrawl".to_string(),
+                    fetched_via: "simple_scraper".to_string(),
                     metadata: serde_json::json!({}),
                     crawled_at: chrono::Utc::now(),
                     listings_extracted_count: Some(0),
@@ -309,7 +309,7 @@ async fn handle_scrape_resource_link(
         url.clone(),
         scrape_result.markdown.clone(), // Use markdown as html for now
         Some(scrape_result.markdown.clone()),
-        "firecrawl".to_string(),
+        "simple_scraper".to_string(),
     )
     .await
     {
@@ -328,7 +328,7 @@ async fn handle_scrape_resource_link(
                     content_hash: vec![],
                     html: scrape_result.markdown.clone(),
                     markdown: Some(scrape_result.markdown.clone()),
-                    fetched_via: "firecrawl".to_string(),
+                    fetched_via: "simple_scraper".to_string(),
                     metadata: serde_json::json!({}),
                     crawled_at: chrono::Utc::now(),
                     listings_extracted_count: Some(0),
