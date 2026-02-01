@@ -12,7 +12,7 @@ use crate::common::{
 pub struct Container {
     pub id: ContainerId,
     pub container_type: String, // 'ai_chat', 'listing_comments', 'org_discussion'
-    pub entity_id: Option<uuid::Uuid>, // listing_id, organization_id, etc. (null for standalone chats)
+    pub entity_id: Option<uuid::Uuid>, // post_id, organization_id, etc. (null for standalone chats)
     pub language: String,              // language_code from active_languages
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,

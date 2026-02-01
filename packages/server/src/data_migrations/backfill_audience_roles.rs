@@ -96,7 +96,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
         let count: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(DISTINCT l.id)
-            FROM listings l
+            FROM posts l
             WHERE l.status IN ('active', 'pending_approval')
               AND NOT EXISTS (
                 SELECT 1 FROM taggables tg
@@ -119,7 +119,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
                 sqlx::query_as(
                     r#"
                     SELECT l.id
-                    FROM listings l
+                    FROM posts l
                     WHERE l.status IN ('active', 'pending_approval')
                       AND l.id > $1
                       AND NOT EXISTS (
@@ -142,7 +142,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
                 sqlx::query_as(
                     r#"
                     SELECT l.id
-                    FROM listings l
+                    FROM posts l
                     WHERE l.status IN ('active', 'pending_approval')
                       AND NOT EXISTS (
                         SELECT 1 FROM taggables tg
@@ -169,7 +169,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
         let listing: Option<(String, String)> = sqlx::query_as(
             r#"
             SELECT title, description
-            FROM listings
+            FROM posts
             WHERE id = $1
             "#,
         )
@@ -208,7 +208,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
                 .context("OPENAI_API_KEY environment variable not set")?;
             let roles = classify_audience_roles(&title, &description, &openai_key).await?;
             tracing::info!(
-                listing_id = %id,
+                post_id = %id,
                 title = %title,
                 roles = ?roles,
                 "Would tag listing with audience roles"
@@ -223,7 +223,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
 
         if roles.is_empty() {
             tracing::warn!(
-                listing_id = %id,
+                post_id = %id,
                 title = %title,
                 "AI could not classify audience roles"
             );
@@ -261,7 +261,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
         }
 
         tracing::info!(
-            listing_id = %id,
+            post_id = %id,
             title = %title,
             roles = ?roles,
             "Tagged listing with audience roles"
@@ -275,7 +275,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
         let remaining: (i64,) = sqlx::query_as(
             r#"
             SELECT COUNT(DISTINCT l.id)
-            FROM listings l
+            FROM posts l
             WHERE l.status IN ('active', 'pending_approval')
               AND NOT EXISTS (
                 SELECT 1 FROM taggables tg

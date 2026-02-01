@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContainerId, ListingId, OrganizationId, ProviderId, TagId, TaggableId, WebsiteId};
+use crate::common::{ContainerId, PostId, OrganizationId, ProviderId, TagId, TaggableId, WebsiteId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -37,7 +37,7 @@ pub enum TagKind {
 
     // What is offered?
     ServiceOffered, // 'legal-aid', 'food-assistance', 'housing', 'transportation'
-    ListingType,    // 'service', 'business', 'event', 'opportunity'
+    PostType,    // 'service', 'business', 'event', 'opportunity'
 
     // Who runs it?
     OrgLeadership, // 'immigrant-owned', 'refugee-owned', 'woman-owned'
@@ -63,7 +63,7 @@ impl std::fmt::Display for TagKind {
             TagKind::Population => write!(f, "population"),
             TagKind::CommunityServed => write!(f, "community_served"),
             TagKind::ServiceOffered => write!(f, "service_offered"),
-            TagKind::ListingType => write!(f, "listing_type"),
+            TagKind::PostType => write!(f, "listing_type"),
             TagKind::OrgLeadership => write!(f, "org_leadership"),
             TagKind::BusinessModel => write!(f, "business_model"),
             TagKind::ServiceArea => write!(f, "service_area"),
@@ -85,7 +85,7 @@ impl std::str::FromStr for TagKind {
             "population" => Ok(TagKind::Population),
             "community_served" => Ok(TagKind::CommunityServed),
             "service_offered" => Ok(TagKind::ServiceOffered),
-            "listing_type" => Ok(TagKind::ListingType),
+            "listing_type" => Ok(TagKind::PostType),
             "org_leadership" => Ok(TagKind::OrgLeadership),
             "business_model" => Ok(TagKind::BusinessModel),
             "service_area" => Ok(TagKind::ServiceArea),
@@ -201,7 +201,7 @@ impl Tag {
     }
 
     /// Find all tags for a listing
-    pub async fn find_for_listing(listing_id: ListingId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_for_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
         let tags = sqlx::query_as::<_, Tag>(
             r#"
             SELECT t.*
@@ -211,7 +211,7 @@ impl Tag {
             ORDER BY t.kind, t.value
             "#,
         )
-        .bind(listing_id.as_uuid())
+        .bind(post_id.as_uuid())
         .fetch_all(pool)
         .await?;
         Ok(tags)
@@ -380,11 +380,11 @@ impl Tag {
 impl Taggable {
     /// Associate a tag with a listing
     pub async fn create_listing_tag(
-        listing_id: ListingId,
+        post_id: PostId,
         tag_id: TagId,
         pool: &PgPool,
     ) -> Result<Self> {
-        Self::create(tag_id, "listing", listing_id.as_uuid(), pool).await
+        Self::create(tag_id, "listing", post_id.as_uuid(), pool).await
     }
 
     /// Associate a tag with an organization
@@ -458,11 +458,11 @@ impl Taggable {
 
     /// Remove a tag from a listing
     pub async fn delete_listing_tag(
-        listing_id: ListingId,
+        post_id: PostId,
         tag_id: TagId,
         pool: &PgPool,
     ) -> Result<()> {
-        Self::delete(tag_id, "listing", listing_id.as_uuid(), pool).await
+        Self::delete(tag_id, "listing", post_id.as_uuid(), pool).await
     }
 
     /// Remove a tag from an organization
@@ -538,9 +538,9 @@ impl Taggable {
     }
 
     /// Remove all tags from a listing
-    pub async fn delete_all_for_listing(listing_id: ListingId, pool: &PgPool) -> Result<()> {
+    pub async fn delete_all_for_listing(post_id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM taggables WHERE taggable_type = 'listing' AND taggable_id = $1")
-            .bind(listing_id.as_uuid())
+            .bind(post_id.as_uuid())
             .execute(pool)
             .await?;
         Ok(())

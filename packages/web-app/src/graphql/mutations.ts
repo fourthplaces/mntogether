@@ -335,3 +335,9 @@ export const GENERATE_MISSING_EMBEDDINGS = gql`
     }
   }
 `;
+
+export const GENERATE_POST_EMBEDDING = gql`
+  mutation GeneratePostEmbedding($postId: Uuid!) {
+    generatePostEmbedding(postId: $postId)
+  }
+`;

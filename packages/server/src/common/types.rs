@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// A listing extracted from a website by AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedListing {
+pub struct ExtractedPost {
     pub title: String,
     pub tldr: String,
     pub description: String,
@@ -22,7 +22,7 @@ pub struct ExtractedListing {
 
 /// A listing extracted with its source URL (for batch extraction)
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedListingWithSource {
+pub struct ExtractedPostWithSource {
     /// The source URL this listing was extracted from
     pub source_url: String,
     pub title: String,
@@ -35,10 +35,10 @@ pub struct ExtractedListingWithSource {
     pub audience_roles: Vec<String>,
 }
 
-impl ExtractedListingWithSource {
-    /// Convert to ExtractedListing (dropping source_url)
-    pub fn into_listing(self) -> ExtractedListing {
-        ExtractedListing {
+impl ExtractedPostWithSource {
+    /// Convert to ExtractedPost (dropping source_url)
+    pub fn into_listing(self) -> ExtractedPost {
+        ExtractedPost {
             title: self.title,
             tldr: self.tldr,
             description: self.description,

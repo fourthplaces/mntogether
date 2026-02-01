@@ -1,6 +1,6 @@
 use crate::common::{JobId, WebsiteId};
-use crate::domains::listings::data::ScrapeJobResult;
-use crate::domains::listings::events::ListingEvent;
+use crate::domains::posts::data::ScrapeJobResult;
+use crate::domains::posts::events::PostEvent;
 use crate::domains::website::data::WebsiteData;
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
@@ -145,7 +145,7 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
 
     // Dispatch crawl request and await completion
     let result = dispatch_request(
-        ListingEvent::CrawlWebsiteRequested {
+        PostEvent::CrawlWebsiteRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -153,9 +153,9 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success - crawl workflow complete (listings synced)
-                ListingEvent::ListingsSynced {
+                PostEvent::ListingsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
@@ -169,7 +169,7 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
                     ),
                 ))),
                 // No listings found but may retry
-                ListingEvent::WebsiteMarkedNoListings {
+                PostEvent::WebsiteMarkedNoListings {
                     website_id: marked_id,
                     job_id: marked_job_id,
                     total_attempts,
@@ -181,28 +181,28 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
                     ),
                 ))),
                 // Failure events
-                ListingEvent::WebsiteCrawlFailed {
+                PostEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Crawl failed: {}", reason)))
                 }
-                ListingEvent::ExtractFailed {
+                PostEvent::ExtractFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
                 }
-                ListingEvent::SyncFailed {
+                PostEvent::SyncFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
                 }
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -291,7 +291,7 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
 
     // Dispatch regenerate posts request and await completion
     let result = dispatch_request(
-        ListingEvent::RegeneratePostsRequested {
+        PostEvent::RegeneratePostsRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -299,9 +299,9 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success - extraction and sync workflow complete
-                ListingEvent::ListingsSynced {
+                PostEvent::ListingsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
@@ -315,7 +315,7 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
                     ),
                 ))),
                 // No listings found
-                ListingEvent::WebsiteMarkedNoListings {
+                PostEvent::WebsiteMarkedNoListings {
                     website_id: marked_id,
                     job_id: marked_job_id,
                     total_attempts,
@@ -327,28 +327,28 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
                     ),
                 ))),
                 // Failure events
-                ListingEvent::WebsiteCrawlFailed {
+                PostEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
                 }
-                ListingEvent::ExtractFailed {
+                PostEvent::ExtractFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
                 }
-                ListingEvent::SyncFailed {
+                PostEvent::SyncFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
                 }
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -393,7 +393,7 @@ pub async fn regenerate_page_summaries(
 
     // Dispatch regenerate page summaries request and await completion
     let result = dispatch_request(
-        ListingEvent::RegeneratePageSummariesRequested {
+        PostEvent::RegeneratePageSummariesRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -401,9 +401,9 @@ pub async fn regenerate_page_summaries(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success - page summaries regenerated
-                ListingEvent::PageSummariesRegenerated {
+                PostEvent::PageSummariesRegenerated {
                     website_id: regen_id,
                     job_id: regen_job_id,
                     pages_processed,
@@ -412,14 +412,14 @@ pub async fn regenerate_page_summaries(
                     format!("Successfully regenerated {} page summaries", pages_processed),
                 ))),
                 // Failure events
-                ListingEvent::WebsiteCrawlFailed {
+                PostEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
                 }
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -466,7 +466,7 @@ pub async fn regenerate_page_summary(
 
     // Dispatch regenerate page summary request and await completion
     let result = dispatch_request(
-        ListingEvent::RegeneratePageSummaryRequested {
+        PostEvent::RegeneratePageSummaryRequested {
             page_snapshot_id,
             job_id,
             requested_by: user.member_id,
@@ -474,9 +474,9 @@ pub async fn regenerate_page_summary(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success
-                ListingEvent::PageSummaryRegenerated {
+                PostEvent::PageSummaryRegenerated {
                     page_snapshot_id: regen_id,
                     job_id: regen_job_id,
                 } if *regen_id == page_snapshot_id && *regen_job_id == job_id => Some(Ok((
@@ -484,7 +484,7 @@ pub async fn regenerate_page_summary(
                     "AI summary regenerated successfully".to_string(),
                 ))),
                 // Failure events
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -531,7 +531,7 @@ pub async fn regenerate_page_posts(
 
     // Dispatch regenerate page posts request and await completion
     let result = dispatch_request(
-        ListingEvent::RegeneratePagePostsRequested {
+        PostEvent::RegeneratePagePostsRequested {
             page_snapshot_id,
             job_id,
             requested_by: user.member_id,
@@ -539,9 +539,9 @@ pub async fn regenerate_page_posts(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success
-                ListingEvent::PagePostsRegenerated {
+                PostEvent::PagePostsRegenerated {
                     page_snapshot_id: regen_id,
                     job_id: regen_job_id,
                     posts_count,
@@ -550,7 +550,7 @@ pub async fn regenerate_page_posts(
                     format!("Extracted {} posts from page", posts_count),
                 ))),
                 // Failure events
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -638,7 +638,7 @@ pub async fn refresh_page_snapshot(
 
     // Dispatch request event and await completion
     let result = dispatch_request(
-        ListingEvent::ScrapeSourceRequested {
+        PostEvent::ScrapeSourceRequested {
             source_id,
             job_id,
             requested_by: user.member_id,
@@ -646,9 +646,9 @@ pub async fn refresh_page_snapshot(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &ListingEvent| match e {
+            m.try_match(|e: &PostEvent| match e {
                 // Success - scraping workflow complete
-                ListingEvent::ListingsSynced {
+                PostEvent::ListingsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
@@ -662,28 +662,28 @@ pub async fn refresh_page_snapshot(
                     ),
                 ))),
                 // Failure events
-                ListingEvent::ScrapeFailed {
+                PostEvent::ScrapeFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == source_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Scrape failed: {}", reason)))
                 }
-                ListingEvent::ExtractFailed {
+                PostEvent::ExtractFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == source_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
                 }
-                ListingEvent::SyncFailed {
+                PostEvent::SyncFailed {
                     source_id: failed_source_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_source_id == source_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
                 }
-                ListingEvent::AuthorizationDenied {
+                PostEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
