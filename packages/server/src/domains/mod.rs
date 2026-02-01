@@ -8,6 +8,7 @@ pub mod matching;
 pub mod member;
 pub mod organization;
 pub mod providers;
+pub mod resources;
 pub mod scraping;
 pub mod tag;
 pub mod website;

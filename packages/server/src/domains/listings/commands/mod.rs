@@ -187,9 +187,6 @@ pub enum ListingCommand {
         is_admin: bool,
     },
 
-    /// Execute search for an agent
-    ExecuteSearch { agent_id: uuid::Uuid, job_id: JobId },
-
     // =========================================================================
     // Website Crawling Commands (multi-page crawling workflow)
     // =========================================================================
@@ -258,7 +255,6 @@ impl seesaw_core::Command for ListingCommand {
             Self::ResolveReport { .. } => ExecutionMode::Inline,
             Self::DismissReport { .. } => ExecutionMode::Inline,
             Self::GenerateListingEmbedding { .. } => ExecutionMode::Inline,
-            Self::ExecuteSearch { .. } => ExecutionMode::Inline,
             // Crawling commands
             Self::CrawlWebsite { .. } => ExecutionMode::Inline,
             Self::ExtractListingsFromPages { .. } => ExecutionMode::Inline,
@@ -308,13 +304,6 @@ impl seesaw_core::Command for ListingCommand {
             Self::GenerateListingEmbedding { listing_id } => Some(seesaw_core::JobSpec {
                 job_type: "generate_listing_embedding",
                 idempotency_key: Some(listing_id.to_string()),
-                max_retries: 3,
-                priority: 0,
-                version: 1,
-            }),
-            Self::ExecuteSearch { agent_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "execute_search",
-                idempotency_key: Some(agent_id.to_string()),
                 max_retries: 3,
                 priority: 0,
                 version: 1,

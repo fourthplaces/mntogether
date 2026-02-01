@@ -23,9 +23,12 @@ use sqlx::PgPool;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{JobId, MemberId};
+use crate::config::Config;
+use crate::domains::listings::effects::run_discovery_searches;
 use crate::domains::listings::events::ListingEvent;
 use crate::domains::member::models::member::Member;
-use crate::domains::scraping::models::{Agent, Website};
+use crate::domains::scraping::models::Website;
+use crate::kernel::TavilyClient;
 
 /// Start all scheduled tasks
 pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler> {
@@ -122,40 +125,28 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
     Ok(())
 }
 
-/// Run periodic search task
+/// Run periodic discovery search task
 ///
-/// Queries all agents due for searching and dispatches search events.
-/// Each search runs asynchronously via the event system.
-async fn run_periodic_searches(pool: &PgPool, bus: &EventBus) -> Result<()> {
-    tracing::info!("Running periodic agent search task");
+/// Runs static discovery queries via Tavily to find new community resources.
+/// Creates pending websites for admin review.
+async fn run_periodic_searches(pool: &PgPool, _bus: &EventBus) -> Result<()> {
+    tracing::info!("Running periodic discovery search task");
 
-    // Find agents due for searching
-    let agents = Agent::find_due_for_searching(pool).await?;
+    // Load config for Tavily API key
+    let config = Config::from_env()?;
 
-    if agents.is_empty() {
-        tracing::info!("No agents due for searching");
-        return Ok(());
-    }
+    // Create Tavily search client
+    let search_service = TavilyClient::new(config.tavily_api_key.clone())?;
 
-    tracing::info!("Found {} agents due for searching", agents.len());
+    // Run discovery searches with static queries
+    let result = run_discovery_searches(&search_service, pool).await?;
 
-    // Emit search event for each agent
-    for agent in agents {
-        let job_id = JobId::new();
-
-        // Emit event (fire-and-forget, non-blocking)
-        bus.emit(ListingEvent::AgentSearchRequested {
-            agent_id: agent.id,
-            job_id,
-        });
-
-        tracing::info!(
-            "Queued agent search job {} for agent {} ({})",
-            job_id,
-            agent.id,
-            agent.name
-        );
-    }
+    tracing::info!(
+        queries_run = result.queries_run,
+        total_results = result.total_results,
+        websites_created = result.websites_created,
+        "Discovery search completed"
+    );
 
     Ok(())
 }

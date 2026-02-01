@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContactId, ListingId, OrganizationId, ProviderId};
+use crate::common::{ContactId, ListingId, OrganizationId, ProviderId, ResourceId};
 
 /// Contact type enum for type-safe querying
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -54,6 +54,7 @@ pub enum ContactableType {
     Organization,
     Listing,
     Provider,
+    Resource,
 }
 
 impl std::fmt::Display for ContactableType {
@@ -62,6 +63,7 @@ impl std::fmt::Display for ContactableType {
             ContactableType::Organization => write!(f, "organization"),
             ContactableType::Listing => write!(f, "listing"),
             ContactableType::Provider => write!(f, "provider"),
+            ContactableType::Resource => write!(f, "resource"),
         }
     }
 }
@@ -74,6 +76,7 @@ impl std::str::FromStr for ContactableType {
             "organization" => Ok(ContactableType::Organization),
             "listing" => Ok(ContactableType::Listing),
             "provider" => Ok(ContactableType::Provider),
+            "resource" => Ok(ContactableType::Resource),
             _ => Err(anyhow::anyhow!("Invalid contactable type: {}", s)),
         }
     }
@@ -142,6 +145,22 @@ impl Contact {
             "#,
         )
         .bind(listing_id.as_uuid())
+        .fetch_all(pool)
+        .await?;
+        Ok(contacts)
+    }
+
+    /// Find all contacts for a resource
+    pub async fn find_for_resource(resource_id: ResourceId, pool: &PgPool) -> Result<Vec<Self>> {
+        let contacts = sqlx::query_as::<_, Self>(
+            r#"
+            SELECT *
+            FROM contacts
+            WHERE contactable_type = 'resource' AND contactable_id = $1
+            ORDER BY display_order ASC, created_at ASC
+            "#,
+        )
+        .bind(resource_id.as_uuid())
         .fetch_all(pool)
         .await?;
         Ok(contacts)
@@ -224,6 +243,31 @@ impl Contact {
             CreateContact {
                 contactable_type: "listing".to_string(),
                 contactable_id: *listing_id.as_uuid(),
+                contact_type: contact_type.to_string(),
+                contact_value: contact_value.to_string(),
+                contact_label,
+                is_public,
+                display_order,
+            },
+            pool,
+        )
+        .await
+    }
+
+    /// Create a new contact for a resource
+    pub async fn create_for_resource(
+        resource_id: ResourceId,
+        contact_type: &str,
+        contact_value: &str,
+        contact_label: Option<String>,
+        is_public: bool,
+        display_order: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        Self::create(
+            CreateContact {
+                contactable_type: "resource".to_string(),
+                contactable_id: *resource_id.as_uuid(),
                 contact_type: contact_type.to_string(),
                 contact_value: contact_value.to_string(),
                 contact_label,
@@ -342,6 +386,17 @@ impl Contact {
             "DELETE FROM contacts WHERE contactable_type = 'listing' AND contactable_id = $1",
         )
         .bind(listing_id.as_uuid())
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Delete all contacts for a resource
+    pub async fn delete_all_for_resource(resource_id: ResourceId, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            "DELETE FROM contacts WHERE contactable_type = 'resource' AND contactable_id = $1",
+        )
+        .bind(resource_id.as_uuid())
         .execute(pool)
         .await?;
         Ok(())

@@ -2,7 +2,6 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use uuid::Uuid;
 
 use crate::common::{MemberId, WebsiteId};
 
@@ -23,9 +22,6 @@ pub struct Website {
     pub reviewed_by: Option<MemberId>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub rejection_reason: Option<String>,
-
-    // Agent that discovered this website (via Tavily search)
-    pub agent_id: Option<Uuid>,
 
     // Crawling configuration
     pub max_crawl_depth: i32,
@@ -465,17 +461,6 @@ impl Website {
             .unwrap_or_else(|| host.to_lowercase());
 
         Ok(normalized)
-    }
-
-    /// Find websites discovered by a specific agent
-    pub async fn find_by_agent_id(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
-        let websites = sqlx::query_as::<_, Website>(
-            "SELECT * FROM websites WHERE agent_id = $1 ORDER BY created_at DESC",
-        )
-        .bind(agent_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(websites)
     }
 
     // =========================================================================

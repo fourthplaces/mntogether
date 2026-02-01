@@ -31,6 +31,7 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
         scrapeError
         lastScrapedAt
         submittedAt
+        summary
       }
       listings {
         id
@@ -61,16 +62,6 @@ const REJECT_WEBSITE = gql`
   }
 `;
 
-const SCRAPE_WEBSITE = gql`
-  mutation ScrapeOrganization($sourceId: Uuid!) {
-    scrapeOrganization(sourceId: $sourceId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
 const UPDATE_CRAWL_SETTINGS = gql`
   mutation UpdateWebsiteCrawlSettings($websiteId: String!, $maxPagesPerCrawl: Int!) {
     updateWebsiteCrawlSettings(websiteId: $websiteId, maxPagesPerCrawl: $maxPagesPerCrawl) {
@@ -97,6 +88,7 @@ interface WebsiteSnapshot {
   scrapeError: string | null;
   lastScrapedAt: string | null;
   submittedAt: string;
+  summary: string | null;
 }
 
 interface Listing {
@@ -148,7 +140,6 @@ export function WebsiteDetail() {
   const { websiteId } = useParams<{ websiteId: string }>();
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [isScraping, setIsScraping] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
@@ -191,17 +182,6 @@ export function WebsiteDetail() {
   const [rejectWebsite] = useMutation(REJECT_WEBSITE, {
     onCompleted: () => refetchWebsite(),
     onError: (err) => setError(err.message),
-  });
-
-  const [scrapeWebsite] = useMutation(SCRAPE_WEBSITE, {
-    onCompleted: () => {
-      setIsScraping(false);
-      refetchWebsite();
-    },
-    onError: (err) => {
-      setError(err.message);
-      setIsScraping(false);
-    },
   });
 
   const [crawlWebsite] = useMutation(CRAWL_WEBSITE, {
@@ -250,12 +230,6 @@ export function WebsiteDetail() {
   const handleReject = async () => {
     setError(null);
     await rejectWebsite({ variables: { websiteId, reason: 'Rejected by admin' } });
-  };
-
-  const handleScrape = async () => {
-    setError(null);
-    setIsScraping(true);
-    await scrapeWebsite({ variables: { sourceId: websiteId } });
   };
 
   const handleCrawl = async () => {
@@ -411,13 +385,6 @@ export function WebsiteDetail() {
                   </button>
                 </>
               )}
-              <button
-                onClick={handleScrape}
-                disabled={isScraping}
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {isScraping ? 'Scraping...' : 'Scrape'}
-              </button>
               <button
                 onClick={handleCrawl}
                 disabled={isCrawling || website.status !== 'approved'}
@@ -665,6 +632,12 @@ export function WebsiteDetail() {
                                   {formatDate(snapshot.lastScrapedAt)}
                                 </span>
                               </div>
+                              {/* Summary preview in row */}
+                              {snapshot.summary && (
+                                <p className="text-xs text-stone-600 mt-1 ml-6 line-clamp-2">
+                                  {snapshot.summary}
+                                </p>
+                              )}
                             </div>
                             <div className="ml-4 flex items-center gap-2">
                               <span
@@ -706,41 +679,55 @@ export function WebsiteDetail() {
                             </div>
                           </div>
 
-                          {/* Expanded Listings */}
+                          {/* Expanded Content */}
                           {isExpanded && (
-                            <div className="border-t border-stone-200 bg-white p-3">
-                              {snapshotListings.length > 0 ? (
-                                <div className="space-y-2">
-                                  {snapshotListings.map((listing) => (
-                                    <div
-                                      key={listing.id}
-                                      className="flex items-center justify-between p-2 bg-stone-50 rounded"
-                                    >
-                                      <Link
-                                        to={`/admin/listings/${listing.id}`}
-                                        className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                      >
-                                        {listing.title}
-                                      </Link>
-                                      <span
-                                        className={`px-2 py-0.5 text-xs rounded-full ${
-                                          listing.status === 'active'
-                                            ? 'bg-green-100 text-green-800'
-                                            : listing.status === 'pending_approval'
-                                            ? 'bg-amber-100 text-amber-800'
-                                            : 'bg-stone-100 text-stone-800'
-                                        }`}
-                                      >
-                                        {listing.status.replace('_', ' ')}
-                                      </span>
-                                    </div>
-                                  ))}
+                            <div className="border-t border-stone-200 bg-white p-3 space-y-3">
+                              {/* Summary Section */}
+                              {snapshot.summary && (
+                                <div className="bg-blue-50 rounded p-3">
+                                  <h4 className="text-xs font-semibold text-blue-800 uppercase mb-1">AI Summary</h4>
+                                  <p className="text-sm text-blue-900 whitespace-pre-wrap">{snapshot.summary}</p>
                                 </div>
-                              ) : (
-                                <p className="text-sm text-stone-500 text-center py-2">
-                                  No listings extracted from this page
-                                </p>
                               )}
+
+                              {/* Listings Section */}
+                              <div>
+                                <h4 className="text-xs font-semibold text-stone-500 uppercase mb-2">
+                                  Extracted Listings ({snapshotListings.length})
+                                </h4>
+                                {snapshotListings.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {snapshotListings.map((listing) => (
+                                      <div
+                                        key={listing.id}
+                                        className="flex items-center justify-between p-2 bg-stone-50 rounded"
+                                      >
+                                        <Link
+                                          to={`/admin/listings/${listing.id}`}
+                                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                                        >
+                                          {listing.title}
+                                        </Link>
+                                        <span
+                                          className={`px-2 py-0.5 text-xs rounded-full ${
+                                            listing.status === 'active'
+                                              ? 'bg-green-100 text-green-800'
+                                              : listing.status === 'pending_approval'
+                                              ? 'bg-amber-100 text-amber-800'
+                                              : 'bg-stone-100 text-stone-800'
+                                          }`}
+                                        >
+                                          {listing.status.replace('_', ' ')}
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-stone-500 text-center py-2">
+                                    No listings extracted from this page
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           )}
                         </div>

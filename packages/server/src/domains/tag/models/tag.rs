@@ -30,33 +30,47 @@ pub struct Taggable {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TagKind {
-    CommunityServed,
-    ServiceArea,
-    Population,
-    OrgLeadership,
-    VerificationSource,
+    // Who is this for?
+    AudienceRole,    // 'recipient', 'donor', 'volunteer', 'participant', 'customer', 'job-seeker'
+    Population,      // 'disabilities', 'seniors', 'refugees', 'immigrants', 'youth'
+    CommunityServed, // 'somali', 'hmong', 'latino', 'karen'
+
+    // What is offered?
+    ServiceOffered, // 'legal-aid', 'food-assistance', 'housing', 'transportation'
+    ListingType,    // 'service', 'business', 'event', 'opportunity'
+
+    // Who runs it?
+    OrgLeadership, // 'immigrant-owned', 'refugee-owned', 'woman-owned'
+    BusinessModel, // 'nonprofit', 'social-enterprise', 'donate-proceeds'
+
+    // Where?
+    ServiceArea, // 'twin-cities', 'st-cloud', 'statewide'
+
     // Provider-specific tag kinds
     ProviderCategory,  // 'wellness_coach', 'therapist', etc.
     ProviderSpecialty, // 'grief', 'anxiety', etc.
     ProviderLanguage,  // 'en', 'es', 'hmn'
-    // Listing audience role
-    AudienceRole, // 'recipient', 'donor', 'volunteer', 'participant'
-    // Container agent configuration
-    WithAgent, // 'default', 'admin', etc. - enables AI agent for container
+
+    // Other
+    VerificationSource, // verification source for organizations
+    WithAgent,          // 'default', 'admin', etc. - enables AI agent for container
 }
 
 impl std::fmt::Display for TagKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TagKind::CommunityServed => write!(f, "community_served"),
-            TagKind::ServiceArea => write!(f, "service_area"),
+            TagKind::AudienceRole => write!(f, "audience_role"),
             TagKind::Population => write!(f, "population"),
+            TagKind::CommunityServed => write!(f, "community_served"),
+            TagKind::ServiceOffered => write!(f, "service_offered"),
+            TagKind::ListingType => write!(f, "listing_type"),
             TagKind::OrgLeadership => write!(f, "org_leadership"),
-            TagKind::VerificationSource => write!(f, "verification_source"),
+            TagKind::BusinessModel => write!(f, "business_model"),
+            TagKind::ServiceArea => write!(f, "service_area"),
             TagKind::ProviderCategory => write!(f, "provider_category"),
             TagKind::ProviderSpecialty => write!(f, "provider_specialty"),
             TagKind::ProviderLanguage => write!(f, "provider_language"),
-            TagKind::AudienceRole => write!(f, "audience_role"),
+            TagKind::VerificationSource => write!(f, "verification_source"),
             TagKind::WithAgent => write!(f, "with_agent"),
         }
     }
@@ -67,15 +81,18 @@ impl std::str::FromStr for TagKind {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "community_served" => Ok(TagKind::CommunityServed),
-            "service_area" => Ok(TagKind::ServiceArea),
+            "audience_role" => Ok(TagKind::AudienceRole),
             "population" => Ok(TagKind::Population),
+            "community_served" => Ok(TagKind::CommunityServed),
+            "service_offered" => Ok(TagKind::ServiceOffered),
+            "listing_type" => Ok(TagKind::ListingType),
             "org_leadership" => Ok(TagKind::OrgLeadership),
-            "verification_source" => Ok(TagKind::VerificationSource),
+            "business_model" => Ok(TagKind::BusinessModel),
+            "service_area" => Ok(TagKind::ServiceArea),
             "provider_category" => Ok(TagKind::ProviderCategory),
             "provider_specialty" => Ok(TagKind::ProviderSpecialty),
             "provider_language" => Ok(TagKind::ProviderLanguage),
-            "audience_role" => Ok(TagKind::AudienceRole),
+            "verification_source" => Ok(TagKind::VerificationSource),
             "with_agent" => Ok(TagKind::WithAgent),
             _ => Err(anyhow::anyhow!("Invalid tag kind: {}", s)),
         }

@@ -13,15 +13,98 @@ use seesaw_core::{Effect, EffectContext};
 use tracing::{info, warn};
 
 use super::deps::ServerDeps;
-use super::listing::extract_domain;
-use super::listing_extraction;
-use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::listings::commands::ListingCommand;
-use crate::domains::listings::events::{
-    CrawledPageInfo, ExtractedListing, ListingEvent, PageExtractionResult,
+use super::extraction::{
+    summarize::{hash_content, summarize_pages},
+    synthesize::synthesize_listings,
+    types::{PageToSummarize, SynthesisInput},
 };
+use crate::common::auth::{Actor, AdminCapability};
+use crate::common::{ContactInfo, ExtractedListing, JobId, MemberId, WebsiteId};
+use crate::domains::listings::commands::ListingCommand;
+use crate::domains::listings::events::{CrawledPageInfo, ListingEvent, PageExtractionResult};
 use crate::domains::scraping::models::{PageSnapshot, Website, WebsiteSnapshot};
+use crate::kernel::LinkPriorities;
+
+// =============================================================================
+// Static Crawl Keywords (replaces database-stored agent keywords)
+// =============================================================================
+
+/// High-priority keywords - pages containing these are crawled first
+const HIGH_PRIORITY_KEYWORDS: &[&str] = &[
+    // Services pages
+    "services",
+    "programs",
+    "resources",
+    "help",
+    "assistance",
+    "support",
+    // Volunteer/donate pages
+    "volunteer",
+    "donate",
+    "give",
+    "get-involved",
+    "ways-to-help",
+    // About/contact pages
+    "about",
+    "contact",
+    "location",
+    "hours",
+    // Specific services
+    "food",
+    "housing",
+    "legal",
+    "immigration",
+    "healthcare",
+    "employment",
+    "education",
+    "childcare",
+];
+
+/// Skip keywords - pages containing these are not crawled
+const SKIP_KEYWORDS: &[&str] = &[
+    // Navigation/utility
+    "login",
+    "signin",
+    "signup",
+    "register",
+    "cart",
+    "checkout",
+    "account",
+    "password",
+    "reset",
+    // Media/files
+    "gallery",
+    "photos",
+    "videos",
+    "downloads",
+    "pdf",
+    // Policies
+    "privacy",
+    "terms",
+    "cookie",
+    "disclaimer",
+    // Social/external
+    "facebook",
+    "twitter",
+    "instagram",
+    "linkedin",
+    "youtube",
+    // Other
+    "search",
+    "sitemap",
+    "rss",
+    "feed",
+    "print",
+    "share",
+];
+
+/// Build link priorities from static keywords
+fn get_crawl_priorities() -> LinkPriorities {
+    LinkPriorities {
+        high: HIGH_PRIORITY_KEYWORDS.iter().map(|s| s.to_string()).collect(),
+        skip: SKIP_KEYWORDS.iter().map(|s| s.to_string()).collect(),
+    }
+}
 
 /// Crawler Effect - Handles multi-page website crawling
 ///
@@ -124,23 +207,26 @@ async fn handle_crawl_website(
         warn!(website_id = %website_id, error = %e, "Failed to update crawl status");
     }
 
-    // Crawl the website using Firecrawl
+    // Crawl the website
     let max_depth = website.max_crawl_depth;
     let max_pages = website.max_pages_per_crawl.unwrap_or(20);
     let delay = website.crawl_rate_limit_seconds;
+
+    // Use static link priorities
+    let priorities = get_crawl_priorities();
 
     info!(
         website_id = %website_id,
         url = %website.domain,
         max_depth = %max_depth,
         max_pages = %max_pages,
-        "Initiating Firecrawl crawl"
+        "Initiating website crawl"
     );
 
     let crawl_result = match ctx
         .deps()
         .web_scraper
-        .crawl(&website.domain, max_depth, max_pages, delay)
+        .crawl(&website.domain, max_depth, max_pages, delay, Some(&priorities))
         .await
     {
         Ok(r) => r,
@@ -171,7 +257,7 @@ async fn handle_crawl_website(
             page.url.clone(),
             page.markdown.clone(), // Use markdown as html
             Some(page.markdown.clone()),
-            "firecrawl_crawl".to_string(),
+            "simple_scraper".to_string(),
         )
         .await
         {
@@ -247,7 +333,7 @@ async fn handle_crawl_website(
 }
 
 // ============================================================================
-// Handler: ExtractListingsFromPages
+// Handler: ExtractListingsFromPages (Two-Pass Extraction)
 // ============================================================================
 
 async fn handle_extract_from_pages(
@@ -260,85 +346,173 @@ async fn handle_extract_from_pages(
         website_id = %website_id,
         job_id = %job_id,
         pages_count = pages.len(),
-        "Extracting listings from crawled pages"
+        "Extracting listings using two-pass extraction"
     );
 
-    // Get website for organization name
+    // Get website for domain info
     let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
-    let organization_name =
-        extract_domain(&website.domain).unwrap_or_else(|| "Unknown Organization".to_string());
 
-    let mut all_listings: Vec<ExtractedListing> = Vec::new();
-    let mut page_results: Vec<PageExtractionResult> = Vec::new();
+    // Build pages to summarize
+    let mut pages_to_summarize: Vec<PageToSummarize> = Vec::new();
+    let mut snapshot_map: std::collections::HashMap<String, uuid::Uuid> =
+        std::collections::HashMap::new();
 
     for page in &pages {
-        // Get page content from snapshot
-        let content = if let Some(snapshot_id) = page.snapshot_id {
-            match PageSnapshot::find_by_id(&ctx.deps().db_pool, snapshot_id).await {
-                Ok(snapshot) => snapshot.markdown.unwrap_or_else(|| snapshot.html),
-                Err(e) => {
-                    warn!(snapshot_id = %snapshot_id, error = %e, "Failed to load page snapshot");
-                    continue;
-                }
-            }
-        } else {
-            warn!(url = %page.url, "No snapshot ID for page");
+        let Some(snapshot_id) = page.snapshot_id else {
+            warn!(url = %page.url, "No snapshot ID for page, skipping");
             continue;
         };
 
-        // Extract listings from this page with PII scrubbing
-        info!(url = %page.url, content_length = content.len(), "Extracting listings from page");
-
-        let listings = match listing_extraction::extract_listings_with_pii_scrub(
-            ctx.deps().ai.as_ref(),
-            ctx.deps().pii_detector.as_ref(),
-            &organization_name,
-            &content,
-            &page.url,
-        )
-        .await
-        {
-            Ok(l) => l,
+        let snapshot = match PageSnapshot::find_by_id(&ctx.deps().db_pool, snapshot_id).await {
+            Ok(s) => s,
             Err(e) => {
-                warn!(url = %page.url, error = %e, "Failed to extract listings from page");
-                page_results.push(PageExtractionResult {
-                    url: page.url.clone(),
-                    snapshot_id: page.snapshot_id,
-                    listings_count: 0,
-                    has_listings: false,
-                });
+                warn!(snapshot_id = %snapshot_id, error = %e, "Failed to load snapshot");
                 continue;
             }
         };
 
-        let listings_count = listings.len();
-        let has_listings = listings_count > 0;
+        let raw_content = snapshot.markdown.unwrap_or_else(|| snapshot.html);
+        let content_hash = hash_content(&raw_content);
 
-        info!(
-            url = %page.url,
-            listings_count = listings_count,
-            "Extracted listings from page"
-        );
+        snapshot_map.insert(page.url.clone(), snapshot_id);
+        pages_to_summarize.push(PageToSummarize {
+            snapshot_id,
+            url: page.url.clone(),
+            raw_content,
+            content_hash,
+        });
+    }
 
-        // Update page snapshot with extraction results
-        if let Some(snapshot_id) = page.snapshot_id {
+    if pages_to_summarize.is_empty() {
+        return Ok(ListingEvent::WebsiteCrawlNoListings {
+            website_id,
+            job_id,
+            attempt_number: 1,
+            pages_crawled: 0,
+            should_retry: false,
+        });
+    }
+
+    // =========================================================================
+    // Pass 1: Summarize each page (with caching)
+    // =========================================================================
+    info!(
+        website_id = %website_id,
+        pages = pages_to_summarize.len(),
+        "Pass 1: Summarizing pages"
+    );
+
+    let summaries: Vec<super::extraction::types::SummarizedPage> = match summarize_pages(
+        pages_to_summarize,
+        ctx.deps().ai.as_ref(),
+        &ctx.deps().db_pool,
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => {
+            warn!(website_id = %website_id, error = %e, "Pass 1 failed");
+            return Ok(ListingEvent::WebsiteCrawlFailed {
+                website_id,
+                job_id,
+                reason: format!("Summarization failed: {}", e),
+            });
+        }
+    };
+
+    if summaries.is_empty() {
+        return Ok(ListingEvent::WebsiteCrawlNoListings {
+            website_id,
+            job_id,
+            attempt_number: 1,
+            pages_crawled: pages.len(),
+            should_retry: false,
+        });
+    }
+
+    // =========================================================================
+    // Pass 2: Synthesize listings from all summaries
+    // =========================================================================
+    info!(
+        website_id = %website_id,
+        summaries = summaries.len(),
+        "Pass 2: Synthesizing listings"
+    );
+
+    let extracted_listings = match synthesize_listings(
+        SynthesisInput {
+            website_domain: website.domain.clone(),
+            pages: summaries,
+        },
+        ctx.deps().ai.as_ref(),
+    )
+    .await
+    {
+        Ok(l) => l,
+        Err(e) => {
+            warn!(website_id = %website_id, error = %e, "Pass 2 failed");
+            return Ok(ListingEvent::WebsiteCrawlFailed {
+                website_id,
+                job_id,
+                reason: format!("Synthesis failed: {}", e),
+            });
+        }
+    };
+
+    // Convert to event format and build page results
+    let mut all_listings: Vec<ExtractedListing> = Vec::new();
+    let mut page_results: Vec<PageExtractionResult> = Vec::new();
+
+    // Track which pages contributed to listings
+    let mut pages_with_listings: std::collections::HashSet<String> =
+        std::collections::HashSet::new();
+
+    for listing in &extracted_listings {
+        for url in &listing.source_urls {
+            pages_with_listings.insert(url.clone());
+        }
+
+        // Convert ExtractedListing from extraction module to common type
+        all_listings.push(ExtractedListing {
+            title: listing.title.clone(),
+            tldr: listing.tldr.clone(),
+            description: listing.description.clone(),
+            contact: listing.contact.as_ref().map(|c| ContactInfo {
+                phone: c.phone.clone(),
+                email: c.email.clone(),
+                website: c.website.clone(),
+            }),
+            urgency: Some("normal".to_string()),
+            confidence: Some("high".to_string()),
+            audience_roles: listing
+                .tags
+                .iter()
+                .filter(|t| t.kind == "audience_role")
+                .map(|t| t.value.clone())
+                .collect(),
+        });
+    }
+
+    // Build page results
+    for page in &pages {
+        let has_listings = pages_with_listings.contains(&page.url);
+        page_results.push(PageExtractionResult {
+            url: page.url.clone(),
+            snapshot_id: page.snapshot_id,
+            listings_count: if has_listings { 1 } else { 0 },
+            has_listings,
+        });
+
+        // Update page snapshot status
+        if let Some(sid) = page.snapshot_id {
             let _ = PageSnapshot::update_extraction_status(
                 &ctx.deps().db_pool,
-                snapshot_id,
-                listings_count as i32,
+                sid,
+                if has_listings { 1 } else { 0 },
                 "completed",
             )
             .await;
         }
-
-        page_results.push(PageExtractionResult {
-            url: page.url.clone(),
-            snapshot_id: page.snapshot_id,
-            listings_count,
-            has_listings,
-        });
-
-        all_listings.extend(listings);
     }
 
     // Check if we found any listings
@@ -349,7 +523,6 @@ async fn handle_extract_from_pages(
             "No listings found in any pages"
         );
 
-        // Increment attempt count
         let attempt_count = Website::increment_crawl_attempt(website_id, &ctx.deps().db_pool)
             .await
             .unwrap_or(1);
@@ -369,8 +542,8 @@ async fn handle_extract_from_pages(
     info!(
         website_id = %website_id,
         total_listings = all_listings.len(),
-        pages_with_listings = page_results.iter().filter(|p| p.has_listings).count(),
-        "Listings extraction complete"
+        pages_with_listings = pages_with_listings.len(),
+        "Two-pass extraction complete"
     );
 
     // Reset attempt count on successful extraction

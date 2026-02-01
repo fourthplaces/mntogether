@@ -86,7 +86,8 @@ urlencoding = "2.1"
 url = "2.5"
 
 # Web scraping and search SDKs
-firecrawl = "1.2.1"
+scraper = "0.21"        # HTML parsing with CSS selectors
+htmd = "0.1"            # HTML to Markdown conversion
 tavily = "2.1.0"
 
 # Cron jobs

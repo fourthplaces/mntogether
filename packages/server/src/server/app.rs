@@ -21,7 +21,6 @@ use crate::domains::matching::{
 use crate::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
-use crate::kernel::FirecrawlClient;
 use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
@@ -86,10 +85,10 @@ async fn create_graphql_context(
 /// Build the Axum application router and engine handle
 pub fn build_app(
     pool: PgPool,
-    firecrawl_api_key: String,
     openai_api_key: String,
     voyage_api_key: String,
     tavily_api_key: String,
+    firecrawl_api_key: Option<String>,
     expo_access_token: Option<String>,
     twilio_account_sid: String,
     twilio_auth_token: String,
@@ -123,9 +122,9 @@ pub fn build_app(
         Some(openai_api_key),
     );
 
-    // Create server dependencies for effects (using trait objects for testability)
-    let firecrawl_client = FirecrawlClient::new(firecrawl_api_key)
-        .unwrap_or_else(|e| panic!("Failed to initialize Firecrawl client: {}. Check FIRECRAWL_API_KEY environment variable.", e));
+    // Create web scraper with Firecrawl fallback for 403 errors
+    let web_scraper = crate::kernel::FallbackScraper::new(firecrawl_api_key)
+        .unwrap_or_else(|e| panic!("Failed to initialize web scraper: {}", e));
 
     // Create Tavily search client (required)
     let search_service: Arc<dyn crate::kernel::BaseSearchService> = Arc::new(
@@ -135,7 +134,7 @@ pub fn build_app(
 
     let server_deps = ServerDeps::new(
         pool.clone(),
-        Arc::new(firecrawl_client),
+        Arc::new(web_scraper),
         openai_client.clone(),
         Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),

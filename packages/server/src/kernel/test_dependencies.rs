@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 
 use super::{
     BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseWebScraper, CrawlResult, CrawledPage, PiiScrubResult, ScrapeResult, SearchResult,
-    ServerKernel,
+    BaseWebScraper, CrawlResult, CrawledPage, LinkPriorities, PiiScrubResult, ScrapeResult,
+    SearchResult, ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 
@@ -20,14 +20,30 @@ use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 // Mock Web Scraper
 // =============================================================================
 
+/// Arguments captured from a crawl call
+#[derive(Debug, Clone)]
+pub struct CrawlCallArgs {
+    pub url: String,
+    pub max_depth: i32,
+    pub max_pages: i32,
+    pub delay_seconds: i32,
+    pub priorities: Option<LinkPriorities>,
+}
+
 pub struct MockWebScraper {
     responses: Arc<Mutex<Vec<ScrapeResult>>>,
+    crawl_responses: Arc<Mutex<Vec<CrawlResult>>>,
+    scrape_calls: Arc<Mutex<Vec<String>>>,
+    crawl_calls: Arc<Mutex<Vec<CrawlCallArgs>>>,
 }
 
 impl MockWebScraper {
     pub fn new() -> Self {
         Self {
             responses: Arc::new(Mutex::new(Vec::new())),
+            crawl_responses: Arc::new(Mutex::new(Vec::new())),
+            scrape_calls: Arc::new(Mutex::new(Vec::new())),
+            crawl_calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -40,11 +56,61 @@ impl MockWebScraper {
         self.responses.lock().unwrap().push(response);
         self
     }
+
+    /// Add a crawl result to be returned
+    pub fn with_crawl_result(self, result: CrawlResult) -> Self {
+        self.crawl_responses.lock().unwrap().push(result);
+        self
+    }
+
+    /// Add a crawl result from (url, markdown) pairs
+    pub fn with_crawl_pages(self, pages: Vec<(&str, &str)>) -> Self {
+        let crawled_pages: Vec<CrawledPage> = pages
+            .into_iter()
+            .map(|(url, markdown)| CrawledPage {
+                url: url.to_string(),
+                markdown: markdown.to_string(),
+                title: Some(format!("Page: {}", url)),
+            })
+            .collect();
+        self.crawl_responses
+            .lock()
+            .unwrap()
+            .push(CrawlResult { pages: crawled_pages });
+        self
+    }
+
+    /// Get all URLs that were scraped
+    pub fn scrape_calls(&self) -> Vec<String> {
+        self.scrape_calls.lock().unwrap().clone()
+    }
+
+    /// Get all crawl calls with their arguments
+    pub fn crawl_calls(&self) -> Vec<CrawlCallArgs> {
+        self.crawl_calls.lock().unwrap().clone()
+    }
+
+    /// Check if a URL was scraped
+    pub fn was_scraped(&self, url: &str) -> bool {
+        self.scrape_calls.lock().unwrap().iter().any(|u| u == url)
+    }
+
+    /// Check if a URL was crawled
+    pub fn was_crawled(&self, url: &str) -> bool {
+        self.crawl_calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|c| c.url == url)
+    }
 }
 
 #[async_trait]
 impl BaseWebScraper for MockWebScraper {
     async fn scrape(&self, url: &str) -> Result<ScrapeResult> {
+        // Record the call
+        self.scrape_calls.lock().unwrap().push(url.to_string());
+
         let mut responses = self.responses.lock().unwrap();
         if !responses.is_empty() {
             Ok(responses.remove(0))
@@ -60,11 +126,28 @@ impl BaseWebScraper for MockWebScraper {
     async fn crawl(
         &self,
         url: &str,
-        _max_depth: i32,
+        max_depth: i32,
         max_pages: i32,
-        _delay_seconds: i32,
+        delay_seconds: i32,
+        priorities: Option<&LinkPriorities>,
     ) -> Result<CrawlResult> {
-        // Return mock crawled pages based on the responses or default pages
+        // Record the call with all arguments
+        self.crawl_calls.lock().unwrap().push(CrawlCallArgs {
+            url: url.to_string(),
+            max_depth,
+            max_pages,
+            delay_seconds,
+            priorities: priorities.cloned(),
+        });
+
+        // Check for queued crawl responses first
+        let mut crawl_responses = self.crawl_responses.lock().unwrap();
+        if !crawl_responses.is_empty() {
+            return Ok(crawl_responses.remove(0));
+        }
+        drop(crawl_responses);
+
+        // Fall back to scrape responses converted to crawl pages
         let mut responses = self.responses.lock().unwrap();
         let pages: Vec<CrawledPage> = if !responses.is_empty() {
             // Use queued responses as pages
@@ -103,12 +186,14 @@ impl BaseWebScraper for MockWebScraper {
 
 pub struct MockAI {
     responses: Arc<Mutex<Vec<String>>>,
+    calls: Arc<Mutex<Vec<String>>>,
 }
 
 impl MockAI {
     pub fn new() -> Self {
         Self {
             responses: Arc::new(Mutex::new(Vec::new())),
+            calls: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
@@ -124,11 +209,38 @@ impl MockAI {
         self.responses.lock().unwrap().push(json);
         self
     }
+
+    /// Get all prompts that were sent to the AI
+    pub fn calls(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
+
+    /// Get the last prompt sent to the AI
+    pub fn last_prompt(&self) -> Option<String> {
+        self.calls.lock().unwrap().last().cloned()
+    }
+
+    /// Check if a prompt containing the given text was sent
+    pub fn was_called_with(&self, text: &str) -> bool {
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|p| p.contains(text))
+    }
+
+    /// Get the number of times the AI was called
+    pub fn call_count(&self) -> usize {
+        self.calls.lock().unwrap().len()
+    }
 }
 
 #[async_trait]
 impl BaseAI for MockAI {
-    async fn complete(&self, _prompt: &str) -> Result<String> {
+    async fn complete(&self, prompt: &str) -> Result<String> {
+        // Record the call
+        self.calls.lock().unwrap().push(prompt.to_string());
+
         let mut responses = self.responses.lock().unwrap();
         if !responses.is_empty() {
             Ok(responses.remove(0))

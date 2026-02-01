@@ -424,21 +424,6 @@ impl seesaw_core::Machine for ListingMachine {
             }),
 
             // =========================================================================
-            // Agent Search workflow: Request → Execute → Discover domains
-            // =========================================================================
-            ListingEvent::AgentSearchRequested { agent_id, job_id } => {
-                Some(ListingCommand::ExecuteSearch {
-                    agent_id: *agent_id,
-                    job_id: *job_id,
-                })
-            }
-
-            // Agent search completed, no further action needed
-            ListingEvent::AgentSearchCompleted { .. } => None,
-            ListingEvent::AgentSearchFailed { .. } => None,
-            ListingEvent::DomainDiscoveredByAgent { .. } => None,
-
-            // =========================================================================
             // Website Crawl workflow: Crawl → Extract → Sync (or retry)
             // =========================================================================
             ListingEvent::WebsiteCrawled {

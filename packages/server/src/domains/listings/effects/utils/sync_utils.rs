@@ -115,94 +115,118 @@ pub async fn sync_listings(
 
             unchanged_listings.push(sync_record.get_listing_id());
         } else {
-            // New listing - create it
-            let tldr = listing
-                .tldr
-                .or_else(|| Some(generate_tldr(&listing.description, 100)));
+            // Check if listing exists by website + title (in case hash changed due to description change)
+            let existing_by_title =
+                Listing::find_by_domain_and_title(website_id, &listing.title, pool).await?;
 
-            let urgency = normalize_urgency(listing.urgency);
+            if let Some(existing) = existing_by_title {
+                // Listing exists with same title - update sync record
+                tracing::debug!(
+                    listing_id = %existing.id,
+                    content_hash = %content_hash,
+                    "Listing exists by title, updating sync record"
+                );
 
-            match Listing::create(
-                listing.organization_name,
-                listing.title,
-                listing.description,
-                tldr,
-                "opportunity".to_string(),
-                "general".to_string(),
-                Some("accepting".to_string()),
-                urgency,
-                None, // location
-                ListingStatus::PendingApproval.to_string(),
-                "en".to_string(),
-                Some("scraped".to_string()),
-                None, // submitted_by_admin_id
-                Some(website_id),
-                listing.source_url.clone(),
-                None, // organization_id
-                pool,
-            )
-            .await
-            {
-                Ok(created) => {
-                    tracing::info!(
-                        listing_id = %created.id,
-                        content_hash = %content_hash,
-                        "Created new listing"
-                    );
+                ListingWebsiteSync::upsert(
+                    existing.id,
+                    website_id,
+                    content_hash,
+                    listing.source_url.unwrap_or_default(),
+                    pool,
+                )
+                .await?;
 
-                    // Save contact info if present
-                    if let Some(ref contact_info) = listing.contact {
-                        if let Err(e) =
-                            ListingContact::create_from_json(created.id, contact_info, pool).await
-                        {
-                            tracing::warn!(
-                                listing_id = %created.id,
-                                error = %e,
-                                "Failed to save contact info"
-                            );
-                        }
-                    }
+                unchanged_listings.push(existing.id);
+            } else {
+                // New listing - create it
+                let tldr = listing
+                    .tldr
+                    .or_else(|| Some(generate_tldr(&listing.description, 100)));
 
-                    // Tag listing with audience roles
-                    for role in &listing.audience_roles {
-                        let normalized_role = role.to_lowercase();
-                        if let Ok(tag) =
-                            Tag::find_by_kind_value("audience_role", &normalized_role, pool).await
-                        {
-                            if let Some(tag) = tag {
-                                if let Err(e) =
-                                    Taggable::create_listing_tag(created.id, tag.id, pool).await
-                                {
-                                    tracing::warn!(
-                                        listing_id = %created.id,
-                                        role = %normalized_role,
-                                        error = %e,
-                                        "Failed to tag listing with audience role"
-                                    );
-                                }
-                            } else {
+                let urgency = normalize_urgency(listing.urgency);
+
+                match Listing::create(
+                    listing.organization_name,
+                    listing.title,
+                    listing.description,
+                    tldr,
+                    "opportunity".to_string(),
+                    "general".to_string(),
+                    Some("accepting".to_string()),
+                    urgency,
+                    None, // location
+                    ListingStatus::PendingApproval.to_string(),
+                    "en".to_string(),
+                    Some("scraped".to_string()),
+                    None, // submitted_by_admin_id
+                    Some(website_id),
+                    listing.source_url.clone(),
+                    None, // organization_id
+                    pool,
+                )
+                .await
+                {
+                    Ok(created) => {
+                        tracing::info!(
+                            listing_id = %created.id,
+                            content_hash = %content_hash,
+                            "Created new listing"
+                        );
+
+                        // Save contact info if present
+                        if let Some(ref contact_info) = listing.contact {
+                            if let Err(e) =
+                                ListingContact::create_from_json(created.id, contact_info, pool).await
+                            {
                                 tracing::warn!(
-                                    role = %normalized_role,
-                                    "Unknown audience role from AI"
+                                    listing_id = %created.id,
+                                    error = %e,
+                                    "Failed to save contact info"
                                 );
                             }
                         }
+
+                        // Tag listing with audience roles
+                        for role in &listing.audience_roles {
+                            let normalized_role = role.to_lowercase();
+                            if let Ok(tag) =
+                                Tag::find_by_kind_value("audience_role", &normalized_role, pool).await
+                            {
+                                if let Some(tag) = tag {
+                                    if let Err(e) =
+                                        Taggable::create_listing_tag(created.id, tag.id, pool).await
+                                    {
+                                        tracing::warn!(
+                                            listing_id = %created.id,
+                                            role = %normalized_role,
+                                            error = %e,
+                                            "Failed to tag listing with audience role"
+                                        );
+                                    }
+                                } else {
+                                    tracing::warn!(
+                                        role = %normalized_role,
+                                        "Unknown audience role from AI"
+                                    );
+                                }
+                            }
+                        }
+
+                        // Create sync record to track this listing
+                        ListingWebsiteSync::upsert(
+                            created.id,
+                            website_id,
+                            content_hash,
+                            listing.source_url.unwrap_or_default(),
+                            pool,
+                        )
+                        .await?;
+
+                        new_listings.push(created.id);
                     }
-
-                    // Create sync record to track this listing
-                    ListingWebsiteSync::upsert(
-                        created.id,
-                        website_id,
-                        content_hash,
-                        listing.source_url.unwrap_or_default(),
-                        pool,
-                    )
-                    .await?;
-
-                    new_listings.push(created.id);
-                }
-                Err(e) => {
-                    tracing::error!(error = %e, "Failed to create listing during sync");
+                    Err(e) => {
+                        tracing::error!(error = %e, "Failed to create listing during sync");
+                    }
                 }
             }
         }

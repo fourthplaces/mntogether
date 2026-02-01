@@ -1,21 +1,27 @@
 pub mod ai;
 pub mod ai_matching;
+pub mod fallback_scraper;
 pub mod firecrawl_client;
 pub mod job_queue;
+pub mod llm_request;
 pub mod nats;
 pub mod pii;
 pub mod scheduled_tasks;
 pub mod server_kernel;
+pub mod simple_scraper;
 pub mod tag;
 pub mod tavily_client;
 pub mod test_dependencies;
 pub mod traits;
 
 pub use ai::OpenAIClient;
+pub use fallback_scraper::FallbackScraper;
 pub use firecrawl_client::FirecrawlClient;
+pub use llm_request::LlmRequestExt;
 pub use nats::{NatsClientPublisher, NatsPublisher, PublishedMessage, TestNats};
 pub use pii::{create_pii_detector, HybridPiiDetector, NoopPiiDetector, RegexPiiDetector};
 pub use server_kernel::ServerKernel;
+pub use simple_scraper::SimpleScraper;
 pub use tavily_client::{NoopSearchService, TavilyClient};
 pub use test_dependencies::TestDependencies;
 pub use traits::*;

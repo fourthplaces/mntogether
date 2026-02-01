@@ -827,3 +827,73 @@ pub async fn dismiss_report(
 
     Ok(true)
 }
+
+/// Result type for discovery search
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct DiscoverySearchResult {
+    pub queries_run: i32,
+    pub total_results: i32,
+    pub websites_created: i32,
+}
+
+/// Run discovery search manually (admin only)
+/// Executes all static discovery queries via Tavily and creates pending websites
+pub async fn run_discovery_search(ctx: &GraphQLContext) -> FieldResult<DiscoverySearchResult> {
+    // Verify admin access
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    info!(
+        requested_by = %user.member_id,
+        "Admin triggering manual discovery search"
+    );
+
+    // Get config for Tavily API key
+    let config = crate::config::Config::from_env().map_err(|e| {
+        FieldError::new(
+            format!("Failed to load config: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Create Tavily client
+    let search_service = crate::kernel::TavilyClient::new(config.tavily_api_key).map_err(|e| {
+        FieldError::new(
+            format!("Failed to create search client: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Run discovery searches
+    let result =
+        crate::domains::listings::effects::run_discovery_searches(&search_service, &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Discovery search failed: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
+    info!(
+        queries_run = result.queries_run,
+        total_results = result.total_results,
+        websites_created = result.websites_created,
+        "Manual discovery search completed"
+    );
+
+    Ok(DiscoverySearchResult {
+        queries_run: result.queries_run as i32,
+        total_results: result.total_results as i32,
+        websites_created: result.websites_created as i32,
+    })
+}
