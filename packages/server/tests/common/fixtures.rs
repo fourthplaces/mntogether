@@ -3,23 +3,23 @@
 //! These fixtures use the model methods directly to create test data.
 
 use anyhow::Result;
-use server_core::common::{ListingId, MemberId, WebsiteId};
-use server_core::domains::listings::models::Listing;
-use server_core::domains::website::models::Website;
+use server_core::common::{MemberId, PostId, WebsiteId};
+use server_core::domains::posts::models::Post;
+use server_core::domains::scraping::models::Website;
 use sqlx::PgPool;
 
-/// Create a test listing with pending_approval status
-pub async fn create_test_listing_pending(
+/// Create a test post with pending_approval status
+pub async fn create_test_post_pending(
     pool: &PgPool,
     title: &str,
     description: &str,
-) -> Result<ListingId> {
-    let listing = Listing::create(
+) -> Result<PostId> {
+    let post = Post::create(
         "Test Organization".to_string(),
         title.to_string(),
         description.to_string(),
         None,                                // tldr
-        "service".to_string(),               // listing_type
+        "service".to_string(),               // post_type
         "community_support".to_string(),     // category
         Some("accepting".to_string()),       // capacity_status
         Some("medium".to_string()),          // urgency
@@ -35,21 +35,21 @@ pub async fn create_test_listing_pending(
     )
     .await?;
 
-    Ok(listing.id)
+    Ok(post.id)
 }
 
-/// Create a test listing with active status
-pub async fn create_test_listing_active(
+/// Create a test post with active status
+pub async fn create_test_post_active(
     pool: &PgPool,
     title: &str,
     description: &str,
-) -> Result<ListingId> {
-    let listing = Listing::create(
+) -> Result<PostId> {
+    let post = Post::create(
         "Test Organization".to_string(),
         title.to_string(),
         description.to_string(),
         None,                                // tldr
-        "service".to_string(),               // listing_type
+        "service".to_string(),               // post_type
         "community_support".to_string(),     // category
         Some("accepting".to_string()),       // capacity_status
         Some("medium".to_string()),          // urgency
@@ -65,7 +65,7 @@ pub async fn create_test_listing_active(
     )
     .await?;
 
-    Ok(listing.id)
+    Ok(post.id)
 }
 
 /// Create a test website (for scraping tests)

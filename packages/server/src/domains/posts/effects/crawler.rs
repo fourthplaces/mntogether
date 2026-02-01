@@ -19,7 +19,7 @@ use super::extraction::{
     types::{PageToSummarize, SynthesisInput},
 };
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{ContactInfo, ExtractedPost, JobId, MemberId, WebsiteId};
+use crate::common::{ContactInfo, ExtractedPost, JobId, MemberId, PostId, WebsiteId};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::{CrawledPageInfo, PostEvent, PageExtractionResult};
 use crate::domains::posts::models::post::Post;
@@ -840,7 +840,6 @@ async fn deduplicate_website_posts(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<usize> {
     use std::collections::HashSet;
-    use crate::kernel::LlmRequestExt;
 
     const SIMILARITY_THRESHOLD: f32 = 0.90;
 

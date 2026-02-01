@@ -8,7 +8,7 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
-use server_core::common::{ContactInfo, ExtractedListingWithSource, MemberId};
+use server_core::common::{ContactInfo, ExtractedPostWithSource, MemberId};
 use server_core::domains::scraping::models::{PageSnapshot, Website};
 use server_core::kernel::test_dependencies::{MockAI, MockWebScraper};
 use server_core::kernel::TestDependencies;
@@ -54,10 +54,10 @@ async fn create_approved_website(ctx: &TestHarness, domain: &str, admin_id: Uuid
 }
 
 /// Build mock extraction response JSON
-fn mock_extraction_response(listings: Vec<(&str, &str, &str)>) -> String {
-    let extracted: Vec<ExtractedListingWithSource> = listings
+fn mock_extraction_response(posts: Vec<(&str, &str, &str)>) -> String {
+    let extracted: Vec<ExtractedPostWithSource> = posts
         .into_iter()
-        .map(|(source_url, title, description)| ExtractedListingWithSource {
+        .map(|(source_url, title, description)| ExtractedPostWithSource {
             source_url: source_url.to_string(),
             title: title.to_string(),
             tldr: format!("Summary of {}", title),
@@ -67,6 +67,7 @@ fn mock_extraction_response(listings: Vec<(&str, &str, &str)>) -> String {
                 email: Some("contact@example.org".to_string()),
                 website: None,
             }),
+            location: None,
             urgency: Some("normal".to_string()),
             confidence: Some("high".to_string()),
             audience_roles: vec!["volunteer".to_string()],
@@ -111,13 +112,19 @@ async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
         ),
     ]);
 
-    let mock_ai = MockAI::new().with_response(mock_extraction_response(vec![
-        (
-            "https://volunteer-org.example/volunteer",
-            "Food Pantry Helpers",
-            "Help sort and distribute food donations every Saturday morning. No experience needed.",
-        ),
-    ]));
+    // Two-pass extraction: Pass 1 = page summaries, Pass 2 = synthesis
+    let mock_ai = MockAI::new()
+        // Pass 1: Page summaries (one per page)
+        .with_response(r#"{"organization_name": "Volunteer Org", "organization_description": "Helps community", "services": []}"#)
+        .with_response(r#"{"organization_name": "Volunteer Org", "organization_description": "Volunteer work", "services": [{"title": "Food Pantry Helpers", "description": "Help sort donations", "contact": "", "location": ""}]}"#)
+        // Pass 2: Synthesis
+        .with_response(mock_extraction_response(vec![
+            (
+                "https://volunteer-org.example/volunteer",
+                "Food Pantry Helpers",
+                "Help sort and distribute food donations every Saturday morning. No experience needed.",
+            ),
+        ]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -272,11 +279,18 @@ async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
         ),
     ]);
 
-    let mock_ai = MockAI::new().with_response(mock_extraction_response(vec![(
-        "https://snapshot-test.example/volunteer",
-        "Help Needed",
-        "We need volunteers to help with various tasks.",
-    )]));
+    // Two-pass extraction: Pass 1 = 3 page summaries, Pass 2 = synthesis
+    let mock_ai = MockAI::new()
+        // Pass 1: Page summaries (one per page)
+        .with_response(r#"{"organization_name": "Test Org", "organization_description": "Welcome", "services": []}"#)
+        .with_response(r#"{"organization_name": "Test Org", "organization_description": "About us", "services": []}"#)
+        .with_response(r#"{"organization_name": "Test Org", "organization_description": "Volunteer", "services": [{"title": "Help Needed", "description": "We need volunteers", "contact": "", "location": ""}]}"#)
+        // Pass 2: Synthesis
+        .with_response(mock_extraction_response(vec![(
+            "https://snapshot-test.example/volunteer",
+            "Help Needed",
+            "We need volunteers to help with various tasks.",
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)

@@ -1,6 +1,11 @@
 -- Rename listings table to posts
 -- This is a comprehensive rename of the listings concept to posts
 
+-- Step 0: Drop old posts table from migration 13 (posts were replaced by listings)
+-- The old posts table had a different structure and is no longer used
+DROP TABLE IF EXISTS posts CASCADE;
+DROP TYPE IF EXISTS post_status CASCADE;
+
 -- Step 1: Rename the main table
 ALTER TABLE listings RENAME TO posts;
 

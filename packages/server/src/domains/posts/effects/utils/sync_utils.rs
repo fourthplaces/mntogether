@@ -329,6 +329,10 @@ fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
 mod tests {
     use super::*;
 
+    // =========================================================================
+    // Urgency Normalization Tests
+    // =========================================================================
+
     #[test]
     fn test_normalize_urgency_valid_values() {
         assert_eq!(
@@ -371,5 +375,174 @@ mod tests {
         assert_eq!(normalize_urgency(Some("asap".to_string())), None);
         assert_eq!(normalize_urgency(Some("normal".to_string())), None);
         assert_eq!(normalize_urgency(None), None);
+    }
+
+    #[test]
+    fn test_normalize_urgency_mixed_case() {
+        assert_eq!(
+            normalize_urgency(Some("MeDiUm".to_string())),
+            Some("medium".to_string())
+        );
+    }
+
+    #[test]
+    fn test_normalize_urgency_empty_string() {
+        // Empty string is not a valid urgency
+        assert_eq!(normalize_urgency(Some("".to_string())), None);
+    }
+
+    #[test]
+    fn test_normalize_urgency_whitespace() {
+        // Whitespace-only is not a valid urgency
+        assert_eq!(normalize_urgency(Some("  ".to_string())), None);
+    }
+
+    // =========================================================================
+    // Cosine Similarity Tests
+    // =========================================================================
+
+    #[test]
+    fn test_cosine_similarity_identical_vectors() {
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![1.0, 0.0, 0.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert!((similarity - 1.0).abs() < 0.0001, "Identical vectors should have similarity 1.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_orthogonal_vectors() {
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![0.0, 1.0, 0.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert!(similarity.abs() < 0.0001, "Orthogonal vectors should have similarity 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_opposite_vectors() {
+        let v1 = vec![1.0, 0.0, 0.0];
+        let v2 = vec![-1.0, 0.0, 0.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert!((similarity + 1.0).abs() < 0.0001, "Opposite vectors should have similarity -1.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_empty_vectors() {
+        let v1: Vec<f32> = vec![];
+        let v2: Vec<f32> = vec![];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert_eq!(similarity, 0.0, "Empty vectors should return 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_mismatched_lengths() {
+        let v1 = vec![1.0, 2.0, 3.0];
+        let v2 = vec![1.0, 2.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert_eq!(similarity, 0.0, "Mismatched lengths should return 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_zero_magnitude_first() {
+        let v1 = vec![0.0, 0.0, 0.0];
+        let v2 = vec![1.0, 2.0, 3.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert_eq!(similarity, 0.0, "Zero magnitude vector should return 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_zero_magnitude_second() {
+        let v1 = vec![1.0, 2.0, 3.0];
+        let v2 = vec![0.0, 0.0, 0.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert_eq!(similarity, 0.0, "Zero magnitude vector should return 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_zero_magnitude_both() {
+        let v1 = vec![0.0, 0.0, 0.0];
+        let v2 = vec![0.0, 0.0, 0.0];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert_eq!(similarity, 0.0, "Both zero magnitude vectors should return 0.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_high_dimensional() {
+        // Test with 1536 dimensions (like OpenAI embeddings)
+        let v1: Vec<f32> = (0..1536).map(|i| (i as f32).sin()).collect();
+        let v2: Vec<f32> = (0..1536).map(|i| (i as f32).sin()).collect();
+        let similarity = cosine_similarity(&v1, &v2);
+        assert!((similarity - 1.0).abs() < 0.0001, "Identical high-dimensional vectors should have similarity ~1.0");
+    }
+
+    #[test]
+    fn test_cosine_similarity_similar_but_not_identical() {
+        // Two vectors that are similar but not identical
+        let v1 = vec![0.9, 0.1, 0.05];
+        let v2 = vec![0.85, 0.15, 0.05];
+        let similarity = cosine_similarity(&v1, &v2);
+        assert!(similarity > 0.9, "Similar vectors should have high similarity: {}", similarity);
+        assert!(similarity < 1.0, "Non-identical vectors should be < 1.0: {}", similarity);
+    }
+
+    #[test]
+    fn test_cosine_similarity_threshold_boundary() {
+        // Test at the exact threshold (0.90)
+        // Create vectors that are exactly at the threshold
+        let v1 = vec![1.0, 0.0];
+        let v2 = vec![0.9, 0.436]; // cos(26°) ≈ 0.898, just under threshold
+        let similarity = cosine_similarity(&v1, &v2);
+
+        // This tests our threshold logic indirectly
+        assert!(
+            (similarity - 0.90).abs() < 0.05,
+            "Boundary test: similarity should be near 0.90, got {}",
+            similarity
+        );
+    }
+
+    // =========================================================================
+    // ExtractedPostInput Tests
+    // =========================================================================
+
+    #[test]
+    fn test_extracted_post_input_default_fields() {
+        let input = ExtractedPostInput {
+            organization_name: "Test Org".to_string(),
+            title: "Test Title".to_string(),
+            description: "Test Description".to_string(),
+            description_markdown: None,
+            tldr: None,
+            contact: None,
+            location: None,
+            urgency: None,
+            confidence: None,
+            source_url: None,
+            audience_roles: vec![],
+        };
+
+        assert_eq!(input.organization_name, "Test Org");
+        assert_eq!(input.title, "Test Title");
+        assert!(input.audience_roles.is_empty());
+    }
+
+    #[test]
+    fn test_extracted_post_input_with_audience_roles() {
+        let input = ExtractedPostInput {
+            organization_name: "Test Org".to_string(),
+            title: "Volunteer Opportunity".to_string(),
+            description: "Help needed".to_string(),
+            description_markdown: None,
+            tldr: Some("Volunteer work".to_string()),
+            contact: None,
+            location: Some("Minneapolis".to_string()),
+            urgency: Some("high".to_string()),
+            confidence: Some("high".to_string()),
+            source_url: Some("https://example.org/volunteer".to_string()),
+            audience_roles: vec!["volunteer".to_string(), "donor".to_string()],
+        };
+
+        assert_eq!(input.audience_roles.len(), 2);
+        assert!(input.audience_roles.contains(&"volunteer".to_string()));
+        assert!(input.audience_roles.contains(&"donor".to_string()));
     }
 }
