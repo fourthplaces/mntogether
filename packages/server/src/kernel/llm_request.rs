@@ -24,6 +24,8 @@ pub struct LlmRequest<'a> {
     max_retries: u32,
     /// Optional schema hint to include in retry prompts
     schema_hint: Option<String>,
+    /// Optional model override (e.g., "gpt-5", "gpt-4-turbo")
+    model: Option<String>,
 }
 
 impl<'a> LlmRequest<'a> {
@@ -34,6 +36,7 @@ impl<'a> LlmRequest<'a> {
             user_message: None,
             max_retries: 3,
             schema_hint: None,
+            model: None,
         }
     }
 
@@ -62,6 +65,13 @@ impl<'a> LlmRequest<'a> {
         self
     }
 
+    /// Set the model to use (e.g., "gpt-5", "gpt-4-turbo")
+    /// If not set, uses the default model configured in the AI client
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
+        self
+    }
+
     /// Execute the request and parse the response as JSON
     ///
     /// Automatically retries on parse failures, including the error message
@@ -86,12 +96,13 @@ impl<'a> LlmRequest<'a> {
             tracing::info!(
                 attempt,
                 prompt_length = prompt.len(),
+                model = ?self.model,
                 "LLM request attempt"
             );
 
             let response = self
                 .ai
-                .complete_json(&prompt)
+                .complete_json_with_model(&prompt, self.model.as_deref())
                 .await
                 .context("LLM API call failed")?;
 
@@ -135,7 +146,7 @@ impl<'a> LlmRequest<'a> {
             .ok_or_else(|| anyhow::anyhow!("User message is required"))?;
 
         let prompt = self.build_initial_prompt(&system, &user);
-        self.ai.complete(&prompt).await
+        self.ai.complete_with_model(&prompt, self.model.as_deref()).await
     }
 
     fn build_initial_prompt(&self, system: &str, user: &str) -> String {

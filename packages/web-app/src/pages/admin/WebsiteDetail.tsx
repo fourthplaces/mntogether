@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
 import ReactMarkdown from 'react-markdown';
 import { GET_WEBSITE_ASSESSMENT } from '../../graphql/queries';
@@ -45,6 +45,12 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
         status
         createdAt
         sourceUrl
+        tags {
+          id
+          kind
+          value
+          displayName
+        }
       }
     }
   }
@@ -88,12 +94,20 @@ interface WebsiteSnapshot {
   summary: string | null;
 }
 
+interface Tag {
+  id: string;
+  kind: string;
+  value: string;
+  displayName: string | null;
+}
+
 interface Listing {
   id: string;
   title: string;
   status: string;
   createdAt: string;
   sourceUrl: string | null;
+  tags: Tag[];
 }
 
 interface Website {
@@ -135,6 +149,7 @@ type TabType = 'listings' | 'snapshots' | 'assessment';
 
 export function WebsiteDetail() {
   const { websiteId } = useParams<{ websiteId: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
@@ -142,8 +157,17 @@ export function WebsiteDetail() {
   const [isRegeneratingSummaries, setIsRegeneratingSummaries] = useState(false);
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
-  const [activeTab, setActiveTab] = useState<TabType>('snapshots');
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+
+  // Get active tab from URL, default to 'snapshots'
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabType = (tabParam === 'listings' || tabParam === 'snapshots' || tabParam === 'assessment')
+    ? tabParam
+    : 'snapshots';
+
+  const setActiveTab = (tab: TabType) => {
+    setSearchParams({ tab }, { replace: true });
+  };
 
   const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
     website: Website | null;
@@ -897,42 +921,69 @@ export function WebsiteDetail() {
               <div>
                 {website.listings && website.listings.length > 0 ? (
                   <div className="space-y-2">
-                    {website.listings.map((listing) => (
-                      <Link
-                        key={listing.id}
-                        to={`/admin/posts/${listing.id}`}
-                        className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-blue-600 hover:text-blue-800">
-                              {listing.title}
-                            </p>
-                            <p className="text-xs text-stone-500 mt-1">
-                              Created: {formatDate(listing.createdAt)}
-                            </p>
+                    {website.listings.map((listing) => {
+                      const audienceRoles = listing.tags?.filter(t => t.kind === 'audience_role') || [];
+                      return (
+                        <Link
+                          key={listing.id}
+                          to={`/admin/posts/${listing.id}`}
+                          className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-blue-600 hover:text-blue-800">
+                                {listing.title}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <p className="text-xs text-stone-500">
+                                  Created: {formatDate(listing.createdAt)}
+                                </p>
+                                {audienceRoles.length > 0 && (
+                                  <div className="flex gap-1">
+                                    {audienceRoles.map((tag) => (
+                                      <span
+                                        key={tag.id}
+                                        className={`px-1.5 py-0.5 text-xs rounded-full font-medium ${
+                                          tag.value === 'recipient' ? 'bg-blue-100 text-blue-700' :
+                                          tag.value === 'donor' ? 'bg-green-100 text-green-700' :
+                                          tag.value === 'volunteer' ? 'bg-purple-100 text-purple-700' :
+                                          tag.value === 'participant' ? 'bg-amber-100 text-amber-700' :
+                                          tag.value === 'customer' ? 'bg-teal-100 text-teal-700' :
+                                          'bg-stone-100 text-stone-700'
+                                        }`}
+                                      >
+                                        {tag.displayName || tag.value}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {audienceRoles.length === 0 && (
+                                  <span className="text-xs text-stone-400 italic">no audience</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="ml-4 flex items-center gap-2">
+                              <span
+                                className={`px-2 py-1 text-xs rounded-full ${
+                                  listing.status === 'active'
+                                    ? 'bg-green-100 text-green-800'
+                                    : listing.status === 'pending_approval'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : listing.status === 'rejected'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-stone-100 text-stone-800'
+                                }`}
+                              >
+                                {listing.status.replace('_', ' ')}
+                              </span>
+                              <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
                           </div>
-                          <div className="ml-4 flex items-center gap-2">
-                            <span
-                              className={`px-2 py-1 text-xs rounded-full ${
-                                listing.status === 'active'
-                                  ? 'bg-green-100 text-green-800'
-                                  : listing.status === 'pending_approval'
-                                  ? 'bg-amber-100 text-amber-800'
-                                  : listing.status === 'rejected'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-stone-100 text-stone-800'
-                              }`}
-                            >
-                              {listing.status.replace('_', ' ')}
-                            </span>
-                            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                            </svg>
-                          </div>
-                        </div>
-                      </Link>
-                    ))}
+                        </Link>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">

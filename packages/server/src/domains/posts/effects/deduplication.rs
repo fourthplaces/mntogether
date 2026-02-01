@@ -107,6 +107,7 @@ pub async fn deduplicate_posts_llm(
 
     let result: DeduplicationResult = ai
         .request()
+        .model("gpt-5")
         .system(DEDUP_SYSTEM_PROMPT)
         .user(&format!("Analyze these posts for duplicates:\n\n{}", posts_json))
         .schema_hint(DEDUP_SCHEMA)
@@ -292,6 +293,7 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
 
     let reason: String = ai
         .request()
+        .model("gpt-5")
         .system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters.")
         .user(&prompt)
         .text()

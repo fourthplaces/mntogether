@@ -114,6 +114,21 @@ pub trait BaseAI: Send + Sync {
         // Default implementation calls complete
         self.complete(prompt).await
     }
+
+    /// Complete a prompt with a specific model (returns raw text response)
+    /// If model is None, uses the default model
+    async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        // Default implementation ignores model and calls complete
+        let _ = model;
+        self.complete(prompt).await
+    }
+
+    /// Complete a prompt expecting JSON response with a specific model
+    async fn complete_json_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        // Default implementation ignores model and calls complete_json
+        let _ = model;
+        self.complete_json(prompt).await
+    }
 }
 
 // =============================================================================
