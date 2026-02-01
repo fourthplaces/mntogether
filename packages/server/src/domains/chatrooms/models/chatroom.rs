@@ -11,7 +11,7 @@ use crate::common::{
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Container {
     pub id: ContainerId,
-    pub container_type: String, // 'ai_chat', 'listing_comments', 'org_discussion'
+    pub container_type: String, // 'ai_chat', 'post_comments', 'org_discussion'
     pub entity_id: Option<uuid::Uuid>, // post_id, organization_id, etc. (null for standalone chats)
     pub language: String,              // language_code from active_languages
     pub created_at: DateTime<Utc>,
@@ -47,7 +47,7 @@ impl std::fmt::Display for ContainerType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ContainerType::AiChat => write!(f, "ai_chat"),
-            ContainerType::ListingComments => write!(f, "listing_comments"),
+            ContainerType::ListingComments => write!(f, "post_comments"),
             ContainerType::OrgDiscussion => write!(f, "org_discussion"),
         }
     }
@@ -59,7 +59,7 @@ impl std::str::FromStr for ContainerType {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "ai_chat" => Ok(ContainerType::AiChat),
-            "listing_comments" => Ok(ContainerType::ListingComments),
+            "post_comments" => Ok(ContainerType::ListingComments),
             "org_discussion" => Ok(ContainerType::OrgDiscussion),
             _ => Err(anyhow::anyhow!("Invalid container type: {}", s)),
         }

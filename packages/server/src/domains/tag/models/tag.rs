@@ -63,7 +63,7 @@ impl std::fmt::Display for TagKind {
             TagKind::Population => write!(f, "population"),
             TagKind::CommunityServed => write!(f, "community_served"),
             TagKind::ServiceOffered => write!(f, "service_offered"),
-            TagKind::PostType => write!(f, "listing_type"),
+            TagKind::PostType => write!(f, "post_type"),
             TagKind::OrgLeadership => write!(f, "org_leadership"),
             TagKind::BusinessModel => write!(f, "business_model"),
             TagKind::ServiceArea => write!(f, "service_area"),
@@ -85,7 +85,7 @@ impl std::str::FromStr for TagKind {
             "population" => Ok(TagKind::Population),
             "community_served" => Ok(TagKind::CommunityServed),
             "service_offered" => Ok(TagKind::ServiceOffered),
-            "listing_type" => Ok(TagKind::PostType),
+            "post_type" => Ok(TagKind::PostType),
             "org_leadership" => Ok(TagKind::OrgLeadership),
             "business_model" => Ok(TagKind::BusinessModel),
             "service_area" => Ok(TagKind::ServiceArea),
@@ -201,7 +201,7 @@ impl Tag {
     }
 
     /// Find all tags for a listing
-    pub async fn find_for_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
         let tags = sqlx::query_as::<_, Tag>(
             r#"
             SELECT t.*
@@ -379,7 +379,7 @@ impl Tag {
 
 impl Taggable {
     /// Associate a tag with a listing
-    pub async fn create_listing_tag(
+    pub async fn create_post_tag(
         post_id: PostId,
         tag_id: TagId,
         pool: &PgPool,
@@ -457,7 +457,7 @@ impl Taggable {
     }
 
     /// Remove a tag from a listing
-    pub async fn delete_listing_tag(
+    pub async fn delete_post_tag(
         post_id: PostId,
         tag_id: TagId,
         pool: &PgPool,
@@ -538,7 +538,7 @@ impl Taggable {
     }
 
     /// Remove all tags from a listing
-    pub async fn delete_all_for_listing(post_id: PostId, pool: &PgPool) -> Result<()> {
+    pub async fn delete_all_for_post(post_id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM taggables WHERE taggable_type = 'listing' AND taggable_id = $1")
             .bind(post_id.as_uuid())
             .execute(pool)
@@ -570,7 +570,7 @@ impl Taggable {
     }
 
     /// Find all listings with a specific tag
-    pub async fn find_listings_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
+    pub async fn find_posts_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
         let ids: Vec<(Uuid,)> = sqlx::query_as(
             "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'listing'",
         )

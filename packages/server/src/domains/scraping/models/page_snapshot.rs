@@ -102,14 +102,14 @@ impl PageSnapshot {
 
     /// Mark extraction as started
     pub async fn mark_extraction_started(pool: &PgPool, id: PageSnapshotId) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE page_snapshots
             SET extraction_status = 'processing'
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .execute(pool)
         .await?;
         Ok(())
@@ -117,15 +117,15 @@ impl PageSnapshot {
 
     /// Mark extraction as completed
     pub async fn mark_extraction_completed(pool: &PgPool, id: PageSnapshotId) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE page_snapshots
             SET extraction_status = 'completed',
                 extraction_completed_at = NOW()
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .execute(pool)
         .await?;
         Ok(())
@@ -133,14 +133,14 @@ impl PageSnapshot {
 
     /// Mark extraction as failed
     pub async fn mark_extraction_failed(pool: &PgPool, id: PageSnapshotId) -> Result<()> {
-        sqlx::query!(
+        sqlx::query(
             r#"
             UPDATE page_snapshots
             SET extraction_status = 'failed'
             WHERE id = $1
             "#,
-            id
         )
+        .bind(id)
         .execute(pool)
         .await?;
         Ok(())

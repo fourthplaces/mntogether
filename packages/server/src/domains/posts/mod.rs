@@ -22,4 +22,3 @@ pub use events::PostEvent;
 
 // Re-export models (domain models)
 pub use models::post::Post;
-pub use models::post_website_sync::PostWebsiteSync;

@@ -20,7 +20,7 @@ pub struct Post {
     pub tldr: Option<String>,
 
     // Hot path fields (hybrid approach)
-    pub listing_type: String, // 'service', 'opportunity', 'business'
+    pub post_type: String, // 'service', 'opportunity', 'business'
     pub category: String,
     pub capacity_status: Option<String>, // 'accepting', 'paused', 'at_capacity'
     pub urgency: Option<String>,         // 'low', 'medium', 'high', 'urgent'
@@ -47,6 +47,10 @@ pub struct Post {
 
     // Vector search (for semantic matching)
     pub embedding: Option<pgvector::Vector>,
+
+    // Soft delete (preserves links)
+    pub deleted_at: Option<DateTime<Utc>>,
+    pub deleted_reason: Option<String>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -219,7 +223,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE status = $1
+             WHERE status = $1 AND deleted_at IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -233,18 +237,18 @@ impl Post {
 
     /// Find listings by listing type
     pub async fn find_by_type(
-        listing_type: &str,
+        post_type: &str,
         limit: i64,
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE listing_type = $1 AND status = 'active'
+             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
-        .bind(listing_type)
+        .bind(post_type)
         .bind(limit)
         .bind(offset)
         .fetch_all(pool)
@@ -261,7 +265,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE category = $1 AND status = 'active'
+             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -282,7 +286,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE capacity_status = $1 AND status = 'active'
+             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -303,23 +307,13 @@ impl Post {
         Ok(listings)
     }
 
-    /// Find listing by content hash
-    pub async fn find_by_content_hash(content_hash: &str, pool: &PgPool) -> Result<Option<Self>> {
-        let post =
-            sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE content_hash = $1 LIMIT 1")
-                .bind(content_hash)
-                .fetch_optional(pool)
-                .await?;
-        Ok(post)
-    }
-
     /// Create a new listing (returns inserted record with defaults applied)
     pub async fn create(
         organization_name: String,
         title: String,
         description: String,
         tldr: Option<String>,
-        listing_type: String,
+        post_type: String,
         category: String,
         capacity_status: Option<String>,
         urgency: Option<String>,
@@ -340,7 +334,7 @@ impl Post {
                 title,
                 description,
                 tldr,
-                listing_type,
+                post_type,
                 category,
                 capacity_status,
                 urgency,
@@ -360,7 +354,7 @@ impl Post {
         .bind(title)
         .bind(description)
         .bind(tldr)
-        .bind(listing_type)
+        .bind(post_type)
         .bind(category)
         .bind(capacity_status)
         .bind(urgency)
@@ -502,6 +496,63 @@ impl Post {
         Ok(())
     }
 
+    /// Find all posts that have embeddings (for deduplication)
+    /// Returns (post_id, embedding, created_at) tuples
+    pub async fn find_all_with_embeddings(
+        pool: &PgPool,
+    ) -> Result<Vec<(PostId, Vec<f32>, DateTime<Utc>)>> {
+        // Query posts with embeddings, excluding rejected/deleted
+        let rows: Vec<(PostId, pgvector::Vector, DateTime<Utc>)> = sqlx::query_as(
+            r#"
+            SELECT id, embedding, created_at
+            FROM posts
+            WHERE embedding IS NOT NULL
+              AND status IN ('pending_approval', 'active')
+              AND deleted_at IS NULL
+            ORDER BY created_at ASC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+
+        // Convert pgvector::Vector to Vec<f32>
+        let result = rows
+            .into_iter()
+            .map(|(id, vec, created_at)| (id, vec.to_vec(), created_at))
+            .collect();
+
+        Ok(result)
+    }
+
+    /// Find posts with embeddings for a specific website (for deduplication during sync)
+    /// Returns (post_id, embedding, title) tuples
+    pub async fn find_with_embeddings_for_website(
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<Vec<(PostId, Vec<f32>, String)>> {
+        let rows: Vec<(PostId, pgvector::Vector, String)> = sqlx::query_as(
+            r#"
+            SELECT id, embedding, title
+            FROM posts
+            WHERE embedding IS NOT NULL
+              AND website_id = $1
+              AND status IN ('pending_approval', 'active')
+              AND deleted_at IS NULL
+            "#,
+        )
+        .bind(website_id)
+        .fetch_all(pool)
+        .await?;
+
+        // Convert pgvector::Vector to Vec<f32>
+        let result = rows
+            .into_iter()
+            .map(|(id, vec, title)| (id, vec.to_vec(), title))
+            .collect();
+
+        Ok(result)
+    }
+
     /// Find existing active listings from a domain (for sync)
     pub async fn find_active_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
@@ -511,6 +562,7 @@ impl Post {
             WHERE website_id = $1
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
+              AND deleted_at IS NULL
             "#,
         )
         .bind(website_id)
@@ -533,6 +585,7 @@ impl Post {
               AND title = $2
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
+              AND deleted_at IS NULL
             LIMIT 1
             "#,
         )
@@ -541,30 +594,6 @@ impl Post {
         .fetch_optional(pool)
         .await?;
         Ok(post)
-    }
-
-    /// Mark listings as disappeared that are not in the provided content hash list (for sync)
-    pub async fn mark_disappeared_except(
-        website_id: WebsiteId,
-        content_hashes: &[String],
-        pool: &PgPool,
-    ) -> Result<Vec<PostId>> {
-        let disappeared_ids = sqlx::query_scalar::<_, PostId>(
-            r#"
-            UPDATE posts
-            SET disappeared_at = NOW(), updated_at = NOW()
-            WHERE website_id = $1
-              AND status IN ('pending_approval', 'active')
-              AND disappeared_at IS NULL
-              AND content_hash NOT IN (SELECT * FROM UNNEST($2::text[]))
-            RETURNING id
-            "#,
-        )
-        .bind(website_id)
-        .bind(content_hashes)
-        .fetch_all(pool)
-        .await?;
-        Ok(disappeared_ids)
     }
 
     /// Update last_seen_at for a specific listing
@@ -588,33 +617,13 @@ impl Post {
             r#"
             SELECT COUNT(*)
             FROM posts
-            WHERE status = $1
+            WHERE status = $1 AND deleted_at IS NULL
             "#,
         )
         .bind(status)
         .fetch_one(pool)
         .await?;
         Ok(count)
-    }
-
-    /// Find listing by content hash with status filter (for duplicate detection)
-    pub async fn find_id_by_content_hash_active(
-        content_hash: &str,
-        pool: &PgPool,
-    ) -> Result<Option<PostId>> {
-        let id = sqlx::query_scalar::<_, PostId>(
-            r#"
-            SELECT id
-            FROM posts
-            WHERE content_hash = $1
-              AND status IN ('pending_approval', 'active')
-            LIMIT 1
-            "#,
-        )
-        .bind(content_hash)
-        .fetch_optional(pool)
-        .await?;
-        Ok(id)
     }
 
     /// Ensure listing is active (for operations that require active status)
@@ -628,12 +637,31 @@ impl Post {
         Ok(())
     }
 
-    /// Delete a listing by ID
+    /// Delete a listing by ID (hard delete - use soft_delete instead for link preservation)
     pub async fn delete(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM posts WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
+        Ok(())
+    }
+
+    /// Soft delete a listing (preserves the record for link continuity)
+    /// reason should explain why, e.g. "Duplicate of post <uuid>"
+    pub async fn soft_delete(id: PostId, reason: &str, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE posts
+            SET deleted_at = NOW(),
+                deleted_reason = $2,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(reason)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 
@@ -657,7 +685,7 @@ impl Post {
     pub async fn get_or_create_comments_container(&self, pool: &PgPool) -> Result<ContainerId> {
         // Check if container already exists
         let existing: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT id FROM containers WHERE container_type = 'listing_comments' AND entity_id = $1",
+            "SELECT id FROM containers WHERE container_type = 'post_comments' AND entity_id = $1",
         )
         .bind(self.id.as_uuid())
         .fetch_optional(pool)
@@ -671,7 +699,7 @@ impl Post {
         let container_id: uuid::Uuid = sqlx::query_scalar(
             r#"
             INSERT INTO containers (container_type, entity_id, language)
-            VALUES ('listing_comments', $1, $2)
+            VALUES ('post_comments', $1, $2)
             RETURNING id
             "#,
         )
@@ -686,7 +714,7 @@ impl Post {
     /// Get comments container ID if it exists
     pub async fn get_comments_container_id(&self, pool: &PgPool) -> Result<Option<ContainerId>> {
         let container_id: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT id FROM containers WHERE container_type = 'listing_comments' AND entity_id = $1",
+            "SELECT id FROM containers WHERE container_type = 'post_comments' AND entity_id = $1",
         )
         .bind(self.id.as_uuid())
         .fetch_optional(pool)
@@ -702,6 +730,7 @@ impl Post {
             SELECT * FROM posts
             WHERE embedding IS NULL
               AND status IN ('pending_approval', 'active')
+              AND deleted_at IS NULL
             ORDER BY created_at ASC
             LIMIT $1
             "#,
@@ -724,6 +753,7 @@ impl Post {
             WHERE embedding IS NULL
               AND website_id = $1
               AND status IN ('pending_approval', 'active')
+              AND deleted_at IS NULL
             ORDER BY created_at ASC
             LIMIT $2
             "#,
@@ -738,7 +768,7 @@ impl Post {
     /// Count listings without embeddings
     pub async fn count_without_embeddings(pool: &PgPool) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND status IN ('pending_approval', 'active')",
+            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND status IN ('pending_approval', 'active') AND deleted_at IS NULL",
         )
         .fetch_one(pool)
         .await?;
@@ -751,7 +781,7 @@ impl Post {
         pool: &PgPool,
     ) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND website_id = $1 AND status IN ('pending_approval', 'active')",
+            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND website_id = $1 AND status IN ('pending_approval', 'active') AND deleted_at IS NULL",
         )
         .bind(website_id)
         .fetch_one(pool)

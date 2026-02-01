@@ -31,8 +31,8 @@ fn sanitize_prompt_input(input: &str) -> String {
 }
 
 /// Validate extracted listings for suspicious content that might indicate prompt injection
-fn validate_extracted_listings(listings: &[ExtractedPost]) -> Result<()> {
-    for listing in listings {
+fn validate_extracted_posts(posts: &[ExtractedPost]) -> Result<()> {
+    for listing in posts {
         // Check for obviously malicious or injected content
         let suspicious_keywords = ["HACK", "IGNORE", "SYSTEM", "INJECT", "OVERRIDE"];
 
@@ -77,7 +77,7 @@ fn validate_extracted_listings(listings: &[ExtractedPost]) -> Result<()> {
 ///
 /// This is the preferred entry point that handles PII scrubbing automatically.
 /// It scrubs PII from input before sending to AI, and from output after extraction.
-pub async fn extract_listings_with_pii_scrub(
+pub async fn extract_posts_with_pii_scrub(
     ai: &dyn BaseAI,
     pii_detector: &dyn BasePiiDetector,
     organization_name: &str,
@@ -111,7 +111,7 @@ pub async fn extract_listings_with_pii_scrub(
 
     // Step 2: Extract listings using AI (with PII-scrubbed content)
     let mut listings =
-        extract_listings_raw(ai, organization_name, &scrub_result.clean_text, source_url).await?;
+        extract_posts_raw(ai, organization_name, &scrub_result.clean_text, source_url).await?;
 
     // Step 3: Scrub any PII that might have been generated/hallucinated by AI
     for listing in &mut listings {
@@ -166,8 +166,8 @@ pub async fn extract_listings_with_pii_scrub(
 /// This is a domain function that constructs the business-specific prompt
 /// and uses the generic AI capability from the kernel.
 ///
-/// NOTE: Prefer `extract_listings_with_pii_scrub` which handles PII automatically.
-pub async fn extract_listings_raw(
+/// NOTE: Prefer `extract_posts_with_pii_scrub` which handles PII automatically.
+pub async fn extract_posts_raw(
     ai: &dyn BaseAI,
     organization_name: &str,
     website_content: &str,
@@ -178,7 +178,7 @@ pub async fn extract_listings_raw(
     let safe_source_url = sanitize_prompt_input(source_url);
     let safe_content = sanitize_prompt_input(website_content);
 
-    let system_prompt = r#"You are analyzing a website for listings.
+    let system_prompt = r#"You are analyzing a website for posts.
 
 Extract all listings mentioned on this page.
 
@@ -236,7 +236,7 @@ Example:
 [{"title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": {"phone": null, "email": "help@org.com", "website": null}, "urgency": "normal", "confidence": "high", "audience_roles": ["volunteer"]}]"#;
 
     // Use the fluent LLM API with automatic retry
-    let listings: Vec<ExtractedPost> = ai
+    let posts: Vec<ExtractedPost> = ai
         .request()
         .system(system_prompt)
         .user(user_message)
@@ -247,9 +247,9 @@ Example:
         .context("Failed to extract listings from content")?;
 
     // Validate extracted listings for suspicious content
-    validate_extracted_listings(&listings)?;
+    validate_extracted_posts(&posts)?;
 
-    Ok(listings)
+    Ok(posts)
 }
 
 /// A page to be processed in batch extraction
@@ -260,9 +260,9 @@ pub struct PageContent {
 
 /// Extract listings from multiple pages in a single AI call
 ///
-/// This is more efficient than calling extract_listings_raw for each page.
+/// This is more efficient than calling extract_posts_raw for each page.
 /// Returns a map from source_url to the listings extracted from that page.
-pub async fn extract_listings_batch(
+pub async fn extract_posts_batch(
     ai: &dyn BaseAI,
     pii_detector: &dyn BasePiiDetector,
     organization_name: &str,
@@ -307,7 +307,7 @@ pub async fn extract_listings_batch(
         ));
     }
 
-    let system_prompt = r#"You are analyzing multiple pages from a website for listings.
+    let system_prompt = r#"You are analyzing multiple pages from a website for posts.
 
 For each listing you find, you MUST include the "source_url" field indicating which page it came from.
 
@@ -372,7 +372,7 @@ Example:
         .context("Failed to batch extract listings")?;
 
     tracing::info!(
-        total_listings = listings_with_source.len(),
+        total_posts = listings_with_source.len(),
         "Batch extraction complete"
     );
 
@@ -387,10 +387,10 @@ Example:
     // Add extracted listings to their source URLs
     for listing in listings_with_source {
         let source_url = listing.source_url.clone();
-        let extracted = listing.into_listing();
+        let extracted = listing.into_post();
 
         // Validate the listing
-        if let Err(e) = validate_extracted_listings(&[extracted.clone()]) {
+        if let Err(e) = validate_extracted_posts(&[extracted.clone()]) {
             tracing::warn!(
                 source_url = %source_url,
                 error = %e,
@@ -441,14 +441,14 @@ Return ONLY the summary (no markdown, no explanation)."#,
 pub async fn generate_outreach_copy(
     ai: &dyn BaseAI,
     organization_name: &str,
-    listing_title: &str,
-    listing_description: &str,
+    post_title: &str,
+    post_description: &str,
     contact_email: Option<&str>,
 ) -> Result<String> {
     // Sanitize all inputs to prevent prompt injection
     let safe_org_name = sanitize_prompt_input(organization_name);
-    let safe_listing_title = sanitize_prompt_input(listing_title);
-    let safe_listing_desc = sanitize_prompt_input(listing_description);
+    let safe_post_title = sanitize_prompt_input(post_title);
+    let safe_post_desc = sanitize_prompt_input(post_description);
     let safe_contact = contact_email
         .map(sanitize_prompt_input)
         .unwrap_or_else(|| "N/A".to_string());
@@ -459,8 +459,8 @@ pub async fn generate_outreach_copy(
 [SYSTEM BOUNDARY - USER INPUT BEGINS BELOW]
 
 Organization: {organization_name}
-Opportunity: {listing_title}
-Details: {listing_description}
+Opportunity: {post_title}
+Details: {post_description}
 Contact Email: {contact_email}
 
 [END USER INPUT]
@@ -483,8 +483,8 @@ Subject: Interested in English Tutoring Program
 
 Hi! I saw your English tutoring program and would love to help newly arrived families learn English. I have teaching experience and can commit to 2-3 hours per week. How can I get started?"#,
         organization_name = safe_org_name,
-        listing_title = safe_listing_title,
-        listing_description = safe_listing_desc,
+        post_title = safe_post_title,
+        post_description = safe_post_desc,
         contact_email = safe_contact
     );
 
@@ -516,13 +516,13 @@ No experience necessary. Contact Sarah at (612) 555-5678.
 
     #[tokio::test]
     #[ignore] // Requires API key
-    async fn test_extract_listings() {
+    async fn test_extract_posts() {
         let api_key = std::env::var("OPENAI_API_KEY")
             .expect("OPENAI_API_KEY must be set for integration tests");
 
         let ai = OpenAIClient::new(api_key);
 
-        let listings = extract_listings_raw(
+        let posts = extract_posts_raw(
             &ai,
             "Community Center",
             SAMPLE_CONTENT,
@@ -532,14 +532,14 @@ No experience necessary. Contact Sarah at (612) 555-5678.
         .expect("Extraction should succeed");
 
         assert!(
-            listings.len() >= 2,
+            posts.len() >= 2,
             "Should extract at least 2 listings from sample content"
         );
 
-        for listing in &posts {
+        for post in &posts {
             assert!(!post.title.is_empty());
             assert!(!post.description.is_empty());
-            println!("Extracted listing: {}", post.title);
+            println!("Extracted post: {}", post.title);
         }
     }
 }

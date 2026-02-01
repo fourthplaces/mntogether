@@ -1,3 +1,10 @@
+//! Server dependencies for effects (using traits for testability)
+//!
+//! This module provides the central dependency container used by all domain effects.
+//! All external services use trait abstractions to enable testing.
+
+use anyhow::Result;
+use async_trait::async_trait;
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;
@@ -5,8 +12,43 @@ use twilio::TwilioService;
 use crate::common::auth::HasAuthContext;
 use crate::kernel::{
     BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseWebScraper,
+    BaseTwilioService, BaseWebScraper,
 };
+
+// =============================================================================
+// TwilioService Adapter (implements BaseTwilioService trait)
+// =============================================================================
+
+/// Wrapper around TwilioService that implements BaseTwilioService trait
+pub struct TwilioAdapter(pub Arc<TwilioService>);
+
+impl TwilioAdapter {
+    pub fn new(service: Arc<TwilioService>) -> Self {
+        Self(service)
+    }
+}
+
+#[async_trait]
+impl BaseTwilioService for TwilioAdapter {
+    async fn send_otp(&self, phone_number: &str) -> Result<()> {
+        self.0
+            .send_otp(phone_number)
+            .await
+            .map(|_| ())
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+
+    async fn verify_otp(&self, phone_number: &str, code: &str) -> Result<()> {
+        self.0
+            .verify_otp(phone_number, code)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+    }
+}
+
+// =============================================================================
+// ServerDeps
+// =============================================================================
 
 /// Server dependencies accessible to effects (using traits for testability)
 #[derive(Clone)]
@@ -16,7 +58,7 @@ pub struct ServerDeps {
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
-    pub twilio: Arc<TwilioService>,
+    pub twilio: Arc<dyn BaseTwilioService>,
     pub search_service: Arc<dyn BaseSearchService>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
     pub test_identifier_enabled: bool,
@@ -31,7 +73,7 @@ impl ServerDeps {
         ai: Arc<dyn BaseAI>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
-        twilio: Arc<TwilioService>,
+        twilio: Arc<dyn BaseTwilioService>,
         search_service: Arc<dyn BaseSearchService>,
         pii_detector: Arc<dyn BasePiiDetector>,
         test_identifier_enabled: bool,

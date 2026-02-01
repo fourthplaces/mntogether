@@ -5,14 +5,12 @@
 
 use anyhow::{Context, Result};
 use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
-use server_core::domains::listings::{
-    commands::ListingCommand,
-    effects::{ListingCompositeEffect, ServerDeps},
-    machines::ListingMachine,
+use server_core::domains::posts::{
+    commands::PostCommand,
+    effects::PostCompositeEffect,
+    machines::PostMachine,
 };
-use server_core::domains::matching::{
-    commands::MatchingCommand, effects::MatchingEffect, machines::MatchingMachine,
-};
+use server_core::kernel::{ServerDeps, TwilioAdapter};
 use server_core::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
@@ -125,12 +123,12 @@ fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw_core::Engine<Ser
 fn start_domain_engines(deps: ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
     let mut handles = Vec::new();
 
-    // Listings domain
+    // Posts domain
     start_engine(
         &mut handles,
         EngineBuilder::new(deps.clone())
-            .with_machine(ListingMachine::new())
-            .with_effect::<ListingCommand, _>(ListingCompositeEffect::new())
+            .with_machine(PostMachine::new())
+            .with_effect::<PostCommand, _>(PostCompositeEffect::new())
             .with_bus(bus.clone())
             .build(),
     );
@@ -138,19 +136,9 @@ fn start_domain_engines(deps: ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
     // Member domain
     start_engine(
         &mut handles,
-        EngineBuilder::new(deps.clone())
+        EngineBuilder::new(deps)
             .with_machine(MemberMachine::new())
             .with_effect::<MemberCommand, _>(RegistrationEffect)
-            .with_bus(bus.clone())
-            .build(),
-    );
-
-    // Matching domain
-    start_engine(
-        &mut handles,
-        EngineBuilder::new(deps)
-            .with_machine(MatchingMachine::new())
-            .with_effect::<MatchingCommand, _>(MatchingEffect)
             .with_bus(bus.clone())
             .build(),
     );
@@ -241,7 +229,7 @@ impl TestHarness {
             kernel.ai.clone(),
             kernel.embedding_service.clone(),
             kernel.push_service.clone(),
-            twilio,
+            Arc::new(TwilioAdapter::new(twilio)),
             kernel.search_service.clone(),
             kernel.pii_detector.clone(),
             true,   // test_identifier_enabled

@@ -13,7 +13,7 @@ use crate::domains::organization::utils::generate_tldr;
 use crate::kernel::BaseAI;
 
 /// Create a new listing with generated content hash and TLDR
-pub async fn create_listing(
+pub async fn create_post(
     _member_id: Option<MemberId>, // TODO: Store submitted_by_member_id for tracking
     organization_name: String,
     title: String,
@@ -78,7 +78,7 @@ pub async fn create_listing(
 }
 
 /// Update listing status and return the appropriate status string
-pub async fn update_listing_status(
+pub async fn update_post_status(
     post_id: PostId,
     status: String,
     pool: &PgPool,
@@ -91,7 +91,7 @@ pub async fn update_listing_status(
 }
 
 /// Update listing content and approve it
-pub async fn update_and_approve_listing(
+pub async fn update_and_approve_post(
     post_id: PostId,
     title: Option<String>,
     description: Option<String>,
@@ -120,7 +120,7 @@ pub async fn update_and_approve_listing(
     // Update contact info if provided (replace existing)
     if let Some(ref contact) = contact_info {
         // Delete existing contacts first
-        PostContact::delete_all_for_listing(post_id, pool).await?;
+        PostContact::delete_all_for_post(post_id, pool).await?;
         // Create new contacts
         if let Err(e) = PostContact::create_from_json(post_id, contact, pool).await {
             tracing::warn!(
@@ -141,7 +141,7 @@ pub async fn update_and_approve_listing(
 
 /// Create a post for a listing and generate AI outreach copy
 /// Note: This function is deprecated - the announcement model was removed
-pub async fn create_post_for_listing(
+pub async fn create_post_for_post(
     post_id: PostId,
     _created_by: Option<MemberId>,
     _custom_title: Option<String>,
@@ -158,7 +158,7 @@ pub async fn create_post_for_listing(
 }
 
 /// Generate embedding for a listing
-pub async fn generate_listing_embedding(
+pub async fn generate_post_embedding(
     post_id: PostId,
     embedding_service: &dyn crate::kernel::BaseEmbeddingService,
     pool: &PgPool,
@@ -234,7 +234,7 @@ pub async fn increment_post_click(_post_id: PostId, _pool: &PgPool) -> Result<()
 }
 
 /// Delete a listing
-pub async fn delete_listing(post_id: PostId, pool: &PgPool) -> Result<()> {
+pub async fn delete_post(post_id: PostId, pool: &PgPool) -> Result<()> {
     Post::delete(post_id, pool)
         .await
         .context("Failed to delete listing")

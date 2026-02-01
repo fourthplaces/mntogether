@@ -5,7 +5,7 @@ services:
   nats:
     image: nats:2.10-alpine
     container_name: mndigitalaid_nats
-    command: -js -p 4222
+    command: -js -p 4222 -m 8222
     restart: always
     ports:
       - "4222:4222"

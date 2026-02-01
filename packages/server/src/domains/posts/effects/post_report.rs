@@ -1,6 +1,6 @@
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::entity_ids::{PostId, MemberId};
-use crate::domains::posts::effects::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::posts::models::post_report::{PostReportId, PostReportRecord};
 use anyhow::{Context, Result};

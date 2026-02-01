@@ -79,13 +79,13 @@ impl PageSnapshotData {
     /// Get all listings extracted from this page
     async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<PostData>> {
         use crate::domains::posts::models::Post;
-        let listings = sqlx::query_as::<_, Post>(
+        let posts = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts WHERE source_url = $1 ORDER BY created_at DESC"
         )
         .bind(&self.url)
         .fetch_all(&context.db_pool)
         .await?;
-        Ok(listings.into_iter().map(PostData::from).collect())
+        Ok(posts.into_iter().map(PostData::from).collect())
     }
 
     /// Get the website snapshot ID that references this page snapshot (for re-scraping)
@@ -344,8 +344,8 @@ impl WebsiteData {
     async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<PostData>> {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
-        let listings = Post::find_by_website_id(website_id, &context.db_pool).await?;
-        Ok(listings.into_iter().map(PostData::from).collect())
+        let posts = Post::find_by_website_id(website_id, &context.db_pool).await?;
+        Ok(posts.into_iter().map(PostData::from).collect())
     }
 
     /// Get all snapshots (scraped pages) for this website

@@ -39,6 +39,8 @@ pub struct ExtractedPost {
     #[serde(default)]
     pub contact: Option<ExtractedContact>,
     #[serde(default)]
+    pub location: Option<String>,
+    #[serde(default)]
     pub tags: Vec<ExtractedTag>,
     #[serde(default)]
     pub source_urls: Vec<String>,

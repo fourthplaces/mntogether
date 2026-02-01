@@ -35,11 +35,11 @@ pub struct PostReportWithDetails {
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolution_notes: Option<String>,
     pub action_taken: Option<String>,
-    pub listing_title: String,
+    pub post_title: String,
     pub organization_name: String,
-    pub listing_type: String,
-    pub listing_status: String,
-    pub report_count_for_listing: i64,
+    pub post_type: String,
+    pub post_status: String,
+    pub report_count_for_post: i64,
 }
 
 impl PostReportRecord {
@@ -76,8 +76,8 @@ impl PostReportRecord {
         sqlx::query_as::<_, PostReportWithDetails>(
             "SELECT id, post_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
-                    listing_title, organization_name, listing_type, listing_status,
-                    report_count_for_listing
+                    post_title, organization_name, post_type, post_status,
+                    report_count_for_post
              FROM post_reports_with_details
              WHERE status = 'pending'
              ORDER BY created_at DESC
@@ -98,8 +98,8 @@ impl PostReportRecord {
         sqlx::query_as::<_, PostReportWithDetails>(
             "SELECT id, post_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
-                    listing_title, organization_name, listing_type, listing_status,
-                    report_count_for_listing
+                    post_title, organization_name, post_type, post_status,
+                    report_count_for_post
              FROM post_reports_with_details
              ORDER BY created_at DESC
              LIMIT $1 OFFSET $2",
@@ -111,7 +111,7 @@ impl PostReportRecord {
         .map_err(Into::into)
     }
 
-    pub async fn query_for_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn query_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM post_reports
              WHERE post_id = $1

@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
-use super::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use super::post::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, WebsiteId};

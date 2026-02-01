@@ -46,7 +46,7 @@ interface BusinessFields {
 
 interface Post {
   id: string;
-  listingType: 'service' | 'opportunity' | 'business';
+  postType: 'service' | 'opportunity' | 'business';
   organizationName: string;
   title: string;
   tldr?: string;
@@ -115,7 +115,7 @@ const PostReviewCard: React.FC<PostReviewCardProps> = ({
   };
 
   const renderTypeSpecificFields = () => {
-    if (post.listingType === 'service') {
+    if (post.postType === 'service') {
       const service = post as Post & ServiceFields;
       const features = [];
 
@@ -149,7 +149,7 @@ const PostReviewCard: React.FC<PostReviewCardProps> = ({
       );
     }
 
-    if (post.listingType === 'opportunity') {
+    if (post.postType === 'opportunity') {
       const opportunity = post as Post & OpportunityFields;
       return (
         <div className="mt-3 space-y-2">
@@ -198,7 +198,7 @@ const PostReviewCard: React.FC<PostReviewCardProps> = ({
       );
     }
 
-    if (post.listingType === 'business') {
+    if (post.postType === 'business') {
       const business = post as Post & BusinessFields;
       return (
         <div className="mt-3 space-y-2">
@@ -262,8 +262,8 @@ const PostReviewCard: React.FC<PostReviewCardProps> = ({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.listingType)}`}>
-                {post.listingType}
+              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.postType)}`}>
+                {post.postType}
               </span>
               {post.urgency && (
                 <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(post.urgency)}`}>

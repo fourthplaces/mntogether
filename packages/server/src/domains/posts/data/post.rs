@@ -14,7 +14,7 @@ pub struct PostData {
     pub tldr: Option<String>,
 
     // Hot path fields
-    pub listing_type: String,
+    pub post_type: String,
     pub category: String,
     pub capacity_status: Option<String>,
     pub urgency: Option<String>,
@@ -83,7 +83,7 @@ impl From<Post> for PostData {
             title: post.title,
             description: post.description,
             tldr: post.tldr,
-            listing_type: post.listing_type,
+            post_type: post.post_type,
             category: post.category,
             capacity_status: post.capacity_status,
             urgency: post.urgency,
@@ -133,8 +133,8 @@ impl PostData {
         self.tldr.clone()
     }
 
-    fn listing_type(&self) -> String {
-        self.listing_type.clone()
+    fn post_type(&self) -> String {
+        self.post_type.clone()
     }
 
     fn category(&self) -> String {
@@ -188,7 +188,7 @@ impl PostData {
     /// Get tags for this listing
     async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
         let post_id = PostId::parse(&self.id)?;
-        let tags = Tag::find_for_listing(post_id, &context.db_pool).await?;
+        let tags = Tag::find_for_post(post_id, &context.db_pool).await?;
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 }

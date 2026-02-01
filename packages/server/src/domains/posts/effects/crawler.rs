@@ -2,20 +2,20 @@
 //
 // This effect handles:
 // - CrawlWebsite: Crawl multiple pages from a website
-// - ExtractListingsFromPages: Extract listings from all crawled pages
+// - ExtractPostsFromPages: Extract listings from all crawled pages
 // - RetryWebsiteCrawl: Retry crawl after no listings found
-// - MarkWebsiteNoListings: Mark website as having no listings (terminal)
-// - SyncCrawledListings: Sync extracted listings to database
+// - MarkWebsiteNoPosts: Mark website as having no listings (terminal)
+// - SyncCrawledPosts: Sync extracted listings to database
 
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 use tracing::{info, warn};
 
-use super::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use super::extraction::{
     summarize::{hash_content, summarize_pages},
-    synthesize::synthesize_listings,
+    synthesize::synthesize_posts,
     types::{PageToSummarize, SynthesisInput},
 };
 use crate::common::auth::{Actor, AdminCapability};
@@ -129,7 +129,7 @@ impl Effect<PostCommand, ServerDeps> for CrawlerEffect {
                 is_admin,
             } => handle_crawl_website(website_id, job_id, requested_by, is_admin, &ctx).await,
 
-            PostCommand::ExtractListingsFromPages {
+            PostCommand::ExtractPostsFromPages {
                 website_id,
                 job_id,
                 pages,
@@ -139,16 +139,16 @@ impl Effect<PostCommand, ServerDeps> for CrawlerEffect {
                 handle_retry_crawl(website_id, job_id, &ctx).await
             }
 
-            PostCommand::MarkWebsiteNoListings { website_id, job_id } => {
-                handle_mark_no_listings(website_id, job_id, &ctx).await
+            PostCommand::MarkWebsiteNoPosts { website_id, job_id } => {
+                handle_mark_no_posts(website_id, job_id, &ctx).await
             }
 
-            PostCommand::SyncCrawledListings {
+            PostCommand::SyncCrawledPosts {
                 website_id,
                 job_id,
-                listings,
+                posts,
                 page_results,
-            } => handle_sync_crawled_listings(website_id, job_id, listings, page_results, &ctx).await,
+            } => handle_sync_crawled_posts(website_id, job_id, posts, page_results, &ctx).await,
 
             PostCommand::RegeneratePosts {
                 website_id,
@@ -383,7 +383,7 @@ async fn handle_crawl_website(
 }
 
 // ============================================================================
-// Handler: ExtractListingsFromPages (Two-Pass Extraction)
+// Handler: ExtractPostsFromPages (Two-Pass Extraction)
 // ============================================================================
 
 async fn handle_extract_from_pages(
@@ -489,7 +489,7 @@ async fn handle_extract_from_pages(
         "Pass 2: Synthesizing listings"
     );
 
-    let extracted_listings = match synthesize_listings(
+    let extracted_posts = match synthesize_posts(
         SynthesisInput {
             website_domain: website.domain.clone(),
             pages: summaries,
@@ -510,20 +510,20 @@ async fn handle_extract_from_pages(
     };
 
     // Convert to event format and build page results
-    let mut all_listings: Vec<ExtractedPost> = Vec::new();
+    let mut all_posts: Vec<ExtractedPost> = Vec::new();
     let mut page_results: Vec<PageExtractionResult> = Vec::new();
 
     // Track which pages contributed to listings
-    let mut pages_with_listings: std::collections::HashSet<String> =
+    let mut pages_with_posts: std::collections::HashSet<String> =
         std::collections::HashSet::new();
 
-    for extracted in &extracted_listings {
+    for extracted in &extracted_posts {
         for url in &extracted.source_urls {
-            pages_with_listings.insert(url.clone());
+            pages_with_posts.insert(url.clone());
         }
 
         // Convert ExtractedPost from extraction module to common type
-        all_listings.push(ExtractedPost {
+        all_posts.push(ExtractedPost {
             title: extracted.title.clone(),
             tldr: extracted.tldr.clone(),
             description: extracted.description.clone(),
@@ -532,6 +532,7 @@ async fn handle_extract_from_pages(
                 email: c.email.clone(),
                 website: c.website.clone(),
             }),
+            location: extracted.location.clone(),
             urgency: Some("normal".to_string()),
             confidence: Some("high".to_string()),
             audience_roles: extracted
@@ -545,12 +546,12 @@ async fn handle_extract_from_pages(
 
     // Build page results
     for page in &pages {
-        let has_listings = pages_with_listings.contains(&page.url);
+        let has_posts = pages_with_posts.contains(&page.url);
         page_results.push(PageExtractionResult {
             url: page.url.clone(),
             snapshot_id: page.snapshot_id,
-            listings_count: if has_listings { 1 } else { 0 },
-            has_listings,
+            listings_count: if has_posts { 1 } else { 0 },
+            has_posts,
         });
 
         // Update page snapshot status
@@ -558,7 +559,7 @@ async fn handle_extract_from_pages(
             let _ = PageSnapshot::update_extraction_status(
                 &ctx.deps().db_pool,
                 sid,
-                if has_listings { 1 } else { 0 },
+                if has_posts { 1 } else { 0 },
                 "completed",
             )
             .await;
@@ -566,7 +567,7 @@ async fn handle_extract_from_pages(
     }
 
     // Check if we found any listings
-    if all_listings.is_empty() {
+    if all_posts.is_empty() {
         info!(
             website_id = %website_id,
             pages_processed = pages.len(),
@@ -591,18 +592,18 @@ async fn handle_extract_from_pages(
 
     info!(
         website_id = %website_id,
-        total_listings = all_listings.len(),
-        pages_with_listings = pages_with_listings.len(),
+        total_posts = all_posts.len(),
+        pages_with_posts = pages_with_posts.len(),
         "Two-pass extraction complete"
     );
 
     // Reset attempt count on successful extraction
     let _ = Website::reset_crawl_attempts(website_id, &ctx.deps().db_pool).await;
 
-    Ok(PostEvent::ListingsExtractedFromPages {
+    Ok(PostEvent::PostsExtractedFromPages {
         website_id,
         job_id,
-        listings: all_listings,
+        posts: all_posts,
         page_results,
     })
 }
@@ -641,10 +642,10 @@ async fn handle_retry_crawl(
 }
 
 // ============================================================================
-// Handler: MarkWebsiteNoListings
+// Handler: MarkWebsiteNoPosts
 // ============================================================================
 
-async fn handle_mark_no_listings(
+async fn handle_mark_no_posts(
     website_id: WebsiteId,
     job_id: JobId,
     ctx: &EffectContext<ServerDeps>,
@@ -659,10 +660,10 @@ async fn handle_mark_no_listings(
     let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
     let total_attempts = website.crawl_attempt_count.unwrap_or(0);
 
-    // Update status to no_listings_found
+    // Update status to no_posts_found
     let _ = Website::complete_crawl(
         website_id,
-        "no_listings_found",
+        "no_posts_found",
         website.pages_crawled_count.unwrap_or(0),
         &ctx.deps().db_pool,
     )
@@ -676,28 +677,29 @@ async fn handle_mark_no_listings(
 }
 
 // ============================================================================
-// Handler: SyncCrawledListings
+// Handler: SyncCrawledPosts
 // ============================================================================
 
-async fn handle_sync_crawled_listings(
+async fn handle_sync_crawled_posts(
     website_id: WebsiteId,
     job_id: JobId,
-    listings: Vec<ExtractedPost>,
+    posts: Vec<ExtractedPost>,
     page_results: Vec<PageExtractionResult>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
     info!(
         website_id = %website_id,
         job_id = %job_id,
-        listings_count = listings.len(),
-        "Syncing crawled listings to database"
+        posts_count = posts.len(),
+        "Syncing crawled posts to database"
     );
 
-    // Use the existing sync logic from the syncing module
-    let sync_result = super::syncing::sync_extracted_listings(
+    // Use the existing sync logic from the syncing module (with embedding-based duplicate detection)
+    let sync_result = super::syncing::sync_extracted_posts(
         website_id,
-        listings,
+        posts,
         &ctx.deps().db_pool,
+        Some(ctx.deps().embedding_service.as_ref()),
     )
     .await?;
 
@@ -713,8 +715,8 @@ async fn handle_sync_crawled_listings(
     info!(
         website_id = %website_id,
         new_count = sync_result.new_count,
-        changed_count = sync_result.changed_count,
-        disappeared_count = sync_result.disappeared_count,
+        updated_count = sync_result.updated_count,
+        unchanged_count = sync_result.unchanged_count,
         "Sync completed"
     );
 
@@ -738,12 +740,33 @@ async fn handle_sync_crawled_listings(
         }
     }
 
-    Ok(PostEvent::ListingsSynced {
+    // Deduplicate posts for this website (clean up any existing duplicates)
+    let dedup_result = deduplicate_website_posts(website_id, ctx).await;
+    match dedup_result {
+        Ok(deleted_count) => {
+            if deleted_count > 0 {
+                info!(
+                    website_id = %website_id,
+                    deleted_count = deleted_count,
+                    "Deduplicated existing posts"
+                );
+            }
+        }
+        Err(e) => {
+            warn!(
+                website_id = %website_id,
+                error = %e,
+                "Failed to deduplicate posts, continuing"
+            );
+        }
+    }
+
+    Ok(PostEvent::PostsSynced {
         source_id: website_id,
         job_id,
         new_count: sync_result.new_count,
-        changed_count: sync_result.changed_count,
-        disappeared_count: sync_result.disappeared_count,
+        updated_count: sync_result.updated_count,
+        unchanged_count: sync_result.unchanged_count,
     })
 }
 
@@ -752,42 +775,42 @@ async fn generate_missing_embeddings_for_website(
     website_id: WebsiteId,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<(i32, i32)> {
-    // Find listings without embeddings for this website (process up to 100 at a time)
-    let listings = Post::find_without_embeddings_for_website(
+    // Find posts without embeddings for this website (process up to 100 at a time)
+    let posts = Post::find_without_embeddings_for_website(
         website_id,
         100,
         &ctx.deps().db_pool,
     )
     .await?;
 
-    if listings.is_empty() {
+    if posts.is_empty() {
         return Ok((0, 0));
     }
 
     info!(
         website_id = %website_id,
-        count = listings.len(),
-        "Generating embeddings for listings"
+        count = posts.len(),
+        "Generating embeddings for posts"
     );
 
     let mut processed = 0;
     let mut failed = 0;
 
-    for listing in &listings {
-        // Build embedding content from listing fields
+    for post in &posts {
+        // Build embedding content from post fields
         let content_for_embedding = format!(
             "{}\n\n{}\n\nTL;DR: {}\nOrganization: {}",
-            listing.title,
-            listing.description,
-            listing.tldr.as_deref().unwrap_or(""),
-            listing.organization_name
+            post.title,
+            post.description,
+            post.tldr.as_deref().unwrap_or(""),
+            post.organization_name
         );
 
         match ctx.deps().embedding_service.generate(&content_for_embedding).await {
             Ok(embedding) => {
-                if let Err(e) = Post::update_embedding(listing.id, &embedding, &ctx.deps().db_pool).await {
+                if let Err(e) = Post::update_embedding(post.id, &embedding, &ctx.deps().db_pool).await {
                     warn!(
-                        post_id = %listing.id.as_uuid(),
+                        post_id = %post.id.as_uuid(),
                         error = %e,
                         "Failed to save embedding"
                     );
@@ -798,7 +821,7 @@ async fn generate_missing_embeddings_for_website(
             }
             Err(e) => {
                 warn!(
-                    post_id = %listing.id.as_uuid(),
+                    post_id = %post.id.as_uuid(),
                     error = %e,
                     "Failed to generate embedding"
                 );
@@ -808,6 +831,148 @@ async fn generate_missing_embeddings_for_website(
     }
 
     Ok((processed, failed))
+}
+
+/// Deduplicate posts for a specific website using embedding similarity
+/// Returns the number of duplicate posts soft-deleted
+async fn deduplicate_website_posts(
+    website_id: WebsiteId,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<usize> {
+    use std::collections::HashSet;
+    use crate::kernel::LlmRequestExt;
+
+    const SIMILARITY_THRESHOLD: f32 = 0.90;
+
+    // Get all posts with embeddings for this website (excluding already deleted)
+    let posts_with_embeddings = Post::find_with_embeddings_for_website(website_id, &ctx.deps().db_pool).await?;
+
+    if posts_with_embeddings.len() < 2 {
+        return Ok(0);
+    }
+
+    // Find duplicate groups and track which post to keep
+    let mut processed: HashSet<PostId> = HashSet::new();
+    let mut to_soft_delete: Vec<(PostId, String, PostId, String, f32)> = Vec::new(); // (delete_id, delete_title, keep_id, keep_title, similarity)
+
+    for (i, (post_id, embedding, title)) in posts_with_embeddings.iter().enumerate() {
+        if processed.contains(post_id) {
+            continue;
+        }
+        processed.insert(*post_id);
+
+        // Find duplicates of this post
+        for (other_id, other_embedding, other_title) in posts_with_embeddings.iter().skip(i + 1) {
+            if processed.contains(other_id) {
+                continue;
+            }
+
+            let similarity = cosine_similarity(embedding, other_embedding);
+            if similarity >= SIMILARITY_THRESHOLD {
+                // Keep the first one, soft-delete the other
+                info!(
+                    keeping = %post_id,
+                    keeping_title = %title,
+                    deleting = %other_id,
+                    deleting_title = %other_title,
+                    similarity = %similarity,
+                    "Found duplicate post, marking for soft deletion"
+                );
+                to_soft_delete.push((*other_id, other_title.clone(), *post_id, title.clone(), similarity));
+                processed.insert(*other_id);
+            }
+        }
+    }
+
+    // Soft delete duplicates with AI-generated reason
+    let mut deleted_count = 0;
+    for (delete_id, delete_title, keep_id, keep_title, similarity) in &to_soft_delete {
+        // Generate AI explanation for the merge
+        let reason = generate_merge_reason(
+            delete_title,
+            keep_title,
+            *keep_id,
+            *similarity,
+            ctx.deps().ai.as_ref(),
+        )
+        .await
+        .unwrap_or_else(|_| {
+            // Fallback to template if AI fails
+            format!(
+                "This listing has been merged with \"{}\". Both posts describe similar services or opportunities.",
+                keep_title
+            )
+        });
+
+        match Post::soft_delete(*delete_id, &reason, &ctx.deps().db_pool).await {
+            Ok(_) => {
+                deleted_count += 1;
+            }
+            Err(e) => {
+                warn!(post_id = %delete_id, error = %e, "Failed to soft delete duplicate post");
+            }
+        }
+    }
+
+    Ok(deleted_count)
+}
+
+/// Generate an AI explanation for why two posts were merged
+async fn generate_merge_reason(
+    removed_title: &str,
+    kept_title: &str,
+    kept_id: PostId,
+    similarity: f32,
+    ai: &dyn crate::kernel::BaseAI,
+) -> Result<String> {
+    use crate::kernel::LlmRequestExt;
+
+    let similarity_percent = (similarity * 100.0).round() as i32;
+
+    let prompt = format!(
+        r#"Write a brief, friendly explanation (1-2 sentences) for why a listing was merged with another.
+
+Removed listing: "{}"
+Kept listing: "{}" (ID: {})
+Similarity: {}%
+
+The explanation should:
+- Be written for end users who might have bookmarked the old listing
+- Explain they can find the same information at the kept listing
+- Sound natural and helpful, not technical
+
+Example: "This listing has been consolidated with 'Community Food Shelf' to provide you with the most complete and up-to-date information in one place.""#,
+        removed_title, kept_title, kept_id, similarity_percent
+    );
+
+    let reason: String = ai
+        .request()
+        .system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters.")
+        .user(&prompt)
+        .text()
+        .await?;
+
+    // Clean up response (remove quotes if AI wrapped it)
+    let reason = reason.trim().trim_matches('"').to_string();
+
+    Ok(reason)
+}
+
+/// Calculate cosine similarity between two vectors
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if magnitude_a == 0.0 || magnitude_b == 0.0 {
+        return 0.0;
+    }
+
+    dot_product / (magnitude_a * magnitude_b)
 }
 
 // ============================================================================
@@ -1353,7 +1518,7 @@ async fn handle_regenerate_single_page_posts(
     );
 
     // Pass 2: Synthesize listings from summary
-    let extracted_listings = match synthesize_listings(
+    let extracted_posts = match synthesize_posts(
         SynthesisInput {
             website_domain: website.domain.clone(),
             pages: summaries,
@@ -1374,7 +1539,7 @@ async fn handle_regenerate_single_page_posts(
     };
 
     // Convert to common format
-    let listings: Vec<crate::common::ExtractedPost> = extracted_listings
+    let posts: Vec<crate::common::ExtractedPost> = extracted_posts
         .into_iter()
         .map(|extracted| crate::common::ExtractedPost {
             title: extracted.title,
@@ -1385,6 +1550,7 @@ async fn handle_regenerate_single_page_posts(
                 email: c.email,
                 website: c.website,
             }),
+            location: extracted.location,
             urgency: Some("normal".to_string()),
             confidence: Some("high".to_string()),
             audience_roles: extracted
@@ -1396,9 +1562,9 @@ async fn handle_regenerate_single_page_posts(
         })
         .collect();
 
-    let posts_count = listings.len();
+    let posts_count = posts.len();
 
-    if listings.is_empty() {
+    if posts.is_empty() {
         info!(
             page_snapshot_id = %page_snapshot_id,
             "No listings found in page"
@@ -1410,10 +1576,15 @@ async fn handle_regenerate_single_page_posts(
         });
     }
 
-    // Sync extracted listings to database
+    // Sync extracted posts to database (with embedding-based duplicate detection)
     let sync_result =
-        match super::syncing::sync_extracted_listings(website_id, listings, &ctx.deps().db_pool)
-            .await
+        match super::syncing::sync_extracted_posts(
+            website_id,
+            posts,
+            &ctx.deps().db_pool,
+            Some(ctx.deps().embedding_service.as_ref()),
+        )
+        .await
         {
             Ok(r) => r,
             Err(e) => {
@@ -1429,7 +1600,7 @@ async fn handle_regenerate_single_page_posts(
     info!(
         page_snapshot_id = %page_snapshot_id,
         new_count = sync_result.new_count,
-        changed_count = sync_result.changed_count,
+        updated_count = sync_result.updated_count,
         "Posts regenerated for page"
     );
 

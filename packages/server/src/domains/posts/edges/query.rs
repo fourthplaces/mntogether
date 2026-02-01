@@ -10,12 +10,12 @@ use uuid::Uuid;
 
 /// Convert a Post to PostType, loading business_info for business listings
 async fn post_to_post_type(post: Post, pool: &PgPool) -> PostType {
-    let mut listing_type = PostType::from(post.clone());
+    let mut post_type = PostType::from(post.clone());
 
     // Load business_info if this is a business listing
-    if post.listing_type == "business" {
+    if post.post_type == "business" {
         if let Ok(Some(business)) = BusinessPost::find_by_post_id(post.id, pool).await {
-            listing_type.business_info = Some(BusinessInfo {
+            post_type.business_info = Some(BusinessInfo {
                 accepts_donations: business.accepts_donations,
                 donation_link: business.donation_link,
                 gift_cards_available: business.gift_cards_available,
@@ -30,11 +30,11 @@ async fn post_to_post_type(post: Post, pool: &PgPool) -> PostType {
         }
     }
 
-    listing_type
+    post_type
 }
 
 /// Query listings with filters and pagination
-pub async fn query_listings(
+pub async fn query_posts(
     pool: &PgPool,
     status: Option<PostStatusData>,
     limit: Option<i32>,
@@ -52,8 +52,8 @@ pub async fn query_listings(
         Some(PostStatusData::Filled) => "filled",
     };
 
-    // Fetch listings using model method
-    let listings = Post::find_by_status(status_filter, limit as i64, offset as i64, pool)
+    // Fetch posts using model method
+    let posts = Post::find_by_status(status_filter, limit as i64, offset as i64, pool)
         .await
         .map_err(|_| FieldError::new("Database error", juniper::Value::null()))?;
 
@@ -64,10 +64,10 @@ pub async fn query_listings(
 
     let has_next_page = (offset + limit) < total_count as i32;
 
-    // Convert listings with business_info
-    let mut nodes = Vec::with_capacity(listings.len());
-    for listing in listings {
-        nodes.push(post_to_post_type(listing, pool).await);
+    // Convert posts with business_info
+    let mut nodes = Vec::with_capacity(posts.len());
+    for post in posts {
+        nodes.push(post_to_post_type(post, pool).await);
     }
 
     Ok(PostConnection {
@@ -77,7 +77,7 @@ pub async fn query_listings(
     })
 }
 
-/// Get a single listing by ID
+/// Get a single listing by ID (for admin/GraphQL)
 pub async fn query_listing(pool: &PgPool, id: Uuid) -> FieldResult<Option<PostType>> {
     // Convert to typed ID
     let post_id = PostId::from_uuid(id);
@@ -112,7 +112,7 @@ pub async fn query_post(
 
 /// Get posts for a specific listing
 /// Note: This function is deprecated - the announcement model was removed
-pub async fn query_posts_for_listing(
+pub async fn query_posts_for_post(
     _ctx: &GraphQLContext,
     _post_id: Uuid,
 ) -> FieldResult<Vec<crate::domains::posts::data::PostData>> {
@@ -180,7 +180,7 @@ pub async fn query_post_reports(
 }
 
 /// Get reports for a specific listing (admin only)
-pub async fn query_reports_for_listing(
+pub async fn query_reports_for_post(
     ctx: &GraphQLContext,
     post_id: Uuid,
 ) -> FieldResult<Vec<PostReport>> {
@@ -197,7 +197,7 @@ pub async fn query_reports_for_listing(
     }
 
     let post_id = PostId::from_uuid(post_id);
-    let reports = PostReportRecord::query_for_listing(post_id, &ctx.db_pool)
+    let reports = PostReportRecord::query_for_post(post_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(

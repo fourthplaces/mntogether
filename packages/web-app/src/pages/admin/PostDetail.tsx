@@ -12,7 +12,7 @@ const GET_POST = gql`
       tldr
       description
       descriptionMarkdown
-      listingType
+      postType
       category
       urgency
       location
@@ -86,7 +86,7 @@ interface Post {
   tldr: string | null;
   description: string;
   descriptionMarkdown: string | null;
-  listingType: string;
+  postType: string;
   category: string;
   urgency: string | null;
   location: string | null;
@@ -390,7 +390,7 @@ export function PostDetail() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Type</span>
-              <p className="text-sm font-medium text-stone-900">{post.listingType}</p>
+              <p className="text-sm font-medium text-stone-900">{post.postType}</p>
             </div>
             <div className="select-text">
               <span className="text-xs text-stone-500 uppercase">Category</span>

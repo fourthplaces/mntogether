@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod ai_matching;
+pub mod deps;
 pub mod fallback_scraper;
 pub mod firecrawl_client;
 pub mod job_queue;
@@ -15,6 +16,7 @@ pub mod test_dependencies;
 pub mod traits;
 
 pub use ai::OpenAIClient;
+pub use deps::{ServerDeps, TwilioAdapter};
 pub use fallback_scraper::FallbackScraper;
 pub use firecrawl_client::FirecrawlClient;
 pub use llm_request::LlmRequestExt;

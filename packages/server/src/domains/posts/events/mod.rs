@@ -20,7 +20,7 @@ pub struct PageExtractionResult {
     pub url: String,
     pub snapshot_id: Option<uuid::Uuid>,
     pub listings_count: usize,
-    pub has_listings: bool,
+    pub has_posts: bool,
 }
 
 /// Listings domain events
@@ -124,7 +124,7 @@ pub enum PostEvent {
     },
 
     /// Admin reposts a listing (creates new post for existing listing)
-    RepostListingRequested {
+    RepostPostRequested {
         post_id: PostId,
         requested_by: MemberId,
         is_admin: bool,
@@ -151,7 +151,7 @@ pub enum PostEvent {
     PostClickedRequested { post_id: PostId },
 
     /// Admin deletes a listing
-    DeleteListingRequested {
+    DeletePostRequested {
         post_id: PostId,
         requested_by: MemberId,
         is_admin: bool,
@@ -184,7 +184,7 @@ pub enum PostEvent {
     },
 
     /// Request to generate embedding for a single post
-    GenerateListingEmbeddingRequested { post_id: PostId },
+    GeneratePostEmbeddingRequested { post_id: PostId },
 
     // =========================================================================
     // Fact Events (from effects - what actually happened)
@@ -209,28 +209,28 @@ pub enum PostEvent {
     },
 
     /// AI extracted listings from scraped content
-    ListingsExtracted {
+    PostsExtracted {
         source_id: WebsiteId,
         job_id: JobId,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
     },
 
     /// AI extracted listings from user-submitted resource link
-    ResourceLinkListingsExtracted {
+    ResourceLinkPostsExtracted {
         job_id: JobId,
         url: String,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
         context: Option<String>,
         submitter_contact: Option<String>,
     },
 
     /// Listings were synced with database
-    ListingsSynced {
+    PostsSynced {
         source_id: WebsiteId,
         job_id: JobId,
         new_count: usize,
-        changed_count: usize,
-        disappeared_count: usize,
+        updated_count: usize,
+        unchanged_count: usize,
     },
 
     /// Scraping failed (terminal event - clears pending state)
@@ -258,7 +258,7 @@ pub enum PostEvent {
     },
 
     /// A listing was created (from scraping or user submission)
-    ListingCreated {
+    PostEntryCreated {
         post_id: PostId,
         organization_name: String,
         title: String,
@@ -266,10 +266,10 @@ pub enum PostEvent {
     },
 
     /// A listing was approved by admin
-    ListingApproved { post_id: PostId },
+    PostApproved { post_id: PostId },
 
     /// A listing was rejected by admin
-    ListingRejected {
+    PostRejected {
         post_id: PostId,
         reason: String,
     },
@@ -295,7 +295,7 @@ pub enum PostEvent {
     PostClicked { post_id: PostId },
 
     /// A listing was deleted
-    ListingDeleted { post_id: PostId },
+    PostDeleted { post_id: PostId },
 
     /// A listing was reported
     PostReported {
@@ -313,7 +313,7 @@ pub enum PostEvent {
     ReportDismissed { report_id: PostReportId },
 
     /// Embedding generated for a listing
-    ListingEmbeddingGenerated {
+    PostEmbeddingGenerated {
         post_id: PostId,
         dimensions: usize,
     },
@@ -366,10 +366,10 @@ pub enum PostEvent {
     },
 
     /// Listings extracted from multiple crawled pages
-    ListingsExtractedFromPages {
+    PostsExtractedFromPages {
         website_id: WebsiteId,
         job_id: JobId,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
         page_results: Vec<PageExtractionResult>,
     },
 
@@ -425,5 +425,30 @@ pub enum PostEvent {
         page_snapshot_id: uuid::Uuid,
         job_id: JobId,
         posts_count: usize,
+    },
+
+    // =========================================================================
+    // Deduplication Events
+    // =========================================================================
+    /// Admin requests to deduplicate posts using embedding similarity
+    DeduplicatePostsRequested {
+        job_id: JobId,
+        similarity_threshold: f32,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Posts deduplicated successfully
+    PostsDeduplicated {
+        job_id: JobId,
+        duplicates_found: usize,
+        posts_merged: usize,
+        posts_deleted: usize,
+    },
+
+    /// Deduplication failed
+    DeduplicationFailed {
+        job_id: JobId,
+        reason: String,
     },
 }

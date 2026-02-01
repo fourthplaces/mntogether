@@ -155,17 +155,17 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
         |m| {
             m.try_match(|e: &PostEvent| match e {
                 // Success - crawl workflow complete (listings synced)
-                PostEvent::ListingsSynced {
+                PostEvent::PostsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
-                    changed_count,
-                    disappeared_count,
+                    updated_count,
+                    unchanged_count,
                 } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
-                        "Crawl complete! Found {} new, {} changed, {} disappeared listings",
-                        new_count, changed_count, disappeared_count
+                        "Crawl complete! Found {} new, {} updated, {} unchanged listings",
+                        new_count, updated_count, unchanged_count
                     ),
                 ))),
                 // No listings found but may retry
@@ -174,9 +174,9 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
                     job_id: marked_job_id,
                     total_attempts,
                 } if *marked_id == website_id && *marked_job_id == job_id => Some(Ok((
-                    "no_listings".to_string(),
+                    "no_posts".to_string(),
                     format!(
-                        "No listings found after {} attempts. Website marked as no_listings_found.",
+                        "No listings found after {} attempts. Website marked as no_posts_found.",
                         total_attempts
                     ),
                 ))),
@@ -301,17 +301,17 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
         |m| {
             m.try_match(|e: &PostEvent| match e {
                 // Success - extraction and sync workflow complete
-                PostEvent::ListingsSynced {
+                PostEvent::PostsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
-                    changed_count,
-                    disappeared_count,
+                    updated_count,
+                    unchanged_count,
                 } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
-                        "Regeneration complete! Found {} new, {} changed, {} disappeared posts",
-                        new_count, changed_count, disappeared_count
+                        "Regeneration complete! Found {} new, {} updated, {} unchanged posts",
+                        new_count, updated_count, unchanged_count
                     ),
                 ))),
                 // No listings found
@@ -320,7 +320,7 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
                     job_id: marked_job_id,
                     total_attempts,
                 } if *marked_id == website_id && *marked_job_id == job_id => Some(Ok((
-                    "no_listings".to_string(),
+                    "no_posts".to_string(),
                     format!(
                         "No listings found after {} attempts.",
                         total_attempts
@@ -648,17 +648,17 @@ pub async fn refresh_page_snapshot(
         |m| {
             m.try_match(|e: &PostEvent| match e {
                 // Success - scraping workflow complete
-                PostEvent::ListingsSynced {
+                PostEvent::PostsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
-                    changed_count,
-                    disappeared_count,
+                    updated_count,
+                    unchanged_count,
                 } if *synced_source_id == source_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
-                        "Refresh complete! Found {} new, {} changed, {} disappeared",
-                        new_count, changed_count, disappeared_count
+                        "Refresh complete! Found {} new, {} updated, {} unchanged",
+                        new_count, updated_count, unchanged_count
                     ),
                 ))),
                 // Failure events

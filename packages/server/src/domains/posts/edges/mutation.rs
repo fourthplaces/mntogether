@@ -32,7 +32,7 @@ pub async fn scrape_organization(
     let source_id = WebsiteId::from_uuid(source_id);
     let job_id = JobId::new();
 
-    // Dispatch request event and await completion (ListingsSynced or failure)
+    // Dispatch request event and await completion (PostsSynced or failure)
     let result = dispatch_request(
         PostEvent::ScrapeSourceRequested {
             source_id,
@@ -44,17 +44,17 @@ pub async fn scrape_organization(
         |m| {
             m.try_match(|e: &PostEvent| match e {
                 // Success - scraping workflow complete
-                PostEvent::ListingsSynced {
+                PostEvent::PostsSynced {
                     source_id: synced_source_id,
                     job_id: synced_job_id,
                     new_count,
-                    changed_count,
-                    disappeared_count,
+                    updated_count,
+                    unchanged_count,
                 } if *synced_source_id == source_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
-                        "Scraping complete! Found {} new, {} changed, {} disappeared",
-                        new_count, changed_count, disappeared_count
+                        "Scraping complete! Found {} new, {} updated, {} unchanged",
+                        new_count, updated_count, unchanged_count
                     ),
                 ))),
                 // Failure events
@@ -106,7 +106,7 @@ pub async fn scrape_organization(
 
 /// Submit a listing from a member (user-submitted, goes to pending_approval)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn submit_listing(
+pub async fn submit_post(
     ctx: &GraphQLContext,
     input: SubmitPostInput,
     member_id: Option<Uuid>,
@@ -126,7 +126,7 @@ pub async fn submit_listing(
     // Convert to typed ID
     let member_id_typed = member_id.map(MemberId::from_uuid);
 
-    // Dispatch request event and await ListingCreated fact event
+    // Dispatch request event and await PostEntryCreated fact event
     let post_id = dispatch_request(
         PostEvent::SubmitListingRequested {
             member_id: member_id_typed,
@@ -141,7 +141,7 @@ pub async fn submit_listing(
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingCreated {
+                PostEvent::PostEntryCreated {
                     post_id,
                     submission_type,
                     ..
@@ -170,7 +170,7 @@ pub async fn submit_listing(
 
 /// Approve a listing (human-in-the-loop)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
+pub async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
     info!(post_id = %post_id, "Approving listing (triggers matching)");
 
     // Get user info (authorization will be checked in effect)
@@ -182,7 +182,7 @@ pub async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult
     // Convert to typed ID
     let post_id = PostId::from_uuid(post_id);
 
-    // Dispatch request event and await ListingApproved fact event
+    // Dispatch request event and await PostApproved fact event
     dispatch_request(
         PostEvent::ApproveListingRequested {
             post_id,
@@ -192,7 +192,7 @@ pub async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingApproved { post_id: lid } if *lid == post_id => {
+                PostEvent::PostApproved { post_id: lid } if *lid == post_id => {
                     Some(Ok(()))
                 }
                 PostEvent::AuthorizationDenied { reason, .. } => {
@@ -222,7 +222,7 @@ pub async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult
 
 /// Edit and approve a listing (fix AI mistakes or improve user-submitted content)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn edit_and_approve_listing(
+pub async fn edit_and_approve_post(
     ctx: &GraphQLContext,
     post_id: Uuid,
     input: EditPostInput,
@@ -238,7 +238,7 @@ pub async fn edit_and_approve_listing(
     // Convert to typed ID
     let post_id = PostId::from_uuid(post_id);
 
-    // Dispatch request event and await ListingApproved fact event
+    // Dispatch request event and await PostApproved fact event
     dispatch_request(
         PostEvent::EditAndApproveListingRequested {
             post_id,
@@ -255,7 +255,7 @@ pub async fn edit_and_approve_listing(
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingApproved { post_id: lid } if *lid == post_id => {
+                PostEvent::PostApproved { post_id: lid } if *lid == post_id => {
                     Some(Ok(()))
                 }
                 PostEvent::AuthorizationDenied { reason, .. } => {
@@ -285,7 +285,7 @@ pub async fn edit_and_approve_listing(
 
 /// Reject a listing (hide forever)
 /// Following seesaw pattern: dispatch request event, await fact event
-pub async fn reject_listing(
+pub async fn reject_post(
     ctx: &GraphQLContext,
     post_id: Uuid,
     reason: String,
@@ -301,7 +301,7 @@ pub async fn reject_listing(
     // Convert to typed ID
     let post_id = PostId::from_uuid(post_id);
 
-    // Dispatch request event and await ListingRejected fact event
+    // Dispatch request event and await PostRejected fact event
     dispatch_request(
         PostEvent::RejectListingRequested {
             post_id,
@@ -312,7 +312,7 @@ pub async fn reject_listing(
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingRejected {
+                PostEvent::PostRejected {
                     post_id: lid, ..
                 } if *lid == post_id => Some(Ok(())),
                 PostEvent::AuthorizationDenied { reason, .. } => {
@@ -395,7 +395,7 @@ pub async fn submit_resource_link(
 }
 
 /// Delete a listing (admin only)
-pub async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+pub async fn delete_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
     info!(post_id = %post_id, "Delete listing requested");
 
     // Get user info (auth check moved to effect)
@@ -409,7 +409,7 @@ pub async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<
 
     // Dispatch request event - effect will handle authorization and deletion
     dispatch_request(
-        PostEvent::DeleteListingRequested {
+        PostEvent::DeletePostRequested {
             post_id,
             requested_by: user.member_id,
             is_admin: user.is_admin,
@@ -417,7 +417,7 @@ pub async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingDeleted { post_id: _ } => Some(Ok(true)),
+                PostEvent::PostDeleted { post_id: _ } => Some(Ok(true)),
                 PostEvent::AuthorizationDenied { .. } => Some(Err(anyhow::anyhow!(
                     "Only administrators can delete listings"
                 ))),
@@ -437,7 +437,7 @@ pub async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<
 
 /// Repost a listing (create new post for existing active listing)
 /// Note: This function is deprecated - the announcement model was removed
-pub async fn repost_listing(
+pub async fn repost_post(
     _ctx: &GraphQLContext,
     _post_id: Uuid,
 ) -> FieldResult<crate::domains::posts::data::types::RepostResult> {
@@ -628,7 +628,7 @@ pub use crate::domains::website::edges::mutation::{
 };
 
 /// Submit a report for a listing (public or authenticated)
-pub async fn report_listing(
+pub async fn report_post(
     ctx: &GraphQLContext,
     post_id: Uuid,
     reason: String,
@@ -671,7 +671,7 @@ pub async fn report_listing(
     })?;
 
     // Fetch the created report
-    let report = PostReportRecord::query_for_listing(post_id, &ctx.db_pool)
+    let report = PostReportRecord::query_for_post(post_id, &ctx.db_pool)
         .await
         .map_err(|e| {
             FieldError::new(
@@ -868,11 +868,11 @@ pub async fn generate_post_embedding(ctx: &GraphQLContext, post_id: Uuid) -> Fie
     info!(post_id = %post_id.as_uuid(), "Generating embedding for post");
 
     dispatch_request(
-        PostEvent::GenerateListingEmbeddingRequested { post_id },
+        PostEvent::GeneratePostEmbeddingRequested { post_id },
         &ctx.bus,
         |m| {
             m.try_match(|e: &PostEvent| match e {
-                PostEvent::ListingEmbeddingGenerated {
+                PostEvent::PostEmbeddingGenerated {
                     post_id: gen_id, ..
                 } if *gen_id == post_id => Some(Ok(true)),
                 PostEvent::ListingEmbeddingFailed {
@@ -891,4 +891,94 @@ pub async fn generate_post_embedding(ctx: &GraphQLContext, post_id: Uuid) -> Fie
             juniper::Value::null(),
         )
     })
+}
+
+/// Result type for deduplication
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct DeduplicationResult {
+    pub job_id: Uuid,
+    pub duplicates_found: i32,
+    pub posts_merged: i32,
+    pub posts_deleted: i32,
+}
+
+/// Deduplicate posts using embedding similarity (admin only)
+/// Finds posts with similar embeddings and merges them (keeps oldest, deletes others)
+pub async fn deduplicate_posts(
+    ctx: &GraphQLContext,
+    similarity_threshold: Option<f64>,
+) -> FieldResult<DeduplicationResult> {
+    // Verify admin access
+    let user = ctx
+        .auth_user
+        .as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    if !user.is_admin {
+        return Err(FieldError::new(
+            "Admin authorization required",
+            juniper::Value::null(),
+        ));
+    }
+
+    let job_id = JobId::new();
+    let threshold = similarity_threshold.unwrap_or(0.95) as f32;
+
+    info!(
+        job_id = %job_id,
+        similarity_threshold = %threshold,
+        requested_by = %user.member_id,
+        "Admin triggering post deduplication"
+    );
+
+    let result = dispatch_request(
+        PostEvent::DeduplicatePostsRequested {
+            job_id,
+            similarity_threshold: threshold,
+            requested_by: user.member_id,
+            is_admin: user.is_admin,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &PostEvent| match e {
+                PostEvent::PostsDeduplicated {
+                    job_id: completed_job_id,
+                    duplicates_found,
+                    posts_merged,
+                    posts_deleted,
+                } if *completed_job_id == job_id => Some(Ok(DeduplicationResult {
+                    job_id: job_id.into_uuid(),
+                    duplicates_found: *duplicates_found as i32,
+                    posts_merged: *posts_merged as i32,
+                    posts_deleted: *posts_deleted as i32,
+                })),
+                PostEvent::DeduplicationFailed {
+                    job_id: failed_job_id,
+                    reason,
+                } if *failed_job_id == job_id => {
+                    Some(Err(anyhow::anyhow!("Deduplication failed: {}", reason)))
+                }
+                PostEvent::AuthorizationDenied { reason, .. } => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to deduplicate posts: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    info!(
+        duplicates_found = result.duplicates_found,
+        posts_deleted = result.posts_deleted,
+        "Post deduplication completed"
+    );
+
+    Ok(result)
 }

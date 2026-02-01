@@ -12,7 +12,7 @@ use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::commands::ChatCommand;
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
-use crate::domains::posts::effects::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use crate::domains::tag::{Tag, Taggable};
 
 /// Chat Effect - Handles CreateContainer and CreateMessage commands

@@ -11,7 +11,7 @@ pub struct ContainerData {
     /// Unique identifier
     pub id: String,
 
-    /// Type of container: ai_chat, listing_comments, org_discussion
+    /// Type of container: ai_chat, post_comments, org_discussion
     pub container_type: String,
 
     /// Optional entity ID this container is attached to (post_id, org_id, etc)
