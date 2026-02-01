@@ -46,6 +46,13 @@ async fn create_approved_website(ctx: &TestHarness, domain: &str, admin_id: Uuid
     .await
     .expect("Failed to create website");
 
+    // Set max_crawl_retries to 0 for tests to avoid retry loops
+    sqlx::query("UPDATE websites SET max_crawl_retries = 0 WHERE id = $1")
+        .bind(website.id.as_uuid())
+        .execute(&ctx.db_pool)
+        .await
+        .expect("Failed to update max_crawl_retries");
+
     Website::approve(website.id, MemberId::from_uuid(admin_id), &ctx.db_pool)
         .await
         .expect("Failed to approve website");
@@ -358,12 +365,12 @@ async fn crawl_website_handles_no_listings(ctx: &TestHarness) {
     let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
     let result = client.query(&crawl_mutation_simple(website_id)).await;
 
-    // Assert: Should complete with no_listings status from the mutation response
+    // Assert: Should complete with no_posts status from the mutation response
     // The crawl workflow completes synchronously for the GraphQL mutation
     let status = result["crawlWebsite"]["status"].as_str().unwrap_or("");
     assert!(
-        status == "no_listings" || status == "completed",
-        "Expected no_listings or completed status, got: {}",
+        status == "no_posts" || status == "completed",
+        "Expected no_posts or completed status, got: {}",
         status
     );
 

@@ -5,6 +5,11 @@
 
 use anyhow::{Context, Result};
 use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
+use server_core::domains::crawling::{
+    commands::CrawlCommand,
+    effects::CrawlerEffect,
+    machines::CrawlMachine,
+};
 use server_core::domains::posts::{
     commands::PostCommand,
     effects::PostCompositeEffect,
@@ -122,6 +127,16 @@ fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw_core::Engine<Ser
 
 fn start_domain_engines(deps: ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
     let mut handles = Vec::new();
+
+    // Crawling domain
+    start_engine(
+        &mut handles,
+        EngineBuilder::new(deps.clone())
+            .with_machine(CrawlMachine::new())
+            .with_effect::<CrawlCommand, _>(CrawlerEffect)
+            .with_bus(bus.clone())
+            .build(),
+    );
 
     // Posts domain
     start_engine(

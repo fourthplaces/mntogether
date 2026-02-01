@@ -25,7 +25,6 @@ pub struct PostType {
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
     pub website_id: Option<Uuid>,
-    pub has_embedding: bool,
     pub created_at: DateTime<Utc>,
     pub business_info: Option<BusinessInfo>,
 }
@@ -46,7 +45,6 @@ impl PostType {
     fn submission_type(&self) -> Option<&str> { self.submission_type.as_deref() }
     fn source_url(&self) -> Option<&str> { self.source_url.as_deref() }
     fn website_id(&self) -> Option<Uuid> { self.website_id }
-    fn has_embedding(&self) -> bool { self.has_embedding }
     fn created_at(&self) -> DateTime<Utc> { self.created_at }
     fn business_info(&self) -> Option<&BusinessInfo> { self.business_info.as_ref() }
 
@@ -100,7 +98,6 @@ impl From<Post> for PostType {
             submission_type: post.submission_type,
             source_url: post.source_url,
             website_id: post.website_id.map(|id| id.into_uuid()),
-            has_embedding: post.embedding.is_some(),
             created_at: post.created_at,
             business_info: None, // Populated by query layer when post_type = 'business'
         }

@@ -117,7 +117,8 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
             }
 
             PostCommand::GeneratePostEmbedding { post_id } => {
-                handle_generate_post_embedding(post_id, &ctx).await
+                // Embeddings are no longer used - this is a no-op for backwards compatibility
+                Ok(PostEvent::PostEmbeddingGenerated { post_id, dimensions: 0 })
             }
 
             PostCommand::CreateCustomPost {
@@ -265,11 +266,11 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
 
             PostCommand::DeduplicatePosts {
                 job_id,
-                similarity_threshold,
+                similarity_threshold: _,
                 requested_by,
                 is_admin,
             } => {
-                handle_deduplicate_posts(job_id, similarity_threshold, requested_by, is_admin, &ctx)
+                handle_deduplicate_posts(job_id, requested_by, is_admin, &ctx)
                     .await
             }
 
@@ -398,28 +399,6 @@ async fn handle_update_post_and_approve(
     .await?;
 
     Ok(PostEvent::PostApproved { post_id })
-}
-
-async fn handle_generate_post_embedding(
-    post_id: PostId,
-    ctx: &EffectContext<ServerDeps>,
-) -> Result<PostEvent> {
-    match super::post_operations::generate_post_embedding(
-        post_id,
-        ctx.deps().embedding_service.as_ref(),
-        &ctx.deps().db_pool,
-    )
-    .await
-    {
-        Ok(dimensions) => Ok(PostEvent::PostEmbeddingGenerated {
-            post_id,
-            dimensions,
-        }),
-        Err(e) => Ok(PostEvent::ListingEmbeddingFailed {
-            post_id,
-            reason: e.to_string(),
-        }),
-    }
 }
 
 // ============================================================================
@@ -813,14 +792,18 @@ async fn handle_delete_post(
 // ============================================================================
 
 /// Handle DeduplicatePosts command - find and merge duplicate posts using embedding similarity
+/// Handle deduplication of posts using LLM-based semantic analysis
+///
+/// This uses LLM to identify duplicate posts across ALL websites (not just one).
+/// Core principle: Post identity = Organization × Service × Audience
 async fn handle_deduplicate_posts(
     job_id: JobId,
-    similarity_threshold: f32,
     requested_by: MemberId,
     is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    use crate::domains::posts::models::Post;
+    use crate::domains::posts::effects::deduplication::{deduplicate_posts_llm, apply_dedup_results};
+    use crate::domains::website::models::Website;
 
     // Authorization check - only admins can deduplicate posts
     if let Err(auth_err) = Actor::new(requested_by, is_admin)
@@ -837,134 +820,89 @@ async fn handle_deduplicate_posts(
 
     info!(
         job_id = %job_id,
-        similarity_threshold = %similarity_threshold,
-        "Starting post deduplication"
+        "Starting LLM-based post deduplication"
     );
 
-    // Find all posts with embeddings
-    let posts_with_embeddings = Post::find_all_with_embeddings(&ctx.deps().db_pool).await?;
-
-    info!(
-        count = posts_with_embeddings.len(),
-        "Found posts with embeddings"
-    );
-
-    if posts_with_embeddings.len() < 2 {
-        return Ok(PostEvent::PostsDeduplicated {
-            job_id,
-            duplicates_found: 0,
-            posts_merged: 0,
-            posts_deleted: 0,
-        });
-    }
-
-    // Find duplicate groups using embedding similarity
-    let duplicate_groups =
-        find_duplicate_groups(&posts_with_embeddings, similarity_threshold).await;
-
-    let duplicates_found = duplicate_groups.len();
-    let mut posts_deleted = 0;
-
-    info!(
-        duplicate_groups = duplicates_found,
-        "Found duplicate groups"
-    );
-
-    // Process each group - keep oldest, delete others
-    for group in &duplicate_groups {
-        if group.len() < 2 {
-            continue;
+    // Get all approved websites and deduplicate each
+    let websites = match Website::find_approved(&ctx.deps().db_pool).await {
+        Ok(w) => w,
+        Err(e) => {
+            warn!(error = %e, "Failed to fetch websites for deduplication");
+            return Ok(PostEvent::PostsDeduplicated {
+                job_id,
+                duplicates_found: 0,
+                posts_merged: 0,
+                posts_deleted: 0,
+            });
         }
+    };
 
-        // Sort by created_at to find oldest (keep) vs newer (delete)
-        let mut sorted_group = group.clone();
-        sorted_group.sort_by_key(|(_, created_at)| *created_at);
+    let mut total_deleted = 0;
+    let mut total_groups = 0;
 
-        // Keep the oldest post
-        let (keeper_id, _) = sorted_group[0];
-        info!(keeper_id = %keeper_id, "Keeping oldest post in duplicate group");
-
-        // Delete the rest
-        for (post_id, _) in sorted_group.iter().skip(1) {
-            match Post::delete(*post_id, &ctx.deps().db_pool).await {
-                Ok(_) => {
-                    posts_deleted += 1;
-                    info!(post_id = %post_id, "Deleted duplicate post");
-                }
-                Err(e) => {
-                    warn!(post_id = %post_id, error = %e, "Failed to delete duplicate post");
-                }
+    for website in &websites {
+        // Run LLM deduplication for this website
+        let dedup_result = match deduplicate_posts_llm(
+            website.id,
+            ctx.deps().ai.as_ref(),
+            &ctx.deps().db_pool,
+        )
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(
+                    website_id = %website.id,
+                    error = %e,
+                    "Failed to run LLM deduplication for website"
+                );
+                continue;
             }
+        };
+
+        total_groups += dedup_result.duplicate_groups.len();
+
+        // Apply the results
+        let deleted = match apply_dedup_results(
+            dedup_result,
+            ctx.deps().ai.as_ref(),
+            &ctx.deps().db_pool,
+        )
+        .await
+        {
+            Ok(d) => d,
+            Err(e) => {
+                warn!(
+                    website_id = %website.id,
+                    error = %e,
+                    "Failed to apply deduplication results"
+                );
+                continue;
+            }
+        };
+
+        total_deleted += deleted;
+
+        if deleted > 0 {
+            info!(
+                website_id = %website.id,
+                deleted = deleted,
+                "Deduplicated posts for website"
+            );
         }
     }
 
     info!(
-        duplicates_found = duplicates_found,
-        posts_deleted = posts_deleted,
-        "Deduplication complete"
+        job_id = %job_id,
+        total_groups = total_groups,
+        total_deleted = total_deleted,
+        "LLM deduplication complete"
     );
 
     Ok(PostEvent::PostsDeduplicated {
         job_id,
-        duplicates_found,
-        posts_merged: duplicates_found, // Each group is "merged" into one
-        posts_deleted,
+        duplicates_found: total_groups,
+        posts_merged: total_groups,
+        posts_deleted: total_deleted,
     })
-}
-
-/// Find groups of duplicate posts based on embedding cosine similarity
-async fn find_duplicate_groups(
-    posts: &[(PostId, Vec<f32>, chrono::DateTime<chrono::Utc>)],
-    threshold: f32,
-) -> Vec<Vec<(PostId, chrono::DateTime<chrono::Utc>)>> {
-    use std::collections::HashSet;
-
-    let mut processed: HashSet<PostId> = HashSet::new();
-    let mut groups: Vec<Vec<(PostId, chrono::DateTime<chrono::Utc>)>> = Vec::new();
-
-    for (i, (post_id, embedding, created_at)) in posts.iter().enumerate() {
-        if processed.contains(post_id) {
-            continue;
-        }
-
-        let mut group = vec![(*post_id, *created_at)];
-        processed.insert(*post_id);
-
-        // Compare with all other posts
-        for (other_id, other_embedding, other_created_at) in posts.iter().skip(i + 1) {
-            if processed.contains(other_id) {
-                continue;
-            }
-
-            let similarity = cosine_similarity(embedding, other_embedding);
-            if similarity >= threshold {
-                group.push((*other_id, *other_created_at));
-                processed.insert(*other_id);
-            }
-        }
-
-        // Only add groups with duplicates (more than 1 post)
-        if group.len() > 1 {
-            groups.push(group);
-        }
-    }
-
-    groups
-}
-
-/// Calculate cosine similarity between two vectors
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() || a.is_empty() {
-        return 0.0;
-    }
-
-    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-
-    if magnitude_a == 0.0 || magnitude_b == 0.0 {
-        return 0.0;
-    }
-
-    dot_product / (magnitude_a * magnitude_b)
 }

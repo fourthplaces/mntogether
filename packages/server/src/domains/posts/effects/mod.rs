@@ -2,12 +2,15 @@
 //
 // Effects are thin orchestrators that delegate to domain functions.
 // Domain logic lives in separate function modules.
+//
+// NOTE: Crawler effect has been moved to the `crawling` domain.
+// See `crate::domains::crawling::effects::CrawlerEffect`.
 
 pub mod ai;
 pub mod composite;
-pub mod crawler;
+pub mod deduplication; // LLM-based post deduplication
 pub mod discovery; // Static search queries for finding community resources
-pub mod extraction; // Two-pass extraction: summarize pages, then synthesize posts
+pub mod extraction; // Two-pass extraction: summarize pages, then synthesize posts (DEPRECATED: use crawling::effects::extraction)
 pub mod post;
 pub mod post_extraction; // Domain functions for AI extraction
 pub mod post_operations; // Domain functions for post CRUD operations
@@ -19,7 +22,6 @@ pub mod utils;
 
 pub use ai::*;
 pub use composite::*;
-pub use crawler::*;
 pub use discovery::{run_discovery_searches, DiscoveryResult, DISCOVERY_QUERIES, DEFAULT_LOCATION};
 pub use post::*;
 pub use scraper::*;

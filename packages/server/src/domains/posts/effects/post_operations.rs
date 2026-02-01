@@ -158,31 +158,16 @@ pub async fn create_post_for_post(
 }
 
 /// Generate embedding for a listing
+/// NOTE: Embeddings are no longer used for deduplication. This function is deprecated
+/// and returns 0 for backwards compatibility.
+#[allow(unused_variables)]
 pub async fn generate_post_embedding(
     post_id: PostId,
     embedding_service: &dyn crate::kernel::BaseEmbeddingService,
     pool: &PgPool,
 ) -> Result<usize> {
-    // Get listing from database
-    let post = Post::find_by_id(post_id, pool)
-        .await
-        .context("Failed to find listing")?
-        .ok_or_else(|| anyhow::anyhow!("Listing not found"))?;
-
-    // Generate embedding from description
-    let embedding = embedding_service
-        .generate(&post.description)
-        .await
-        .context("Embedding generation failed")?;
-
-    let dimensions = embedding.len();
-
-    // Update listing with embedding
-    Post::update_embedding(post_id, &embedding, pool)
-        .await
-        .context("Failed to save embedding")?;
-
-    Ok(dimensions)
+    // Embeddings are no longer used - LLM-based deduplication handles this now
+    Ok(0)
 }
 
 /// Create a custom post with admin-provided content
