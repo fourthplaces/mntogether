@@ -5,7 +5,7 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::common::utils::geocoding::geocode_city;
-use crate::domains::listings::effects::ServerDeps;
+use crate::domains::posts::effects::ServerDeps;
 use crate::domains::member::{
     commands::MemberCommand, events::MemberEvent, models::member::Member,
 };

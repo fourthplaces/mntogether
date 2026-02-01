@@ -248,7 +248,7 @@ async fn merge_websites(from_id: Uuid, to_id: Uuid, db: &PgPool) -> Result<()> {
     );
 
     // Update listings to point to the kept website
-    sqlx::query("UPDATE listings SET website_id = $1 WHERE website_id = $2")
+    sqlx::query("UPDATE posts SET website_id = $1 WHERE website_id = $2")
         .bind(to_id)
         .bind(from_id)
         .execute(db)
@@ -283,7 +283,7 @@ async fn merge_websites(from_id: Uuid, to_id: Uuid, db: &PgPool) -> Result<()> {
         USING listing_website_sync lws2
         WHERE lws1.website_id = $1
           AND lws2.website_id = $2
-          AND lws1.listing_id = lws2.listing_id
+          AND lws1.post_id = lws2.post_id
         "#,
     )
     .bind(from_id)

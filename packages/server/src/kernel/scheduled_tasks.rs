@@ -24,8 +24,8 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{JobId, MemberId};
 use crate::config::Config;
-use crate::domains::listings::effects::run_discovery_searches;
-use crate::domains::listings::events::ListingEvent;
+use crate::domains::posts::effects::run_discovery_searches;
+use crate::domains::posts::events::PostEvent;
 use crate::domains::member::models::member::Member;
 use crate::domains::scraping::models::Website;
 use crate::kernel::TavilyClient;
@@ -107,7 +107,7 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
 
         // Emit event (fire-and-forget, non-blocking)
         // System-initiated scrapes use system user ID (all zeros) with admin privileges
-        bus.emit(ListingEvent::ScrapeSourceRequested {
+        bus.emit(PostEvent::ScrapeSourceRequested {
             source_id: source.id,
             job_id,
             requested_by: MemberId::nil(), // System user

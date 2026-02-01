@@ -56,6 +56,22 @@ const REMOVE_POST_TAG = gql`
   }
 `;
 
+const GENERATE_POST_EMBEDDING = gql`
+  mutation GeneratePostEmbedding($postId: Uuid!) {
+    generatePostEmbedding(postId: $postId)
+  }
+`;
+
+const REGENERATE_PAGE_POSTS = gql`
+  mutation RegeneratePagePosts($pageSnapshotId: Uuid!) {
+    regeneratePagePosts(pageSnapshotId: $pageSnapshotId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
 interface Tag {
   id: string;
   kind: string;
@@ -119,6 +135,28 @@ export function PostDetail() {
 
   const [removeTag, { loading: removingTag }] = useMutation(REMOVE_POST_TAG, {
     onCompleted: () => refetch(),
+  });
+
+  const [generateEmbedding, { loading: generatingEmbedding }] = useMutation(GENERATE_POST_EMBEDDING, {
+    onCompleted: () => {
+      refetch();
+      setShowMoreMenu(false);
+    },
+    onError: (error) => {
+      alert(`Failed to generate embedding: ${error.message}`);
+    },
+  });
+
+  const [regeneratePagePosts, { loading: regeneratingPosts }] = useMutation(REGENERATE_PAGE_POSTS, {
+    onCompleted: (data) => {
+      setShowMoreMenu(false);
+      if (data.regeneratePagePosts.status === 'queued') {
+        alert('Post regeneration started. Refresh the page in a moment to see updates.');
+      }
+    },
+    onError: (error) => {
+      alert(`Failed to regenerate: ${error.message}`);
+    },
   });
 
   const formatDate = (dateString: string) => {
@@ -266,29 +304,32 @@ export function PostDetail() {
                       <div className="py-1">
                         <button
                           onClick={() => {
-                            setShowMoreMenu(false);
-                            alert('Regenerate post from source - coming soon');
+                            if (pageSnapshotId) {
+                              regeneratePagePosts({ variables: { pageSnapshotId } });
+                            } else {
+                              alert('No page snapshot available for this post');
+                              setShowMoreMenu(false);
+                            }
                           }}
-                          disabled={!post.sourceUrl}
+                          disabled={!pageSnapshotId || regeneratingPosts}
                           className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                           </svg>
-                          Regenerate from Source
+                          {regeneratingPosts ? 'Regenerating...' : 'Regenerate from Source'}
                         </button>
                         <button
                           onClick={() => {
-                            setShowMoreMenu(false);
-                            alert('Generate embedding - coming soon');
+                            generateEmbedding({ variables: { postId } });
                           }}
-                          disabled={post.hasEmbedding}
+                          disabled={post.hasEmbedding || generatingEmbedding}
                           className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                           </svg>
-                          Generate Embedding
+                          {generatingEmbedding ? 'Generating...' : (post.hasEmbedding ? 'Embedding exists' : 'Generate Embedding')}
                         </button>
                         <div className="border-t border-stone-200 my-1" />
                         <button

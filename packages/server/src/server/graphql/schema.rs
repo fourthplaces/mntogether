@@ -5,17 +5,17 @@ use crate::domains::domain_approval::data::WebsiteSearchResultData;
 use crate::domains::domain_approval::edges::{
     generate_website_assessment, search_websites_semantic, website_assessment,
 };
-use crate::domains::listings::data::listing_report::{
-    ListingReport as ListingReportData, ListingReportDetail as ListingReportDetailData,
+use crate::domains::posts::data::post_report::{
+    PostReport as PostReportData, PostReportDetail as PostReportDetailData,
 };
-use crate::domains::listings::data::{
-    EditListingInput, ListingConnection, ListingStatusData, ListingType,
-    ScrapeJobResult, SubmitListingInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+use crate::domains::posts::data::{
+    EditPostInput, PostConnection, PostStatusData, PostType,
+    ScrapeJobResult, SubmitPostInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
-use crate::domains::listings::edges::{
+use crate::domains::posts::edges::{
     approve_listing, approve_website, archive_post, crawl_website,
     delete_listing, dismiss_report, edit_and_approve_listing, expire_post,
-    query_listing, query_listing_reports,
+    generate_post_embedding, query_listing, query_post_reports,
     query_listings, query_pending_websites, query_post, query_posts_for_listing,
     query_published_posts, query_reports_for_listing, query_website, query_websites,
     refresh_page_snapshot, reject_listing, reject_website, report_listing,
@@ -30,8 +30,9 @@ use crate::domains::website::edges::update_website_crawl_settings;
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
 use crate::domains::chatrooms::edges as chatroom_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
-use crate::domains::organization::data::post_types::RepostResult;
-use crate::domains::organization::data::{OrganizationData, PostData, WebsiteData};
+use crate::domains::posts::data::types::RepostResult;
+use crate::domains::posts::data::PostData;
+use crate::domains::organization::data::{OrganizationData, WebsiteData};
 use crate::domains::website::data::PageSnapshotData;
 use crate::domains::website::edges::{query_page_snapshot, query_page_snapshot_by_url};
 use crate::domains::providers::data::{ProviderData, SubmitProviderInput, UpdateProviderInput};
@@ -61,15 +62,15 @@ impl Query {
     /// Get a list of listings with filters
     async fn listings(
         ctx: &GraphQLContext,
-        status: Option<ListingStatusData>,
+        status: Option<PostStatusData>,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> FieldResult<ListingConnection> {
+    ) -> FieldResult<PostConnection> {
         query_listings(&ctx.db_pool, status, limit, offset).await
     }
 
     /// Get a single listing by ID
-    async fn listing(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<ListingType>> {
+    async fn listing(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<PostType>> {
         query_listing(&ctx.db_pool, id).await
     }
 
@@ -84,9 +85,9 @@ impl Query {
     /// Get posts for a specific listing
     async fn posts_for_listing(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
     ) -> FieldResult<Vec<PostData>> {
-        query_posts_for_listing(ctx, listing_id).await
+        query_posts_for_listing(ctx, post_id).await
     }
 
     /// Get a single post by ID
@@ -198,21 +199,21 @@ impl Query {
     // =========================================================================
 
     /// Get all listing reports (admin only)
-    async fn listing_reports(
+    async fn post_reports(
         ctx: &GraphQLContext,
         status: Option<String>,
         limit: Option<i32>,
         offset: Option<i32>,
-    ) -> FieldResult<Vec<ListingReportDetailData>> {
-        query_listing_reports(ctx, status, limit, offset).await
+    ) -> FieldResult<Vec<PostReportDetailData>> {
+        query_post_reports(ctx, status, limit, offset).await
     }
 
     /// Get reports for a specific listing (admin only)
     async fn reports_for_listing(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
-    ) -> FieldResult<Vec<ListingReportData>> {
-        query_reports_for_listing(ctx, listing_id).await
+        post_id: Uuid,
+    ) -> FieldResult<Vec<PostReportData>> {
+        query_reports_for_listing(ctx, post_id).await
     }
 
     /// Get the latest assessment for a website (admin only)
@@ -353,9 +354,9 @@ impl Mutation {
     /// Submit a listing from a member (public, goes to pending_approval)
     async fn submit_listing(
         ctx: &GraphQLContext,
-        input: SubmitListingInput,
+        input: SubmitPostInput,
         member_id: Option<Uuid>,
-    ) -> FieldResult<ListingType> {
+    ) -> FieldResult<PostType> {
         // TODO: Get IP address from request context
         submit_listing(ctx, input, member_id, None).await
     }
@@ -369,31 +370,31 @@ impl Mutation {
     }
 
     /// Approve a listing (make it visible to volunteers) (admin only)
-    async fn approve_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<ListingType> {
-        approve_listing(ctx, listing_id).await
+    async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
+        approve_listing(ctx, post_id).await
     }
 
     /// Edit and approve a listing (fix AI mistakes or improve user content) (admin only)
     async fn edit_and_approve_listing(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
-        input: EditListingInput,
-    ) -> FieldResult<ListingType> {
-        edit_and_approve_listing(ctx, listing_id, input).await
+        post_id: Uuid,
+        input: EditPostInput,
+    ) -> FieldResult<PostType> {
+        edit_and_approve_listing(ctx, post_id, input).await
     }
 
     /// Reject a listing (hide forever) (admin only)
     async fn reject_listing(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
         reason: String,
     ) -> FieldResult<bool> {
-        reject_listing(ctx, listing_id, reason).await
+        reject_listing(ctx, post_id, reason).await
     }
 
     /// Delete a listing (admin only)
-    async fn delete_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<bool> {
-        delete_listing(ctx, listing_id).await
+    async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        delete_listing(ctx, post_id).await
     }
 
     /// Send OTP verification code via SMS
@@ -419,8 +420,8 @@ impl Mutation {
     }
 
     /// Repost a listing (create new post for existing active listing) (admin only)
-    async fn repost_listing(ctx: &GraphQLContext, listing_id: Uuid) -> FieldResult<RepostResult> {
-        repost_listing(ctx, listing_id).await
+    async fn repost_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<RepostResult> {
+        repost_listing(ctx, post_id).await
     }
 
     /// Expire a post (admin only)
@@ -553,7 +554,7 @@ impl Mutation {
     async fn refresh_page_snapshot(
         ctx: &GraphQLContext,
         snapshot_id: String,
-    ) -> FieldResult<crate::domains::listings::data::ScrapeJobResult> {
+    ) -> FieldResult<crate::domains::posts::data::ScrapeJobResult> {
         refresh_page_snapshot(ctx, snapshot_id).await
     }
 
@@ -594,6 +595,11 @@ impl Mutation {
         run_discovery_search(ctx).await
     }
 
+    /// Generate embedding for a single post (admin only)
+    async fn generate_post_embedding(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        generate_post_embedding(ctx, post_id).await
+    }
+
     /// Generate a comprehensive assessment report for a website (admin only)
     /// Creates a "background check" style markdown report to help with approval decisions
     async fn generate_website_assessment(
@@ -606,12 +612,12 @@ impl Mutation {
     /// Report a listing (public or authenticated)
     async fn report_listing(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
         reason: String,
         category: String,
         reporter_email: Option<String>,
-    ) -> FieldResult<ListingReportData> {
-        report_listing(ctx, listing_id, reason, category, reporter_email).await
+    ) -> FieldResult<PostReportData> {
+        report_listing(ctx, post_id, reason, category, reporter_email).await
     }
 
     /// Resolve a report (admin only)
@@ -819,11 +825,11 @@ impl Mutation {
     /// Update listing tags (replaces all existing tags with new ones) (admin only)
     async fn update_listing_tags(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
         tags: Vec<TagInput>,
-    ) -> FieldResult<ListingType> {
-        use crate::common::ListingId;
-        use crate::domains::listings::models::Listing;
+    ) -> FieldResult<PostType> {
+        use crate::common::PostId;
+        use crate::domains::posts::models::Post;
         use crate::kernel::tag::{Tag, Taggable};
 
         // Check admin auth
@@ -832,31 +838,32 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let listing_id = ListingId::from_uuid(listing_id);
+        let post_id = PostId::from_uuid(post_id);
 
         // Clear existing tags
-        Taggable::delete_all_for_listing(listing_id, &ctx.db_pool).await?;
+        Taggable::delete_all_for_listing(post_id, &ctx.db_pool).await?;
 
         // Add new tags
         for tag_input in tags {
             let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
-            Taggable::create_listing_tag(listing_id, tag.id, &ctx.db_pool).await?;
+            Taggable::create_listing_tag(post_id, tag.id, &ctx.db_pool).await?;
         }
 
         // Return updated listing
-        let listing = Listing::find_by_id(listing_id, &ctx.db_pool).await?;
-        Ok(ListingType::from(listing))
+        let post = Post::find_by_id(post_id, &ctx.db_pool).await?
+            .ok_or_else(|| juniper::FieldError::new("Listing not found", juniper::Value::null()))?;
+        Ok(PostType::from(post))
     }
 
     /// Add a single tag to a listing (admin only)
     async fn add_listing_tag(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
         tag_kind: String,
         tag_value: String,
         display_name: Option<String>,
     ) -> FieldResult<crate::domains::tag::TagData> {
-        use crate::common::ListingId;
+        use crate::common::PostId;
         use crate::domains::tag::TagData;
         use crate::kernel::tag::{Tag, Taggable};
 
@@ -866,10 +873,10 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let listing_id = ListingId::from_uuid(listing_id);
+        let post_id = PostId::from_uuid(post_id);
 
         let tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, &ctx.db_pool).await?;
-        Taggable::create_listing_tag(listing_id, tag.id, &ctx.db_pool).await?;
+        Taggable::create_listing_tag(post_id, tag.id, &ctx.db_pool).await?;
 
         Ok(TagData::from(tag))
     }
@@ -877,10 +884,10 @@ impl Mutation {
     /// Remove a tag from a listing (admin only)
     async fn remove_listing_tag(
         ctx: &GraphQLContext,
-        listing_id: Uuid,
+        post_id: Uuid,
         tag_id: String,
     ) -> FieldResult<bool> {
-        use crate::common::{ListingId, TagId};
+        use crate::common::{PostId, TagId};
         use crate::kernel::tag::Taggable;
 
         // Check admin auth
@@ -889,10 +896,10 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| juniper::FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let listing_id = ListingId::from_uuid(listing_id);
+        let post_id = PostId::from_uuid(post_id);
         let tag_id = TagId::parse(&tag_id)?;
 
-        Taggable::delete_listing_tag(listing_id, tag_id, &ctx.db_pool).await?;
+        Taggable::delete_listing_tag(post_id, tag_id, &ctx.db_pool).await?;
         Ok(true)
     }
 }

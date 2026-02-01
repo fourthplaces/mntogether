@@ -6,14 +6,14 @@
 //! # Example
 //!
 //! ```rust
-//! use crate::common::{MemberId, ListingId, PostId};
+//! use crate::common::{MemberId, PostId};
 //!
 //! // These are incompatible types - compiler prevents mixing them up
 //! let member_id: MemberId = MemberId::new();
-//! let listing_id: ListingId = ListingId::new();
+//! let post_id: PostId = PostId::new();
 //!
 //! // This would be a compile error:
-//! // let wrong: ListingId = member_id;
+//! // let wrong: PostId = member_id;
 //! ```
 
 // Re-export the core Id type and version markers
@@ -26,17 +26,14 @@ pub use super::id::{Id, V4, V7};
 /// Marker type for Member entities (users).
 pub struct Member;
 
-/// Marker type for Listing entities (services, opportunities, businesses).
-pub struct Listing;
+/// Marker type for Post entities (services, opportunities, businesses).
+pub struct Post;
 
 /// Marker type for Organization entities.
 pub struct Organization;
 
 /// Marker type for Website entities (websites we scrape).
 pub struct Website;
-
-/// Marker type for Post entities (published posts for matching).
-pub struct Post;
 
 /// Marker type for ScrapeJob entities (scraping jobs).
 pub struct ScrapeJob;
@@ -84,17 +81,14 @@ pub struct ResourceVersion;
 /// Typed ID for Member entities.
 pub type MemberId = Id<Member>;
 
-/// Typed ID for Listing entities (services, opportunities, businesses).
-pub type ListingId = Id<Listing>;
+/// Typed ID for Post entities (services, opportunities, businesses).
+pub type PostId = Id<Post>;
 
 /// Typed ID for Organization entities.
 pub type OrganizationId = Id<Organization>;
 
 /// Typed ID for Website entities (websites we scrape).
 pub type WebsiteId = Id<Website>;
-
-/// Typed ID for Post entities.
-pub type PostId = Id<Post>;
 
 /// Typed ID for ScrapeJob entities.
 pub type JobId = Id<ScrapeJob>;

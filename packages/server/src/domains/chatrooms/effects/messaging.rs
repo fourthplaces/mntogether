@@ -16,7 +16,7 @@ use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::commands::{GenerateAgentGreetingCommand, GenerateChatReplyCommand};
 use crate::domains::chatrooms::events::ChatMessagingEvent;
 use crate::domains::chatrooms::models::Message;
-use crate::domains::listings::effects::deps::ServerDeps;
+use crate::domains::posts::effects::deps::ServerDeps;
 
 /// Effect that generates agent replies.
 ///

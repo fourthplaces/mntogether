@@ -8,15 +8,10 @@ use crate::domains::domain_approval::{
     commands::DomainApprovalCommand, effects::DomainApprovalCompositeEffect,
     machines::DomainApprovalMachine,
 };
-use crate::domains::listings::{
-    commands::ListingCommand,
-    effects::{ListingCompositeEffect, ServerDeps},
-    machines::ListingMachine,
-};
-use crate::domains::matching::{
-    commands::MatchingCommand,
-    effects::MatchingEffect,
-    machines::{MatchingCoordinatorMachine, MatchingMachine},
+use crate::domains::posts::{
+    commands::PostCommand,
+    effects::{PostCompositeEffect, ServerDeps},
+    machines::PostMachine,
 };
 use crate::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
@@ -153,16 +148,11 @@ pub fn build_app(
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
         // Listings domain (replaces Organization domain)
-        .with_machine(ListingMachine::new())
-        .with_effect::<ListingCommand, _>(ListingCompositeEffect::new())
+        .with_machine(PostMachine::new())
+        .with_effect::<PostCommand, _>(PostCompositeEffect::new())
         // Member domain
         .with_machine(MemberMachine::new())
         .with_effect::<MemberCommand, _>(RegistrationEffect)
-        // Matching domain
-        .with_machine(MatchingMachine::new())
-        .with_effect::<MatchingCommand, _>(MatchingEffect)
-        // Cross-domain coordinator (ListingEvent → MatchingCommand)
-        .with_machine(MatchingCoordinatorMachine::new())
         // Auth domain
         .with_machine(crate::domains::auth::AuthMachine::new())
         .with_effect::<crate::domains::auth::AuthCommand, _>(crate::domains::auth::AuthEffect)

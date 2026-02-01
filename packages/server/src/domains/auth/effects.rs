@@ -6,7 +6,7 @@ use tracing::{debug, error, info};
 use super::commands::AuthCommand;
 use super::events::AuthEvent;
 use super::models::{hash_phone_number, Identifier};
-use crate::domains::listings::effects::ServerDeps;
+use crate::domains::posts::effects::ServerDeps;
 
 /// Auth effect - handles OTP sending and verification
 ///

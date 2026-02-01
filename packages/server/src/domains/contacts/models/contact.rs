@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContactId, ListingId, OrganizationId, ProviderId, ResourceId};
+use crate::common::{ContactId, PostId, OrganizationId, ProviderId, ResourceId};
 
 /// Contact type enum for type-safe querying
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -135,7 +135,7 @@ impl Contact {
     }
 
     /// Find all contacts for a listing
-    pub async fn find_for_listing(listing_id: ListingId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_for_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
         let contacts = sqlx::query_as::<_, Self>(
             r#"
             SELECT *
@@ -144,7 +144,7 @@ impl Contact {
             ORDER BY display_order ASC, created_at ASC
             "#,
         )
-        .bind(listing_id.as_uuid())
+        .bind(post_id.as_uuid())
         .fetch_all(pool)
         .await?;
         Ok(contacts)
@@ -231,7 +231,7 @@ impl Contact {
 
     /// Create a new contact for a listing
     pub async fn create_for_listing(
-        listing_id: ListingId,
+        post_id: PostId,
         contact_type: &str,
         contact_value: &str,
         contact_label: Option<String>,
@@ -242,7 +242,7 @@ impl Contact {
         Self::create(
             CreateContact {
                 contactable_type: "listing".to_string(),
-                contactable_id: *listing_id.as_uuid(),
+                contactable_id: *post_id.as_uuid(),
                 contact_type: contact_type.to_string(),
                 contact_value: contact_value.to_string(),
                 contact_label,
@@ -381,11 +381,11 @@ impl Contact {
     }
 
     /// Delete all contacts for a listing
-    pub async fn delete_all_for_listing(listing_id: ListingId, pool: &PgPool) -> Result<()> {
+    pub async fn delete_all_for_listing(post_id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query(
             "DELETE FROM contacts WHERE contactable_type = 'listing' AND contactable_id = $1",
         )
-        .bind(listing_id.as_uuid())
+        .bind(post_id.as_uuid())
         .execute(pool)
         .await?;
         Ok(())

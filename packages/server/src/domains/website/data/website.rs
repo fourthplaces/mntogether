@@ -1,6 +1,6 @@
 use crate::common::WebsiteId;
-use crate::domains::listings::data::ListingData;
-use crate::domains::listings::models::listing::Listing;
+use crate::domains::posts::data::PostData;
+use crate::domains::posts::models::post::Post;
 use crate::domains::scraping::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
@@ -77,14 +77,15 @@ impl PageSnapshotData {
     }
 
     /// Get all listings extracted from this page
-    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
-        let listings = sqlx::query_as::<_, Listing>(
-            "SELECT * FROM listings WHERE source_url = $1 ORDER BY created_at DESC"
+    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<PostData>> {
+        use crate::domains::posts::models::Post;
+        let listings = sqlx::query_as::<_, Post>(
+            "SELECT * FROM posts WHERE source_url = $1 ORDER BY created_at DESC"
         )
         .bind(&self.url)
         .fetch_all(&context.db_pool)
         .await?;
-        Ok(listings.into_iter().map(ListingData::from).collect())
+        Ok(listings.into_iter().map(PostData::from).collect())
     }
 
     /// Get the website snapshot ID that references this page snapshot (for re-scraping)
@@ -332,7 +333,7 @@ impl WebsiteData {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
         let count =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM listings WHERE website_id = $1")
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM posts WHERE website_id = $1")
                 .bind(website_id)
                 .fetch_one(&context.db_pool)
                 .await?;
@@ -340,11 +341,11 @@ impl WebsiteData {
     }
 
     /// Get all listings scraped from this website
-    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
+    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<PostData>> {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
-        let listings = Listing::find_by_website_id(website_id, &context.db_pool).await?;
-        Ok(listings.into_iter().map(ListingData::from).collect())
+        let listings = Post::find_by_website_id(website_id, &context.db_pool).await?;
+        Ok(listings.into_iter().map(PostData::from).collect())
     }
 
     /// Get all snapshots (scraped pages) for this website

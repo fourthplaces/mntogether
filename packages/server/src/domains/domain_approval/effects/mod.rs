@@ -4,7 +4,7 @@ pub mod search;
 
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
-use crate::domains::listings::effects::deps::ServerDeps;
+use crate::domains::posts::effects::deps::ServerDeps;
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
