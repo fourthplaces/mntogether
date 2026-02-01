@@ -100,7 +100,7 @@ const PostEditModal: React.FC<PostEditModalProps> = ({
             </label>
             <input
               type="text"
-              value={post.listingType}
+              value={post.postType}
               disabled
               className="w-full px-3 py-2 border border-stone-300 rounded bg-stone-50 text-stone-600 capitalize"
             />

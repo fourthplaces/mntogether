@@ -48,17 +48,17 @@ export const GET_PENDING_POSTS = gql`
 `;
 
 export const GET_SCRAPED_PENDING_POSTS = gql`
-  query GetScrapedPendingPosts($limit: Int, $offset: Int, $listingType: String) {
+  query GetScrapedPendingPosts($limit: Int, $offset: Int, $postType: String) {
     listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
-      listingType: $listingType
+      postType: $postType
       limit: $limit
       offset: $offset
     ) {
       nodes {
         id
-        listingType
+        postType
         organizationName
         title
         tldr
@@ -250,7 +250,7 @@ export const GET_SCRAPED_POSTS_STATS = gql`
     scrapedPendingServices: listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
-      listingType: "service"
+      postType: "service"
       limit: 1
     ) {
       totalCount
@@ -258,7 +258,7 @@ export const GET_SCRAPED_POSTS_STATS = gql`
     scrapedPendingOpportunities: listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
-      listingType: "opportunity"
+      postType: "opportunity"
       limit: 1
     ) {
       totalCount
@@ -266,7 +266,7 @@ export const GET_SCRAPED_POSTS_STATS = gql`
     scrapedPendingBusinesses: listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
-      listingType: "business"
+      postType: "business"
       limit: 1
     ) {
       totalCount

@@ -29,7 +29,7 @@ pub struct Website {
     pub is_trusted: bool,
 
     // Crawl tracking (for multi-page crawling with retry)
-    pub crawl_status: Option<String>, // 'pending', 'crawling', 'completed', 'no_listings_found', 'failed'
+    pub crawl_status: Option<String>, // 'pending', 'crawling', 'completed', 'no_posts_found', 'failed'
     pub crawl_attempt_count: Option<i32>,
     pub max_crawl_retries: Option<i32>,
     pub last_crawl_started_at: Option<DateTime<Utc>>,
@@ -93,7 +93,7 @@ impl std::fmt::Display for CrawlStatus {
             CrawlStatus::Pending => write!(f, "pending"),
             CrawlStatus::Crawling => write!(f, "crawling"),
             CrawlStatus::Completed => write!(f, "completed"),
-            CrawlStatus::NoListingsFound => write!(f, "no_listings_found"),
+            CrawlStatus::NoListingsFound => write!(f, "no_posts_found"),
             CrawlStatus::Failed => write!(f, "failed"),
         }
     }
@@ -107,7 +107,7 @@ impl std::str::FromStr for CrawlStatus {
             "pending" => Ok(CrawlStatus::Pending),
             "crawling" => Ok(CrawlStatus::Crawling),
             "completed" => Ok(CrawlStatus::Completed),
-            "no_listings_found" => Ok(CrawlStatus::NoListingsFound),
+            "no_posts_found" => Ok(CrawlStatus::NoListingsFound),
             "failed" => Ok(CrawlStatus::Failed),
             _ => Err(anyhow::anyhow!("Invalid crawl status: {}", s)),
         }

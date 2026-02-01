@@ -1,8 +1,8 @@
 //! Pass 2: Synthesize listings from all page summaries
 //!
-//! Combines summaries from all pages of a website to extract listings.
+//! Combines summaries from all pages of a website to extract posts.
 //! One listing per distinct organization/program - services and opportunities
-//! are captured as tags, not separate listings.
+//! are captured as tags, not separate posts.
 
 use anyhow::Result;
 use tracing::info;
@@ -12,7 +12,7 @@ use crate::kernel::{BaseAI, LlmRequestExt};
 use super::types::{ExtractedPost, SynthesisInput};
 
 /// Synthesize listings from all page summaries for a website
-pub async fn synthesize_listings(
+pub async fn synthesize_posts(
     input: SynthesisInput,
     ai: &dyn BaseAI,
 ) -> Result<Vec<ExtractedPost>> {
@@ -42,7 +42,7 @@ pub async fn synthesize_listings(
         input.website_domain, pages_text
     );
 
-    let listings: Vec<ExtractedPost> = ai
+    let posts: Vec<ExtractedPost> = ai
         .request()
         .system(system)
         .user(user)
@@ -53,14 +53,14 @@ pub async fn synthesize_listings(
 
     info!(
         domain = %input.website_domain,
-        listings_count = listings.len(),
+        listings_count = posts.len(),
         "Synthesis complete"
     );
 
-    Ok(listings)
+    Ok(posts)
 }
 
-const SYNTHESIS_SYSTEM_PROMPT: &str = r#"You are analyzing page summaries from a single website to extract listings.
+const SYNTHESIS_SYSTEM_PROMPT: &str = r#"You are analyzing page summaries from a single website to extract posts.
 
 TASK: Identify distinct programs and services. Create SEPARATE listings for each distinct program.
 
@@ -90,7 +90,9 @@ For each listing provide:
    - email: Email address
    - website: Website URL (only if different from source)
 
-5. tags: Categorize thoroughly using these tag kinds:
+5. location: Physical address or service area (e.g., "Minneapolis, MN", "Twin Cities metro area", "123 Main St, St Paul")
+
+6. tags: Categorize thoroughly using these tag kinds:
 
    audience_role - who engages with this listing:
    - "recipient" - people receiving services/help
@@ -130,7 +132,7 @@ For each listing provide:
    - "financial-skills" - financial education
    - "citizenship" - citizenship preparation
 
-   listing_type - category of listing:
+   post_type - category of listing:
    - "service" - a service provided
    - "business" - a business to support
    - "event" - an event, class, or workshop
@@ -149,7 +151,7 @@ For each listing provide:
    - "rochester" - Rochester area
    - "statewide" - all of Minnesota
 
-6. source_urls: List ALL page URLs that contributed information to this listing
+7. source_urls: List ALL page URLs that contributed information to this listing
 
 RULES:
 - Create SEPARATE listings for each distinct program/service (e.g., Food Shelf, Clothing Closet, Emergency Assistance)
@@ -165,7 +167,7 @@ EXAMPLE: A nonprofit website might have:
 - "Emergency Assistance Program" (financial help, by appointment)
 These should be 3 SEPARATE listings, not combined into one."#;
 
-const SYNTHESIS_SCHEMA: &str = r#"Return a JSON array of listings:
+const SYNTHESIS_SCHEMA: &str = r#"Return a JSON array of posts:
 [{
   "title": "string - organization/program name",
   "tldr": "string - 1-2 sentence summary",
@@ -175,8 +177,9 @@ const SYNTHESIS_SCHEMA: &str = r#"Return a JSON array of listings:
     "email": "string or null",
     "website": "string or null"
   },
+  "location": "string or null - physical address or service area",
   "tags": [{
-    "kind": "audience_role|population|community_served|service_offered|listing_type|org_leadership|service_area",
+    "kind": "audience_role|population|community_served|service_offered|post_type|org_leadership|service_area",
     "value": "string - the tag value",
     "display_name": "string or null - human readable name"
   }],

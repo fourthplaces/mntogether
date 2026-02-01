@@ -10,9 +10,10 @@ use crate::domains::domain_approval::{
 };
 use crate::domains::posts::{
     commands::PostCommand,
-    effects::{PostCompositeEffect, ServerDeps},
+    effects::PostCompositeEffect,
     machines::PostMachine,
 };
+use crate::kernel::{ServerDeps, TwilioAdapter};
 use crate::domains::member::{
     commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
 };
@@ -81,7 +82,6 @@ async fn create_graphql_context(
 pub fn build_app(
     pool: PgPool,
     openai_api_key: String,
-    voyage_api_key: String,
     tavily_api_key: String,
     firecrawl_api_key: Option<String>,
     expo_access_token: Option<String>,
@@ -110,6 +110,9 @@ pub fn build_app(
     // Create OpenAI client (shared across effects and GraphQL)
     let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
 
+    // Clone OpenAI API key for embedding service before it's consumed
+    let embedding_api_key = openai_api_key.clone();
+
     // Create PII detector based on configuration
     let pii_detector = crate::kernel::pii::create_pii_detector(
         pii_scrubbing_enabled,
@@ -131,9 +134,9 @@ pub fn build_app(
         pool.clone(),
         Arc::new(web_scraper),
         openai_client.clone(),
-        Arc::new(crate::common::utils::EmbeddingService::new(voyage_api_key)),
+        Arc::new(crate::common::utils::EmbeddingService::new(embedding_api_key)),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
-        twilio.clone(),
+        Arc::new(TwilioAdapter::new(twilio.clone())),
         search_service,
         pii_detector,
         test_identifier_enabled,

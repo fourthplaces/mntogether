@@ -13,15 +13,15 @@ use crate::domains::posts::data::{
     ScrapeJobResult, SubmitPostInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use crate::domains::posts::edges::{
-    approve_listing, approve_website, archive_post, crawl_website,
-    delete_listing, dismiss_report, edit_and_approve_listing, expire_post,
-    generate_post_embedding, query_listing, query_post_reports,
-    query_listings, query_pending_websites, query_post, query_posts_for_listing,
-    query_published_posts, query_reports_for_listing, query_website, query_websites,
-    refresh_page_snapshot, reject_listing, reject_website, report_listing,
-    repost_listing, resolve_report, run_discovery_search, scrape_organization, submit_listing,
+    approve_post, approve_website, archive_post, crawl_website,
+    deduplicate_posts, delete_post, dismiss_report, edit_and_approve_post, expire_post,
+    generate_post_embedding, query_listing, query_post, query_post_reports,
+    query_posts, query_pending_websites, query_posts_for_post,
+    query_published_posts, query_reports_for_post, query_website, query_websites,
+    refresh_page_snapshot, reject_post, reject_website, report_post,
+    repost_post, resolve_report, run_discovery_search, scrape_organization, submit_post,
     submit_resource_link, suspend_website, track_post_click, track_post_view,
-    DiscoverySearchResult,
+    DeduplicationResult, DiscoverySearchResult,
 };
 use crate::domains::website::edges::{
     regenerate_page_posts, regenerate_page_summaries, regenerate_page_summary, regenerate_posts,
@@ -66,7 +66,7 @@ impl Query {
         limit: Option<i32>,
         offset: Option<i32>,
     ) -> FieldResult<PostConnection> {
-        query_listings(&ctx.db_pool, status, limit, offset).await
+        query_posts(&ctx.db_pool, status, limit, offset).await
     }
 
     /// Get a single listing by ID
@@ -83,11 +83,11 @@ impl Query {
     }
 
     /// Get posts for a specific listing
-    async fn posts_for_listing(
+    async fn posts_for_post(
         ctx: &GraphQLContext,
         post_id: Uuid,
     ) -> FieldResult<Vec<PostData>> {
-        query_posts_for_listing(ctx, post_id).await
+        query_posts_for_post(ctx, post_id).await
     }
 
     /// Get a single post by ID
@@ -209,11 +209,11 @@ impl Query {
     }
 
     /// Get reports for a specific listing (admin only)
-    async fn reports_for_listing(
+    async fn reports_for_post(
         ctx: &GraphQLContext,
         post_id: Uuid,
     ) -> FieldResult<Vec<PostReportData>> {
-        query_reports_for_listing(ctx, post_id).await
+        query_reports_for_post(ctx, post_id).await
     }
 
     /// Get the latest assessment for a website (admin only)
@@ -352,13 +352,13 @@ impl Mutation {
     }
 
     /// Submit a listing from a member (public, goes to pending_approval)
-    async fn submit_listing(
+    async fn submit_post(
         ctx: &GraphQLContext,
         input: SubmitPostInput,
         member_id: Option<Uuid>,
     ) -> FieldResult<PostType> {
         // TODO: Get IP address from request context
-        submit_listing(ctx, input, member_id, None).await
+        submit_post(ctx, input, member_id, None).await
     }
 
     /// Submit a resource link (URL) for scraping (public)
@@ -370,31 +370,31 @@ impl Mutation {
     }
 
     /// Approve a listing (make it visible to volunteers) (admin only)
-    async fn approve_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
-        approve_listing(ctx, post_id).await
+    async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
+        approve_post(ctx, post_id).await
     }
 
     /// Edit and approve a listing (fix AI mistakes or improve user content) (admin only)
-    async fn edit_and_approve_listing(
+    async fn edit_and_approve_post(
         ctx: &GraphQLContext,
         post_id: Uuid,
         input: EditPostInput,
     ) -> FieldResult<PostType> {
-        edit_and_approve_listing(ctx, post_id, input).await
+        edit_and_approve_post(ctx, post_id, input).await
     }
 
     /// Reject a listing (hide forever) (admin only)
-    async fn reject_listing(
+    async fn reject_post(
         ctx: &GraphQLContext,
         post_id: Uuid,
         reason: String,
     ) -> FieldResult<bool> {
-        reject_listing(ctx, post_id, reason).await
+        reject_post(ctx, post_id, reason).await
     }
 
     /// Delete a listing (admin only)
-    async fn delete_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        delete_listing(ctx, post_id).await
+    async fn delete_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        delete_post(ctx, post_id).await
     }
 
     /// Send OTP verification code via SMS
@@ -420,8 +420,8 @@ impl Mutation {
     }
 
     /// Repost a listing (create new post for existing active listing) (admin only)
-    async fn repost_listing(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<RepostResult> {
-        repost_listing(ctx, post_id).await
+    async fn repost_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<RepostResult> {
+        repost_post(ctx, post_id).await
     }
 
     /// Expire a post (admin only)
@@ -600,6 +600,16 @@ impl Mutation {
         generate_post_embedding(ctx, post_id).await
     }
 
+    /// Deduplicate posts using embedding similarity (admin only)
+    /// Finds posts with similar embeddings (default threshold: 0.95) and merges them
+    /// Keeps the oldest post and deletes newer duplicates
+    async fn deduplicate_posts(
+        ctx: &GraphQLContext,
+        similarity_threshold: Option<f64>,
+    ) -> FieldResult<DeduplicationResult> {
+        deduplicate_posts(ctx, similarity_threshold).await
+    }
+
     /// Generate a comprehensive assessment report for a website (admin only)
     /// Creates a "background check" style markdown report to help with approval decisions
     async fn generate_website_assessment(
@@ -610,14 +620,14 @@ impl Mutation {
     }
 
     /// Report a listing (public or authenticated)
-    async fn report_listing(
+    async fn report_post(
         ctx: &GraphQLContext,
         post_id: Uuid,
         reason: String,
         category: String,
         reporter_email: Option<String>,
     ) -> FieldResult<PostReportData> {
-        report_listing(ctx, post_id, reason, category, reporter_email).await
+        report_post(ctx, post_id, reason, category, reporter_email).await
     }
 
     /// Resolve a report (admin only)
@@ -823,7 +833,7 @@ impl Mutation {
     // =========================================================================
 
     /// Update listing tags (replaces all existing tags with new ones) (admin only)
-    async fn update_listing_tags(
+    async fn update_post_tags(
         ctx: &GraphQLContext,
         post_id: Uuid,
         tags: Vec<TagInput>,
@@ -841,12 +851,12 @@ impl Mutation {
         let post_id = PostId::from_uuid(post_id);
 
         // Clear existing tags
-        Taggable::delete_all_for_listing(post_id, &ctx.db_pool).await?;
+        Taggable::delete_all_for_post(post_id, &ctx.db_pool).await?;
 
         // Add new tags
         for tag_input in tags {
             let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
-            Taggable::create_listing_tag(post_id, tag.id, &ctx.db_pool).await?;
+            Taggable::create_post_tag(post_id, tag.id, &ctx.db_pool).await?;
         }
 
         // Return updated listing
@@ -856,7 +866,7 @@ impl Mutation {
     }
 
     /// Add a single tag to a listing (admin only)
-    async fn add_listing_tag(
+    async fn add_post_tag(
         ctx: &GraphQLContext,
         post_id: Uuid,
         tag_kind: String,
@@ -876,13 +886,13 @@ impl Mutation {
         let post_id = PostId::from_uuid(post_id);
 
         let tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, &ctx.db_pool).await?;
-        Taggable::create_listing_tag(post_id, tag.id, &ctx.db_pool).await?;
+        Taggable::create_post_tag(post_id, tag.id, &ctx.db_pool).await?;
 
         Ok(TagData::from(tag))
     }
 
     /// Remove a tag from a listing (admin only)
-    async fn remove_listing_tag(
+    async fn remove_post_tag(
         ctx: &GraphQLContext,
         post_id: Uuid,
         tag_id: String,
@@ -899,7 +909,7 @@ impl Mutation {
         let post_id = PostId::from_uuid(post_id);
         let tag_id = TagId::parse(&tag_id)?;
 
-        Taggable::delete_listing_tag(post_id, tag_id, &ctx.db_pool).await?;
+        Taggable::delete_post_tag(post_id, tag_id, &ctx.db_pool).await?;
         Ok(true)
     }
 }

@@ -34,7 +34,7 @@ const ScrapedPostsReview: React.FC = () => {
   // Fetch posts
   const { data, loading, error, refetch } = useQuery(GET_SCRAPED_PENDING_POSTS, {
     variables: {
-      listingType: selectedType === 'all' ? null : selectedType,
+      postType: selectedType === 'all' ? null : selectedType,
       limit: pageSize,
       offset: page * pageSize,
     },

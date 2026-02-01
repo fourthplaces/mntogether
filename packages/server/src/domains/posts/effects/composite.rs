@@ -2,7 +2,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
-use super::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use super::{AIEffect, CrawlerEffect, PostEffect, ScraperEffect, SyncEffect};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
@@ -52,20 +52,20 @@ impl Effect<PostCommand, ServerDeps> for PostCompositeEffect {
             PostCommand::ScrapeResourceLink { .. } => self.scraper.execute(cmd, ctx).await,
 
             // Route to AIEffect
-            PostCommand::ExtractListings { .. } => self.ai.execute(cmd, ctx).await,
-            PostCommand::ExtractListingsFromResourceLink { .. } => {
+            PostCommand::ExtractPosts { .. } => self.ai.execute(cmd, ctx).await,
+            PostCommand::ExtractPostsFromResourceLink { .. } => {
                 self.ai.execute(cmd, ctx).await
             }
 
             // Route to SyncEffect
-            PostCommand::SyncListings { .. } => self.sync.execute(cmd, ctx).await,
+            PostCommand::SyncPosts { .. } => self.sync.execute(cmd, ctx).await,
 
             // Route to CrawlerEffect (multi-page crawling commands)
             PostCommand::CrawlWebsite { .. }
-            | PostCommand::ExtractListingsFromPages { .. }
+            | PostCommand::ExtractPostsFromPages { .. }
             | PostCommand::RetryWebsiteCrawl { .. }
-            | PostCommand::MarkWebsiteNoListings { .. }
-            | PostCommand::SyncCrawledListings { .. }
+            | PostCommand::MarkWebsiteNoPosts { .. }
+            | PostCommand::SyncCrawledPosts { .. }
             | PostCommand::RegeneratePosts { .. }
             | PostCommand::RegeneratePageSummaries { .. }
             | PostCommand::RegeneratePageSummary { .. }
@@ -73,22 +73,23 @@ impl Effect<PostCommand, ServerDeps> for PostCompositeEffect {
 
             // Route to PostEffect (all other commands)
             PostCommand::CreateWebsiteFromLink { .. }
-            | PostCommand::CreateListing { .. }
-            | PostCommand::CreateListingsFromResourceLink { .. }
+            | PostCommand::CreatePostEntry { .. }
+            | PostCommand::CreatePostsFromResourceLink { .. }
             | PostCommand::UpdatePostStatus { .. }
-            | PostCommand::UpdateListingAndApprove { .. }
+            | PostCommand::UpdatePostAndApprove { .. }
             | PostCommand::CreatePost { .. }
-            | PostCommand::GenerateListingEmbedding { .. }
+            | PostCommand::GeneratePostEmbedding { .. }
             | PostCommand::CreateCustomPost { .. }
-            | PostCommand::RepostListing { .. }
+            | PostCommand::RepostPost { .. }
             | PostCommand::ExpirePost { .. }
             | PostCommand::ArchivePost { .. }
             | PostCommand::IncrementPostView { .. }
             | PostCommand::IncrementPostClick { .. }
-            | PostCommand::DeleteListing { .. }
+            | PostCommand::DeletePost { .. }
             | PostCommand::CreateReport { .. }
             | PostCommand::ResolveReport { .. }
-            | PostCommand::DismissReport { .. } => self.listing.execute(cmd, ctx).await,
+            | PostCommand::DismissReport { .. }
+            | PostCommand::DeduplicatePosts { .. } => self.listing.execute(cmd, ctx).await,
         }
     }
 }

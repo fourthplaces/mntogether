@@ -6,7 +6,6 @@
 pub mod ai;
 pub mod composite;
 pub mod crawler;
-pub mod deps;
 pub mod discovery; // Static search queries for finding community resources
 pub mod extraction; // Two-pass extraction: summarize pages, then synthesize posts
 pub mod post;
@@ -21,12 +20,14 @@ pub mod utils;
 pub use ai::*;
 pub use composite::*;
 pub use crawler::*;
-pub use deps::*;
 pub use discovery::{run_discovery_searches, DiscoveryResult, DISCOVERY_QUERIES, DEFAULT_LOCATION};
 pub use post::*;
 pub use scraper::*;
 pub use sync::*;
 pub use utils::*;
+
+// Re-export ServerDeps from kernel for backwards compatibility
+pub use crate::kernel::ServerDeps;
 
 // Domain function modules are available via:
 //   - `effects::post_extraction::*` - AI extraction functions

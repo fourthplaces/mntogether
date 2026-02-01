@@ -7,16 +7,17 @@ use anyhow::{Context, Result};
 use sqlx::PgPool;
 
 use super::post::extract_domain;
-use super::utils::sync_utils::{sync_listings, ExtractedPostInput};
+use super::utils::sync_utils::{sync_posts, ExtractedPostInput};
 use crate::common::WebsiteId;
 use crate::domains::posts::events::ExtractedPost;
 use crate::domains::scraping::models::Website;
+use crate::kernel::BaseEmbeddingService;
 
 /// Result of syncing listings with the database
 pub struct PostSyncResult {
     pub new_count: usize,
-    pub changed_count: usize,
-    pub disappeared_count: usize,
+    pub updated_count: usize,
+    pub unchanged_count: usize,
 }
 
 /// Sync extracted listings with the database for a given source
@@ -24,12 +25,13 @@ pub struct PostSyncResult {
 /// This function:
 /// 1. Fetches the source to get organization_name
 /// 2. Converts extracted listings to sync input format
-/// 3. Performs sync operation with database
+/// 3. Performs sync operation with database (with embedding-based duplicate detection)
 /// 4. Returns summary of changes
-pub async fn sync_extracted_listings(
+pub async fn sync_extracted_posts(
     source_id: WebsiteId,
-    listings: Vec<ExtractedPost>,
+    posts: Vec<ExtractedPost>,
     pool: &PgPool,
+    embedding_service: Option<&dyn BaseEmbeddingService>,
 ) -> Result<PostSyncResult> {
     // Get source to fetch organization_name
     let source = Website::find_by_id(source_id, pool)
@@ -37,7 +39,7 @@ pub async fn sync_extracted_listings(
         .context("Failed to find source")?;
 
     // Convert event listings to sync input
-    let sync_input: Vec<ExtractedPostInput> = listings
+    let sync_input: Vec<ExtractedPostInput> = posts
         .into_iter()
         .map(|listing| ExtractedPostInput {
             organization_name: extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
@@ -54,6 +56,7 @@ pub async fn sync_extracted_listings(
                 .as_object()
                 .map(|obj| serde_json::Value::Object(obj.clone()))
             }),
+            location: listing.location,
             urgency: listing.urgency,
             confidence: listing.confidence,
             source_url: Some(format!("https://{}", source.domain)), // Use domain as URL
@@ -61,15 +64,15 @@ pub async fn sync_extracted_listings(
         })
         .collect();
 
-    // Sync with database
+    // Sync with database (with embedding-based duplicate detection)
     let website_id = WebsiteId::from_uuid(source_id.into_uuid());
-    let sync_result = sync_listings(pool, website_id, sync_input)
+    let sync_result = sync_posts(pool, website_id, sync_input, embedding_service)
         .await
         .context("Sync failed")?;
 
     Ok(PostSyncResult {
-        new_count: sync_result.new_listings.len(),
-        changed_count: sync_result.changed_listings.len(),
-        disappeared_count: sync_result.disappeared_listings.len(),
+        new_count: sync_result.new_posts.len(),
+        updated_count: sync_result.updated_posts.len(),
+        unchanged_count: sync_result.unchanged_posts.len(),
     })
 }

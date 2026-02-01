@@ -12,6 +12,8 @@ pub struct ExtractedPost {
     pub tldr: String,
     pub description: String,
     pub contact: Option<ContactInfo>,
+    #[serde(default)]
+    pub location: Option<String>,
     pub urgency: Option<String>,
     pub confidence: Option<String>, // "high" | "medium" | "low"
     /// Target audience roles: who should engage with this listing
@@ -29,6 +31,8 @@ pub struct ExtractedPostWithSource {
     pub tldr: String,
     pub description: String,
     pub contact: Option<ContactInfo>,
+    #[serde(default)]
+    pub location: Option<String>,
     pub urgency: Option<String>,
     pub confidence: Option<String>,
     #[serde(default)]
@@ -37,12 +41,13 @@ pub struct ExtractedPostWithSource {
 
 impl ExtractedPostWithSource {
     /// Convert to ExtractedPost (dropping source_url)
-    pub fn into_listing(self) -> ExtractedPost {
+    pub fn into_post(self) -> ExtractedPost {
         ExtractedPost {
             title: self.title,
             tldr: self.tldr,
             description: self.description,
             contact: self.contact,
+            location: self.location,
             urgency: self.urgency,
             confidence: self.confidence,
             audience_roles: self.audience_roles,

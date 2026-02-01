@@ -2,12 +2,12 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
-use super::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use crate::common::{JobId, WebsiteId};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
-/// Sync Effect - Handles SyncListings command
+/// Sync Effect - Handles SyncPosts command
 ///
 /// This effect is a thin orchestration layer that dispatches commands to handler functions.
 pub struct SyncEffect;
@@ -22,11 +22,11 @@ impl Effect<PostCommand, ServerDeps> for SyncEffect {
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
         match cmd {
-            PostCommand::SyncListings {
+            PostCommand::SyncPosts {
                 source_id,
                 job_id,
-                listings,
-            } => handle_sync_listings(source_id, job_id, listings, &ctx).await,
+                posts,
+            } => handle_sync_posts(source_id, job_id, posts, &ctx).await,
             _ => anyhow::bail!("SyncEffect: Unexpected command"),
         }
     }
@@ -36,29 +36,34 @@ impl Effect<PostCommand, ServerDeps> for SyncEffect {
 // Handler function
 // ============================================================================
 
-async fn handle_sync_listings(
+async fn handle_sync_posts(
     source_id: WebsiteId,
     job_id: JobId,
-    listings: Vec<crate::common::ExtractedPost>,
+    posts: Vec<crate::common::ExtractedPost>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
-        listings_count = listings.len(),
+        listings_count = posts.len(),
         "Starting database sync for extracted listings"
     );
 
     let result =
-        match super::syncing::sync_extracted_listings(source_id, listings, &ctx.deps().db_pool)
-            .await
+        match super::syncing::sync_extracted_posts(
+            source_id,
+            posts,
+            &ctx.deps().db_pool,
+            Some(ctx.deps().embedding_service.as_ref()),
+        )
+        .await
         {
             Ok(r) => {
                 tracing::info!(
                     source_id = %source_id,
                     new_count = r.new_count,
-                    changed_count = r.changed_count,
-                    disappeared_count = r.disappeared_count,
+                    updated_count = r.updated_count,
+                    unchanged_count = r.unchanged_count,
                     "Database sync completed successfully"
                 );
                 r
@@ -72,7 +77,7 @@ async fn handle_sync_listings(
                 return Ok(PostEvent::SyncFailed {
                     source_id,
                     job_id,
-                    reason: format!("Failed to sync listings: {}", e),
+                    reason: format!("Failed to sync posts: {}", e),
                 });
             }
         };
@@ -80,13 +85,13 @@ async fn handle_sync_listings(
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
-        "Emitting ListingsSynced event"
+        "Emitting PostsSynced event"
     );
-    Ok(PostEvent::ListingsSynced {
+    Ok(PostEvent::PostsSynced {
         source_id,
         job_id,
         new_count: result.new_count,
-        changed_count: result.changed_count,
-        disappeared_count: result.disappeared_count,
+        updated_count: result.updated_count,
+        unchanged_count: result.unchanged_count,
     })
 }

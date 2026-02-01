@@ -33,7 +33,7 @@ pub enum PostCommand {
     },
 
     /// Extract listings from scraped content using AI
-    ExtractListings {
+    ExtractPosts {
         source_id: WebsiteId,
         job_id: JobId,
         organization_name: String,
@@ -41,7 +41,7 @@ pub enum PostCommand {
     },
 
     /// Extract listings from user-submitted resource link
-    ExtractListingsFromResourceLink {
+    ExtractPostsFromResourceLink {
         job_id: JobId,
         url: String,
         content: String,
@@ -50,14 +50,14 @@ pub enum PostCommand {
     },
 
     /// Sync extracted listings with database
-    SyncListings {
+    SyncPosts {
         source_id: WebsiteId,
         job_id: JobId,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
     },
 
     /// Create a new listing (from user submission)
-    CreateListing {
+    CreatePostEntry {
         member_id: Option<MemberId>,
         organization_name: String,
         title: String,
@@ -70,10 +70,10 @@ pub enum PostCommand {
     },
 
     /// Create multiple listings from extracted resource link
-    CreateListingsFromResourceLink {
+    CreatePostsFromResourceLink {
         job_id: JobId,
         url: String,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
         context: Option<String>,
         submitter_contact: Option<String>,
     },
@@ -88,7 +88,7 @@ pub enum PostCommand {
     },
 
     /// Update listing content and approve it
-    UpdateListingAndApprove {
+    UpdatePostAndApprove {
         post_id: PostId,
         title: Option<String>,
         description: Option<String>,
@@ -111,7 +111,7 @@ pub enum PostCommand {
     },
 
     /// Generate embedding for a listing (background job)
-    GenerateListingEmbedding { post_id: PostId },
+    GeneratePostEmbedding { post_id: PostId },
 
     /// Create a custom post (admin-created post with custom content)
     CreateCustomPost {
@@ -127,7 +127,7 @@ pub enum PostCommand {
     },
 
     /// Repost a listing (create new post for existing active listing)
-    RepostListing {
+    RepostPost {
         post_id: PostId,
         created_by: MemberId,
         requested_by: MemberId,
@@ -155,7 +155,7 @@ pub enum PostCommand {
     IncrementPostClick { post_id: PostId },
 
     /// Delete a listing
-    DeleteListing {
+    DeletePost {
         post_id: PostId,
         requested_by: MemberId,
         is_admin: bool,
@@ -199,7 +199,7 @@ pub enum PostCommand {
     },
 
     /// Extract listings from all crawled pages
-    ExtractListingsFromPages {
+    ExtractPostsFromPages {
         website_id: WebsiteId,
         job_id: JobId,
         pages: Vec<CrawledPageInfo>,
@@ -212,16 +212,16 @@ pub enum PostCommand {
     },
 
     /// Mark website as having no listings (terminal state after max retries)
-    MarkWebsiteNoListings {
+    MarkWebsiteNoPosts {
         website_id: WebsiteId,
         job_id: JobId,
     },
 
     /// Sync listings extracted from crawled pages with database
-    SyncCrawledListings {
+    SyncCrawledPosts {
         website_id: WebsiteId,
         job_id: JobId,
-        listings: Vec<ExtractedPost>,
+        posts: Vec<ExtractedPost>,
         page_results: Vec<crate::domains::posts::events::PageExtractionResult>,
     },
 
@@ -256,6 +256,14 @@ pub enum PostCommand {
         requested_by: MemberId,
         is_admin: bool,
     },
+
+    /// Deduplicate posts using embedding similarity
+    DeduplicatePosts {
+        job_id: JobId,
+        similarity_threshold: f32, // e.g., 0.95 for 95% similarity
+        requested_by: MemberId,
+        is_admin: bool,
+    },
 }
 
 // Implement Command trait for seesaw-rs integration
@@ -267,36 +275,37 @@ impl seesaw_core::Command for PostCommand {
             // All commands run inline (no job worker implemented)
             Self::ScrapeSource { .. } => ExecutionMode::Inline,
             Self::ScrapeResourceLink { .. } => ExecutionMode::Inline,
-            Self::ExtractListings { .. } => ExecutionMode::Inline,
-            Self::ExtractListingsFromResourceLink { .. } => ExecutionMode::Inline,
-            Self::SyncListings { .. } => ExecutionMode::Inline,
-            Self::CreateListing { .. } => ExecutionMode::Inline,
+            Self::ExtractPosts { .. } => ExecutionMode::Inline,
+            Self::ExtractPostsFromResourceLink { .. } => ExecutionMode::Inline,
+            Self::SyncPosts { .. } => ExecutionMode::Inline,
+            Self::CreatePostEntry { .. } => ExecutionMode::Inline,
             Self::CreateWebsiteFromLink { .. } => ExecutionMode::Inline,
-            Self::CreateListingsFromResourceLink { .. } => ExecutionMode::Inline,
+            Self::CreatePostsFromResourceLink { .. } => ExecutionMode::Inline,
             Self::UpdatePostStatus { .. } => ExecutionMode::Inline,
-            Self::UpdateListingAndApprove { .. } => ExecutionMode::Inline,
+            Self::UpdatePostAndApprove { .. } => ExecutionMode::Inline,
             Self::CreatePost { .. } => ExecutionMode::Inline,
             Self::CreateCustomPost { .. } => ExecutionMode::Inline,
-            Self::RepostListing { .. } => ExecutionMode::Inline,
+            Self::RepostPost { .. } => ExecutionMode::Inline,
             Self::ExpirePost { .. } => ExecutionMode::Inline,
             Self::ArchivePost { .. } => ExecutionMode::Inline,
             Self::IncrementPostView { .. } => ExecutionMode::Inline,
             Self::IncrementPostClick { .. } => ExecutionMode::Inline,
-            Self::DeleteListing { .. } => ExecutionMode::Inline,
+            Self::DeletePost { .. } => ExecutionMode::Inline,
             Self::CreateReport { .. } => ExecutionMode::Inline,
             Self::ResolveReport { .. } => ExecutionMode::Inline,
             Self::DismissReport { .. } => ExecutionMode::Inline,
-            Self::GenerateListingEmbedding { .. } => ExecutionMode::Inline,
+            Self::GeneratePostEmbedding { .. } => ExecutionMode::Inline,
             // Crawling commands
             Self::CrawlWebsite { .. } => ExecutionMode::Inline,
-            Self::ExtractListingsFromPages { .. } => ExecutionMode::Inline,
+            Self::ExtractPostsFromPages { .. } => ExecutionMode::Inline,
             Self::RetryWebsiteCrawl { .. } => ExecutionMode::Inline,
-            Self::MarkWebsiteNoListings { .. } => ExecutionMode::Inline,
-            Self::SyncCrawledListings { .. } => ExecutionMode::Inline,
+            Self::MarkWebsiteNoPosts { .. } => ExecutionMode::Inline,
+            Self::SyncCrawledPosts { .. } => ExecutionMode::Inline,
             Self::RegeneratePosts { .. } => ExecutionMode::Inline,
             Self::RegeneratePageSummaries { .. } => ExecutionMode::Inline,
             Self::RegeneratePageSummary { .. } => ExecutionMode::Inline,
             Self::RegeneratePagePosts { .. } => ExecutionMode::Inline,
+            Self::DeduplicatePosts { .. } => ExecutionMode::Inline,
         }
     }
 
@@ -316,29 +325,29 @@ impl seesaw_core::Command for PostCommand {
                 priority: 0,
                 version: 1,
             }),
-            Self::ExtractListings { source_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "extract_listings",
+            Self::ExtractPosts { source_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "extract_posts",
                 idempotency_key: Some(source_id.to_string()),
                 max_retries: 2,
                 priority: 0,
                 version: 1,
             }),
-            Self::ExtractListingsFromResourceLink { job_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "extract_listings_from_resource_link",
+            Self::ExtractPostsFromResourceLink { job_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "extract_posts_from_resource_link",
                 idempotency_key: Some(job_id.to_string()),
                 max_retries: 2,
                 priority: 0,
                 version: 1,
             }),
-            Self::SyncListings { source_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "sync_listings",
+            Self::SyncPosts { source_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "sync_posts",
                 idempotency_key: Some(source_id.to_string()),
                 max_retries: 3,
                 priority: 0,
                 version: 1,
             }),
-            Self::GenerateListingEmbedding { post_id } => Some(seesaw_core::JobSpec {
-                job_type: "generate_listing_embedding",
+            Self::GeneratePostEmbedding { post_id } => Some(seesaw_core::JobSpec {
+                job_type: "generate_post_embedding",
                 idempotency_key: Some(post_id.to_string()),
                 max_retries: 3,
                 priority: 0,
@@ -351,15 +360,15 @@ impl seesaw_core::Command for PostCommand {
                 priority: 0,
                 version: 1,
             }),
-            Self::ExtractListingsFromPages { website_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "extract_listings_from_pages",
+            Self::ExtractPostsFromPages { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "extract_posts_from_pages",
                 idempotency_key: Some(website_id.to_string()),
                 max_retries: 2,
                 priority: 0,
                 version: 1,
             }),
-            Self::SyncCrawledListings { website_id, .. } => Some(seesaw_core::JobSpec {
-                job_type: "sync_crawled_listings",
+            Self::SyncCrawledPosts { website_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "sync_crawled_posts",
                 idempotency_key: Some(website_id.to_string()),
                 max_retries: 3,
                 priority: 0,
@@ -394,6 +403,13 @@ impl seesaw_core::Command for PostCommand {
                 job_type: "regenerate_page_posts",
                 idempotency_key: Some(page_snapshot_id.to_string()),
                 max_retries: 2,
+                priority: 0,
+                version: 1,
+            }),
+            Self::DeduplicatePosts { job_id, .. } => Some(seesaw_core::JobSpec {
+                job_type: "deduplicate_posts",
+                idempotency_key: Some(job_id.to_string()),
+                max_retries: 1,
                 priority: 0,
                 version: 1,
             }),

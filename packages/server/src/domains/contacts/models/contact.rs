@@ -135,7 +135,7 @@ impl Contact {
     }
 
     /// Find all contacts for a listing
-    pub async fn find_for_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
         let contacts = sqlx::query_as::<_, Self>(
             r#"
             SELECT *
@@ -230,7 +230,7 @@ impl Contact {
     }
 
     /// Create a new contact for a listing
-    pub async fn create_for_listing(
+    pub async fn create_for_post(
         post_id: PostId,
         contact_type: &str,
         contact_value: &str,
@@ -381,7 +381,7 @@ impl Contact {
     }
 
     /// Delete all contacts for a listing
-    pub async fn delete_all_for_listing(post_id: PostId, pool: &PgPool) -> Result<()> {
+    pub async fn delete_all_for_post(post_id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query(
             "DELETE FROM contacts WHERE contactable_type = 'listing' AND contactable_id = $1",
         )

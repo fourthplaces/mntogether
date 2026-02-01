@@ -9,7 +9,6 @@ pub struct Config {
     pub redis_url: String,
     pub port: u16,
     pub openai_api_key: String,
-    pub voyage_api_key: String,
     pub tavily_api_key: String,
     pub firecrawl_api_key: Option<String>,
     pub expo_access_token: Option<String>,
@@ -43,7 +42,6 @@ impl Config {
                 .parse()
                 .context("PORT must be a valid number")?,
             openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
-            voyage_api_key: env::var("VOYAGE_API_KEY").context("VOYAGE_API_KEY must be set")?,
             tavily_api_key: env::var("TAVILY_API_KEY").context("TAVILY_API_KEY must be set")?,
             firecrawl_api_key: env::var("FIRECRAWL_API_KEY").ok(),
             expo_access_token: env::var("EXPO_ACCESS_TOKEN").ok(),
@@ -96,7 +94,6 @@ impl Config {
         let required_vars = vec![
             "DATABASE_URL",
             "OPENAI_API_KEY",
-            "VOYAGE_API_KEY",
             "TAVILY_API_KEY",
             "TWILIO_ACCOUNT_SID",
             "TWILIO_AUTH_TOKEN",

@@ -58,15 +58,15 @@ impl PostContact {
     }
 
     /// Find all contacts for a listing
-    pub async fn find_by_listing(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
-        let listing_uuid = post_id.into_uuid();
+    pub async fn find_by_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
+        let post_uuid = post_id.into_uuid();
 
         sqlx::query_as::<_, Self>(
             "SELECT * FROM post_contacts
              WHERE post_id = $1
              ORDER BY display_order, contact_type",
         )
-        .bind(listing_uuid)
+        .bind(post_uuid)
         .fetch_all(pool)
         .await
         .map_err(Into::into)
@@ -81,7 +81,7 @@ impl PostContact {
         display_order: Option<i32>,
         pool: &PgPool,
     ) -> Result<Self> {
-        let listing_uuid = post_id.into_uuid();
+        let post_uuid = post_id.into_uuid();
 
         sqlx::query_as::<_, Self>(
             r#"
@@ -90,7 +90,7 @@ impl PostContact {
             RETURNING *
             "#,
         )
-        .bind(listing_uuid)
+        .bind(post_uuid)
         .bind(contact_type.to_string())
         .bind(contact_value)
         .bind(contact_label)
@@ -187,11 +187,11 @@ impl PostContact {
     }
 
     /// Delete all contacts for a listing
-    pub async fn delete_all_for_listing(post_id: PostId, pool: &PgPool) -> Result<u64> {
-        let listing_uuid = post_id.into_uuid();
+    pub async fn delete_all_for_post(post_id: PostId, pool: &PgPool) -> Result<u64> {
+        let post_uuid = post_id.into_uuid();
 
         let result = sqlx::query("DELETE FROM post_contacts WHERE post_id = $1")
-            .bind(listing_uuid)
+            .bind(post_uuid)
             .execute(pool)
             .await?;
 

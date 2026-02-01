@@ -4,13 +4,14 @@ use seesaw_core::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
 use tracing::info;
 
-use super::deps::ServerDeps;
+use crate::kernel::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, JobId, PostId, MemberId, WebsiteId};
+use tracing::warn;
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
-/// Listing Effect - Handles CreateListing, UpdatePostStatus, UpdateListingAndApprove, CreatePost, GenerateListingEmbedding commands
+/// Listing Effect - Handles CreatePostEntry, UpdatePostStatus, UpdatePostAndApprove, CreatePost, GeneratePostEmbedding commands
 ///
 /// This effect is a thin orchestration layer that dispatches commands to handler functions.
 pub struct PostEffect;
@@ -25,7 +26,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
         match cmd {
-            PostCommand::CreateListing {
+            PostCommand::CreatePostEntry {
                 member_id,
                 organization_name,
                 title,
@@ -36,7 +37,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 ip_address,
                 submission_type,
             } => {
-                handle_create_listing(
+                handle_create_post_entry(
                     member_id,
                     organization_name,
                     title,
@@ -58,7 +59,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 requested_by,
                 is_admin,
             } => {
-                handle_update_listing_status(
+                handle_update_post_status(
                     post_id,
                     status,
                     rejection_reason,
@@ -69,7 +70,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::UpdateListingAndApprove {
+            PostCommand::UpdatePostAndApprove {
                 post_id,
                 title,
                 description,
@@ -81,7 +82,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 requested_by,
                 is_admin,
             } => {
-                handle_update_listing_and_approve(
+                handle_update_post_and_approve(
                     post_id,
                     title,
                     description,
@@ -104,7 +105,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 custom_description,
                 expires_in_days,
             } => {
-                handle_create_post(
+                handle_create_post_announcement(
                     post_id,
                     created_by,
                     custom_title,
@@ -115,8 +116,8 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::GenerateListingEmbedding { post_id } => {
-                handle_generate_listing_embedding(post_id, &ctx).await
+            PostCommand::GeneratePostEmbedding { post_id } => {
+                handle_generate_post_embedding(post_id, &ctx).await
             }
 
             PostCommand::CreateCustomPost {
@@ -145,12 +146,12 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::RepostListing {
+            PostCommand::RepostPost {
                 post_id,
                 created_by,
                 requested_by,
                 is_admin,
-            } => handle_repost_listing(post_id, created_by, requested_by, is_admin, &ctx).await,
+            } => handle_repost_post(post_id, created_by, requested_by, is_admin, &ctx).await,
 
             PostCommand::ExpirePost {
                 post_id,
@@ -172,23 +173,23 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 handle_increment_post_click(post_id, &ctx).await
             }
 
-            PostCommand::DeleteListing {
+            PostCommand::DeletePost {
                 post_id,
                 requested_by,
                 is_admin,
-            } => handle_delete_listing(post_id, requested_by, is_admin, &ctx).await,
+            } => handle_delete_post(post_id, requested_by, is_admin, &ctx).await,
 
-            PostCommand::CreateListingsFromResourceLink {
+            PostCommand::CreatePostsFromResourceLink {
                 job_id,
                 url,
-                listings,
+                posts,
                 context,
                 submitter_contact,
             } => {
-                handle_create_listings_from_resource_link(
+                handle_create_posts_from_resource_link(
                     job_id,
                     url,
-                    listings,
+                    posts,
                     context,
                     submitter_contact,
                     &ctx,
@@ -262,16 +263,26 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
+            PostCommand::DeduplicatePosts {
+                job_id,
+                similarity_threshold,
+                requested_by,
+                is_admin,
+            } => {
+                handle_deduplicate_posts(job_id, similarity_threshold, requested_by, is_admin, &ctx)
+                    .await
+            }
+
             _ => anyhow::bail!("PostEffect: Unexpected command"),
         }
     }
 }
 
 // ============================================================================
-// Listing handlers
+// Post Entry handlers (user submissions)
 // ============================================================================
 
-async fn handle_create_listing(
+async fn handle_create_post_entry(
     member_id: Option<MemberId>,
     organization_name: String,
     title: String,
@@ -283,7 +294,7 @@ async fn handle_create_listing(
     submission_type: String,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    let post = super::post_operations::create_listing(
+    let post = super::post_operations::create_post(
         member_id,
         organization_name.clone(),
         title,
@@ -299,7 +310,7 @@ async fn handle_create_listing(
     )
     .await?;
 
-    Ok(PostEvent::ListingCreated {
+    Ok(PostEvent::PostEntryCreated {
         post_id: post.id,
         organization_name: post.organization_name,
         title: post.title,
@@ -307,7 +318,7 @@ async fn handle_create_listing(
     })
 }
 
-async fn handle_update_listing_status(
+async fn handle_update_post_status(
     post_id: PostId,
     status: String,
     rejection_reason: Option<String>,
@@ -328,7 +339,7 @@ async fn handle_update_listing_status(
         });
     }
 
-    let updated_status = super::post_operations::update_listing_status(
+    let updated_status = super::post_operations::update_post_status(
         post_id,
         status.clone(),
         &ctx.deps().db_pool,
@@ -336,9 +347,9 @@ async fn handle_update_listing_status(
     .await?;
 
     if updated_status == "active" {
-        Ok(PostEvent::ListingApproved { post_id })
+        Ok(PostEvent::PostApproved { post_id })
     } else if updated_status == "rejected" {
-        Ok(PostEvent::ListingRejected {
+        Ok(PostEvent::PostRejected {
             post_id,
             reason: rejection_reason.unwrap_or_else(|| "No reason provided".to_string()),
         })
@@ -347,7 +358,7 @@ async fn handle_update_listing_status(
     }
 }
 
-async fn handle_update_listing_and_approve(
+async fn handle_update_post_and_approve(
     post_id: PostId,
     title: Option<String>,
     description: Option<String>,
@@ -368,12 +379,12 @@ async fn handle_update_listing_and_approve(
     {
         return Ok(PostEvent::AuthorizationDenied {
             user_id: requested_by,
-            action: "UpdateListingAndApprove".to_string(),
+            action: "UpdatePostAndApprove".to_string(),
             reason: auth_err.to_string(),
         });
     }
 
-    super::post_operations::update_and_approve_listing(
+    super::post_operations::update_and_approve_post(
         post_id,
         title,
         description,
@@ -386,21 +397,21 @@ async fn handle_update_listing_and_approve(
     )
     .await?;
 
-    Ok(PostEvent::ListingApproved { post_id })
+    Ok(PostEvent::PostApproved { post_id })
 }
 
-async fn handle_generate_listing_embedding(
+async fn handle_generate_post_embedding(
     post_id: PostId,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    match super::post_operations::generate_listing_embedding(
+    match super::post_operations::generate_post_embedding(
         post_id,
         ctx.deps().embedding_service.as_ref(),
         &ctx.deps().db_pool,
     )
     .await
     {
-        Ok(dimensions) => Ok(PostEvent::ListingEmbeddingGenerated {
+        Ok(dimensions) => Ok(PostEvent::PostEmbeddingGenerated {
             post_id,
             dimensions,
         }),
@@ -412,10 +423,10 @@ async fn handle_generate_listing_embedding(
 }
 
 // ============================================================================
-// Post handlers
+// Post announcement handlers
 // ============================================================================
 
-async fn handle_create_post(
+async fn handle_create_post_announcement(
     post_id: PostId,
     created_by: Option<MemberId>,
     custom_title: Option<String>,
@@ -423,7 +434,7 @@ async fn handle_create_post(
     expires_in_days: Option<i64>,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    let post = super::post_operations::create_post_for_listing(
+    let post = super::post_operations::create_post_for_post(
         post_id,
         created_by,
         custom_title,
@@ -482,7 +493,7 @@ async fn handle_create_custom_post(
     })
 }
 
-async fn handle_repost_listing(
+async fn handle_repost_post(
     post_id: PostId,
     created_by: MemberId,
     requested_by: MemberId,
@@ -497,12 +508,12 @@ async fn handle_repost_listing(
     {
         return Ok(PostEvent::AuthorizationDenied {
             user_id: requested_by,
-            action: "RepostListing".to_string(),
+            action: "RepostPost".to_string(),
             reason: auth_err.to_string(),
         });
     }
 
-    let post = super::post_operations::create_post_for_listing(
+    let post = super::post_operations::create_post_for_post(
         post_id,
         Some(created_by),
         None,
@@ -582,10 +593,10 @@ async fn handle_increment_post_click(
     Ok(PostEvent::PostClicked { post_id })
 }
 
-async fn handle_create_listings_from_resource_link(
+async fn handle_create_posts_from_resource_link(
     _job_id: JobId,
     url: String,
-    listings: Vec<ExtractedPost>,
+    posts: Vec<ExtractedPost>,
     context: Option<String>,
     _submitter_contact: Option<String>,
     ctx: &EffectContext<ServerDeps>,
@@ -615,21 +626,21 @@ async fn handle_create_listings_from_resource_link(
     // Create each extracted listing as a user_submitted listing in pending_approval status
     let mut created_count = 0;
 
-    for extracted_listing in listings {
+    for extracted_post in posts {
         // TODO: Store contact info when Listing model supports it
-        let _contact_json = extracted_listing
+        let _contact_json = extracted_post
             .contact
             .and_then(|c| serde_json::to_value(c).ok());
 
         match Post::create(
             organization_name.clone(),
-            extracted_listing.title.clone(),
-            extracted_listing.description.clone(),
-            Some(extracted_listing.tldr),
+            extracted_post.title.clone(),
+            extracted_post.description.clone(),
+            Some(extracted_post.tldr),
             "opportunity".to_string(),
             "general".to_string(),
             Some("accepting".to_string()),
-            extracted_listing.urgency,
+            extracted_post.urgency,
             None, // location
             "pending_approval".to_string(),
             "en".to_string(), // source_language
@@ -654,7 +665,7 @@ async fn handle_create_listings_from_resource_link(
             Err(e) => {
                 tracing::warn!(
                     error = %e,
-                    title = %extracted_listing.title,
+                    title = %extracted_post.title,
                     "Failed to create listing from resource link"
                 );
             }
@@ -663,9 +674,9 @@ async fn handle_create_listings_from_resource_link(
 
     info!(created_count = %created_count, "Created listings from resource link");
 
-    // Return a success event (we'll use ListingCreated for now, but could create a new event type)
+    // Return a success event (we'll use PostEntryCreated for now, but could create a new event type)
     // For simplicity, just return a generic success event
-    Ok(PostEvent::ListingCreated {
+    Ok(PostEvent::PostEntryCreated {
         post_id: crate::common::PostId::new(), // Dummy ID
         organization_name: "Resource Link".to_string(),
         title: format!("{} listings created", created_count),
@@ -767,8 +778,8 @@ async fn handle_create_organization_source_from_link(
     }
 }
 
-/// Handle DeleteListing command
-async fn handle_delete_listing(
+/// Handle DeletePost command
+async fn handle_delete_post(
     post_id: PostId,
     requested_by: MemberId,
     is_admin: bool,
@@ -782,7 +793,7 @@ async fn handle_delete_listing(
         .map_err(|e| {
             info!(
                 user_id = %requested_by,
-                action = "DeleteListing",
+                action = "DeletePost",
                 error = ?e,
                 "Authorization denied"
             );
@@ -792,7 +803,168 @@ async fn handle_delete_listing(
     info!(post_id = %post_id, "Deleting listing");
 
     // Delete the listing
-    super::post_operations::delete_listing(post_id, &ctx.deps().db_pool).await?;
+    super::post_operations::delete_post(post_id, &ctx.deps().db_pool).await?;
 
-    Ok(PostEvent::ListingDeleted { post_id })
+    Ok(PostEvent::PostDeleted { post_id })
+}
+
+// ============================================================================
+// Deduplication handlers
+// ============================================================================
+
+/// Handle DeduplicatePosts command - find and merge duplicate posts using embedding similarity
+async fn handle_deduplicate_posts(
+    job_id: JobId,
+    similarity_threshold: f32,
+    requested_by: MemberId,
+    is_admin: bool,
+    ctx: &EffectContext<ServerDeps>,
+) -> Result<PostEvent> {
+    use crate::domains::posts::models::Post;
+
+    // Authorization check - only admins can deduplicate posts
+    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+        .can(AdminCapability::FullAdmin)
+        .check(ctx.deps())
+        .await
+    {
+        return Ok(PostEvent::AuthorizationDenied {
+            user_id: requested_by,
+            action: "DeduplicatePosts".to_string(),
+            reason: auth_err.to_string(),
+        });
+    }
+
+    info!(
+        job_id = %job_id,
+        similarity_threshold = %similarity_threshold,
+        "Starting post deduplication"
+    );
+
+    // Find all posts with embeddings
+    let posts_with_embeddings = Post::find_all_with_embeddings(&ctx.deps().db_pool).await?;
+
+    info!(
+        count = posts_with_embeddings.len(),
+        "Found posts with embeddings"
+    );
+
+    if posts_with_embeddings.len() < 2 {
+        return Ok(PostEvent::PostsDeduplicated {
+            job_id,
+            duplicates_found: 0,
+            posts_merged: 0,
+            posts_deleted: 0,
+        });
+    }
+
+    // Find duplicate groups using embedding similarity
+    let duplicate_groups =
+        find_duplicate_groups(&posts_with_embeddings, similarity_threshold).await;
+
+    let duplicates_found = duplicate_groups.len();
+    let mut posts_deleted = 0;
+
+    info!(
+        duplicate_groups = duplicates_found,
+        "Found duplicate groups"
+    );
+
+    // Process each group - keep oldest, delete others
+    for group in &duplicate_groups {
+        if group.len() < 2 {
+            continue;
+        }
+
+        // Sort by created_at to find oldest (keep) vs newer (delete)
+        let mut sorted_group = group.clone();
+        sorted_group.sort_by_key(|(_, created_at)| *created_at);
+
+        // Keep the oldest post
+        let (keeper_id, _) = sorted_group[0];
+        info!(keeper_id = %keeper_id, "Keeping oldest post in duplicate group");
+
+        // Delete the rest
+        for (post_id, _) in sorted_group.iter().skip(1) {
+            match Post::delete(*post_id, &ctx.deps().db_pool).await {
+                Ok(_) => {
+                    posts_deleted += 1;
+                    info!(post_id = %post_id, "Deleted duplicate post");
+                }
+                Err(e) => {
+                    warn!(post_id = %post_id, error = %e, "Failed to delete duplicate post");
+                }
+            }
+        }
+    }
+
+    info!(
+        duplicates_found = duplicates_found,
+        posts_deleted = posts_deleted,
+        "Deduplication complete"
+    );
+
+    Ok(PostEvent::PostsDeduplicated {
+        job_id,
+        duplicates_found,
+        posts_merged: duplicates_found, // Each group is "merged" into one
+        posts_deleted,
+    })
+}
+
+/// Find groups of duplicate posts based on embedding cosine similarity
+async fn find_duplicate_groups(
+    posts: &[(PostId, Vec<f32>, chrono::DateTime<chrono::Utc>)],
+    threshold: f32,
+) -> Vec<Vec<(PostId, chrono::DateTime<chrono::Utc>)>> {
+    use std::collections::HashSet;
+
+    let mut processed: HashSet<PostId> = HashSet::new();
+    let mut groups: Vec<Vec<(PostId, chrono::DateTime<chrono::Utc>)>> = Vec::new();
+
+    for (i, (post_id, embedding, created_at)) in posts.iter().enumerate() {
+        if processed.contains(post_id) {
+            continue;
+        }
+
+        let mut group = vec![(*post_id, *created_at)];
+        processed.insert(*post_id);
+
+        // Compare with all other posts
+        for (other_id, other_embedding, other_created_at) in posts.iter().skip(i + 1) {
+            if processed.contains(other_id) {
+                continue;
+            }
+
+            let similarity = cosine_similarity(embedding, other_embedding);
+            if similarity >= threshold {
+                group.push((*other_id, *other_created_at));
+                processed.insert(*other_id);
+            }
+        }
+
+        // Only add groups with duplicates (more than 1 post)
+        if group.len() > 1 {
+            groups.push(group);
+        }
+    }
+
+    groups
+}
+
+/// Calculate cosine similarity between two vectors
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
+    if a.len() != b.len() || a.is_empty() {
+        return 0.0;
+    }
+
+    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
+    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
+    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
+
+    if magnitude_a == 0.0 || magnitude_b == 0.0 {
+        return 0.0;
+    }
+
+    dot_product / (magnitude_a * magnitude_b)
 }

@@ -17,7 +17,7 @@ pub struct PostType {
     pub tldr: Option<String>,
     pub description: String,
     pub description_markdown: Option<String>,
-    pub listing_type: String,
+    pub post_type: String,
     pub category: String,
     pub status: PostStatusData,
     pub urgency: Option<String>,
@@ -38,7 +38,7 @@ impl PostType {
     fn tldr(&self) -> Option<&str> { self.tldr.as_deref() }
     fn description(&self) -> &str { &self.description }
     fn description_markdown(&self) -> Option<&str> { self.description_markdown.as_deref() }
-    fn listing_type(&self) -> &str { &self.listing_type }
+    fn post_type(&self) -> &str { &self.post_type }
     fn category(&self) -> &str { &self.category }
     fn status(&self) -> PostStatusData { self.status }
     fn urgency(&self) -> Option<&str> { self.urgency.as_deref() }
@@ -53,7 +53,7 @@ impl PostType {
     /// Get all tags for this listing
     async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
         let post_id = PostId::from_uuid(self.id);
-        let tags = Tag::find_for_listing(post_id, &context.db_pool).await?;
+        let tags = Tag::find_for_post(post_id, &context.db_pool).await?;
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 }
@@ -85,7 +85,7 @@ impl From<Post> for PostType {
             tldr: post.tldr,
             description: post.description,
             description_markdown: post.description_markdown,
-            listing_type: post.listing_type,
+            post_type: post.post_type,
             category: post.category,
             status: match post.status.as_str() {
                 "pending_approval" => PostStatusData::PendingApproval,
@@ -102,7 +102,7 @@ impl From<Post> for PostType {
             website_id: post.website_id.map(|id| id.into_uuid()),
             has_embedding: post.embedding.is_some(),
             created_at: post.created_at,
-            business_info: None, // Populated by query layer when listing_type = 'business'
+            business_info: None, // Populated by query layer when post_type = 'business'
         }
     }
 }
@@ -158,9 +158,9 @@ pub struct ContactInfoInput {
 #[derive(Debug, Clone, GraphQLObject)]
 pub struct ScrapeResult {
     pub source_id: Uuid,
-    pub new_listings_count: i32,
-    pub changed_listings_count: i32,
-    pub disappeared_listings_count: i32,
+    pub new_posts_count: i32,
+    pub changed_posts_count: i32,
+    pub disappeared_posts_count: i32,
 }
 
 /// Result of starting an async scrape job

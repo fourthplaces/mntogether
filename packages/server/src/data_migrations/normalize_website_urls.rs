@@ -275,12 +275,12 @@ async fn merge_websites(from_id: Uuid, to_id: Uuid, db: &PgPool) -> Result<()> {
         .execute(db)
         .await?;
 
-    // Update listing_website_sync (handle potential unique constraint)
+    // Update post_website_sync (handle potential unique constraint)
     // First, delete any sync records that would conflict
     sqlx::query(
         r#"
-        DELETE FROM listing_website_sync lws1
-        USING listing_website_sync lws2
+        DELETE FROM post_website_sync lws1
+        USING post_website_sync lws2
         WHERE lws1.website_id = $1
           AND lws2.website_id = $2
           AND lws1.post_id = lws2.post_id
@@ -292,7 +292,7 @@ async fn merge_websites(from_id: Uuid, to_id: Uuid, db: &PgPool) -> Result<()> {
     .await?;
 
     // Now update the remaining records
-    sqlx::query("UPDATE listing_website_sync SET website_id = $1 WHERE website_id = $2")
+    sqlx::query("UPDATE post_website_sync SET website_id = $1 WHERE website_id = $2")
         .bind(to_id)
         .bind(from_id)
         .execute(db)

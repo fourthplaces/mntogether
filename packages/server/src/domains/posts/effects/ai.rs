@@ -8,7 +8,7 @@ use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::scraping::models::Website;
 
-/// AI Effect - Handles ExtractListings command
+/// AI Effect - Handles ExtractPosts command
 ///
 /// This effect is a thin orchestration layer that dispatches commands to handler functions.
 pub struct AIEffect;
@@ -23,20 +23,20 @@ impl Effect<PostCommand, ServerDeps> for AIEffect {
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
         match cmd {
-            PostCommand::ExtractListings {
+            PostCommand::ExtractPosts {
                 source_id,
                 job_id,
                 organization_name,
                 content,
-            } => handle_extract_listings(source_id, job_id, organization_name, content, &ctx).await,
-            PostCommand::ExtractListingsFromResourceLink {
+            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx).await,
+            PostCommand::ExtractPostsFromResourceLink {
                 job_id,
                 url,
                 content,
                 context,
                 submitter_contact,
             } => {
-                handle_extract_listings_from_resource_link(
+                handle_extract_posts_from_resource_link(
                     job_id,
                     url,
                     content,
@@ -55,7 +55,7 @@ impl Effect<PostCommand, ServerDeps> for AIEffect {
 // Handler function
 // ============================================================================
 
-async fn handle_extract_listings(
+async fn handle_extract_posts(
     source_id: WebsiteId,
     job_id: JobId,
     organization_name: String,
@@ -97,7 +97,7 @@ async fn handle_extract_listings(
     );
 
     // Delegate to domain function with PII scrubbing
-    let extracted_listings = match post_extraction::extract_listings_with_pii_scrub(
+    let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
         ctx.deps().ai.as_ref(),
         ctx.deps().pii_detector.as_ref(),
         &organization_name,
@@ -132,17 +132,17 @@ async fn handle_extract_listings(
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
-        listings_count = extracted_listings.len(),
-        "Emitting ListingsExtracted event"
+        listings_count = extracted_posts.len(),
+        "Emitting PostsExtracted event"
     );
-    Ok(PostEvent::ListingsExtracted {
+    Ok(PostEvent::PostsExtracted {
         source_id,
         job_id,
-        listings: extracted_listings,
+        posts: extracted_posts,
     })
 }
 
-async fn handle_extract_listings_from_resource_link(
+async fn handle_extract_posts_from_resource_link(
     job_id: JobId,
     url: String,
     content: String,
@@ -183,7 +183,7 @@ async fn handle_extract_listings_from_resource_link(
     tracing::info!(job_id = %job_id, "Calling AI service to extract listings from resource link");
 
     // Delegate to domain function with PII scrubbing
-    let extracted_listings = match post_extraction::extract_listings_with_pii_scrub(
+    let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
         ctx.deps().ai.as_ref(),
         ctx.deps().pii_detector.as_ref(),
         &organization_name,
@@ -218,13 +218,13 @@ async fn handle_extract_listings_from_resource_link(
     tracing::info!(
         job_id = %job_id,
         url = %url,
-        listings_count = extracted_listings.len(),
-        "Emitting ResourceLinkListingsExtracted event"
+        listings_count = extracted_posts.len(),
+        "Emitting ResourceLinkPostsExtracted event"
     );
-    Ok(PostEvent::ResourceLinkListingsExtracted {
+    Ok(PostEvent::ResourceLinkPostsExtracted {
         job_id,
         url,
-        listings: extracted_listings,
+        posts: extracted_posts,
         context,
         submitter_contact,
     })

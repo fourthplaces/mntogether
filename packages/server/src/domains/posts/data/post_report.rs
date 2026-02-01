@@ -68,11 +68,11 @@ pub struct PostReportDetail {
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolution_notes: Option<String>,
     pub action_taken: Option<String>,
-    pub listing_title: String,
+    pub post_title: String,
     pub organization_name: String,
-    pub listing_type: String,
-    pub listing_status: String,
-    pub report_count_for_listing: i64,
+    pub post_type: String,
+    pub post_status: String,
+    pub report_count_for_post: i64,
 }
 
 #[juniper::graphql_object(Context = GraphQLContext)]
@@ -113,24 +113,24 @@ impl PostReportDetail {
         self.action_taken.as_deref()
     }
 
-    fn listing_title(&self) -> &str {
-        &self.listing_title
+    fn post_title(&self) -> &str {
+        &self.post_title
     }
 
     fn organization_name(&self) -> &str {
         &self.organization_name
     }
 
-    fn listing_type(&self) -> &str {
-        &self.listing_type
+    fn post_type(&self) -> &str {
+        &self.post_type
     }
 
-    fn listing_status(&self) -> &str {
-        &self.listing_status
+    fn post_status(&self) -> &str {
+        &self.post_status
     }
 
-    fn report_count_for_listing(&self) -> i32 {
-        self.report_count_for_listing as i32
+    fn report_count_for_post(&self) -> i32 {
+        self.report_count_for_post as i32
     }
 }
 
@@ -162,11 +162,11 @@ impl From<PostReportWithDetails> for PostReportDetail {
             resolved_at: record.resolved_at,
             resolution_notes: record.resolution_notes,
             action_taken: record.action_taken,
-            listing_title: record.listing_title,
+            post_title: record.post_title,
             organization_name: record.organization_name,
-            listing_type: record.listing_type,
-            listing_status: record.listing_status,
-            report_count_for_listing: record.report_count_for_listing,
+            post_type: record.post_type,
+            post_status: record.post_status,
+            report_count_for_post: record.report_count_for_post,
         }
     }
 }

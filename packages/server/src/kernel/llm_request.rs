@@ -2,7 +2,7 @@
 //
 // Usage:
 // ```rust
-// let listings: Vec<Listing> = ai
+// let posts: Vec<Listing> = ai
 //     .request()
 //     .system("You extract listings from websites")
 //     .user(&format!("Extract from:\n{}", content))
@@ -147,16 +147,24 @@ impl<'a> LlmRequest<'a> {
 
         let _ = writeln!(prompt, "{}", user);
 
-        // Add JSON output instructions
+        // Add JSON output instructions - be extremely explicit
         let _ = writeln!(
             prompt,
             r#"
 
-OUTPUT FORMAT REQUIREMENTS:
-- Return ONLY valid JSON
-- NO markdown code blocks (no ```json)
-- NO backticks or explanation
-- Your entire response must be parseable by JSON.parse()"#
+CRITICAL: Your response will be parsed directly by a JSON parser.
+
+DO NOT include:
+- Markdown code fences (```)
+- The word "json" before the data
+- Any text before the opening [ or {{
+- Any text after the closing ] or }}
+- Explanations or commentary
+
+DO:
+- Start your response with [ or {{ immediately
+- End your response with ] or }} immediately
+- Return syntactically valid JSON only"#
         );
 
         prompt
@@ -166,30 +174,33 @@ OUTPUT FORMAT REQUIREMENTS:
         let response_preview: String = last_response.chars().take(500).collect();
 
         let mut prompt = format!(
-            r#"Your previous response was not valid JSON and could not be parsed.
+            r#"JSON PARSE FAILED. Your previous response could not be parsed.
 
-PARSE ERROR: {error}
+ERROR: {error}
 
-Previous response (first 500 chars):
+Your response was:
 {response_preview}
 
-Please fix this error and return ONLY valid JSON.
+This failed because your response is not valid JSON.
 "#
         );
 
         // Include schema hint if provided
         if let Some(hint) = &self.schema_hint {
-            let _ = writeln!(prompt, "\nEXPECTED SCHEMA:\n{}", hint);
+            let _ = writeln!(prompt, "\nEXPECTED FORMAT:\n{}", hint);
         }
 
         let _ = writeln!(
             prompt,
             r#"
-REQUIREMENTS:
-- Return ONLY the JSON, no markdown, no explanation
-- Start with {{ or [ as appropriate
-- Ensure all strings are properly quoted
-- Ensure arrays contain the correct types"#
+RESPOND WITH RAW JSON ONLY:
+- First character must be [ or {{
+- Last character must be ] or }}
+- No ``` markdown fences
+- No "json" prefix
+- No explanation text
+- Properly escape special characters in strings
+- Use null for missing values, not undefined"#
         );
 
         prompt
