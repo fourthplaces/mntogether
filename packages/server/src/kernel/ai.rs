@@ -70,19 +70,30 @@ impl OpenAIClient {
 #[async_trait]
 impl BaseAI for OpenAIClient {
     async fn complete(&self, prompt: &str) -> Result<String> {
+        self.complete_with_model(prompt, None).await
+    }
+
+    async fn complete_json(&self, prompt: &str) -> Result<String> {
+        self.complete_json_with_model(prompt, None).await
+    }
+
+    async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        let model_id = model.unwrap_or("gpt-4-turbo");
+
         tracing::debug!(
             prompt_length = prompt.len(),
+            model = model_id,
             "Building OpenAI agent for completion"
         );
 
-        let agent = self
-            .client
-            .agent(openai::GPT_4_TURBO)
-            .preamble("You are a helpful assistant.")
-            .max_tokens(4096)
-            .build();
+        // Build agent with the specified model
+        let agent = match model_id {
+            "gpt-5" => self.client.agent("gpt-5").preamble("You are a helpful assistant.").max_tokens(4096).build(),
+            "gpt-4o" => self.client.agent(openai::GPT_4O).preamble("You are a helpful assistant.").max_tokens(4096).build(),
+            "gpt-4-turbo" | _ => self.client.agent(openai::GPT_4_TURBO).preamble("You are a helpful assistant.").max_tokens(4096).build(),
+        };
 
-        tracing::info!("Calling OpenAI API");
+        tracing::info!(model = model_id, "Calling OpenAI API");
 
         let response = agent
             .prompt(prompt)
@@ -90,6 +101,7 @@ impl BaseAI for OpenAIClient {
             .map_err(|e| {
                 tracing::error!(
                     error = %e,
+                    model = model_id,
                     prompt_preview = %&prompt[..prompt.len().min(200)],
                     "OpenAI API call failed"
                 );
@@ -99,15 +111,16 @@ impl BaseAI for OpenAIClient {
 
         tracing::info!(
             response_length = response.len(),
+            model = model_id,
             "OpenAI API response received"
         );
 
         Ok(response)
     }
 
-    async fn complete_json(&self, prompt: &str) -> Result<String> {
-        // Same as complete for OpenAI
-        self.complete(prompt).await
+    async fn complete_json_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        // Same as complete_with_model for OpenAI
+        self.complete_with_model(prompt, model).await
     }
 }
 
