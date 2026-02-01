@@ -8,6 +8,11 @@ use crate::domains::domain_approval::{
     commands::DomainApprovalCommand, effects::DomainApprovalCompositeEffect,
     machines::DomainApprovalMachine,
 };
+use crate::domains::crawling::{
+    commands::CrawlCommand,
+    effects::CrawlerEffect,
+    machines::CrawlMachine,
+};
 use crate::domains::posts::{
     commands::PostCommand,
     effects::PostCompositeEffect,
@@ -150,6 +155,9 @@ pub fn build_app(
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
+        // Crawling domain (multi-page website crawling)
+        .with_machine(CrawlMachine::new())
+        .with_effect::<CrawlCommand, _>(CrawlerEffect)
         // Listings domain (replaces Organization domain)
         .with_machine(PostMachine::new())
         .with_effect::<PostCommand, _>(PostCompositeEffect::new())

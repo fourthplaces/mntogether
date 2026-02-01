@@ -2,13 +2,8 @@ use crate::common::{PostId, WebsiteId};
 use crate::domains::posts::models::{Post, PostContact, PostStatus};
 use crate::domains::organization::utils::generate_tldr;
 use crate::domains::tag::models::{Tag, Taggable};
-use crate::kernel::BaseEmbeddingService;
 use anyhow::Result;
 use sqlx::PgPool;
-
-/// Similarity threshold for considering posts as duplicates
-/// 0.90 catches posts like "Food Shelf Program" vs "SuperShelf Food Shelf" (90.9% similar)
-const SIMILARITY_THRESHOLD: f32 = 0.90;
 
 /// Valid urgency values per database constraint
 const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
@@ -61,14 +56,15 @@ pub struct ExtractedPostInput {
 /// Algorithm:
 /// 1. For each extracted post:
 ///    - Check if post exists by website + title (fast path)
-///    - If no title match, check for similar post by embedding (prevents duplicates)
-///    - If similar post found: update it
+///    - If title match: update if content changed
 ///    - If no match: create new post
+///
+/// NOTE: Semantic deduplication is handled separately by LLM-based deduplication.
+/// This function only does exact title matching.
 pub async fn sync_posts(
     pool: &PgPool,
     website_id: WebsiteId,
     extracted_posts: Vec<ExtractedPostInput>,
-    embedding_service: Option<&dyn BaseEmbeddingService>,
 ) -> Result<SyncResult> {
     tracing::info!(
         website_id = %website_id,
@@ -80,15 +76,8 @@ pub async fn sync_posts(
     let mut updated_posts = Vec::new();
     let mut unchanged_posts = Vec::new();
 
-    // Load existing posts with embeddings for similarity matching
-    let existing_with_embeddings = Post::find_with_embeddings_for_website(website_id, pool).await?;
-    tracing::info!(
-        existing_with_embeddings = existing_with_embeddings.len(),
-        "Loaded existing posts with embeddings for duplicate detection"
-    );
-
     for post_input in extracted_posts {
-        // First try: exact title match (fast path)
+        // Check for exact title match
         let existing = Post::find_by_domain_and_title(website_id, &post_input.title, pool).await?;
 
         if let Some(existing_post) = existing {
@@ -127,128 +116,91 @@ pub async fn sync_posts(
                 unchanged_posts.push(existing_post.id);
             }
         } else {
-            // No title match - try embedding similarity if we have an embedding service
-            let similar_post = if let Some(emb_service) = embedding_service {
-                find_similar_post_by_embedding(
-                    &post_input,
-                    &existing_with_embeddings,
-                    emb_service,
-                )
-                .await
-            } else {
-                None
-            };
+            // No title match - create new post
+            // (LLM-based deduplication will handle semantic duplicates after sync)
+            let tldr = post_input
+                .tldr
+                .clone()
+                .or_else(|| Some(generate_tldr(&post_input.description, 100)));
 
-            if let Some((similar_post_id, similarity, similar_title)) = similar_post {
-                // Found similar post by embedding - update it instead of creating duplicate
-                tracing::info!(
-                    existing_post_id = %similar_post_id,
-                    similarity = %similarity,
-                    existing_title = %similar_title,
-                    new_title = %post_input.title,
-                    "Found similar post by embedding, updating instead of creating duplicate"
-                );
+            let urgency = normalize_urgency(post_input.urgency.clone());
 
-                Post::update_content(
-                    similar_post_id,
-                    Some(post_input.title.clone()), // Update title to new version
-                    Some(post_input.description.clone()),
-                    None, // description_markdown
-                    post_input.tldr.clone(),
-                    None, // category
-                    None, // urgency
-                    post_input.location.clone(),
-                    pool,
-                )
-                .await?;
+            match Post::create(
+                post_input.organization_name.clone(),
+                post_input.title.clone(),
+                post_input.description.clone(),
+                tldr,
+                "opportunity".to_string(),
+                "general".to_string(),
+                Some("accepting".to_string()),
+                urgency,
+                post_input.location.clone(),
+                PostStatus::PendingApproval.to_string(),
+                "en".to_string(),
+                Some("scraped".to_string()),
+                None, // submitted_by_admin_id
+                Some(website_id),
+                post_input.source_url.clone(),
+                None, // organization_id
+                pool,
+            )
+            .await
+            {
+                Ok(created) => {
+                    tracing::info!(
+                        post_id = %created.id,
+                        title = %post_input.title,
+                        "Created new post"
+                    );
 
-                updated_posts.push(similar_post_id);
-            } else {
-                // No similar post found - create new
-                let tldr = post_input
-                    .tldr
-                    .clone()
-                    .or_else(|| Some(generate_tldr(&post_input.description, 100)));
+                    // Save contact info if present
+                    if let Some(ref contact_info) = post_input.contact {
+                        if let Err(e) =
+                            PostContact::create_from_json(created.id, contact_info, pool).await
+                        {
+                            tracing::warn!(
+                                post_id = %created.id,
+                                error = %e,
+                                "Failed to save contact info"
+                            );
+                        }
+                    }
 
-                let urgency = normalize_urgency(post_input.urgency.clone());
-
-                match Post::create(
-                    post_input.organization_name.clone(),
-                    post_input.title.clone(),
-                    post_input.description.clone(),
-                    tldr,
-                    "opportunity".to_string(),
-                    "general".to_string(),
-                    Some("accepting".to_string()),
-                    urgency,
-                    post_input.location.clone(),
-                    PostStatus::PendingApproval.to_string(),
-                    "en".to_string(),
-                    Some("scraped".to_string()),
-                    None, // submitted_by_admin_id
-                    Some(website_id),
-                    post_input.source_url.clone(),
-                    None, // organization_id
-                    pool,
-                )
-                .await
-                {
-                    Ok(created) => {
-                        tracing::info!(
-                            post_id = %created.id,
-                            title = %post_input.title,
-                            "Created new post"
-                        );
-
-                        // Save contact info if present
-                        if let Some(ref contact_info) = post_input.contact {
-                            if let Err(e) =
-                                PostContact::create_from_json(created.id, contact_info, pool).await
-                            {
+                    // Tag post with audience roles
+                    for role in &post_input.audience_roles {
+                        let normalized_role = role.to_lowercase();
+                        if let Ok(tag) =
+                            Tag::find_by_kind_value("audience_role", &normalized_role, pool)
+                                .await
+                        {
+                            if let Some(tag) = tag {
+                                if let Err(e) =
+                                    Taggable::create_post_tag(created.id, tag.id, pool).await
+                                {
+                                    tracing::warn!(
+                                        post_id = %created.id,
+                                        role = %normalized_role,
+                                        error = %e,
+                                        "Failed to tag post with audience role"
+                                    );
+                                }
+                            } else {
                                 tracing::warn!(
-                                    post_id = %created.id,
-                                    error = %e,
-                                    "Failed to save contact info"
+                                    role = %normalized_role,
+                                    "Unknown audience role from AI"
                                 );
                             }
                         }
-
-                        // Tag post with audience roles
-                        for role in &post_input.audience_roles {
-                            let normalized_role = role.to_lowercase();
-                            if let Ok(tag) =
-                                Tag::find_by_kind_value("audience_role", &normalized_role, pool)
-                                    .await
-                            {
-                                if let Some(tag) = tag {
-                                    if let Err(e) =
-                                        Taggable::create_post_tag(created.id, tag.id, pool).await
-                                    {
-                                        tracing::warn!(
-                                            post_id = %created.id,
-                                            role = %normalized_role,
-                                            error = %e,
-                                            "Failed to tag post with audience role"
-                                        );
-                                    }
-                                } else {
-                                    tracing::warn!(
-                                        role = %normalized_role,
-                                        "Unknown audience role from AI"
-                                    );
-                                }
-                            }
-                        }
-
-                        new_posts.push(created.id);
                     }
-                    Err(e) => {
-                        tracing::error!(
-                            error = %e,
-                            title = %post_input.title,
-                            "Failed to create post during sync"
-                        );
-                    }
+
+                    new_posts.push(created.id);
+                }
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        title = %post_input.title,
+                        "Failed to create post during sync"
+                    );
                 }
             }
         }
@@ -266,63 +218,6 @@ pub async fn sync_posts(
         updated_posts,
         unchanged_posts,
     })
-}
-
-/// Find a similar post by embedding similarity
-async fn find_similar_post_by_embedding(
-    post_input: &ExtractedPostInput,
-    existing_posts: &[(PostId, Vec<f32>, String)],
-    embedding_service: &dyn BaseEmbeddingService,
-) -> Option<(PostId, f32, String)> {
-    if existing_posts.is_empty() {
-        return None;
-    }
-
-    // Generate embedding for the new post content
-    let content_for_embedding = format!("{}\n\n{}", post_input.title, post_input.description);
-    let new_embedding = match embedding_service.generate(&content_for_embedding).await {
-        Ok(emb) => emb,
-        Err(e) => {
-            tracing::warn!(
-                error = %e,
-                title = %post_input.title,
-                "Failed to generate embedding for similarity check, skipping duplicate detection"
-            );
-            return None;
-        }
-    };
-
-    // Find the most similar existing post
-    let mut best_match: Option<(PostId, f32, String)> = None;
-
-    for (post_id, existing_embedding, title) in existing_posts {
-        let similarity = cosine_similarity(&new_embedding, existing_embedding);
-
-        if similarity >= SIMILARITY_THRESHOLD {
-            if best_match.is_none() || similarity > best_match.as_ref().unwrap().1 {
-                best_match = Some((*post_id, similarity, title.clone()));
-            }
-        }
-    }
-
-    best_match
-}
-
-/// Calculate cosine similarity between two vectors
-fn cosine_similarity(a: &[f32], b: &[f32]) -> f32 {
-    if a.len() != b.len() || a.is_empty() {
-        return 0.0;
-    }
-
-    let dot_product: f32 = a.iter().zip(b.iter()).map(|(x, y)| x * y).sum();
-    let magnitude_a: f32 = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let magnitude_b: f32 = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-
-    if magnitude_a == 0.0 || magnitude_b == 0.0 {
-        return 0.0;
-    }
-
-    dot_product / (magnitude_a * magnitude_b)
 }
 
 #[cfg(test)]
@@ -395,109 +290,6 @@ mod tests {
     fn test_normalize_urgency_whitespace() {
         // Whitespace-only is not a valid urgency
         assert_eq!(normalize_urgency(Some("  ".to_string())), None);
-    }
-
-    // =========================================================================
-    // Cosine Similarity Tests
-    // =========================================================================
-
-    #[test]
-    fn test_cosine_similarity_identical_vectors() {
-        let v1 = vec![1.0, 0.0, 0.0];
-        let v2 = vec![1.0, 0.0, 0.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert!((similarity - 1.0).abs() < 0.0001, "Identical vectors should have similarity 1.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_orthogonal_vectors() {
-        let v1 = vec![1.0, 0.0, 0.0];
-        let v2 = vec![0.0, 1.0, 0.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert!(similarity.abs() < 0.0001, "Orthogonal vectors should have similarity 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_opposite_vectors() {
-        let v1 = vec![1.0, 0.0, 0.0];
-        let v2 = vec![-1.0, 0.0, 0.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert!((similarity + 1.0).abs() < 0.0001, "Opposite vectors should have similarity -1.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_empty_vectors() {
-        let v1: Vec<f32> = vec![];
-        let v2: Vec<f32> = vec![];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert_eq!(similarity, 0.0, "Empty vectors should return 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_mismatched_lengths() {
-        let v1 = vec![1.0, 2.0, 3.0];
-        let v2 = vec![1.0, 2.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert_eq!(similarity, 0.0, "Mismatched lengths should return 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_zero_magnitude_first() {
-        let v1 = vec![0.0, 0.0, 0.0];
-        let v2 = vec![1.0, 2.0, 3.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert_eq!(similarity, 0.0, "Zero magnitude vector should return 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_zero_magnitude_second() {
-        let v1 = vec![1.0, 2.0, 3.0];
-        let v2 = vec![0.0, 0.0, 0.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert_eq!(similarity, 0.0, "Zero magnitude vector should return 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_zero_magnitude_both() {
-        let v1 = vec![0.0, 0.0, 0.0];
-        let v2 = vec![0.0, 0.0, 0.0];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert_eq!(similarity, 0.0, "Both zero magnitude vectors should return 0.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_high_dimensional() {
-        // Test with 1536 dimensions (like OpenAI embeddings)
-        let v1: Vec<f32> = (0..1536).map(|i| (i as f32).sin()).collect();
-        let v2: Vec<f32> = (0..1536).map(|i| (i as f32).sin()).collect();
-        let similarity = cosine_similarity(&v1, &v2);
-        assert!((similarity - 1.0).abs() < 0.0001, "Identical high-dimensional vectors should have similarity ~1.0");
-    }
-
-    #[test]
-    fn test_cosine_similarity_similar_but_not_identical() {
-        // Two vectors that are similar but not identical
-        let v1 = vec![0.9, 0.1, 0.05];
-        let v2 = vec![0.85, 0.15, 0.05];
-        let similarity = cosine_similarity(&v1, &v2);
-        assert!(similarity > 0.9, "Similar vectors should have high similarity: {}", similarity);
-        assert!(similarity < 1.0, "Non-identical vectors should be < 1.0: {}", similarity);
-    }
-
-    #[test]
-    fn test_cosine_similarity_threshold_boundary() {
-        // Test at the exact threshold (0.90)
-        // Create vectors that are exactly at the threshold
-        let v1 = vec![1.0, 0.0];
-        let v2 = vec![0.9, 0.436]; // cos(26°) ≈ 0.898, just under threshold
-        let similarity = cosine_similarity(&v1, &v2);
-
-        // This tests our threshold logic indirectly
-        assert!(
-            (similarity - 0.90).abs() < 0.05,
-            "Boundary test: similarity should be near 0.90, got {}",
-            similarity
-        );
     }
 
     // =========================================================================

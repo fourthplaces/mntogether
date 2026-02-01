@@ -45,9 +45,6 @@ pub struct Post {
     pub website_id: Option<WebsiteId>,
     pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
 
-    // Vector search (for semantic matching)
-    pub embedding: Option<pgvector::Vector>,
-
     // Soft delete (preserves links)
     pub deleted_at: Option<DateTime<Utc>>,
     pub deleted_reason: Option<String>,
@@ -481,78 +478,6 @@ impl Post {
         Ok(result.rows_affected())
     }
 
-    /// Update listing embedding
-    pub async fn update_embedding(id: PostId, embedding: &[f32], pool: &PgPool) -> Result<()> {
-        use pgvector::Vector;
-
-        let vector = Vector::from(embedding.to_vec());
-
-        sqlx::query("UPDATE posts SET embedding = $2 WHERE id = $1")
-            .bind(id)
-            .bind(vector)
-            .execute(pool)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Find all posts that have embeddings (for deduplication)
-    /// Returns (post_id, embedding, created_at) tuples
-    pub async fn find_all_with_embeddings(
-        pool: &PgPool,
-    ) -> Result<Vec<(PostId, Vec<f32>, DateTime<Utc>)>> {
-        // Query posts with embeddings, excluding rejected/deleted
-        let rows: Vec<(PostId, pgvector::Vector, DateTime<Utc>)> = sqlx::query_as(
-            r#"
-            SELECT id, embedding, created_at
-            FROM posts
-            WHERE embedding IS NOT NULL
-              AND status IN ('pending_approval', 'active')
-              AND deleted_at IS NULL
-            ORDER BY created_at ASC
-            "#,
-        )
-        .fetch_all(pool)
-        .await?;
-
-        // Convert pgvector::Vector to Vec<f32>
-        let result = rows
-            .into_iter()
-            .map(|(id, vec, created_at)| (id, vec.to_vec(), created_at))
-            .collect();
-
-        Ok(result)
-    }
-
-    /// Find posts with embeddings for a specific website (for deduplication during sync)
-    /// Returns (post_id, embedding, title) tuples
-    pub async fn find_with_embeddings_for_website(
-        website_id: WebsiteId,
-        pool: &PgPool,
-    ) -> Result<Vec<(PostId, Vec<f32>, String)>> {
-        let rows: Vec<(PostId, pgvector::Vector, String)> = sqlx::query_as(
-            r#"
-            SELECT id, embedding, title
-            FROM posts
-            WHERE embedding IS NOT NULL
-              AND website_id = $1
-              AND status IN ('pending_approval', 'active')
-              AND deleted_at IS NULL
-            "#,
-        )
-        .bind(website_id)
-        .fetch_all(pool)
-        .await?;
-
-        // Convert pgvector::Vector to Vec<f32>
-        let result = rows
-            .into_iter()
-            .map(|(id, vec, title)| (id, vec.to_vec(), title))
-            .collect();
-
-        Ok(result)
-    }
-
     /// Find existing active listings from a domain (for sync)
     pub async fn find_active_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
@@ -723,69 +648,4 @@ impl Post {
         Ok(container_id.map(ContainerId::from))
     }
 
-    /// Find listings without embeddings (for batch embedding generation)
-    pub async fn find_without_embeddings(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Self>(
-            r#"
-            SELECT * FROM posts
-            WHERE embedding IS NULL
-              AND status IN ('pending_approval', 'active')
-              AND deleted_at IS NULL
-            ORDER BY created_at ASC
-            LIMIT $1
-            "#,
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
-        Ok(listings)
-    }
-
-    /// Find listings without embeddings for a specific website
-    pub async fn find_without_embeddings_for_website(
-        website_id: WebsiteId,
-        limit: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Self>(
-            r#"
-            SELECT * FROM posts
-            WHERE embedding IS NULL
-              AND website_id = $1
-              AND status IN ('pending_approval', 'active')
-              AND deleted_at IS NULL
-            ORDER BY created_at ASC
-            LIMIT $2
-            "#,
-        )
-        .bind(website_id)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
-        Ok(listings)
-    }
-
-    /// Count listings without embeddings
-    pub async fn count_without_embeddings(pool: &PgPool) -> Result<i64> {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND status IN ('pending_approval', 'active') AND deleted_at IS NULL",
-        )
-        .fetch_one(pool)
-        .await?;
-        Ok(count)
-    }
-
-    /// Count listings without embeddings for a specific website
-    pub async fn count_without_embeddings_for_website(
-        website_id: WebsiteId,
-        pool: &PgPool,
-    ) -> Result<i64> {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND website_id = $1 AND status IN ('pending_approval', 'active') AND deleted_at IS NULL",
-        )
-        .bind(website_id)
-        .fetch_one(pool)
-        .await?;
-        Ok(count)
-    }
 }

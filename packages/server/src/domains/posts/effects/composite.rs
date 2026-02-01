@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use crate::kernel::ServerDeps;
-use super::{AIEffect, CrawlerEffect, PostEffect, ScraperEffect, SyncEffect};
+use super::{AIEffect, PostEffect, ScraperEffect, SyncEffect};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
@@ -11,9 +11,11 @@ use crate::domains::posts::events::PostEvent;
 ///
 /// This composite effect solves the problem of having multiple effects for the same command type.
 /// The dispatcher requires one effect per command type, so this effect routes based on the command variant.
+///
+/// NOTE: Crawling commands have been moved to the `crawling` domain.
+/// See `crate::domains::crawling::effects::CrawlerEffect`.
 pub struct PostCompositeEffect {
     scraper: ScraperEffect,
-    crawler: CrawlerEffect,
     ai: AIEffect,
     sync: SyncEffect,
     listing: PostEffect,
@@ -23,7 +25,6 @@ impl PostCompositeEffect {
     pub fn new() -> Self {
         Self {
             scraper: ScraperEffect,
-            crawler: CrawlerEffect,
             ai: AIEffect,
             sync: SyncEffect,
             listing: PostEffect,
@@ -59,17 +60,6 @@ impl Effect<PostCommand, ServerDeps> for PostCompositeEffect {
 
             // Route to SyncEffect
             PostCommand::SyncPosts { .. } => self.sync.execute(cmd, ctx).await,
-
-            // Route to CrawlerEffect (multi-page crawling commands)
-            PostCommand::CrawlWebsite { .. }
-            | PostCommand::ExtractPostsFromPages { .. }
-            | PostCommand::RetryWebsiteCrawl { .. }
-            | PostCommand::MarkWebsiteNoPosts { .. }
-            | PostCommand::SyncCrawledPosts { .. }
-            | PostCommand::RegeneratePosts { .. }
-            | PostCommand::RegeneratePageSummaries { .. }
-            | PostCommand::RegeneratePageSummary { .. }
-            | PostCommand::RegeneratePagePosts { .. } => self.crawler.execute(cmd, ctx).await,
 
             // Route to PostEffect (all other commands)
             PostCommand::CreateWebsiteFromLink { .. }

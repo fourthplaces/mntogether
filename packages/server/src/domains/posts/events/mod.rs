@@ -1,30 +1,15 @@
-use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue;
 
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedPost};
-use crate::common::{JobId, PostId, MemberId, WebsiteId};
+use crate::common::{JobId, MemberId, PostId, WebsiteId};
 use crate::domains::posts::models::post_report::PostReportId;
 
-/// Information about a crawled page (used in WebsiteCrawled event)
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CrawledPageInfo {
-    pub url: String,
-    pub title: Option<String>,
-    pub snapshot_id: Option<uuid::Uuid>,
-}
-
-/// Result of extracting listings from a single page
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PageExtractionResult {
-    pub url: String,
-    pub snapshot_id: Option<uuid::Uuid>,
-    pub listings_count: usize,
-    pub has_posts: bool,
-}
-
-/// Listings domain events
+/// Posts domain events
 /// Following seesaw-rs pattern: Events are immutable facts
+///
+/// NOTE: Crawling events have been moved to the `crawling` domain.
+/// See `crate::domains::crawling::events::CrawlEvent`.
 #[derive(Debug, Clone)]
 pub enum PostEvent {
     // =========================================================================
@@ -36,14 +21,6 @@ pub enum PostEvent {
         job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
         is_admin: bool,         // Whether user is admin (checked in effect)
-    },
-
-    /// Admin requests to crawl a website (multi-page)
-    CrawlWebsiteRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
     },
 
     /// Member submits a listing they encountered
@@ -330,101 +307,6 @@ pub enum PostEvent {
         user_id: MemberId,
         action: String, // e.g., "ApproveListing", "ScrapeSource"
         reason: String,
-    },
-
-    // =========================================================================
-    // Website Crawl Events (multi-page crawling workflow)
-    // =========================================================================
-    /// Website was crawled (multiple pages discovered)
-    WebsiteCrawled {
-        website_id: WebsiteId,
-        job_id: JobId,
-        pages: Vec<CrawledPageInfo>,
-    },
-
-    /// No listings found after crawling all pages
-    WebsiteCrawlNoListings {
-        website_id: WebsiteId,
-        job_id: JobId,
-        attempt_number: i32,
-        pages_crawled: usize,
-        should_retry: bool,
-    },
-
-    /// Terminal: website marked as having no listings after max retries
-    WebsiteMarkedNoListings {
-        website_id: WebsiteId,
-        job_id: JobId,
-        total_attempts: i32,
-    },
-
-    /// Website crawl failed
-    WebsiteCrawlFailed {
-        website_id: WebsiteId,
-        job_id: JobId,
-        reason: String,
-    },
-
-    /// Listings extracted from multiple crawled pages
-    PostsExtractedFromPages {
-        website_id: WebsiteId,
-        job_id: JobId,
-        posts: Vec<ExtractedPost>,
-        page_results: Vec<PageExtractionResult>,
-    },
-
-    /// Admin requests to regenerate posts from existing page snapshots
-    /// (skips crawling, goes directly to extraction)
-    RegeneratePostsRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Admin requests to regenerate page summaries for existing snapshots
-    /// (re-runs AI summarization, clears cached summaries)
-    RegeneratePageSummariesRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Page summaries regenerated successfully
-    PageSummariesRegenerated {
-        website_id: WebsiteId,
-        job_id: JobId,
-        pages_processed: usize,
-    },
-
-    /// Admin requests to regenerate AI summary for a single page snapshot
-    RegeneratePageSummaryRequested {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Single page summary regenerated successfully
-    PageSummaryRegenerated {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-    },
-
-    /// Admin requests to regenerate posts for a single page snapshot
-    RegeneratePagePostsRequested {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Single page posts regenerated successfully
-    PagePostsRegenerated {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        posts_count: usize,
     },
 
     // =========================================================================

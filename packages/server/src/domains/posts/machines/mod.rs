@@ -3,12 +3,14 @@
 //! Pure decision logic - NO IO, only state transitions.
 //! This machine coordinates multiple workflows for the posts domain:
 //!
-//! - Scraping: Request → Scrape → Extract → Sync
-//! - Crawling: Request → Crawl → Extract → Sync
+//! - Scraping: Request → Scrape → Extract → Sync (single page)
 //! - Submissions: User/resource link submissions
 //! - Approval: Listing approval/rejection
 //! - Post lifecycle: Create, expire, archive, view, click
 //! - Reporting: Listing reports
+//!
+//! NOTE: Multi-page crawling workflows have been moved to the `crawling` domain.
+//! See `crate::domains::crawling::machines` for crawling-related state transitions.
 
 use std::collections::HashSet;
 
@@ -113,120 +115,6 @@ impl seesaw_core::Machine for PostMachine {
                 self.cleanup_pending(source_id);
                 None
             }
-
-            // =================================================================
-            // CRAWLING WORKFLOW
-            // =================================================================
-            PostEvent::CrawlWebsiteRequested {
-                website_id,
-                job_id,
-                requested_by,
-                is_admin,
-            } => Some(PostCommand::CrawlWebsite {
-                website_id: *website_id,
-                job_id: *job_id,
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
-            PostEvent::WebsiteCrawled {
-                website_id,
-                job_id,
-                pages,
-            } => Some(PostCommand::ExtractPostsFromPages {
-                website_id: *website_id,
-                job_id: *job_id,
-                pages: pages.clone(),
-            }),
-
-            PostEvent::PostsExtractedFromPages {
-                website_id,
-                job_id,
-                posts,
-                page_results,
-            } => Some(PostCommand::SyncCrawledPosts {
-                website_id: *website_id,
-                job_id: *job_id,
-                posts: posts.clone(),
-                page_results: page_results.clone(),
-            }),
-
-            PostEvent::WebsiteCrawlNoListings {
-                website_id,
-                job_id,
-                should_retry,
-                ..
-            } => {
-                if *should_retry {
-                    Some(PostCommand::RetryWebsiteCrawl {
-                        website_id: *website_id,
-                        job_id: *job_id,
-                    })
-                } else {
-                    Some(PostCommand::MarkWebsiteNoPosts {
-                        website_id: *website_id,
-                        job_id: *job_id,
-                    })
-                }
-            }
-
-            // Crawling terminal events
-            PostEvent::WebsiteMarkedNoListings { website_id, .. }
-            | PostEvent::WebsiteCrawlFailed { website_id, .. } => {
-                self.cleanup_pending(website_id);
-                None
-            }
-
-            // =================================================================
-            // REGENERATION WORKFLOWS
-            // =================================================================
-            PostEvent::RegeneratePostsRequested {
-                website_id,
-                job_id,
-                requested_by,
-                is_admin,
-            } => Some(PostCommand::RegeneratePosts {
-                website_id: *website_id,
-                job_id: *job_id,
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
-            PostEvent::RegeneratePageSummariesRequested {
-                website_id,
-                job_id,
-                requested_by,
-                is_admin,
-            } => Some(PostCommand::RegeneratePageSummaries {
-                website_id: *website_id,
-                job_id: *job_id,
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
-            PostEvent::RegeneratePageSummaryRequested {
-                page_snapshot_id,
-                job_id,
-                requested_by,
-                is_admin,
-            } => Some(PostCommand::RegeneratePageSummary {
-                page_snapshot_id: *page_snapshot_id,
-                job_id: *job_id,
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
-
-            PostEvent::RegeneratePagePostsRequested {
-                page_snapshot_id,
-                job_id,
-                requested_by,
-                is_admin,
-            } => Some(PostCommand::RegeneratePagePosts {
-                page_snapshot_id: *page_snapshot_id,
-                job_id: *job_id,
-                requested_by: *requested_by,
-                is_admin: *is_admin,
-            }),
 
             // =================================================================
             // RESOURCE LINK SUBMISSION WORKFLOW
@@ -513,9 +401,6 @@ impl seesaw_core::Machine for PostMachine {
             | PostEvent::PostEmbeddingGenerated { .. }
             | PostEvent::ListingEmbeddingFailed { .. }
             | PostEvent::AuthorizationDenied { .. }
-            | PostEvent::PageSummariesRegenerated { .. }
-            | PostEvent::PageSummaryRegenerated { .. }
-            | PostEvent::PagePostsRegenerated { .. }
             | PostEvent::DeduplicatePostsRequested { .. }
             | PostEvent::PostsDeduplicated { .. }
             | PostEvent::DeduplicationFailed { .. } => None,

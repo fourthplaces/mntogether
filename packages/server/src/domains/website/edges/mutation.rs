@@ -1,4 +1,5 @@
 use crate::common::{JobId, WebsiteId};
+use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::posts::data::ScrapeJobResult;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::website::data::WebsiteData;
@@ -145,7 +146,7 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
 
     // Dispatch crawl request and await completion
     let result = dispatch_request(
-        PostEvent::CrawlWebsiteRequested {
+        CrawlEvent::CrawlWebsiteRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -153,15 +154,15 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &PostEvent| match e {
+            m.try_match(|e: &CrawlEvent| match e {
                 // Success - crawl workflow complete (listings synced)
-                PostEvent::PostsSynced {
-                    source_id: synced_source_id,
+                CrawlEvent::PostsSynced {
+                    website_id: synced_website_id,
                     job_id: synced_job_id,
                     new_count,
                     updated_count,
                     unchanged_count,
-                } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
+                } if *synced_website_id == website_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
                         "Crawl complete! Found {} new, {} updated, {} unchanged listings",
@@ -169,7 +170,7 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
                     ),
                 ))),
                 // No listings found but may retry
-                PostEvent::WebsiteMarkedNoListings {
+                CrawlEvent::WebsiteMarkedNoListings {
                     website_id: marked_id,
                     job_id: marked_job_id,
                     total_attempts,
@@ -181,28 +182,14 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
                     ),
                 ))),
                 // Failure events
-                PostEvent::WebsiteCrawlFailed {
+                CrawlEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Crawl failed: {}", reason)))
                 }
-                PostEvent::ExtractFailed {
-                    source_id: failed_source_id,
-                    job_id: failed_job_id,
-                    reason,
-                } if *failed_source_id == website_id && *failed_job_id == job_id => {
-                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
-                }
-                PostEvent::SyncFailed {
-                    source_id: failed_source_id,
-                    job_id: failed_job_id,
-                    reason,
-                } if *failed_source_id == website_id && *failed_job_id == job_id => {
-                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
-                }
-                PostEvent::AuthorizationDenied {
+                CrawlEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -291,7 +278,7 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
 
     // Dispatch regenerate posts request and await completion
     let result = dispatch_request(
-        PostEvent::RegeneratePostsRequested {
+        CrawlEvent::RegeneratePostsRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -299,15 +286,15 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &PostEvent| match e {
+            m.try_match(|e: &CrawlEvent| match e {
                 // Success - extraction and sync workflow complete
-                PostEvent::PostsSynced {
-                    source_id: synced_source_id,
+                CrawlEvent::PostsSynced {
+                    website_id: synced_website_id,
                     job_id: synced_job_id,
                     new_count,
                     updated_count,
                     unchanged_count,
-                } if *synced_source_id == website_id && *synced_job_id == job_id => Some(Ok((
+                } if *synced_website_id == website_id && *synced_job_id == job_id => Some(Ok((
                     "completed".to_string(),
                     format!(
                         "Regeneration complete! Found {} new, {} updated, {} unchanged posts",
@@ -315,7 +302,7 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
                     ),
                 ))),
                 // No listings found
-                PostEvent::WebsiteMarkedNoListings {
+                CrawlEvent::WebsiteMarkedNoListings {
                     website_id: marked_id,
                     job_id: marked_job_id,
                     total_attempts,
@@ -327,28 +314,14 @@ pub async fn regenerate_posts(ctx: &GraphQLContext, website_id: Uuid) -> FieldRe
                     ),
                 ))),
                 // Failure events
-                PostEvent::WebsiteCrawlFailed {
+                CrawlEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
                 }
-                PostEvent::ExtractFailed {
-                    source_id: failed_source_id,
-                    job_id: failed_job_id,
-                    reason,
-                } if *failed_source_id == website_id && *failed_job_id == job_id => {
-                    Some(Err(anyhow::anyhow!("Extraction failed: {}", reason)))
-                }
-                PostEvent::SyncFailed {
-                    source_id: failed_source_id,
-                    job_id: failed_job_id,
-                    reason,
-                } if *failed_source_id == website_id && *failed_job_id == job_id => {
-                    Some(Err(anyhow::anyhow!("Sync failed: {}", reason)))
-                }
-                PostEvent::AuthorizationDenied {
+                CrawlEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -393,7 +366,7 @@ pub async fn regenerate_page_summaries(
 
     // Dispatch regenerate page summaries request and await completion
     let result = dispatch_request(
-        PostEvent::RegeneratePageSummariesRequested {
+        CrawlEvent::RegeneratePageSummariesRequested {
             website_id,
             job_id,
             requested_by: user.member_id,
@@ -401,9 +374,9 @@ pub async fn regenerate_page_summaries(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &PostEvent| match e {
+            m.try_match(|e: &CrawlEvent| match e {
                 // Success - page summaries regenerated
-                PostEvent::PageSummariesRegenerated {
+                CrawlEvent::PageSummariesRegenerated {
                     website_id: regen_id,
                     job_id: regen_job_id,
                     pages_processed,
@@ -412,14 +385,14 @@ pub async fn regenerate_page_summaries(
                     format!("Successfully regenerated {} page summaries", pages_processed),
                 ))),
                 // Failure events
-                PostEvent::WebsiteCrawlFailed {
+                CrawlEvent::WebsiteCrawlFailed {
                     website_id: failed_id,
                     job_id: failed_job_id,
                     reason,
                 } if *failed_id == website_id && *failed_job_id == job_id => {
                     Some(Err(anyhow::anyhow!("Regeneration failed: {}", reason)))
                 }
-                PostEvent::AuthorizationDenied {
+                CrawlEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -466,7 +439,7 @@ pub async fn regenerate_page_summary(
 
     // Dispatch regenerate page summary request and await completion
     let result = dispatch_request(
-        PostEvent::RegeneratePageSummaryRequested {
+        CrawlEvent::RegeneratePageSummaryRequested {
             page_snapshot_id,
             job_id,
             requested_by: user.member_id,
@@ -474,9 +447,9 @@ pub async fn regenerate_page_summary(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &PostEvent| match e {
+            m.try_match(|e: &CrawlEvent| match e {
                 // Success
-                PostEvent::PageSummaryRegenerated {
+                CrawlEvent::PageSummaryRegenerated {
                     page_snapshot_id: regen_id,
                     job_id: regen_job_id,
                 } if *regen_id == page_snapshot_id && *regen_job_id == job_id => Some(Ok((
@@ -484,7 +457,7 @@ pub async fn regenerate_page_summary(
                     "AI summary regenerated successfully".to_string(),
                 ))),
                 // Failure events
-                PostEvent::AuthorizationDenied {
+                CrawlEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,
@@ -531,7 +504,7 @@ pub async fn regenerate_page_posts(
 
     // Dispatch regenerate page posts request and await completion
     let result = dispatch_request(
-        PostEvent::RegeneratePagePostsRequested {
+        CrawlEvent::RegeneratePagePostsRequested {
             page_snapshot_id,
             job_id,
             requested_by: user.member_id,
@@ -539,9 +512,9 @@ pub async fn regenerate_page_posts(
         },
         &ctx.bus,
         |m| {
-            m.try_match(|e: &PostEvent| match e {
+            m.try_match(|e: &CrawlEvent| match e {
                 // Success
-                PostEvent::PagePostsRegenerated {
+                CrawlEvent::PagePostsRegenerated {
                     page_snapshot_id: regen_id,
                     job_id: regen_job_id,
                     posts_count,
@@ -550,7 +523,7 @@ pub async fn regenerate_page_posts(
                     format!("Extracted {} posts from page", posts_count),
                 ))),
                 // Failure events
-                PostEvent::AuthorizationDenied {
+                CrawlEvent::AuthorizationDenied {
                     user_id,
                     action,
                     reason,

@@ -54,7 +54,6 @@ async fn handle_sync_posts(
             source_id,
             posts,
             &ctx.deps().db_pool,
-            Some(ctx.deps().embedding_service.as_ref()),
         )
         .await
         {

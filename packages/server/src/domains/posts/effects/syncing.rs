@@ -2,6 +2,9 @@
 //
 // These functions contain business logic for syncing extracted listings
 // with the database, separated from the thin Effect orchestrator.
+//
+// NOTE: Deduplication is now handled by LLM-based deduplication after sync.
+// See `crate::domains::posts::effects::deduplication`.
 
 use anyhow::{Context, Result};
 use sqlx::PgPool;
@@ -11,7 +14,6 @@ use super::utils::sync_utils::{sync_posts, ExtractedPostInput};
 use crate::common::WebsiteId;
 use crate::domains::posts::events::ExtractedPost;
 use crate::domains::scraping::models::Website;
-use crate::kernel::BaseEmbeddingService;
 
 /// Result of syncing listings with the database
 pub struct PostSyncResult {
@@ -25,13 +27,15 @@ pub struct PostSyncResult {
 /// This function:
 /// 1. Fetches the source to get organization_name
 /// 2. Converts extracted listings to sync input format
-/// 3. Performs sync operation with database (with embedding-based duplicate detection)
+/// 3. Performs sync operation with database (title-match only)
 /// 4. Returns summary of changes
+///
+/// NOTE: Deduplication is handled separately by LLM-based deduplication.
+/// This function only does title-matching for updates.
 pub async fn sync_extracted_posts(
     source_id: WebsiteId,
     posts: Vec<ExtractedPost>,
     pool: &PgPool,
-    embedding_service: Option<&dyn BaseEmbeddingService>,
 ) -> Result<PostSyncResult> {
     // Get source to fetch organization_name
     let source = Website::find_by_id(source_id, pool)
@@ -64,9 +68,9 @@ pub async fn sync_extracted_posts(
         })
         .collect();
 
-    // Sync with database (with embedding-based duplicate detection)
+    // Sync with database (title-match only - LLM handles semantic dedup after)
     let website_id = WebsiteId::from_uuid(source_id.into_uuid());
-    let sync_result = sync_posts(pool, website_id, sync_input, embedding_service)
+    let sync_result = sync_posts(pool, website_id, sync_input)
         .await
         .context("Sync failed")?;
 
