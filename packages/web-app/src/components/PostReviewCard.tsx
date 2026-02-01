@@ -44,7 +44,7 @@ interface BusinessFields {
   };
 }
 
-interface Listing {
+interface Post {
   id: string;
   listingType: 'service' | 'opportunity' | 'business';
   organizationName: string;
@@ -59,16 +59,16 @@ interface Listing {
   createdAt: string;
 }
 
-type ListingWithTypeFields = Listing & (ServiceFields | OpportunityFields | BusinessFields);
+type PostWithTypeFields = Post & (ServiceFields | OpportunityFields | BusinessFields);
 
-interface ListingReviewCardProps {
-  listing: ListingWithTypeFields;
+interface PostReviewCardProps {
+  listing: PostWithTypeFields;
   onApprove: (id: string) => void;
   onReject: (id: string, reason?: string) => void;
-  onEdit: (listing: ListingWithTypeFields) => void;
+  onEdit: (post: PostWithTypeFields) => void;
 }
 
-const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
+const PostReviewCard: React.FC<PostReviewCardProps> = ({
   listing,
   onApprove,
   onReject,
@@ -77,6 +77,8 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState('');
+
+  const post = listing; // Alias for readability
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -107,14 +109,14 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
   };
 
   const handleReject = () => {
-    onReject(listing.id, rejectReason);
+    onReject(post.id, rejectReason);
     setShowRejectModal(false);
     setRejectReason('');
   };
 
   const renderTypeSpecificFields = () => {
-    if (listing.listingType === 'service') {
-      const service = listing as Listing & ServiceFields;
+    if (post.listingType === 'service') {
+      const service = post as Post & ServiceFields;
       const features = [];
 
       if (service.freeService) features.push('Free');
@@ -147,8 +149,8 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
       );
     }
 
-    if (listing.listingType === 'opportunity') {
-      const opportunity = listing as Listing & OpportunityFields;
+    if (post.listingType === 'opportunity') {
+      const opportunity = post as Post & OpportunityFields;
       return (
         <div className="mt-3 space-y-2">
           <h4 className="font-semibold text-sm text-stone-700">Opportunity Details:</h4>
@@ -196,8 +198,8 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
       );
     }
 
-    if (listing.listingType === 'business') {
-      const business = listing as Listing & BusinessFields;
+    if (post.listingType === 'business') {
+      const business = post as Post & BusinessFields;
       return (
         <div className="mt-3 space-y-2">
           <h4 className="font-semibold text-sm text-stone-700">Business Details:</h4>
@@ -220,7 +222,7 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
                     rel="noopener noreferrer"
                     className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded hover:bg-purple-100"
                   >
-                    🛒 Store
+                    Store
                   </a>
                 )}
                 {business.businessInfo.donationLink && (
@@ -230,7 +232,7 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
                     rel="noopener noreferrer"
                     className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded hover:bg-purple-100"
                   >
-                    💝 Donate
+                    Donate
                   </a>
                 )}
                 {business.businessInfo.giftCardLink && (
@@ -240,7 +242,7 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
                     rel="noopener noreferrer"
                     className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded hover:bg-purple-100"
                   >
-                    🎁 Gift Card
+                    Gift Card
                   </a>
                 )}
               </div>
@@ -260,33 +262,33 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(listing.listingType)}`}>
-                {listing.listingType}
+              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.listingType)}`}>
+                {post.listingType}
               </span>
-              {listing.urgency && (
-                <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(listing.urgency)}`}>
-                  {listing.urgency}
+              {post.urgency && (
+                <span className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(post.urgency)}`}>
+                  {post.urgency}
                 </span>
               )}
-              {listing.category && (
+              {post.category && (
                 <span className="px-2 py-1 text-xs bg-stone-100 text-stone-700 rounded">
-                  {listing.category}
+                  {post.category}
                 </span>
               )}
             </div>
-            <h3 className="text-lg font-semibold text-stone-900">{listing.title}</h3>
-            <p className="text-sm text-stone-600">{listing.organizationName}</p>
+            <h3 className="text-lg font-semibold text-stone-900">{post.title}</h3>
+            <p className="text-sm text-stone-600">{post.organizationName}</p>
           </div>
         </div>
 
         {/* TLDR */}
-        {listing.tldr && (
-          <p className="text-sm text-stone-700 italic mb-2">"{listing.tldr}"</p>
+        {post.tldr && (
+          <p className="text-sm text-stone-700 italic mb-2">"{post.tldr}"</p>
         )}
 
         {/* Description (collapsed) */}
         <p className={`text-sm text-stone-600 ${!expanded && 'line-clamp-2'}`}>
-          {listing.description}
+          {post.description}
         </p>
 
         {/* Expand button */}
@@ -294,33 +296,33 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
           onClick={() => setExpanded(!expanded)}
           className="text-xs text-amber-600 hover:text-amber-800 mt-1"
         >
-          {expanded ? '▲ Show less' : '▼ Show more'}
+          {expanded ? 'Show less' : 'Show more'}
         </button>
 
         {/* Expanded details */}
         {expanded && (
           <div className="mt-3 space-y-3 pt-3 border-t border-stone-200">
             {/* Contact Info */}
-            {listing.contactInfo && (
+            {post.contactInfo && (
               <div>
                 <h4 className="font-semibold text-sm text-stone-700 mb-1">Contact:</h4>
                 <div className="text-sm text-stone-600 space-y-1">
-                  {listing.contactInfo.email && (
-                    <div>📧 {listing.contactInfo.email}</div>
+                  {post.contactInfo.email && (
+                    <div>Email: {post.contactInfo.email}</div>
                   )}
-                  {listing.contactInfo.phone && (
-                    <div>📞 {listing.contactInfo.phone}</div>
+                  {post.contactInfo.phone && (
+                    <div>Phone: {post.contactInfo.phone}</div>
                   )}
-                  {listing.contactInfo.website && (
+                  {post.contactInfo.website && (
                     <div>
-                      🌐{' '}
+                      Website:{' '}
                       <a
-                        href={listing.contactInfo.website}
+                        href={post.contactInfo.website}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-amber-600 hover:text-amber-800"
                       >
-                        {listing.contactInfo.website}
+                        {post.contactInfo.website}
                       </a>
                     </div>
                   )}
@@ -329,24 +331,24 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
             )}
 
             {/* Location */}
-            {listing.location && (
+            {post.location && (
               <div>
                 <span className="font-semibold text-sm text-stone-700">Location:</span>{' '}
-                <span className="text-sm text-stone-600">📍 {listing.location}</span>
+                <span className="text-sm text-stone-600">{post.location}</span>
               </div>
             )}
 
             {/* Source URL */}
-            {listing.sourceUrl && (
+            {post.sourceUrl && (
               <div>
                 <span className="font-semibold text-sm text-stone-700">Source:</span>{' '}
                 <a
-                  href={listing.sourceUrl}
+                  href={post.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-amber-600 hover:text-amber-800 break-all"
                 >
-                  {listing.sourceUrl}
+                  {post.sourceUrl}
                 </a>
               </div>
             )}
@@ -359,22 +361,22 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
         {/* Actions */}
         <div className="flex gap-2 mt-4 pt-3 border-t border-stone-200">
           <button
-            onClick={() => onApprove(listing.id)}
+            onClick={() => onApprove(post.id)}
             className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium"
           >
-            ✓ Approve
+            Approve
           </button>
           <button
             onClick={() => onEdit(listing)}
             className="flex-1 px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors font-medium"
           >
-            ✎ Edit
+            Edit
           </button>
           <button
             onClick={() => setShowRejectModal(true)}
             className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium"
           >
-            ✕ Reject
+            Reject
           </button>
         </div>
       </div>
@@ -384,10 +386,10 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full">
             <h3 className="text-lg font-semibold text-stone-900 mb-4">
-              Reject Listing
+              Reject Post
             </h3>
             <p className="text-sm text-stone-600 mb-4">
-              Are you sure you want to reject "{listing.title}"? You can optionally provide a reason.
+              Are you sure you want to reject "{post.title}"? You can optionally provide a reason.
             </p>
             <textarea
               value={rejectReason}
@@ -420,4 +422,4 @@ const ListingReviewCard: React.FC<ListingReviewCardProps> = ({
   );
 };
 
-export default ListingReviewCard;
+export default PostReviewCard;

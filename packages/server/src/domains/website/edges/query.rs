@@ -1,5 +1,6 @@
 use crate::common::WebsiteId;
-use crate::domains::website::data::WebsiteData;
+use crate::domains::scraping::models::PageSnapshot;
+use crate::domains::website::data::{PageSnapshotData, WebsiteData};
 use crate::domains::website::models::Website;
 use anyhow::Context;
 use juniper::FieldResult;
@@ -54,4 +55,25 @@ pub async fn query_pending_websites(pool: &PgPool) -> FieldResult<Vec<WebsiteDat
     })?;
 
     Ok(websites.into_iter().map(WebsiteData::from).collect())
+}
+
+/// Get a page snapshot by ID
+pub async fn query_page_snapshot(pool: &PgPool, id: Uuid) -> FieldResult<Option<PageSnapshotData>> {
+    match PageSnapshot::find_by_id(pool, id).await {
+        Ok(snapshot) => Ok(Some(PageSnapshotData::from(snapshot))),
+        Err(_) => Ok(None),
+    }
+}
+
+/// Find page snapshot by URL
+pub async fn query_page_snapshot_by_url(pool: &PgPool, url: &str) -> FieldResult<Option<PageSnapshotData>> {
+    let snapshot: Option<PageSnapshot> = sqlx::query_as::<_, PageSnapshot>(
+        "SELECT * FROM page_snapshots WHERE url = $1 ORDER BY crawled_at DESC LIMIT 1"
+    )
+    .bind(url)
+    .fetch_optional(pool)
+    .await
+    .context("Failed to query page snapshot by URL")?;
+
+    Ok(snapshot.map(PageSnapshotData::from))
 }

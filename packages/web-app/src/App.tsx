@@ -11,16 +11,16 @@ import { SubmitResource } from './pages/SubmitResource';
 // Admin pages
 import { Login } from './pages/admin/Login';
 import { Dashboard } from './pages/admin/Dashboard';
-import { AgentsEnhanced as Agents } from './pages/admin/AgentsEnhanced';
 import { Websites } from './pages/admin/Websites';
-import { ListingApprovalQueue } from './pages/admin/ListingApprovalQueue';
-import ScrapedListingsReview from './pages/admin/ScrapedListingsReview';
+import { PostApprovalQueue } from './pages/admin/PostApprovalQueue';
+import ScrapedPostsReview from './pages/admin/ScrapedPostsReview';
 import { Resources } from './pages/admin/Resources';
 import { ResourceDetail } from './pages/admin/ResourceDetail';
 import { OrganizationDetail } from './pages/admin/OrganizationDetail';
 import { OrganizationsList } from './pages/admin/OrganizationsList';
 import { WebsiteDetail } from './pages/admin/WebsiteDetail';
-import { ListingDetail } from './pages/admin/ListingDetail';
+import { PostDetail } from './pages/admin/PostDetail';
+import { PageSnapshotDetail } from './pages/admin/PageSnapshotDetail';
 
 // Components
 import { Chatroom } from './components/Chatroom';
@@ -53,22 +53,16 @@ function AdminLayout() {
                   📊 Dashboard
                 </Link>
                 <Link
-                  to="/admin/agents"
-                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
-                >
-                  🤖 Agents
-                </Link>
-                <Link
                   to="/admin/websites"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
                   🌐 Websites
                 </Link>
                 <Link
-                  to="/admin/listings"
+                  to="/admin/posts"
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
-                  ✅ Listings
+                  ✅ Posts
                 </Link>
                 <Link
                   to="/admin/scraped"
@@ -127,12 +121,12 @@ function AdminLayout() {
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/agents" element={<Agents />} />
           <Route path="/websites" element={<Websites />} />
           <Route path="/websites/:websiteId" element={<WebsiteDetail />} />
-          <Route path="/listings" element={<ListingApprovalQueue />} />
-          <Route path="/listings/:listingId" element={<ListingDetail />} />
-          <Route path="/scraped" element={<ScrapedListingsReview />} />
+          <Route path="/posts" element={<PostApprovalQueue />} />
+          <Route path="/posts/:postId" element={<PostDetail />} />
+          <Route path="/pages/:snapshotId" element={<PageSnapshotDetail />} />
+          <Route path="/scraped" element={<ScrapedPostsReview />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/resources/:sourceId" element={<ResourceDetail />} />
           <Route path="/organizations" element={<OrganizationsList />} />

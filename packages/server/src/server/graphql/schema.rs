@@ -29,10 +29,12 @@ use crate::domains::chatrooms::edges as chatroom_edges;
 use crate::domains::member::{data::MemberData, edges as member_edges};
 use crate::domains::organization::data::post_types::RepostResult;
 use crate::domains::organization::data::{OrganizationData, PostData, WebsiteData};
+use crate::domains::website::data::PageSnapshotData;
+use crate::domains::website::edges::{query_page_snapshot, query_page_snapshot_by_url};
 use crate::domains::providers::data::{ProviderData, SubmitProviderInput, UpdateProviderInput};
 use crate::domains::providers::edges as provider_edges;
 use crate::domains::resources::data::{EditResourceInput, ResourceConnection, ResourceData, ResourceStatusData};
-use crate::domains::resources::edges as resource_edges;
+use crate::domains::resources::edges::{self as resource_edges, GenerateEmbeddingsResult};
 use juniper::{EmptySubscription, FieldResult, RootNode};
 use uuid::Uuid;
 
@@ -310,6 +312,20 @@ impl Query {
         limit: Option<i32>,
     ) -> FieldResult<Vec<ResourceData>> {
         resource_edges::get_active_resources(ctx, limit).await
+    }
+
+    // =========================================================================
+    // Page Snapshots (scraped page content)
+    // =========================================================================
+
+    /// Get a page snapshot by ID
+    async fn page_snapshot(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<PageSnapshotData>> {
+        query_page_snapshot(&ctx.db_pool, id).await
+    }
+
+    /// Get a page snapshot by URL
+    async fn page_snapshot_by_url(ctx: &GraphQLContext, url: String) -> FieldResult<Option<PageSnapshotData>> {
+        query_page_snapshot_by_url(&ctx.db_pool, &url).await
     }
 }
 
@@ -751,6 +767,15 @@ impl Mutation {
     /// Delete a resource (admin only)
     async fn delete_resource(ctx: &GraphQLContext, resource_id: String) -> FieldResult<bool> {
         resource_edges::delete_resource(ctx, resource_id).await
+    }
+
+    /// Generate missing embeddings for resources (admin only)
+    /// Processes up to batch_size resources at a time (default 50)
+    async fn generate_missing_embeddings(
+        ctx: &GraphQLContext,
+        batch_size: Option<i32>,
+    ) -> FieldResult<GenerateEmbeddingsResult> {
+        resource_edges::generate_missing_embeddings(ctx, batch_size).await
     }
 
     // =========================================================================

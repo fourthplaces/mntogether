@@ -27,6 +27,7 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
       snapshots {
         id
         pageUrl
+        pageSnapshotId
         scrapeStatus
         scrapeError
         lastScrapedAt
@@ -71,19 +72,10 @@ const UPDATE_CRAWL_SETTINGS = gql`
   }
 `;
 
-const REFRESH_PAGE_SNAPSHOT = gql`
-  mutation RefreshPageSnapshot($snapshotId: String!) {
-    refreshPageSnapshot(snapshotId: $snapshotId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
 interface WebsiteSnapshot {
   id: string;
   pageUrl: string;
+  pageSnapshotId: string | null;
   scrapeStatus: string;
   scrapeError: string | null;
   lastScrapedAt: string | null;
@@ -144,8 +136,7 @@ export function WebsiteDetail() {
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
   const [activeTab, setActiveTab] = useState<TabType>('listings');
-  const [rescrapingSnapshotId, setRescrapingSnapshotId] = useState<string | null>(null);
-  const [expandedSnapshotId, setExpandedSnapshotId] = useState<string | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const { data: websiteData, loading: websiteLoading, refetch: refetchWebsite } = useQuery<{
     website: Website | null;
@@ -205,17 +196,6 @@ export function WebsiteDetail() {
     },
   });
 
-  const [refreshPageSnapshot] = useMutation(REFRESH_PAGE_SNAPSHOT, {
-    onCompleted: () => {
-      setRescrapingSnapshotId(null);
-      refetchWebsite();
-    },
-    onError: (err) => {
-      setError(err.message);
-      setRescrapingSnapshotId(null);
-    },
-  });
-
   const handleGenerateAssessment = async () => {
     setError(null);
     setIsGenerating(true);
@@ -248,12 +228,6 @@ export function WebsiteDetail() {
   const startEditingMaxPages = () => {
     setMaxPagesInput(website?.maxPagesPerCrawl ?? 20);
     setIsEditingMaxPages(true);
-  };
-
-  const handleRefreshSnapshot = async (snapshotId: string) => {
-    setError(null);
-    setRescrapingSnapshotId(snapshotId);
-    await refreshPageSnapshot({ variables: { snapshotId } });
   };
 
   const getListingsForSnapshot = (snapshotUrl: string) => {
@@ -393,6 +367,88 @@ export function WebsiteDetail() {
               >
                 {isCrawling ? 'Crawling...' : 'Full Crawl'}
               </button>
+
+              {/* More Menu */}
+              <div className="relative">
+                <button
+                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+                  className="bg-stone-200 text-stone-700 px-3 py-2 rounded-lg hover:bg-stone-300"
+                  title="More actions"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                </button>
+
+                {showMoreMenu && (
+                  <>
+                    {/* Backdrop to close menu when clicking outside */}
+                    <div
+                      className="fixed inset-0 z-10"
+                      onClick={() => setShowMoreMenu(false)}
+                    />
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 z-20">
+                      <div className="py-1">
+                        <button
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            handleCrawl();
+                          }}
+                          disabled={isCrawling || website.status !== 'approved'}
+                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          Re-crawl Website
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            // TODO: Implement regenerate page summaries
+                            alert('Regenerate page summaries - coming soon');
+                          }}
+                          disabled={!website.snapshots || website.snapshots.length === 0}
+                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Regenerate Page Summaries
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            // TODO: Implement regenerate posts
+                            alert('Regenerate posts - coming soon');
+                          }}
+                          disabled={!website.snapshots || website.snapshots.length === 0}
+                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                          </svg>
+                          Regenerate Posts
+                        </button>
+                        <div className="border-t border-stone-200 my-1" />
+                        <button
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            handleGenerateAssessment();
+                          }}
+                          disabled={isGenerating}
+                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                          </svg>
+                          {assessment ? 'Regenerate Assessment' : 'Generate Assessment'}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           </div>
 
@@ -411,7 +467,7 @@ export function WebsiteDetail() {
               <p className="text-sm font-medium text-stone-900 cursor-text">{website.snapshotsCount}</p>
             </div>
             <div className="select-text">
-              <span className="text-xs text-stone-500 uppercase">Listings</span>
+              <span className="text-xs text-stone-500 uppercase">Posts</span>
               <p className="text-sm font-medium text-stone-900 cursor-text">{website.listingsCount}</p>
             </div>
           </div>
@@ -516,7 +572,7 @@ export function WebsiteDetail() {
                   : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50'
               }`}
             >
-              Listings ({website.listings?.length || 0})
+              Posts ({website.listings?.length || 0})
             </button>
             <button
               onClick={() => setActiveTab('snapshots')}
@@ -554,7 +610,7 @@ export function WebsiteDetail() {
                       >
                         <div className="flex-1 min-w-0">
                           <Link
-                            to={`/admin/listings/${listing.id}`}
+                            to={`/admin/posts/${listing.id}`}
                             className="text-blue-600 hover:text-blue-800 text-sm font-medium"
                           >
                             {listing.title}
@@ -583,7 +639,7 @@ export function WebsiteDetail() {
                   </div>
                 ) : (
                   <div className="text-center py-8 text-stone-500">
-                    No listings extracted from this website yet.
+                    No posts extracted from this website yet.
                   </div>
                 )}
               </div>
@@ -596,48 +652,37 @@ export function WebsiteDetail() {
                   <div className="space-y-2">
                     {website.snapshots.map((snapshot) => {
                       const snapshotListings = getListingsForSnapshot(snapshot.pageUrl);
-                      const isExpanded = expandedSnapshotId === snapshot.id;
 
                       return (
-                        <div key={snapshot.id} className="bg-stone-50 rounded-lg overflow-hidden">
-                          <div
-                            className="flex items-center justify-between p-3 cursor-pointer hover:bg-stone-100"
-                            onClick={() => setExpandedSnapshotId(isExpanded ? null : snapshot.id)}
-                          >
-                            <div className="flex-1 min-w-0 select-text">
-                              <div className="flex items-center gap-2">
-                                <svg
-                                  className={`w-4 h-4 text-stone-400 transition-transform ${isExpanded ? 'rotate-90' : ''}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                                <span className="text-sm font-medium text-stone-900 truncate cursor-text">
-                                  {snapshot.pageUrl}
+                        <Link
+                          key={snapshot.id}
+                          to={snapshot.pageSnapshotId ? `/admin/pages/${snapshot.pageSnapshotId}` : '#'}
+                          className={`block p-3 border border-stone-200 rounded-lg transition-colors ${
+                            snapshot.pageSnapshotId ? 'hover:bg-stone-50 hover:border-stone-300' : 'opacity-60 cursor-not-allowed'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium text-stone-900 truncate">
+                                {snapshot.pageUrl}
+                              </p>
+                              <div className="flex items-center gap-3 mt-1">
+                                <span className="text-xs text-stone-500">
+                                  {formatDate(snapshot.lastScrapedAt)}
                                 </span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-1 ml-6">
                                 <a
                                   href={snapshot.pageUrl}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="text-blue-600 hover:text-blue-800 text-xs"
+                                  className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-0.5"
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  Open ↗
+                                  Open original
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                  </svg>
                                 </a>
-                                <span className="text-xs text-stone-500">
-                                  {formatDate(snapshot.lastScrapedAt)}
-                                </span>
                               </div>
-                              {/* Summary preview in row */}
-                              {snapshot.summary && (
-                                <p className="text-xs text-stone-600 mt-1 ml-6 line-clamp-2">
-                                  {snapshot.summary}
-                                </p>
-                              )}
                             </div>
                             <div className="ml-4 flex items-center gap-2">
                               <span
@@ -653,84 +698,15 @@ export function WebsiteDetail() {
                               </span>
                               {snapshotListings.length > 0 && (
                                 <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                  {snapshotListings.length} listing{snapshotListings.length !== 1 ? 's' : ''}
+                                  {snapshotListings.length} post{snapshotListings.length !== 1 ? 's' : ''}
                                 </span>
                               )}
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRefreshSnapshot(snapshot.id);
-                                }}
-                                disabled={rescrapingSnapshotId === snapshot.id}
-                                className="p-1 text-stone-400 hover:text-purple-600 disabled:opacity-50"
-                                title="Re-run scraper"
-                              >
-                                {rescrapingSnapshotId === snapshot.id ? (
-                                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                )}
-                              </button>
+                              <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
                             </div>
                           </div>
-
-                          {/* Expanded Content */}
-                          {isExpanded && (
-                            <div className="border-t border-stone-200 bg-white p-3 space-y-3">
-                              {/* Summary Section */}
-                              {snapshot.summary && (
-                                <div className="bg-blue-50 rounded p-3">
-                                  <h4 className="text-xs font-semibold text-blue-800 uppercase mb-1">AI Summary</h4>
-                                  <p className="text-sm text-blue-900 whitespace-pre-wrap">{snapshot.summary}</p>
-                                </div>
-                              )}
-
-                              {/* Listings Section */}
-                              <div>
-                                <h4 className="text-xs font-semibold text-stone-500 uppercase mb-2">
-                                  Extracted Listings ({snapshotListings.length})
-                                </h4>
-                                {snapshotListings.length > 0 ? (
-                                  <div className="space-y-2">
-                                    {snapshotListings.map((listing) => (
-                                      <div
-                                        key={listing.id}
-                                        className="flex items-center justify-between p-2 bg-stone-50 rounded"
-                                      >
-                                        <Link
-                                          to={`/admin/listings/${listing.id}`}
-                                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                                        >
-                                          {listing.title}
-                                        </Link>
-                                        <span
-                                          className={`px-2 py-0.5 text-xs rounded-full ${
-                                            listing.status === 'active'
-                                              ? 'bg-green-100 text-green-800'
-                                              : listing.status === 'pending_approval'
-                                              ? 'bg-amber-100 text-amber-800'
-                                              : 'bg-stone-100 text-stone-800'
-                                          }`}
-                                        >
-                                          {listing.status.replace('_', ' ')}
-                                        </span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                ) : (
-                                  <p className="text-sm text-stone-500 text-center py-2">
-                                    No listings extracted from this page
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
+                        </Link>
                       );
                     })}
                   </div>
