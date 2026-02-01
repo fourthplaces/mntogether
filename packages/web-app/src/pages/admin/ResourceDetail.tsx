@@ -2,16 +2,16 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation } from '@apollo/client';
 import {
-  GET_ORGANIZATION_SOURCE_LISTINGS,
+  GET_ORGANIZATION_SOURCE_POSTS,
   GET_WEBSITES,
   GET_POSTS_FOR_LISTING,
 } from '../../graphql/queries';
 import {
-  APPROVE_LISTING,
-  REJECT_LISTING,
+  APPROVE_POST,
+  REJECT_POST,
   ARCHIVE_POST,
   EXPIRE_POST,
-  DELETE_LISTING,
+  DELETE_POST,
 } from '../../graphql/mutations';
 
 interface Listing {
@@ -55,16 +55,16 @@ export function ResourceDetail() {
   }, [websitesData, sourceId]);
 
   const { data: listingsData, loading, refetch } = useQuery<{ listings: { nodes: Listing[] } }>(
-    GET_ORGANIZATION_SOURCE_LISTINGS,
+    GET_ORGANIZATION_SOURCE_POSTS,
     {
       variables: {
-        status: 'PENDING_APPROVAL', // Scraped listings start as pending approval
+        status: 'PENDING_APPROVAL', // Scraped posts start as pending approval
       },
       skip: !sourceId,
     }
   );
 
-  const [approveListing] = useMutation(APPROVE_LISTING, {
+  const [approvePost] = useMutation(APPROVE_POST, {
     onCompleted: () => {
       refetch();
       setError(null);
@@ -74,7 +74,7 @@ export function ResourceDetail() {
     },
   });
 
-  const [rejectListing] = useMutation(REJECT_LISTING, {
+  const [rejectPost] = useMutation(REJECT_POST, {
     onCompleted: () => {
       setShowRejectModal(false);
       setRejectReason('');
@@ -106,7 +106,7 @@ export function ResourceDetail() {
     },
   });
 
-  const [deleteListing] = useMutation(DELETE_LISTING, {
+  const [deletePost] = useMutation(DELETE_POST, {
     onCompleted: () => {
       refetch();
       setError(null);
@@ -116,12 +116,12 @@ export function ResourceDetail() {
     },
   });
 
-  const handleApprove = async (listingId: string) => {
-    await approveListing({ variables: { listingId } });
+  const handleApprove = async (postId: string) => {
+    await approvePost({ variables: { listingId: postId } });
   };
 
-  const handleReject = async (listingId: string) => {
-    setSelectedListing(listingId);
+  const handleReject = async (postId: string) => {
+    setSelectedListing(postId);
     setShowRejectModal(true);
   };
 
@@ -130,18 +130,18 @@ export function ResourceDetail() {
       setError('Please provide a rejection reason');
       return;
     }
-    await rejectListing({ variables: { listingId: selectedListing, reason: rejectReason } });
+    await rejectPost({ variables: { listingId: selectedListing, reason: rejectReason } });
   };
 
   const handleUnpublish = async (postId: string) => {
-    if (window.confirm('Are you sure you want to unpublish this listing?')) {
+    if (window.confirm('Are you sure you want to unpublish this post?')) {
       await archivePost({ variables: { postId } });
     }
   };
 
-  const handleDelete = async (listingId: string) => {
-    if (window.confirm('Are you sure you want to delete this listing? This action cannot be undone.')) {
-      await deleteListing({ variables: { listingId } });
+  const handleDelete = async (postId: string) => {
+    if (window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) {
+      await deletePost({ variables: { listingId: postId } });
     }
   };
 
@@ -161,7 +161,7 @@ export function ResourceDetail() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-amber-50">
-        <div className="text-stone-600">Loading listings...</div>
+        <div className="text-stone-600">Loading posts...</div>
       </div>
     );
   }
@@ -180,7 +180,7 @@ export function ResourceDetail() {
             ← Back to Resources
           </button>
           <h1 className="text-2xl font-bold text-stone-900 break-all">{sourceUrl}</h1>
-          <p className="text-sm text-stone-600 mt-1">Listings scraped from this source</p>
+          <p className="text-sm text-stone-600 mt-1">Posts scraped from this source</p>
         </div>
 
         {error && (
@@ -204,7 +204,7 @@ export function ResourceDetail() {
 
           {filteredListings.length === 0 && (
             <div className="bg-white rounded-lg shadow-md p-12 text-center text-stone-600">
-              No listings found for this organization. Run the scraper to fetch data.
+              No posts found for this website. Run the scraper to fetch data.
             </div>
           )}
         </div>
@@ -213,7 +213,7 @@ export function ResourceDetail() {
         {showRejectModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg shadow-xl p-6 max-w-md w-full">
-              <h2 className="text-xl font-semibold text-stone-900 mb-4">Reject Listing</h2>
+              <h2 className="text-xl font-semibold text-stone-900 mb-4">Reject Post</h2>
               <div className="mb-4">
                 <label className="block text-sm font-medium text-stone-700 mb-2">
                   Rejection Reason
@@ -221,7 +221,7 @@ export function ResourceDetail() {
                 <textarea
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
-                  placeholder="Explain why this listing is being rejected..."
+                  placeholder="Explain why this post is being rejected..."
                   className="w-full px-3 py-2 border border-stone-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
                   rows={4}
                 />

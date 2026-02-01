@@ -1,11 +1,92 @@
 use crate::common::WebsiteId;
 use crate::domains::listings::data::ListingData;
 use crate::domains::listings::models::listing::Listing;
-use crate::domains::scraping::models::{PageSnapshotId, PageSummary};
+use crate::domains::scraping::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+/// GraphQL-friendly representation of a page snapshot (actual scraped content)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PageSnapshotData {
+    pub id: String,
+    pub url: String,
+    pub markdown: Option<String>,
+    pub html: String,
+    pub fetched_via: String,
+    pub crawled_at: String,
+    pub extraction_status: Option<String>,
+    pub listings_extracted_count: Option<i32>,
+}
+
+impl From<PageSnapshot> for PageSnapshotData {
+    fn from(snapshot: PageSnapshot) -> Self {
+        Self {
+            id: snapshot.id.to_string(),
+            url: snapshot.url,
+            markdown: snapshot.markdown,
+            html: snapshot.html,
+            fetched_via: snapshot.fetched_via,
+            crawled_at: snapshot.crawled_at.to_rfc3339(),
+            extraction_status: snapshot.extraction_status,
+            listings_extracted_count: snapshot.listings_extracted_count,
+        }
+    }
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl PageSnapshotData {
+    fn id(&self) -> &str {
+        &self.id
+    }
+
+    fn url(&self) -> &str {
+        &self.url
+    }
+
+    fn markdown(&self) -> Option<&str> {
+        self.markdown.as_deref()
+    }
+
+    fn html(&self) -> &str {
+        &self.html
+    }
+
+    fn fetched_via(&self) -> &str {
+        &self.fetched_via
+    }
+
+    fn crawled_at(&self) -> &str {
+        &self.crawled_at
+    }
+
+    fn extraction_status(&self) -> Option<&str> {
+        self.extraction_status.as_deref()
+    }
+
+    fn listings_extracted_count(&self) -> Option<i32> {
+        self.listings_extracted_count
+    }
+
+    /// Get the AI-generated summary for this page (if available)
+    async fn summary(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<String>> {
+        let page_snapshot_id: PageSnapshotId = self.id.parse()?;
+        let summary = PageSummary::find_by_snapshot_id(page_snapshot_id, &context.db_pool).await?;
+        Ok(summary.map(|s| s.content))
+    }
+
+    /// Get all listings extracted from this page
+    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ListingData>> {
+        let listings = sqlx::query_as::<_, Listing>(
+            "SELECT * FROM listings WHERE source_url = $1 ORDER BY created_at DESC"
+        )
+        .bind(&self.url)
+        .fetch_all(&context.db_pool)
+        .await?;
+        Ok(listings.into_iter().map(ListingData::from).collect())
+    }
+}
 
 /// GraphQL-friendly representation of a website snapshot (scraped page)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +124,10 @@ impl WebsiteSnapshotData {
         &self.page_url
     }
 
+    fn page_snapshot_id(&self) -> Option<&str> {
+        self.page_snapshot_id.as_deref()
+    }
+
     fn scrape_status(&self) -> &str {
         &self.scrape_status
     }
@@ -69,6 +154,17 @@ impl WebsiteSnapshotData {
         let summary = PageSummary::find_by_snapshot_id(page_snapshot_id, &context.db_pool).await?;
 
         Ok(summary.map(|s| s.content))
+    }
+
+    /// Get the full page snapshot data (if available)
+    async fn page_snapshot(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<PageSnapshotData>> {
+        let Some(ref page_snapshot_id_str) = self.page_snapshot_id else {
+            return Ok(None);
+        };
+
+        let page_snapshot_id: PageSnapshotId = page_snapshot_id_str.parse()?;
+        let snapshot = PageSnapshot::find_by_id(&context.db_pool, page_snapshot_id).await?;
+        Ok(Some(PageSnapshotData::from(snapshot)))
     }
 }
 

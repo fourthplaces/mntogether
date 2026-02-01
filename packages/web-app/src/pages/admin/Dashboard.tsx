@@ -69,21 +69,21 @@ export function Dashboard() {
       link: '/admin/websites',
     },
     {
-      title: 'Total Listings',
+      title: 'Total Posts',
       value: totalListings,
       subtitle: `${approvedListings} approved, ${pendingListings} pending`,
       color: 'bg-green-500',
-      link: '/admin',
+      link: '/admin/posts',
     },
     {
       title: 'Pending Approvals',
       value: pendingWebsites + pendingListings,
-      subtitle: `${pendingWebsites} websites, ${pendingListings} listings`,
+      subtitle: `${pendingWebsites} websites, ${pendingListings} posts`,
       color: 'bg-amber-500',
-      link: '/admin',
+      link: '/admin/posts',
     },
     {
-      title: 'Scraped Listings',
+      title: 'Scraped Posts',
       value: totalListingsFromWebsites,
       subtitle: `From ${approvedWebsites} approved websites`,
       color: 'bg-purple-500',
@@ -98,7 +98,7 @@ export function Dashboard() {
       icon: '🌐',
     },
     {
-      title: 'New Listings (7 days)',
+      title: 'New Posts (7 days)',
       value: recentListings,
       icon: '📄',
     },
@@ -106,10 +106,10 @@ export function Dashboard() {
 
   const quickActions = [
     {
-      title: 'Review Pending Listings',
-      description: 'Approve or reject pending listings',
+      title: 'Review Pending Posts',
+      description: 'Approve or reject pending posts',
       icon: '✅',
-      link: '/admin',
+      link: '/admin/posts',
       color: 'bg-green-600 hover:bg-green-700',
       count: pendingListings,
     },

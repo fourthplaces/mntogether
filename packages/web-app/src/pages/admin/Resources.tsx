@@ -154,7 +154,7 @@ export function Resources() {
                   Last Scraped
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                  Listings
+                  Posts
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-stone-700 uppercase tracking-wider">
                   Actions
@@ -196,10 +196,10 @@ export function Resources() {
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
                     <div className="flex gap-2 justify-end">
                       <button
-                        onClick={() => navigate(`/resources/${website.id}`)}
+                        onClick={() => navigate(`/admin/websites/${website.id}`)}
                         className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
                       >
-                        View Listings
+                        View Website
                       </button>
                       <button
                         onClick={() => handleScrape(website.id)}

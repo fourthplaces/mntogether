@@ -337,4 +337,31 @@ impl Resource {
             .await?;
         Ok(())
     }
+
+    /// Find resources without embeddings
+    pub async fn find_without_embeddings(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
+        let resources = sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM resources
+            WHERE embedding IS NULL
+              AND status IN ('pending_approval', 'active')
+            ORDER BY created_at ASC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+        Ok(resources)
+    }
+
+    /// Count resources without embeddings
+    pub async fn count_without_embeddings(pool: &PgPool) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM resources WHERE embedding IS NULL AND status IN ('pending_approval', 'active')",
+        )
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
 }

@@ -486,7 +486,7 @@ export function Websites() {
                     Status
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
-                    Listings
+                    Posts
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-stone-700 uppercase tracking-wider">
                     Crawl
@@ -640,7 +640,7 @@ export function Websites() {
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-xs text-stone-600 mb-3">
-                  <span>Listings: <strong className="text-stone-900">{website.listingsCount || 0}</strong></span>
+                  <span>Posts: <strong className="text-stone-900">{website.listingsCount || 0}</strong></span>
                   {website.crawlStatus && (
                     <span
                       className={`px-1.5 py-0.5 rounded ${

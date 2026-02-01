@@ -84,7 +84,7 @@ export function Home() {
         {posts.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">
-              No active listings at the moment.
+              No active posts at the moment.
             </p>
           </div>
         ) : (

@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
-import { GET_SCRAPED_PENDING_LISTINGS, GET_SCRAPED_LISTINGS_STATS } from '../../graphql/queries';
+import { GET_SCRAPED_PENDING_POSTS, GET_SCRAPED_POSTS_STATS } from '../../graphql/queries';
 import { gql } from '@apollo/client';
-import ListingReviewCard from '../../components/ListingReviewCard';
-import ListingEditModal from '../../components/ListingEditModal';
+import PostReviewCard from '../../components/PostReviewCard';
+import PostEditModal from '../../components/PostEditModal';
 
-const APPROVE_LISTING = gql`
-  mutation ApproveListing($listingId: Uuid!) {
+const APPROVE_POST = gql`
+  mutation ApprovePost($listingId: Uuid!) {
     approveListing(listingId: $listingId) {
       id
       status
@@ -14,25 +14,25 @@ const APPROVE_LISTING = gql`
   }
 `;
 
-const REJECT_LISTING = gql`
-  mutation RejectListing($listingId: Uuid!, $reason: String) {
+const REJECT_POST = gql`
+  mutation RejectPost($listingId: Uuid!, $reason: String) {
     rejectListing(listingId: $listingId, reason: $reason)
   }
 `;
 
-type ListingType = 'all' | 'service' | 'opportunity' | 'business';
+type PostType = 'all' | 'service' | 'opportunity' | 'business';
 
-const ScrapedListingsReview: React.FC = () => {
-  const [selectedType, setSelectedType] = useState<ListingType>('all');
-  const [editingListing, setEditingListing] = useState<any>(null);
+const ScrapedPostsReview: React.FC = () => {
+  const [selectedType, setSelectedType] = useState<PostType>('all');
+  const [editingPost, setEditingPost] = useState<any>(null);
   const [page, setPage] = useState(0);
   const pageSize = 10;
 
   // Fetch stats
-  const { data: statsData } = useQuery(GET_SCRAPED_LISTINGS_STATS);
+  const { data: statsData } = useQuery(GET_SCRAPED_POSTS_STATS);
 
-  // Fetch listings
-  const { data, loading, error, refetch } = useQuery(GET_SCRAPED_PENDING_LISTINGS, {
+  // Fetch posts
+  const { data, loading, error, refetch } = useQuery(GET_SCRAPED_PENDING_POSTS, {
     variables: {
       listingType: selectedType === 'all' ? null : selectedType,
       limit: pageSize,
@@ -41,52 +41,52 @@ const ScrapedListingsReview: React.FC = () => {
     fetchPolicy: 'network-only',
   });
 
-  const [approveListing] = useMutation(APPROVE_LISTING, {
+  const [approvePost] = useMutation(APPROVE_POST, {
     onCompleted: () => {
       refetch();
     },
   });
 
-  const [rejectListing] = useMutation(REJECT_LISTING, {
+  const [rejectPost] = useMutation(REJECT_POST, {
     onCompleted: () => {
       refetch();
     },
   });
 
-  const handleApprove = async (listingId: string) => {
-    if (confirm('Are you sure you want to approve this listing?')) {
+  const handleApprove = async (postId: string) => {
+    if (confirm('Are you sure you want to approve this post?')) {
       try {
-        await approveListing({ variables: { listingId } });
+        await approvePost({ variables: { listingId: postId } });
       } catch (err) {
-        console.error('Failed to approve listing:', err);
-        alert('Failed to approve listing. Check console for details.');
+        console.error('Failed to approve post:', err);
+        alert('Failed to approve post. Check console for details.');
       }
     }
   };
 
-  const handleReject = async (listingId: string, reason?: string) => {
+  const handleReject = async (postId: string, reason?: string) => {
     try {
-      await rejectListing({
+      await rejectPost({
         variables: {
-          listingId,
+          listingId: postId,
           reason: reason || null,
         },
       });
     } catch (err) {
-      console.error('Failed to reject listing:', err);
-      alert('Failed to reject listing. Check console for details.');
+      console.error('Failed to reject post:', err);
+      alert('Failed to reject post. Check console for details.');
     }
   };
 
-  const handleEdit = (listing: any) => {
-    setEditingListing(listing);
+  const handleEdit = (post: any) => {
+    setEditingPost(post);
   };
 
   const handleEditSuccess = () => {
     refetch();
   };
 
-  const listings = data?.listings?.nodes || [];
+  const posts = data?.listings?.nodes || [];
   const totalCount = data?.listings?.totalCount || 0;
   const hasNextPage = data?.listings?.hasNextPage || false;
 
@@ -104,10 +104,10 @@ const ScrapedListingsReview: React.FC = () => {
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-stone-900 mb-2">
-            🤖 Scraped Listings Review
+            Scraped Posts Review
           </h1>
           <p className="text-stone-600">
-            Review and approve listings extracted by the intelligent crawler
+            Review and approve posts extracted by the intelligent crawler
           </p>
         </div>
 
@@ -196,7 +196,7 @@ const ScrapedListingsReview: React.FC = () => {
         {loading && (
           <div className="text-center py-12">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
-            <p className="mt-2 text-stone-600">Loading listings...</p>
+            <p className="mt-2 text-stone-600">Loading posts...</p>
           </div>
         )}
 
@@ -208,26 +208,26 @@ const ScrapedListingsReview: React.FC = () => {
         )}
 
         {/* Empty State */}
-        {!loading && !error && listings.length === 0 && (
+        {!loading && !error && posts.length === 0 && (
           <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
             <div className="text-6xl mb-4">🎉</div>
             <h3 className="text-xl font-semibold text-stone-900 mb-2">
               All caught up!
             </h3>
             <p className="text-stone-600">
-              No pending {selectedType !== 'all' ? selectedType : ''} listings to review.
+              No pending {selectedType !== 'all' ? selectedType : ''} posts to review.
             </p>
           </div>
         )}
 
-        {/* Listings Grid */}
-        {!loading && !error && listings.length > 0 && (
+        {/* Posts Grid */}
+        {!loading && !error && posts.length > 0 && (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
-              {listings.map((listing: any) => (
-                <ListingReviewCard
-                  key={listing.id}
-                  listing={listing}
+              {posts.map((post: any) => (
+                <PostReviewCard
+                  key={post.id}
+                  listing={post}
                   onApprove={handleApprove}
                   onReject={handleReject}
                   onEdit={handleEdit}
@@ -264,7 +264,7 @@ const ScrapedListingsReview: React.FC = () => {
         {/* Helpful Tips */}
         <div className="mt-6 bg-white border border-amber-200 rounded-lg p-6">
           <h3 className="font-semibold text-amber-900 mb-3 flex items-center gap-2">
-            💡 Review Tips
+            Review Tips
           </h3>
           <ul className="text-sm text-stone-700 space-y-2 list-disc list-inside">
             <li>
@@ -285,10 +285,10 @@ const ScrapedListingsReview: React.FC = () => {
       </div>
 
       {/* Edit Modal */}
-      {editingListing && (
-        <ListingEditModal
-          listing={editingListing}
-          onClose={() => setEditingListing(null)}
+      {editingPost && (
+        <PostEditModal
+          listing={editingPost}
+          onClose={() => setEditingPost(null)}
           onSuccess={handleEditSuccess}
         />
       )}
@@ -296,4 +296,4 @@ const ScrapedListingsReview: React.FC = () => {
   );
 };
 
-export default ScrapedListingsReview;
+export default ScrapedPostsReview;

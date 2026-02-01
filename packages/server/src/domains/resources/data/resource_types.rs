@@ -41,6 +41,7 @@ pub struct ResourceData {
     pub location: Option<String>,
     pub status: ResourceStatusData,
     pub organization_name: Option<String>,
+    pub has_embedding: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -73,6 +74,10 @@ impl ResourceData {
 
     fn organization_name(&self) -> Option<&str> {
         self.organization_name.as_deref()
+    }
+
+    fn has_embedding(&self) -> bool {
+        self.has_embedding
     }
 
     fn created_at(&self) -> DateTime<Utc> {
@@ -133,6 +138,7 @@ impl From<Resource> for ResourceData {
             location: r.location,
             status: ResourceStatusData::from(r.status.as_str()),
             organization_name: r.organization_name,
+            has_embedding: r.embedding.is_some(),
             created_at: r.created_at,
             updated_at: r.updated_at,
         }

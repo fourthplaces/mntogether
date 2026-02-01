@@ -151,3 +151,80 @@ pub async fn delete_resource(
 
     Ok(true)
 }
+
+/// Result of generating missing embeddings
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct GenerateEmbeddingsResult {
+    pub processed: i32,
+    pub failed: i32,
+    pub remaining: i32,
+}
+
+/// Generate missing embeddings for resources (admin only)
+/// Processes up to `batch_size` resources at a time
+pub async fn generate_missing_embeddings(
+    ctx: &GraphQLContext,
+    batch_size: Option<i32>,
+) -> FieldResult<GenerateEmbeddingsResult> {
+    info!("generate_missing_embeddings mutation called");
+
+    // Check admin auth
+    let _user = ctx.auth_user.as_ref().ok_or_else(|| {
+        juniper::FieldError::new("Authentication required", juniper::Value::null())
+    })?;
+
+    let limit = batch_size.unwrap_or(50) as i64;
+
+    // Find resources without embeddings
+    let resources = Resource::find_without_embeddings(limit, &ctx.db_pool).await?;
+
+    let mut processed = 0;
+    let mut failed = 0;
+
+    for resource in &resources {
+        // Generate embedding content from title + content + location
+        let content_for_embedding = format!(
+            "{}\n\n{}\n\nLocation: {}\nOrganization: {}",
+            resource.title,
+            resource.content,
+            resource.location.as_deref().unwrap_or("Not specified"),
+            resource.organization_name.as_deref().unwrap_or("Unknown")
+        );
+
+        match ctx.openai_client.create_embedding(&content_for_embedding).await {
+            Ok(response) => {
+                if let Some(data) = response.data.first() {
+                    if let Err(e) = Resource::update_embedding(resource.id, &data.embedding, &ctx.db_pool).await {
+                        tracing::error!(resource_id = %resource.id.into_uuid(), error = %e, "Failed to save embedding");
+                        failed += 1;
+                    } else {
+                        processed += 1;
+                    }
+                } else {
+                    tracing::error!(resource_id = %resource.id.into_uuid(), "No embedding data returned");
+                    failed += 1;
+                }
+            }
+            Err(e) => {
+                tracing::error!(resource_id = %resource.id.into_uuid(), error = %e, "Failed to generate embedding");
+                failed += 1;
+            }
+        }
+    }
+
+    // Count remaining
+    let remaining = Resource::count_without_embeddings(&ctx.db_pool).await? as i32;
+
+    info!(
+        processed = processed,
+        failed = failed,
+        remaining = remaining,
+        "Finished generating embeddings"
+    );
+
+    Ok(GenerateEmbeddingsResult {
+        processed,
+        failed,
+        remaining,
+    })
+}

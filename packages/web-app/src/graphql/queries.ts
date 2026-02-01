@@ -27,8 +27,8 @@ export const GET_PUBLISHED_POSTS = gql`
 `;
 
 // Admin queries
-export const GET_PENDING_LISTINGS = gql`
-  query GetPendingListings($limit: Int, $offset: Int) {
+export const GET_PENDING_POSTS = gql`
+  query GetPendingPosts($limit: Int, $offset: Int) {
     listings(status: PENDING_APPROVAL, limit: $limit, offset: $offset) {
       nodes {
         id
@@ -47,8 +47,8 @@ export const GET_PENDING_LISTINGS = gql`
   }
 `;
 
-export const GET_SCRAPED_PENDING_LISTINGS = gql`
-  query GetScrapedPendingListings($limit: Int, $offset: Int, $listingType: String) {
+export const GET_SCRAPED_PENDING_POSTS = gql`
+  query GetScrapedPendingPosts($limit: Int, $offset: Int, $listingType: String) {
     listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
@@ -114,8 +114,8 @@ export const GET_SCRAPED_PENDING_LISTINGS = gql`
   }
 `;
 
-export const GET_ACTIVE_LISTINGS = gql`
-  query GetActiveListings($limit: Int, $offset: Int) {
+export const GET_ACTIVE_POSTS = gql`
+  query GetActivePosts($limit: Int, $offset: Int) {
     listings(status: ACTIVE, limit: $limit, offset: $offset) {
       nodes {
         id
@@ -132,8 +132,8 @@ export const GET_ACTIVE_LISTINGS = gql`
   }
 `;
 
-export const GET_LISTING_DETAIL = gql`
-  query GetListingDetail($id: Uuid!) {
+export const GET_POST_DETAIL = gql`
+  query GetPostDetail($id: Uuid!) {
     listing(id: $id) {
       id
       organizationName
@@ -164,8 +164,8 @@ export const GET_WEBSITES = gql`
   }
 `;
 
-export const GET_ORGANIZATION_SOURCE_LISTINGS = gql`
-  query GetOrganizationSourceListings($status: ListingStatusData) {
+export const GET_ORGANIZATION_SOURCE_POSTS = gql`
+  query GetOrganizationSourcePosts($status: ListingStatusData) {
     listings(status: $status, limit: 1000) {
       nodes {
         id
@@ -245,8 +245,8 @@ export const GET_CAUSE_DRIVEN_BUSINESSES = gql`
   }
 `;
 
-export const GET_SCRAPED_LISTINGS_STATS = gql`
-  query GetScrapedListingsStats {
+export const GET_SCRAPED_POSTS_STATS = gql`
+  query GetScrapedPostsStats {
     scrapedPendingServices: listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
@@ -369,64 +369,6 @@ export const GET_WEBSITE_WITH_SNAPSHOT_DETAILS = gql`
   }
 `;
 
-// Agent queries
-export const GET_ALL_AGENTS = gql`
-  query GetAllAgents {
-    agents {
-      id
-      name
-      queryTemplate
-      description
-      enabled
-      searchFrequencyHours
-      lastSearchedAt
-      locationContext
-      searchDepth
-      maxResults
-      daysRange
-      minRelevanceScore
-      extractionInstructions
-      systemPrompt
-      autoApproveWebsites
-      autoScrape
-      autoCreateListings
-      totalSearchesRun
-      totalWebsitesDiscovered
-      totalWebsitesApproved
-      createdAt
-    }
-  }
-`;
-
-export const GET_AGENT = gql`
-  query GetAgent($id: ID!) {
-    agent(id: $id) {
-      id
-      name
-      queryTemplate
-      description
-      enabled
-      searchFrequencyHours
-      lastSearchedAt
-      locationContext
-      searchDepth
-      maxResults
-      daysRange
-      minRelevanceScore
-      extractionInstructions
-      systemPrompt
-      autoApproveWebsites
-      autoScrape
-      autoCreateListings
-      totalSearchesRun
-      totalWebsitesDiscovered
-      totalWebsitesApproved
-      createdAt
-      updatedAt
-    }
-  }
-`;
-
 export const GET_ADMIN_STATS = gql`
   query GetAdminStats {
     websites(status: null) {
@@ -514,6 +456,98 @@ export const GET_RECENT_CHATS = gql`
       language
       createdAt
       lastActivityAt
+    }
+  }
+`;
+
+// Resource queries
+export const GET_PENDING_RESOURCES = gql`
+  query GetPendingResources {
+    pendingResources {
+      id
+      websiteId
+      title
+      content
+      location
+      status
+      organizationName
+      hasEmbedding
+      createdAt
+      updatedAt
+      sourceUrls
+      tags {
+        id
+        kind
+        value
+        displayName
+      }
+    }
+  }
+`;
+
+export const GET_RESOURCES = gql`
+  query GetResources($status: ResourceStatusData, $limit: Int, $offset: Int) {
+    resources(status: $status, limit: $limit, offset: $offset) {
+      nodes {
+        id
+        websiteId
+        title
+        content
+        location
+        status
+        organizationName
+        hasEmbedding
+        createdAt
+        updatedAt
+        sourceUrls
+        tags {
+          id
+          kind
+          value
+          displayName
+        }
+      }
+      totalCount
+      hasNextPage
+    }
+  }
+`;
+
+export const GET_RESOURCE = gql`
+  query GetResource($id: String!) {
+    resource(id: $id) {
+      id
+      websiteId
+      title
+      content
+      location
+      status
+      organizationName
+      hasEmbedding
+      createdAt
+      updatedAt
+      sourceUrls
+      contacts {
+        id
+        contactType
+        contactValue
+        contactLabel
+        isPublic
+      }
+      tags {
+        id
+        kind
+        value
+        displayName
+      }
+      versions {
+        id
+        title
+        content
+        location
+        changeReason
+        createdAt
+      }
     }
   }
 `;

@@ -1,8 +1,8 @@
 import { gql } from '@apollo/client';
 
 // Public mutations
-export const SUBMIT_LISTING = gql`
-  mutation SubmitListing($input: SubmitListingInput!) {
+export const SUBMIT_POST = gql`
+  mutation SubmitPost($input: SubmitListingInput!) {
     submitListing(input: $input) {
       id
       status
@@ -33,8 +33,8 @@ export const SUBMIT_RESOURCE_LINK = gql`
 `;
 
 // Admin mutations
-export const APPROVE_LISTING = gql`
-  mutation ApproveListing($listingId: Uuid!) {
+export const APPROVE_POST = gql`
+  mutation ApprovePost($listingId: Uuid!) {
     approveListing(listingId: $listingId) {
       id
       status
@@ -42,8 +42,8 @@ export const APPROVE_LISTING = gql`
   }
 `;
 
-export const EDIT_AND_APPROVE_LISTING = gql`
-  mutation EditAndApproveListing($listingId: Uuid!, $input: EditListingInput!) {
+export const EDIT_AND_APPROVE_POST = gql`
+  mutation EditAndApprovePost($listingId: Uuid!, $input: EditListingInput!) {
     editAndApproveListing(listingId: $listingId, input: $input) {
       id
       title
@@ -54,8 +54,8 @@ export const EDIT_AND_APPROVE_LISTING = gql`
   }
 `;
 
-export const REJECT_LISTING = gql`
-  mutation RejectListing($listingId: Uuid!, $reason: String!) {
+export const REJECT_POST = gql`
+  mutation RejectPost($listingId: Uuid!, $reason: String!) {
     rejectListing(listingId: $listingId, reason: $reason)
   }
 `;
@@ -101,8 +101,8 @@ export const ARCHIVE_POST = gql`
   }
 `;
 
-export const DELETE_LISTING = gql`
-  mutation DeleteListing($listingId: Uuid!) {
+export const DELETE_POST = gql`
+  mutation DeletePost($listingId: Uuid!) {
     deleteListing(listingId: $listingId)
   }
 `;
@@ -116,69 +116,6 @@ export const ADD_ORGANIZATION_SCRAPE_URL = gql`
 export const REMOVE_ORGANIZATION_SCRAPE_URL = gql`
   mutation RemoveOrganizationScrapeUrl($sourceId: Uuid!, $url: String!) {
     removeOrganizationScrapeUrl(sourceId: $sourceId, url: $url)
-  }
-`;
-
-// Agent mutations
-export const CREATE_AGENT = gql`
-  mutation CreateAgent($input: CreateAgentInput!) {
-    createAgent(input: $input) {
-      id
-      name
-      queryTemplate
-      description
-      enabled
-      locationContext
-      extractionInstructions
-      systemPrompt
-      autoApproveWebsites
-      autoScrape
-      autoCreateListings
-    }
-  }
-`;
-
-export const UPDATE_AGENT = gql`
-  mutation UpdateAgent($id: ID!, $input: UpdateAgentInput!) {
-    updateAgent(id: $id, input: $input) {
-      id
-      name
-      queryTemplate
-      description
-      enabled
-      extractionInstructions
-      systemPrompt
-      autoApproveWebsites
-      autoScrape
-      autoCreateListings
-    }
-  }
-`;
-
-export const DELETE_AGENT = gql`
-  mutation DeleteAgent($id: ID!) {
-    deleteAgent(id: $id)
-  }
-`;
-
-export const TRIGGER_AGENT_SEARCH = gql`
-  mutation TriggerAgentSearch($agentId: ID!) {
-    triggerAgentSearch(agentId: $agentId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
-export const GENERATE_AGENT_CONFIG = gql`
-  mutation GenerateAgentConfig($description: String!, $locationContext: String!) {
-    generateAgentConfig(description: $description, locationContext: $locationContext) {
-      name
-      queryTemplate
-      extractionInstructions
-      systemPrompt
-    }
   }
 `;
 
@@ -236,9 +173,9 @@ export const CRAWL_WEBSITE = gql`
   }
 `;
 
-// Listing tag mutations
-export const UPDATE_LISTING_TAGS = gql`
-  mutation UpdateListingTags($listingId: Uuid!, $tags: [TagInput!]!) {
+// Post tag mutations
+export const UPDATE_POST_TAGS = gql`
+  mutation UpdatePostTags($listingId: Uuid!, $tags: [TagInput!]!) {
     updateListingTags(listingId: $listingId, tags: $tags) {
       id
       tags {
@@ -251,8 +188,8 @@ export const UPDATE_LISTING_TAGS = gql`
   }
 `;
 
-export const ADD_LISTING_TAG = gql`
-  mutation AddListingTag($listingId: Uuid!, $tagKind: String!, $tagValue: String!, $displayName: String) {
+export const ADD_POST_TAG = gql`
+  mutation AddPostTag($listingId: Uuid!, $tagKind: String!, $tagValue: String!, $displayName: String) {
     addListingTag(listingId: $listingId, tagKind: $tagKind, tagValue: $tagValue, displayName: $displayName) {
       id
       kind
@@ -262,8 +199,8 @@ export const ADD_LISTING_TAG = gql`
   }
 `;
 
-export const REMOVE_LISTING_TAG = gql`
-  mutation RemoveListingTag($listingId: Uuid!, $tagId: String!) {
+export const REMOVE_POST_TAG = gql`
+  mutation RemovePostTag($listingId: Uuid!, $tagId: String!) {
     removeListingTag(listingId: $listingId, tagId: $tagId)
   }
 `;
@@ -297,5 +234,64 @@ export const SEND_MESSAGE = gql`
 export const SIGNAL_TYPING = gql`
   mutation SignalTyping($containerId: String!) {
     signalTyping(containerId: $containerId)
+  }
+`;
+
+// Resource mutations
+export const APPROVE_RESOURCE = gql`
+  mutation ApproveResource($resourceId: String!) {
+    approveResource(resourceId: $resourceId) {
+      id
+      status
+    }
+  }
+`;
+
+export const REJECT_RESOURCE = gql`
+  mutation RejectResource($resourceId: String!, $reason: String!) {
+    rejectResource(resourceId: $resourceId, reason: $reason) {
+      id
+      status
+    }
+  }
+`;
+
+export const EDIT_RESOURCE = gql`
+  mutation EditResource($resourceId: String!, $input: EditResourceInput!) {
+    editResource(resourceId: $resourceId, input: $input) {
+      id
+      title
+      content
+      location
+      status
+    }
+  }
+`;
+
+export const EDIT_AND_APPROVE_RESOURCE = gql`
+  mutation EditAndApproveResource($resourceId: String!, $input: EditResourceInput!) {
+    editAndApproveResource(resourceId: $resourceId, input: $input) {
+      id
+      title
+      content
+      location
+      status
+    }
+  }
+`;
+
+export const DELETE_RESOURCE = gql`
+  mutation DeleteResource($resourceId: String!) {
+    deleteResource(resourceId: $resourceId)
+  }
+`;
+
+export const GENERATE_MISSING_EMBEDDINGS = gql`
+  mutation GenerateMissingEmbeddings($batchSize: Int) {
+    generateMissingEmbeddings(batchSize: $batchSize) {
+      processed
+      failed
+      remaining
+    }
   }
 `;

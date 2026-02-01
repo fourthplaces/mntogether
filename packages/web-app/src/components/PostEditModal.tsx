@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { gql } from '@apollo/client';
 
-const EDIT_AND_APPROVE_LISTING = gql`
-  mutation EditAndApproveListing($listingId: Uuid!, $input: EditListingInput!) {
+const EDIT_AND_APPROVE_POST = gql`
+  mutation EditAndApprovePost($listingId: Uuid!, $input: EditListingInput!) {
     editAndApproveListing(listingId: $listingId, input: $input) {
       id
       status
@@ -14,26 +14,28 @@ const EDIT_AND_APPROVE_LISTING = gql`
   }
 `;
 
-interface ListingEditModalProps {
+interface PostEditModalProps {
   listing: any;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-const ListingEditModal: React.FC<ListingEditModalProps> = ({
+const PostEditModal: React.FC<PostEditModalProps> = ({
   listing,
   onClose,
   onSuccess,
 }) => {
+  const post = listing; // Alias for readability
+
   const [formData, setFormData] = useState({
-    title: listing.title || '',
-    description: listing.description || '',
-    tldr: listing.tldr || '',
-    urgency: listing.urgency || 'medium',
-    location: listing.location || '',
+    title: post.title || '',
+    description: post.description || '',
+    tldr: post.tldr || '',
+    urgency: post.urgency || 'medium',
+    location: post.location || '',
   });
 
-  const [editAndApproveListing, { loading, error }] = useMutation(EDIT_AND_APPROVE_LISTING, {
+  const [editAndApprovePost, { loading, error }] = useMutation(EDIT_AND_APPROVE_POST, {
     onCompleted: () => {
       onSuccess();
       onClose();
@@ -43,9 +45,9 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    editAndApproveListing({
+    editAndApprovePost({
       variables: {
-        listingId: listing.id,
+        listingId: post.id,
         input: {
           title: formData.title,
           description: formData.description,
@@ -68,12 +70,12 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
       <div className="bg-white rounded-lg p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-stone-900">Edit & Approve Listing</h2>
+          <h2 className="text-xl font-bold text-stone-900">Edit & Approve Post</h2>
           <button
             onClick={onClose}
             className="text-stone-400 hover:text-stone-600 text-2xl leading-none"
           >
-            ×
+            x
           </button>
         </div>
 
@@ -85,20 +87,20 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
             </label>
             <input
               type="text"
-              value={listing.organizationName}
+              value={post.organizationName}
               disabled
               className="w-full px-3 py-2 border border-stone-300 rounded bg-stone-50 text-stone-600"
             />
           </div>
 
-          {/* Listing Type (Read-only) */}
+          {/* Post Type (Read-only) */}
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1">
               Type
             </label>
             <input
               type="text"
-              value={listing.listingType}
+              value={post.listingType}
               disabled
               className="w-full px-3 py-2 border border-stone-300 rounded bg-stone-50 text-stone-600 capitalize"
             />
@@ -190,18 +192,18 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
           </div>
 
           {/* Source URL (Read-only) */}
-          {listing.sourceUrl && (
+          {post.sourceUrl && (
             <div>
               <label className="block text-sm font-medium text-stone-700 mb-1">
                 Source URL
               </label>
               <a
-                href={listing.sourceUrl}
+                href={post.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block w-full px-3 py-2 border border-stone-300 rounded bg-stone-50 text-amber-600 hover:text-amber-800 break-all"
               >
-                {listing.sourceUrl}
+                {post.sourceUrl}
               </a>
             </div>
           )}
@@ -220,7 +222,7 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
               disabled={loading}
               className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed font-medium"
             >
-              {loading ? 'Saving...' : '✓ Save & Approve'}
+              {loading ? 'Saving...' : 'Save & Approve'}
             </button>
             <button
               type="button"
@@ -236,14 +238,14 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
         {/* Info Box */}
         <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded">
           <h3 className="font-semibold text-sm text-amber-900 mb-2">
-            💡 Editing Tips
+            Editing Tips
           </h3>
           <ul className="text-xs text-amber-800 space-y-1 list-disc list-inside">
             <li>Make titles clear and concise (5-10 words)</li>
             <li>TLDR should be a compelling 1-2 sentence hook</li>
             <li>Include practical details in description (requirements, impact, contact)</li>
             <li>Set urgency appropriately to help users prioritize</li>
-            <li>This will approve the listing and make it live immediately</li>
+            <li>This will approve the post and make it live immediately</li>
           </ul>
         </div>
       </div>
@@ -251,4 +253,4 @@ const ListingEditModal: React.FC<ListingEditModalProps> = ({
   );
 };
 
-export default ListingEditModal;
+export default PostEditModal;
