@@ -1,35 +1,43 @@
+//! AI effect - handles AI extraction request events
+//!
+//! This effect is a thin orchestration layer that dispatches request events to handler functions.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use super::{post_extraction, ServerDeps};
 use crate::common::{JobId, WebsiteId};
-use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::website::models::Website;
 
-/// AI Effect - Handles ExtractPosts command
+/// AI Effect - Handles AI extraction request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to handler functions.
+/// This effect is a thin orchestration layer that dispatches events to handler functions.
 pub struct AIEffect;
 
 #[async_trait]
-impl Effect<PostCommand, ServerDeps> for AIEffect {
+impl Effect<PostEvent, ServerDeps> for AIEffect {
     type Event = PostEvent;
 
-    async fn execute(
-        &self,
-        cmd: PostCommand,
+    async fn handle(
+        &mut self,
+        event: PostEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
-        match cmd {
-            PostCommand::ExtractPosts {
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            PostEvent::ExtractPostsRequested {
                 source_id,
                 job_id,
                 organization_name,
                 content,
             } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx).await,
-            PostCommand::ExtractPostsFromResourceLink {
+
+            PostEvent::ExtractPostsFromResourceLinkRequested {
                 job_id,
                 url,
                 content,
@@ -46,7 +54,13 @@ impl Effect<PostCommand, ServerDeps> for AIEffect {
                 )
                 .await
             }
-            _ => anyhow::bail!("AIEffect: Unexpected command"),
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            _ => anyhow::bail!(
+                "Fact events or unhandled request events should not be dispatched to AIEffect"
+            ),
         }
     }
 }

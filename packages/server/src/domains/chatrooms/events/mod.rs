@@ -1,8 +1,11 @@
 //! Chat domain events.
 //!
-//! Events are immutable facts about what happened. They follow the seesaw-rs pattern:
-//! - Request events: User intent (from edges)
+//! Events are immutable facts about what happened. They follow the seesaw 0.3.0 pattern:
+//! - Request events: User intent (from edges and internal edges)
 //! - Fact events: What actually happened (from effects)
+//!
+//! Architecture (seesaw 0.3.0):
+//!   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,7 +16,7 @@ use crate::common::{ContainerId, IntoNatsPayload, MemberId, MessageId};
 #[derive(Debug, Clone)]
 pub enum ChatEvent {
     // =========================================================================
-    // Request Events (from edges - entry points)
+    // Request Events (from edges and internal edges)
     // =========================================================================
     /// User requests to create a new chat container
     CreateContainerRequested {
@@ -31,6 +34,27 @@ pub enum ChatEvent {
         content: String,
         author_id: Option<MemberId>,
         parent_message_id: Option<MessageId>,
+    },
+
+    /// Request to create a message with specific role (used by internal edges)
+    CreateMessageRequested {
+        container_id: ContainerId,
+        role: String,
+        content: String,
+        author_id: Option<MemberId>,
+        parent_message_id: Option<MessageId>,
+    },
+
+    /// Request to generate an AI reply to a message (triggered by internal edge)
+    GenerateReplyRequested {
+        message_id: MessageId,
+        container_id: ContainerId,
+    },
+
+    /// Request to generate an AI greeting for a new container (triggered by internal edge)
+    GenerateGreetingRequested {
+        container_id: ContainerId,
+        agent_config: String,
     },
 
     // =========================================================================
@@ -55,6 +79,19 @@ pub enum ChatEvent {
 
     /// Message creation failed
     MessageFailed { container_id: ContainerId, reason: String },
+
+    /// AI reply generation failed
+    ReplyGenerationFailed {
+        message_id: MessageId,
+        container_id: ContainerId,
+        reason: String,
+    },
+
+    /// AI greeting generation failed
+    GreetingGenerationFailed {
+        container_id: ContainerId,
+        reason: String,
+    },
 }
 
 /// Agent messaging events (pure effect pattern).
@@ -127,13 +164,18 @@ impl IntoNatsPayload for ChatEvent {
     fn container_id(&self) -> Option<Uuid> {
         match self {
             // Request events are not published
-            ChatEvent::CreateContainerRequested { .. } => None,
-            ChatEvent::SendMessageRequested { .. } => None,
+            ChatEvent::CreateContainerRequested { .. }
+            | ChatEvent::SendMessageRequested { .. }
+            | ChatEvent::CreateMessageRequested { .. }
+            | ChatEvent::GenerateReplyRequested { .. }
+            | ChatEvent::GenerateGreetingRequested { .. } => None,
 
             // Fact events with container_id are published
             ChatEvent::ContainerCreated { container_id, .. } => Some((*container_id).into()),
             ChatEvent::MessageCreated { container_id, .. } => Some((*container_id).into()),
             ChatEvent::MessageFailed { container_id, .. } => Some((*container_id).into()),
+            ChatEvent::ReplyGenerationFailed { container_id, .. } => Some((*container_id).into()),
+            ChatEvent::GreetingGenerationFailed { container_id, .. } => Some((*container_id).into()),
         }
     }
 

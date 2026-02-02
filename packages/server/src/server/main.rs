@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
     }
 
     // Build application
-    let (app, handle) = build_app(
+    let (app, bus) = build_app(
         pool.clone(),
         config.openai_api_key.clone(),
         config.tavily_api_key,
@@ -83,7 +83,6 @@ async fn main() -> Result<()> {
     );
 
     // Start scheduled tasks (periodic scraping)
-    let bus = handle.bus().clone();
     let _scheduler = scheduled_tasks::start_scheduler(pool.clone(), bus)
         .await
         .context("Failed to start scheduler")?;

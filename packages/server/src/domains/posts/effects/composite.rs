@@ -1,18 +1,22 @@
+//! Post composite effect - routes events to appropriate sub-effects
+//!
+//! This effect is a thin orchestration layer that dispatches request events to handlers.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use crate::kernel::ServerDeps;
 use super::{AIEffect, PostEffect, ScraperEffect, SyncEffect};
-use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
-/// Composite Effect - Routes PostCommand to appropriate sub-effect
+/// Composite Effect - Routes PostEvent to appropriate sub-effect
 ///
-/// This composite effect solves the problem of having multiple effects for the same command type.
-/// The dispatcher requires one effect per command type, so this effect routes based on the command variant.
+/// This composite effect solves the problem of having multiple effects for the same event type.
+/// The dispatcher requires one effect per event type, so this effect routes based on the event variant.
 ///
-/// NOTE: Crawling commands have been moved to the `crawling` domain.
+/// NOTE: Crawling events have been moved to the `crawling` domain.
 /// See `crate::domains::crawling::effects::CrawlerEffect`.
 pub struct PostCompositeEffect {
     scraper: ScraperEffect,
@@ -39,47 +43,101 @@ impl Default for PostCompositeEffect {
 }
 
 #[async_trait]
-impl Effect<PostCommand, ServerDeps> for PostCompositeEffect {
+impl Effect<PostEvent, ServerDeps> for PostCompositeEffect {
     type Event = PostEvent;
 
-    async fn execute(
-        &self,
-        cmd: PostCommand,
+    async fn handle(
+        &mut self,
+        event: PostEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
-        match &cmd {
+        match &event {
+            // =================================================================
             // Route to ScraperEffect
-            PostCommand::ScrapeSource { .. } => self.scraper.execute(cmd, ctx).await,
-            PostCommand::ScrapeResourceLink { .. } => self.scraper.execute(cmd, ctx).await,
-
-            // Route to AIEffect
-            PostCommand::ExtractPosts { .. } => self.ai.execute(cmd, ctx).await,
-            PostCommand::ExtractPostsFromResourceLink { .. } => {
-                self.ai.execute(cmd, ctx).await
+            // =================================================================
+            PostEvent::ScrapeSourceRequested { .. }
+            | PostEvent::ScrapeResourceLinkRequested { .. } => {
+                self.scraper.handle(event, ctx).await
             }
 
-            // Route to SyncEffect
-            PostCommand::SyncPosts { .. } => self.sync.execute(cmd, ctx).await,
+            // =================================================================
+            // Route to AIEffect
+            // =================================================================
+            PostEvent::ExtractPostsRequested { .. }
+            | PostEvent::ExtractPostsFromResourceLinkRequested { .. } => {
+                self.ai.handle(event, ctx).await
+            }
 
-            // Route to PostEffect (all other commands)
-            PostCommand::CreateWebsiteFromLink { .. }
-            | PostCommand::CreatePostEntry { .. }
-            | PostCommand::CreatePostsFromResourceLink { .. }
-            | PostCommand::UpdatePostStatus { .. }
-            | PostCommand::UpdatePostAndApprove { .. }
-            | PostCommand::CreatePost { .. }
-            | PostCommand::GeneratePostEmbedding { .. }
-            | PostCommand::CreateCustomPost { .. }
-            | PostCommand::RepostPost { .. }
-            | PostCommand::ExpirePost { .. }
-            | PostCommand::ArchivePost { .. }
-            | PostCommand::IncrementPostView { .. }
-            | PostCommand::IncrementPostClick { .. }
-            | PostCommand::DeletePost { .. }
-            | PostCommand::CreateReport { .. }
-            | PostCommand::ResolveReport { .. }
-            | PostCommand::DismissReport { .. }
-            | PostCommand::DeduplicatePosts { .. } => self.listing.execute(cmd, ctx).await,
+            // =================================================================
+            // Route to SyncEffect
+            // =================================================================
+            PostEvent::SyncPostsRequested { .. } => self.sync.handle(event, ctx).await,
+
+            // =================================================================
+            // Route to PostEffect (all other request events)
+            // =================================================================
+            PostEvent::CreateWebsiteFromLinkRequested { .. }
+            | PostEvent::CreatePostEntryRequested { .. }
+            | PostEvent::CreatePostsFromResourceLinkRequested { .. }
+            | PostEvent::UpdatePostStatusRequested { .. }
+            | PostEvent::EditAndApproveListingRequested { .. }
+            | PostEvent::CreatePostRequested { .. }
+            | PostEvent::GeneratePostEmbeddingRequested { .. }
+            | PostEvent::CreateCustomPostRequested { .. }
+            | PostEvent::RepostPostRequested { .. }
+            | PostEvent::ExpirePostRequested { .. }
+            | PostEvent::ArchivePostRequested { .. }
+            | PostEvent::PostViewedRequested { .. }
+            | PostEvent::PostClickedRequested { .. }
+            | PostEvent::DeletePostRequested { .. }
+            | PostEvent::ReportListingRequested { .. }
+            | PostEvent::ResolveReportRequested { .. }
+            | PostEvent::DismissReportRequested { .. }
+            | PostEvent::DeduplicatePostsRequested { .. }
+            | PostEvent::SubmitListingRequested { .. }
+            | PostEvent::SubmitResourceLinkRequested { .. }
+            | PostEvent::ApproveListingRequested { .. }
+            | PostEvent::RejectListingRequested { .. } => {
+                self.listing.handle(event, ctx).await
+            }
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            PostEvent::SourceScraped { .. }
+            | PostEvent::ResourceLinkScraped { .. }
+            | PostEvent::PostsExtracted { .. }
+            | PostEvent::ResourceLinkPostsExtracted { .. }
+            | PostEvent::PostsSynced { .. }
+            | PostEvent::ScrapeFailed { .. }
+            | PostEvent::ResourceLinkScrapeFailed { .. }
+            | PostEvent::ExtractFailed { .. }
+            | PostEvent::SyncFailed { .. }
+            | PostEvent::PostEntryCreated { .. }
+            | PostEvent::PostApproved { .. }
+            | PostEvent::PostRejected { .. }
+            | PostEvent::ListingUpdated { .. }
+            | PostEvent::PostCreated { .. }
+            | PostEvent::PostExpired { .. }
+            | PostEvent::PostArchived { .. }
+            | PostEvent::PostViewed { .. }
+            | PostEvent::PostClicked { .. }
+            | PostEvent::PostDeleted { .. }
+            | PostEvent::PostReported { .. }
+            | PostEvent::ReportResolved { .. }
+            | PostEvent::ReportDismissed { .. }
+            | PostEvent::PostEmbeddingGenerated { .. }
+            | PostEvent::ListingEmbeddingFailed { .. }
+            | PostEvent::AuthorizationDenied { .. }
+            | PostEvent::PostsDeduplicated { .. }
+            | PostEvent::DeduplicationFailed { .. }
+            | PostEvent::WebsiteCreatedFromLink { .. }
+            | PostEvent::WebsitePendingApproval { .. } => {
+                anyhow::bail!(
+                    "Fact events should not be dispatched to effects. \
+                     They are outputs from effects, not inputs."
+                )
+            }
         }
     }
 }

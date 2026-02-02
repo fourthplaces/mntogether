@@ -4,20 +4,19 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
-use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
+use seesaw_core::{EngineBuilder, EventBus};
 use server_core::domains::crawling::{
-    commands::CrawlCommand,
+    events::CrawlEvent,
     effects::CrawlerEffect,
-    machines::CrawlMachine,
 };
 use server_core::domains::posts::{
-    commands::PostCommand,
+    events::PostEvent,
     effects::PostCompositeEffect,
-    machines::PostMachine,
 };
-use server_core::kernel::{ServerDeps, TwilioAdapter};
+use server_core::kernel::{ServerDeps, TwilioAdapter, SpyJobQueue};
 use server_core::domains::member::{
-    commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
+    events::MemberEvent,
+    effects::MemberEffect,
 };
 use server_core::kernel::{ServerKernel, TestDependencies};
 use sqlx::PgPool;
@@ -121,44 +120,22 @@ impl SharedTestInfra {
     }
 }
 
-fn start_engine(handles: &mut Vec<EngineHandle>, engine: seesaw_core::Engine<ServerDeps>) {
-    handles.push(engine.start());
-}
+/// Build the seesaw engine with all domain effects (seesaw 0.3.0).
+///
+/// In 0.3.0, we register effects for EVENT types (not command types).
+/// Machines have been removed - internal edges replace machine.decide() logic.
+fn build_engine(deps: ServerDeps) -> (seesaw_core::Engine<ServerDeps>, EventBus) {
+    let engine = EngineBuilder::new(deps)
+        // Crawling domain
+        .with_effect::<CrawlEvent, _>(CrawlerEffect)
+        // Posts domain
+        .with_effect::<PostEvent, _>(PostCompositeEffect::new())
+        // Member domain
+        .with_effect::<MemberEvent, _>(MemberEffect)
+        .build();
 
-fn start_domain_engines(deps: ServerDeps, bus: &EventBus) -> Vec<EngineHandle> {
-    let mut handles = Vec::new();
-
-    // Crawling domain
-    start_engine(
-        &mut handles,
-        EngineBuilder::new(deps.clone())
-            .with_machine(CrawlMachine::new())
-            .with_effect::<CrawlCommand, _>(CrawlerEffect)
-            .with_bus(bus.clone())
-            .build(),
-    );
-
-    // Posts domain
-    start_engine(
-        &mut handles,
-        EngineBuilder::new(deps.clone())
-            .with_machine(PostMachine::new())
-            .with_effect::<PostCommand, _>(PostCompositeEffect::new())
-            .with_bus(bus.clone())
-            .build(),
-    );
-
-    // Member domain
-    start_engine(
-        &mut handles,
-        EngineBuilder::new(deps)
-            .with_machine(MemberMachine::new())
-            .with_effect::<MemberCommand, _>(RegistrationEffect)
-            .with_bus(bus.clone())
-            .build(),
-    );
-
-    handles
+    let bus = engine.bus().clone();
+    (engine, bus)
 }
 
 /// Test harness that manages test infrastructure.
@@ -186,8 +163,8 @@ pub struct TestHarness {
     pub db_pool: PgPool,
     /// Test dependencies for accessing mocks
     pub deps: TestDependencies,
-    /// Handles for domain engines (kept alive to process events).
-    _engine_handles: Vec<EngineHandle>,
+    /// Engine is kept alive to process events.
+    _engine: seesaw_core::Engine<ServerDeps>,
 }
 
 impl TestHarness {
@@ -197,7 +174,7 @@ impl TestHarness {
     /// 1. Get or initialize shared PostgreSQL and Redis containers
     /// 2. Run database migrations (only on first call)
     /// 3. Initialize a fresh ServerKernel with test dependencies
-    /// 4. Register all domain processors
+    /// 4. Register all domain effects
     pub async fn new() -> Result<Self> {
         Self::with_deps(TestDependencies::new()).await
     }
@@ -230,7 +207,7 @@ impl TestHarness {
         // Create kernel with test dependencies
         let kernel = deps.clone().into_kernel(db_pool.clone());
 
-        // Create ServerDeps for engines (from kernel dependencies)
+        // Create ServerDeps for engine (from kernel dependencies)
         // Use dummy Twilio credentials for testing (won't make real API calls in tests)
         let twilio = Arc::new(TwilioService::new(TwilioOptions {
             account_sid: "test_account_sid".to_string(),
@@ -251,18 +228,32 @@ impl TestHarness {
             vec![], // admin_identifiers
         );
 
-        // Start domain engines (same as production)
-        let bus = kernel.bus.clone();
-        let engine_handles = start_domain_engines(server_deps, &bus);
+        // Build engine with all domain effects (seesaw 0.3.0)
+        let (engine, bus) = build_engine(server_deps);
 
-        // Give engines time to subscribe to the event bus
+        // Update kernel with the engine's bus
+        // Note: The kernel already has its own bus, but we need to ensure
+        // events are processed by the engine
+        let kernel = Arc::new(ServerKernel {
+            db_pool: kernel.db_pool.clone(),
+            web_scraper: kernel.web_scraper.clone(),
+            ai: kernel.ai.clone(),
+            embedding_service: kernel.embedding_service.clone(),
+            push_service: kernel.push_service.clone(),
+            search_service: kernel.search_service.clone(),
+            pii_detector: kernel.pii_detector.clone(),
+            bus,
+            job_queue: Arc::new(SpyJobQueue::new()),
+        });
+
+        // Give engine time to initialize
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
         Ok(Self {
             kernel,
             db_pool,
             deps,
-            _engine_handles: engine_handles,
+            _engine: engine,
         })
     }
 
@@ -279,16 +270,14 @@ impl TestHarness {
 
     /// Wait for effects to settle after an action.
     ///
-    /// Effects are executed by the seesaw Dispatcher via domain engines.
-    /// Machines observe events and emit commands, which are then dispatched
-    /// to their corresponding effects. This method yields to allow the
-    /// event-driven pipeline to complete.
+    /// Effects are executed by the seesaw engine when events are emitted.
+    /// This method yields to allow the event-driven pipeline to complete.
     pub async fn settle(&self) {
         // Allow time for the seesaw event pipeline to process:
-        // 1. EventBus delivers events to subscribed engines
-        // 2. Machines observe events and emit commands
-        // 3. Dispatcher routes commands to effects (inline or background)
-        // 4. Effects execute and emit fact events
+        // 1. EventBus delivers events to the engine
+        // 2. Engine dispatches request events to effects
+        // 3. Effects execute and emit fact events
+        // 4. Internal edges observe fact events and emit new request events
         for _ in 0..10 {
             tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
             tokio::task::yield_now().await;
@@ -316,22 +305,12 @@ impl TestHarness {
     }
 }
 
-impl Drop for TestHarness {
-    fn drop(&mut self) {
-        // Abort all engine handles to stop their background tasks.
-        for handle in &self._engine_handles {
-            handle.abort();
-        }
-    }
-}
-
 impl AsyncTestContext for TestHarness {
     async fn setup() -> Self {
         Self::new().await.expect("Failed to create test harness")
     }
 
     async fn teardown(self) {
-        // Engine handles are aborted in Drop
         self.db_pool.close().await;
     }
 }

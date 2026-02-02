@@ -3,13 +3,13 @@
 // The ServerKernel holds all server dependencies (database, APIs, services)
 // and provides access via traits for testability.
 
-use seesaw_core::{EventBus, JobQueue};
+use seesaw_core::EventBus;
 use sqlx::PgPool;
 use std::sync::Arc;
 
 use super::{
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseWebScraper,
+    job_queue::JobQueue, BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
+    BaseSearchService, BaseWebScraper,
 };
 
 /// ServerKernel holds all server dependencies

@@ -1,43 +1,21 @@
+//! Research effect - handles fetching or creating domain research
+//!
+//! This module contains the handler for the AssessWebsiteRequested event.
+
 use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use crate::domains::website::models::{Website, WebsiteResearch, WebsiteResearchHomepage};
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::EffectContext;
 use tracing::info;
-
-/// Research Effect - Handles fetching or creating domain research
-///
-/// This effect is a thin orchestration layer that dispatches to handler functions.
-pub struct ResearchEffect;
-
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for ResearchEffect {
-    type Event = DomainApprovalEvent;
-
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        match cmd {
-            DomainApprovalCommand::FetchOrCreateResearch {
-                website_id,
-                job_id,
-                requested_by,
-            } => handle_fetch_or_create_research(website_id, job_id, requested_by, &ctx).await,
-            _ => anyhow::bail!("ResearchEffect: Unexpected command"),
-        }
-    }
-}
 
 // ============================================================================
 // Handler Functions (Business Logic)
 // ============================================================================
 
-async fn handle_fetch_or_create_research(
+/// Handle the AssessWebsiteRequested event by fetching or creating research.
+pub async fn handle_assess_website(
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
@@ -105,7 +83,6 @@ async fn handle_fetch_or_create_research(
         }
         Err(e) => {
             // Log warning but continue - homepage scraping is not critical
-            // The Firecrawl SDK has a known bug with metadata arrays (Issue #1304)
             tracing::warn!(
                 website_domain = %website.domain,
                 error = %e,
@@ -149,5 +126,6 @@ async fn handle_fetch_or_create_research(
         website_id,
         job_id,
         homepage_url: website.domain,
+        requested_by,
     })
 }

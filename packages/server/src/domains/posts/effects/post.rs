@@ -1,32 +1,38 @@
+//! Post effect - handles post CRUD and lifecycle request events
+//!
+//! This effect is a thin orchestration layer that dispatches request events to handler functions.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::kernel::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, JobId, PostId, MemberId, WebsiteId};
-use tracing::warn;
-use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
-/// Listing Effect - Handles CreatePostEntry, UpdatePostStatus, UpdatePostAndApprove, CreatePost, GeneratePostEmbedding commands
+/// Post Effect - Handles post CRUD and lifecycle request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to handler functions.
+/// This effect is a thin orchestration layer that dispatches events to handler functions.
 pub struct PostEffect;
 
 #[async_trait]
-impl Effect<PostCommand, ServerDeps> for PostEffect {
+impl Effect<PostEvent, ServerDeps> for PostEffect {
     type Event = PostEvent;
 
-    async fn execute(
-        &self,
-        cmd: PostCommand,
+    async fn handle(
+        &mut self,
+        event: PostEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
-        match cmd {
-            PostCommand::CreatePostEntry {
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            PostEvent::CreatePostEntryRequested {
                 member_id,
                 organization_name,
                 title,
@@ -52,7 +58,32 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::UpdatePostStatus {
+            PostEvent::SubmitListingRequested {
+                member_id,
+                organization_name,
+                title,
+                description,
+                contact_info,
+                urgency,
+                location,
+                ip_address,
+            } => {
+                handle_create_post_entry(
+                    member_id,
+                    organization_name,
+                    title,
+                    description,
+                    contact_info,
+                    urgency,
+                    location,
+                    ip_address,
+                    "user_submitted".to_string(),
+                    &ctx,
+                )
+                .await
+            }
+
+            PostEvent::UpdatePostStatusRequested {
                 post_id,
                 status,
                 rejection_reason,
@@ -70,7 +101,40 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::UpdatePostAndApprove {
+            PostEvent::ApproveListingRequested {
+                post_id,
+                requested_by,
+                is_admin,
+            } => {
+                handle_update_post_status(
+                    post_id,
+                    "active".to_string(),
+                    None,
+                    requested_by,
+                    is_admin,
+                    &ctx,
+                )
+                .await
+            }
+
+            PostEvent::RejectListingRequested {
+                post_id,
+                reason,
+                requested_by,
+                is_admin,
+            } => {
+                handle_update_post_status(
+                    post_id,
+                    "rejected".to_string(),
+                    Some(reason),
+                    requested_by,
+                    is_admin,
+                    &ctx,
+                )
+                .await
+            }
+
+            PostEvent::EditAndApproveListingRequested {
                 post_id,
                 title,
                 description,
@@ -98,7 +162,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::CreatePost {
+            PostEvent::CreatePostRequested {
                 post_id,
                 created_by,
                 custom_title,
@@ -116,19 +180,18 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::GeneratePostEmbedding { post_id } => {
+            PostEvent::GeneratePostEmbeddingRequested { post_id } => {
                 // Embeddings are no longer used - this is a no-op for backwards compatibility
                 Ok(PostEvent::PostEmbeddingGenerated { post_id, dimensions: 0 })
             }
 
-            PostCommand::CreateCustomPost {
+            PostEvent::CreateCustomPostRequested {
                 post_id,
                 custom_title,
                 custom_description,
                 custom_tldr,
                 targeting_hints,
                 expires_in_days,
-                created_by,
                 requested_by,
                 is_admin,
             } => {
@@ -139,7 +202,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                     custom_tldr,
                     targeting_hints,
                     expires_in_days,
-                    created_by,
+                    requested_by,
                     requested_by,
                     is_admin,
                     &ctx,
@@ -147,40 +210,39 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::RepostPost {
+            PostEvent::RepostPostRequested {
                 post_id,
-                created_by,
                 requested_by,
                 is_admin,
-            } => handle_repost_post(post_id, created_by, requested_by, is_admin, &ctx).await,
+            } => handle_repost_post(post_id, requested_by, requested_by, is_admin, &ctx).await,
 
-            PostCommand::ExpirePost {
+            PostEvent::ExpirePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
             } => handle_expire_post(post_id, requested_by, is_admin, &ctx).await,
 
-            PostCommand::ArchivePost {
+            PostEvent::ArchivePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
             } => handle_archive_post(post_id, requested_by, is_admin, &ctx).await,
 
-            PostCommand::IncrementPostView { post_id } => {
+            PostEvent::PostViewedRequested { post_id } => {
                 handle_increment_post_view(post_id, &ctx).await
             }
 
-            PostCommand::IncrementPostClick { post_id } => {
+            PostEvent::PostClickedRequested { post_id } => {
                 handle_increment_post_click(post_id, &ctx).await
             }
 
-            PostCommand::DeletePost {
+            PostEvent::DeletePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
             } => handle_delete_post(post_id, requested_by, is_admin, &ctx).await,
 
-            PostCommand::CreatePostsFromResourceLink {
+            PostEvent::CreatePostsFromResourceLinkRequested {
                 job_id,
                 url,
                 posts,
@@ -198,7 +260,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::CreateWebsiteFromLink {
+            PostEvent::CreateWebsiteFromLinkRequested {
                 url,
                 organization_name,
                 submitter_contact,
@@ -212,7 +274,29 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::CreateReport {
+            PostEvent::SubmitResourceLinkRequested {
+                url,
+                context: _,
+                submitter_contact,
+            } => {
+                // Extract organization name from URL
+                let organization_name = url
+                    .split("//")
+                    .nth(1)
+                    .and_then(|s| s.split('/').next())
+                    .unwrap_or("Unknown Organization")
+                    .to_string();
+
+                handle_create_organization_source_from_link(
+                    url,
+                    organization_name,
+                    submitter_contact,
+                    &ctx,
+                )
+                .await
+            }
+
+            PostEvent::ReportListingRequested {
                 post_id,
                 reported_by,
                 reporter_email,
@@ -230,7 +314,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::ResolveReport {
+            PostEvent::ResolveReportRequested {
                 report_id,
                 resolved_by,
                 resolution_notes,
@@ -248,7 +332,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::DismissReport {
+            PostEvent::DismissReportRequested {
                 report_id,
                 resolved_by,
                 resolution_notes,
@@ -264,7 +348,7 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                 .await
             }
 
-            PostCommand::DeduplicatePosts {
+            PostEvent::DeduplicatePostsRequested {
                 job_id,
                 similarity_threshold: _,
                 requested_by,
@@ -274,7 +358,12 @@ impl Effect<PostCommand, ServerDeps> for PostEffect {
                     .await
             }
 
-            _ => anyhow::bail!("PostEffect: Unexpected command"),
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            _ => anyhow::bail!(
+                "Fact events or unhandled request events should not be dispatched to PostEffect"
+            ),
         }
     }
 }
@@ -582,7 +671,6 @@ async fn handle_create_posts_from_resource_link(
 ) -> Result<PostEvent> {
     use crate::domains::posts::models::Post;
     use crate::domains::website::models::Website;
-    use tracing::info;
 
     // Find the organization source that was created during submission
     let organization_name = context
@@ -642,7 +730,7 @@ async fn handle_create_posts_from_resource_link(
                 );
             }
             Err(e) => {
-                tracing::warn!(
+                warn!(
                     error = %e,
                     title = %extracted_post.title,
                     "Failed to create listing from resource link"
@@ -681,7 +769,6 @@ async fn handle_create_organization_source_from_link(
 ) -> Result<PostEvent> {
     use crate::common::JobId;
     use crate::domains::website::models::Website;
-    use tracing::info;
 
     // Validate URL format
     url::Url::parse(&url).context("Invalid URL format")?;

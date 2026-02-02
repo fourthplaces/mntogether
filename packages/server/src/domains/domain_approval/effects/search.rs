@@ -1,47 +1,26 @@
-use crate::common::{JobId, WebsiteId};
-use crate::domains::domain_approval::commands::DomainApprovalCommand;
+//! Search effect - handles conducting Tavily research searches
+//!
+//! This module contains the handler for the ConductResearchSearchesRequested event.
+
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use crate::domains::website::models::{TavilySearchQuery, TavilySearchResult, WebsiteResearch};
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
-
-/// Search Effect - Handles conducting Tavily research searches
-///
-/// This effect is a thin orchestration layer that dispatches to handler functions.
-pub struct SearchEffect;
-
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for SearchEffect {
-    type Event = DomainApprovalEvent;
-
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        match cmd {
-            DomainApprovalCommand::ConductResearchSearches {
-                research_id,
-                website_id,
-                job_id,
-            } => handle_conduct_research_searches(research_id, website_id, job_id, &ctx).await,
-            _ => anyhow::bail!("SearchEffect: Unexpected command"),
-        }
-    }
-}
 
 // ============================================================================
 // Handler Functions (Business Logic)
 // ============================================================================
 
-async fn handle_conduct_research_searches(
+/// Handle the ConductResearchSearchesRequested event.
+pub async fn handle_conduct_searches(
     research_id: Uuid,
     website_id: WebsiteId,
     job_id: JobId,
+    requested_by: MemberId,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<DomainApprovalEvent> {
     info!(
@@ -146,6 +125,7 @@ async fn handle_conduct_research_searches(
         job_id,
         total_queries: queries.len(),
         total_results,
+        requested_by,
     })
 }
 
