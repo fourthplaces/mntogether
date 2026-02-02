@@ -1,15 +1,18 @@
-// CrawlerEffect - Handles multi-page website crawling workflow
-//
-// This effect handles:
-// - CrawlWebsite: Crawl multiple pages from a website
-// - ExtractPostsFromPages: Extract posts from all crawled pages
-// - RetryWebsiteCrawl: Retry crawl after no posts found
-// - MarkWebsiteNoPosts: Mark website as having no posts (terminal)
-// - SyncCrawledPosts: Sync extracted posts to database
-// - RegeneratePosts: Regenerate posts from existing snapshots
-// - RegeneratePageSummaries: Regenerate AI summaries for pages
-// - RegeneratePageSummary: Regenerate AI summary for single page
-// - RegeneratePagePosts: Regenerate posts for single page
+//! CrawlerEffect - Handles multi-page website crawling workflow
+//!
+//! This effect handles CrawlEvent request events and dispatches to handler functions.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in handlers.
+//!
+//! Request events handled:
+//! - CrawlWebsiteRequested: Crawl multiple pages from a website
+//! - ExtractPostsFromPagesRequested: Extract posts from all crawled pages
+//! - RetryWebsiteCrawlRequested: Retry crawl after no posts found
+//! - MarkWebsiteNoPostsRequested: Mark website as having no posts (terminal)
+//! - SyncCrawledPostsRequested: Sync extracted posts to database
+//! - RegeneratePostsRequested: Regenerate posts from existing snapshots
+//! - RegeneratePageSummariesRequested: Regenerate AI summaries for pages
+//! - RegeneratePageSummaryRequested: Regenerate AI summary for single page
+//! - RegeneratePagePostsRequested: Regenerate posts for single page
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -19,7 +22,6 @@ use tracing::{info, warn};
 use crate::kernel::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ContactInfo, ExtractedPost, JobId, MemberId, WebsiteId};
-use crate::domains::crawling::commands::CrawlCommand;
 use crate::domains::crawling::events::{CrawledPageInfo, CrawlEvent, PageExtractionResult};
 use crate::domains::crawling::models::{PageSnapshot, PageSummary, WebsiteSnapshot};
 use crate::domains::crawling::effects::extraction::{
@@ -109,57 +111,61 @@ fn get_crawl_priorities() -> LinkPriorities {
     }
 }
 
-/// Crawler Effect - Handles multi-page website crawling
+/// Crawler Effect - Handles CrawlEvent request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to handler functions.
+/// This effect is a thin orchestration layer that dispatches request events to handler functions.
+/// Fact events should never reach this effect (they're outputs, not inputs).
 pub struct CrawlerEffect;
 
 #[async_trait]
-impl Effect<CrawlCommand, ServerDeps> for CrawlerEffect {
+impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
     type Event = CrawlEvent;
 
-    async fn execute(
-        &self,
-        cmd: CrawlCommand,
+    async fn handle(
+        &mut self,
+        event: CrawlEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<CrawlEvent> {
-        match cmd {
-            CrawlCommand::CrawlWebsite {
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            CrawlEvent::CrawlWebsiteRequested {
                 website_id,
                 job_id,
                 requested_by,
                 is_admin,
             } => handle_crawl_website(website_id, job_id, requested_by, is_admin, &ctx).await,
 
-            CrawlCommand::ExtractPostsFromPages {
+            CrawlEvent::ExtractPostsFromPagesRequested {
                 website_id,
                 job_id,
                 pages,
             } => handle_extract_from_pages(website_id, job_id, pages, &ctx).await,
 
-            CrawlCommand::RetryWebsiteCrawl { website_id, job_id } => {
+            CrawlEvent::RetryWebsiteCrawlRequested { website_id, job_id } => {
                 handle_retry_crawl(website_id, job_id, &ctx).await
             }
 
-            CrawlCommand::MarkWebsiteNoPosts { website_id, job_id } => {
+            CrawlEvent::MarkWebsiteNoPostsRequested { website_id, job_id } => {
                 handle_mark_no_posts(website_id, job_id, &ctx).await
             }
 
-            CrawlCommand::SyncCrawledPosts {
+            CrawlEvent::SyncCrawledPostsRequested {
                 website_id,
                 job_id,
                 posts,
                 page_results,
             } => handle_sync_crawled_posts(website_id, job_id, posts, page_results, &ctx).await,
 
-            CrawlCommand::RegeneratePosts {
+            CrawlEvent::RegeneratePostsRequested {
                 website_id,
                 job_id,
                 requested_by,
                 is_admin,
             } => handle_regenerate_posts(website_id, job_id, requested_by, is_admin, &ctx).await,
 
-            CrawlCommand::RegeneratePageSummaries {
+            CrawlEvent::RegeneratePageSummariesRequested {
                 website_id,
                 job_id,
                 requested_by,
@@ -169,7 +175,7 @@ impl Effect<CrawlCommand, ServerDeps> for CrawlerEffect {
                     .await
             }
 
-            CrawlCommand::RegeneratePageSummary {
+            CrawlEvent::RegeneratePageSummaryRequested {
                 page_snapshot_id,
                 job_id,
                 requested_by,
@@ -185,7 +191,7 @@ impl Effect<CrawlCommand, ServerDeps> for CrawlerEffect {
                 .await
             }
 
-            CrawlCommand::RegeneratePagePosts {
+            CrawlEvent::RegeneratePagePostsRequested {
                 page_snapshot_id,
                 job_id,
                 requested_by,
@@ -199,6 +205,26 @@ impl Effect<CrawlCommand, ServerDeps> for CrawlerEffect {
                     &ctx,
                 )
                 .await
+            }
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            CrawlEvent::WebsiteCrawled { .. }
+            | CrawlEvent::PagesReadyForExtraction { .. }
+            | CrawlEvent::WebsiteCrawlNoListings { .. }
+            | CrawlEvent::WebsiteMarkedNoListings { .. }
+            | CrawlEvent::WebsiteCrawlFailed { .. }
+            | CrawlEvent::PostsExtractedFromPages { .. }
+            | CrawlEvent::PostsSynced { .. }
+            | CrawlEvent::PageSummariesRegenerated { .. }
+            | CrawlEvent::PageSummaryRegenerated { .. }
+            | CrawlEvent::PagePostsRegenerated { .. }
+            | CrawlEvent::AuthorizationDenied { .. } => {
+                anyhow::bail!(
+                    "Fact events should not be dispatched to effects. \
+                     They are outputs from effects, not inputs."
+                )
             }
         }
     }

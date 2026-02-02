@@ -1,33 +1,7 @@
 use crate::domains::auth::JwtService;
-use crate::domains::chatrooms::{
-    commands::{ChatCommand, GenerateAgentGreetingCommand, GenerateChatReplyCommand},
-    effects::{ChatEffect, GenerateAgentGreetingEffect, GenerateChatReplyEffect},
-    machines::{AgentGreetingMachine, AgentMessagingMachine, AgentReplyMachine, ChatEventMachine},
-};
-use crate::domains::domain_approval::{
-    commands::DomainApprovalCommand, effects::DomainApprovalCompositeEffect,
-    machines::DomainApprovalMachine,
-};
-use crate::domains::crawling::{
-    commands::CrawlCommand,
-    effects::CrawlerEffect,
-    machines::CrawlMachine,
-};
-use crate::domains::posts::{
-    commands::PostCommand,
-    effects::PostCompositeEffect,
-    extraction::{PostExtractionCommand, PostExtractionEffect, PostExtractionMachine},
-    machines::PostMachine,
-};
-use crate::domains::website::{
-    commands::WebsiteCommand,
-    effects::WebsiteEffect,
-    machines::WebsiteMachine,
-};
+use crate::domains::chatrooms::effects::ChatEffect;
+use crate::domains::chatrooms::events::ChatEvent;
 use crate::kernel::{ServerDeps, TwilioAdapter};
-use crate::domains::member::{
-    commands::MemberCommand, effects::RegistrationEffect, machines::MemberMachine,
-};
 use crate::kernel::OpenAIClient;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
@@ -46,7 +20,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw_core::{EngineBuilder, EngineHandle, EventBus};
+use seesaw_core::{EngineBuilder, EventBus};
 use sqlx::PgPool;
 use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -89,7 +63,10 @@ async fn create_graphql_context(
     next.run(request).await
 }
 
-/// Build the Axum application router and engine handle
+/// Build the Axum application router and EventBus
+///
+/// In seesaw 0.3.0, we return the EventBus for scheduled tasks to emit events.
+/// Effects are registered via EngineBuilder and dispatched via the bus.
 pub fn build_app(
     pool: PgPool,
     openai_api_key: String,
@@ -106,7 +83,7 @@ pub fn build_app(
     admin_identifiers: Vec<String>,
     pii_scrubbing_enabled: bool,
     pii_use_gpt_detection: bool,
-) -> (Router, EngineHandle) {
+) -> (Router, EventBus) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
 
@@ -154,48 +131,39 @@ pub fn build_app(
         admin_identifiers,
     );
 
-    // Create job queue adapter for background commands
-    let job_queue = std::sync::Arc::new(crate::kernel::job_queue::SeesawJobQueueAdapter::new(
-        pool.clone(),
-    ));
-
-    // Build and start seesaw engine
+    // Build seesaw engine with effects (no machines in 0.3.0)
+    //
+    // NOTE: In 0.3.0, we register effects for EVENT types, not command types.
+    // Effects handle request events and return fact events.
+    // Internal edges react to fact events and emit new request events.
     let engine = EngineBuilder::new(server_deps)
-        // Website domain (approval workflow)
-        .with_machine(WebsiteMachine::new())
-        .with_effect::<WebsiteCommand, _>(WebsiteEffect)
-        // Crawling domain (multi-page website crawling)
-        .with_machine(CrawlMachine::new())
-        .with_effect::<CrawlCommand, _>(CrawlerEffect)
-        // Listings domain (replaces Organization domain)
-        .with_machine(PostMachine::new())
-        .with_effect::<PostCommand, _>(PostCompositeEffect::new())
-        // Post extraction (listens to CrawlEvent::PagesReadyForExtraction)
-        .with_machine(PostExtractionMachine::new())
-        .with_effect::<PostExtractionCommand, _>(PostExtractionEffect)
-        // Member domain
-        .with_machine(MemberMachine::new())
-        .with_effect::<MemberCommand, _>(RegistrationEffect)
         // Auth domain
-        .with_machine(crate::domains::auth::AuthMachine::new())
-        .with_effect::<crate::domains::auth::AuthCommand, _>(crate::domains::auth::AuthEffect)
+        .with_effect::<crate::domains::auth::AuthEvent, _>(crate::domains::auth::AuthEffect)
+        // Member domain
+        .with_effect::<crate::domains::member::MemberEvent, _>(
+            crate::domains::member::MemberEffect,
+        )
+        // Chat domain
+        .with_effect::<ChatEvent, _>(ChatEffect)
+        // Website domain
+        .with_effect::<crate::domains::website::WebsiteEvent, _>(
+            crate::domains::website::WebsiteEffect,
+        )
+        // Crawling domain
+        .with_effect::<crate::domains::crawling::CrawlEvent, _>(
+            crate::domains::crawling::CrawlerEffect,
+        )
+        // Posts domain
+        .with_effect::<crate::domains::posts::PostEvent, _>(
+            crate::domains::posts::PostCompositeEffect::new(),
+        )
         // Domain approval domain
-        .with_machine(DomainApprovalMachine::new())
-        .with_effect::<DomainApprovalCommand, _>(DomainApprovalCompositeEffect::new())
-        // Chat domain - AI chat, comments, discussions
-        .with_machine(ChatEventMachine::default())
-        .with_machine(AgentReplyMachine::default())
-        .with_machine(AgentMessagingMachine::default())
-        .with_machine(AgentGreetingMachine::default())
-        .with_effect::<ChatCommand, _>(ChatEffect)
-        .with_effect::<GenerateChatReplyCommand, _>(GenerateChatReplyEffect)
-        .with_effect::<GenerateAgentGreetingCommand, _>(GenerateAgentGreetingEffect)
-        // Job queue for background commands
-        .with_job_queue(job_queue)
+        .with_effect::<crate::domains::domain_approval::DomainApprovalEvent, _>(
+            crate::domains::domain_approval::DomainApprovalEffect,
+        )
         .build();
 
-    let handle = engine.start();
-    let bus = handle.bus().clone();
+    let bus = engine.bus().clone();
 
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));
@@ -203,7 +171,7 @@ pub fn build_app(
     // Create shared app state
     let app_state = AppState {
         db_pool: pool.clone(),
-        bus,
+        bus: bus.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),
@@ -283,5 +251,5 @@ pub fn build_app(
         // State (schema for GraphQL handlers)
         .with_state(schema);
 
-    (router, handle)
+    (router, bus)
 }

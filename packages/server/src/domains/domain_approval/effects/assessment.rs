@@ -1,56 +1,24 @@
+//! Assessment effect - handles generating AI assessments from research data
+//!
+//! This module contains the handler for the GenerateAssessmentFromResearchRequested event.
+
 use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use crate::domains::website::models::{
     TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearchHomepage,
 };
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
-
-/// Assessment Effect - Handles generating AI assessments from research data
-///
-/// This effect is a thin orchestration layer that dispatches to handler functions.
-pub struct AssessmentEffect;
-
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for AssessmentEffect {
-    type Event = DomainApprovalEvent;
-
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        match cmd {
-            DomainApprovalCommand::GenerateAssessmentFromResearch {
-                research_id,
-                website_id,
-                job_id,
-                requested_by,
-            } => {
-                handle_generate_assessment_from_research(
-                    research_id,
-                    website_id,
-                    job_id,
-                    requested_by,
-                    &ctx,
-                )
-                .await
-            }
-            _ => anyhow::bail!("AssessmentEffect: Unexpected command"),
-        }
-    }
-}
 
 // ============================================================================
 // Handler Functions (Business Logic)
 // ============================================================================
 
-async fn handle_generate_assessment_from_research(
+/// Handle the GenerateAssessmentFromResearchRequested event.
+pub async fn handle_generate_assessment(
     research_id: Uuid,
     website_id: WebsiteId,
     job_id: JobId,

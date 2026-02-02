@@ -1,33 +1,46 @@
+//! Sync effect - handles post sync request events
+//!
+//! This effect is a thin orchestration layer that dispatches request events to handler functions.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
 use crate::kernel::ServerDeps;
 use crate::common::{JobId, WebsiteId};
-use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 
-/// Sync Effect - Handles SyncPosts command
+/// Sync Effect - Handles post sync request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to handler functions.
+/// This effect is a thin orchestration layer that dispatches events to handler functions.
 pub struct SyncEffect;
 
 #[async_trait]
-impl Effect<PostCommand, ServerDeps> for SyncEffect {
+impl Effect<PostEvent, ServerDeps> for SyncEffect {
     type Event = PostEvent;
 
-    async fn execute(
-        &self,
-        cmd: PostCommand,
+    async fn handle(
+        &mut self,
+        event: PostEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
-        match cmd {
-            PostCommand::SyncPosts {
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            PostEvent::SyncPostsRequested {
                 source_id,
                 job_id,
                 posts,
             } => handle_sync_posts(source_id, job_id, posts, &ctx).await,
-            _ => anyhow::bail!("SyncEffect: Unexpected command"),
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            _ => anyhow::bail!(
+                "Fact events or unhandled request events should not be dispatched to SyncEffect"
+            ),
         }
     }
 }

@@ -4,17 +4,74 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use seesaw_core::EventBus;
-use seesaw_testing::SpyJobQueue;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
+use uuid::Uuid;
 
 use super::{
+    job_queue::{JobQueue, JobSpec},
     BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
     BaseWebScraper, CrawlResult, CrawledPage, LinkPriorities, PiiScrubResult, ScrapeResult,
     SearchResult, ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
+
+// =============================================================================
+// Spy Job Queue (for testing)
+// =============================================================================
+
+/// Spy job queue that records all enqueued jobs for testing
+pub struct SpyJobQueue {
+    jobs: Arc<Mutex<Vec<(serde_json::Value, JobSpec)>>>,
+}
+
+impl SpyJobQueue {
+    pub fn new() -> Self {
+        Self {
+            jobs: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    /// Get all enqueued jobs
+    pub fn jobs(&self) -> Vec<(serde_json::Value, JobSpec)> {
+        self.jobs.lock().unwrap().clone()
+    }
+
+    /// Check if a job of the given type was enqueued
+    pub fn has_job(&self, job_type: &str) -> bool {
+        self.jobs
+            .lock()
+            .unwrap()
+            .iter()
+            .any(|(_, spec)| spec.job_type == job_type)
+    }
+}
+
+impl Default for SpyJobQueue {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[async_trait]
+impl JobQueue for SpyJobQueue {
+    async fn enqueue(&self, payload: serde_json::Value, spec: JobSpec) -> Result<Uuid> {
+        self.jobs.lock().unwrap().push((payload, spec));
+        Ok(Uuid::new_v4())
+    }
+
+    async fn schedule(
+        &self,
+        payload: serde_json::Value,
+        spec: JobSpec,
+        _run_at: DateTime<Utc>,
+    ) -> Result<Uuid> {
+        self.jobs.lock().unwrap().push((payload, spec));
+        Ok(Uuid::new_v4())
+    }
+}
 
 // =============================================================================
 // Mock Web Scraper

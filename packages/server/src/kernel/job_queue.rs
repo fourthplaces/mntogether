@@ -1,15 +1,36 @@
-//! Job queue adapter for seesaw-rs using PostgreSQL storage.
+//! Job queue for background processing using PostgreSQL storage.
 //!
-//! This module provides a bridge between seesaw's job queue abstraction and
-//! PostgreSQL-based job storage.
+//! NOTE: seesaw 0.3.0 removed the JobQueue abstraction.
+//! This module provides a standalone job queue for background tasks.
 
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use seesaw_core::JobSpec;
 use sqlx::PgPool;
 use tracing::debug;
 use uuid::Uuid;
+
+/// Job specification for background tasks
+#[derive(Debug, Clone)]
+pub struct JobSpec {
+    pub job_type: &'static str,
+    pub idempotency_key: Option<String>,
+    pub max_retries: i32,
+    pub priority: i32,
+    pub version: i32,
+}
+
+/// Trait for job queue implementations
+#[async_trait]
+pub trait JobQueue: Send + Sync {
+    async fn enqueue(&self, payload: serde_json::Value, spec: JobSpec) -> Result<Uuid>;
+    async fn schedule(
+        &self,
+        payload: serde_json::Value,
+        spec: JobSpec,
+        run_at: DateTime<Utc>,
+    ) -> Result<Uuid>;
+}
 
 /// PostgreSQL-backed job for background processing
 #[derive(Debug, Clone, sqlx::FromRow)]
@@ -97,7 +118,7 @@ impl Job {
     }
 }
 
-/// Adapter that implements seesaw's `JobQueue` trait using PostgreSQL.
+/// Adapter that implements `JobQueue` trait using PostgreSQL.
 pub struct SeesawJobQueueAdapter {
     db: PgPool,
 }
@@ -146,7 +167,6 @@ impl SeesawJobQueueAdapter {
         }
 
         // Create job
-        // Note: reference_id should now be in the command payload
         let mut job = Job::new(
             spec.job_type.to_string(),
             payload,
@@ -167,7 +187,7 @@ impl SeesawJobQueueAdapter {
             job_id = %job.id,
             job_type = %spec.job_type,
             run_at = ?run_at,
-            "Enqueueing job via seesaw adapter"
+            "Enqueueing job"
         );
 
         // Insert into database
@@ -178,7 +198,7 @@ impl SeesawJobQueueAdapter {
 }
 
 #[async_trait]
-impl seesaw_core::JobQueue for SeesawJobQueueAdapter {
+impl JobQueue for SeesawJobQueueAdapter {
     async fn enqueue(&self, payload: serde_json::Value, spec: JobSpec) -> Result<Uuid> {
         self.enqueue_internal(payload, spec, None).await
     }

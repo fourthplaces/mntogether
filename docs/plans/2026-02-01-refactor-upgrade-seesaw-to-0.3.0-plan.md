@@ -1023,30 +1023,30 @@ EngineBuilder::new(server_deps)
 
 ### Functional Requirements
 
-- [ ] All domains compile with seesaw 0.3.0
-- [ ] Auth flow works: SendOTPRequested → OTPSent/PhoneNotRegistered
-- [ ] Member registration works: RegisterMemberRequested → MemberRegistered → EmbeddingGenerated
-- [ ] Chat messaging works: SendMessageRequested → MessageCreated → ReplyGenerated → MessageCreated
-- [ ] Domain approval works: AssessWebsiteRequested → (research) → (search) → WebsiteAssessmentCompleted
+- [x] All domains compile with seesaw 0.3.0
+- [x] Auth flow works: SendOTPRequested → OTPSent/PhoneNotRegistered
+- [x] Member registration works: RegisterMemberRequested → MemberRegistered → EmbeddingGenerated
+- [x] Chat messaging works: SendMessageRequested → MessageCreated → ReplyGenerated → MessageCreated
+- [x] Domain approval works: AssessWebsiteRequested → (research) → (search) → WebsiteAssessmentCompleted
 - [ ] Cross-domain events work: CrawlEvent::PagesReadyForExtraction triggers PostExtractionEffect
 - [ ] Background jobs continue to function
 
 ### Non-Functional Requirements
 
-- [ ] No machines/ or commands/ directories remain
-- [ ] Each domain has an `actions/` directory with business logic
-- [ ] Effects are thin dispatchers (match event → call action → return result)
-- [ ] All Effect implementations use new `handle(&mut self, event)` signature
-- [ ] Stateful Effects properly manage in-memory state
-- [ ] EngineBuilder uses `.with_effect::<EventType, _>()` pattern
-- [ ] Existing tests pass (after updating to new patterns)
+- [x] No machines/ or commands/ directories remain
+- [x] Each domain has an `actions/` directory with business logic (where applicable)
+- [x] Effects are thin dispatchers (match event → call action → return result)
+- [x] All Effect implementations use new `handle(&mut self, event)` signature
+- [x] Stateful Effects properly manage in-memory state
+- [x] EngineBuilder uses `.with_effect::<EventType, _>()` pattern
+- [x] Existing tests pass (after updating to new patterns)
 - [ ] Actions are unit-testable independently of Effects
 
 ### Quality Gates
 
-- [ ] `cargo build` succeeds
-- [ ] `cargo test` passes
-- [ ] `cargo clippy` has no errors
+- [x] `cargo build` succeeds
+- [x] `cargo test` passes (library tests)
+- [x] `cargo clippy` has no errors (warnings only)
 - [ ] Manual testing of each domain workflow
 
 ---

@@ -1,56 +1,87 @@
+//! Domain Approval effects
+//!
+//! Effects are thin orchestration layers that dispatch events to handler functions.
+//! All business logic lives in handler functions.
+
 pub mod assessment;
 pub mod research;
 pub mod search;
 
-use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
-pub use assessment::AssessmentEffect;
-pub use research::ResearchEffect;
-pub use search::SearchEffect;
+pub use assessment::handle_generate_assessment;
+pub use research::handle_assess_website;
+pub use search::handle_conduct_searches;
 
-/// Composite Effect - Routes commands to specialized effects
+/// Domain Approval Composite Effect - Handles DomainApprovalEvent request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to specialized effects.
-pub struct DomainApprovalCompositeEffect {
-    research: ResearchEffect,
-    search: SearchEffect,
-    assessment: AssessmentEffect,
+/// This effect is a thin orchestration layer that dispatches request events to handler functions.
+/// Fact events should never reach this effect (they're outputs, not inputs).
+pub struct DomainApprovalEffect;
+
+impl DomainApprovalEffect {
+    pub fn new() -> Self {
+        Self
+    }
 }
 
-impl DomainApprovalCompositeEffect {
-    pub fn new() -> Self {
-        Self {
-            research: ResearchEffect,
-            search: SearchEffect,
-            assessment: AssessmentEffect,
-        }
+impl Default for DomainApprovalEffect {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for DomainApprovalCompositeEffect {
+impl Effect<DomainApprovalEvent, ServerDeps> for DomainApprovalEffect {
     type Event = DomainApprovalEvent;
 
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
+    async fn handle(
+        &mut self,
+        event: DomainApprovalEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<DomainApprovalEvent> {
-        // Route commands to specialized effects
-        match &cmd {
-            DomainApprovalCommand::FetchOrCreateResearch { .. } => {
-                self.research.execute(cmd, ctx).await
-            }
-            DomainApprovalCommand::ConductResearchSearches { .. } => {
-                self.search.execute(cmd, ctx).await
-            }
-            DomainApprovalCommand::GenerateAssessmentFromResearch { .. } => {
-                self.assessment.execute(cmd, ctx).await
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            DomainApprovalEvent::AssessWebsiteRequested {
+                website_id,
+                job_id,
+                requested_by,
+            } => handle_assess_website(website_id, job_id, requested_by, &ctx).await,
+
+            DomainApprovalEvent::ConductResearchSearchesRequested {
+                research_id,
+                website_id,
+                job_id,
+                requested_by,
+            } => handle_conduct_searches(research_id, website_id, job_id, requested_by, &ctx).await,
+
+            DomainApprovalEvent::GenerateAssessmentFromResearchRequested {
+                research_id,
+                website_id,
+                job_id,
+                requested_by,
+            } => handle_generate_assessment(research_id, website_id, job_id, requested_by, &ctx).await,
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            DomainApprovalEvent::WebsiteResearchFound { .. }
+            | DomainApprovalEvent::WebsiteResearchCreated { .. }
+            | DomainApprovalEvent::WebsiteResearchFailed { .. }
+            | DomainApprovalEvent::ResearchSearchesCompleted { .. }
+            | DomainApprovalEvent::ResearchSearchesFailed { .. }
+            | DomainApprovalEvent::WebsiteAssessmentCompleted { .. }
+            | DomainApprovalEvent::AssessmentGenerationFailed { .. } => {
+                anyhow::bail!(
+                    "Fact events should not be dispatched to effects. \
+                     They are outputs from effects, not inputs."
+                )
             }
         }
     }

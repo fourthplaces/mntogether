@@ -1,3 +1,8 @@
+//! Scraper effect - handles scraping request events
+//!
+//! This effect is a thin orchestration layer that dispatches request events to handler functions.
+//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+
 use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
@@ -6,39 +11,48 @@ use crate::kernel::ServerDeps;
 use super::post::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
 use crate::domains::website::models::Website;
 
-/// Scraper Effect - Handles ScrapeSource command
+/// Scraper Effect - Handles scraping request events
 ///
-/// This effect is a thin orchestration layer that dispatches commands to handler functions.
+/// This effect is a thin orchestration layer that dispatches events to handler functions.
 pub struct ScraperEffect;
 
 #[async_trait]
-impl Effect<PostCommand, ServerDeps> for ScraperEffect {
+impl Effect<PostEvent, ServerDeps> for ScraperEffect {
     type Event = PostEvent;
 
-    async fn execute(
-        &self,
-        cmd: PostCommand,
+    async fn handle(
+        &mut self,
+        event: PostEvent,
         ctx: EffectContext<ServerDeps>,
     ) -> Result<PostEvent> {
-        match cmd {
-            PostCommand::ScrapeSource {
+        match event {
+            // =================================================================
+            // Request Events → Dispatch to Handlers
+            // =================================================================
+            PostEvent::ScrapeSourceRequested {
                 source_id,
                 job_id,
                 requested_by,
                 is_admin,
             } => handle_scrape_source(source_id, job_id, requested_by, is_admin, &ctx).await,
-            PostCommand::ScrapeResourceLink {
+
+            PostEvent::ScrapeResourceLinkRequested {
                 job_id,
                 url,
                 context,
                 submitter_contact,
             } => handle_scrape_resource_link(job_id, url, context, submitter_contact, &ctx).await,
-            _ => anyhow::bail!("ScraperEffect: Unexpected command"),
+
+            // =================================================================
+            // Fact Events → Should not reach effect (return error)
+            // =================================================================
+            _ => anyhow::bail!(
+                "Fact events or unhandled request events should not be dispatched to ScraperEffect"
+            ),
         }
     }
 }

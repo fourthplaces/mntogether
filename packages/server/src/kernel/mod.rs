@@ -25,5 +25,6 @@ pub use pii::{create_pii_detector, HybridPiiDetector, NoopPiiDetector, RegexPiiD
 pub use server_kernel::ServerKernel;
 pub use simple_scraper::SimpleScraper;
 pub use tavily_client::{NoopSearchService, TavilyClient};
-pub use test_dependencies::TestDependencies;
+pub use test_dependencies::{SpyJobQueue, TestDependencies};
+pub use job_queue::{JobQueue, JobSpec};
 pub use traits::*;

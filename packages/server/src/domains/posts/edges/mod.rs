@@ -1,3 +1,4 @@
+pub mod internal;
 pub mod mutation;
 pub mod query;
 

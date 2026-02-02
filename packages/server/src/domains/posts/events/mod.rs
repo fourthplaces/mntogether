@@ -6,14 +6,15 @@ use crate::common::{JobId, MemberId, PostId, WebsiteId};
 use crate::domains::posts::models::post_report::PostReportId;
 
 /// Posts domain events
-/// Following seesaw-rs pattern: Events are immutable facts
+/// Following seesaw 0.3.0 pattern:
+///   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
 ///
 /// NOTE: Crawling events have been moved to the `crawling` domain.
 /// See `crate::domains::crawling::events::CrawlEvent`.
 #[derive(Debug, Clone)]
 pub enum PostEvent {
     // =========================================================================
-    // Request Events (from edges - entry points)
+    // Request Events (from edges - entry points and internal triggers)
     // =========================================================================
     /// Admin requests to scrape an organization source
     ScrapeSourceRequested {
@@ -21,6 +22,67 @@ pub enum PostEvent {
         job_id: JobId,          // Track job for async workflow
         requested_by: MemberId, // User making the request (for authorization)
         is_admin: bool,         // Whether user is admin (checked in effect)
+    },
+
+    /// Scrape a user-submitted resource link (internal - triggered by WebsiteCreatedFromLink)
+    ScrapeResourceLinkRequested {
+        job_id: JobId,
+        url: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
+    /// Extract posts from scraped content (internal - triggered by SourceScraped)
+    ExtractPostsRequested {
+        source_id: WebsiteId,
+        job_id: JobId,
+        organization_name: String,
+        content: String,
+    },
+
+    /// Extract posts from resource link content (internal - triggered by ResourceLinkScraped)
+    ExtractPostsFromResourceLinkRequested {
+        job_id: JobId,
+        url: String,
+        content: String,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
+    /// Sync extracted posts to database (internal - triggered by PostsExtracted)
+    SyncPostsRequested {
+        source_id: WebsiteId,
+        job_id: JobId,
+        posts: Vec<ExtractedPost>,
+    },
+
+    /// Create posts from resource link extraction (internal - triggered by ResourceLinkPostsExtracted)
+    CreatePostsFromResourceLinkRequested {
+        job_id: JobId,
+        url: String,
+        posts: Vec<ExtractedPost>,
+        context: Option<String>,
+        submitter_contact: Option<String>,
+    },
+
+    /// Create a post entry (user submission)
+    CreatePostEntryRequested {
+        member_id: Option<MemberId>,
+        organization_name: String,
+        title: String,
+        description: String,
+        contact_info: Option<JsonValue>,
+        urgency: Option<String>,
+        location: Option<String>,
+        ip_address: Option<String>,
+        submission_type: String,
+    },
+
+    /// Create a website from user-submitted link
+    CreateWebsiteFromLinkRequested {
+        url: String,
+        organization_name: String,
+        submitter_contact: Option<String>,
     },
 
     /// Member submits a listing they encountered
@@ -132,6 +194,24 @@ pub enum PostEvent {
         post_id: PostId,
         requested_by: MemberId,
         is_admin: bool,
+    },
+
+    /// Update post status (approve/reject)
+    UpdatePostStatusRequested {
+        post_id: PostId,
+        status: String,
+        rejection_reason: Option<String>,
+        requested_by: MemberId,
+        is_admin: bool,
+    },
+
+    /// Create a post announcement (when listing is approved)
+    CreatePostRequested {
+        post_id: PostId,
+        created_by: Option<MemberId>,
+        custom_title: Option<String>,
+        custom_description: Option<String>,
+        expires_in_days: Option<i64>,
     },
 
     /// User reports a listing for moderation
