@@ -251,163 +251,198 @@ CREATE TABLE tavily_results (
 );
 ```
 
-## Seesaw Effect Rules
+## Seesaw Architecture Rules (v0.4.0+)
 
-### HARD RULE: Effects Must Be Thin Orchestration Layers
+### Overview
 
-**Effects should dispatch to handler functions, not contain business logic directly.**
+Seesaw uses an event-driven architecture with three main components:
 
-Effects are the integration point between Seesaw's event-driven architecture and your business logic. They should be thin dispatchers that route commands to handler functions containing the actual logic.
+1. **Effects** - Thin dispatchers that route commands to handlers
+2. **Actions** - Reusable business logic in `domains/*/actions/` modules
+3. **Edges** - Event-to-command transitions that can run business logic
 
-#### ✅ Correct Pattern (Thin Effect):
+### HARD RULE: Effects Must Be Ultra-Thin
+
+**Effect handlers should only: (1) check authorization, (2) call an action, (3) return an event.**
+
+Handlers must be <50 lines. All business logic lives in actions modules.
+
+#### ✅ Correct Pattern (Ultra-Thin Handler):
 
 ```rust
-use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
-
-pub struct ResearchEffect;
-
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for ResearchEffect {
-    type Event = DomainApprovalEvent;
-
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        match cmd {
-            DomainApprovalCommand::FetchOrCreateResearch {
-                domain_id,
-                job_id,
-                requested_by,
-            } => {
-                // Effect just dispatches to handler
-                handle_fetch_or_create_research(domain_id, job_id, requested_by, &ctx).await
-            }
-        }
-    }
-}
-
-// ============================================================================
-// Handler Functions (Business Logic)
-// ============================================================================
-
-async fn handle_fetch_or_create_research(
-    domain_id: DomainId,
+// Effect dispatches to thin handler
+async fn handle_regenerate_posts(
+    page_snapshot_id: Uuid,
     job_id: JobId,
     requested_by: MemberId,
+    is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
-) -> Result<DomainApprovalEvent> {
-    // All business logic lives here
-    info!(domain_id = %domain_id, "Fetching or creating research");
-
-    // Check for existing research
-    let existing = DomainResearch::find_latest_by_domain_id(
-        domain_id.into(),
-        &ctx.deps().db_pool,
-    )
-    .await?;
-
-    if let Some(research) = existing {
-        let age_days = (chrono::Utc::now() - research.created_at).num_days();
-        if age_days < 7 {
-            return Ok(DomainApprovalEvent::DomainResearchFound {
-                research_id: research.id,
-                domain_id,
-                job_id,
-                age_days,
-            });
-        }
+) -> Result<CrawlEvent> {
+    // 1. Auth check (using reusable action)
+    if let Err(event) = actions::check_crawl_authorization(
+        requested_by, is_admin, "RegeneratePosts", ctx.deps()
+    ).await {
+        return Ok(event);
     }
 
-    // Create new research...
-    // (rest of logic)
+    // 2. Delegate to action (all business logic lives there)
+    let posts_count = actions::regenerate_posts_for_page(
+        page_snapshot_id, job_id, ctx.deps()
+    ).await;
+
+    // 3. Return event
+    Ok(CrawlEvent::PagePostsRegenerated { page_snapshot_id, job_id, posts_count })
 }
 ```
 
-#### ❌ Incorrect Pattern (DO NOT USE):
+#### ❌ Incorrect Pattern (Thick Handler):
 
 ```rust
-// NEVER PUT BUSINESS LOGIC DIRECTLY IN EFFECT!
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for ResearchEffect {
-    type Event = DomainApprovalEvent;
+// BAD: All this logic should be in an action!
+async fn handle_regenerate_posts(...) -> Result<CrawlEvent> {
+    // Auth check inline (should be reusable action)
+    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+        .can(AdminCapability::TriggerScraping)
+        .check(ctx.deps())
+        .await
+    { ... }
 
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        match cmd {
-            DomainApprovalCommand::FetchOrCreateResearch {
-                domain_id,
-                job_id,
-                requested_by,
-            } => {
-                // BAD: All this logic should be in a handler function!
-                info!(domain_id = %domain_id, "Fetching or creating research");
+    // Multiple circuit breakers inline (should be in action)
+    let page_snapshot = PageSnapshot::find_by_id(...).await?;
+    let website_snapshot = WebsiteSnapshot::find_by_page_snapshot_id(...).await?;
+    let website = Website::find_by_id(...).await?;
 
-                let existing = DomainResearch::find_latest_by_domain_id(
-                    domain_id.into(),
-                    &ctx.deps().db_pool,
-                )
-                .await?;
-
-                // ... 100 more lines of logic ...
-            }
-        }
-    }
+    // ... 100 more lines ...
 }
 ```
 
-### Key Points:
+---
 
-1. **Effects are thin dispatchers**: They only route commands to handlers
-2. **Handler functions contain business logic**: All actual work happens here
-3. **One handler per command variant**: Clear 1:1 mapping
-4. **Handler signature**: `async fn handle_xyz(..., ctx: &EffectContext<ServerDeps>) -> Result<Event>`
-5. **Testability**: Handler functions are easier to unit test
-6. **Readability**: Separates routing from logic
+### HARD RULE: Business Logic Lives in Actions
 
-### Benefits:
+**Create reusable actions in `domains/*/actions/` modules.**
 
-- **Testability**: Test handler functions without Effect trait overhead
-- **Reusability**: Handler functions can be called from other contexts
-- **Clarity**: Clear separation between routing and business logic
-- **Maintainability**: Easier to find and modify specific business logic
+Actions are pure business logic functions that:
+- Take dependencies explicitly (no EffectContext)
+- Return simple values (count, bool, struct) NOT events
+- Can be composed and reused across handlers
+- Are easy to unit test
 
-### Example: Multi-Command Effect
+#### Actions Module Structure:
+
+```
+domains/crawling/actions/
+├── mod.rs                 # Re-exports
+├── authorization.rs       # check_crawl_authorization()
+├── crawl_website.rs       # crawl_website_pages(), store_crawled_pages()
+├── build_pages.rs         # build_pages_to_summarize(), fetch_single_page_context()
+├── extract_posts.rs       # extract_posts_from_pages()
+├── sync_posts.rs          # sync_and_deduplicate_posts()
+└── website_context.rs     # fetch_approved_website()
+```
+
+#### ✅ Correct Action Pattern:
 
 ```rust
-pub struct DomainApprovalCompositeEffect {
-    research: ResearchEffect,
-    search: SearchEffect,
-    assessment: AssessmentEffect,
-}
+// actions/regenerate_page.rs
 
-#[async_trait]
-impl Effect<DomainApprovalCommand, ServerDeps> for DomainApprovalCompositeEffect {
-    type Event = DomainApprovalEvent;
+/// Workflow action that consolidates multiple operations.
+/// Returns simple value (count), NOT an event.
+pub async fn regenerate_posts_for_page(
+    page_snapshot_id: Uuid,
+    job_id: JobId,
+    deps: &ServerDeps,  // Takes deps, not EffectContext
+) -> usize {
+    // Early return on failure - no event needed
+    let Some(ctx) = fetch_single_page_context(page_snapshot_id, &deps.db_pool).await else {
+        return 0;
+    };
 
-    async fn execute(
-        &self,
-        cmd: DomainApprovalCommand,
-        ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
-        // Composite effect just routes to specialized effects
-        match &cmd {
-            DomainApprovalCommand::FetchOrCreateResearch { .. } => {
-                self.research.execute(cmd, ctx).await
-            }
-            DomainApprovalCommand::ConductResearchSearches { .. } => {
-                self.search.execute(cmd, ctx).await
-            }
-            DomainApprovalCommand::GenerateAssessmentFromResearch { .. } => {
-                self.assessment.execute(cmd, ctx).await
-            }
-        }
-    }
+    let page = build_page_to_summarize_from_snapshot(&ctx.page_snapshot, ctx.page_snapshot.url.clone());
+
+    let result = match extract_posts_from_pages(&ctx.website, vec![page], job_id, deps.ai.as_ref(), deps).await {
+        Ok(r) if !r.posts.is_empty() => r,
+        _ => return 0,
+    };
+
+    let count = result.posts.len();
+    let _ = sync_and_deduplicate_posts(ctx.website_id, result.posts, deps).await;
+    count
 }
 ```
+
+#### ✅ Correct Reusable Auth Action:
+
+```rust
+// actions/authorization.rs
+
+/// Reusable authorization check - replaces 5+ identical blocks.
+pub async fn check_crawl_authorization<D: HasAuthContext>(
+    requested_by: MemberId,
+    is_admin: bool,
+    action_name: &str,
+    deps: &D,
+) -> Result<(), CrawlEvent> {
+    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+        .can(AdminCapability::TriggerScraping)
+        .check(deps)
+        .await
+    {
+        return Err(CrawlEvent::AuthorizationDenied {
+            user_id: requested_by,
+            action: action_name.to_string(),
+            reason: auth_err.to_string(),
+        });
+    }
+    Ok(())
+}
+```
+
+---
+
+### Edges Can Run Business Logic
+
+In Seesaw 0.4.0+, edges can execute business logic during event-to-command transitions.
+
+```rust
+// Edge that runs logic before emitting command
+edge!(
+    CrawlEvent::PagesReadyForExtraction { website_id, job_id, pages } =>
+    async |event, deps| {
+        // Can run business logic here
+        let priorities = actions::get_crawl_priorities(website_id, &deps.db_pool).await;
+
+        CrawlCommand::ExtractFromPages {
+            website_id,
+            job_id,
+            pages,
+            priorities,
+        }
+    }
+);
+```
+
+---
+
+### Key Principles
+
+| Component | Responsibility | Size Limit |
+|-----------|---------------|------------|
+| Effect `execute()` | Route command to handler | ~5 lines |
+| Handler | Auth check → action → event | <50 lines |
+| Action | All business logic | No limit (but keep focused) |
+| Edge | Event → Command mapping, can run logic | Keep simple |
+
+### Benefits of This Architecture:
+
+- **Testability**: Actions are pure functions, easy to unit test
+- **Reusability**: Actions called from multiple handlers (DRY)
+- **Clarity**: Clear separation of routing vs logic
+- **Maintainability**: Find business logic in actions/, not scattered in effects
+
+### Common Patterns:
+
+1. **Workflow actions** return simple values (`usize`, `bool`, `Option<T>`)
+2. **Context helpers** like `fetch_single_page_context()` consolidate repeated lookups
+3. **Auth actions** like `check_crawl_authorization()` eliminate copy-paste
+4. **Use `match` not `?`** when action returns `Result<_, Event>` (events don't impl Error)

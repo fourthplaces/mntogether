@@ -35,7 +35,9 @@ impl Effect<PostEvent, ServerDeps> for AIEffect {
                 job_id,
                 organization_name,
                 content,
-            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx).await.map(Some),
+            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx)
+                .await
+                .map(Some),
 
             PostEvent::ExtractPostsFromResourceLinkRequested {
                 job_id,
@@ -43,18 +45,16 @@ impl Effect<PostEvent, ServerDeps> for AIEffect {
                 content,
                 context,
                 submitter_contact,
-            } => {
-                handle_extract_posts_from_resource_link(
-                    job_id,
-                    url,
-                    content,
-                    context,
-                    submitter_contact,
-                    &ctx,
-                )
-                .await
-                .map(Some)
-            }
+            } => handle_extract_posts_from_resource_link(
+                job_id,
+                url,
+                content,
+                context,
+                submitter_contact,
+                &ctx,
+            )
+            .await
+            .map(Some),
 
             // =================================================================
             // Other Events → Terminal, no follow-up needed

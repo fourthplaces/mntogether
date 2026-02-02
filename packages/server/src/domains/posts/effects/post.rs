@@ -698,10 +698,7 @@ async fn handle_create_posts_from_resource_link(
     let source_id = source.id;
 
     // Update last_scraped_at now that we've processed it
-    sqlx::query("UPDATE websites SET last_scraped_at = NOW() WHERE id = $1")
-        .bind(source_id.as_uuid())
-        .execute(&ctx.deps().db_pool)
-        .await?;
+    Website::update_last_scraped(source_id, &ctx.deps().db_pool).await?;
 
     // Create each extracted listing as a user_submitted listing in pending_approval status
     let mut created_count = 0;
