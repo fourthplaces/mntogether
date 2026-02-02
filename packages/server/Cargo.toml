@@ -50,7 +50,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
 # Event-driven architecture
-seesaw_core = "0.3.0"
+seesaw_core = "0.4.0"
 # seesaw-testing = "0.3.0"  # TODO: Add back when published
 
 # NOTE: Scraping done via Firecrawl (see kernel/firecrawl_client.rs)

@@ -125,7 +125,7 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
         &mut self,
         event: CrawlEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<CrawlEvent> {
+    ) -> Result<Option<CrawlEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -135,20 +135,20 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
                 job_id,
                 requested_by,
                 is_admin,
-            } => handle_crawl_website(website_id, job_id, requested_by, is_admin, &ctx).await,
+            } => handle_crawl_website(website_id, job_id, requested_by, is_admin, &ctx).await.map(Some),
 
             CrawlEvent::ExtractPostsFromPagesRequested {
                 website_id,
                 job_id,
                 pages,
-            } => handle_extract_from_pages(website_id, job_id, pages, &ctx).await,
+            } => handle_extract_from_pages(website_id, job_id, pages, &ctx).await.map(Some),
 
             CrawlEvent::RetryWebsiteCrawlRequested { website_id, job_id } => {
-                handle_retry_crawl(website_id, job_id, &ctx).await
+                handle_retry_crawl(website_id, job_id, &ctx).await.map(Some)
             }
 
             CrawlEvent::MarkWebsiteNoPostsRequested { website_id, job_id } => {
-                handle_mark_no_posts(website_id, job_id, &ctx).await
+                handle_mark_no_posts(website_id, job_id, &ctx).await.map(Some)
             }
 
             CrawlEvent::SyncCrawledPostsRequested {
@@ -156,14 +156,14 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
                 job_id,
                 posts,
                 page_results,
-            } => handle_sync_crawled_posts(website_id, job_id, posts, page_results, &ctx).await,
+            } => handle_sync_crawled_posts(website_id, job_id, posts, page_results, &ctx).await.map(Some),
 
             CrawlEvent::RegeneratePostsRequested {
                 website_id,
                 job_id,
                 requested_by,
                 is_admin,
-            } => handle_regenerate_posts(website_id, job_id, requested_by, is_admin, &ctx).await,
+            } => handle_regenerate_posts(website_id, job_id, requested_by, is_admin, &ctx).await.map(Some),
 
             CrawlEvent::RegeneratePageSummariesRequested {
                 website_id,
@@ -173,6 +173,7 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
             } => {
                 handle_regenerate_page_summaries(website_id, job_id, requested_by, is_admin, &ctx)
                     .await
+                    .map(Some)
             }
 
             CrawlEvent::RegeneratePageSummaryRequested {
@@ -189,6 +190,7 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             CrawlEvent::RegeneratePagePostsRequested {
@@ -205,10 +207,11 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             CrawlEvent::WebsiteCrawled { .. }
             | CrawlEvent::PagesReadyForExtraction { .. }
@@ -220,12 +223,7 @@ impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
             | CrawlEvent::PageSummariesRegenerated { .. }
             | CrawlEvent::PageSummaryRegenerated { .. }
             | CrawlEvent::PagePostsRegenerated { .. }
-            | CrawlEvent::AuthorizationDenied { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | CrawlEvent::AuthorizationDenied { .. } => Ok(None),
         }
     }
 }

@@ -25,7 +25,7 @@ impl Effect<MemberEvent, ServerDeps> for MemberEffect {
         &mut self,
         event: MemberEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<MemberEvent> {
+    ) -> Result<Option<MemberEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Actions
@@ -36,31 +36,28 @@ impl Effect<MemberEvent, ServerDeps> for MemberEffect {
                 city,
                 state,
             } => {
-                actions::register_member(expo_push_token, searchable_text, city, state, &ctx).await
+                actions::register_member(expo_push_token, searchable_text, city, state, &ctx)
+                    .await
+                    .map(Some)
             }
 
             MemberEvent::UpdateMemberStatusRequested { member_id, active } => {
-                actions::update_member_status(member_id, active, &ctx).await
+                actions::update_member_status(member_id, active, &ctx).await.map(Some)
             }
 
             MemberEvent::GenerateEmbeddingRequested { member_id } => {
-                actions::generate_embedding(member_id, &ctx).await
+                actions::generate_embedding(member_id, &ctx).await.map(Some)
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             MemberEvent::MemberRegistered { .. }
             | MemberEvent::MemberStatusUpdated { .. }
             | MemberEvent::MemberNotFound { .. }
             | MemberEvent::RegistrationFailed { .. }
             | MemberEvent::EmbeddingGenerated { .. }
-            | MemberEvent::EmbeddingFailed { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | MemberEvent::EmbeddingFailed { .. } => Ok(None),
         }
     }
 }

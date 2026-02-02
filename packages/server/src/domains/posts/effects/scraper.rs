@@ -28,7 +28,7 @@ impl Effect<PostEvent, ServerDeps> for ScraperEffect {
         &mut self,
         event: PostEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<PostEvent> {
+    ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -38,21 +38,19 @@ impl Effect<PostEvent, ServerDeps> for ScraperEffect {
                 job_id,
                 requested_by,
                 is_admin,
-            } => handle_scrape_source(source_id, job_id, requested_by, is_admin, &ctx).await,
+            } => handle_scrape_source(source_id, job_id, requested_by, is_admin, &ctx).await.map(Some),
 
             PostEvent::ScrapeResourceLinkRequested {
                 job_id,
                 url,
                 context,
                 submitter_contact,
-            } => handle_scrape_resource_link(job_id, url, context, submitter_contact, &ctx).await,
+            } => handle_scrape_resource_link(job_id, url, context, submitter_contact, &ctx).await.map(Some),
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Other Events → Terminal, no follow-up needed
             // =================================================================
-            _ => anyhow::bail!(
-                "Fact events or unhandled request events should not be dispatched to ScraperEffect"
-            ),
+            _ => Ok(None),
         }
     }
 }

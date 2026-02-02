@@ -50,7 +50,7 @@ impl Effect<PostEvent, ServerDeps> for PostCompositeEffect {
         &mut self,
         event: PostEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<PostEvent> {
+    ) -> Result<Option<PostEvent>> {
         match &event {
             // =================================================================
             // Route to ScraperEffect
@@ -102,7 +102,7 @@ impl Effect<PostEvent, ServerDeps> for PostCompositeEffect {
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             PostEvent::SourceScraped { .. }
             | PostEvent::ResourceLinkScraped { .. }
@@ -132,12 +132,7 @@ impl Effect<PostEvent, ServerDeps> for PostCompositeEffect {
             | PostEvent::PostsDeduplicated { .. }
             | PostEvent::DeduplicationFailed { .. }
             | PostEvent::WebsiteCreatedFromLink { .. }
-            | PostEvent::WebsitePendingApproval { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | PostEvent::WebsitePendingApproval { .. } => Ok(None),
         }
     }
 }

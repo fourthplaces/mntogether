@@ -22,7 +22,7 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
         &mut self,
         event: ChatEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<ChatEvent> {
+    ) -> Result<Option<ChatEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Actions
@@ -43,6 +43,7 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             ChatEvent::SendMessageRequested {
@@ -60,6 +61,7 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             ChatEvent::CreateMessageRequested {
@@ -71,31 +73,27 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
             } => {
                 actions::create_message(container_id, role, content, author_id, parent_message_id, &ctx)
                     .await
+                    .map(Some)
             }
 
             ChatEvent::GenerateReplyRequested {
                 message_id,
                 container_id,
-            } => actions::generate_reply(message_id, container_id, &ctx).await,
+            } => actions::generate_reply(message_id, container_id, &ctx).await.map(Some),
 
             ChatEvent::GenerateGreetingRequested {
                 container_id,
                 agent_config,
-            } => actions::generate_greeting(container_id, agent_config, &ctx).await,
+            } => actions::generate_greeting(container_id, agent_config, &ctx).await.map(Some),
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             ChatEvent::ContainerCreated { .. }
             | ChatEvent::MessageCreated { .. }
             | ChatEvent::MessageFailed { .. }
             | ChatEvent::ReplyGenerationFailed { .. }
-            | ChatEvent::GreetingGenerationFailed { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | ChatEvent::GreetingGenerationFailed { .. } => Ok(None),
         }
     }
 }

@@ -29,7 +29,7 @@ impl Effect<WebsiteEvent, ServerDeps> for WebsiteEffect {
         &mut self,
         event: WebsiteEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<WebsiteEvent> {
+    ) -> Result<Option<WebsiteEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -37,19 +37,19 @@ impl Effect<WebsiteEvent, ServerDeps> for WebsiteEffect {
             WebsiteEvent::ApproveWebsiteRequested {
                 website_id,
                 requested_by,
-            } => handle_approve_website(website_id, requested_by, &ctx).await,
+            } => handle_approve_website(website_id, requested_by, &ctx).await.map(Some),
 
             WebsiteEvent::RejectWebsiteRequested {
                 website_id,
                 reason,
                 requested_by,
-            } => handle_reject_website(website_id, reason, requested_by, &ctx).await,
+            } => handle_reject_website(website_id, reason, requested_by, &ctx).await.map(Some),
 
             WebsiteEvent::SuspendWebsiteRequested {
                 website_id,
                 reason,
                 requested_by,
-            } => handle_suspend_website(website_id, reason, requested_by, &ctx).await,
+            } => handle_suspend_website(website_id, reason, requested_by, &ctx).await.map(Some),
 
             WebsiteEvent::UpdateCrawlSettingsRequested {
                 website_id,
@@ -58,21 +58,17 @@ impl Effect<WebsiteEvent, ServerDeps> for WebsiteEffect {
             } => {
                 handle_update_crawl_settings(website_id, max_pages_per_crawl, requested_by, &ctx)
                     .await
+                    .map(Some)
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             WebsiteEvent::WebsiteApproved { .. }
             | WebsiteEvent::WebsiteRejected { .. }
             | WebsiteEvent::WebsiteSuspended { .. }
             | WebsiteEvent::CrawlSettingsUpdated { .. }
-            | WebsiteEvent::AuthorizationDenied { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | WebsiteEvent::AuthorizationDenied { .. } => Ok(None),
         }
     }
 }
