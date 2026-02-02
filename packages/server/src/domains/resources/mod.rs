@@ -17,6 +17,7 @@
 pub mod actions;
 pub mod data;
 pub mod effects;
+pub mod events;
 pub mod models;
 
 // Re-export models
@@ -30,7 +31,11 @@ pub use data::{
     EditResourceInput, ResourceConnection, ResourceData, ResourceStatusData, ResourceVersionData,
 };
 
-// Re-export effects
+// Re-export effects (helper functions + seesaw effect handler)
 pub use effects::{
-    deduplicate_resource, sync_resources, DedupAction, ExtractedResourceInput, SyncResult,
+    deduplicate_resource, resource_effect, sync_resources, DedupAction, ExtractedResourceInput,
+    SyncResult,
 };
+
+// Re-export events
+pub use events::ResourceEvent;

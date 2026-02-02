@@ -2,6 +2,7 @@
 //!
 //! All resource write operations go through these actions via `engine.activate().process()`.
 //! Actions are self-contained: they handle ID parsing and return final models.
+//! They emit events for observability and potential future cascades.
 
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
@@ -9,6 +10,7 @@ use tracing::info;
 
 use crate::common::{AppState, ResourceId};
 use crate::domains::resources::data::EditResourceInput;
+use crate::domains::resources::events::ResourceEvent;
 use crate::domains::resources::models::{ChangeReason, Resource, ResourceStatus, ResourceVersion};
 use crate::kernel::ServerDeps;
 
@@ -24,6 +26,9 @@ pub async fn approve_resource(
 
     Resource::update_status(id, ResourceStatus::Active, &ctx.deps().db_pool).await?;
 
+    // Emit event for observability
+    ctx.emit(ResourceEvent::ResourceApproved { resource_id: id });
+
     Resource::find_by_id(id, &ctx.deps().db_pool).await
 }
 
@@ -31,14 +36,20 @@ pub async fn approve_resource(
 /// Returns the updated Resource directly.
 pub async fn reject_resource(
     resource_id: String,
-    _reason: String,
+    reason: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Resource> {
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
-    info!(resource_id = %id, "Rejecting resource");
+    info!(resource_id = %id, reason = %reason, "Rejecting resource");
 
     Resource::update_status(id, ResourceStatus::Rejected, &ctx.deps().db_pool).await?;
+
+    // Emit event for observability
+    ctx.emit(ResourceEvent::ResourceRejected {
+        resource_id: id,
+        reason,
+    });
 
     Resource::find_by_id(id, &ctx.deps().db_pool).await
 }
@@ -78,6 +89,9 @@ pub async fn edit_resource(
         &ctx.deps().db_pool,
     )
     .await?;
+
+    // Emit event for observability
+    ctx.emit(ResourceEvent::ResourceEdited { resource_id: id });
 
     Resource::find_by_id(id, &ctx.deps().db_pool).await
 }
@@ -121,10 +135,17 @@ pub async fn edit_and_approve_resource(
     )
     .await?;
 
+    // Emit events for both edit and approve
+    ctx.emit(ResourceEvent::ResourceEdited { resource_id: id });
+    ctx.emit(ResourceEvent::ResourceApproved { resource_id: id });
+
     Resource::find_by_id(id, &ctx.deps().db_pool).await
 }
 
 /// Delete a resource
+///
+/// Emits ResourceDeleted event for observability.
+/// Note: Related data (tags, sources) are cascade deleted via FK constraints.
 pub async fn delete_resource(
     resource_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
@@ -134,6 +155,9 @@ pub async fn delete_resource(
     info!(resource_id = %id, "Deleting resource");
 
     Resource::delete(id, &ctx.deps().db_pool).await?;
+
+    // Emit event for observability
+    ctx.emit(ResourceEvent::ResourceDeleted { resource_id: id });
 
     Ok(true)
 }

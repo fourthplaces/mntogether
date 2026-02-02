@@ -5,13 +5,22 @@
 //!
 //! Components:
 //! - actions: Entry-point business logic called directly from GraphQL via process()
+//! - effects: Cascade handlers for event-driven cleanup
+//! - events: Fact events emitted by actions
 //! - models: Database models
 //! - data: GraphQL data types
+//!
+//! Cascade flow:
+//!   ProviderDeleted → cleanup contacts and tags
 
 pub mod actions;
 pub mod data;
+pub mod effects;
+pub mod events;
 pub mod models;
 
 // Re-export commonly used types
 pub use data::{ProviderData, ProviderStatusData, SubmitProviderInput, UpdateProviderInput};
+pub use effects::provider_effect;
+pub use events::ProviderEvent;
 pub use models::{CreateProvider, Provider, ProviderStatus, UpdateProvider};

@@ -36,6 +36,8 @@ use crate::domains::website::effects::website_effect;
 use crate::domains::crawling::effects::crawler_effect;
 use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::domain_approval::effects::domain_approval_effect;
+use crate::domains::providers::effects::provider_effect;
+use crate::domains::resources::effects::resource_effect;
 
 /// Shared application state
 #[derive(Clone)]
@@ -92,6 +94,10 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
         .with_effect(post_composite_effect())
         // Domain approval domain
         .with_effect(domain_approval_effect())
+        // Providers domain
+        .with_effect(provider_effect())
+        // Resources domain
+        .with_effect(resource_effect())
 }
 
 /// Build the Axum application router
