@@ -2,6 +2,7 @@
 //!
 //! All provider write operations go through these actions via `engine.activate().process()`.
 //! Actions are self-contained: they handle ID parsing, auth checks, and return final models.
+//! They emit events for cascade operations (e.g., ProviderDeleted triggers cleanup).
 
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
@@ -11,6 +12,7 @@ use uuid::Uuid;
 use crate::common::{AppState, ContactId, MemberId, ProviderId, TagId};
 use crate::domains::contacts::Contact;
 use crate::domains::providers::data::{SubmitProviderInput, UpdateProviderInput};
+use crate::domains::providers::events::ProviderEvent;
 use crate::domains::providers::models::{CreateProvider, Provider, UpdateProvider};
 use crate::domains::tag::{Tag, Taggable};
 use crate::kernel::ServerDeps;
@@ -45,6 +47,13 @@ pub async fn submit_provider(
     };
 
     let provider = Provider::create(create_input, &ctx.deps().db_pool).await?;
+
+    // Emit event for observability (no cascade needed for create)
+    ctx.emit(ProviderEvent::ProviderCreated {
+        provider_id: provider.id,
+        name: provider.name.clone(),
+        submitted_by: member_id_typed,
+    });
 
     info!(provider_id = %provider.id, "Provider submitted successfully");
 
@@ -96,6 +105,12 @@ pub async fn approve_provider(
 
     let provider = Provider::approve(id, reviewed_by, &ctx.deps().db_pool).await?;
 
+    // Emit event for observability (could trigger welcome email cascade later)
+    ctx.emit(ProviderEvent::ProviderApproved {
+        provider_id: id,
+        reviewed_by,
+    });
+
     Ok(provider)
 }
 
@@ -114,6 +129,13 @@ pub async fn reject_provider(
 
     let provider = Provider::reject(id, reviewed_by, &reason, &ctx.deps().db_pool).await?;
 
+    // Emit event for observability (could trigger notification cascade later)
+    ctx.emit(ProviderEvent::ProviderRejected {
+        provider_id: id,
+        reviewed_by,
+        reason,
+    });
+
     Ok(provider)
 }
 
@@ -131,6 +153,13 @@ pub async fn suspend_provider(
     info!(provider_id = %id, reason = %reason, "Suspending provider");
 
     let provider = Provider::suspend(id, reviewed_by, &reason, &ctx.deps().db_pool).await?;
+
+    // Emit event for observability (could trigger notification cascade later)
+    ctx.emit(ProviderEvent::ProviderSuspended {
+        provider_id: id,
+        reviewed_by,
+        reason,
+    });
 
     Ok(provider)
 }
@@ -211,7 +240,11 @@ pub async fn remove_provider_contact(
     Ok(true)
 }
 
-/// Delete a provider (and all associated data)
+/// Delete a provider
+///
+/// Emits ProviderDeleted event which triggers cascade cleanup of contacts and tags
+/// via the provider effect handler. This keeps delete_provider focused on ONE thing
+/// (deleting the provider record) while the effect handles cascading cleanup.
 pub async fn delete_provider(
     provider_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
@@ -220,14 +253,11 @@ pub async fn delete_provider(
 
     info!(provider_id = %id, "Deleting provider");
 
-    // Delete associated contacts
-    Contact::delete_all_for_provider(id, &ctx.deps().db_pool).await?;
-
-    // Delete associated tags
-    Taggable::delete_all_for_provider(id, &ctx.deps().db_pool).await?;
-
-    // Delete the provider
+    // Delete the provider record
     Provider::delete(id, &ctx.deps().db_pool).await?;
+
+    // Emit event - effect will handle cascade cleanup (contacts, tags)
+    ctx.emit(ProviderEvent::ProviderDeleted { provider_id: id });
 
     Ok(true)
 }
