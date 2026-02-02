@@ -1,7 +1,7 @@
-//! Chat effect - handles container and message operations.
+//! Chat effect - handles request events and emits fact events.
 //!
-//! This effect is a thin orchestration layer that dispatches events to action functions.
-//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+//! In seesaw Edge pattern:
+//!   Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -9,24 +9,26 @@ use seesaw_core::{Effect, EffectContext};
 
 use crate::domains::chatrooms::actions;
 use crate::domains::chatrooms::events::ChatEvent;
-use crate::domains::posts::effects::ServerDeps;
+use crate::domains::chatrooms::state::ChatRequestState;
+use crate::kernel::ServerDeps;
 
-/// Chat Effect - Handles ChatEvent request events
+/// Chat Effect - Handles request events and emits fact events
 pub struct ChatEffect;
 
 #[async_trait]
-impl Effect<ChatEvent, ServerDeps> for ChatEffect {
+impl Effect<ChatEvent, ServerDeps, ChatRequestState> for ChatEffect {
     type Event = ChatEvent;
 
     async fn handle(
         &mut self,
         event: ChatEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<ChatEvent>> {
         match event {
             // =================================================================
-            // Request Events → Dispatch to Actions
+            // External Request Events (from edges)
             // =================================================================
+
             ChatEvent::CreateContainerRequested {
                 container_type,
                 entity_id,
@@ -34,16 +36,20 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
                 requested_by,
                 with_agent,
             } => {
-                actions::create_container(
+                let (container, _) = actions::create_container(
                     container_type,
                     entity_id,
                     language,
                     requested_by,
-                    with_agent,
-                    &ctx,
+                    with_agent.clone(),
+                    &ctx.deps().db_pool,
                 )
-                .await
-                .map(Some)
+                .await?;
+
+                Ok(Some(ChatEvent::ContainerCreated {
+                    container,
+                    with_agent,
+                }))
             }
 
             ChatEvent::SendMessageRequested {
@@ -52,29 +58,22 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
                 author_id,
                 parent_message_id,
             } => {
-                actions::create_message(
+                let (message, _) = actions::create_message(
                     container_id,
                     "user".to_string(),
                     content,
                     author_id,
                     parent_message_id,
-                    &ctx,
+                    &ctx.deps().db_pool,
                 )
-                .await
-                .map(Some)
+                .await?;
+
+                Ok(Some(ChatEvent::MessageCreated { message }))
             }
 
-            ChatEvent::CreateMessageRequested {
-                container_id,
-                role,
-                content,
-                author_id,
-                parent_message_id,
-            } => {
-                actions::create_message(container_id, role, content, author_id, parent_message_id, &ctx)
-                    .await
-                    .map(Some)
-            }
+            // =================================================================
+            // Internal Chain Events (from internal edges)
+            // =================================================================
 
             ChatEvent::GenerateReplyRequested {
                 message_id,
@@ -85,6 +84,25 @@ impl Effect<ChatEvent, ServerDeps> for ChatEffect {
                 container_id,
                 agent_config,
             } => actions::generate_greeting(container_id, agent_config, &ctx).await.map(Some),
+
+            ChatEvent::CreateMessageRequested {
+                container_id,
+                role,
+                content,
+                author_id,
+                parent_message_id,
+            } => {
+                let (message, _) = actions::create_message(
+                    container_id,
+                    role,
+                    content,
+                    author_id,
+                    parent_message_id,
+                    &ctx.deps().db_pool,
+                )
+                .await?;
+                Ok(Some(ChatEvent::MessageCreated { message }))
+            }
 
             // =================================================================
             // Fact Events → Terminal, no follow-up needed

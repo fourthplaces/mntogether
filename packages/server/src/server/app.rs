@@ -1,14 +1,6 @@
-use crate::domains::auth::JwtService;
-use crate::domains::chatrooms::effects::ChatEffect;
-use crate::domains::chatrooms::events::ChatEvent;
-use crate::kernel::{ServerDeps, TwilioAdapter};
-use crate::kernel::OpenAIClient;
-use crate::server::graphql::{create_schema, GraphQLContext};
-use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
-use crate::server::routes::{
-    graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
-};
-use crate::server::static_files::{serve_admin, serve_web_app};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
 use axum::{
     extract::{Extension, Request},
     http::{
@@ -22,17 +14,30 @@ use axum::{
 };
 use seesaw_core::{EngineBuilder, EventBus};
 use sqlx::PgPool;
-use std::sync::Arc;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
+
+use crate::domains::auth::JwtService;
+use crate::domains::chatrooms::effects::ChatEffect;
+use crate::domains::chatrooms::events::ChatEvent;
+use crate::domains::chatrooms::ChatReducer;
+use crate::kernel::{OpenAIClient, ServerDeps, TwilioAdapter};
+use crate::server::graphql::context::AppEngine;
+use crate::server::graphql::{create_schema, GraphQLContext};
+use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
+use crate::server::routes::{
+    graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
+};
+use crate::server::static_files::{serve_admin, serve_web_app};
 
 /// Shared application state
 #[derive(Clone)]
 pub struct AppState {
     pub db_pool: PgPool,
     pub bus: EventBus,
+    pub engine: Arc<Mutex<AppEngine>>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
@@ -51,6 +56,7 @@ async fn create_graphql_context(
     let context = GraphQLContext::new(
         state.db_pool.clone(),
         state.bus.clone(),
+        state.engine.clone(),
         auth_user,
         state.twilio.clone(),
         state.jwt_service.clone(),
@@ -65,8 +71,8 @@ async fn create_graphql_context(
 
 /// Build the Axum application router and EventBus
 ///
-/// In seesaw 0.3.0, we return the EventBus for scheduled tasks to emit events.
-/// Effects are registered via EngineBuilder and dispatched via the bus.
+/// The Engine is created with reducers and effects for the Edge pattern.
+/// GraphQL mutations call engine.run(Edge, State) to execute workflows.
 pub fn build_app(
     pool: PgPool,
     openai_api_key: String,
@@ -131,12 +137,12 @@ pub fn build_app(
         admin_identifiers,
     );
 
-    // Build seesaw engine with effects (no machines in 0.3.0)
+    // Build seesaw engine with reducers and effects
     //
-    // NOTE: In 0.3.0, we register effects for EVENT types, not command types.
-    // Effects handle request events and return fact events.
-    // Internal edges react to fact events and emit new request events.
-    let engine = EngineBuilder::new(server_deps)
+    // Edge pattern: Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
+    let engine: AppEngine = EngineBuilder::new(server_deps)
+        // Chat domain reducer (stores results in state for Edge.read())
+        .with_reducer::<ChatEvent, _>(ChatReducer)
         // Auth domain
         .with_effect::<crate::domains::auth::AuthEvent, _>(crate::domains::auth::AuthEffect)
         // Member domain
@@ -164,6 +170,7 @@ pub fn build_app(
         .build();
 
     let bus = engine.bus().clone();
+    let engine = Arc::new(Mutex::new(engine));
 
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));
@@ -172,6 +179,7 @@ pub fn build_app(
     let app_state = AppState {
         db_pool: pool.clone(),
         bus: bus.clone(),
+        engine: engine.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),

@@ -9,6 +9,7 @@ use seesaw_core::{Effect, EffectContext};
 use tracing::{info, warn};
 
 use crate::common::{ExtractedPost, JobId, WebsiteId};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::crawling::effects::extraction::{
     hash_content, summarize_pages, synthesize_posts, PageToSummarize, SynthesisInput,
 };
@@ -25,13 +26,13 @@ use crate::kernel::ServerDeps;
 pub struct PostExtractionEffect;
 
 #[async_trait]
-impl Effect<PostExtractionCommand, ServerDeps> for PostExtractionEffect {
+impl Effect<PostExtractionCommand, ServerDeps, ChatRequestState> for PostExtractionEffect {
     type Event = PostExtractionEvent;
 
     async fn execute(
         &self,
         cmd: PostExtractionCommand,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<PostExtractionEvent> {
         match cmd {
             PostExtractionCommand::ExtractPostsFromPages {
@@ -53,7 +54,7 @@ async fn handle_extract_posts_from_pages(
     website_id: WebsiteId,
     job_id: JobId,
     page_snapshot_ids: Vec<uuid::Uuid>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostExtractionEvent> {
     info!(
         website_id = %website_id,

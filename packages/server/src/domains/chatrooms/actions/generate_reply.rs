@@ -7,6 +7,7 @@ use tracing::{error, info};
 use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::posts::effects::ServerDeps;
 
 /// Generate an AI reply to a message and create the assistant message.
@@ -24,7 +25,7 @@ use crate::domains::posts::effects::ServerDeps;
 pub async fn generate_reply(
     message_id: MessageId,
     container_id: ContainerId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<ChatEvent> {
     info!(message_id = %message_id, container_id = %container_id, "Generating agent reply");
 
@@ -119,13 +120,7 @@ pub async fn generate_reply(
         "Assistant message created"
     );
 
-    Ok(ChatEvent::MessageCreated {
-        message_id: new_message.id,
-        container_id,
-        role: "assistant".to_string(),
-        content: reply_text,
-        author_id: Some(agent_member_id),
-    })
+    Ok(ChatEvent::MessageCreated { message: new_message })
 }
 
 // =============================================================================

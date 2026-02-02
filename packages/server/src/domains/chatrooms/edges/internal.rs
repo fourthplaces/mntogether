@@ -26,17 +26,12 @@ use crate::domains::chatrooms::events::ChatEvent;
 /// Now it becomes an edge that emits a request event.
 pub fn on_message_created(event: &ChatEvent) -> Option<ChatEvent> {
     match event {
-        ChatEvent::MessageCreated {
-            message_id,
-            container_id,
-            role,
-            ..
-        } => {
+        ChatEvent::MessageCreated { message } => {
             // Only trigger AI reply for user messages to prevent loops
-            if role == "user" {
+            if message.role == "user" {
                 Some(ChatEvent::GenerateReplyRequested {
-                    message_id: *message_id,
-                    container_id: *container_id,
+                    message_id: message.id.into(),
+                    container_id: message.container_id.into(),
                 })
             } else {
                 None
@@ -60,11 +55,10 @@ pub fn on_message_created(event: &ChatEvent) -> Option<ChatEvent> {
 pub fn on_container_created(event: &ChatEvent) -> Option<ChatEvent> {
     match event {
         ChatEvent::ContainerCreated {
-            container_id,
+            container,
             with_agent: Some(agent_config),
-            ..
         } => Some(ChatEvent::GenerateGreetingRequested {
-            container_id: *container_id,
+            container_id: container.id.into(),
             agent_config: agent_config.clone(),
         }),
         _ => None,

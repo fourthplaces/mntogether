@@ -6,6 +6,7 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::common::utils::geocoding::geocode_city;
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
 use crate::domains::posts::effects::ServerDeps;
@@ -25,7 +26,7 @@ pub async fn register_member(
     searchable_text: String,
     city: String,
     state: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<MemberEvent> {
     info!(
         "Registering member with token: {} in {}, {}",

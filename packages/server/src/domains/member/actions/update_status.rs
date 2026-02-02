@@ -5,6 +5,7 @@ use seesaw_core::EffectContext;
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
 use crate::domains::posts::effects::ServerDeps;
@@ -17,7 +18,7 @@ use crate::domains::posts::effects::ServerDeps;
 pub async fn update_member_status(
     member_id: Uuid,
     active: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<MemberEvent> {
     info!("Updating member {} status to: {}", member_id, active);
 

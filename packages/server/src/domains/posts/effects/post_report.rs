@@ -1,5 +1,6 @@
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::entity_ids::{PostId, MemberId};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::ServerDeps;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::posts::models::post_report::{PostReportId, PostReportRecord};
@@ -12,7 +13,7 @@ pub async fn handle_create_report(
     reporter_email: Option<String>,
     reason: String,
     category: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     let report = PostReportRecord::create(
         post_id,
@@ -37,7 +38,7 @@ pub async fn handle_resolve_report(
     resolution_notes: Option<String>,
     action_taken: String,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check
     if let Err(auth_err) = Actor::new(resolved_by, is_admin)
@@ -73,7 +74,7 @@ pub async fn handle_dismiss_report(
     resolved_by: MemberId,
     resolution_notes: Option<String>,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check
     if let Err(auth_err) = Actor::new(resolved_by, is_admin)

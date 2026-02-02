@@ -7,6 +7,7 @@ pub mod assessment;
 pub mod research;
 pub mod search;
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use anyhow::Result;
@@ -36,13 +37,13 @@ impl Default for DomainApprovalEffect {
 }
 
 #[async_trait]
-impl Effect<DomainApprovalEvent, ServerDeps> for DomainApprovalEffect {
+impl Effect<DomainApprovalEvent, ServerDeps, ChatRequestState> for DomainApprovalEffect {
     type Event = DomainApprovalEvent;
 
     async fn handle(
         &mut self,
         event: DomainApprovalEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<DomainApprovalEvent>> {
         match event {
             // =================================================================

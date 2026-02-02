@@ -7,6 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
+use crate::domains::chatrooms::ChatRequestState;
 use super::{post_extraction, ServerDeps};
 use crate::common::{JobId, WebsiteId};
 use crate::domains::posts::events::PostEvent;
@@ -18,13 +19,13 @@ use crate::domains::website::models::Website;
 pub struct AIEffect;
 
 #[async_trait]
-impl Effect<PostEvent, ServerDeps> for AIEffect {
+impl Effect<PostEvent, ServerDeps, ChatRequestState> for AIEffect {
     type Event = PostEvent;
 
     async fn handle(
         &mut self,
         event: PostEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
@@ -73,7 +74,7 @@ async fn handle_extract_posts(
     job_id: JobId,
     organization_name: String,
     content: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     tracing::info!(
         source_id = %source_id,
@@ -161,7 +162,7 @@ async fn handle_extract_posts_from_resource_link(
     content: String,
     context: Option<String>,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     tracing::info!(
         job_id = %job_id,
