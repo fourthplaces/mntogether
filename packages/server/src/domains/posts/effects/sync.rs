@@ -24,7 +24,7 @@ impl Effect<PostEvent, ServerDeps> for SyncEffect {
         &mut self,
         event: PostEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<PostEvent> {
+    ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -33,14 +33,12 @@ impl Effect<PostEvent, ServerDeps> for SyncEffect {
                 source_id,
                 job_id,
                 posts,
-            } => handle_sync_posts(source_id, job_id, posts, &ctx).await,
+            } => handle_sync_posts(source_id, job_id, posts, &ctx).await.map(Some),
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Other Events → Terminal, no follow-up needed
             // =================================================================
-            _ => anyhow::bail!(
-                "Fact events or unhandled request events should not be dispatched to SyncEffect"
-            ),
+            _ => Ok(None),
         }
     }
 }

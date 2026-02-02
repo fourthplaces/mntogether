@@ -27,7 +27,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
         &mut self,
         event: PostEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<PostEvent> {
+    ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -56,6 +56,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::SubmitListingRequested {
@@ -81,6 +82,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::UpdatePostStatusRequested {
@@ -99,6 +101,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::ApproveListingRequested {
@@ -115,6 +118,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::RejectListingRequested {
@@ -132,6 +136,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::EditAndApproveListingRequested {
@@ -160,6 +165,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::CreatePostRequested {
@@ -178,11 +184,12 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::GeneratePostEmbeddingRequested { post_id } => {
                 // Embeddings are no longer used - this is a no-op for backwards compatibility
-                Ok(PostEvent::PostEmbeddingGenerated { post_id, dimensions: 0 })
+                Ok(Some(PostEvent::PostEmbeddingGenerated { post_id, dimensions: 0 }))
             }
 
             PostEvent::CreateCustomPostRequested {
@@ -208,39 +215,40 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::RepostPostRequested {
                 post_id,
                 requested_by,
                 is_admin,
-            } => handle_repost_post(post_id, requested_by, requested_by, is_admin, &ctx).await,
+            } => handle_repost_post(post_id, requested_by, requested_by, is_admin, &ctx).await.map(Some),
 
             PostEvent::ExpirePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
-            } => handle_expire_post(post_id, requested_by, is_admin, &ctx).await,
+            } => handle_expire_post(post_id, requested_by, is_admin, &ctx).await.map(Some),
 
             PostEvent::ArchivePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
-            } => handle_archive_post(post_id, requested_by, is_admin, &ctx).await,
+            } => handle_archive_post(post_id, requested_by, is_admin, &ctx).await.map(Some),
 
             PostEvent::PostViewedRequested { post_id } => {
-                handle_increment_post_view(post_id, &ctx).await
+                handle_increment_post_view(post_id, &ctx).await.map(Some)
             }
 
             PostEvent::PostClickedRequested { post_id } => {
-                handle_increment_post_click(post_id, &ctx).await
+                handle_increment_post_click(post_id, &ctx).await.map(Some)
             }
 
             PostEvent::DeletePostRequested {
                 post_id,
                 requested_by,
                 is_admin,
-            } => handle_delete_post(post_id, requested_by, is_admin, &ctx).await,
+            } => handle_delete_post(post_id, requested_by, is_admin, &ctx).await.map(Some),
 
             PostEvent::CreatePostsFromResourceLinkRequested {
                 job_id,
@@ -258,6 +266,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::CreateWebsiteFromLinkRequested {
@@ -272,6 +281,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::SubmitResourceLinkRequested {
@@ -294,6 +304,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::ReportListingRequested {
@@ -312,6 +323,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::ResolveReportRequested {
@@ -330,6 +342,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::DismissReportRequested {
@@ -346,6 +359,7 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             PostEvent::DeduplicatePostsRequested {
@@ -356,14 +370,13 @@ impl Effect<PostEvent, ServerDeps> for PostEffect {
             } => {
                 handle_deduplicate_posts(job_id, requested_by, is_admin, &ctx)
                     .await
+                    .map(Some)
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Other Events → Terminal, no follow-up needed
             // =================================================================
-            _ => anyhow::bail!(
-                "Fact events or unhandled request events should not be dispatched to PostEffect"
-            ),
+            _ => Ok(None),
         }
     }
 }

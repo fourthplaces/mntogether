@@ -43,7 +43,7 @@ impl Effect<DomainApprovalEvent, ServerDeps> for DomainApprovalEffect {
         &mut self,
         event: DomainApprovalEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<DomainApprovalEvent> {
+    ) -> Result<Option<DomainApprovalEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -52,24 +52,24 @@ impl Effect<DomainApprovalEvent, ServerDeps> for DomainApprovalEffect {
                 website_id,
                 job_id,
                 requested_by,
-            } => handle_assess_website(website_id, job_id, requested_by, &ctx).await,
+            } => handle_assess_website(website_id, job_id, requested_by, &ctx).await.map(Some),
 
             DomainApprovalEvent::ConductResearchSearchesRequested {
                 research_id,
                 website_id,
                 job_id,
                 requested_by,
-            } => handle_conduct_searches(research_id, website_id, job_id, requested_by, &ctx).await,
+            } => handle_conduct_searches(research_id, website_id, job_id, requested_by, &ctx).await.map(Some),
 
             DomainApprovalEvent::GenerateAssessmentFromResearchRequested {
                 research_id,
                 website_id,
                 job_id,
                 requested_by,
-            } => handle_generate_assessment(research_id, website_id, job_id, requested_by, &ctx).await,
+            } => handle_generate_assessment(research_id, website_id, job_id, requested_by, &ctx).await.map(Some),
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Fact Events → Terminal, no follow-up needed
             // =================================================================
             DomainApprovalEvent::WebsiteResearchFound { .. }
             | DomainApprovalEvent::WebsiteResearchCreated { .. }
@@ -77,12 +77,7 @@ impl Effect<DomainApprovalEvent, ServerDeps> for DomainApprovalEffect {
             | DomainApprovalEvent::ResearchSearchesCompleted { .. }
             | DomainApprovalEvent::ResearchSearchesFailed { .. }
             | DomainApprovalEvent::WebsiteAssessmentCompleted { .. }
-            | DomainApprovalEvent::AssessmentGenerationFailed { .. } => {
-                anyhow::bail!(
-                    "Fact events should not be dispatched to effects. \
-                     They are outputs from effects, not inputs."
-                )
-            }
+            | DomainApprovalEvent::AssessmentGenerationFailed { .. } => Ok(None),
         }
     }
 }

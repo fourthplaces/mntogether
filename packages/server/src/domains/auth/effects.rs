@@ -17,22 +17,19 @@ impl Effect<AuthEvent, ServerDeps> for AuthEffect {
         &mut self,
         event: AuthEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<AuthEvent> {
+    ) -> Result<Option<AuthEvent>> {
         match event {
             AuthEvent::SendOTPRequested { phone_number } => {
-                actions::send_otp(phone_number, &ctx).await
+                actions::send_otp(phone_number, &ctx).await.map(Some)
             }
             AuthEvent::VerifyOTPRequested { phone_number, code } => {
-                actions::verify_otp(phone_number, code, &ctx).await
+                actions::verify_otp(phone_number, code, &ctx).await.map(Some)
             }
-            // Fact events - these shouldn't reach the effect in 0.3.0
-            // but we need to handle them for exhaustive match
+            // Fact events - terminal, no follow-up event needed
             AuthEvent::OTPSent { .. }
             | AuthEvent::OTPVerified { .. }
             | AuthEvent::OTPFailed { .. }
-            | AuthEvent::PhoneNotRegistered { .. } => {
-                unreachable!("Fact events should not be dispatched to effects")
-            }
+            | AuthEvent::PhoneNotRegistered { .. } => Ok(None),
         }
     }
 }

@@ -25,7 +25,7 @@ impl Effect<PostEvent, ServerDeps> for AIEffect {
         &mut self,
         event: PostEvent,
         ctx: EffectContext<ServerDeps>,
-    ) -> Result<PostEvent> {
+    ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
             // Request Events → Dispatch to Handlers
@@ -35,7 +35,7 @@ impl Effect<PostEvent, ServerDeps> for AIEffect {
                 job_id,
                 organization_name,
                 content,
-            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx).await,
+            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx).await.map(Some),
 
             PostEvent::ExtractPostsFromResourceLinkRequested {
                 job_id,
@@ -53,14 +53,13 @@ impl Effect<PostEvent, ServerDeps> for AIEffect {
                     &ctx,
                 )
                 .await
+                .map(Some)
             }
 
             // =================================================================
-            // Fact Events → Should not reach effect (return error)
+            // Other Events → Terminal, no follow-up needed
             // =================================================================
-            _ => anyhow::bail!(
-                "Fact events or unhandled request events should not be dispatched to AIEffect"
-            ),
+            _ => Ok(None),
         }
     }
 }
