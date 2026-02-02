@@ -613,6 +613,15 @@ impl Website {
         .await?;
         Ok(website)
     }
+
+    /// Reset crawl status to pending for retry
+    pub async fn reset_for_retry(id: WebsiteId, pool: &PgPool) -> Result<()> {
+        sqlx::query("UPDATE websites SET crawl_status = 'pending', updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
