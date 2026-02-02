@@ -5,7 +5,7 @@
 use anyhow::Result;
 use server_core::common::{MemberId, PostId, WebsiteId};
 use server_core::domains::posts::models::Post;
-use server_core::domains::scraping::models::Website;
+use server_core::domains::website::models::Website;
 use sqlx::PgPool;
 
 /// Create a test post with pending_approval status

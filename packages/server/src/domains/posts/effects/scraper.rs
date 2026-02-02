@@ -8,7 +8,8 @@ use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
-use crate::domains::scraping::models::{PageSnapshot, Website, WebsiteSnapshot};
+use crate::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
+use crate::domains::website::models::Website;
 
 /// Scraper Effect - Handles ScrapeSource command
 ///

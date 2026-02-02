@@ -7,7 +7,7 @@ use anyhow::Result;
 use sqlx::PgPool;
 use tracing::info;
 
-use crate::domains::scraping::models::Website;
+use crate::domains::website::models::Website;
 use crate::kernel::traits::BaseSearchService;
 
 /// Search queries for discovering community resources.

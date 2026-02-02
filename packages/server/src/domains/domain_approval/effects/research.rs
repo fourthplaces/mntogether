@@ -2,7 +2,7 @@ use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
-use crate::domains::scraping::models::{Website, WebsiteResearch, WebsiteResearchHomepage};
+use crate::domains::website::models::{Website, WebsiteResearch, WebsiteResearchHomepage};
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};

@@ -23,7 +23,8 @@ use crate::common::{ContactInfo, ExtractedPost, JobId, MemberId, PostId, Website
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::{CrawledPageInfo, PostEvent, PageExtractionResult};
 use crate::domains::posts::models::post::Post;
-use crate::domains::scraping::models::{PageSnapshot, Website, WebsiteSnapshot};
+use crate::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
+use crate::domains::website::models::Website;
 use crate::kernel::LinkPriorities;
 
 // =============================================================================
@@ -1095,7 +1096,7 @@ async fn handle_regenerate_page_summaries(
     is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    use crate::domains::scraping::models::PageSummary;
+    use crate::domains::crawling::models::PageSummary;
 
     info!(
         website_id = %website_id,
@@ -1270,7 +1271,7 @@ async fn handle_regenerate_single_page_summary(
     is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
-    use crate::domains::scraping::models::PageSummary;
+    use crate::domains::crawling::models::PageSummary;
 
     info!(
         page_snapshot_id = %page_snapshot_id,

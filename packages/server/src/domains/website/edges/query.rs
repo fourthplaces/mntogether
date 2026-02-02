@@ -1,5 +1,5 @@
 use crate::common::WebsiteId;
-use crate::domains::scraping::models::PageSnapshot;
+use crate::domains::crawling::models::PageSnapshot;
 use crate::domains::website::data::{PageSnapshotData, WebsiteData};
 use crate::domains::website::models::Website;
 use anyhow::Context;

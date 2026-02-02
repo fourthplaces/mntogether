@@ -1,5 +1,5 @@
 use crate::domains::domain_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
-use crate::domains::scraping::models::WebsiteAssessment;
+use crate::domains::website::models::WebsiteAssessment;
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
 use uuid::Uuid;

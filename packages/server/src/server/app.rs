@@ -16,7 +16,13 @@ use crate::domains::crawling::{
 use crate::domains::posts::{
     commands::PostCommand,
     effects::PostCompositeEffect,
+    extraction::{PostExtractionCommand, PostExtractionEffect, PostExtractionMachine},
     machines::PostMachine,
+};
+use crate::domains::website::{
+    commands::WebsiteCommand,
+    effects::WebsiteEffect,
+    machines::WebsiteMachine,
 };
 use crate::kernel::{ServerDeps, TwilioAdapter};
 use crate::domains::member::{
@@ -155,12 +161,18 @@ pub fn build_app(
 
     // Build and start seesaw engine
     let engine = EngineBuilder::new(server_deps)
+        // Website domain (approval workflow)
+        .with_machine(WebsiteMachine::new())
+        .with_effect::<WebsiteCommand, _>(WebsiteEffect)
         // Crawling domain (multi-page website crawling)
         .with_machine(CrawlMachine::new())
         .with_effect::<CrawlCommand, _>(CrawlerEffect)
         // Listings domain (replaces Organization domain)
         .with_machine(PostMachine::new())
         .with_effect::<PostCommand, _>(PostCompositeEffect::new())
+        // Post extraction (listens to CrawlEvent::PagesReadyForExtraction)
+        .with_machine(PostExtractionMachine::new())
+        .with_effect::<PostExtractionCommand, _>(PostExtractionEffect)
         // Member domain
         .with_machine(MemberMachine::new())
         .with_effect::<MemberCommand, _>(RegistrationEffect)

@@ -3,6 +3,7 @@ use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::posts::data::ScrapeJobResult;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::website::data::WebsiteData;
+use crate::domains::website::events::WebsiteEvent;
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use juniper::{FieldError, FieldResult};
@@ -11,7 +12,7 @@ use tracing::info;
 use uuid::Uuid;
 
 /// Approve a website for crawling (admin only)
-/// Direct database operation - no event bus needed for approval workflow
+/// Uses event bus for proper seesaw architecture
 pub async fn approve_website(
     ctx: &GraphQLContext,
     website_id: String,
@@ -36,21 +37,52 @@ pub async fn approve_website(
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
     let id = WebsiteId::from_uuid(uuid);
 
-    // Approve using model method
-    let website = Website::approve(id, user.member_id, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to approve website: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    // Dispatch approve request and await completion
+    dispatch_request(
+        WebsiteEvent::ApproveWebsiteRequested {
+            website_id: id,
+            requested_by: user.member_id,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &WebsiteEvent| match e {
+                WebsiteEvent::WebsiteApproved {
+                    website_id: approved_id,
+                    ..
+                } if *approved_id == id => Some(Ok(())),
+                WebsiteEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "ApproveWebsite" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to approve website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Fetch the updated website
+    let website = Website::find_by_id(id, &ctx.db_pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(WebsiteData::from(website))
 }
 
 /// Reject a website submission (admin only)
-/// Direct database operation - no event bus needed for approval workflow
+/// Uses event bus for proper seesaw architecture
 pub async fn reject_website(
     ctx: &GraphQLContext,
     website_id: String,
@@ -76,21 +108,53 @@ pub async fn reject_website(
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
     let id = WebsiteId::from_uuid(uuid);
 
-    // Reject using model method
-    let website = Website::reject(id, user.member_id, reason, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to reject website: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    // Dispatch reject request and await completion
+    dispatch_request(
+        WebsiteEvent::RejectWebsiteRequested {
+            website_id: id,
+            reason: reason.clone(),
+            requested_by: user.member_id,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &WebsiteEvent| match e {
+                WebsiteEvent::WebsiteRejected {
+                    website_id: rejected_id,
+                    ..
+                } if *rejected_id == id => Some(Ok(())),
+                WebsiteEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "RejectWebsite" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to reject website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Fetch the updated website
+    let website = Website::find_by_id(id, &ctx.db_pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(WebsiteData::from(website))
 }
 
 /// Suspend a website (admin only)
-/// Direct database operation - no event bus needed for approval workflow
+/// Uses event bus for proper seesaw architecture
 pub async fn suspend_website(
     ctx: &GraphQLContext,
     website_id: String,
@@ -116,15 +180,47 @@ pub async fn suspend_website(
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
     let id = WebsiteId::from_uuid(uuid);
 
-    // Suspend using model method
-    let website = Website::suspend(id, user.member_id, reason, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to suspend website: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    // Dispatch suspend request and await completion
+    dispatch_request(
+        WebsiteEvent::SuspendWebsiteRequested {
+            website_id: id,
+            reason: reason.clone(),
+            requested_by: user.member_id,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &WebsiteEvent| match e {
+                WebsiteEvent::WebsiteSuspended {
+                    website_id: suspended_id,
+                    ..
+                } if *suspended_id == id => Some(Ok(())),
+                WebsiteEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "SuspendWebsite" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to suspend website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Fetch the updated website
+    let website = Website::find_by_id(id, &ctx.db_pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(WebsiteData::from(website))
 }
@@ -215,6 +311,7 @@ pub async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResul
 }
 
 /// Update max pages per crawl setting (admin only)
+/// Uses event bus for proper seesaw architecture
 pub async fn update_website_crawl_settings(
     ctx: &GraphQLContext,
     website_id: String,
@@ -248,15 +345,47 @@ pub async fn update_website_crawl_settings(
         .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
     let id = WebsiteId::from_uuid(uuid);
 
-    // Update using model method
-    let website = Website::update_max_pages_per_crawl(id, max_pages_per_crawl, &ctx.db_pool)
-        .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to update website settings: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+    // Dispatch update settings request and await completion
+    dispatch_request(
+        WebsiteEvent::UpdateCrawlSettingsRequested {
+            website_id: id,
+            max_pages_per_crawl,
+            requested_by: user.member_id,
+        },
+        &ctx.bus,
+        |m| {
+            m.try_match(|e: &WebsiteEvent| match e {
+                WebsiteEvent::CrawlSettingsUpdated {
+                    website_id: updated_id,
+                    ..
+                } if *updated_id == id => Some(Ok(())),
+                WebsiteEvent::AuthorizationDenied {
+                    user_id,
+                    action,
+                    reason,
+                } if *user_id == user.member_id && action == "UpdateCrawlSettings" => {
+                    Some(Err(anyhow::anyhow!("Authorization denied: {}", reason)))
+                }
+                _ => None,
+            })
+            .result()
+        },
+    )
+    .await
+    .map_err(|e| {
+        FieldError::new(
+            format!("Failed to update website settings: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
+
+    // Fetch the updated website
+    let website = Website::find_by_id(id, &ctx.db_pool).await.map_err(|e| {
+        FieldError::new(
+            format!("Failed to fetch website: {}", e),
+            juniper::Value::null(),
+        )
+    })?;
 
     Ok(WebsiteData::from(website))
 }

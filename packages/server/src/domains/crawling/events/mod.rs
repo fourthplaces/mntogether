@@ -82,6 +82,15 @@ pub enum CrawlEvent {
         pages: Vec<CrawledPageInfo>,
     },
 
+    /// Integration event: Pages crawled, ready for post extraction
+    /// Posts domain listens for this and handles extraction
+    /// NOTE: Carries IDs only, not payloads - posts domain fetches what it needs
+    PagesReadyForExtraction {
+        website_id: WebsiteId,
+        job_id: JobId,
+        page_snapshot_ids: Vec<uuid::Uuid>,
+    },
+
     /// No posts found after crawling all pages
     WebsiteCrawlNoListings {
         website_id: WebsiteId,

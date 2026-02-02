@@ -74,15 +74,9 @@ impl seesaw_core::Machine for CrawlMachine {
                 })
             }
 
-            CrawlEvent::WebsiteCrawled {
-                website_id,
-                job_id,
-                pages,
-            } => Some(CrawlCommand::ExtractPostsFromPages {
-                website_id: *website_id,
-                job_id: *job_id,
-                pages: pages.clone(),
-            }),
+            // WebsiteCrawled is now informational only - extraction is handled by
+            // PostExtractionMachine listening to PagesReadyForExtraction (cross-domain)
+            CrawlEvent::WebsiteCrawled { .. } => None,
 
             CrawlEvent::PostsExtractedFromPages {
                 website_id,
@@ -180,7 +174,9 @@ impl seesaw_core::Machine for CrawlMachine {
                 None
             }
 
-            CrawlEvent::PageSummariesRegenerated { .. }
+            // PagesReadyForExtraction is handled by PostExtractionMachine (cross-domain)
+            CrawlEvent::PagesReadyForExtraction { .. }
+            | CrawlEvent::PageSummariesRegenerated { .. }
             | CrawlEvent::PageSummaryRegenerated { .. }
             | CrawlEvent::PagePostsRegenerated { .. }
             | CrawlEvent::AuthorizationDenied { .. } => None,

@@ -109,7 +109,7 @@ impl OrganizationData {
     /// Get the website linked to this organization (if any)
     async fn website(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<WebsiteData>> {
         use crate::common::WebsiteId;
-        use crate::domains::scraping::models::Website;
+        use crate::domains::website::models::Website;
 
         if let Some(website_id_str) = &self.website_id {
             if let Ok(uuid) = uuid::Uuid::parse_str(website_id_str) {
