@@ -7,41 +7,44 @@
 //! # Architecture
 //!
 //! Scheduled tasks run independently of the job queue system.
-//! They typically dispatch events or enqueue jobs rather than doing work directly.
+//! They typically dispatch events using the engine or do work directly.
 //!
 //! ```text
 //! Scheduler (every hour)
 //!     │
 //!     └─► find_due_for_scraping()
-//!             └─► For each source → dispatch ScrapeSourceRequested event
-//!                     └─► Machine → Commands → Effects
+//!             └─► For each source → emit ScrapeSourceRequested event via engine
+//!                     └─► Effects → Business logic
 //! ```
 
 use anyhow::Result;
-use seesaw_core::EventBus;
 use sqlx::PgPool;
+use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
-use crate::common::{JobId, MemberId};
+use crate::common::{AppState, MemberId};
 use crate::config::Config;
+use crate::domains::posts::actions as post_actions;
 use crate::domains::posts::effects::run_discovery_searches;
-use crate::domains::posts::events::PostEvent;
 use crate::domains::member::models::member::Member;
 use crate::domains::website::models::Website;
 use crate::kernel::TavilyClient;
+use crate::server::graphql::context::AppEngine;
 
 /// Start all scheduled tasks
-pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler> {
+///
+/// In seesaw 0.6.0, we use engine.activate() to emit events instead of EventBus.
+pub async fn start_scheduler(pool: PgPool, engine: Arc<AppEngine>) -> Result<JobScheduler> {
     let scheduler = JobScheduler::new().await?;
 
     // Periodic scraping task - runs every hour
     let scrape_pool = pool.clone();
-    let scrape_bus = bus.clone();
+    let scrape_engine = engine.clone();
     let scrape_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
         let pool = scrape_pool.clone();
-        let bus = scrape_bus.clone();
+        let engine = scrape_engine.clone();
         Box::pin(async move {
-            if let Err(e) = run_periodic_scrape(&pool, &bus).await {
+            if let Err(e) = run_periodic_scrape(&pool, &engine).await {
                 tracing::error!("Periodic scrape task failed: {}", e);
             }
         })
@@ -51,12 +54,10 @@ pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler
 
     // Periodic search task - runs every hour
     let search_pool = pool.clone();
-    let search_bus = bus.clone();
     let search_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
         let pool = search_pool.clone();
-        let bus = search_bus.clone();
         Box::pin(async move {
-            if let Err(e) = run_periodic_searches(&pool, &bus).await {
+            if let Err(e) = run_periodic_searches(&pool).await {
                 tracing::error!("Periodic search task failed: {}", e);
             }
         })
@@ -88,7 +89,7 @@ pub async fn start_scheduler(pool: PgPool, bus: EventBus) -> Result<JobScheduler
 ///
 /// Queries all sources due for scraping and dispatches scrape events.
 /// Each scrape runs asynchronously via the event system.
-async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
+async fn run_periodic_scrape(pool: &PgPool, engine: &Arc<AppEngine>) -> Result<()> {
     tracing::info!("Running periodic scrape task");
 
     // Find sources due for scraping
@@ -101,25 +102,40 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
 
     tracing::info!("Found {} sources due for scraping", sources.len());
 
-    // Emit scrape event for each source
+    // Call scrape action for each source
     for source in sources {
-        let job_id = JobId::new();
+        // Call the action directly via process() - action creates its own job_id
+        let result = engine
+            .activate(AppState::default())
+            .process(|ectx| {
+                post_actions::scrape_source(
+                    source.id.into_uuid(),
+                    MemberId::nil().into_uuid(), // System user
+                    true,                        // System has admin privileges
+                    ectx,
+                )
+            })
+            .await;
 
-        // Emit event (fire-and-forget, non-blocking)
-        // System-initiated scrapes use system user ID (all zeros) with admin privileges
-        bus.emit(PostEvent::ScrapeSourceRequested {
-            source_id: source.id,
-            job_id,
-            requested_by: MemberId::nil(), // System user
-            is_admin: true,                // System has admin privileges
-        });
-
-        tracing::info!(
-            "Queued scrape job {} for source {} ({})",
-            job_id,
-            source.id,
-            source.domain
-        );
+        match result {
+            Ok(job_result) => {
+                tracing::info!(
+                    "Scraped source {} ({}) with job {} - status: {}",
+                    source.id,
+                    source.domain,
+                    job_result.job_id,
+                    job_result.status
+                );
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Failed to scrape source {} ({}): {}",
+                    source.id,
+                    source.domain,
+                    e
+                );
+            }
+        }
     }
 
     Ok(())
@@ -129,7 +145,7 @@ async fn run_periodic_scrape(pool: &PgPool, bus: &EventBus) -> Result<()> {
 ///
 /// Runs static discovery queries via Tavily to find new community resources.
 /// Creates pending websites for admin review.
-async fn run_periodic_searches(pool: &PgPool, _bus: &EventBus) -> Result<()> {
+async fn run_periodic_searches(pool: &PgPool) -> Result<()> {
     tracing::info!("Running periodic discovery search task");
 
     // Load config for Tavily API key

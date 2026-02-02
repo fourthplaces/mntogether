@@ -5,36 +5,36 @@ use seesaw_core::EffectContext;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::domains::chatrooms::ChatRequestState;
+use crate::common::{AppState, ReadResult};
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
-use crate::domains::posts::effects::ServerDeps;
+use crate::kernel::ServerDeps;
 
 /// Update a member's active status.
 ///
-/// Returns:
-/// - `MemberStatusUpdated` on success
-/// - `MemberNotFound` if member doesn't exist
+/// Called directly from GraphQL mutation via `process()`.
+/// Emits `MemberStatusUpdated` or `MemberNotFound` fact event.
+/// Returns `ReadResult<Member>` for deferred read after effects settle.
 pub async fn update_member_status(
     member_id: Uuid,
     active: bool,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<MemberEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<ReadResult<Member>> {
     info!("Updating member {} status to: {}", member_id, active);
 
     match Member::update_status(member_id, active, &ctx.deps().db_pool).await {
         Ok(updated) => {
             info!("Member status updated: {}", updated.id);
-            Ok(MemberEvent::MemberStatusUpdated {
+            ctx.emit(MemberEvent::MemberStatusUpdated {
                 member_id: updated.id,
                 active: updated.active,
-            })
+            });
+            Ok(ReadResult::new(updated.id, ctx.deps().db_pool.clone()))
         }
         Err(e) => {
             error!("Failed to update member status: {}", e);
-            // Return MemberNotFound as a fact event (not an error)
-            // This allows the caller to handle it appropriately
-            Ok(MemberEvent::MemberNotFound { member_id })
+            ctx.emit(MemberEvent::MemberNotFound { member_id });
+            Err(anyhow::anyhow!("Member not found: {}", member_id))
         }
     }
 }

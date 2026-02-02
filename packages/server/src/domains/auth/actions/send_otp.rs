@@ -1,19 +1,29 @@
+//! Send OTP action
+
 use anyhow::Result;
 use seesaw_core::EffectContext;
 use tracing::{error, info};
 
+use crate::common::AppState;
 use crate::domains::auth::events::AuthEvent;
 use crate::domains::auth::models::{hash_phone_number, is_admin_identifier, Identifier};
-use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::models::Member;
-use crate::domains::posts::effects::ServerDeps;
+use crate::kernel::ServerDeps;
+
+/// Result of sending OTP
+pub enum SendOtpResult {
+    Sent,
+    NotRegistered,
+}
 
 /// Send OTP to phone number or email via Twilio.
-/// Returns OTPSent on success, PhoneNotRegistered if identifier not found.
+///
+/// Called directly from GraphQL mutation via `process()`.
+/// Emits `OTPSent` or `PhoneNotRegistered` fact event.
 pub async fn send_otp(
     phone_number: String,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<AuthEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<SendOtpResult> {
     // Production safety check - test identifier should never be enabled in production
     if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {
         error!("SECURITY WARNING: TEST_IDENTIFIER_ENABLED is true in production build!");
@@ -28,7 +38,10 @@ pub async fn send_otp(
         let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
 
         if is_admin {
-            info!("Auto-creating admin member and identifier for: {}", phone_number);
+            info!(
+                "Auto-creating admin member and identifier for: {}",
+                phone_number
+            );
 
             // Create member record first (required for foreign key)
             let member = Member {
@@ -56,10 +69,16 @@ pub async fn send_otp(
                     anyhow::anyhow!("Failed to create admin identifier: {}", e)
                 })?;
 
-            info!("Admin member and identifier created successfully for {}", phone_number);
+            info!(
+                "Admin member and identifier created successfully for {}",
+                phone_number
+            );
         } else {
             info!("Identifier not registered: {}", phone_number);
-            return Ok(AuthEvent::PhoneNotRegistered { phone_number });
+            ctx.emit(AuthEvent::PhoneNotRegistered {
+                phone_number: phone_number.clone(),
+            });
+            return Ok(SendOtpResult::NotRegistered);
         }
     }
 
@@ -68,8 +87,14 @@ pub async fn send_otp(
     if ctx.deps().test_identifier_enabled
         && (phone_number == "+1234567890" || phone_number == "test@example.com")
     {
-        info!("Test identifier: Skipping actual OTP send for {}", phone_number);
-        return Ok(AuthEvent::OTPSent { phone_number });
+        info!(
+            "Test identifier: Skipping actual OTP send for {}",
+            phone_number
+        );
+        ctx.emit(AuthEvent::OTPSent {
+            phone_number: phone_number.clone(),
+        });
+        return Ok(SendOtpResult::Sent);
     }
 
     // 4. Send OTP via Twilio (supports phone numbers and emails)
@@ -83,5 +108,8 @@ pub async fn send_otp(
         })?;
 
     info!("OTP sent successfully to {}", phone_number);
-    Ok(AuthEvent::OTPSent { phone_number })
+    ctx.emit(AuthEvent::OTPSent {
+        phone_number: phone_number.clone(),
+    });
+    Ok(SendOtpResult::Sent)
 }

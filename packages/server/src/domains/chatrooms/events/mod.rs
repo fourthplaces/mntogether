@@ -1,11 +1,10 @@
-//! Chat domain events.
+//! Chat domain events - FACT EVENTS ONLY
 //!
-//! Events are immutable facts about what happened. They follow the seesaw pattern:
-//! - Request events: User intent (from edges)
-//! - Fact events: What actually happened (from effects)
+//! Events are immutable facts about what happened. Effects watch these
+//! and call handlers directly for cascade workflows (no *Requested events).
 //!
-//! Architecture:
-//!   Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
+//! Architecture (direct-call pattern):
+//!   GraphQL → Action (via process) → emit Fact Event → Cascade Effect → Handler
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -13,54 +12,9 @@ use uuid::Uuid;
 use crate::common::{ContainerId, IntoNatsPayload, MemberId, MessageId};
 use crate::domains::chatrooms::models::{Container, Message};
 
-/// Chat domain events - immutable facts
+/// Chat domain events - FACT EVENTS ONLY
 #[derive(Debug, Clone)]
 pub enum ChatEvent {
-    // =========================================================================
-    // Request Events (from edges and internal edges)
-    // =========================================================================
-    /// User requests to create a new chat container
-    CreateContainerRequested {
-        container_type: String,
-        entity_id: Option<uuid::Uuid>,
-        language: String,
-        requested_by: Option<MemberId>,
-        /// Optional agent config - when set, tags container with with_agent tag
-        with_agent: Option<String>,
-    },
-
-    /// User sends a message
-    SendMessageRequested {
-        container_id: ContainerId,
-        content: String,
-        author_id: Option<MemberId>,
-        parent_message_id: Option<MessageId>,
-    },
-
-    /// Request to create a message with specific role (used by internal edges)
-    CreateMessageRequested {
-        container_id: ContainerId,
-        role: String,
-        content: String,
-        author_id: Option<MemberId>,
-        parent_message_id: Option<MessageId>,
-    },
-
-    /// Request to generate an AI reply to a message (triggered by internal edge)
-    GenerateReplyRequested {
-        message_id: MessageId,
-        container_id: ContainerId,
-    },
-
-    /// Request to generate an AI greeting for a new container (triggered by internal edge)
-    GenerateGreetingRequested {
-        container_id: ContainerId,
-        agent_config: String,
-    },
-
-    // =========================================================================
-    // Fact Events (from effects - what actually happened)
-    // =========================================================================
     /// Container was created
     ContainerCreated {
         container: Container,
@@ -159,13 +113,6 @@ pub enum ChatEventPayload {
 impl IntoNatsPayload for ChatEvent {
     fn container_id(&self) -> Option<Uuid> {
         match self {
-            // Request events are not published
-            ChatEvent::CreateContainerRequested { .. }
-            | ChatEvent::SendMessageRequested { .. }
-            | ChatEvent::CreateMessageRequested { .. }
-            | ChatEvent::GenerateReplyRequested { .. }
-            | ChatEvent::GenerateGreetingRequested { .. } => None,
-
             // Fact events with container_id are published
             ChatEvent::ContainerCreated { container, .. } => Some(container.id.into()),
             ChatEvent::MessageCreated { message } => Some(message.container_id.into()),

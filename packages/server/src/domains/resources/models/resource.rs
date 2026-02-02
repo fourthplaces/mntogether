@@ -364,4 +364,51 @@ impl Resource {
         .await?;
         Ok(count)
     }
+
+    /// Find pending resources (for admin approval queue)
+    pub async fn find_pending(pool: &PgPool) -> Result<Vec<Self>> {
+        Self::find_by_status("pending_approval", 100, 0, pool).await
+    }
+
+    /// Find active resources
+    pub async fn find_active(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
+        Self::find_by_status("active", limit, 0, pool).await
+    }
+
+    /// Find resources with optional status filter
+    pub async fn find_with_filters(
+        status: Option<ResourceStatus>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        match status {
+            Some(s) => Self::find_by_status(&s.to_string(), limit, offset, pool).await,
+            None => Self::find_by_status("pending_approval", limit, offset, pool).await,
+        }
+    }
+
+    /// Count resources with optional status filter
+    pub async fn count_with_filters(
+        status: Option<ResourceStatus>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        match status {
+            Some(s) => Self::count_by_status(&s.to_string(), pool).await,
+            None => Self::count_by_status("pending_approval", pool).await,
+        }
+    }
+}
+
+// Implement Readable for ReadResult<Resource> support
+use crate::common::Readable;
+use async_trait::async_trait;
+
+#[async_trait]
+impl Readable for Resource {
+    type Id = ResourceId;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        Self::find_by_id_optional(id, pool).await
+    }
 }

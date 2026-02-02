@@ -1,5 +1,8 @@
 //! Resources domain - extracted services/programs from websites
 //!
+//! Architecture (seesaw 0.6.0 direct-call pattern):
+//!   GraphQL → process(action) → emit(FactEvent) → Effect watches facts → calls handlers
+//!
 //! This domain handles the simplified content model that replaces the complex
 //! Listing model. Resources represent distinct services, programs, or opportunities
 //! extracted from websites.
@@ -11,8 +14,8 @@
 //! - Multiple source URLs per resource
 //! - Direct tag associations
 
+pub mod actions;
 pub mod data;
-pub mod edges;
 pub mod effects;
 pub mod models;
 
@@ -30,10 +33,4 @@ pub use data::{
 // Re-export effects
 pub use effects::{
     deduplicate_resource, sync_resources, DedupAction, ExtractedResourceInput, SyncResult,
-};
-
-// Re-export edges
-pub use edges::{
-    approve_resource, delete_resource, edit_and_approve_resource, edit_resource,
-    get_active_resources, get_pending_resources, get_resource, get_resources, reject_resource,
 };

@@ -1,5 +1,4 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
 use axum::{
     extract::{Extension, Request},
@@ -12,7 +11,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw_core::{EngineBuilder, EventBus};
+use seesaw_core::Engine;
 use sqlx::PgPool;
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
 use tower_http::cors::CorsLayer;
@@ -20,9 +19,6 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
-use crate::domains::chatrooms::effects::ChatEffect;
-use crate::domains::chatrooms::events::ChatEvent;
-use crate::domains::chatrooms::ChatReducer;
 use crate::kernel::{OpenAIClient, ServerDeps, TwilioAdapter};
 use crate::server::graphql::context::AppEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
@@ -32,12 +28,20 @@ use crate::server::routes::{
 };
 use crate::server::static_files::{serve_admin, serve_web_app};
 
+// Import effect builder functions from each domain
+use crate::domains::auth::effects::auth_effect;
+use crate::domains::member::effects::member_effect;
+use crate::domains::chatrooms::effects::chat_effect;
+use crate::domains::website::effects::website_effect;
+use crate::domains::crawling::effects::crawler_effect;
+use crate::domains::posts::effects::post_composite_effect;
+use crate::domains::domain_approval::effects::domain_approval_effect;
+
 /// Shared application state
 #[derive(Clone)]
-pub struct AppState {
+pub struct AxumAppState {
     pub db_pool: PgPool,
-    pub bus: EventBus,
-    pub engine: Arc<Mutex<AppEngine>>,
+    pub engine: Arc<AppEngine>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
@@ -45,7 +49,7 @@ pub struct AppState {
 
 /// Middleware to create GraphQLContext per-request
 async fn create_graphql_context(
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<AxumAppState>,
     mut request: Request,
     next: Next,
 ) -> Response {
@@ -55,7 +59,6 @@ async fn create_graphql_context(
     // Create GraphQL context with shared state + per-request auth
     let context = GraphQLContext::new(
         state.db_pool.clone(),
-        state.bus.clone(),
         state.engine.clone(),
         auth_user,
         state.twilio.clone(),
@@ -69,10 +72,34 @@ async fn create_graphql_context(
     next.run(request).await
 }
 
-/// Build the Axum application router and EventBus
+/// Build the seesaw engine with all domain effects
 ///
-/// The Engine is created with reducers and effects for the Edge pattern.
-/// GraphQL mutations call engine.run(Edge, State) to execute workflows.
+/// In seesaw 0.6.0, effects are registered using the builder pattern:
+/// `effect::on::<E>().run(|event, ctx| async { ... })`
+fn build_engine(server_deps: ServerDeps) -> AppEngine {
+    Engine::with_deps(server_deps)
+        // Auth domain
+        .with_effect(auth_effect())
+        // Member domain
+        .with_effect(member_effect())
+        // Chat domain
+        .with_effect(chat_effect())
+        // Website domain
+        .with_effect(website_effect())
+        // Crawling domain
+        .with_effect(crawler_effect())
+        // Posts domain (composite effect)
+        .with_effect(post_composite_effect())
+        // Domain approval domain
+        .with_effect(domain_approval_effect())
+}
+
+/// Build the Axum application router
+///
+/// The Engine is created with effects for the seesaw 0.6.0 architecture.
+/// GraphQL mutations use engine.activate(initial_state) to execute workflows.
+///
+/// Returns (Router, Arc<AppEngine>) - engine is needed for scheduled tasks.
 pub fn build_app(
     pool: PgPool,
     openai_api_key: String,
@@ -89,7 +116,7 @@ pub fn build_app(
     admin_identifiers: Vec<String>,
     pii_scrubbing_enabled: bool,
     pii_use_gpt_detection: bool,
-) -> (Router, EventBus) {
+) -> (Router, Arc<AppEngine>) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
 
@@ -137,48 +164,15 @@ pub fn build_app(
         admin_identifiers,
     );
 
-    // Build seesaw engine with reducers and effects
-    //
-    // Edge pattern: Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
-    let engine: AppEngine = EngineBuilder::new(server_deps)
-        // Chat domain reducer (stores results in state for Edge.read())
-        .with_reducer::<ChatEvent, _>(ChatReducer)
-        // Auth domain
-        .with_effect::<crate::domains::auth::AuthEvent, _>(crate::domains::auth::AuthEffect)
-        // Member domain
-        .with_effect::<crate::domains::member::MemberEvent, _>(
-            crate::domains::member::MemberEffect,
-        )
-        // Chat domain
-        .with_effect::<ChatEvent, _>(ChatEffect)
-        // Website domain
-        .with_effect::<crate::domains::website::WebsiteEvent, _>(
-            crate::domains::website::WebsiteEffect,
-        )
-        // Crawling domain
-        .with_effect::<crate::domains::crawling::CrawlEvent, _>(
-            crate::domains::crawling::CrawlerEffect,
-        )
-        // Posts domain
-        .with_effect::<crate::domains::posts::PostEvent, _>(
-            crate::domains::posts::PostCompositeEffect::new(),
-        )
-        // Domain approval domain
-        .with_effect::<crate::domains::domain_approval::DomainApprovalEvent, _>(
-            crate::domains::domain_approval::DomainApprovalEffect,
-        )
-        .build();
-
-    let bus = engine.bus().clone();
-    let engine = Arc::new(Mutex::new(engine));
+    // Build seesaw engine with effects (0.6.0 builder pattern)
+    let engine = Arc::new(build_engine(server_deps));
 
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));
 
     // Create shared app state
-    let app_state = AppState {
+    let app_state = AxumAppState {
         db_pool: pool.clone(),
-        bus: bus.clone(),
         engine: engine.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
@@ -237,7 +231,7 @@ pub fn build_app(
         router = router.route("/graphql", get(graphql_playground));
     }
 
-    let router = router
+    let app = router
         // Health check (no rate limit)
         .route("/health", get(health_handler))
         // Static file serving for admin SPA (no rate limit)
@@ -259,5 +253,5 @@ pub fn build_app(
         // State (schema for GraphQL handlers)
         .with_state(schema);
 
-    (router, bus)
+    (app, engine)
 }

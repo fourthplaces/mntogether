@@ -1,14 +1,14 @@
 use axum::{extract::Extension, http::StatusCode, Json};
 use serde::Serialize;
 
-use crate::server::app::AppState;
+use crate::server::app::AxumAppState;
 
 #[derive(Serialize)]
 pub struct HealthResponse {
     status: String,
     database: DatabaseHealth,
     connection_pool: ConnectionPoolHealth,
-    event_bus: String,
+    engine: String,
 }
 
 #[derive(Serialize)]
@@ -31,11 +31,11 @@ pub struct ConnectionPoolHealth {
 /// Checks:
 /// - Database connectivity and responsiveness
 /// - Connection pool utilization
-/// - Event bus health
+/// - Engine health (always available if app started)
 ///
 /// Returns 200 OK if all systems are healthy, 503 Service Unavailable otherwise.
 pub async fn health_handler(
-    Extension(state): Extension<AppState>,
+    Extension(state): Extension<AxumAppState>,
 ) -> (StatusCode, Json<HealthResponse>) {
     // Check database connection and measure latency
     let db_health = match tokio::time::timeout(
@@ -66,8 +66,8 @@ pub async fn health_handler(
         max_connections: Some(pool_options.get_max_connections()),
     };
 
-    // Check event bus health (simple check - bus is always available if app started)
-    let bus_status = "ok".to_string();
+    // Check engine health (simple check - engine is always available if app started)
+    let engine_status = "ok".to_string();
 
     // Determine overall health
     let is_healthy = db_health.status == "ok";
@@ -86,7 +86,7 @@ pub async fn health_handler(
             status: overall_status.to_string(),
             database: db_health,
             connection_pool: pool_health,
-            event_bus: bus_status,
+            engine: engine_status,
         }),
     )
 }

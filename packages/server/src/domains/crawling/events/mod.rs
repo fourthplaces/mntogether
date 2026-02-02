@@ -2,8 +2,11 @@
 //!
 //! Events are immutable facts that occurred during the crawling workflow.
 //!
-//! Architecture (seesaw 0.3.0):
-//!   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
+//! Architecture (direct-call pattern):
+//!   GraphQL → Action (via process) → emit Fact Event → Cascade Effect → Handler
+//!
+//! ALL *Requested events have been removed. GraphQL calls actions directly.
+//! Effects watch FACT events and call handlers directly for cascading.
 
 use serde::{Deserialize, Serialize};
 
@@ -26,83 +29,14 @@ pub struct PageExtractionResult {
     pub has_posts: bool,
 }
 
-/// Crawling domain events
-/// Following seesaw 0.3.0 pattern: Request events → Effect → Fact events → Internal edges
+/// Crawling domain events - FACT EVENTS ONLY
+///
+/// These are immutable facts about what happened. Effects watch these
+/// and call handlers directly for cascade workflows (no *Requested events).
 #[derive(Debug, Clone)]
 pub enum CrawlEvent {
     // =========================================================================
-    // Request Events (from edges and internal edges)
-    // =========================================================================
-
-    /// Admin requests to crawl a website (multi-page)
-    CrawlWebsiteRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Request to extract posts from crawled pages (triggered internally)
-    ExtractPostsFromPagesRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        pages: Vec<CrawledPageInfo>,
-    },
-
-    /// Request to sync extracted posts to database (triggered by internal edge)
-    SyncCrawledPostsRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        posts: Vec<ExtractedPost>,
-        page_results: Vec<PageExtractionResult>,
-    },
-
-    /// Request to retry crawl after no posts found (triggered by internal edge)
-    RetryWebsiteCrawlRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-    },
-
-    /// Request to mark website as having no posts (triggered by internal edge)
-    MarkWebsiteNoPostsRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-    },
-
-    /// Admin requests to regenerate posts from existing page snapshots
-    RegeneratePostsRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Admin requests to regenerate page summaries for existing snapshots
-    RegeneratePageSummariesRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Admin requests to regenerate AI summary for a single page snapshot
-    RegeneratePageSummaryRequested {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    /// Admin requests to regenerate posts for a single page snapshot
-    RegeneratePagePostsRequested {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        requested_by: MemberId,
-        is_admin: bool,
-    },
-
-    // =========================================================================
-    // Fact Events (from effects - what actually happened)
+    // Fact Events (emitted by actions - what actually happened)
     // =========================================================================
 
     /// Website was crawled (multiple pages discovered)

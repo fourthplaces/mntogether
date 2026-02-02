@@ -1,115 +1,129 @@
-//! Post composite effect - routes events to appropriate sub-effects
+//! Post composite effect - watches FACT events and calls cascade handlers
 //!
-//! This effect is a thin orchestration layer that dispatches request events to handlers.
-//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+//! Architecture (seesaw 0.6.0 direct-call pattern):
+//!   GraphQL → process(action) → emit(FactEvent) → Effect watches facts → calls handlers
+//!
+//! NO *Requested events. Effects watch FACT events and cascade directly.
+//!
+//! Cascade flows:
+//!   SourceScraped → handle_extract_posts → PostsExtracted → handle_sync_posts → PostsSynced
+//!   ResourceLinkScraped → handle_extract_from_resource_link → ResourceLinkPostsExtracted → handle_create_from_resource_link
+//!   WebsiteCreatedFromLink → handle_scrape_resource_link → ResourceLinkScraped → ...
 
-use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::effect;
+use std::sync::Arc;
 
-use crate::domains::chatrooms::ChatRequestState;
-use crate::kernel::ServerDeps;
-use super::{AIEffect, PostEffect, ScraperEffect, SyncEffect};
+use crate::common::AppState;
 use crate::domains::posts::events::PostEvent;
+use crate::kernel::ServerDeps;
 
-/// Composite Effect - Routes PostEvent to appropriate sub-effect
+use super::ai::{handle_extract_posts, handle_extract_posts_from_resource_link};
+use super::post::handle_create_posts_from_resource_link;
+use super::scraper::handle_scrape_resource_link;
+use super::sync::handle_sync_posts;
+
+/// Build the post composite effect handler using the 0.6.0 builder pattern.
 ///
-/// This composite effect solves the problem of having multiple effects for the same event type.
-/// The dispatcher requires one effect per event type, so this effect routes based on the event variant.
-///
-/// NOTE: Crawling events have been moved to the `crawling` domain.
-/// See `crate::domains::crawling::effects::CrawlerEffect`.
-pub struct PostCompositeEffect {
-    scraper: ScraperEffect,
-    ai: AIEffect,
-    sync: SyncEffect,
-    listing: PostEffect,
-}
-
-impl PostCompositeEffect {
-    pub fn new() -> Self {
-        Self {
-            scraper: ScraperEffect,
-            ai: AIEffect,
-            sync: SyncEffect,
-            listing: PostEffect,
-        }
-    }
-}
-
-impl Default for PostCompositeEffect {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[async_trait]
-impl Effect<PostEvent, ServerDeps, ChatRequestState> for PostCompositeEffect {
-    type Event = PostEvent;
-
-    async fn handle(
-        &mut self,
-        event: PostEvent,
-        ctx: EffectContext<ServerDeps, ChatRequestState>,
-    ) -> Result<Option<PostEvent>> {
-        match &event {
+/// This composite effect watches FACT events and calls cascade handlers.
+/// Entry-point handlers are called directly from GraphQL via process().
+pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
+    effect::on::<PostEvent>().run(|event: Arc<PostEvent>, ctx| async move {
+        match event.as_ref() {
             // =================================================================
-            // Route to ScraperEffect
+            // Cascade: SourceScraped → extract posts
             // =================================================================
-            PostEvent::ScrapeSourceRequested { .. }
-            | PostEvent::ScrapeResourceLinkRequested { .. } => {
-                self.scraper.handle(event, ctx).await
+            PostEvent::SourceScraped {
+                source_id,
+                job_id,
+                organization_name,
+                content,
+                ..
+            } => {
+                handle_extract_posts(
+                    *source_id,
+                    *job_id,
+                    organization_name.clone(),
+                    content.clone(),
+                    &ctx,
+                )
+                .await
             }
 
             // =================================================================
-            // Route to AIEffect
+            // Cascade: ResourceLinkScraped → extract posts from resource link
             // =================================================================
-            PostEvent::ExtractPostsRequested { .. }
-            | PostEvent::ExtractPostsFromResourceLinkRequested { .. } => {
-                self.ai.handle(event, ctx).await
+            PostEvent::ResourceLinkScraped {
+                job_id,
+                url,
+                content,
+                context,
+                submitter_contact,
+                ..
+            } => {
+                handle_extract_posts_from_resource_link(
+                    *job_id,
+                    url.clone(),
+                    content.clone(),
+                    context.clone(),
+                    submitter_contact.clone(),
+                    &ctx,
+                )
+                .await
             }
 
             // =================================================================
-            // Route to SyncEffect
+            // Cascade: PostsExtracted → sync posts to database
             // =================================================================
-            PostEvent::SyncPostsRequested { .. } => self.sync.handle(event, ctx).await,
+            PostEvent::PostsExtracted {
+                source_id,
+                job_id,
+                posts,
+            } => handle_sync_posts(*source_id, *job_id, posts.clone(), &ctx).await,
 
             // =================================================================
-            // Route to PostEffect (all other request events)
+            // Cascade: ResourceLinkPostsExtracted → create posts from resource link
             // =================================================================
-            PostEvent::CreateWebsiteFromLinkRequested { .. }
-            | PostEvent::CreatePostEntryRequested { .. }
-            | PostEvent::CreatePostsFromResourceLinkRequested { .. }
-            | PostEvent::UpdatePostStatusRequested { .. }
-            | PostEvent::EditAndApproveListingRequested { .. }
-            | PostEvent::CreatePostRequested { .. }
-            | PostEvent::GeneratePostEmbeddingRequested { .. }
-            | PostEvent::CreateCustomPostRequested { .. }
-            | PostEvent::RepostPostRequested { .. }
-            | PostEvent::ExpirePostRequested { .. }
-            | PostEvent::ArchivePostRequested { .. }
-            | PostEvent::PostViewedRequested { .. }
-            | PostEvent::PostClickedRequested { .. }
-            | PostEvent::DeletePostRequested { .. }
-            | PostEvent::ReportListingRequested { .. }
-            | PostEvent::ResolveReportRequested { .. }
-            | PostEvent::DismissReportRequested { .. }
-            | PostEvent::DeduplicatePostsRequested { .. }
-            | PostEvent::SubmitListingRequested { .. }
-            | PostEvent::SubmitResourceLinkRequested { .. }
-            | PostEvent::ApproveListingRequested { .. }
-            | PostEvent::RejectListingRequested { .. } => {
-                self.listing.handle(event, ctx).await
+            PostEvent::ResourceLinkPostsExtracted {
+                job_id,
+                url,
+                posts,
+                context,
+                submitter_contact,
+            } => {
+                handle_create_posts_from_resource_link(
+                    *job_id,
+                    url.clone(),
+                    posts.clone(),
+                    context.clone(),
+                    submitter_contact.clone(),
+                    &ctx,
+                )
+                .await
             }
 
             // =================================================================
-            // Fact Events → Terminal, no follow-up needed
+            // Cascade: WebsiteCreatedFromLink → scrape resource link
             // =================================================================
-            PostEvent::SourceScraped { .. }
-            | PostEvent::ResourceLinkScraped { .. }
-            | PostEvent::PostsExtracted { .. }
-            | PostEvent::ResourceLinkPostsExtracted { .. }
-            | PostEvent::PostsSynced { .. }
+            PostEvent::WebsiteCreatedFromLink {
+                job_id,
+                url,
+                submitter_contact,
+                ..
+            } => {
+                handle_scrape_resource_link(
+                    *job_id,
+                    url.clone(),
+                    None, // context is not available in this event
+                    submitter_contact.clone(),
+                    &ctx,
+                )
+                .await
+            }
+
+            // =================================================================
+            // Terminal events - no cascade needed
+            // =================================================================
+            PostEvent::PostsSynced { .. }
             | PostEvent::ScrapeFailed { .. }
             | PostEvent::ResourceLinkScrapeFailed { .. }
             | PostEvent::ExtractFailed { .. }
@@ -132,8 +146,7 @@ impl Effect<PostEvent, ServerDeps, ChatRequestState> for PostCompositeEffect {
             | PostEvent::AuthorizationDenied { .. }
             | PostEvent::PostsDeduplicated { .. }
             | PostEvent::DeduplicationFailed { .. }
-            | PostEvent::WebsiteCreatedFromLink { .. }
-            | PostEvent::WebsitePendingApproval { .. } => Ok(None),
+            | PostEvent::WebsitePendingApproval { .. } => Ok(()),
         }
-    }
+    })
 }

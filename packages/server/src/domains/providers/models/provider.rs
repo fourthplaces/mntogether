@@ -421,3 +421,16 @@ impl Provider {
         Ok(())
     }
 }
+
+// Implement Readable for ReadResult<Provider> support
+use crate::common::Readable;
+use async_trait::async_trait;
+
+#[async_trait]
+impl Readable for Provider {
+    type Id = ProviderId;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        Self::find_by_id_optional(id, pool).await
+    }
+}

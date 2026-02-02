@@ -6,28 +6,23 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::common::utils::geocoding::geocode_city;
-use crate::domains::chatrooms::ChatRequestState;
+use crate::common::{AppState, ReadResult};
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
-use crate::domains::posts::effects::ServerDeps;
+use crate::kernel::ServerDeps;
 
 /// Register a new member with geocoding.
 ///
-/// This action:
-/// 1. Checks if member already exists (by expo_push_token)
-/// 2. Geocodes the city/state to lat/lng
-/// 3. Creates the member record
-///
-/// Returns:
-/// - `MemberRegistered` on success (new or existing member)
-/// - Error propagated on database failure
+/// Called directly from GraphQL mutation via `process()`.
+/// Emits `MemberRegistered` fact event to trigger cascading effects (embedding generation).
+/// Returns `ReadResult<Member>` for deferred read after effects settle.
 pub async fn register_member(
     expo_push_token: String,
     searchable_text: String,
     city: String,
     state: String,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<MemberEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<ReadResult<Member>> {
     info!(
         "Registering member with token: {} in {}, {}",
         expo_push_token, city, state
@@ -36,13 +31,14 @@ pub async fn register_member(
     // Check if member already exists (idempotency)
     if let Some(existing) = Member::find_by_token(&expo_push_token, &ctx.deps().db_pool).await? {
         debug!("Member already exists, returning existing: {}", existing.id);
-        return Ok(MemberEvent::MemberRegistered {
+        ctx.emit(MemberEvent::MemberRegistered {
             member_id: existing.id,
-            expo_push_token: existing.expo_push_token,
+            expo_push_token: existing.expo_push_token.clone(),
             latitude: existing.latitude,
             longitude: existing.longitude,
-            location_name: existing.location_name,
+            location_name: existing.location_name.clone(),
         });
+        return Ok(ReadResult::new(existing.id, ctx.deps().db_pool.clone()));
     }
 
     // Geocode city to lat/lng
@@ -54,7 +50,6 @@ pub async fn register_member(
         ),
         Err(e) => {
             error!("Geocoding failed for {}, {}: {}", city, state, e);
-            // Don't fail registration, just skip location
             (None, None, None)
         }
     };
@@ -71,7 +66,7 @@ pub async fn register_member(
         searchable_text,
         latitude,
         longitude,
-        location_name,
+        location_name: location_name.clone(),
         active: true,
         notification_count_this_week: 0,
         paused_until: None,
@@ -86,11 +81,14 @@ pub async fn register_member(
 
     info!("Member registered successfully: {}", created.id);
 
-    Ok(MemberEvent::MemberRegistered {
+    // Emit fact event - triggers cascading effects (embedding generation)
+    ctx.emit(MemberEvent::MemberRegistered {
         member_id: created.id,
-        expo_push_token: created.expo_push_token,
+        expo_push_token: created.expo_push_token.clone(),
         latitude: created.latitude,
         longitude: created.longitude,
-        location_name: created.location_name,
-    })
+        location_name: created.location_name.clone(),
+    });
+
+    Ok(ReadResult::new(created.id, ctx.deps().db_pool.clone()))
 }

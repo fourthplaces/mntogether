@@ -1,17 +1,22 @@
 use std::sync::Arc;
-use tokio::sync::Mutex;
 
-use seesaw_core::{Engine, EventBus};
+use seesaw_core::Engine;
 use sqlx::PgPool;
 use twilio::TwilioService;
 
+use crate::common::AppState;
 use crate::domains::auth::JwtService;
-use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::{OpenAIClient, ServerDeps};
 use crate::server::middleware::AuthUser;
 
 /// The seesaw Engine type used by this application
-pub type AppEngine = Engine<ServerDeps, ChatRequestState>;
+///
+/// In seesaw 0.6.0:
+/// - State type (AppState) comes first
+/// - Deps type (ServerDeps) comes second
+/// - Engine is immutable after construction
+/// - Use engine.activate(initial_state) per request
+pub type AppEngine = Engine<AppState, ServerDeps>;
 
 /// GraphQL request context
 ///
@@ -19,8 +24,7 @@ pub type AppEngine = Engine<ServerDeps, ChatRequestState>;
 #[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
-    pub bus: EventBus,
-    pub engine: Arc<Mutex<AppEngine>>,
+    pub engine: Arc<AppEngine>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
@@ -32,8 +36,7 @@ impl juniper::Context for GraphQLContext {}
 impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
-        bus: EventBus,
-        engine: Arc<Mutex<AppEngine>>,
+        engine: Arc<AppEngine>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
         jwt_service: Arc<JwtService>,
@@ -41,7 +44,6 @@ impl GraphQLContext {
     ) -> Self {
         Self {
             db_pool,
-            bus,
             engine,
             auth_user,
             twilio,

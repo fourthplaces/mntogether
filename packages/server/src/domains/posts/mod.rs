@@ -1,6 +1,5 @@
 pub mod actions;
 pub mod data;
-pub mod edges;
 pub mod effects;
 pub mod events;
 pub mod models;
@@ -19,4 +18,4 @@ pub use events::PostEvent;
 pub use models::post::Post;
 
 // Re-export effects
-pub use effects::PostCompositeEffect;
+pub use effects::post_composite_effect;

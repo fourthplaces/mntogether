@@ -1,9 +1,10 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use crate::common::{MemberId, WebsiteId};
+use crate::common::{MemberId, Readable, WebsiteId};
 
 /// Website - a website we scrape for listings (requires approval before crawling)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -621,6 +622,16 @@ impl Website {
             .execute(pool)
             .await?;
         Ok(())
+    }
+}
+
+// Implement Readable trait for ReadResult pattern
+#[async_trait]
+impl Readable for Website {
+    type Id = WebsiteId;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        Self::find_by_id(id, pool).await.map(Some)
     }
 }
 

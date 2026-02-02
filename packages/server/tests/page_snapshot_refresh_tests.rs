@@ -76,7 +76,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         .expect("Failed to approve website");
 
     // Initial scrape
-    let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
+    let client = test_ctx.graphql_with_auth(admin_id, true);
 
     let scrape_mutation = r#"
         mutation ScrapeOrganization($sourceId: Uuid!) {
@@ -241,7 +241,7 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
 #[tokio::test]
 async fn refresh_nonexistent_snapshot_returns_error(ctx: &TestHarness) {
     let admin_id = create_admin_user(ctx).await;
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     let refresh_mutation = r#"
         mutation RefreshPageSnapshot($snapshotId: String!) {
@@ -316,7 +316,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
         .expect("Failed to approve website");
 
     // Initial scrape
-    let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
+    let client = test_ctx.graphql_with_auth(admin_id, true);
 
     let scrape_mutation = r#"
         mutation ScrapeOrganization($sourceId: Uuid!) {

@@ -73,7 +73,7 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
         .expect("Failed to approve website");
 
     // Trigger scrape via GraphQL mutation
-    let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
+    let client = test_ctx.graphql_with_auth(admin_id, true);
 
     let scrape_mutation = r#"
         mutation ScrapeOrganization($sourceId: Uuid!) {
@@ -178,7 +178,7 @@ async fn query_website_with_full_nested_data(ctx: &TestHarness) {
         .expect("Failed to approve website");
 
     // Trigger scrape via GraphQL mutation
-    let client = GraphQLClient::with_auth_user(test_ctx.kernel.clone(), admin_id, true);
+    let client = test_ctx.graphql_with_auth(admin_id, true);
 
     let scrape_mutation = r#"
         mutation ScrapeOrganization($sourceId: Uuid!) {
@@ -269,7 +269,7 @@ async fn query_website_with_no_snapshots(ctx: &TestHarness) {
         .await
         .expect("Failed to approve website");
 
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     // Query website
     let query = r#"

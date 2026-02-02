@@ -1,19 +1,19 @@
-//! Search effect - handles conducting Tavily research searches
+//! Search cascade handler - conducts Tavily research searches
 //!
-//! This module contains the handler for the ConductResearchSearchesRequested event.
+//! This handler is called by the effect when WebsiteResearchCreated is emitted.
+//! Cascade flow: WebsiteResearchCreated → handle_conduct_searches → ResearchSearchesCompleted
 
-use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::chatrooms::ChatRequestState;
+use crate::common::{AppState, JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::events::DomainApprovalEvent;
-use crate::kernel::ServerDeps;
 use crate::domains::website::models::{TavilySearchQuery, TavilySearchResult, WebsiteResearch};
+use crate::kernel::ServerDeps;
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
 
 // ============================================================================
-// Handler Functions (Business Logic)
+// Handler Functions (Business Logic) - emit events directly
 // ============================================================================
 
 /// Handle the ConductResearchSearchesRequested event.
@@ -22,8 +22,8 @@ pub async fn handle_conduct_searches(
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<DomainApprovalEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<()> {
     info!(
         research_id = %research_id,
         website_id = %website_id,
@@ -120,14 +120,15 @@ pub async fn handle_conduct_searches(
     );
 
     // Step 6: Emit completion event
-    Ok(DomainApprovalEvent::ResearchSearchesCompleted {
+    ctx.emit(DomainApprovalEvent::ResearchSearchesCompleted {
         research_id,
         website_id,
         job_id,
         total_queries: queries.len(),
         total_results,
         requested_by,
-    })
+    });
+    Ok(())
 }
 
 // ============================================================================

@@ -1,9 +1,10 @@
 use anyhow::Result;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::MemberId;
+use crate::common::{MemberId, Readable};
 
 /// Member model - SQL persistence layer
 ///
@@ -192,6 +193,20 @@ impl Member {
             .await?;
 
         Ok(())
+    }
+}
+
+/// Implement Readable for deferred database reads via ReadResult<Member>
+#[async_trait]
+impl Readable for Member {
+    type Id = Uuid;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>("SELECT * FROM members WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await
+            .map_err(Into::into)
     }
 }
 

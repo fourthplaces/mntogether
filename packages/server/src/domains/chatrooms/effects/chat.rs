@@ -1,117 +1,67 @@
-//! Chat effect - handles request events and emits fact events.
+//! ChatEffect - Handles chat workflow cascading
 //!
-//! In seesaw Edge pattern:
-//!   Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
+//! This effect watches FACT events and calls handlers directly for cascading.
+//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
+//!
+//! Cascade flow:
+//!   ContainerCreated (with_agent) → handle_generate_greeting → MessageCreated
+//!   MessageCreated (user role, container has agent) → handle_generate_reply → MessageCreated
 
-use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::effect;
+use std::sync::Arc;
 
-use crate::domains::chatrooms::actions;
+use crate::common::AppState;
 use crate::domains::chatrooms::events::ChatEvent;
-use crate::domains::chatrooms::state::ChatRequestState;
 use crate::kernel::ServerDeps;
 
-/// Chat Effect - Handles request events and emits fact events
-pub struct ChatEffect;
+use super::handlers;
 
-#[async_trait]
-impl Effect<ChatEvent, ServerDeps, ChatRequestState> for ChatEffect {
-    type Event = ChatEvent;
-
-    async fn handle(
-        &mut self,
-        event: ChatEvent,
-        ctx: EffectContext<ServerDeps, ChatRequestState>,
-    ) -> Result<Option<ChatEvent>> {
-        match event {
+/// Build the chat effect handler.
+///
+/// This effect watches FACT events and calls handlers directly for cascading.
+/// No *Requested events - the effect IS the cascade controller.
+pub fn chat_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
+    effect::on::<ChatEvent>().run(|event: Arc<ChatEvent>, ctx| async move {
+        match event.as_ref() {
             // =================================================================
-            // External Request Events (from edges)
+            // Cascade: ContainerCreated with agent → generate greeting
             // =================================================================
-
-            ChatEvent::CreateContainerRequested {
-                container_type,
-                entity_id,
-                language,
-                requested_by,
+            ChatEvent::ContainerCreated {
+                container,
                 with_agent,
             } => {
-                let (container, _) = actions::create_container(
-                    container_type,
-                    entity_id,
-                    language,
-                    requested_by,
-                    with_agent.clone(),
-                    &ctx.deps().db_pool,
-                )
-                .await?;
-
-                Ok(Some(ChatEvent::ContainerCreated {
-                    container,
-                    with_agent,
-                }))
-            }
-
-            ChatEvent::SendMessageRequested {
-                container_id,
-                content,
-                author_id,
-                parent_message_id,
-            } => {
-                let (message, _) = actions::create_message(
-                    container_id,
-                    "user".to_string(),
-                    content,
-                    author_id,
-                    parent_message_id,
-                    &ctx.deps().db_pool,
-                )
-                .await?;
-
-                Ok(Some(ChatEvent::MessageCreated { message }))
+                if let Some(agent_config) = with_agent {
+                    handlers::handle_generate_greeting(container.id, agent_config.clone(), &ctx)
+                        .await?;
+                }
+                Ok(())
             }
 
             // =================================================================
-            // Internal Chain Events (from internal edges)
+            // Cascade: MessageCreated (user) in container with agent → generate reply
             // =================================================================
+            ChatEvent::MessageCreated { message } => {
+                // Only cascade for user messages
+                if message.role != "user" {
+                    return Ok(());
+                }
 
-            ChatEvent::GenerateReplyRequested {
-                message_id,
-                container_id,
-            } => actions::generate_reply(message_id, container_id, &ctx).await.map(Some),
-
-            ChatEvent::GenerateGreetingRequested {
-                container_id,
-                agent_config,
-            } => actions::generate_greeting(container_id, agent_config, &ctx).await.map(Some),
-
-            ChatEvent::CreateMessageRequested {
-                container_id,
-                role,
-                content,
-                author_id,
-                parent_message_id,
-            } => {
-                let (message, _) = actions::create_message(
-                    container_id,
-                    role,
-                    content,
-                    author_id,
-                    parent_message_id,
-                    &ctx.deps().db_pool,
-                )
-                .await?;
-                Ok(Some(ChatEvent::MessageCreated { message }))
+                // Check if container has an agent
+                if let Some(_agent_config) =
+                    handlers::get_container_agent_config(message.container_id, &ctx.deps().db_pool)
+                        .await
+                {
+                    handlers::handle_generate_reply(message.id, message.container_id, &ctx).await?;
+                }
+                Ok(())
             }
 
             // =================================================================
-            // Fact Events → Terminal, no follow-up needed
+            // Terminal events - no cascade needed
             // =================================================================
-            ChatEvent::ContainerCreated { .. }
-            | ChatEvent::MessageCreated { .. }
-            | ChatEvent::MessageFailed { .. }
+            ChatEvent::MessageFailed { .. }
             | ChatEvent::ReplyGenerationFailed { .. }
-            | ChatEvent::GreetingGenerationFailed { .. } => Ok(None),
+            | ChatEvent::GreetingGenerationFailed { .. } => Ok(()),
         }
-    }
+    })
 }

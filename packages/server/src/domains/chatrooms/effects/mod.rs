@@ -1,8 +1,10 @@
 //! Chat domain effects.
 //!
-//! Effects are thin orchestration layers that dispatch events to action functions.
-//! All business logic lives in action functions, not in the Effect trait implementation.
+//! Effects watch FACT events and call handlers directly for cascading.
+//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
 
 pub mod chat;
+pub mod handlers;
 
-pub use chat::ChatEffect;
+pub use chat::chat_effect;
+pub use handlers::{get_container_agent_config, handle_generate_greeting, handle_generate_reply};
