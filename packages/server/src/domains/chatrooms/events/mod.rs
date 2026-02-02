@@ -1,16 +1,17 @@
 //! Chat domain events.
 //!
-//! Events are immutable facts about what happened. They follow the seesaw 0.3.0 pattern:
-//! - Request events: User intent (from edges and internal edges)
+//! Events are immutable facts about what happened. They follow the seesaw pattern:
+//! - Request events: User intent (from edges)
 //! - Fact events: What actually happened (from effects)
 //!
-//! Architecture (seesaw 0.3.0):
-//!   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
+//! Architecture:
+//!   Edge.execute() → Request Event → Effect → Fact Event → Reducer → Edge.read()
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::common::{ContainerId, IntoNatsPayload, MemberId, MessageId};
+use crate::domains::chatrooms::models::{Container, Message};
 
 /// Chat domain events - immutable facts
 #[derive(Debug, Clone)]
@@ -62,19 +63,14 @@ pub enum ChatEvent {
     // =========================================================================
     /// Container was created
     ContainerCreated {
-        container_id: ContainerId,
-        container_type: String,
+        container: Container,
         /// Agent config if this container has an agent enabled
         with_agent: Option<String>,
     },
 
     /// Message was created
     MessageCreated {
-        message_id: MessageId,
-        container_id: ContainerId,
-        role: String,
-        content: String,
-        author_id: Option<MemberId>,
+        message: Message,
     },
 
     /// Message creation failed
@@ -171,8 +167,8 @@ impl IntoNatsPayload for ChatEvent {
             | ChatEvent::GenerateGreetingRequested { .. } => None,
 
             // Fact events with container_id are published
-            ChatEvent::ContainerCreated { container_id, .. } => Some((*container_id).into()),
-            ChatEvent::MessageCreated { container_id, .. } => Some((*container_id).into()),
+            ChatEvent::ContainerCreated { container, .. } => Some(container.id.into()),
+            ChatEvent::MessageCreated { message } => Some(message.container_id.into()),
             ChatEvent::MessageFailed { container_id, .. } => Some((*container_id).into()),
             ChatEvent::ReplyGenerationFailed { container_id, .. } => Some((*container_id).into()),
             ChatEvent::GreetingGenerationFailed { container_id, .. } => Some((*container_id).into()),
@@ -181,31 +177,25 @@ impl IntoNatsPayload for ChatEvent {
 
     fn into_payload(&self) -> serde_json::Value {
         match self {
-            ChatEvent::MessageCreated {
-                message_id,
-                container_id,
-                role,
-                content,
-                author_id,
-            } => serde_json::to_value(ChatEventPayload::MessageCreated {
-                message_id: message_id.to_string(),
-                container_id: container_id.to_string(),
-                role: role.clone(),
-                content: content.clone(),
-                author_id: author_id.map(|id| id.to_string()),
-            })
-            .unwrap_or_default(),
+            ChatEvent::MessageCreated { message } => {
+                serde_json::to_value(ChatEventPayload::MessageCreated {
+                    message_id: message.id.to_string(),
+                    container_id: message.container_id.to_string(),
+                    role: message.role.clone(),
+                    content: message.content.clone(),
+                    author_id: message.author_id.map(|id| id.to_string()),
+                })
+                .unwrap_or_default()
+            }
 
-            ChatEvent::ContainerCreated {
-                container_id,
-                container_type,
-                with_agent,
-            } => serde_json::to_value(ChatEventPayload::ContainerCreated {
-                container_id: container_id.to_string(),
-                container_type: container_type.clone(),
-                with_agent: with_agent.clone(),
-            })
-            .unwrap_or_default(),
+            ChatEvent::ContainerCreated { container, with_agent } => {
+                serde_json::to_value(ChatEventPayload::ContainerCreated {
+                    container_id: container.id.to_string(),
+                    container_type: container.container_type.clone(),
+                    with_agent: with_agent.clone(),
+                })
+                .unwrap_or_default()
+            }
 
             // Other events don't have payload representations
             _ => serde_json::Value::Null,

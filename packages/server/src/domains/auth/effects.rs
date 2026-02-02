@@ -4,19 +4,20 @@ use seesaw_core::{Effect, EffectContext};
 
 use super::actions;
 use super::events::AuthEvent;
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::posts::effects::ServerDeps;
 
 /// Auth effect - thin dispatcher to actions
 pub struct AuthEffect;
 
 #[async_trait]
-impl Effect<AuthEvent, ServerDeps> for AuthEffect {
+impl Effect<AuthEvent, ServerDeps, ChatRequestState> for AuthEffect {
     type Event = AuthEvent;
 
     async fn handle(
         &mut self,
         event: AuthEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<AuthEvent>> {
         match event {
             AuthEvent::SendOTPRequested { phone_number } => {

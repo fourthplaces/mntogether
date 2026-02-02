@@ -7,6 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::ServerDeps;
 use super::post::extract_domain;
 use crate::common::auth::{Actor, AdminCapability};
@@ -21,13 +22,13 @@ use crate::domains::website::models::Website;
 pub struct ScraperEffect;
 
 #[async_trait]
-impl Effect<PostEvent, ServerDeps> for ScraperEffect {
+impl Effect<PostEvent, ServerDeps, ChatRequestState> for ScraperEffect {
     type Event = PostEvent;
 
     async fn handle(
         &mut self,
         event: PostEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
@@ -64,7 +65,7 @@ async fn handle_scrape_source(
     job_id: JobId,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     tracing::info!(
         source_id = %source_id,
@@ -279,7 +280,7 @@ async fn handle_scrape_resource_link(
     url: String,
     context: Option<String>,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     tracing::info!(
         job_id = %job_id,

@@ -7,6 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::ServerDeps;
 use super::{AIEffect, PostEffect, ScraperEffect, SyncEffect};
 use crate::domains::posts::events::PostEvent;
@@ -43,13 +44,13 @@ impl Default for PostCompositeEffect {
 }
 
 #[async_trait]
-impl Effect<PostEvent, ServerDeps> for PostCompositeEffect {
+impl Effect<PostEvent, ServerDeps, ChatRequestState> for PostCompositeEffect {
     type Event = PostEvent;
 
     async fn handle(
         &mut self,
         event: PostEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<PostEvent>> {
         match &event {
             // =================================================================

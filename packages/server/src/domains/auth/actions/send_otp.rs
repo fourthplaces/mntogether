@@ -4,6 +4,7 @@ use tracing::{error, info};
 
 use crate::domains::auth::events::AuthEvent;
 use crate::domains::auth::models::{hash_phone_number, is_admin_identifier, Identifier};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::models::Member;
 use crate::domains::posts::effects::ServerDeps;
 
@@ -11,7 +12,7 @@ use crate::domains::posts::effects::ServerDeps;
 /// Returns OTPSent on success, PhoneNotRegistered if identifier not found.
 pub async fn send_otp(
     phone_number: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<AuthEvent> {
     // Production safety check - test identifier should never be enabled in production
     if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {

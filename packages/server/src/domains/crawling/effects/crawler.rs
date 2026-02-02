@@ -20,6 +20,7 @@ use seesaw_core::{Effect, EffectContext};
 use tracing::{info, warn};
 
 use crate::common::{ExtractedPost, JobId, MemberId, WebsiteId};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::crawling::actions;
 use crate::domains::crawling::events::{CrawledPageInfo, CrawlEvent, PageExtractionResult};
 use crate::domains::crawling::models::PageSummary;
@@ -34,13 +35,13 @@ use crate::kernel::ServerDeps;
 pub struct CrawlerEffect;
 
 #[async_trait]
-impl Effect<CrawlEvent, ServerDeps> for CrawlerEffect {
+impl Effect<CrawlEvent, ServerDeps, ChatRequestState> for CrawlerEffect {
     type Event = CrawlEvent;
 
     async fn handle(
         &mut self,
         event: CrawlEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<CrawlEvent>> {
         match event {
             // =================================================================
@@ -153,7 +154,7 @@ async fn handle_crawl_website(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     info!(website_id = %website_id, job_id = %job_id, "Starting multi-page crawl");
 
@@ -209,7 +210,7 @@ async fn handle_extract_from_pages(
     website_id: WebsiteId,
     job_id: JobId,
     pages: Vec<CrawledPageInfo>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     info!(website_id = %website_id, pages_count = pages.len(), "Extracting posts");
 
@@ -262,7 +263,7 @@ async fn handle_extract_from_pages(
 async fn handle_retry_crawl(
     website_id: WebsiteId,
     job_id: JobId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     info!(website_id = %website_id, "Retrying website crawl");
     let _ = Website::reset_for_retry(website_id, &ctx.deps().db_pool).await;
@@ -279,7 +280,7 @@ async fn handle_retry_crawl(
 async fn handle_mark_no_posts(
     website_id: WebsiteId,
     job_id: JobId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     info!(website_id = %website_id, "Marking website as having no posts");
 
@@ -302,7 +303,7 @@ async fn handle_sync_crawled_posts(
     job_id: JobId,
     posts: Vec<ExtractedPost>,
     page_results: Vec<PageExtractionResult>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     info!(website_id = %website_id, posts_count = posts.len(), "Syncing crawled posts");
 
@@ -331,7 +332,7 @@ async fn handle_regenerate_posts(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     // Auth check
     if let Err(event) = actions::check_crawl_authorization(
@@ -368,7 +369,7 @@ async fn handle_regenerate_page_summaries(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     // Auth check
     if let Err(event) = actions::check_crawl_authorization(
@@ -417,7 +418,7 @@ async fn handle_regenerate_single_page_summary(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     // Auth check
     if let Err(event) = actions::check_crawl_authorization(
@@ -440,7 +441,7 @@ async fn handle_regenerate_single_page_posts(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<CrawlEvent> {
     // Auth check
     if let Err(event) = actions::check_crawl_authorization(

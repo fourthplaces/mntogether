@@ -7,6 +7,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use seesaw_core::{Effect, EffectContext};
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::ServerDeps;
 use crate::common::{JobId, WebsiteId};
 use crate::domains::posts::events::PostEvent;
@@ -17,13 +18,13 @@ use crate::domains::posts::events::PostEvent;
 pub struct SyncEffect;
 
 #[async_trait]
-impl Effect<PostEvent, ServerDeps> for SyncEffect {
+impl Effect<PostEvent, ServerDeps, ChatRequestState> for SyncEffect {
     type Event = PostEvent;
 
     async fn handle(
         &mut self,
         event: PostEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
@@ -51,7 +52,7 @@ async fn handle_sync_posts(
     source_id: WebsiteId,
     job_id: JobId,
     posts: Vec<crate::common::ExtractedPost>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     tracing::info!(
         source_id = %source_id,

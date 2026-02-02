@@ -9,6 +9,7 @@ use seesaw_core::{Effect, EffectContext};
 use serde_json::Value as JsonValue;
 use tracing::{info, warn};
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::kernel::ServerDeps;
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, JobId, PostId, MemberId, WebsiteId};
@@ -20,13 +21,13 @@ use crate::domains::posts::events::PostEvent;
 pub struct PostEffect;
 
 #[async_trait]
-impl Effect<PostEvent, ServerDeps> for PostEffect {
+impl Effect<PostEvent, ServerDeps, ChatRequestState> for PostEffect {
     type Event = PostEvent;
 
     async fn handle(
         &mut self,
         event: PostEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<PostEvent>> {
         match event {
             // =================================================================
@@ -395,7 +396,7 @@ async fn handle_create_post_entry(
     location: Option<String>,
     ip_address: Option<String>,
     submission_type: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     let post = super::post_operations::create_post(
         member_id,
@@ -427,7 +428,7 @@ async fn handle_update_post_status(
     rejection_reason: Option<String>,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can update listing status
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -472,7 +473,7 @@ async fn handle_update_post_and_approve(
     location: Option<String>,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can edit and approve listings
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -513,7 +514,7 @@ async fn handle_create_post_announcement(
     custom_title: Option<String>,
     custom_description: Option<String>,
     expires_in_days: Option<i64>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     let post = super::post_operations::create_post_for_post(
         post_id,
@@ -541,7 +542,7 @@ async fn handle_create_custom_post(
     created_by: MemberId,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can create custom posts
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -579,7 +580,7 @@ async fn handle_repost_post(
     created_by: MemberId,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can repost listings
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -614,7 +615,7 @@ async fn handle_expire_post(
     post_id: PostId,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can expire posts
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -638,7 +639,7 @@ async fn handle_archive_post(
     post_id: PostId,
     requested_by: MemberId,
     _is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Authorization check - only admins can archive posts
     if let Err(auth_err) = Actor::new(requested_by, _is_admin)
@@ -660,7 +661,7 @@ async fn handle_archive_post(
 
 async fn handle_increment_post_view(
     post_id: PostId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     super::post_operations::increment_post_view(post_id, &ctx.deps().db_pool).await?;
     Ok(PostEvent::PostViewed { post_id })
@@ -668,7 +669,7 @@ async fn handle_increment_post_view(
 
 async fn handle_increment_post_click(
     post_id: PostId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     super::post_operations::increment_post_click(post_id, &ctx.deps().db_pool).await?;
     Ok(PostEvent::PostClicked { post_id })
@@ -680,7 +681,7 @@ async fn handle_create_posts_from_resource_link(
     posts: Vec<ExtractedPost>,
     context: Option<String>,
     _submitter_contact: Option<String>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     use crate::domains::posts::models::Post;
     use crate::domains::website::models::Website;
@@ -775,7 +776,7 @@ async fn handle_create_organization_source_from_link(
     url: String,
     organization_name: String,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     use crate::common::JobId;
     use crate::domains::website::models::Website;
@@ -859,7 +860,7 @@ async fn handle_delete_post(
     post_id: PostId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     // Check authorization - only admins can delete listings
     Actor::new(requested_by, is_admin)
@@ -897,7 +898,7 @@ async fn handle_deduplicate_posts(
     job_id: JobId,
     requested_by: MemberId,
     is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<PostEvent> {
     use crate::domains::posts::effects::deduplication::{deduplicate_posts_llm, apply_dedup_results};
     use crate::domains::website::models::Website;

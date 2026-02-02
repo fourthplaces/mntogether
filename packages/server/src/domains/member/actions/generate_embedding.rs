@@ -5,6 +5,7 @@ use seesaw_core::EffectContext;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
 use crate::domains::posts::effects::ServerDeps;
@@ -21,7 +22,7 @@ use crate::domains::posts::effects::ServerDeps;
 /// - `EmbeddingFailed` if member not found or generation fails
 pub async fn generate_embedding(
     member_id: Uuid,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<MemberEvent> {
     info!("Generating embedding for member: {}", member_id);
 

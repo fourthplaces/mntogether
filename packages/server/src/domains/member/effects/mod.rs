@@ -9,6 +9,7 @@ use seesaw_core::{Effect, EffectContext};
 
 use super::actions;
 use super::events::MemberEvent;
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::posts::effects::ServerDeps;
 
 /// Member effect - handles MemberEvent request events
@@ -18,13 +19,13 @@ use crate::domains::posts::effects::ServerDeps;
 pub struct MemberEffect;
 
 #[async_trait]
-impl Effect<MemberEvent, ServerDeps> for MemberEffect {
+impl Effect<MemberEvent, ServerDeps, ChatRequestState> for MemberEffect {
     type Event = MemberEvent;
 
     async fn handle(
         &mut self,
         event: MemberEvent,
-        ctx: EffectContext<ServerDeps>,
+        ctx: EffectContext<ServerDeps, ChatRequestState>,
     ) -> Result<Option<MemberEvent>> {
         match event {
             // =================================================================

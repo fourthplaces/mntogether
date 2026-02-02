@@ -3,6 +3,7 @@
 //! This module contains the handler for the AssessWebsiteRequested event.
 
 use crate::common::{JobId, MemberId, WebsiteId};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use crate::domains::website::models::{Website, WebsiteResearch, WebsiteResearchHomepage};
@@ -19,7 +20,7 @@ pub async fn handle_assess_website(
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<DomainApprovalEvent> {
     info!(
         website_id = %website_id,

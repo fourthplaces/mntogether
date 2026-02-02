@@ -4,6 +4,7 @@ use tracing::{error, info};
 
 use crate::domains::auth::events::AuthEvent;
 use crate::domains::auth::models::{hash_phone_number, is_admin_identifier, Identifier};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::models::Member;
 use crate::domains::posts::effects::ServerDeps;
 
@@ -11,7 +12,7 @@ use crate::domains::posts::effects::ServerDeps;
 pub async fn verify_otp(
     phone_number: String,
     code: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<AuthEvent> {
     // TEST IDENTIFIER BYPASS: Only available in debug builds (development)
     #[cfg(debug_assertions)]

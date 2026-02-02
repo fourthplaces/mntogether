@@ -7,6 +7,7 @@ use tracing::{error, info};
 use crate::common::{ContainerId, MemberId};
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::posts::effects::ServerDeps;
 
 /// Generate an AI greeting for a new container with an agent.
@@ -21,7 +22,7 @@ use crate::domains::posts::effects::ServerDeps;
 pub async fn generate_greeting(
     container_id: ContainerId,
     agent_config: String,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<ChatEvent> {
     info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
 
@@ -72,13 +73,7 @@ pub async fn generate_greeting(
         "Greeting message created"
     );
 
-    Ok(ChatEvent::MessageCreated {
-        message_id: message.id,
-        container_id,
-        role: "assistant".to_string(),
-        content: greeting_text,
-        author_id: Some(agent_member_id),
-    })
+    Ok(ChatEvent::MessageCreated { message })
 }
 
 /// Get greeting prompt based on agent config.

@@ -1,10 +1,17 @@
-use crate::domains::auth::JwtService;
-use crate::kernel::OpenAIClient;
-use crate::server::middleware::AuthUser;
-use seesaw_core::EventBus;
-use sqlx::PgPool;
 use std::sync::Arc;
+use tokio::sync::Mutex;
+
+use seesaw_core::{Engine, EventBus};
+use sqlx::PgPool;
 use twilio::TwilioService;
+
+use crate::domains::auth::JwtService;
+use crate::domains::chatrooms::ChatRequestState;
+use crate::kernel::{OpenAIClient, ServerDeps};
+use crate::server::middleware::AuthUser;
+
+/// The seesaw Engine type used by this application
+pub type AppEngine = Engine<ServerDeps, ChatRequestState>;
 
 /// GraphQL request context
 ///
@@ -13,6 +20,7 @@ use twilio::TwilioService;
 pub struct GraphQLContext {
     pub db_pool: PgPool,
     pub bus: EventBus,
+    pub engine: Arc<Mutex<AppEngine>>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
@@ -25,6 +33,7 @@ impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
         bus: EventBus,
+        engine: Arc<Mutex<AppEngine>>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
         jwt_service: Arc<JwtService>,
@@ -33,6 +42,7 @@ impl GraphQLContext {
         Self {
             db_pool,
             bus,
+            engine,
             auth_user,
             twilio,
             jwt_service,

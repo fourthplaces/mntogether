@@ -1,11 +1,17 @@
-//! GraphQL queries for the chatrooms domain.
+//! GraphQL queries and mutations for the chatrooms domain.
 
-use juniper::FieldResult;
+use juniper::{FieldError, FieldResult};
 
 use crate::common::ContainerId;
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
+use crate::domains::chatrooms::edges::{CreateChat, SendMessage};
 use crate::domains::chatrooms::models::{Container, Message};
+use crate::domains::chatrooms::state::ChatRequestState;
 use crate::server::graphql::context::GraphQLContext;
+
+// =============================================================================
+// Queries
+// =============================================================================
 
 /// Get a container by ID
 pub async fn get_container(ctx: &GraphQLContext, id: String) -> FieldResult<Option<ContainerData>> {
@@ -39,4 +45,57 @@ pub async fn get_recent_chats(
     let containers = Container::find_recent_by_type("ai_chat", limit, &ctx.db_pool).await?;
 
     Ok(containers.into_iter().map(ContainerData::from).collect())
+}
+
+// =============================================================================
+// Mutations (via engine.run)
+// =============================================================================
+
+/// Create a new AI chat container
+pub async fn create_chat(
+    ctx: &GraphQLContext,
+    language: Option<String>,
+    with_agent: Option<String>,
+) -> FieldResult<ContainerData> {
+    let member_id = ctx.auth_user.as_ref().map(|u| u.member_id);
+
+    let edge = CreateChat {
+        language: language.unwrap_or_else(|| "en".to_string()),
+        with_agent,
+        requested_by: member_id,
+    };
+
+    let mut engine = ctx.engine.lock().await;
+    let container = engine
+        .run(edge, ChatRequestState::default())
+        .await
+        .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Failed to create chat", juniper::Value::null()))?;
+
+    Ok(container)
+}
+
+/// Send a message to a chat container
+pub async fn send_message(
+    ctx: &GraphQLContext,
+    container_id: String,
+    content: String,
+) -> FieldResult<MessageData> {
+    let member_id = ctx.auth_user.as_ref().map(|u| u.member_id);
+    let container_id = ContainerId::parse(&container_id)?;
+
+    let edge = SendMessage {
+        container_id,
+        content,
+        author_id: member_id,
+    };
+
+    let mut engine = ctx.engine.lock().await;
+    let message = engine
+        .run(edge, ChatRequestState::default())
+        .await
+        .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?
+        .ok_or_else(|| FieldError::new("Failed to send message", juniper::Value::null()))?;
+
+    Ok(message)
 }

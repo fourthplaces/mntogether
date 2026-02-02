@@ -3,6 +3,7 @@
 //! This module contains the handler for the GenerateAssessmentFromResearchRequested event.
 
 use crate::common::{JobId, MemberId, WebsiteId};
+use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
 use crate::domains::website::models::{
@@ -23,7 +24,7 @@ pub async fn handle_generate_assessment(
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps>,
+    ctx: &EffectContext<ServerDeps, ChatRequestState>,
 ) -> Result<DomainApprovalEvent> {
     info!(
         research_id = %research_id,
