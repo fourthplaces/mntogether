@@ -3,6 +3,7 @@ pub mod data;
 pub mod edges;
 pub mod effects;
 pub mod events;
+pub mod extraction;
 pub mod machines;
 pub mod models;
 
@@ -22,3 +23,8 @@ pub use events::PostEvent;
 
 // Re-export models (domain models)
 pub use models::post::Post;
+
+// Re-export extraction submodule types
+pub use extraction::{
+    PostExtractionCommand, PostExtractionEffect, PostExtractionEvent, PostExtractionMachine,
+};

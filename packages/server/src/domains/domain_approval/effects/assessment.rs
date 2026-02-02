@@ -2,7 +2,7 @@ use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::commands::DomainApprovalCommand;
 use crate::domains::domain_approval::events::DomainApprovalEvent;
 use crate::kernel::ServerDeps;
-use crate::domains::scraping::models::{
+use crate::domains::website::models::{
     TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearchHomepage,
 };
 use anyhow::{Context, Result};

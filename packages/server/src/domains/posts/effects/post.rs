@@ -581,7 +581,7 @@ async fn handle_create_posts_from_resource_link(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
     use crate::domains::posts::models::Post;
-    use crate::domains::scraping::models::Website;
+    use crate::domains::website::models::Website;
     use tracing::info;
 
     // Find the organization source that was created during submission
@@ -680,7 +680,7 @@ async fn handle_create_organization_source_from_link(
     ctx: &EffectContext<ServerDeps>,
 ) -> Result<PostEvent> {
     use crate::common::JobId;
-    use crate::domains::scraping::models::Website;
+    use crate::domains::website::models::Website;
     use tracing::info;
 
     // Validate URL format

@@ -13,7 +13,7 @@ use super::post::extract_domain;
 use super::utils::sync_utils::{sync_posts, ExtractedPostInput};
 use crate::common::WebsiteId;
 use crate::domains::posts::events::ExtractedPost;
-use crate::domains::scraping::models::Website;
+use crate::domains::website::models::Website;
 
 /// Result of syncing listings with the database
 pub struct PostSyncResult {

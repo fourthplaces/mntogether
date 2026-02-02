@@ -6,7 +6,7 @@ use super::{post_extraction, ServerDeps};
 use crate::common::{JobId, WebsiteId};
 use crate::domains::posts::commands::PostCommand;
 use crate::domains::posts::events::PostEvent;
-use crate::domains::scraping::models::Website;
+use crate::domains::website::models::Website;
 
 /// AI Effect - Handles ExtractPosts command
 ///

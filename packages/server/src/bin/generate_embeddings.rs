@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use server_core::config::Config;
-use server_core::domains::scraping::models::WebsiteAssessment;
+use server_core::domains::website::models::WebsiteAssessment;
 use server_core::kernel::ai::OpenAIClient;
 use server_core::kernel::ai_matching::AIMatchingService;
 use sqlx::PgPool;

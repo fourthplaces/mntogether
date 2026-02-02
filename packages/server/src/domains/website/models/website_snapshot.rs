@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::{MemberId, WebsiteId};
-use crate::domains::scraping::models::PageSnapshotId;
+use crate::domains::crawling::models::PageSnapshotId;
 
 pub type WebsiteSnapshotId = Uuid;
 

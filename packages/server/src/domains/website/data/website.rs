@@ -1,7 +1,7 @@
 use crate::common::WebsiteId;
 use crate::domains::posts::data::PostData;
 use crate::domains::posts::models::post::Post;
-use crate::domains::scraping::models::{PageSnapshot, PageSnapshotId, PageSummary};
+use crate::domains::crawling::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};

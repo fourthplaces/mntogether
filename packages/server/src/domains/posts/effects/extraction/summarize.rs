@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use tracing::info;
 
-use crate::domains::scraping::models::PageSummary;
+use crate::domains::crawling::models::PageSummary;
 use crate::kernel::BaseAI;
 
 use super::types::{PageToSummarize, SummarizedPage};

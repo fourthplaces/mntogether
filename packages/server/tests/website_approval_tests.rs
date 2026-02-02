@@ -10,7 +10,7 @@ mod common;
 use crate::common::{GraphQLClient, TestHarness};
 use juniper::Variables;
 use server_core::common::{MemberId, WebsiteId};
-use server_core::domains::scraping::models::Website;
+use server_core::domains::website::models::Website;
 use test_context::test_context;
 use uuid::Uuid;
 

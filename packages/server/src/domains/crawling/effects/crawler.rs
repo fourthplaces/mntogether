@@ -369,16 +369,24 @@ async fn handle_crawl_website(
     )
     .await;
 
+    // Collect page snapshot IDs for extraction
+    let page_snapshot_ids: Vec<uuid::Uuid> = crawled_pages
+        .iter()
+        .filter_map(|p| p.snapshot_id)
+        .collect();
+
     info!(
         website_id = %website_id,
         pages_stored = crawled_pages.len(),
-        "Emitting WebsiteCrawled event"
+        page_snapshots = page_snapshot_ids.len(),
+        "Emitting PagesReadyForExtraction event (cross-domain)"
     );
 
-    Ok(CrawlEvent::WebsiteCrawled {
+    // Emit integration event for posts domain to handle extraction
+    Ok(CrawlEvent::PagesReadyForExtraction {
         website_id,
         job_id,
-        pages: crawled_pages,
+        page_snapshot_ids,
     })
 }
 

@@ -27,7 +27,7 @@ use crate::config::Config;
 use crate::domains::posts::effects::run_discovery_searches;
 use crate::domains::posts::events::PostEvent;
 use crate::domains::member::models::member::Member;
-use crate::domains::scraping::models::Website;
+use crate::domains::website::models::Website;
 use crate::kernel::TavilyClient;
 
 /// Start all scheduled tasks

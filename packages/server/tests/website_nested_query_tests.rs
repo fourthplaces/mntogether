@@ -9,7 +9,7 @@ mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::{MemberId, WebsiteId};
-use server_core::domains::scraping::models::Website;
+use server_core::domains::website::models::Website;
 use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;

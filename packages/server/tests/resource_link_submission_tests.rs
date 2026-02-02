@@ -9,7 +9,7 @@ mod common;
 use crate::common::TestHarness;
 use indexmap::IndexMap;
 use juniper::{InputValue, Variables};
-use server_core::domains::scraping::models::Website;
+use server_core::domains::website::models::Website;
 use test_context::test_context;
 
 // Helper function to create mutation variables
@@ -228,7 +228,8 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_manual_scrape_creates_website_snapshot() {
     use server_core::common::MemberId;
-    use server_core::domains::scraping::models::{Website, WebsiteSnapshot};
+    use server_core::domains::crawling::models::WebsiteSnapshot;
+    use server_core::domains::website::models::Website;
     use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
 
     // Setup: Create test harness with mocked AI and web scraper
