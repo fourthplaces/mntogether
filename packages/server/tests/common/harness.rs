@@ -4,21 +4,14 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
-use seesaw_core::{EngineBuilder, EventBus};
-use server_core::domains::crawling::{
-    events::CrawlEvent,
-    effects::CrawlerEffect,
-};
-use server_core::domains::posts::{
-    events::PostEvent,
-    effects::PostCompositeEffect,
-};
+use seesaw_core::Engine;
+use server_core::common::AppState;
+use server_core::domains::crawling::effects::crawler_effect;
+use server_core::domains::posts::effects::post_composite_effect;
+use server_core::domains::member::effects::member_effect;
 use server_core::kernel::{ServerDeps, TwilioAdapter, SpyJobQueue};
-use server_core::domains::member::{
-    events::MemberEvent,
-    effects::MemberEffect,
-};
 use server_core::kernel::{ServerKernel, TestDependencies};
+use server_core::server::graphql::context::AppEngine;
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
@@ -120,22 +113,18 @@ impl SharedTestInfra {
     }
 }
 
-/// Build the seesaw engine with all domain effects (seesaw 0.3.0).
+/// Build the seesaw engine with all domain effects (seesaw 0.6.0).
 ///
-/// In 0.3.0, we register effects for EVENT types (not command types).
-/// Machines have been removed - internal edges replace machine.decide() logic.
-fn build_engine(deps: ServerDeps) -> (seesaw_core::Engine<ServerDeps>, EventBus) {
-    let engine = EngineBuilder::new(deps)
+/// In 0.6.0, effects are registered using the builder pattern:
+/// `effect::on::<E>().run(|event, ctx| async { ... })`
+fn build_engine(deps: ServerDeps) -> AppEngine {
+    Engine::with_deps(deps)
         // Crawling domain
-        .with_effect::<CrawlEvent, _>(CrawlerEffect)
+        .with_effect(crawler_effect())
         // Posts domain
-        .with_effect::<PostEvent, _>(PostCompositeEffect::new())
+        .with_effect(post_composite_effect())
         // Member domain
-        .with_effect::<MemberEvent, _>(MemberEffect)
-        .build();
-
-    let bus = engine.bus().clone();
-    (engine, bus)
+        .with_effect(member_effect())
 }
 
 /// Test harness that manages test infrastructure.
@@ -163,8 +152,8 @@ pub struct TestHarness {
     pub db_pool: PgPool,
     /// Test dependencies for accessing mocks
     pub deps: TestDependencies,
-    /// Engine is kept alive to process events.
-    _engine: seesaw_core::Engine<ServerDeps>,
+    /// Engine for emitting events in tests
+    pub engine: Arc<AppEngine>,
 }
 
 impl TestHarness {
@@ -228,12 +217,10 @@ impl TestHarness {
             vec![], // admin_identifiers
         );
 
-        // Build engine with all domain effects (seesaw 0.3.0)
-        let (engine, bus) = build_engine(server_deps);
+        // Build engine with all domain effects (seesaw 0.6.0)
+        let engine = Arc::new(build_engine(server_deps));
 
-        // Update kernel with the engine's bus
-        // Note: The kernel already has its own bus, but we need to ensure
-        // events are processed by the engine
+        // Create kernel without bus (bus is removed in 0.6.0)
         let kernel = Arc::new(ServerKernel {
             db_pool: kernel.db_pool.clone(),
             web_scraper: kernel.web_scraper.clone(),
@@ -242,7 +229,6 @@ impl TestHarness {
             push_service: kernel.push_service.clone(),
             search_service: kernel.search_service.clone(),
             pii_detector: kernel.pii_detector.clone(),
-            bus,
             job_queue: Arc::new(SpyJobQueue::new()),
         });
 
@@ -253,19 +239,27 @@ impl TestHarness {
             kernel,
             db_pool,
             deps,
-            _engine: engine,
+            engine,
         })
     }
 
     /// Get a GraphQL client for this harness.
     pub fn graphql(&self) -> GraphQLClient {
-        GraphQLClient::new(self.kernel.clone())
+        GraphQLClient::new(self.kernel.clone(), self.engine.clone())
     }
 
-    /// Get the event bus for this harness.
-    /// Use this to call edge functions that require an EventBus.
-    pub fn bus(&self) -> EventBus {
-        self.kernel.bus.clone()
+    /// Get a GraphQL client with an authenticated user.
+    pub fn graphql_with_auth(&self, user_id: uuid::Uuid, is_admin: bool) -> GraphQLClient {
+        GraphQLClient::with_auth_user(self.kernel.clone(), self.engine.clone(), user_id, is_admin)
+    }
+
+    /// Emit an event and wait for effects to settle.
+    ///
+    /// In seesaw 0.6.0, use engine.activate() to emit events.
+    pub async fn emit<E: Clone + Send + Sync + 'static>(&self, event: E) {
+        let handle = self.engine.activate(AppState::default());
+        handle.context.emit(event);
+        let _ = handle.settled().await;
     }
 
     /// Wait for effects to settle after an action.
@@ -274,10 +268,8 @@ impl TestHarness {
     /// This method yields to allow the event-driven pipeline to complete.
     pub async fn settle(&self) {
         // Allow time for the seesaw event pipeline to process:
-        // 1. EventBus delivers events to the engine
-        // 2. Engine dispatches request events to effects
-        // 3. Effects execute and emit fact events
-        // 4. Internal edges observe fact events and emit new request events
+        // 1. Engine processes events through effects
+        // 2. Effects execute and may emit new events
         for _ in 0..10 {
             tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
             tokio::task::yield_now().await;

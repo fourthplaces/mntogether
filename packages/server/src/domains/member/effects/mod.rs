@@ -1,64 +1,37 @@
-//! Member domain effect - thin dispatcher to actions
+//! Member domain effect - handles cascading reactions to fact events
 //!
-//! The effect handles request events and dispatches to action functions.
-//! All business logic lives in the actions module.
+//! Effects watch FACT events and call handlers directly for cascading.
+//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
 
-use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::effect;
+use std::sync::Arc;
 
 use super::actions;
 use super::events::MemberEvent;
-use crate::domains::chatrooms::ChatRequestState;
-use crate::domains::posts::effects::ServerDeps;
+use crate::common::AppState;
+use crate::kernel::ServerDeps;
 
-/// Member effect - handles MemberEvent request events
+/// Build the member effect handler.
 ///
-/// Request events are dispatched to actions which contain the business logic.
-/// Fact events should never reach this effect (they're outputs, not inputs).
-pub struct MemberEffect;
-
-#[async_trait]
-impl Effect<MemberEvent, ServerDeps, ChatRequestState> for MemberEffect {
-    type Event = MemberEvent;
-
-    async fn handle(
-        &mut self,
-        event: MemberEvent,
-        ctx: EffectContext<ServerDeps, ChatRequestState>,
-    ) -> Result<Option<MemberEvent>> {
-        match event {
+/// Cascade flow:
+///   MemberRegistered → handle_generate_embedding → EmbeddingGenerated
+pub fn member_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
+    effect::on::<MemberEvent>().run(|event: Arc<MemberEvent>, ctx| async move {
+        match event.as_ref() {
             // =================================================================
-            // Request Events → Dispatch to Actions
+            // Cascade: MemberRegistered → generate embedding
             // =================================================================
-            MemberEvent::RegisterMemberRequested {
-                expo_push_token,
-                searchable_text,
-                city,
-                state,
-            } => {
-                actions::register_member(expo_push_token, searchable_text, city, state, &ctx)
-                    .await
-                    .map(Some)
-            }
-
-            MemberEvent::UpdateMemberStatusRequested { member_id, active } => {
-                actions::update_member_status(member_id, active, &ctx).await.map(Some)
-            }
-
-            MemberEvent::GenerateEmbeddingRequested { member_id } => {
-                actions::generate_embedding(member_id, &ctx).await.map(Some)
+            MemberEvent::MemberRegistered { member_id, .. } => {
+                actions::handle_generate_embedding(*member_id, &ctx).await
             }
 
             // =================================================================
-            // Fact Events → Terminal, no follow-up needed
+            // Terminal events - no cascade needed
             // =================================================================
-            MemberEvent::MemberRegistered { .. }
-            | MemberEvent::MemberStatusUpdated { .. }
+            MemberEvent::MemberStatusUpdated { .. }
             | MemberEvent::MemberNotFound { .. }
-            | MemberEvent::RegistrationFailed { .. }
             | MemberEvent::EmbeddingGenerated { .. }
-            | MemberEvent::EmbeddingFailed { .. } => Ok(None),
+            | MemberEvent::EmbeddingFailed { .. } => Ok(()),
         }
-    }
+    })
 }

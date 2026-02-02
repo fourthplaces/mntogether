@@ -1,31 +1,36 @@
-//! Assessment effect - handles generating AI assessments from research data
+//! Assessment generation - generates AI assessments from research data
 //!
-//! This module contains the handler for the GenerateAssessmentFromResearchRequested event.
+//! The `generate_assessment` function is the core logic, callable from:
+//! - Action: assess_website calls it directly when fresh research exists (synchronous)
+//! - Effect handler: handle_generate_assessment wraps it for the async cascade
+//!   (called after ResearchSearchesCompleted when new research was created)
 
-use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::chatrooms::ChatRequestState;
+use crate::common::{AppState, JobId, MemberId, WebsiteId};
 use crate::domains::domain_approval::events::DomainApprovalEvent;
-use crate::kernel::ServerDeps;
 use crate::domains::website::models::{
     TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearchHomepage,
 };
+use crate::kernel::ServerDeps;
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
 
 // ============================================================================
-// Handler Functions (Business Logic)
+// Core Function - Called by both action and effect handler
 // ============================================================================
 
-/// Handle the GenerateAssessmentFromResearchRequested event.
-pub async fn handle_generate_assessment(
+/// Generate an AI assessment from research data.
+///
+/// This is the core logic - can be called directly from actions or via effects.
+/// Returns the created WebsiteAssessment.
+pub async fn generate_assessment(
     research_id: Uuid,
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<DomainApprovalEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<WebsiteAssessment> {
     info!(
         research_id = %research_id,
         website_id = %website_id,
@@ -102,9 +107,9 @@ pub async fn handle_generate_assessment(
         website_id.into(),
         Some(research_id),
         assessment_markdown.clone(),
-        recommendation.clone(),
+        recommendation,
         confidence,
-        org_name.clone(),
+        org_name,
         founded_year,
         Some(requested_by.into()),
         "claude-sonnet-4-5".to_string(),
@@ -119,7 +124,7 @@ pub async fn handle_generate_assessment(
         "Assessment stored successfully"
     );
 
-    // Step 7: Generate and store embedding for semantic search
+    // Step 7: Generate and store embedding for semantic search (non-fatal)
     match ctx
         .deps()
         .embedding_service
@@ -140,7 +145,7 @@ pub async fn handle_generate_assessment(
                 info!(
                     assessment_id = %assessment.id,
                     embedding_dim = embedding.len(),
-                    "Assessment embedding stored successfully"
+                    "Assessment embedding stored"
                 );
             }
         }
@@ -153,15 +158,34 @@ pub async fn handle_generate_assessment(
         }
     }
 
-    // Step 8: Emit success event
-    Ok(DomainApprovalEvent::WebsiteAssessmentCompleted {
+    Ok(assessment)
+}
+
+// ============================================================================
+// Effect Handler - Wraps core function for cascade workflow
+// ============================================================================
+
+/// Effect handler for ResearchSearchesCompleted cascade.
+/// Calls generate_assessment and emits completion event.
+pub async fn handle_generate_assessment(
+    research_id: Uuid,
+    website_id: WebsiteId,
+    job_id: JobId,
+    requested_by: MemberId,
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<()> {
+    let assessment = generate_assessment(research_id, website_id, job_id, requested_by, ctx).await?;
+
+    ctx.emit(DomainApprovalEvent::WebsiteAssessmentCompleted {
         website_id,
         job_id,
         assessment_id: assessment.id,
-        recommendation,
-        confidence_score: confidence,
-        organization_name: org_name,
-    })
+        recommendation: assessment.recommendation.clone(),
+        confidence_score: assessment.confidence_score,
+        organization_name: assessment.organization_name.clone(),
+    });
+
+    Ok(())
 }
 
 // ============================================================================

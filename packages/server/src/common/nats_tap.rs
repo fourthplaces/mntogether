@@ -1,78 +1,23 @@
-//! NATS Event Taps - observe events and publish to NATS.
+//! NATS Event Publishing - publish events to NATS subjects.
 //!
-//! This module provides event taps for publishing domain events to NATS
-//! after effects complete. Taps are observers - they don't make decisions
-//! or mutate state, just publish committed facts to external systems.
+//! This module provides utilities for publishing domain events to NATS.
+//! In seesaw 0.5.0+, this replaces the EventTap pattern.
 //!
 //! # Usage
 //!
-//! Register taps with an engine:
-//!
 //! ```ignore
-//! use crate::common::nats_tap::NatsPublishTap;
+//! use crate::common::nats_tap::broadcast_to_container;
 //!
-//! EngineBuilder::with_arc(kernel.clone())
-//!     .with_bus(bus)
-//!     .with_event_tap(NatsPublishTap::<ChatEvent>::new(nats_publisher.clone()))
-//!     .build()
+//! // Publish an event to NATS
+//! broadcast_to_container(&event, &*nats_publisher).await?;
 //! ```
-
-use std::marker::PhantomData;
-use std::sync::Arc;
 
 use anyhow::Result;
 use bytes::Bytes;
-use seesaw_core::{async_trait, EventTap, TapContext};
 use tracing::{info, warn};
 
 use crate::common::nats::IntoNatsPayload;
 use crate::kernel::nats::NatsPublisher;
-
-// =============================================================================
-// NATS Publish Tap
-// =============================================================================
-
-/// Event tap that publishes events to NATS after effects complete.
-///
-/// This tap observes events that implement `IntoNatsPayload` and publishes
-/// them to all members of the event's container(s).
-///
-/// # Guarantees
-///
-/// - Runs after effects complete (observes committed facts)
-/// - Fire-and-forget (errors are logged, not propagated)
-/// - Does not block the main event loop
-///
-/// # Example
-///
-/// ```ignore
-/// let tap = NatsPublishTap::<ChatEvent>::new(nats_publisher.clone());
-/// engine_builder.with_event_tap(tap);
-/// ```
-pub struct NatsPublishTap<E> {
-    nats: Arc<dyn NatsPublisher>,
-    _phantom: PhantomData<E>,
-}
-
-impl<E> NatsPublishTap<E> {
-    /// Create a new NATS publish tap.
-    pub fn new(nats: Arc<dyn NatsPublisher>) -> Self {
-        Self {
-            nats,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-#[async_trait]
-impl<E> EventTap<E> for NatsPublishTap<E>
-where
-    E: IntoNatsPayload + Clone + Send + Sync + 'static,
-{
-    async fn on_event(&self, event: &E, _ctx: &TapContext) -> Result<()> {
-        publish_event(event, &*self.nats).await
-    }
-}
 
 // =============================================================================
 // Publishing Logic
@@ -92,7 +37,7 @@ where
 /// `containers.{container_id}.{suffix}`
 ///
 /// For example: `containers.abc123.messages`
-async fn publish_event<E: IntoNatsPayload>(event: &E, nats: &dyn NatsPublisher) -> Result<()> {
+pub async fn publish_event<E: IntoNatsPayload>(event: &E, nats: &dyn NatsPublisher) -> Result<()> {
     let Some(container_id) = event.container_id() else {
         return Ok(()); // Event doesn't want to be published
     };

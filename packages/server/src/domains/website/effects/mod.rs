@@ -1,150 +1,23 @@
-//! Website domain effect - thin dispatcher to action functions
+//! Website domain effect - handles cascading reactions to fact events
 //!
-//! The effect handles request events and dispatches to action functions.
-//! All business logic lives in the action functions.
+//! Following the direct-call pattern, all website events are terminal.
+//! GraphQL calls actions directly, actions emit fact events.
+//! No cascading effects are needed for the website domain.
 
-use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
-use tracing::info;
+use seesaw_core::effect;
+use std::sync::Arc;
 
-use crate::common::{MemberId, WebsiteId};
-use crate::domains::chatrooms::ChatRequestState;
+use crate::common::AppState;
 use crate::domains::website::events::WebsiteEvent;
-use crate::domains::website::models::Website;
+use crate::kernel::ServerDeps;
 
-// Import ServerDeps from kernel
-pub use crate::kernel::ServerDeps;
-
-/// Website Effect - Handles WebsiteEvent request events
+/// Build the website effect handler.
 ///
-/// This effect is a thin orchestration layer that dispatches request events to handler functions.
-/// Fact events should never reach this effect (they're outputs, not inputs).
-pub struct WebsiteEffect;
-
-#[async_trait]
-impl Effect<WebsiteEvent, ServerDeps, ChatRequestState> for WebsiteEffect {
-    type Event = WebsiteEvent;
-
-    async fn handle(
-        &mut self,
-        event: WebsiteEvent,
-        ctx: EffectContext<ServerDeps, ChatRequestState>,
-    ) -> Result<Option<WebsiteEvent>> {
-        match event {
-            // =================================================================
-            // Request Events → Dispatch to Handlers
-            // =================================================================
-            WebsiteEvent::ApproveWebsiteRequested {
-                website_id,
-                requested_by,
-            } => handle_approve_website(website_id, requested_by, &ctx).await.map(Some),
-
-            WebsiteEvent::RejectWebsiteRequested {
-                website_id,
-                reason,
-                requested_by,
-            } => handle_reject_website(website_id, reason, requested_by, &ctx).await.map(Some),
-
-            WebsiteEvent::SuspendWebsiteRequested {
-                website_id,
-                reason,
-                requested_by,
-            } => handle_suspend_website(website_id, reason, requested_by, &ctx).await.map(Some),
-
-            WebsiteEvent::UpdateCrawlSettingsRequested {
-                website_id,
-                max_pages_per_crawl,
-                requested_by,
-            } => {
-                handle_update_crawl_settings(website_id, max_pages_per_crawl, requested_by, &ctx)
-                    .await
-                    .map(Some)
-            }
-
-            // =================================================================
-            // Fact Events → Terminal, no follow-up needed
-            // =================================================================
-            WebsiteEvent::WebsiteApproved { .. }
-            | WebsiteEvent::WebsiteRejected { .. }
-            | WebsiteEvent::WebsiteSuspended { .. }
-            | WebsiteEvent::CrawlSettingsUpdated { .. }
-            | WebsiteEvent::AuthorizationDenied { .. } => Ok(None),
-        }
-    }
-}
-
-// ============================================================================
-// Handler Functions (Business Logic)
-// ============================================================================
-
-async fn handle_approve_website(
-    website_id: WebsiteId,
-    requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<WebsiteEvent> {
-    info!(website_id = %website_id, requested_by = %requested_by, "Approving website");
-
-    Website::approve(website_id, requested_by, &ctx.deps().db_pool).await?;
-
-    Ok(WebsiteEvent::WebsiteApproved {
-        website_id,
-        reviewed_by: requested_by,
-    })
-}
-
-async fn handle_reject_website(
-    website_id: WebsiteId,
-    reason: String,
-    requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<WebsiteEvent> {
-    info!(website_id = %website_id, reason = %reason, requested_by = %requested_by, "Rejecting website");
-
-    Website::reject(website_id, requested_by, reason.clone(), &ctx.deps().db_pool).await?;
-
-    Ok(WebsiteEvent::WebsiteRejected {
-        website_id,
-        reason,
-        reviewed_by: requested_by,
-    })
-}
-
-async fn handle_suspend_website(
-    website_id: WebsiteId,
-    reason: String,
-    requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<WebsiteEvent> {
-    info!(website_id = %website_id, reason = %reason, requested_by = %requested_by, "Suspending website");
-
-    Website::suspend(website_id, requested_by, reason.clone(), &ctx.deps().db_pool).await?;
-
-    Ok(WebsiteEvent::WebsiteSuspended {
-        website_id,
-        reason,
-        reviewed_by: requested_by,
-    })
-}
-
-async fn handle_update_crawl_settings(
-    website_id: WebsiteId,
-    max_pages_per_crawl: i32,
-    requested_by: MemberId,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<WebsiteEvent> {
-    info!(
-        website_id = %website_id,
-        max_pages_per_crawl = max_pages_per_crawl,
-        requested_by = %requested_by,
-        "Updating website crawl settings"
-    );
-
-    Website::update_max_pages_per_crawl(website_id, max_pages_per_crawl, &ctx.deps().db_pool)
-        .await?;
-
-    Ok(WebsiteEvent::CrawlSettingsUpdated {
-        website_id,
-        max_pages_per_crawl,
+/// Website has no cascading effects - all events are terminal.
+pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
+    effect::on::<WebsiteEvent>().run(|_event: Arc<WebsiteEvent>, _ctx| async move {
+        // All website events are terminal - no cascading actions needed
+        // Events: WebsiteApproved, WebsiteRejected, WebsiteSuspended, CrawlSettingsUpdated
+        Ok(())
     })
 }

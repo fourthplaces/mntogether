@@ -5,7 +5,6 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use seesaw_core::EventBus;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
@@ -623,6 +622,9 @@ impl TestDependencies {
     }
 
     /// Convert into a ServerKernel for testing
+    ///
+    /// NOTE: In seesaw 0.6.0, EventBus is removed. Tests should create
+    /// an Engine and use engine.activate() to emit events.
     pub fn into_kernel(self, db_pool: PgPool) -> Arc<ServerKernel> {
         Arc::new(ServerKernel::new(
             db_pool,
@@ -632,7 +634,6 @@ impl TestDependencies {
             self.push_service,
             self.search_service,
             self.pii_detector,
-            EventBus::new(),
             self.job_queue,
         ))
     }

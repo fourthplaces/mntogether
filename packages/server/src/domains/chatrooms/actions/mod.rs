@@ -1,14 +1,12 @@
-//! Chatrooms domain actions - business logic functions
+//! Chatrooms domain actions
 //!
-//! Actions contain the actual business logic that effects dispatch to.
-//! Each action is a pure async function that takes parameters and context.
+//! Entry-point actions are called directly from GraphQL mutations via `process()`.
+//! They do the work, emit fact events, and return ReadResult.
+//!
+//! NOTE: Cascade handlers live in `effects/handlers.rs`, not here.
+//! Actions are pure entry points - they mutate/read state and return values.
 
-mod create_container;
-mod create_message;
-mod generate_greeting;
-mod generate_reply;
+mod entry_points;
 
-pub use create_container::create_container;
-pub use create_message::create_message;
-pub use generate_greeting::generate_greeting;
-pub use generate_reply::generate_reply;
+// Entry-point actions - called directly from GraphQL mutations, return values
+pub use entry_points::{create_container, create_message, send_message};

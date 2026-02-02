@@ -1,19 +1,37 @@
+//! Verify OTP action
+
 use anyhow::Result;
 use seesaw_core::EffectContext;
 use tracing::{error, info};
+use uuid::Uuid;
 
+use crate::common::AppState;
 use crate::domains::auth::events::AuthEvent;
 use crate::domains::auth::models::{hash_phone_number, is_admin_identifier, Identifier};
-use crate::domains::chatrooms::ChatRequestState;
 use crate::domains::member::models::Member;
-use crate::domains::posts::effects::ServerDeps;
+use crate::kernel::ServerDeps;
 
-/// Verify OTP code. Returns OTPVerified with member info on success.
+/// Result of verifying OTP
+pub enum VerifyOtpResult {
+    Verified {
+        member_id: Uuid,
+        is_admin: bool,
+    },
+    Failed {
+        reason: String,
+    },
+}
+
+/// Verify OTP code.
+///
+/// Called directly from GraphQL mutation via `process()`.
+/// Emits `OTPVerified` or `OTPFailed` fact event.
+/// Returns member info needed for JWT creation.
 pub async fn verify_otp(
     phone_number: String,
     code: String,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<AuthEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<VerifyOtpResult> {
     // TEST IDENTIFIER BYPASS: Only available in debug builds (development)
     #[cfg(debug_assertions)]
     if ctx.deps().test_identifier_enabled
@@ -24,10 +42,15 @@ pub async fn verify_otp(
 
         // Get or create member info for test identifier
         let phone_hash = hash_phone_number(&phone_number);
-        let identifier = match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await? {
+        let identifier = match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool)
+            .await?
+        {
             Some(id) => id,
             None => {
-                info!("Auto-creating test member and identifier: {}", phone_number);
+                info!(
+                    "Auto-creating test member and identifier: {}",
+                    phone_number
+                );
                 let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
 
                 // Create member record first
@@ -44,9 +67,10 @@ pub async fn verify_otp(
                     created_at: chrono::Utc::now(),
                 };
 
-                let member = member.insert(&ctx.deps().db_pool).await.map_err(|e| {
-                    anyhow::anyhow!("Failed to create test member: {}", e)
-                })?;
+                let member = member
+                    .insert(&ctx.deps().db_pool)
+                    .await
+                    .map_err(|e| anyhow::anyhow!("Failed to create test member: {}", e))?;
 
                 Identifier::create(member.id, phone_hash, is_admin, &ctx.deps().db_pool)
                     .await
@@ -54,9 +78,13 @@ pub async fn verify_otp(
             }
         };
 
-        return Ok(AuthEvent::OTPVerified {
+        ctx.emit(AuthEvent::OTPVerified {
             member_id: identifier.member_id,
-            phone_number,
+            phone_number: phone_number.clone(),
+            is_admin: identifier.is_admin,
+        });
+        return Ok(VerifyOtpResult::Verified {
+            member_id: identifier.member_id,
             is_admin: identifier.is_admin,
         });
     }
@@ -79,19 +107,28 @@ pub async fn verify_otp(
                 .await?
                 .ok_or_else(|| anyhow::anyhow!("Identifier not found after verification"))?;
 
-            info!("OTP verified successfully for member {}", identifier.member_id);
-            Ok(AuthEvent::OTPVerified {
+            info!(
+                "OTP verified successfully for member {}",
+                identifier.member_id
+            );
+            ctx.emit(AuthEvent::OTPVerified {
                 member_id: identifier.member_id,
-                phone_number,
+                phone_number: phone_number.clone(),
+                is_admin: identifier.is_admin,
+            });
+            Ok(VerifyOtpResult::Verified {
+                member_id: identifier.member_id,
                 is_admin: identifier.is_admin,
             })
         }
         Err(e) => {
             error!("OTP verification failed: {}", e);
-            Ok(AuthEvent::OTPFailed {
-                phone_number,
-                reason: e.to_string(),
-            })
+            let reason = e.to_string();
+            ctx.emit(AuthEvent::OTPFailed {
+                phone_number: phone_number.clone(),
+                reason: reason.clone(),
+            });
+            Ok(VerifyOtpResult::Failed { reason })
         }
     }
 }

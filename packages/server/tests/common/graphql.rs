@@ -6,6 +6,7 @@ use juniper::Variables;
 use serde_json::Value;
 use server_core::domains::auth::JwtService;
 use server_core::kernel::{OpenAIClient, ServerKernel};
+use server_core::server::graphql::context::AppEngine;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
 use std::sync::Arc;
 use twilio::{TwilioOptions, TwilioService};
@@ -54,8 +55,8 @@ impl GraphQLResult {
 }
 
 impl GraphQLClient {
-    /// Creates a new GraphQL client with the given kernel.
-    pub fn new(kernel: Arc<ServerKernel>) -> Self {
+    /// Creates a new GraphQL client with the given kernel and engine.
+    pub fn new(kernel: Arc<ServerKernel>, engine: Arc<AppEngine>) -> Self {
         // Create test instances of services needed by GraphQLContext
         let twilio = Arc::new(TwilioService::new(TwilioOptions {
             account_sid: "test_account_sid".to_string(),
@@ -70,7 +71,7 @@ impl GraphQLClient {
 
         let context = GraphQLContext::new(
             kernel.db_pool.clone(),
-            kernel.bus.clone(),
+            engine,
             None, // No auth user by default
             twilio,
             jwt_service,
@@ -84,7 +85,7 @@ impl GraphQLClient {
     }
 
     /// Creates a new GraphQL client with an authenticated user.
-    pub fn with_auth_user(kernel: Arc<ServerKernel>, user_id: uuid::Uuid, is_admin: bool) -> Self {
+    pub fn with_auth_user(kernel: Arc<ServerKernel>, engine: Arc<AppEngine>, user_id: uuid::Uuid, is_admin: bool) -> Self {
         use server_core::server::middleware::AuthUser;
 
         let twilio = Arc::new(TwilioService::new(TwilioOptions {
@@ -107,7 +108,7 @@ impl GraphQLClient {
 
         let context = GraphQLContext::new(
             kernel.db_pool.clone(),
-            kernel.bus.clone(),
+            engine,
             Some(auth_user),
             twilio,
             jwt_service,

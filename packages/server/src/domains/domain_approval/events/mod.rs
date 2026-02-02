@@ -1,65 +1,34 @@
-//! Domain Approval events
+//! Domain Approval events - FACT EVENTS ONLY
 //!
-//! Architecture (seesaw 0.3.0):
-//!   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
+//! Events are immutable facts about what happened. Effects watch these
+//! and call handlers directly for cascade workflows (no *Requested events).
 //!
-//! Event Chain:
-//! 1. AssessWebsiteRequested → Effect → WebsiteResearchFound/WebsiteResearchCreated
-//! 2. WebsiteResearchFound → InternalEdge → GenerateAssessmentFromResearchRequested
-//! 3. WebsiteResearchCreated → InternalEdge → ConductResearchSearchesRequested
-//! 4. ResearchSearchesCompleted → InternalEdge → GenerateAssessmentFromResearchRequested
-//! 5. WebsiteAssessmentCompleted → [terminal]
+//! Flow:
+//!   GraphQL → assess_website action
+//!     - Fresh research exists → generates assessment synchronously → returns immediately
+//!     - Stale/missing research → WebsiteResearchCreated (triggers async cascade)
+//!
+//! Async cascade (stale/missing research):
+//!   WebsiteResearchCreated → handle_conduct_searches → ResearchSearchesCompleted
+//!   ResearchSearchesCompleted → handle_generate_assessment → WebsiteAssessmentCompleted
 
 use crate::common::{JobId, MemberId, WebsiteId};
 use uuid::Uuid;
 
+/// Domain approval events - FACT EVENTS ONLY
 #[derive(Debug, Clone)]
 pub enum DomainApprovalEvent {
     // ========================================================================
-    // Request Events (from GraphQL mutation and internal edges)
+    // Research Phase Events
     // ========================================================================
-    /// Admin requests to assess a website
-    AssessWebsiteRequested {
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-    },
-
-    /// Request to conduct Tavily searches (triggered by internal edge)
-    ConductResearchSearchesRequested {
-        research_id: Uuid,
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-    },
-
-    /// Request to generate assessment from research (triggered by internal edge)
-    GenerateAssessmentFromResearchRequested {
-        research_id: Uuid,
-        website_id: WebsiteId,
-        job_id: JobId,
-        requested_by: MemberId,
-    },
-
-    // ========================================================================
-    // Research Phase Events (Fact Events)
-    // ========================================================================
-    /// Research already exists and is recent enough to reuse
-    WebsiteResearchFound {
-        research_id: Uuid,
-        website_id: WebsiteId,
-        job_id: JobId,
-        age_days: i64,
-        requested_by: MemberId,
-    },
-
     /// New research record created (homepage scraped and stored)
+    /// Triggers async search cascade when fresh research doesn't exist.
     WebsiteResearchCreated {
         research_id: Uuid,
         website_id: WebsiteId,
         job_id: JobId,
         homepage_url: String,
-        requested_by: MemberId, // Added for internal edge to pass along
+        requested_by: MemberId,
     },
 
     /// Failed to fetch or create research
@@ -70,7 +39,7 @@ pub enum DomainApprovalEvent {
     },
 
     // ========================================================================
-    // Search Phase Events (Fact Events)
+    // Search Phase Events
     // ========================================================================
     /// All Tavily searches completed and results stored
     ResearchSearchesCompleted {
@@ -79,7 +48,7 @@ pub enum DomainApprovalEvent {
         job_id: JobId,
         total_queries: usize,
         total_results: usize,
-        requested_by: MemberId, // Added for internal edge to pass along
+        requested_by: MemberId,
     },
 
     /// Failed to conduct searches
@@ -91,7 +60,7 @@ pub enum DomainApprovalEvent {
     },
 
     // ========================================================================
-    // Assessment Phase Events (Fact Events)
+    // Assessment Phase Events
     // ========================================================================
     /// AI assessment generated and stored
     WebsiteAssessmentCompleted {

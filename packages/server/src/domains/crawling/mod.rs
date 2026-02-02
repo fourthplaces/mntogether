@@ -1,12 +1,7 @@
 //! Crawling domain - page discovery and content caching
 //!
-//! Architecture (seesaw 0.3.0):
-//!   Request Event → Effect → Fact Event → Internal Edge → Request Event → ...
-//!
-//! Components:
-//! - events: Request events (user intent) and fact events (what happened)
-//! - effects: Thin dispatcher that routes request events to handlers
-//! - edges/internal: React to fact events, emit new request events
+//! Architecture (seesaw 0.6.0 direct-call pattern):
+//!   GraphQL → process(action) → emit(FactEvent) → Effect watches facts → calls handlers
 //!
 //! This domain handles:
 //! - Multi-page website crawling
@@ -18,7 +13,6 @@
 //! while the website domain owns the Website entity itself.
 
 pub mod actions;
-pub mod edges;
 pub mod effects;
 pub mod events;
 pub mod models;
@@ -33,4 +27,4 @@ pub use models::{
 };
 
 // Re-export effects
-pub use effects::{hash_content, summarize_pages, synthesize_posts, CrawlerEffect};
+pub use effects::{hash_content, summarize_pages, synthesize_posts, crawler_effect};

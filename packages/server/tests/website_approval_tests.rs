@@ -55,7 +55,7 @@ async fn approve_website_changes_status_to_approved(ctx: &TestHarness) {
 
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     // Act: Approve website via GraphQL mutation
     let mutation = r#"
@@ -147,7 +147,7 @@ async fn approve_website_requires_admin_auth(ctx: &TestHarness) {
 async fn approve_nonexistent_website_returns_error(ctx: &TestHarness) {
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     let mutation = r#"
         mutation ApproveWebsite($websiteId: String!) {
@@ -197,7 +197,7 @@ async fn reject_website_changes_status_to_rejected(ctx: &TestHarness) {
 
     // Create authenticated admin client
     let admin_id = create_admin_user(ctx).await;
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     // Act: Reject website via GraphQL mutation
     let mutation = r#"
@@ -318,7 +318,7 @@ async fn suspend_website_changes_status_to_suspended(ctx: &TestHarness) {
         .expect("Failed to approve website");
 
     // Get authenticated admin client
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
 
     // Act: Suspend website via GraphQL mutation
     let mutation = r#"

@@ -289,7 +289,7 @@ async fn test_manual_scrape_creates_website_snapshot() {
 
     // Use authenticated client (admin) for scraping mutation
     use crate::common::GraphQLClient;
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), reviewer_id.into_uuid(), true);
+    let client = ctx.graphql_with_auth(reviewer_id.into_uuid(), true);
 
     // Execute: Trigger manual scrape via GraphQL (admin clicks "Run Scraper" button)
     let mutation = r#"

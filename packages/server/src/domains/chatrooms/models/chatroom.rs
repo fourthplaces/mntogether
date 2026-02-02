@@ -818,3 +818,27 @@ impl DocumentReference {
         Ok(document_ids)
     }
 }
+
+// =============================================================================
+// Readable Implementations
+// =============================================================================
+
+use crate::common::Readable;
+
+#[async_trait::async_trait]
+impl Readable for Container {
+    type Id = ContainerId;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        Container::find_by_id(id, pool).await.map(Some).or_else(|_| Ok(None))
+    }
+}
+
+#[async_trait::async_trait]
+impl Readable for Message {
+    type Id = MessageId;
+
+    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
+        Message::find_by_id(id, pool).await.map(Some).or_else(|_| Ok(None))
+    }
+}

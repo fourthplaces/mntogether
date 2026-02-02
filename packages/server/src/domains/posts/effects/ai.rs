@@ -1,81 +1,27 @@
-//! AI effect - handles AI extraction request events
+//! AI effect handlers - handle AI extraction request events
 //!
-//! This effect is a thin orchestration layer that dispatches request events to handler functions.
-//! Following CLAUDE.md: Effects must be thin orchestration layers, business logic in actions.
+//! These handlers emit events directly and are called from the composite effect.
 
 use anyhow::Result;
-use async_trait::async_trait;
-use seesaw_core::{Effect, EffectContext};
+use seesaw_core::EffectContext;
 
-use crate::domains::chatrooms::ChatRequestState;
 use super::{post_extraction, ServerDeps};
+use crate::common::AppState;
 use crate::common::{JobId, WebsiteId};
 use crate::domains::posts::events::PostEvent;
 use crate::domains::website::models::Website;
 
-/// AI Effect - Handles AI extraction request events
-///
-/// This effect is a thin orchestration layer that dispatches events to handler functions.
-pub struct AIEffect;
-
-#[async_trait]
-impl Effect<PostEvent, ServerDeps, ChatRequestState> for AIEffect {
-    type Event = PostEvent;
-
-    async fn handle(
-        &mut self,
-        event: PostEvent,
-        ctx: EffectContext<ServerDeps, ChatRequestState>,
-    ) -> Result<Option<PostEvent>> {
-        match event {
-            // =================================================================
-            // Request Events → Dispatch to Handlers
-            // =================================================================
-            PostEvent::ExtractPostsRequested {
-                source_id,
-                job_id,
-                organization_name,
-                content,
-            } => handle_extract_posts(source_id, job_id, organization_name, content, &ctx)
-                .await
-                .map(Some),
-
-            PostEvent::ExtractPostsFromResourceLinkRequested {
-                job_id,
-                url,
-                content,
-                context,
-                submitter_contact,
-            } => handle_extract_posts_from_resource_link(
-                job_id,
-                url,
-                content,
-                context,
-                submitter_contact,
-                &ctx,
-            )
-            .await
-            .map(Some),
-
-            // =================================================================
-            // Other Events → Terminal, no follow-up needed
-            // =================================================================
-            _ => Ok(None),
-        }
-    }
-}
-
 // ============================================================================
-// Handler function
+// Handler actions - emit events directly
 // ============================================================================
 
-async fn handle_extract_posts(
+pub async fn handle_extract_posts(
     source_id: WebsiteId,
     job_id: JobId,
     organization_name: String,
     content: String,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<PostEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<()> {
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
@@ -96,11 +42,12 @@ async fn handle_extract_posts(
                 error = %e,
                 "Failed to find source for extraction"
             );
-            return Ok(PostEvent::ExtractFailed {
+            ctx.emit(PostEvent::ExtractFailed {
                 source_id,
                 job_id,
                 reason: format!("Failed to find source: {}", e),
             });
+            return Ok(());
         }
     };
 
@@ -134,36 +81,38 @@ async fn handle_extract_posts(
                 error = %e,
                 "AI extraction failed"
             );
-            return Ok(PostEvent::ExtractFailed {
+            ctx.emit(PostEvent::ExtractFailed {
                 source_id,
                 job_id,
                 reason: format!("AI extraction failed: {}", e),
             });
+            return Ok(());
         }
     };
 
-    // Return fact event
+    // Emit fact event
     tracing::info!(
         source_id = %source_id,
         job_id = %job_id,
         listings_count = extracted_posts.len(),
         "Emitting PostsExtracted event"
     );
-    Ok(PostEvent::PostsExtracted {
+    ctx.emit(PostEvent::PostsExtracted {
         source_id,
         job_id,
         posts: extracted_posts,
-    })
+    });
+    Ok(())
 }
 
-async fn handle_extract_posts_from_resource_link(
+pub async fn handle_extract_posts_from_resource_link(
     job_id: JobId,
     url: String,
     content: String,
     context: Option<String>,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<ServerDeps, ChatRequestState>,
-) -> Result<PostEvent> {
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<()> {
     tracing::info!(
         job_id = %job_id,
         url = %url,
@@ -221,25 +170,27 @@ async fn handle_extract_posts_from_resource_link(
                 error = %e,
                 "AI extraction from resource link failed"
             );
-            return Ok(PostEvent::ResourceLinkScrapeFailed {
+            ctx.emit(PostEvent::ResourceLinkScrapeFailed {
                 job_id,
                 reason: format!("AI extraction failed: {}", e),
             });
+            return Ok(());
         }
     };
 
-    // Return fact event
+    // Emit fact event
     tracing::info!(
         job_id = %job_id,
         url = %url,
         listings_count = extracted_posts.len(),
         "Emitting ResourceLinkPostsExtracted event"
     );
-    Ok(PostEvent::ResourceLinkPostsExtracted {
+    ctx.emit(PostEvent::ResourceLinkPostsExtracted {
         job_id,
         url,
         posts: extracted_posts,
         context,
         submitter_contact,
-    })
+    });
+    Ok(())
 }

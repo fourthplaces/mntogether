@@ -147,7 +147,7 @@ async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://volunteer-org.example", admin_id).await;
 
     // Act: Call crawlWebsite mutation
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
     let result = client.query(&crawl_mutation(website_id)).await;
 
     // Assert: Crawl completed successfully
@@ -220,23 +220,20 @@ async fn crawl_website_requires_admin(ctx: &TestHarness) {
         .await
         .expect("Failed to create non-admin user");
 
-    // Act: Try to crawl with non-admin user (using execute since we expect error)
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), non_admin_id, false);
+    // Act: Try to crawl with non-admin user
+    let client = ctx.graphql_with_auth(non_admin_id, false);
     let result = client.execute(&crawl_mutation(website_id)).await;
 
-    // Assert: Should return authorization denied error
-    // The error message should contain "Authorization denied"
-    assert!(
-        !result.errors.is_empty(),
-        "Expected authorization error, got no errors. Data: {:?}",
-        result.data
-    );
+    // Assert: Should return auth_failed status (actions handle auth internally)
+    let data = result.data.expect("Should return data even for auth failure");
+    let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+    let status = crawl_result.get("status").and_then(|v| v.as_str());
 
-    let error_text = result.errors.join(" ");
-    assert!(
-        error_text.contains("Authorization") || error_text.contains("denied") || error_text.contains("Admin"),
-        "Expected authorization error message, got: {}",
-        error_text
+    assert_eq!(
+        status,
+        Some("auth_failed"),
+        "Expected auth_failed status, got: {:?}",
+        crawl_result
     );
 }
 
@@ -253,14 +250,24 @@ async fn crawl_website_nonexistent_returns_error(ctx: &TestHarness) {
     let fake_website_id = Uuid::new_v4();
 
     // Act: Try to crawl non-existent website
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
     let result = client.execute(&crawl_mutation(fake_website_id)).await;
 
-    // Assert: Should return an error
-    assert!(
-        !result.is_ok() || !result.errors.is_empty(),
-        "Expected error for non-existent website"
-    );
+    // Assert: Should return an error or failed status
+    if result.errors.is_empty() {
+        // If no GraphQL error, check for failed status in response
+        let data = result.data.expect("Should have data");
+        let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+        let status = crawl_result.get("status").and_then(|v| v.as_str());
+
+        assert_eq!(
+            status,
+            Some("failed"),
+            "Expected failed status for non-existent website, got: {:?}",
+            crawl_result
+        );
+    }
+    // If there are GraphQL errors, that's also acceptable
 }
 
 // =============================================================================
@@ -312,7 +319,7 @@ async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://snapshot-test.example", admin_id).await;
 
     // Act: Crawl the website
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
     let _ = client.query(&crawl_mutation_simple(website_id)).await;
     ctx.settle().await;
 
@@ -363,7 +370,7 @@ async fn crawl_website_handles_no_listings(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://no-listings.example", admin_id).await;
 
     // Act: Crawl the website
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
     let result = client.query(&crawl_mutation_simple(website_id)).await;
 
     // Assert: Should complete with no_posts status from the mutation response
@@ -412,7 +419,7 @@ async fn crawl_website_passes_correct_params_to_scraper(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://params-test.example", admin_id).await;
 
     // Act: Crawl (the mock will be called)
-    let client = GraphQLClient::with_auth_user(ctx.kernel.clone(), admin_id, true);
+    let client = ctx.graphql_with_auth(admin_id, true);
     let _ = client.query(&crawl_mutation_simple(website_id)).await;
     ctx.settle().await;
 
