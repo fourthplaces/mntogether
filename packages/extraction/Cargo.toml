@@ -1,0 +1,57 @@
+[package]
+name = "extraction"
+version = "0.1.0"
+edition = "2021"
+description = "Domain-agnostic site extraction library"
+license = "MIT"
+
+[dependencies]
+# Error handling (thiserror for libraries, not anyhow)
+thiserror = "2.0"
+
+# Async
+async-trait = "0.1"
+tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"  # For CancellationToken
+futures = "0.3"
+async-stream = "0.3"  # For streaming results
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Utilities
+sha2 = "0.10"
+tracing = "0.1"
+uuid = { version = "1", features = ["v4", "v7", "serde"] }
+url = "2.5"
+reqwest = { version = "0.12", features = ["json"] }
+
+# Security
+secrecy = "0.10"  # For API key handling
+ipnet = "2.9"  # For CIDR blocking
+
+# Rate limiting
+governor = "0.8"
+nonzero_ext = "0.3"
+
+# Collections
+indexmap = { version = "2.0", features = ["serde"] }
+
+# Regex for HTML parsing
+regex = "1.10"
+
+# Database (optional features)
+sqlx = { version = "0.8", features = ["runtime-tokio", "chrono", "uuid"], optional = true }
+
+[dev-dependencies]
+tokio-test = "0.4"
+mockall = "0.13"  # For mock generation
+proptest = "1.4"
+
+[features]
+default = []
+sqlite = ["sqlx/sqlite"]
+postgres = ["sqlx/postgres"]
+openai = []  # Reference OpenAI implementation
