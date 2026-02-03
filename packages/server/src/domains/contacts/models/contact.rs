@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContactId, PostId, OrganizationId, ProviderId, ResourceId};
+use crate::common::{ContactId, OrganizationId, PostId, ProviderId, ResourceId};
 
 /// Contact type enum for type-safe querying
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -86,11 +86,11 @@ impl std::str::FromStr for ContactableType {
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Contact {
     pub id: ContactId,
-    pub contactable_type: String,  // 'organization', 'listing', 'provider'
+    pub contactable_type: String, // 'organization', 'listing', 'provider'
     pub contactable_id: Uuid,
-    pub contact_type: String,      // 'phone', 'email', 'website', etc.
+    pub contact_type: String, // 'phone', 'email', 'website', etc.
     pub contact_value: String,
-    pub contact_label: Option<String>,  // 'Office', 'Mobile', 'LinkedIn'
+    pub contact_label: Option<String>, // 'Office', 'Mobile', 'LinkedIn'
     pub is_public: bool,
     pub display_order: i32,
     pub created_at: DateTime<Utc>,

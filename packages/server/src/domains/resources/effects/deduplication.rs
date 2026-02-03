@@ -30,9 +30,7 @@ const MAX_SIMILAR_CANDIDATES: i32 = 5;
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum DedupAction {
     /// Create as new resource
-    New {
-        reasoning: String,
-    },
+    New { reasoning: String },
     /// Update an existing resource
     Update {
         existing_id: uuid::Uuid,
@@ -59,7 +57,7 @@ pub struct DedupInput {
 /// AI response structure for deduplication decision
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct AiDedupResponse {
-    decision: String,  // "new", "update", "skip"
+    decision: String, // "new", "update", "skip"
     existing_id: Option<String>,
     reasoning: String,
 }

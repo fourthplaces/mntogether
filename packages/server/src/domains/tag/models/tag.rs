@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContainerId, PostId, OrganizationId, ProviderId, TagId, TaggableId, WebsiteId};
+use crate::common::{
+    ContainerId, OrganizationId, PostId, ProviderId, TagId, TaggableId, WebsiteId,
+};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -31,13 +33,13 @@ pub struct Taggable {
 #[serde(rename_all = "snake_case")]
 pub enum TagKind {
     // Who is this for?
-    AudienceRole,    // 'recipient', 'donor', 'volunteer', 'participant', 'customer', 'job-seeker'
-    Population,      // 'disabilities', 'seniors', 'refugees', 'immigrants', 'youth'
+    AudienceRole, // 'recipient', 'donor', 'volunteer', 'participant', 'customer', 'job-seeker'
+    Population,   // 'disabilities', 'seniors', 'refugees', 'immigrants', 'youth'
     CommunityServed, // 'somali', 'hmong', 'latino', 'karen'
 
     // What is offered?
     ServiceOffered, // 'legal-aid', 'food-assistance', 'housing', 'transportation'
-    PostType,    // 'service', 'business', 'event', 'opportunity'
+    PostType,       // 'service', 'business', 'event', 'opportunity'
 
     // Who runs it?
     OrgLeadership, // 'immigrant-owned', 'refugee-owned', 'woman-owned'
@@ -379,11 +381,7 @@ impl Tag {
 
 impl Taggable {
     /// Associate a tag with a listing
-    pub async fn create_post_tag(
-        post_id: PostId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<Self> {
         Self::create(tag_id, "listing", post_id.as_uuid(), pool).await
     }
 
@@ -457,11 +455,7 @@ impl Taggable {
     }
 
     /// Remove a tag from a listing
-    pub async fn delete_post_tag(
-        post_id: PostId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<()> {
+    pub async fn delete_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<()> {
         Self::delete(tag_id, "listing", post_id.as_uuid(), pool).await
     }
 

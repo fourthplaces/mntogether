@@ -35,7 +35,10 @@ impl ResourceSource {
     }
 
     /// Find source URLs for a resource (convenience method)
-    pub async fn find_urls_by_resource_id(resource_id: ResourceId, pool: &PgPool) -> Result<Vec<String>> {
+    pub async fn find_urls_by_resource_id(
+        resource_id: ResourceId,
+        pool: &PgPool,
+    ) -> Result<Vec<String>> {
         let urls = sqlx::query_scalar::<_, String>(
             "SELECT page_url FROM resource_sources WHERE resource_id = $1 ORDER BY created_at ASC",
         )

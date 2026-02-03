@@ -61,7 +61,7 @@ async fn create_approved_website(ctx: &TestHarness, domain: &str, admin_id: Uuid
     website.id.into_uuid()
 }
 
-/// Build mock extraction response JSON
+/// Build mock extraction response JSON (legacy format, still used by some tests)
 fn mock_extraction_response(posts: Vec<(&str, &str, &str)>) -> String {
     let extracted: Vec<ExtractedPostWithSource> = posts
         .into_iter()
@@ -76,12 +76,88 @@ fn mock_extraction_response(posts: Vec<(&str, &str, &str)>) -> String {
                 website: None,
             }),
             location: None,
-            urgency: Some("normal".to_string()),
+            urgency: Some("medium".to_string()),
             confidence: Some("high".to_string()),
             audience_roles: vec!["volunteer".to_string()],
         })
         .collect();
     serde_json::to_string(&extracted).expect("Failed to serialize mock response")
+}
+
+/// Build mock page summary response (PageSummaryContent format, legacy)
+fn mock_page_summary(org_name: Option<&str>, programs: Vec<(&str, &str)>) -> String {
+    let programs_json: Vec<String> = programs
+        .into_iter()
+        .map(|(name, desc)| {
+            format!(
+                r#"{{"name": "{}", "description": "{}", "serves": null, "how_to_access": null, "eligibility": null, "contact": null, "hours": null, "location": null}}"#,
+                name, desc
+            )
+        })
+        .collect();
+
+    let org_json = match org_name {
+        Some(name) => format!(
+            r#"{{"name": "{}", "mission": null, "description": null, "languages_served": []}}"#,
+            name
+        ),
+        None => "null".to_string(),
+    };
+
+    format!(
+        r#"{{"organization": {}, "programs": [{}], "contact": null, "location": null, "hours": null, "events": [], "additional_context": null}}"#,
+        org_json,
+        programs_json.join(", ")
+    )
+}
+
+// =============================================================================
+// Agentic Extraction Mock Helpers
+// =============================================================================
+
+/// Build mock candidates response for agentic extraction
+/// Agentic extraction expects {"candidates": [...]} format
+fn mock_candidates_response(candidates: Vec<(&str, &str, &str)>) -> String {
+    let candidates_json: Vec<String> = candidates
+        .into_iter()
+        .map(|(title, post_type, description)| {
+            format!(
+                r#"{{"title": "{}", "post_type": "{}", "brief_description": "{}", "source_excerpt": "..."}}"#,
+                title, post_type, description
+            )
+        })
+        .collect();
+
+    format!(r#"{{"candidates": [{}]}}"#, candidates_json.join(", "))
+}
+
+/// Build mock enriched posts response for merge step
+/// Merge expects {"posts": [...]} format
+fn mock_merged_posts_response(posts: Vec<(&str, &str, &str)>) -> String {
+    let posts_json: Vec<String> = posts
+        .into_iter()
+        .map(|(title, post_type, description)| {
+            format!(
+                r#"{{"title": "{}", "post_type": "{}", "description": "{}", "contact": null, "call_to_action": null, "location": null, "schedule": null, "eligibility": null, "source_url": null, "source_page_snapshot_id": null, "confidence": 0.8, "enrichment_notes": []}}"#,
+                title, post_type, description
+            )
+        })
+        .collect();
+
+    format!(r#"{{"posts": [{}]}}"#, posts_json.join(", "))
+}
+
+/// Build mock LLM sync response (insert all fresh posts)
+fn mock_llm_sync_response(post_count: usize) -> String {
+    let operations: Vec<String> = (0..post_count)
+        .map(|i| {
+            format!(
+                r#"{{"operation": "insert", "fresh_id": "fresh_{}", "reason": "New post"}}"#,
+                i + 1
+            )
+        })
+        .collect();
+    format!("[{}]", operations.join(", "))
 }
 
 /// Generate a crawlWebsite mutation with inline UUID
@@ -120,19 +196,24 @@ async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
         ),
     ]);
 
-    // Two-pass extraction: Pass 1 = page summaries, Pass 2 = synthesis
+    // Agentic extraction pipeline:
+    // 1. extract_candidates for each page (expects {"candidates": [...]})
+    // 2. enrich_post for each candidate (tool calling, but mock returns content so loop breaks)
+    // 3. merge_posts if >1 post (expects {"posts": [...]})
+    // 4. sync_posts (LLM sync response)
     let mock_ai = MockAI::new()
-        // Pass 1: Page summaries (one per page)
-        .with_response(r#"{"organization_name": "Volunteer Org", "organization_description": "Helps community", "services": []}"#)
-        .with_response(r#"{"organization_name": "Volunteer Org", "organization_description": "Volunteer work", "services": [{"title": "Food Pantry Helpers", "description": "Help sort donations", "contact": "", "location": ""}]}"#)
-        // Pass 2: Synthesis
-        .with_response(mock_extraction_response(vec![
-            (
-                "https://volunteer-org.example/volunteer",
-                "Food Pantry Helpers",
-                "Help sort and distribute food donations every Saturday morning. No experience needed.",
-            ),
-        ]));
+        // Page 1 (homepage): extract_candidates - no posts found
+        .with_response(mock_candidates_response(vec![]))
+        // Page 2 (volunteer page): extract_candidates - 1 volunteer post
+        .with_response(mock_candidates_response(vec![(
+            "Food Pantry Helpers",
+            "volunteer",
+            "Help sort and distribute food donations",
+        )]))
+        // Enrich post (tool calling returns content, loop breaks, uses default values)
+        .with_response("Enrichment complete")
+        // LLM sync (insert the 1 post)
+        .with_response(mock_llm_sync_response(1));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -158,8 +239,9 @@ async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
         status
     );
 
-    // Wait for effects to settle
+    // Wait for effects to settle (agentic extraction takes longer)
     ctx.settle().await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Assert: Website status updated
     let website = Website::find_by_id(
@@ -225,8 +307,12 @@ async fn crawl_website_requires_admin(ctx: &TestHarness) {
     let result = client.execute(&crawl_mutation(website_id)).await;
 
     // Assert: Should return auth_failed status (actions handle auth internally)
-    let data = result.data.expect("Should return data even for auth failure");
-    let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+    let data = result
+        .data
+        .expect("Should return data even for auth failure");
+    let crawl_result = data
+        .get("crawlWebsite")
+        .expect("Should have crawlWebsite field");
     let status = crawl_result.get("status").and_then(|v| v.as_str());
 
     assert_eq!(
@@ -257,7 +343,9 @@ async fn crawl_website_nonexistent_returns_error(ctx: &TestHarness) {
     if result.errors.is_empty() {
         // If no GraphQL error, check for failed status in response
         let data = result.data.expect("Should have data");
-        let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+        let crawl_result = data
+            .get("crawlWebsite")
+            .expect("Should have crawlWebsite field");
         let status = crawl_result.get("status").and_then(|v| v.as_str());
 
         assert_eq!(
@@ -294,18 +382,23 @@ async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
         ),
     ]);
 
-    // Two-pass extraction: Pass 1 = 3 page summaries, Pass 2 = synthesis
+    // Three-pass extraction: Pass 1 = 3 page summaries, Pass 2 = synthesis, Pass 3 = LLM sync
     let mock_ai = MockAI::new()
-        // Pass 1: Page summaries (one per page)
-        .with_response(r#"{"organization_name": "Test Org", "organization_description": "Welcome", "services": []}"#)
-        .with_response(r#"{"organization_name": "Test Org", "organization_description": "About us", "services": []}"#)
-        .with_response(r#"{"organization_name": "Test Org", "organization_description": "Volunteer", "services": [{"title": "Help Needed", "description": "We need volunteers", "contact": "", "location": ""}]}"#)
+        // Pass 1: Page summaries (one per page - using PageSummaryContent format)
+        .with_response(mock_page_summary(Some("Test Org"), vec![]))
+        .with_response(mock_page_summary(Some("Test Org"), vec![]))
+        .with_response(mock_page_summary(
+            Some("Test Org"),
+            vec![("Help Needed", "We need volunteers")],
+        ))
         // Pass 2: Synthesis
         .with_response(mock_extraction_response(vec![(
             "https://snapshot-test.example/volunteer",
             "Help Needed",
             "We need volunteers to help with various tasks.",
-        )]));
+        )]))
+        // Pass 3: LLM sync (insert the 1 post)
+        .with_response(mock_llm_sync_response(1));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)

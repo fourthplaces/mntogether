@@ -3,6 +3,7 @@ use juniper::GraphQLObject;
 use serde::{Deserialize, Serialize};
 
 use crate::domains::member::models::member::Member as MemberModel;
+use crate::server::graphql::context::GraphQLContext;
 
 /// Member GraphQL data type
 ///
@@ -51,5 +52,50 @@ impl From<MemberModel> for MemberData {
             notification_count_this_week: member.notification_count_this_week,
             created_at: member.created_at,
         }
+    }
+}
+
+// ============================================================================
+// Relay Pagination Types
+// ============================================================================
+
+/// Edge containing a member and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct MemberEdge {
+    pub node: MemberData,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl MemberEdge {
+    fn node(&self) -> &MemberData {
+        &self.node
+    }
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated members (Relay spec)
+#[derive(Debug, Clone)]
+pub struct MemberConnection {
+    pub edges: Vec<MemberEdge>,
+    pub page_info: crate::common::PageInfo,
+    pub total_count: i32,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl MemberConnection {
+    fn edges(&self) -> &[MemberEdge] {
+        &self.edges
+    }
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    fn total_count(&self) -> i32 {
+        self.total_count
+    }
+    fn nodes(&self) -> Vec<&MemberData> {
+        self.edges.iter().map(|e| &e.node).collect()
     }
 }

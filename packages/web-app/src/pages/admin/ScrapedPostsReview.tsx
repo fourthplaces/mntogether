@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@apollo/client';
 import { GET_SCRAPED_PENDING_POSTS, GET_SCRAPED_POSTS_STATS } from '../../graphql/queries';
 import { gql } from '@apollo/client';
 import PostReviewCard from '../../components/PostReviewCard';
 import PostEditModal from '../../components/PostEditModal';
+import PaginationControls from '../../components/PaginationControls';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 
 const APPROVE_POST = gql`
   mutation ApprovePost($listingId: Uuid!) {
@@ -25,18 +27,22 @@ type PostType = 'all' | 'service' | 'opportunity' | 'business';
 const ScrapedPostsReview: React.FC = () => {
   const [selectedType, setSelectedType] = useState<PostType>('all');
   const [editingPost, setEditingPost] = useState<any>(null);
-  const [page, setPage] = useState(0);
-  const pageSize = 10;
+
+  const pagination = useCursorPagination({ pageSize: 10 });
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    pagination.reset();
+  }, [selectedType]);
 
   // Fetch stats
   const { data: statsData } = useQuery(GET_SCRAPED_POSTS_STATS);
 
-  // Fetch posts
+  // Fetch posts with cursor pagination
   const { data, loading, error, refetch } = useQuery(GET_SCRAPED_PENDING_POSTS, {
     variables: {
       postType: selectedType === 'all' ? null : selectedType,
-      limit: pageSize,
-      offset: page * pageSize,
+      ...pagination.variables,
     },
     fetchPolicy: 'network-only',
   });
@@ -88,7 +94,12 @@ const ScrapedPostsReview: React.FC = () => {
 
   const posts = data?.listings?.nodes || [];
   const totalCount = data?.listings?.totalCount || 0;
-  const hasNextPage = data?.listings?.hasNextPage || false;
+  const pageInfo = data?.listings?.pageInfo || { hasNextPage: false, hasPreviousPage: false };
+  const fullPageInfo = pagination.buildPageInfo(
+    pageInfo.hasNextPage,
+    pageInfo.startCursor,
+    pageInfo.endCursor
+  );
 
   const stats = {
     services: statsData?.scrapedPendingServices?.totalCount || 0,
@@ -119,10 +130,7 @@ const ScrapedPostsReview: React.FC = () => {
                 ? 'border-amber-500 shadow-md'
                 : 'border-stone-200 hover:border-stone-300'
             }`}
-            onClick={() => {
-              setSelectedType('all');
-              setPage(0);
-            }}
+            onClick={() => setSelectedType('all')}
           >
             <div className="text-2xl font-bold text-stone-900">{totalPending}</div>
             <div className="text-sm text-stone-600">Total Pending</div>
@@ -134,10 +142,7 @@ const ScrapedPostsReview: React.FC = () => {
                 ? 'border-blue-500 shadow-md'
                 : 'border-stone-200 hover:border-stone-300'
             }`}
-            onClick={() => {
-              setSelectedType('service');
-              setPage(0);
-            }}
+            onClick={() => setSelectedType('service')}
           >
             <div className="text-2xl font-bold text-blue-700">{stats.services}</div>
             <div className="text-sm text-stone-600">Services</div>
@@ -149,10 +154,7 @@ const ScrapedPostsReview: React.FC = () => {
                 ? 'border-green-500 shadow-md'
                 : 'border-stone-200 hover:border-stone-300'
             }`}
-            onClick={() => {
-              setSelectedType('opportunity');
-              setPage(0);
-            }}
+            onClick={() => setSelectedType('opportunity')}
           >
             <div className="text-2xl font-bold text-green-700">{stats.opportunities}</div>
             <div className="text-sm text-stone-600">Opportunities</div>
@@ -164,10 +166,7 @@ const ScrapedPostsReview: React.FC = () => {
                 ? 'border-purple-500 shadow-md'
                 : 'border-stone-200 hover:border-stone-300'
             }`}
-            onClick={() => {
-              setSelectedType('business');
-              setPage(0);
-            }}
+            onClick={() => setSelectedType('business')}
           >
             <div className="text-2xl font-bold text-purple-700">{stats.businesses}</div>
             <div className="text-sm text-stone-600">Businesses</div>
@@ -180,10 +179,7 @@ const ScrapedPostsReview: React.FC = () => {
             <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm">
               Filtering: <span className="font-semibold capitalize">{selectedType}</span>
               <button
-                onClick={() => {
-                  setSelectedType('all');
-                  setPage(0);
-                }}
+                onClick={() => setSelectedType('all')}
                 className="hover:text-amber-900"
               >
                 ✕
@@ -236,28 +232,15 @@ const ScrapedPostsReview: React.FC = () => {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-between bg-white border border-stone-200 rounded-lg p-4">
-              <div className="text-sm text-stone-600">
-                Showing {page * pageSize + 1}-{Math.min((page + 1) * pageSize, totalCount)} of{' '}
-                {totalCount}
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setPage((p) => Math.max(0, p - 1))}
-                  disabled={page === 0}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  ← Previous
-                </button>
-                <button
-                  onClick={() => setPage((p) => p + 1)}
-                  disabled={!hasNextPage}
-                  className="px-4 py-2 bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next →
-                </button>
-              </div>
-            </div>
+            <PaginationControls
+              pageInfo={fullPageInfo}
+              totalCount={totalCount}
+              currentPage={pagination.currentPage}
+              pageSize={pagination.pageSize}
+              onNextPage={() => pagination.goToNextPage(pageInfo.endCursor)}
+              onPreviousPage={pagination.goToPreviousPage}
+              loading={loading}
+            />
           </>
         )}
 

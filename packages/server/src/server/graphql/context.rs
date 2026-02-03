@@ -88,4 +88,21 @@ impl GraphQLContext {
                 )
             })
     }
+
+    /// Create AppState with visitor info from the current request.
+    ///
+    /// This state is passed to `engine.activate(state)` and is available
+    /// in actions via `ctx.next_state()`. Actions use it for authorization.
+    pub fn app_state(&self) -> AppState {
+        match &self.auth_user {
+            Some(user) => {
+                // Parse user_id as UUID, default to anonymous if parsing fails
+                match uuid::Uuid::parse_str(&user.user_id) {
+                    Ok(uuid) => AppState::authenticated(uuid, user.is_admin),
+                    Err(_) => AppState::anonymous(),
+                }
+            }
+            None => AppState::anonymous(),
+        }
+    }
 }

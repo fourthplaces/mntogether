@@ -2,6 +2,8 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_PENDING_POSTS } from '../../graphql/queries';
 import { APPROVE_POST, REJECT_POST } from '../../graphql/mutations';
 import { useState } from 'react';
+import PaginationControls from '../../components/PaginationControls';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 
 interface Post {
   id: string;
@@ -22,8 +24,10 @@ interface Post {
 
 export function PostApprovalQueue() {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const pagination = useCursorPagination({ pageSize: 20 });
+
   const { data, loading, error, refetch } = useQuery(GET_PENDING_POSTS, {
-    variables: { limit: 50, offset: 0 },
+    variables: pagination.variables,
   });
 
   const [approvePost] = useMutation(APPROVE_POST, {
@@ -40,10 +44,17 @@ export function PostApprovalQueue() {
     },
   });
 
-  if (loading) return <div className="p-8">Loading...</div>;
-  if (error) return <div className="p-8 text-red-600">Error: {error.message}</div>;
-
   const posts = data?.listings?.nodes || [];
+  const totalCount = data?.listings?.totalCount || 0;
+  const pageInfo = data?.listings?.pageInfo || { hasNextPage: false, hasPreviousPage: false };
+  const fullPageInfo = pagination.buildPageInfo(
+    pageInfo.hasNextPage,
+    pageInfo.startCursor,
+    pageInfo.endCursor
+  );
+
+  if (loading && posts.length === 0) return <div className="p-8">Loading...</div>;
+  if (error) return <div className="p-8 text-red-600">Error: {error.message}</div>;
 
   const handleApprove = async (postId: string) => {
     if (confirm('Approve this post? It will become visible to all volunteers.')) {
@@ -67,60 +78,72 @@ export function PostApprovalQueue() {
           No pending posts to review
         </div>
       ) : (
-        <div className="grid gap-6">
-          {posts.map((post: Post) => (
-            <div
-              key={post.id}
-              className="bg-white border border-stone-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs font-medium px-2 py-1 bg-stone-100 rounded">
-                      {post.submissionType === 'user_submitted' ? '👤 User' : '🌐 Scraped'}
-                    </span>
-                    {post.urgency && (
-                      <span className={`text-xs font-medium px-2 py-1 rounded ${
-                        post.urgency === 'urgent' ? 'bg-red-100 text-red-700' :
-                        post.urgency === 'low' ? 'bg-amber-100 text-amber-700' :
-                        'bg-yellow-100 text-yellow-700'
-                      }`}>
-                        {post.urgency}
+        <>
+          <div className="grid gap-6 mb-6">
+            {posts.map((post: Post) => (
+              <div
+                key={post.id}
+                className="bg-white border border-stone-200 rounded-lg p-6 hover:shadow-lg transition-shadow"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-xs font-medium px-2 py-1 bg-stone-100 rounded">
+                        {post.submissionType === 'user_submitted' ? '👤 User' : '🌐 Scraped'}
                       </span>
+                      {post.urgency && (
+                        <span className={`text-xs font-medium px-2 py-1 rounded ${
+                          post.urgency === 'urgent' ? 'bg-red-100 text-red-700' :
+                          post.urgency === 'low' ? 'bg-amber-100 text-amber-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {post.urgency}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-semibold mb-1">{post.title}</h3>
+                    <p className="text-sm text-stone-600 mb-2">{post.organizationName}</p>
+                    {post.location && (
+                      <p className="text-sm text-stone-500 mb-2">📍 {post.location}</p>
                     )}
+                    <p className="text-stone-700 mb-4">{post.tldr}</p>
                   </div>
-                  <h3 className="text-xl font-semibold mb-1">{post.title}</h3>
-                  <p className="text-sm text-stone-600 mb-2">{post.organizationName}</p>
-                  {post.location && (
-                    <p className="text-sm text-stone-500 mb-2">📍 {post.location}</p>
-                  )}
-                  <p className="text-stone-700 mb-4">{post.tldr}</p>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedPost(post)}
+                    className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
+                  >
+                    View Details
+                  </button>
+                  <button
+                    onClick={() => handleApprove(post.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    onClick={() => handleReject(post.id)}
+                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                  >
+                    ✗ Reject
+                  </button>
                 </div>
               </div>
+            ))}
+          </div>
 
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setSelectedPost(post)}
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700"
-                >
-                  View Details
-                </button>
-                <button
-                  onClick={() => handleApprove(post.id)}
-                  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-                >
-                  ✓ Approve
-                </button>
-                <button
-                  onClick={() => handleReject(post.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-                >
-                  ✗ Reject
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+          <PaginationControls
+            pageInfo={fullPageInfo}
+            totalCount={totalCount}
+            currentPage={pagination.currentPage}
+            pageSize={pagination.pageSize}
+            onNextPage={() => pagination.goToNextPage(pageInfo.endCursor)}
+            onPreviousPage={pagination.goToPreviousPage}
+            loading={loading}
+          />
+        </>
       )}
 
       {/* Detail Modal */}

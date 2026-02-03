@@ -7,8 +7,8 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, WebsiteId};
 use super::PageSnapshotId;
+use crate::common::{MemberId, WebsiteId};
 
 pub type WebsiteSnapshotId = Uuid;
 
@@ -107,13 +107,11 @@ impl WebsiteSnapshot {
         pool: &PgPool,
         page_snapshot_id: PageSnapshotId,
     ) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM website_snapshots WHERE page_snapshot_id = $1",
-        )
-        .bind(page_snapshot_id)
-        .fetch_optional(pool)
-        .await
-        .context("Failed to fetch website snapshot by page_snapshot_id")
+        sqlx::query_as::<_, Self>("SELECT * FROM website_snapshots WHERE page_snapshot_id = $1")
+            .bind(page_snapshot_id)
+            .fetch_optional(pool)
+            .await
+            .context("Failed to fetch website snapshot by page_snapshot_id")
     }
 
     /// Link to a page snapshot after successful scrape

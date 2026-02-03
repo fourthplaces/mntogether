@@ -4,6 +4,7 @@
 // circular dependencies while maintaining type safety.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// A listing extracted from a website by AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -20,6 +21,9 @@ pub struct ExtractedPost {
     /// Values: "recipient", "donor", "volunteer", "participant"
     #[serde(default)]
     pub audience_roles: Vec<String>,
+    /// The page snapshot this post was extracted from (for linking)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_page_snapshot_id: Option<Uuid>,
 }
 
 /// A listing extracted with its source URL (for batch extraction)
@@ -51,6 +55,7 @@ impl ExtractedPostWithSource {
             urgency: self.urgency,
             confidence: self.confidence,
             audience_roles: self.audience_roles,
+            source_page_snapshot_id: None, // ExtractedPostWithSource doesn't have this
         }
     }
 }

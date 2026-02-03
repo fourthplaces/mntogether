@@ -34,7 +34,10 @@ impl PageSummary {
     }
 
     /// Find summary for a specific page snapshot
-    pub async fn find_by_snapshot_id(snapshot_id: PageSnapshotId, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_by_snapshot_id(
+        snapshot_id: PageSnapshotId,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>("SELECT * FROM page_summaries WHERE page_snapshot_id = $1")
             .bind(snapshot_id)
             .fetch_optional(pool)

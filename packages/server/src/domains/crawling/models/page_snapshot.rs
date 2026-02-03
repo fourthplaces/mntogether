@@ -174,4 +174,52 @@ impl PageSnapshot {
         .await?;
         Ok(())
     }
+
+    /// Update page content after re-scraping
+    /// Resets extraction status to pending so posts can be regenerated
+    pub async fn update_content(
+        pool: &PgPool,
+        id: PageSnapshotId,
+        html: String,
+        markdown: Option<String>,
+        fetched_via: String,
+    ) -> Result<Self> {
+        // Compute new content hash
+        let mut hasher = Sha256::new();
+        hasher.update(html.as_bytes());
+        let content_hash = hasher.finalize().to_vec();
+
+        let snapshot = sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE page_snapshots
+            SET
+                html = $2,
+                markdown = $3,
+                content_hash = $4,
+                fetched_via = $5,
+                crawled_at = NOW(),
+                extraction_status = 'pending',
+                extraction_completed_at = NULL
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(&html)
+        .bind(&markdown)
+        .bind(&content_hash)
+        .bind(&fetched_via)
+        .fetch_one(pool)
+        .await
+        .context("Failed to update page snapshot content")?;
+
+        tracing::info!(
+            snapshot_id = %id,
+            url = %snapshot.url,
+            content_length = html.len(),
+            "Updated page snapshot content"
+        );
+
+        Ok(snapshot)
+    }
 }

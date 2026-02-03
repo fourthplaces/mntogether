@@ -1,4 +1,4 @@
-use crate::common::entity_ids::{Id, PostId, MemberId};
+use crate::common::entity_ids::{Id, MemberId, PostId};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -56,7 +56,7 @@ impl PostReportRecord {
         sqlx::query_as::<_, Self>(
             "INSERT INTO post_reports (post_id, reported_by, reporter_email, reason, category)
              VALUES ($1, $2, $3, $4, $5)
-             RETURNING *"
+             RETURNING *",
         )
         .bind(post_id.into_uuid())
         .bind(reported_by_uuid)

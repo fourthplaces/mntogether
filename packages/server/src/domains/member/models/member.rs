@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, Readable};
+use crate::common::{MemberId, PaginationDirection, Readable, ValidatedPaginationArgs};
 
 /// Member model - SQL persistence layer
 ///
@@ -193,6 +193,49 @@ impl Member {
             .await?;
 
         Ok(())
+    }
+
+    /// Count all members
+    pub async fn count(pool: &PgPool) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM members")
+            .fetch_one(pool)
+            .await?;
+        Ok(count)
+    }
+
+    /// Find members with cursor-based pagination (Relay spec)
+    pub async fn find_paginated(
+        args: &ValidatedPaginationArgs,
+        pool: &PgPool,
+    ) -> Result<(Vec<Self>, bool)> {
+        let fetch_limit = args.fetch_limit();
+
+        let results = match args.direction {
+            PaginationDirection::Forward => {
+                sqlx::query_as::<_, Self>(
+                    "SELECT * FROM members WHERE ($1::uuid IS NULL OR id > $1) ORDER BY id ASC LIMIT $2",
+                )
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?
+            }
+            PaginationDirection::Backward => {
+                let mut rows = sqlx::query_as::<_, Self>(
+                    "SELECT * FROM members WHERE ($1::uuid IS NULL OR id < $1) ORDER BY id DESC LIMIT $2",
+                )
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?;
+                rows.reverse();
+                rows
+            }
+        };
+
+        let has_more = results.len() > args.limit as usize;
+        let results = results.into_iter().take(args.limit as usize).collect();
+        Ok((results, has_more))
     }
 }
 

@@ -153,3 +153,48 @@ impl TagData {
         self.value.clone()
     }
 }
+
+// ============================================================================
+// Relay Pagination Types
+// ============================================================================
+
+/// Edge containing an organization and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct OrganizationEdge {
+    pub node: OrganizationData,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl OrganizationEdge {
+    fn node(&self) -> &OrganizationData {
+        &self.node
+    }
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated organizations (Relay spec)
+#[derive(Debug, Clone)]
+pub struct OrganizationConnection {
+    pub edges: Vec<OrganizationEdge>,
+    pub page_info: crate::common::PageInfo,
+    pub total_count: i32,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl OrganizationConnection {
+    fn edges(&self) -> &[OrganizationEdge] {
+        &self.edges
+    }
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    fn total_count(&self) -> i32 {
+        self.total_count
+    }
+    fn nodes(&self) -> Vec<&OrganizationData> {
+        self.edges.iter().map(|e| &e.node).collect()
+    }
+}

@@ -6,7 +6,7 @@ use anyhow::Result;
 use tracing::{info, warn};
 
 use crate::common::{JobId, WebsiteId};
-use crate::domains::crawling::events::{CrawledPageInfo, CrawlEvent};
+use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo};
 use crate::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
 use crate::domains::website::models::Website;
 use crate::kernel::{BaseWebScraper, LinkPriorities, ServerDeps};
@@ -14,26 +14,72 @@ use crate::kernel::{BaseWebScraper, LinkPriorities, ServerDeps};
 /// Build link priorities from static keywords for crawling.
 pub fn get_crawl_priorities() -> LinkPriorities {
     LinkPriorities {
-        high: HIGH_PRIORITY_KEYWORDS.iter().map(|s| s.to_string()).collect(),
+        high: HIGH_PRIORITY_KEYWORDS
+            .iter()
+            .map(|s| s.to_string())
+            .collect(),
         skip: SKIP_KEYWORDS.iter().map(|s| s.to_string()).collect(),
     }
 }
 
 /// High-priority keywords - pages containing these are crawled first
 const HIGH_PRIORITY_KEYWORDS: &[&str] = &[
-    "services", "programs", "resources", "help", "assistance", "support",
-    "volunteer", "donate", "give", "get-involved", "ways-to-help",
-    "about", "contact", "location", "hours",
-    "food", "housing", "legal", "immigration", "healthcare", "employment", "education", "childcare",
+    "services",
+    "programs",
+    "resources",
+    "help",
+    "assistance",
+    "support",
+    "volunteer",
+    "donate",
+    "give",
+    "get-involved",
+    "ways-to-help",
+    "about",
+    "contact",
+    "location",
+    "hours",
+    "food",
+    "housing",
+    "legal",
+    "immigration",
+    "healthcare",
+    "employment",
+    "education",
+    "childcare",
 ];
 
 /// Skip keywords - pages containing these are not crawled
 const SKIP_KEYWORDS: &[&str] = &[
-    "login", "signin", "signup", "register", "cart", "checkout", "account", "password", "reset",
-    "gallery", "photos", "videos", "downloads", "pdf",
-    "privacy", "terms", "cookie", "disclaimer",
-    "facebook", "twitter", "instagram", "linkedin", "youtube",
-    "search", "sitemap", "rss", "feed", "print", "share",
+    "login",
+    "signin",
+    "signup",
+    "register",
+    "cart",
+    "checkout",
+    "account",
+    "password",
+    "reset",
+    "gallery",
+    "photos",
+    "videos",
+    "downloads",
+    "pdf",
+    "privacy",
+    "terms",
+    "cookie",
+    "disclaimer",
+    "facebook",
+    "twitter",
+    "instagram",
+    "linkedin",
+    "youtube",
+    "search",
+    "sitemap",
+    "rss",
+    "feed",
+    "print",
+    "share",
 ];
 
 /// Crawl website pages and store snapshots.
@@ -61,7 +107,13 @@ pub async fn crawl_website_pages(
     );
 
     let crawl_result = match web_scraper
-        .crawl(&website.domain, max_depth, max_pages, delay, Some(&priorities))
+        .crawl(
+            &website.domain,
+            max_depth,
+            max_pages,
+            delay,
+            Some(&priorities),
+        )
         .await
     {
         Ok(r) => r,

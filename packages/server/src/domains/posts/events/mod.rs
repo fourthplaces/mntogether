@@ -18,7 +18,6 @@ pub enum PostEvent {
     // =========================================================================
     // Fact Events (what actually happened)
     // =========================================================================
-
     /// Source was scraped successfully
     SourceScraped {
         source_id: WebsiteId,
@@ -26,6 +25,14 @@ pub enum PostEvent {
         organization_name: String,
         content: String,
         page_snapshot_id: Option<uuid::Uuid>, // Link to cached page content
+    },
+
+    /// A single page snapshot was refreshed (re-scraped)
+    PageSnapshotRefreshed {
+        page_snapshot_id: uuid::Uuid,
+        job_id: JobId,
+        url: String,
+        content: String,
     },
 
     /// User-submitted resource link was scraped successfully
@@ -99,10 +106,7 @@ pub enum PostEvent {
     PostApproved { post_id: PostId },
 
     /// A listing was rejected by admin
-    PostRejected {
-        post_id: PostId,
-        reason: String,
-    },
+    PostRejected { post_id: PostId, reason: String },
 
     /// A listing was updated
     ListingUpdated { post_id: PostId },
@@ -141,16 +145,10 @@ pub enum PostEvent {
     ReportDismissed { report_id: PostReportId },
 
     /// Embedding generated for a listing
-    PostEmbeddingGenerated {
-        post_id: PostId,
-        dimensions: usize,
-    },
+    PostEmbeddingGenerated { post_id: PostId, dimensions: usize },
 
     /// Embedding generation failed for a listing
-    ListingEmbeddingFailed {
-        post_id: PostId,
-        reason: String,
-    },
+    ListingEmbeddingFailed { post_id: PostId, reason: String },
 
     // Authorization failures
     /// User attempted admin action without permission
@@ -163,7 +161,6 @@ pub enum PostEvent {
     // =========================================================================
     // Transition Events (workflow state changes, not entry points)
     // =========================================================================
-
     /// Organization source created from user-submitted link
     /// Triggers: handle_scrape_resource_link cascade
     WebsiteCreatedFromLink {
@@ -185,7 +182,6 @@ pub enum PostEvent {
     // =========================================================================
     // Deduplication Events
     // =========================================================================
-
     /// Posts deduplicated successfully
     PostsDeduplicated {
         job_id: JobId,
@@ -195,10 +191,7 @@ pub enum PostEvent {
     },
 
     /// Deduplication failed
-    DeduplicationFailed {
-        job_id: JobId,
-        reason: String,
-    },
+    DeduplicationFailed { job_id: JobId, reason: String },
 }
 
 // Note: All *Requested events have been removed.

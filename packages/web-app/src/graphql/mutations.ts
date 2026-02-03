@@ -173,6 +173,16 @@ export const CRAWL_WEBSITE = gql`
   }
 `;
 
+export const DISCOVER_WEBSITE = gql`
+  mutation DiscoverWebsite($websiteId: Uuid!) {
+    discoverWebsite(websiteId: $websiteId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
 export const REGENERATE_POSTS = gql`
   mutation RegeneratePosts($websiteId: Uuid!) {
     regeneratePosts(websiteId: $websiteId) {

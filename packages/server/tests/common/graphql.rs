@@ -85,7 +85,12 @@ impl GraphQLClient {
     }
 
     /// Creates a new GraphQL client with an authenticated user.
-    pub fn with_auth_user(kernel: Arc<ServerKernel>, engine: Arc<AppEngine>, user_id: uuid::Uuid, is_admin: bool) -> Self {
+    pub fn with_auth_user(
+        kernel: Arc<ServerKernel>,
+        engine: Arc<AppEngine>,
+        user_id: uuid::Uuid,
+        is_admin: bool,
+    ) -> Self {
         use server_core::server::middleware::AuthUser;
 
         let twilio = Arc::new(TwilioService::new(TwilioOptions {

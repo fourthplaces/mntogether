@@ -1,3 +1,6 @@
 pub mod provider;
 
-pub use provider::{ProviderData, ProviderStatusData, SubmitProviderInput, UpdateProviderInput};
+pub use provider::{
+    ProviderConnection, ProviderData, ProviderEdge, ProviderStatusData, SubmitProviderInput,
+    UpdateProviderInput,
+};

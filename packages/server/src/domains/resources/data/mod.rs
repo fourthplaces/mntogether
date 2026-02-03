@@ -3,5 +3,6 @@
 pub mod resource_types;
 
 pub use resource_types::{
-    EditResourceInput, ResourceConnection, ResourceData, ResourceStatusData, ResourceVersionData,
+    EditResourceInput, ResourceConnection, ResourceData, ResourceEdge, ResourceStatusData,
+    ResourceVersionData,
 };

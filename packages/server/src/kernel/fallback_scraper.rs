@@ -64,7 +64,10 @@ impl BaseWebScraper for FallbackScraper {
                         error = %e,
                         "Simple scraper blocked, falling back to Firecrawl"
                     );
-                    firecrawl.scrape(url).await.context("Firecrawl fallback failed")
+                    firecrawl
+                        .scrape(url)
+                        .await
+                        .context("Firecrawl fallback failed")
                 } else {
                     warn!(
                         url = %url,

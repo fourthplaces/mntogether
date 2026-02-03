@@ -88,9 +88,24 @@ impl BaseAI for OpenAIClient {
 
         // Build agent with the specified model
         let agent = match model_id {
-            "gpt-5" => self.client.agent("gpt-5").preamble("You are a helpful assistant.").max_tokens(4096).build(),
-            "gpt-4o" => self.client.agent(openai::GPT_4O).preamble("You are a helpful assistant.").max_tokens(4096).build(),
-            "gpt-4-turbo" | _ => self.client.agent(openai::GPT_4_TURBO).preamble("You are a helpful assistant.").max_tokens(4096).build(),
+            "gpt-5" => self
+                .client
+                .agent("gpt-5")
+                .preamble("You are a helpful assistant.")
+                .max_tokens(4096)
+                .build(),
+            "gpt-4o" => self
+                .client
+                .agent(openai::GPT_4O)
+                .preamble("You are a helpful assistant.")
+                .max_tokens(4096)
+                .build(),
+            "gpt-4-turbo" | _ => self
+                .client
+                .agent(openai::GPT_4_TURBO)
+                .preamble("You are a helpful assistant.")
+                .max_tokens(4096)
+                .build(),
         };
 
         tracing::info!(model = model_id, "Calling OpenAI API");
@@ -121,6 +136,109 @@ impl BaseAI for OpenAIClient {
     async fn complete_json_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
         // Same as complete_with_model for OpenAI
         self.complete_with_model(prompt, model).await
+    }
+
+    async fn generate_structured(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+        schema: serde_json::Value,
+    ) -> Result<String> {
+        let http_client = reqwest::Client::new();
+
+        let request_body = serde_json::json!({
+            "model": "gpt-4o",
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "structured_response",
+                    "strict": true,
+                    "schema": schema
+                }
+            }
+        });
+
+        tracing::debug!(
+            system_prompt_len = system_prompt.len(),
+            user_prompt_len = user_prompt.len(),
+            "Calling OpenAI structured output API"
+        );
+
+        let response = http_client
+            .post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .context("Failed to send structured output request to OpenAI")?;
+
+        let status = response.status();
+        let response_text = response.text().await.context("Failed to read response")?;
+
+        if !status.is_success() {
+            tracing::error!(status = %status, response = %response_text, "OpenAI API error");
+            anyhow::bail!("OpenAI API error: {} - {}", status, response_text);
+        }
+
+        let response_json: serde_json::Value =
+            serde_json::from_str(&response_text).context("Failed to parse OpenAI response")?;
+
+        let content = response_json["choices"][0]["message"]["content"]
+            .as_str()
+            .ok_or_else(|| anyhow::anyhow!("No content in response"))?;
+
+        Ok(content.to_string())
+    }
+
+    async fn generate_with_tools(
+        &self,
+        messages: &[serde_json::Value],
+        tools: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let http_client = reqwest::Client::new();
+
+        let request_body = serde_json::json!({
+            "model": "gpt-4o",
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto"
+        });
+
+        tracing::debug!(
+            messages_count = messages.len(),
+            tools_count = tools.as_array().map(|a| a.len()).unwrap_or(0),
+            "Calling OpenAI tools API"
+        );
+
+        let response = http_client
+            .post("https://api.openai.com/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .context("Failed to send tools request to OpenAI")?;
+
+        let status = response.status();
+        let response_text = response.text().await.context("Failed to read response")?;
+
+        if !status.is_success() {
+            tracing::error!(status = %status, response = %response_text, "OpenAI API error");
+            anyhow::bail!("OpenAI API error: {} - {}", status, response_text);
+        }
+
+        let response_json: serde_json::Value =
+            serde_json::from_str(&response_text).context("Failed to parse OpenAI response")?;
+
+        // Extract the assistant message
+        let message = response_json["choices"][0]["message"].clone();
+
+        Ok(message)
     }
 }
 

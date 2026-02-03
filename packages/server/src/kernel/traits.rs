@@ -129,6 +129,44 @@ pub trait BaseAI: Send + Sync {
         let _ = model;
         self.complete_json(prompt).await
     }
+
+    /// Generate structured output with a JSON schema
+    /// Returns JSON string conforming to the provided schema
+    async fn generate_structured(
+        &self,
+        system_prompt: &str,
+        user_prompt: &str,
+        schema: serde_json::Value,
+    ) -> Result<String> {
+        // Default implementation ignores schema and just prompts for JSON
+        let _ = schema;
+        let combined = format!(
+            "{}\n\nRespond with valid JSON.\n\n{}",
+            system_prompt, user_prompt
+        );
+        self.complete_json(&combined).await
+    }
+
+    /// Generate with tool calling support
+    /// Returns the assistant's response which may include tool_calls
+    async fn generate_with_tools(
+        &self,
+        messages: &[serde_json::Value],
+        tools: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        // Default implementation - not all providers support tools
+        let _ = tools;
+        // Just return the last user message content as if processed
+        let last_user = messages
+            .iter()
+            .rev()
+            .find(|m| m.get("role").and_then(|r| r.as_str()) == Some("user"))
+            .and_then(|m| m.get("content"))
+            .and_then(|c| c.as_str())
+            .unwrap_or("");
+        let response = self.complete(last_user).await?;
+        Ok(serde_json::json!({"content": response}))
+    }
 }
 
 // =============================================================================

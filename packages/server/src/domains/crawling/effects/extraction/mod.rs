@@ -1,12 +1,10 @@
-//! Two-pass extraction module for creating posts from websites
+//! Page summarization module
 //!
-//! Pass 1 (summarize): Extract key information from each page
-//! Pass 2 (synthesize): Combine all summaries into complete posts
+//! Generates AI summaries of pages for display in admin UI.
+//! Post extraction now uses agentic extraction (see posts/effects/agentic_extraction.rs)
 
 pub mod summarize;
-pub mod synthesize;
 pub mod types;
 
 pub use summarize::*;
-pub use synthesize::*;
 pub use types::*;

@@ -1,3 +1,3 @@
 pub mod tag;
 
-pub use tag::{Tag, Taggable, TagKind, TaggableType};
+pub use tag::{Tag, TagKind, Taggable, TaggableType};

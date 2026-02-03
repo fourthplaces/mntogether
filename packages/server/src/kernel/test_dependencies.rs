@@ -129,10 +129,9 @@ impl MockWebScraper {
                 title: Some(format!("Page: {}", url)),
             })
             .collect();
-        self.crawl_responses
-            .lock()
-            .unwrap()
-            .push(CrawlResult { pages: crawled_pages });
+        self.crawl_responses.lock().unwrap().push(CrawlResult {
+            pages: crawled_pages,
+        });
         self
     }
 
@@ -278,11 +277,7 @@ impl MockAI {
 
     /// Check if a prompt containing the given text was sent
     pub fn was_called_with(&self, text: &str) -> bool {
-        self.calls
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|p| p.contains(text))
+        self.calls.lock().unwrap().iter().any(|p| p.contains(text))
     }
 
     /// Get the number of times the AI was called

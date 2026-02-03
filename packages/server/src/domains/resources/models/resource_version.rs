@@ -15,10 +15,10 @@ use crate::common::{ResourceId, ResourceVersionId};
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ChangeReason {
-    Created,     // Initial creation
-    AiUpdate,    // AI detected content change and updated
-    ManualEdit,  // Admin manually edited
-    AiMerge,     // AI merged content from multiple sources
+    Created,    // Initial creation
+    AiUpdate,   // AI detected content change and updated
+    ManualEdit, // Admin manually edited
+    AiMerge,    // AI merged content from multiple sources
 }
 
 impl std::fmt::Display for ChangeReason {
@@ -99,12 +99,10 @@ impl ResourceVersion {
 
     /// Find version by ID
     pub async fn find_by_id(id: ResourceVersionId, pool: &PgPool) -> Result<Option<Self>> {
-        let version = sqlx::query_as::<_, Self>(
-            "SELECT * FROM resource_versions WHERE id = $1",
-        )
-        .bind(id)
-        .fetch_optional(pool)
-        .await?;
+        let version = sqlx::query_as::<_, Self>("SELECT * FROM resource_versions WHERE id = $1")
+            .bind(id)
+            .fetch_optional(pool)
+            .await?;
         Ok(version)
     }
 
@@ -118,7 +116,9 @@ impl ResourceVersion {
         dedup_decision: Option<DedupDecision>,
         pool: &PgPool,
     ) -> Result<Self> {
-        let dedup_json = dedup_decision.map(|d| serde_json::to_value(d).ok()).flatten();
+        let dedup_json = dedup_decision
+            .map(|d| serde_json::to_value(d).ok())
+            .flatten();
 
         let version = sqlx::query_as::<_, Self>(
             r#"
@@ -140,7 +140,9 @@ impl ResourceVersion {
 
     /// Get dedup decision as typed struct
     pub fn get_dedup_decision(&self) -> Option<DedupDecision> {
-        self.dedup_decision.as_ref().and_then(|v| serde_json::from_value(v.clone()).ok())
+        self.dedup_decision
+            .as_ref()
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
 
     /// Count versions for a resource

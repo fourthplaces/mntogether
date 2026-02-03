@@ -115,9 +115,14 @@ pub async fn dismiss_report(
         anyhow::bail!("Authorization denied: {}", auth_err);
     }
 
-    PostReportRecord::dismiss(report_id, resolved_by, resolution_notes, &ctx.deps().db_pool)
-        .await
-        .context("Failed to dismiss report")?;
+    PostReportRecord::dismiss(
+        report_id,
+        resolved_by,
+        resolution_notes,
+        &ctx.deps().db_pool,
+    )
+    .await
+    .context("Failed to dismiss report")?;
 
     ctx.emit(PostEvent::ReportDismissed { report_id });
 

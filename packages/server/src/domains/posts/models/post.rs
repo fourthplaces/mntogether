@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{ContainerId, PostId, OrganizationId, WebsiteId};
+use crate::common::{
+    ContainerId, OrganizationId, PaginationDirection, PostId, ValidatedPaginationArgs, WebsiteId,
+};
 
 /// Listing - a service, opportunity, or business listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -232,6 +234,72 @@ impl Post {
         Ok(listings)
     }
 
+    /// Find listings with cursor-based pagination (Relay spec)
+    ///
+    /// Uses V7 UUID ordering (time-based) for stable pagination.
+    /// Fetches limit+1 to detect if there are more pages.
+    pub async fn find_paginated(
+        status: &str,
+        args: &ValidatedPaginationArgs,
+        pool: &PgPool,
+    ) -> Result<(Vec<Self>, bool)> {
+        let fetch_limit = args.fetch_limit();
+
+        let results = match args.direction {
+            PaginationDirection::Forward => {
+                sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM posts
+                    WHERE status = $1
+                      AND deleted_at IS NULL
+                      AND ($2::uuid IS NULL OR id > $2)
+                    ORDER BY id ASC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?
+            }
+            PaginationDirection::Backward => {
+                // Fetch in reverse order, then re-sort
+                let mut rows = sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM posts
+                    WHERE status = $1
+                      AND deleted_at IS NULL
+                      AND ($2::uuid IS NULL OR id < $2)
+                    ORDER BY id DESC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?;
+
+                // Re-sort to ascending order
+                rows.reverse();
+                rows
+            }
+        };
+
+        // Check if there are more pages
+        let has_more = results.len() > args.limit as usize;
+
+        // Trim to requested limit
+        let results = if has_more {
+            results.into_iter().take(args.limit as usize).collect()
+        } else {
+            results
+        };
+
+        Ok((results, has_more))
+    }
+
     /// Find listings by listing type
     pub async fn find_by_type(
         post_type: &str,
@@ -295,12 +363,14 @@ impl Post {
         Ok(listings)
     }
 
-    /// Find listings by domain ID
+    /// Find listings by domain ID (excludes soft-deleted)
     pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE website_id = $1")
-            .bind(website_id)
-            .fetch_all(pool)
-            .await?;
+        let listings = sqlx::query_as::<_, Post>(
+            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(website_id)
+        .fetch_all(pool)
+        .await?;
         Ok(listings)
     }
 
@@ -647,5 +717,4 @@ impl Post {
 
         Ok(container_id.map(ContainerId::from))
     }
-
 }

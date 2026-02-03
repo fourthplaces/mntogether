@@ -15,7 +15,6 @@ pub enum WebsiteEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)
     // =========================================================================
-
     /// Website was approved for crawling
     WebsiteApproved {
         website_id: WebsiteId,
@@ -45,7 +44,6 @@ pub enum WebsiteEvent {
     // =========================================================================
     // Authorization Events
     // =========================================================================
-
     /// User attempted admin action without permission
     AuthorizationDenied {
         user_id: MemberId,

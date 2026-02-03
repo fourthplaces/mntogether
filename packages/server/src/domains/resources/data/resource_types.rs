@@ -114,10 +114,16 @@ impl ResourceData {
     }
 
     /// Get version history for this resource
-    async fn versions(&self, ctx: &GraphQLContext) -> juniper::FieldResult<Vec<ResourceVersionData>> {
+    async fn versions(
+        &self,
+        ctx: &GraphQLContext,
+    ) -> juniper::FieldResult<Vec<ResourceVersionData>> {
         let resource_id = ResourceId::from_uuid(self.id);
         let versions = ResourceVersion::find_by_resource_id(resource_id, &ctx.db_pool).await?;
-        Ok(versions.into_iter().map(ResourceVersionData::from).collect())
+        Ok(versions
+            .into_iter()
+            .map(ResourceVersionData::from)
+            .collect())
     }
 
     /// Get the number of versions for this resource
@@ -172,26 +178,50 @@ impl From<ResourceVersion> for ResourceVersionData {
     }
 }
 
-/// Connection type for paginated resources
+/// Edge containing a resource and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct ResourceEdge {
+    pub node: ResourceData,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ResourceEdge {
+    /// The resource at the end of the edge
+    fn node(&self) -> &ResourceData {
+        &self.node
+    }
+    /// A cursor for pagination
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated resources (Relay spec)
 #[derive(Debug, Clone)]
 pub struct ResourceConnection {
-    pub nodes: Vec<ResourceData>,
+    pub edges: Vec<ResourceEdge>,
+    pub page_info: crate::common::PageInfo,
     pub total_count: i32,
-    pub has_next_page: bool,
 }
 
 #[juniper::graphql_object(Context = GraphQLContext)]
 impl ResourceConnection {
-    fn nodes(&self) -> &[ResourceData] {
-        &self.nodes
+    /// A list of edges (resource + cursor pairs)
+    fn edges(&self) -> &[ResourceEdge] {
+        &self.edges
     }
-
+    /// Information about pagination
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    /// Total count of resources matching the filter
     fn total_count(&self) -> i32 {
         self.total_count
     }
-
-    fn has_next_page(&self) -> bool {
-        self.has_next_page
+    /// Convenience: direct access to nodes (for simpler queries)
+    fn nodes(&self) -> Vec<&ResourceData> {
+        self.edges.iter().map(|e| &e.node).collect()
     }
 }
 

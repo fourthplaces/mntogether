@@ -146,7 +146,9 @@ impl<'a> LlmRequest<'a> {
             .ok_or_else(|| anyhow::anyhow!("User message is required"))?;
 
         let prompt = self.build_initial_prompt(&system, &user);
-        self.ai.complete_with_model(&prompt, self.model.as_deref()).await
+        self.ai
+            .complete_with_model(&prompt, self.model.as_deref())
+            .await
     }
 
     fn build_initial_prompt(&self, system: &str, user: &str) -> String {
@@ -307,7 +309,7 @@ mod tests {
     async fn test_retry_on_invalid_json() {
         let ai = MockAI::new(vec![
             "```json\n{\"name\": \"test\"}\n```", // Invalid (markdown)
-            r#"{"name": "test", "count": 42}"#,  // Valid
+            r#"{"name": "test", "count": 42}"#,   // Valid
         ]);
 
         let result: TestOutput = ai
@@ -324,11 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_fails_after_max_retries() {
-        let ai = MockAI::new(vec![
-            "not json",
-            "still not json",
-            "definitely not json",
-        ]);
+        let ai = MockAI::new(vec!["not json", "still not json", "definitely not json"]);
 
         let result: Result<TestOutput> = ai
             .request()

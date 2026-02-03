@@ -181,7 +181,9 @@ pub async fn handle_generate_reply(
         "Assistant message created"
     );
 
-    ctx.emit(ChatEvent::MessageCreated { message: new_message });
+    ctx.emit(ChatEvent::MessageCreated {
+        message: new_message,
+    });
     Ok(())
 }
 
@@ -255,7 +257,8 @@ Be friendly and helpful in your responses."#
 /// Get greeting prompt based on agent config.
 fn get_greeting_prompt(agent_config: &str) -> &'static str {
     match agent_config {
-        "admin" => r#"You are an admin assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the admin.
+        "admin" => {
+            r#"You are an admin assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the admin.
 
 Mention that you can help with:
 - Managing websites and listings
@@ -265,13 +268,16 @@ Mention that you can help with:
 
 Keep it concise and professional. Do not use asterisks for formatting.
 
-Your greeting:"#,
-        _ => r#"You are a helpful assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the user.
+Your greeting:"#
+        }
+        _ => {
+            r#"You are a helpful assistant for MN Together. Generate a brief, friendly greeting (1-2 sentences) welcoming the user.
 
 Mention that you can help them find resources and services in their community.
 
 Keep it concise and welcoming. Do not use asterisks for formatting.
 
-Your greeting:"#,
+Your greeting:"#
+        }
     }
 }

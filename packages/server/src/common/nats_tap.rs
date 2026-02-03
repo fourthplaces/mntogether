@@ -55,7 +55,10 @@ pub async fn publish_event<E: IntoNatsPayload>(event: &E, nats: &dyn NatsPublish
         "publishing NATS event"
     );
 
-    if let Err(e) = nats.publish(subject.clone(), Bytes::from(payload_bytes.clone())).await {
+    if let Err(e) = nats
+        .publish(subject.clone(), Bytes::from(payload_bytes.clone()))
+        .await
+    {
         warn!(
             error = %e,
             subject = %subject,

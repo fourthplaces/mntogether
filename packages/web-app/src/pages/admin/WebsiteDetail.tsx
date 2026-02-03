@@ -6,6 +6,7 @@ import { GET_WEBSITE_ASSESSMENT } from '../../graphql/queries';
 import {
   GENERATE_WEBSITE_ASSESSMENT,
   CRAWL_WEBSITE,
+  DISCOVER_WEBSITE,
   REGENERATE_POSTS,
   REGENERATE_PAGE_SUMMARIES,
 } from '../../graphql/mutations';
@@ -153,11 +154,13 @@ export function WebsiteDetail() {
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
   const [isRegeneratingPosts, setIsRegeneratingPosts] = useState(false);
   const [isRegeneratingSummaries, setIsRegeneratingSummaries] = useState(false);
   const [isEditingMaxPages, setIsEditingMaxPages] = useState(false);
   const [maxPagesInput, setMaxPagesInput] = useState<number>(20);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showSummariesModal, setShowSummariesModal] = useState(false);
 
   // Get active tab from URL, default to 'snapshots'
   const tabParam = searchParams.get('tab');
@@ -217,6 +220,17 @@ export function WebsiteDetail() {
     },
   });
 
+  const [discoverWebsite] = useMutation(DISCOVER_WEBSITE, {
+    onCompleted: () => {
+      setIsDiscovering(false);
+      refetchWebsite();
+    },
+    onError: (err) => {
+      setError(err.message);
+      setIsDiscovering(false);
+    },
+  });
+
   const [updateCrawlSettings] = useMutation(UPDATE_CRAWL_SETTINGS, {
     onCompleted: () => {
       setIsEditingMaxPages(false);
@@ -269,6 +283,12 @@ export function WebsiteDetail() {
     setError(null);
     setIsCrawling(true);
     await crawlWebsite({ variables: { websiteId } });
+  };
+
+  const handleDiscover = async () => {
+    setError(null);
+    setIsDiscovering(true);
+    await discoverWebsite({ variables: { websiteId } });
   };
 
   const handleRegeneratePosts = async () => {
@@ -426,11 +446,19 @@ export function WebsiteDetail() {
               )}
               <button
                 onClick={handleCrawl}
-                disabled={isCrawling || website.status !== 'approved'}
+                disabled={isCrawling || isDiscovering || website.status !== 'approved'}
                 className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                title={website.status !== 'approved' ? 'Website must be approved to crawl' : 'Crawl multiple pages'}
+                title={website.status !== 'approved' ? 'Website must be approved to crawl' : 'Crawl multiple pages by following links'}
               >
                 {isCrawling ? 'Crawling...' : 'Full Crawl'}
+              </button>
+              <button
+                onClick={handleDiscover}
+                disabled={isDiscovering || isCrawling || website.status !== 'approved'}
+                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={website.status !== 'approved' ? 'Website must be approved' : 'Discover relevant pages via Tavily search (faster, more targeted)'}
+              >
+                {isDiscovering ? 'Discovering...' : 'Discover'}
               </button>
 
               {/* More Menu */}
@@ -508,6 +536,21 @@ export function WebsiteDetail() {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                           </svg>
                           {assessment ? 'Regenerate Assessment' : 'Generate Assessment'}
+                        </button>
+                        <div className="border-t border-stone-200 my-1" />
+                        <button
+                          onClick={() => {
+                            setShowMoreMenu(false);
+                            setShowSummariesModal(true);
+                          }}
+                          disabled={(website.snapshotsCount ?? 0) === 0}
+                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                          title={(website.snapshotsCount ?? 0) === 0 ? 'No snapshots found' : 'View all page summaries for debugging'}
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          View All Summaries
                         </button>
                       </div>
                     </div>
@@ -1011,6 +1054,80 @@ export function WebsiteDetail() {
           </div>
         </div>
       </div>
+
+      {/* All Summaries Modal */}
+      {showSummariesModal && website && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-6">
+          <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
+            <div className="p-6 border-b border-stone-200 flex justify-between items-center flex-shrink-0">
+              <div>
+                <h2 className="text-xl font-semibold text-stone-900">All Page Summaries</h2>
+                <p className="text-sm text-stone-500 mt-1">
+                  {website.snapshots.filter(s => s.summary).length} of {website.snapshots.length} pages have summaries
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSummariesModal(false)}
+                className="text-stone-400 hover:text-stone-600 text-2xl"
+              >
+                &times;
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="mb-4 flex gap-2">
+                <button
+                  onClick={() => {
+                    const allSummaries = website.snapshots
+                      .filter(s => s.summary)
+                      .map(s => `## ${s.pageUrl}\n\n${s.summary}`)
+                      .join('\n\n---\n\n');
+                    navigator.clipboard.writeText(allSummaries);
+                  }}
+                  className="bg-stone-200 text-stone-700 px-3 py-1.5 rounded text-sm hover:bg-stone-300"
+                >
+                  Copy All to Clipboard
+                </button>
+              </div>
+              <div className="space-y-6">
+                {website.snapshots.map((snapshot) => (
+                  <div key={snapshot.id} className="border border-stone-200 rounded-lg overflow-hidden">
+                    <div className="bg-stone-50 px-4 py-2 border-b border-stone-200">
+                      <a
+                        href={snapshot.pageUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-blue-600 hover:underline break-all"
+                      >
+                        {snapshot.pageUrl}
+                      </a>
+                    </div>
+                    <div className="p-4">
+                      {snapshot.summary ? (
+                        <pre className="text-sm text-stone-700 whitespace-pre-wrap font-mono bg-stone-50 p-4 rounded overflow-x-auto">
+                          {snapshot.summary}
+                        </pre>
+                      ) : (
+                        <p className="text-sm text-stone-400 italic">No summary available</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {website.snapshots.length === 0 && (
+                  <p className="text-center text-stone-500 py-8">No page snapshots found. Run a crawl first.</p>
+                )}
+              </div>
+            </div>
+            <div className="p-4 border-t border-stone-200 flex justify-end flex-shrink-0">
+              <button
+                onClick={() => setShowSummariesModal(false)}
+                className="bg-stone-200 text-stone-700 px-4 py-2 rounded-lg hover:bg-stone-300"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use crate::common::{PostId, OrganizationId};
+use crate::common::{OrganizationId, PostId};
 
 /// Business-specific listing properties
 ///

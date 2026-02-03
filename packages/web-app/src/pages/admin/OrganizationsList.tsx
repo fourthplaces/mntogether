@@ -1,16 +1,43 @@
 import { useQuery } from '@apollo/client';
 import { GET_CAUSE_DRIVEN_BUSINESSES } from '@/graphql/queries';
 import { BusinessInfoCard } from '@/components/BusinessInfoCard';
+import PaginationControls from '@/components/PaginationControls';
+import { useCursorPagination } from '@/hooks/useCursorPagination';
 import type { Organization } from '@/types/organization';
 
 interface OrganizationsResponse {
-  organizations: Organization[];
+  organizations: {
+    nodes: Organization[];
+    pageInfo: {
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      startCursor: string | null;
+      endCursor: string | null;
+    };
+    totalCount: number;
+  };
 }
 
 export function OrganizationsList() {
-  const { data, loading, error } = useQuery<OrganizationsResponse>(GET_CAUSE_DRIVEN_BUSINESSES);
+  const pagination = useCursorPagination({ pageSize: 24 });
 
-  if (loading) {
+  const { data, loading, error } = useQuery<OrganizationsResponse>(GET_CAUSE_DRIVEN_BUSINESSES, {
+    variables: pagination.variables,
+  });
+
+  const organizations = data?.organizations?.nodes || [];
+  const totalCount = data?.organizations?.totalCount || 0;
+  const pageInfo = data?.organizations?.pageInfo || { hasNextPage: false, hasPreviousPage: false };
+  const fullPageInfo = pagination.buildPageInfo(
+    pageInfo.hasNextPage,
+    pageInfo.startCursor,
+    pageInfo.endCursor
+  );
+
+  // Filter for cause-driven orgs (TODO: move this to server-side filter)
+  const causeDrivenOrgs = organizations.filter(org => org.businessInfo?.isCauseDriven);
+
+  if (loading && organizations.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-amber-50">
         <div className="text-stone-600">Loading organizations...</div>
@@ -25,9 +52,6 @@ export function OrganizationsList() {
       </div>
     );
   }
-
-  const organizations = data?.organizations || [];
-  const causeDrivenOrgs = organizations.filter(org => org.businessInfo?.isCauseDriven);
 
   return (
     <div className="min-h-screen bg-amber-50 p-6">
@@ -80,6 +104,21 @@ export function OrganizationsList() {
             <p className="text-sm text-stone-500">
               Businesses that donate a percentage of proceeds to charity will appear here.
             </p>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {organizations.length > 0 && (
+          <div className="mt-6">
+            <PaginationControls
+              pageInfo={fullPageInfo}
+              totalCount={totalCount}
+              currentPage={pagination.currentPage}
+              pageSize={pagination.pageSize}
+              onNextPage={() => pagination.goToNextPage(pageInfo.endCursor)}
+              onPreviousPage={pagination.goToPreviousPage}
+              loading={loading}
+            />
           </div>
         )}
       </div>

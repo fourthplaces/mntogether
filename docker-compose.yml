@@ -125,8 +125,13 @@ services:
       - ./Cargo.lock:/app/Cargo.lock
       - ./Cargo.toml:/app/Cargo.toml
       - ./packages:/app/packages
+      # Mount cargo config for memory-optimized compilation
+      - ./.cargo:/app/.cargo
       # Persist build cache to speed up rebuilds
       - rust_target:/app/target
+    # Memory limit to prevent OOM during Rust compilation
+    mem_limit: 6g
+    memswap_limit: 8g
     networks:
       - mndigitalaid
     restart: unless-stopped

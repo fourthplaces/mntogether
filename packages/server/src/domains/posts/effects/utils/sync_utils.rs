@@ -1,6 +1,6 @@
 use crate::common::{PostId, WebsiteId};
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
 use crate::domains::organization::utils::generate_tldr;
+use crate::domains::posts::models::{Post, PostContact, PostStatus};
 use crate::domains::tag::models::{Tag, Taggable};
 use anyhow::Result;
 use sqlx::PgPool;
@@ -170,8 +170,7 @@ pub async fn sync_posts(
                     for role in &post_input.audience_roles {
                         let normalized_role = role.to_lowercase();
                         if let Ok(tag) =
-                            Tag::find_by_kind_value("audience_role", &normalized_role, pool)
-                                .await
+                            Tag::find_by_kind_value("audience_role", &normalized_role, pool).await
                         {
                             if let Some(tag) = tag {
                                 if let Err(e) =

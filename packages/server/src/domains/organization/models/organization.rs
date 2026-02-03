@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::{OrganizationId, WebsiteId};
+use crate::common::{OrganizationId, PaginationDirection, ValidatedPaginationArgs, WebsiteId};
 
 // Builder for creating organizations
 #[derive(TypedBuilder)]
@@ -495,5 +495,40 @@ impl Organization {
         }
 
         parts.join(" | ")
+    }
+
+    /// Find organizations with cursor-based pagination (Relay spec)
+    pub async fn find_paginated(
+        args: &ValidatedPaginationArgs,
+        pool: &PgPool,
+    ) -> Result<(Vec<Self>, bool)> {
+        let fetch_limit = args.fetch_limit();
+
+        let results = match args.direction {
+            PaginationDirection::Forward => {
+                sqlx::query_as::<_, Self>(
+                    "SELECT * FROM organizations WHERE ($1::uuid IS NULL OR id > $1) ORDER BY id ASC LIMIT $2",
+                )
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?
+            }
+            PaginationDirection::Backward => {
+                let mut rows = sqlx::query_as::<_, Self>(
+                    "SELECT * FROM organizations WHERE ($1::uuid IS NULL OR id < $1) ORDER BY id DESC LIMIT $2",
+                )
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?;
+                rows.reverse();
+                rows
+            }
+        };
+
+        let has_more = results.len() > args.limit as usize;
+        let results = results.into_iter().take(args.limit as usize).collect();
+        Ok((results, has_more))
     }
 }

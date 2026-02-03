@@ -107,6 +107,9 @@ sha2 = { workspace = true }
 pulldown-cmark = "0.9"
 hex = "0.4"
 
+# Base64 encoding (for cursor pagination)
+base64 = "0.22"
+
 # Builder pattern
 typed-builder = "0.20"
 

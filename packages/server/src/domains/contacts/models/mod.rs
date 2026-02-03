@@ -1,3 +1,3 @@
 pub mod contact;
 
-pub use contact::{Contact, ContactableType, ContactType, CreateContact};
+pub use contact::{Contact, ContactType, ContactableType, CreateContact};

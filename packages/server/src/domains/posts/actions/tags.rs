@@ -27,6 +27,9 @@ pub async fn update_post_tags(
     tags: Vec<TagInput>,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Post> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let post_id = PostId::from_uuid(post_id);
 
     info!(post_id = %post_id, tag_count = tags.len(), "Updating post tags");
@@ -36,9 +39,8 @@ pub async fn update_post_tags(
 
     // Add new tags
     for tag_input in tags {
-        let tag =
-            Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.deps().db_pool)
-                .await?;
+        let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.deps().db_pool)
+            .await?;
         Taggable::create_post_tag(post_id, tag.id, &ctx.deps().db_pool).await?;
     }
 
@@ -56,12 +58,14 @@ pub async fn add_post_tag(
     display_name: Option<String>,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Tag> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let post_id = PostId::from_uuid(post_id);
 
     info!(post_id = %post_id, tag_kind = %tag_kind, tag_value = %tag_value, "Adding post tag");
 
-    let tag =
-        Tag::find_or_create(&tag_kind, &tag_value, display_name, &ctx.deps().db_pool).await?;
+    let tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, &ctx.deps().db_pool).await?;
     Taggable::create_post_tag(post_id, tag.id, &ctx.deps().db_pool).await?;
 
     Ok(tag)
@@ -74,6 +78,9 @@ pub async fn remove_post_tag(
     tag_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<bool> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let post_id = PostId::from_uuid(post_id);
     let tag_id = TagId::parse(&tag_id).context("Invalid tag ID")?;
 

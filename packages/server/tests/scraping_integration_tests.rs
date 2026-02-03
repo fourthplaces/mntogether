@@ -11,8 +11,8 @@ mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::{MemberId, WebsiteId};
-use server_core::domains::posts::models::Post;
 use server_core::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
+use server_core::domains::posts::models::Post;
 use server_core::domains::website::models::Website;
 use server_core::kernel::test_dependencies::{MockAI, MockEmbeddingService, MockWebScraper};
 use server_core::kernel::TestDependencies;
@@ -162,21 +162,35 @@ async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHa
     let mock_ai = MockAI::new()
         // Pass 1: Page summaries (one per page)
         .with_response(mock_page_summary(vec![]))
-        .with_response(mock_page_summary(vec![
-            ("Food Shelf Program", "Provides groceries to families in need", "food@community.org"),
-        ]))
-        .with_response(mock_page_summary(vec![
-            ("Food Sorters Needed", "Help sort donations every Saturday", "volunteer@community.org"),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Food Shelf Program",
+            "Provides groceries to families in need",
+            "food@community.org",
+        )]))
+        .with_response(mock_page_summary(vec![(
+            "Food Sorters Needed",
+            "Help sort donations every Saturday",
+            "volunteer@community.org",
+        )]))
         // Pass 2: Synthesized posts
         .with_response(mock_posts_response(vec![
-            ("Food Shelf Program", "Provides groceries to families in need. Open Monday-Friday 9am-5pm.", "https://community-org.test/food-shelf", vec!["recipient"]),
-            ("Food Sorters Needed", "Help sort donations every Saturday morning.", "https://community-org.test/volunteer", vec!["volunteer"]),
+            (
+                "Food Shelf Program",
+                "Provides groceries to families in need. Open Monday-Friday 9am-5pm.",
+                "https://community-org.test/food-shelf",
+                vec!["recipient"],
+            ),
+            (
+                "Food Sorters Needed",
+                "Help sort donations every Saturday morning.",
+                "https://community-org.test/volunteer",
+                vec!["volunteer"],
+            ),
         ]));
 
     // Mock embeddings - unique for each post
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_different_texts(vec!["Food Shelf", "Food Sorters"]);
+    let mock_embeddings =
+        MockEmbeddingService::new().with_different_texts(vec!["Food Shelf", "Food Sorters"]);
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -207,13 +221,12 @@ async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHa
     );
 
     // Assert: Page snapshots were created
-    let snapshots: Vec<PageSnapshot> = sqlx::query_as::<_, PageSnapshot>(
-        "SELECT * FROM page_snapshots WHERE url LIKE $1",
-    )
-    .bind("https://community-org.test%")
-    .fetch_all(&ctx.db_pool)
-    .await
-    .expect("Failed to query snapshots");
+    let snapshots: Vec<PageSnapshot> =
+        sqlx::query_as::<_, PageSnapshot>("SELECT * FROM page_snapshots WHERE url LIKE $1")
+            .bind("https://community-org.test%")
+            .fetch_all(&ctx.db_pool)
+            .await
+            .expect("Failed to query snapshots");
 
     assert!(
         snapshots.len() >= 2,
@@ -222,12 +235,9 @@ async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHa
     );
 
     // Assert: Website snapshots link pages to website
-    let ws = WebsiteSnapshot::find_by_website(
-        &ctx.db_pool,
-        WebsiteId::from_uuid(website_id),
-    )
-    .await
-    .expect("Failed to query website snapshots");
+    let ws = WebsiteSnapshot::find_by_website(&ctx.db_pool, WebsiteId::from_uuid(website_id))
+        .await
+        .expect("Failed to query website snapshots");
 
     assert!(!ws.is_empty(), "Expected website snapshots to be created");
 }
@@ -270,8 +280,8 @@ async fn test_duplicate_posts_are_soft_deleted_with_reason(ctx: &TestHarness) {
         .with_response("This listing has been consolidated with 'Valley Food Shelf' to provide complete information in one place.");
 
     // Mock embeddings that are VERY similar (>90% cosine similarity)
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_similar_texts("Valley Food Shelf", "Valley SuperShelf");
+    let mock_embeddings =
+        MockEmbeddingService::new().with_similar_texts("Valley Food Shelf", "Valley SuperShelf");
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -294,13 +304,12 @@ async fn test_duplicate_posts_are_soft_deleted_with_reason(ctx: &TestHarness) {
     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
 
     // Assert: Check posts - one should be soft-deleted
-    let all_posts: Vec<Post> = sqlx::query_as::<_, Post>(
-        "SELECT * FROM posts WHERE website_id = $1 ORDER BY created_at",
-    )
-    .bind(website_id)
-    .fetch_all(&ctx.db_pool)
-    .await
-    .expect("Failed to query posts");
+    let all_posts: Vec<Post> =
+        sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE website_id = $1 ORDER BY created_at")
+            .bind(website_id)
+            .fetch_all(&ctx.db_pool)
+            .await
+            .expect("Failed to query posts");
 
     // We may have 0, 1, or 2 posts depending on extraction success
     // If we have 2, check for soft deletion
@@ -362,13 +371,10 @@ async fn test_soft_deleted_posts_excluded_from_queries(ctx: &TestHarness) {
     .expect("Failed to create post");
 
     // Verify post is found before soft delete
-    let found = Post::find_by_domain_and_title(
-        WebsiteId::from_uuid(website_id),
-        "Test Post",
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
+    let found =
+        Post::find_by_domain_and_title(WebsiteId::from_uuid(website_id), "Test Post", &ctx.db_pool)
+            .await
+            .expect("Query failed");
     assert!(found.is_some(), "Post should be found before soft delete");
 
     // Soft delete the post
@@ -377,14 +383,14 @@ async fn test_soft_deleted_posts_excluded_from_queries(ctx: &TestHarness) {
         .expect("Soft delete failed");
 
     // Verify post is NOT found in normal queries
-    let found_after = Post::find_by_domain_and_title(
-        WebsiteId::from_uuid(website_id),
-        "Test Post",
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
-    assert!(found_after.is_none(), "Soft-deleted post should not be found");
+    let found_after =
+        Post::find_by_domain_and_title(WebsiteId::from_uuid(website_id), "Test Post", &ctx.db_pool)
+            .await
+            .expect("Query failed");
+    assert!(
+        found_after.is_none(),
+        "Soft-deleted post should not be found"
+    );
 
     // But post still exists in database (for link preservation)
     let raw_post = Post::find_by_id(post.id, &ctx.db_pool)
@@ -421,25 +427,34 @@ async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
     let mock_ai = MockAI::new()
         // Pass 1 summaries for initial crawl
         .with_response(mock_page_summary(vec![]))
-        .with_response(mock_page_summary(vec![
-            ("Meal Program", "Hot meals served daily", "meals@org.test"),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Meal Program",
+            "Hot meals served daily",
+            "meals@org.test",
+        )]))
         // Pass 2 for initial crawl
-        .with_response(mock_posts_response(vec![
-            ("Meal Program", "Hot meals served daily to those in need.", "https://regen-test.org/services", vec!["recipient"]),
-        ]))
+        .with_response(mock_posts_response(vec![(
+            "Meal Program",
+            "Hot meals served daily to those in need.",
+            "https://regen-test.org/services",
+            vec!["recipient"],
+        )]))
         // Pass 1 summaries for regenerate (will be called again)
         .with_response(mock_page_summary(vec![]))
-        .with_response(mock_page_summary(vec![
-            ("Meal Program Updated", "Hot meals and groceries daily", "meals@org.test"),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Meal Program Updated",
+            "Hot meals and groceries daily",
+            "meals@org.test",
+        )]))
         // Pass 2 for regenerate
-        .with_response(mock_posts_response(vec![
-            ("Meal Program Updated", "Hot meals and groceries served daily.", "https://regen-test.org/services", vec!["recipient"]),
-        ]));
+        .with_response(mock_posts_response(vec![(
+            "Meal Program Updated",
+            "Hot meals and groceries served daily.",
+            "https://regen-test.org/services",
+            vec!["recipient"],
+        )]));
 
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_different_texts(vec!["Meal Program"]);
+    let mock_embeddings = MockEmbeddingService::new().with_different_texts(vec!["Meal Program"]);
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -460,13 +475,12 @@ async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
 
     // Count snapshots after crawl
-    let snapshots_after_crawl: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1",
-    )
-    .bind(website_id)
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count snapshots");
+    let snapshots_after_crawl: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1")
+            .bind(website_id)
+            .fetch_one(&ctx.db_pool)
+            .await
+            .expect("Failed to count snapshots");
 
     // Act 2: Regenerate posts (should NOT create new snapshots)
     let result = client.query(&regenerate_posts_mutation(website_id)).await;
@@ -482,13 +496,12 @@ async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
     );
 
     // Assert: No NEW snapshots were created (reused existing)
-    let snapshots_after_regen: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1",
-    )
-    .bind(website_id)
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count snapshots");
+    let snapshots_after_regen: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1")
+            .bind(website_id)
+            .fetch_one(&ctx.db_pool)
+            .await
+            .expect("Failed to count snapshots");
 
     assert_eq!(
         snapshots_after_crawl, snapshots_after_regen,
@@ -583,81 +596,11 @@ async fn test_mixed_info_across_pages_creates_complete_posts(ctx: &TestHarness) 
         let post = &posts[0];
         // Post should have meaningful content
         assert!(!post.title.is_empty(), "Post should have a title");
-        assert!(!post.description.is_empty(), "Post should have a description");
+        assert!(
+            !post.description.is_empty(),
+            "Post should have a description"
+        );
     }
-}
-
-// =============================================================================
-// Test: Embedding Generation for New Posts
-// =============================================================================
-
-/// Test that embeddings are generated for newly created posts
-#[test_context(TestHarness)]
-#[tokio::test]
-async fn test_embeddings_generated_for_new_posts(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
-            "https://embedding-test.org",
-            "# Service\n\nWe provide housing assistance.",
-        ),
-    ]);
-
-    let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Housing Assistance", "Help finding affordable housing", "housing@test.org"),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Housing Assistance Program", "We help families find affordable housing options.", "https://embedding-test.org", vec!["recipient"]),
-        ]));
-
-    // Track embedding calls
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_pattern_embedding("Housing", vec![0.5; 1536]);
-
-    let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
-        .mock_ai(mock_ai)
-        .mock_embeddings(mock_embeddings);
-
-    let ctx = TestHarness::with_deps(deps)
-        .await
-        .expect("Failed to create test harness");
-
-    let admin_id = create_admin_user(&ctx).await;
-    let website_id = create_approved_website(&ctx, "https://embedding-test.org", admin_id).await;
-
-    // Act
-    let client = ctx.graphql_with_auth(admin_id, true);
-    let _ = client.query(&crawl_mutation(website_id)).await;
-    ctx.settle().await;
-    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-
-    // Assert: Posts should have embeddings
-    let posts_with_embeddings: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND embedding IS NOT NULL AND deleted_at IS NULL",
-    )
-    .bind(website_id)
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count posts with embeddings");
-
-    let total_posts: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
-    )
-    .bind(website_id)
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Failed to count posts");
-
-    // If posts were created, check embedding process ran
-    // Note: Embeddings may not always be saved depending on async timing
-    // This test verifies the workflow completes, not that embeddings are persisted
-    assert!(
-        total_posts >= 0,
-        "Should have processed posts (got {} posts, {} with embeddings)",
-        total_posts,
-        posts_with_embeddings
-    );
 }
 
 // =============================================================================
@@ -668,9 +611,8 @@ async fn test_embeddings_generated_for_new_posts(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://status-test.org", "# Test\n\nContent"),
-    ]);
+    let mock_scraper = MockWebScraper::new()
+        .with_crawl_pages(vec![("https://status-test.org", "# Test\n\nContent")]);
 
     // Two-pass extraction: page summary + synthesis
     let mock_ai = MockAI::new()
@@ -690,14 +632,14 @@ async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://status-test.org", admin_id).await;
 
     // Check initial status
-    let website_before = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Failed to find website");
+    let website_before = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Failed to find website");
 
-    assert_eq!(website_before.status, "approved", "Website should be approved before crawl");
+    assert_eq!(
+        website_before.status, "approved",
+        "Website should be approved before crawl"
+    );
 
     // Act: Crawl
     let client = ctx.graphql_with_auth(admin_id, true);
@@ -705,12 +647,9 @@ async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
     ctx.settle().await;
 
     // Assert: Website crawl status updated
-    let website_after = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Failed to find website");
+    let website_after = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Failed to find website");
 
     assert!(
         website_after.crawl_status.is_some(),
@@ -719,7 +658,10 @@ async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
 
     let crawl_status = website_after.crawl_status.unwrap();
     assert!(
-        crawl_status == "completed" || crawl_status == "no_posts_found" || crawl_status == "crawling" || crawl_status == "pending",
+        crawl_status == "completed"
+            || crawl_status == "no_posts_found"
+            || crawl_status == "crawling"
+            || crawl_status == "pending",
         "Expected valid crawl status, got: {}",
         crawl_status
     );
@@ -751,8 +693,12 @@ async fn test_non_admin_cannot_crawl_website(ctx: &TestHarness) {
     let result = client.execute(&crawl_mutation(website_id)).await;
 
     // Assert: Should return auth_failed status (actions handle auth internally)
-    let data = result.data.expect("Should return data even for auth failure");
-    let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+    let data = result
+        .data
+        .expect("Should return data even for auth failure");
+    let crawl_result = data
+        .get("crawlWebsite")
+        .expect("Should have crawlWebsite field");
     let status = crawl_result.get("status").and_then(|v| v.as_str());
 
     assert_eq!(
@@ -774,8 +720,7 @@ async fn test_scraper_failure_returns_error_status(ctx: &TestHarness) {
     // Arrange: Mock scraper that returns no pages (simulates failure)
     let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![]); // Empty = no pages
 
-    let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper);
+    let deps = TestDependencies::new().mock_scraper(mock_scraper);
 
     let ctx = TestHarness::with_deps(deps)
         .await
@@ -798,9 +743,10 @@ async fn test_scraper_failure_returns_error_status(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_ai_extraction_failure_handled_gracefully(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://ai-fail.test", "# Content\n\nSome page content here."),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://ai-fail.test",
+        "# Content\n\nSome page content here.",
+    )]);
 
     // Two-pass extraction: page summary succeeds, but synthesis fails with invalid JSON
     let mock_ai = MockAI::new()
@@ -830,7 +776,9 @@ async fn test_ai_extraction_failure_handled_gracefully(ctx: &TestHarness) {
     // Assert: Should return something (either error or status)
     // The crawl may fail gracefully with an error or return a failed status
     let has_response = !result.errors.is_empty()
-        || result.data.as_ref()
+        || result
+            .data
+            .as_ref()
             .and_then(|d| d["crawlWebsite"]["status"].as_str())
             .is_some();
     assert!(
@@ -852,7 +800,9 @@ async fn test_crawl_nonexistent_website_returns_error(ctx: &TestHarness) {
     // Assert: Should return failed status or GraphQL error
     if result.errors.is_empty() {
         let data = result.data.expect("Should have data");
-        let crawl_result = data.get("crawlWebsite").expect("Should have crawlWebsite field");
+        let crawl_result = data
+            .get("crawlWebsite")
+            .expect("Should have crawlWebsite field");
         let status = crawl_result.get("status").and_then(|v| v.as_str());
 
         assert_eq!(
@@ -884,12 +834,15 @@ async fn test_crawl_unapproved_website_fails(ctx: &TestHarness) {
     .expect("Failed to create website");
 
     let client = ctx.graphql_with_auth(admin_id, true);
-    let result = client.execute(&crawl_mutation(website.id.into_uuid())).await;
+    let result = client
+        .execute(&crawl_mutation(website.id.into_uuid()))
+        .await;
 
     // Note: The current action doesn't check website approval status before crawling
     // It simply crawls any website that exists. This test verifies the action completes.
     let has_error = !result.errors.is_empty();
-    let has_status = result.data
+    let has_status = result
+        .data
         .as_ref()
         .and_then(|d| d.get("crawlWebsite"))
         .and_then(|c| c.get("status"))
@@ -957,12 +910,17 @@ async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
     ]);
 
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Multilingual Services", "Support in multiple languages", "help@unicode.org"),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Multilingual Community Services", "We provide assistance in English, Spanish, Chinese, and Arabic.", "https://unicode-test.org", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Multilingual Services",
+            "Support in multiple languages",
+            "help@unicode.org",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Multilingual Community Services",
+            "We provide assistance in English, Spanish, Chinese, and Arabic.",
+            "https://unicode-test.org",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -992,7 +950,10 @@ async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
     // If posts were created, check content
     for post in &posts {
         assert!(!post.title.is_empty(), "Post should have non-empty title");
-        assert!(!post.description.is_empty(), "Post should have non-empty description");
+        assert!(
+            !post.description.is_empty(),
+            "Post should have non-empty description"
+        );
     }
 }
 
@@ -1000,17 +961,23 @@ async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_single_page_website(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://single-page.test", "# About Us\n\nWe provide food assistance.\n\nContact: food@single.test"),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://single-page.test",
+        "# About Us\n\nWe provide food assistance.\n\nContact: food@single.test",
+    )]);
 
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Food Assistance", "Provides food to families", "food@single.test"),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Food Assistance Program", "We provide food assistance to families in need.", "https://single-page.test", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Food Assistance",
+            "Provides food to families",
+            "food@single.test",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Food Assistance Program",
+            "We provide food assistance to families in need.",
+            "https://single-page.test",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1044,17 +1011,21 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
     let long_content = "Lorem ipsum dolor sit amet. ".repeat(500);
     let page_content = format!("# Services\n\n{}", long_content);
 
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://long-content.test", &page_content),
-    ]);
+    let mock_scraper =
+        MockWebScraper::new().with_crawl_pages(vec![("https://long-content.test", &page_content)]);
 
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Long Service", &long_content[..100], "contact@long.test"),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Long Service Description", &long_content[..1000], "https://long-content.test", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Long Service",
+            &long_content[..100],
+            "contact@long.test",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Long Service Description",
+            &long_content[..1000],
+            "https://long-content.test",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1073,10 +1044,7 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
 
     // Assert: Should handle without error
     let status = result["crawlWebsite"]["status"].as_str().unwrap_or("");
-    assert!(
-        !status.is_empty(),
-        "Should handle long content"
-    );
+    assert!(!status.is_empty(), "Should handle long content");
 }
 
 /// Test that duplicate titles on different pages are handled
@@ -1084,26 +1052,45 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_duplicate_titles_different_pages(ctx: &TestHarness) {
     let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://dup-titles.test/page1", "# Food Bank\n\nWe provide food assistance."),
-        ("https://dup-titles.test/page2", "# Food Bank\n\nDifferent food bank location."),
+        (
+            "https://dup-titles.test/page1",
+            "# Food Bank\n\nWe provide food assistance.",
+        ),
+        (
+            "https://dup-titles.test/page2",
+            "# Food Bank\n\nDifferent food bank location.",
+        ),
     ]);
 
     // AI extracts same title from both pages
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Food Bank", "Food assistance program", ""),
-        ]))
-        .with_response(mock_page_summary(vec![
-            ("Food Bank", "Another food bank location", ""),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Food Bank",
+            "Food assistance program",
+            "",
+        )]))
+        .with_response(mock_page_summary(vec![(
+            "Food Bank",
+            "Another food bank location",
+            "",
+        )]))
         .with_response(mock_posts_response(vec![
-            ("Food Bank", "We provide food assistance.", "https://dup-titles.test/page1", vec!["recipient"]),
-            ("Food Bank", "Different food bank location.", "https://dup-titles.test/page2", vec!["recipient"]),
+            (
+                "Food Bank",
+                "We provide food assistance.",
+                "https://dup-titles.test/page1",
+                vec!["recipient"],
+            ),
+            (
+                "Food Bank",
+                "Different food bank location.",
+                "https://dup-titles.test/page2",
+                vec!["recipient"],
+            ),
         ]));
 
     // Use similar embeddings so they get deduplicated
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_similar_texts("Food Bank", "food bank");
+    let mock_embeddings = MockEmbeddingService::new().with_similar_texts("Food Bank", "food bank");
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1142,9 +1129,10 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
     // First crawl will "fail" with no content
     let mock_scraper = MockWebScraper::new()
         .with_crawl_pages(vec![("https://retry-test.org", "# Empty")])
-        .with_crawl_pages(vec![
-            ("https://retry-test.org", "# Services\n\nFood assistance available."),
-        ]);
+        .with_crawl_pages(vec![(
+            "https://retry-test.org",
+            "# Services\n\nFood assistance available.",
+        )]);
 
     // Two-pass extraction for each crawl:
     // First crawl: page summary + synthesis (no posts)
@@ -1156,22 +1144,41 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
         // First crawl: Pass 2 (synthesis - no posts)
         .with_response("[]")
         // Second crawl: Pass 1 (page summary) - may be re-requested due to content hash mismatch
-        .with_response(mock_page_summary(vec![
-            ("Food Assistance", "Food help for families", ""),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Food Assistance",
+            "Food help for families",
+            "",
+        )]))
         // Second crawl: Pass 2 (synthesis - with posts)
-        .with_response(mock_posts_response(vec![
-            ("Food Assistance", "Food help for families.", "https://retry-test.org", vec!["recipient"]),
-        ]))
+        .with_response(mock_posts_response(vec![(
+            "Food Assistance",
+            "Food help for families.",
+            "https://retry-test.org",
+            vec!["recipient"],
+        )]))
         // Extra responses for retries
-        .with_response(mock_page_summary(vec![("Food Assistance", "Food help for families", "")]))
-        .with_response(mock_posts_response(vec![
-            ("Food Assistance", "Food help for families.", "https://retry-test.org", vec!["recipient"]),
-        ]))
-        .with_response(mock_page_summary(vec![("Food Assistance", "Food help for families", "")]))
-        .with_response(mock_posts_response(vec![
-            ("Food Assistance", "Food help for families.", "https://retry-test.org", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Food Assistance",
+            "Food help for families",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Food Assistance",
+            "Food help for families.",
+            "https://retry-test.org",
+            vec!["recipient"],
+        )]))
+        .with_response(mock_page_summary(vec![(
+            "Food Assistance",
+            "Food help for families",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Food Assistance",
+            "Food help for families.",
+            "https://retry-test.org",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1196,10 +1203,7 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
 
     // Assert: Second crawl should complete
     let status = result2["crawlWebsite"]["status"].as_str().unwrap_or("");
-    assert!(
-        !status.is_empty(),
-        "Re-crawl should return a status"
-    );
+    assert!(!status.is_empty(), "Re-crawl should return a status");
 }
 
 // =============================================================================
@@ -1210,26 +1214,32 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_post_contacts_saved_correctly(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://contact-test.org", "# Services\n\nContact us at help@example.org or 555-1234"),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://contact-test.org",
+        "# Services\n\nContact us at help@example.org or 555-1234",
+    )]);
 
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Help Service", "General assistance", "help@example.org"),
-        ]))
-        .with_response(serde_json::to_string(&vec![serde_json::json!({
-            "title": "Help Service",
-            "tldr": "General assistance for community",
-            "description": "We provide general assistance to the community.",
-            "contact": {
-                "email": "help@example.org",
-                "phone": "555-1234"
-            },
-            "location": "123 Main St",
-            "source_urls": ["https://contact-test.org"],
-            "tags": []
-        })]).unwrap());
+        .with_response(mock_page_summary(vec![(
+            "Help Service",
+            "General assistance",
+            "help@example.org",
+        )]))
+        .with_response(
+            serde_json::to_string(&vec![serde_json::json!({
+                "title": "Help Service",
+                "tldr": "General assistance for community",
+                "description": "We provide general assistance to the community.",
+                "contact": {
+                    "email": "help@example.org",
+                    "phone": "555-1234"
+                },
+                "location": "123 Main St",
+                "source_urls": ["https://contact-test.org"],
+                "tags": []
+            })])
+            .unwrap(),
+        );
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1275,9 +1285,8 @@ async fn test_post_contacts_saved_correctly(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://timestamp-test.org", "# Test Page"),
-    ]);
+    let mock_scraper =
+        MockWebScraper::new().with_crawl_pages(vec![("https://timestamp-test.org", "# Test Page")]);
 
     // Two-pass extraction: page summary + synthesis
     let mock_ai = MockAI::new()
@@ -1297,24 +1306,18 @@ async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
     let website_id = create_approved_website(&ctx, "https://timestamp-test.org", admin_id).await;
 
     // Get initial state
-    let before = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
+    let before = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Query failed");
 
     let client = ctx.graphql_with_auth(admin_id, true);
     let _ = client.query(&crawl_mutation(website_id)).await;
     ctx.settle().await;
 
     // Get updated state
-    let after = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
+    let after = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Query failed");
 
     // Assert: last_crawl_completed_at should be updated
     assert!(
@@ -1322,7 +1325,10 @@ async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
         "last_crawl_completed_at should be set after crawl"
     );
 
-    if let (Some(after_time), before_time) = (after.last_crawl_completed_at, before.last_crawl_completed_at) {
+    if let (Some(after_time), before_time) = (
+        after.last_crawl_completed_at,
+        before.last_crawl_completed_at,
+    ) {
         match before_time {
             Some(bt) => assert!(after_time > bt, "Crawl time should be updated"),
             None => {} // First crawl, that's fine
@@ -1343,30 +1349,44 @@ async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
     let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![
-            ("https://cache-test.org", "# Static Content\n\nThis content doesn't change."),
-        ])
+        .with_crawl_pages(vec![(
+            "https://cache-test.org",
+            "# Static Content\n\nThis content doesn't change.",
+        )])
         .with_crawl_pages(vec![
             // Same content on second crawl - should use cache
-            ("https://cache-test.org", "# Static Content\n\nThis content doesn't change."),
+            (
+                "https://cache-test.org",
+                "# Static Content\n\nThis content doesn't change.",
+            ),
         ]);
 
     // AI responses - only provide enough for first crawl
     // If cache works, second crawl won't need these
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Static Service", "Unchanging content", ""),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Static Service", "Content that stays the same.", "https://cache-test.org", vec!["recipient"]),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Static Service",
+            "Unchanging content",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Static Service",
+            "Content that stays the same.",
+            "https://cache-test.org",
+            vec!["recipient"],
+        )]))
         // Provide extras in case cache doesn't work (for robustness)
-        .with_response(mock_page_summary(vec![
-            ("Static Service", "Unchanging content", ""),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Static Service", "Content that stays the same.", "https://cache-test.org", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Static Service",
+            "Unchanging content",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Static Service",
+            "Content that stays the same.",
+            "https://cache-test.org",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1386,13 +1406,12 @@ async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
     ctx.settle().await;
 
     // Check that page has a content hash after first crawl
-    let snapshot_after_first: Option<PageSnapshot> = sqlx::query_as::<_, PageSnapshot>(
-        "SELECT * FROM page_snapshots WHERE url = $1"
-    )
-    .bind("https://cache-test.org")
-    .fetch_optional(&ctx.db_pool)
-    .await
-    .expect("Query failed");
+    let snapshot_after_first: Option<PageSnapshot> =
+        sqlx::query_as::<_, PageSnapshot>("SELECT * FROM page_snapshots WHERE url = $1")
+            .bind("https://cache-test.org")
+            .fetch_optional(&ctx.db_pool)
+            .await
+            .expect("Query failed");
 
     if let Some(snap) = snapshot_after_first {
         // Snapshot should have content_hash set (Vec<u8> is always present)
@@ -1407,12 +1426,9 @@ async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
     ctx.settle().await;
 
     // Assert: Workflow completed (cache worked or fallback worked)
-    let website = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
+    let website = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Query failed");
 
     assert!(
         website.crawl_status.is_some(),
@@ -1448,9 +1464,12 @@ async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
         .with_response(mock_page_summary(vec![("Service 4", "Info", "")]))
         .with_response(mock_page_summary(vec![("Service 5", "Info", "")]))
         .with_response(mock_page_summary(vec![("Service 6", "Info", "")]))
-        .with_response(mock_posts_response(vec![
-            ("Combined Service", "All services combined.", "https://many-pages.org", vec!["recipient"]),
-        ]));
+        .with_response(mock_posts_response(vec![(
+            "Combined Service",
+            "All services combined.",
+            "https://many-pages.org",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1476,13 +1495,12 @@ async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
     );
 
     // Assert: Multiple page snapshots created
-    let snapshot_count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM page_snapshots WHERE url LIKE $1"
-    )
-    .bind("https://many-pages.org%")
-    .fetch_one(&ctx.db_pool)
-    .await
-    .expect("Query failed");
+    let snapshot_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM page_snapshots WHERE url LIKE $1")
+            .bind("https://many-pages.org%")
+            .fetch_one(&ctx.db_pool)
+            .await
+            .expect("Query failed");
 
     assert!(
         snapshot_count >= 5,
@@ -1501,20 +1519,35 @@ async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
 async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
     // Scraper always returns content but AI always says no listings
     let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![("https://no-posts.org", "# Company Info\n\nAbout us page.")])
-        .with_crawl_pages(vec![("https://no-posts.org", "# Company Info\n\nAbout us page.")])
-        .with_crawl_pages(vec![("https://no-posts.org", "# Company Info\n\nAbout us page.")])
-        .with_crawl_pages(vec![("https://no-posts.org", "# Company Info\n\nAbout us page.")]); // Extra for safety
+        .with_crawl_pages(vec![(
+            "https://no-posts.org",
+            "# Company Info\n\nAbout us page.",
+        )])
+        .with_crawl_pages(vec![(
+            "https://no-posts.org",
+            "# Company Info\n\nAbout us page.",
+        )])
+        .with_crawl_pages(vec![(
+            "https://no-posts.org",
+            "# Company Info\n\nAbout us page.",
+        )])
+        .with_crawl_pages(vec![(
+            "https://no-posts.org",
+            "# Company Info\n\nAbout us page.",
+        )]); // Extra for safety
 
     // Two-pass extraction responses: page summary + synthesis (empty) for each crawl
     let mock_ai = MockAI::new()
         // First crawl
-        .with_response(mock_page_summary(vec![]))  // Pass 1: no services
-        .with_response("[]")                       // Pass 2: no posts
+        .with_response(mock_page_summary(vec![])) // Pass 1: no services
+        .with_response("[]") // Pass 2: no posts
         // Retries
-        .with_response(mock_page_summary(vec![])).with_response("[]")
-        .with_response(mock_page_summary(vec![])).with_response("[]")
-        .with_response(mock_page_summary(vec![])).with_response("[]");
+        .with_response(mock_page_summary(vec![]))
+        .with_response("[]")
+        .with_response(mock_page_summary(vec![]))
+        .with_response("[]")
+        .with_response(mock_page_summary(vec![]))
+        .with_response("[]");
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1534,12 +1567,9 @@ async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
     ctx.settle().await;
 
     // Check final website status
-    let website = Website::find_by_id(
-        WebsiteId::from_uuid(website_id),
-        &ctx.db_pool,
-    )
-    .await
-    .expect("Query failed");
+    let website = Website::find_by_id(WebsiteId::from_uuid(website_id), &ctx.db_pool)
+        .await
+        .expect("Query failed");
 
     // After crawl with no posts, status should be updated
     // Accept various valid statuses (the exact status depends on retry logic implementation)
@@ -1550,7 +1580,7 @@ async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
             || status == "no_listings_found"
             || status == "crawling"  // May still be in progress
             || status == "pending"   // May be pending before async crawl starts
-            || status == "none",     // May not have set status yet
+            || status == "none", // May not have set status yet
         "Website should have valid crawl status, got: {}",
         status
     );
@@ -1564,23 +1594,29 @@ async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://urgency-test.org", "# Urgent Help Needed\n\nCritical assistance required."),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://urgency-test.org",
+        "# Urgent Help Needed\n\nCritical assistance required.",
+    )]);
 
     // AI returns invalid urgency "critical" (valid values: low, medium, high, urgent)
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Critical Help", "Very urgent assistance", "help@urgency.org"),
-        ]))
-        .with_response(serde_json::to_string(&vec![serde_json::json!({
-            "title": "Critical Help Needed",
-            "tldr": "Urgent assistance required",
-            "description": "We need critical help immediately.",
-            "urgency": "critical", // Invalid - should be filtered
-            "source_urls": ["https://urgency-test.org"],
-            "tags": []
-        })]).unwrap());
+        .with_response(mock_page_summary(vec![(
+            "Critical Help",
+            "Very urgent assistance",
+            "help@urgency.org",
+        )]))
+        .with_response(
+            serde_json::to_string(&vec![serde_json::json!({
+                "title": "Critical Help Needed",
+                "tldr": "Urgent assistance required",
+                "description": "We need critical help immediately.",
+                "urgency": "critical", // Invalid - should be filtered
+                "source_urls": ["https://urgency-test.org"],
+                "tags": []
+            })])
+            .unwrap(),
+        );
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1600,7 +1636,7 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
 
     // Check that post was created with NULL urgency (invalid value filtered)
     let posts: Vec<Post> = sqlx::query_as::<_, Post>(
-        "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL"
+        "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
     )
     .bind(website_id)
     .fetch_all(&ctx.db_pool)
@@ -1610,7 +1646,9 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
     // If post was created, urgency should be NULL (invalid "critical" filtered)
     for post in &posts {
         assert!(
-            post.urgency.is_none() || ["low", "medium", "high", "urgent"].contains(&post.urgency.as_deref().unwrap_or("")),
+            post.urgency.is_none()
+                || ["low", "medium", "high", "urgent"]
+                    .contains(&post.urgency.as_deref().unwrap_or("")),
             "Urgency should be NULL or valid value, got: {:?}",
             post.urgency
         );
@@ -1625,26 +1663,30 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://role-test.org", "# Service for Everyone"),
-    ]);
+    let mock_scraper = MockWebScraper::new()
+        .with_crawl_pages(vec![("https://role-test.org", "# Service for Everyone")]);
 
     // AI returns unknown role "other" (valid: recipient, donor, volunteer, participant)
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Universal Service", "For everyone", ""),
-        ]))
-        .with_response(serde_json::to_string(&vec![serde_json::json!({
-            "title": "Universal Service",
-            "tldr": "A service for everyone",
-            "description": "This service is for all community members.",
-            "source_urls": ["https://role-test.org"],
-            "tags": [
-                {"kind": "audience_role", "value": "recipient"},
-                {"kind": "audience_role", "value": "other"}, // Invalid role
-                {"kind": "audience_role", "value": "everyone"} // Invalid role
-            ]
-        })]).unwrap());
+        .with_response(mock_page_summary(vec![(
+            "Universal Service",
+            "For everyone",
+            "",
+        )]))
+        .with_response(
+            serde_json::to_string(&vec![serde_json::json!({
+                "title": "Universal Service",
+                "tldr": "A service for everyone",
+                "description": "This service is for all community members.",
+                "source_urls": ["https://role-test.org"],
+                "tags": [
+                    {"kind": "audience_role", "value": "recipient"},
+                    {"kind": "audience_role", "value": "other"}, // Invalid role
+                    {"kind": "audience_role", "value": "everyone"} // Invalid role
+                ]
+            })])
+            .unwrap(),
+        );
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1678,9 +1720,8 @@ async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_embedding_failure_continues_sync(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://embed-fail.org", "# Two Services"),
-    ]);
+    let mock_scraper =
+        MockWebScraper::new().with_crawl_pages(vec![("https://embed-fail.org", "# Two Services")]);
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![
@@ -1688,14 +1729,24 @@ async fn test_embedding_failure_continues_sync(ctx: &TestHarness) {
             ("Service B", "Second service", "b@test.org"),
         ]))
         .with_response(mock_posts_response(vec![
-            ("Service A", "First service description.", "https://embed-fail.org", vec!["recipient"]),
-            ("Service B", "Second service description.", "https://embed-fail.org", vec!["volunteer"]),
+            (
+                "Service A",
+                "First service description.",
+                "https://embed-fail.org",
+                vec!["recipient"],
+            ),
+            (
+                "Service B",
+                "Second service description.",
+                "https://embed-fail.org",
+                vec!["volunteer"],
+            ),
         ]));
 
     // Mock embeddings that fails for "Service A" but succeeds for "Service B"
-    let mock_embeddings = MockEmbeddingService::new()
-        .with_pattern_embedding("Service B", vec![0.5; 1536]);
-        // Service A won't match any pattern, causing it to use default embedding
+    let mock_embeddings =
+        MockEmbeddingService::new().with_pattern_embedding("Service B", vec![0.5; 1536]);
+    // Service A won't match any pattern, causing it to use default embedding
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1716,7 +1767,7 @@ async fn test_embedding_failure_continues_sync(ctx: &TestHarness) {
 
     // Both posts should still be created even if one embedding failed
     let total_posts: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL"
+        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
     )
     .bind(website_id)
     .fetch_one(&ctx.db_pool)
@@ -1752,30 +1803,45 @@ fn regenerate_page_posts_mutation(page_snapshot_id: Uuid) -> String {
 #[tokio::test]
 async fn test_regenerate_single_page_summary(ctx: &TestHarness) {
     // First crawl to create a snapshot
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://regen-summary.org", "# Original Content\n\nSome services here."),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://regen-summary.org",
+        "# Original Content\n\nSome services here.",
+    )]);
 
     let mock_ai = MockAI::new()
         // First crawl: Pass 1 (page summary)
-        .with_response(mock_page_summary(vec![
-            ("Original Service", "Original description", ""),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Original Service",
+            "Original description",
+            "",
+        )]))
         // First crawl: Pass 2 (synthesis)
         .with_response("[]")
         // For regeneration: Pass 1 (new page summary)
-        .with_response(mock_page_summary(vec![
-            ("Updated Service", "New description after regeneration", ""),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Updated Service",
+            "New description after regeneration",
+            "",
+        )]))
         // For regeneration: Pass 2 (synthesis)
-        .with_response(mock_posts_response(vec![
-            ("Updated Service", "New description after regeneration", "https://regen-summary.org", vec!["volunteer"]),
-        ]))
+        .with_response(mock_posts_response(vec![(
+            "Updated Service",
+            "New description after regeneration",
+            "https://regen-summary.org",
+            vec!["volunteer"],
+        )]))
         // Extra responses for potential retries
-        .with_response(mock_page_summary(vec![("Updated Service", "New description after regeneration", "")]))
-        .with_response(mock_posts_response(vec![
-            ("Updated Service", "New description after regeneration", "https://regen-summary.org", vec!["volunteer"]),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Updated Service",
+            "New description after regeneration",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Updated Service",
+            "New description after regeneration",
+            "https://regen-summary.org",
+            vec!["volunteer"],
+        )]))
         .with_response("[]");
 
     let deps = TestDependencies::new()
@@ -1796,25 +1862,25 @@ async fn test_regenerate_single_page_summary(ctx: &TestHarness) {
     ctx.settle().await;
 
     // Get the page snapshot ID
-    let snapshot: Option<PageSnapshot> = sqlx::query_as::<_, PageSnapshot>(
-        "SELECT * FROM page_snapshots WHERE url = $1"
-    )
-    .bind("https://regen-summary.org")
-    .fetch_optional(&ctx.db_pool)
-    .await
-    .expect("Query failed");
+    let snapshot: Option<PageSnapshot> =
+        sqlx::query_as::<_, PageSnapshot>("SELECT * FROM page_snapshots WHERE url = $1")
+            .bind("https://regen-summary.org")
+            .fetch_optional(&ctx.db_pool)
+            .await
+            .expect("Query failed");
 
     if let Some(snap) = snapshot {
         // Regenerate summary for this specific page
-        let result = client.query(&regenerate_page_summary_mutation(snap.id)).await;
+        let result = client
+            .query(&regenerate_page_summary_mutation(snap.id))
+            .await;
         ctx.settle().await;
 
         // Should complete
-        let status = result["regeneratePageSummary"]["status"].as_str().unwrap_or("");
-        assert!(
-            !status.is_empty(),
-            "Regenerate should return a status"
-        );
+        let status = result["regeneratePageSummary"]["status"]
+            .as_str()
+            .unwrap_or("");
+        assert!(!status.is_empty(), "Regenerate should return a status");
     }
 }
 
@@ -1827,7 +1893,9 @@ async fn test_regenerate_nonexistent_page_handles_gracefully(ctx: &TestHarness) 
     let fake_page_id = Uuid::new_v4();
 
     let client = ctx.graphql_with_auth(admin_id, true);
-    let result = client.execute(&regenerate_page_summary_mutation(fake_page_id)).await;
+    let result = client
+        .execute(&regenerate_page_summary_mutation(fake_page_id))
+        .await;
 
     // Test verifies the mutation handles non-existent pages without crashing
     // It may return success (with empty data) or failure - both are acceptable
@@ -1873,22 +1941,28 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
     .expect("Failed to create post");
 
     // Now crawl with same title but different content
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://title-match.org", "# Exact Title Match\n\nUpdated description here."),
-    ]);
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+        "https://title-match.org",
+        "# Exact Title Match\n\nUpdated description here.",
+    )]);
 
     let mock_ai = MockAI::new()
-        .with_response(mock_page_summary(vec![
-            ("Exact Title Match", "Updated description", "new@email.org"),
-        ]))
-        .with_response(serde_json::to_string(&vec![serde_json::json!({
-            "title": "Exact Title Match", // Same title
-            "tldr": "Updated summary",
-            "description": "Updated description here.", // Different content
-            "location": "New Location",
-            "source_urls": ["https://title-match.org"],
-            "tags": []
-        })]).unwrap());
+        .with_response(mock_page_summary(vec![(
+            "Exact Title Match",
+            "Updated description",
+            "new@email.org",
+        )]))
+        .with_response(
+            serde_json::to_string(&vec![serde_json::json!({
+                "title": "Exact Title Match", // Same title
+                "tldr": "Updated summary",
+                "description": "Updated description here.", // Different content
+                "location": "New Location",
+                "source_urls": ["https://title-match.org"],
+                "tags": []
+            })])
+            .unwrap(),
+        );
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -1905,7 +1979,7 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
 
     // Should have updated the existing post (title match), not created new
     let count: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL"
+        "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
     )
     .bind(website_id)
     .fetch_one(&ctx.db_pool)
@@ -1938,28 +2012,40 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_double_crawl_no_duplicate_posts(ctx: &TestHarness) {
     let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![
-            ("https://double-crawl.test", "# Food Bank\n\nWe provide food."),
-        ])
-        .with_crawl_pages(vec![
-            ("https://double-crawl.test", "# Food Bank\n\nWe provide food."),
-        ]);
+        .with_crawl_pages(vec![(
+            "https://double-crawl.test",
+            "# Food Bank\n\nWe provide food.",
+        )])
+        .with_crawl_pages(vec![(
+            "https://double-crawl.test",
+            "# Food Bank\n\nWe provide food.",
+        )]);
 
     let mock_ai = MockAI::new()
         // First crawl
-        .with_response(mock_page_summary(vec![
-            ("Food Bank", "Food assistance", ""),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Food Bank", "We provide food assistance.", "https://double-crawl.test", vec!["recipient"]),
-        ]))
+        .with_response(mock_page_summary(vec![(
+            "Food Bank",
+            "Food assistance",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Food Bank",
+            "We provide food assistance.",
+            "https://double-crawl.test",
+            vec!["recipient"],
+        )]))
         // Second crawl
-        .with_response(mock_page_summary(vec![
-            ("Food Bank", "Food assistance", ""),
-        ]))
-        .with_response(mock_posts_response(vec![
-            ("Food Bank", "We provide food assistance.", "https://double-crawl.test", vec!["recipient"]),
-        ]));
+        .with_response(mock_page_summary(vec![(
+            "Food Bank",
+            "Food assistance",
+            "",
+        )]))
+        .with_response(mock_posts_response(vec![(
+            "Food Bank",
+            "We provide food assistance.",
+            "https://double-crawl.test",
+            vec!["recipient"],
+        )]));
 
     let deps = TestDependencies::new()
         .mock_scraper(mock_scraper)
@@ -2007,4 +2093,131 @@ async fn test_double_crawl_no_duplicate_posts(ctx: &TestHarness) {
         count_after_first,
         count_after_second
     );
+}
+
+// =============================================================================
+// POST-TO-PAGE LINKING TESTS
+// =============================================================================
+
+/// Test that posts are linked to their source page snapshots
+#[test_context(TestHarness)]
+#[tokio::test]
+async fn test_posts_linked_to_source_pages(ctx: &TestHarness) {
+    // Arrange: Mock scraper with two pages
+    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
+        (
+            "https://page-link.test",
+            "# Welcome\n\nOur organization helps the community.",
+        ),
+        (
+            "https://page-link.test/services",
+            "# Services\n\n## Food Pantry\nWe provide groceries to families in need.\nContact: food@test.org",
+        ),
+    ]);
+
+    // Agentic extraction mock responses
+    let mock_ai = MockAI::new()
+        // Page 1: no candidates
+        .with_response(mock_candidates_response(vec![]))
+        // Page 2: one service candidate
+        .with_response(mock_candidates_response(vec![(
+            "Food Pantry Service",
+            "service",
+            "Provides groceries to families in need",
+        )]))
+        // Enrich post (tool calling returns content, loop breaks)
+        .with_response("Enrichment complete")
+        // LLM sync (insert the post)
+        .with_response(mock_llm_sync_response(1));
+
+    let deps = TestDependencies::new()
+        .mock_scraper(mock_scraper)
+        .mock_ai(mock_ai);
+
+    let ctx = TestHarness::with_deps(deps)
+        .await
+        .expect("Failed to create test harness");
+
+    let admin_id = create_admin_user(&ctx).await;
+    let website_id = create_approved_website(&ctx, "https://page-link.test", admin_id).await;
+
+    // Act: Crawl the website
+    let client = ctx.graphql_with_auth(admin_id, true);
+    let _result = client.query(&crawl_mutation(website_id)).await;
+    ctx.settle().await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+
+    // Assert: Post was created
+    let posts: Vec<Post> = sqlx::query_as::<_, Post>(
+        "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
+    )
+    .bind(website_id)
+    .fetch_all(&ctx.db_pool)
+    .await
+    .expect("Query failed");
+
+    assert!(!posts.is_empty(), "Should create at least one post");
+
+    // Assert: Post is linked to its source page via post_page_sources
+    let post = &posts[0];
+    let link_count: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM post_page_sources WHERE post_id = $1")
+            .bind(post.id.into_uuid())
+            .fetch_one(&ctx.db_pool)
+            .await
+            .expect("Query failed");
+
+    assert!(
+        link_count > 0,
+        "Post {} should be linked to at least one page snapshot, got {} links",
+        post.id,
+        link_count
+    );
+
+    // Verify the link points to a valid page snapshot
+    let linked_page_id: Option<Uuid> =
+        sqlx::query_scalar("SELECT page_snapshot_id FROM post_page_sources WHERE post_id = $1")
+            .bind(post.id.into_uuid())
+            .fetch_optional(&ctx.db_pool)
+            .await
+            .expect("Query failed");
+
+    if let Some(page_id) = linked_page_id {
+        let page_exists: bool =
+            sqlx::query_scalar("SELECT EXISTS(SELECT 1 FROM page_snapshots WHERE id = $1)")
+                .bind(page_id)
+                .fetch_one(&ctx.db_pool)
+                .await
+                .expect("Query failed");
+
+        assert!(page_exists, "Linked page snapshot {} should exist", page_id);
+    }
+}
+
+/// Build mock candidates response for agentic extraction
+fn mock_candidates_response(candidates: Vec<(&str, &str, &str)>) -> String {
+    let candidates_json: Vec<String> = candidates
+        .into_iter()
+        .map(|(title, post_type, description)| {
+            format!(
+                r#"{{"title": "{}", "post_type": "{}", "brief_description": "{}", "source_excerpt": "..."}}"#,
+                title, post_type, description
+            )
+        })
+        .collect();
+
+    format!(r#"{{"candidates": [{}]}}"#, candidates_json.join(", "))
+}
+
+/// Build mock LLM sync response (insert all fresh posts)
+fn mock_llm_sync_response(post_count: usize) -> String {
+    let operations: Vec<String> = (0..post_count)
+        .map(|i| {
+            format!(
+                r#"{{"operation": "insert", "fresh_id": "fresh_{}", "reason": "New post"}}"#,
+                i + 1
+            )
+        })
+        .collect();
+    format!("[{}]", operations.join(", "))
 }

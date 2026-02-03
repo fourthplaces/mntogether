@@ -75,10 +75,7 @@ impl MigrationWorkflow {
 
     /// Check if error budget is exceeded
     pub fn error_budget_exceeded(&self) -> bool {
-        let budget: f64 = self
-            .error_budget
-            .try_into()
-            .unwrap_or(0.01);
+        let budget: f64 = self.error_budget.try_into().unwrap_or(0.01);
         self.error_rate() > budget
     }
 

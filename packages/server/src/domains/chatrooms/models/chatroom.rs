@@ -13,7 +13,7 @@ pub struct Container {
     pub id: ContainerId,
     pub container_type: String, // 'ai_chat', 'post_comments', 'org_discussion'
     pub entity_id: Option<uuid::Uuid>, // post_id, organization_id, etc. (null for standalone chats)
-    pub language: String,              // language_code from active_languages
+    pub language: String,       // language_code from active_languages
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
@@ -830,7 +830,10 @@ impl Readable for Container {
     type Id = ContainerId;
 
     async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
-        Container::find_by_id(id, pool).await.map(Some).or_else(|_| Ok(None))
+        Container::find_by_id(id, pool)
+            .await
+            .map(Some)
+            .or_else(|_| Ok(None))
     }
 }
 
@@ -839,6 +842,9 @@ impl Readable for Message {
     type Id = MessageId;
 
     async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
-        Message::find_by_id(id, pool).await.map(Some).or_else(|_| Ok(None))
+        Message::find_by_id(id, pool)
+            .await
+            .map(Some)
+            .or_else(|_| Ok(None))
     }
 }

@@ -3,6 +3,8 @@ import { useQuery, useMutation } from '@apollo/client';
 import { GET_ALL_WEBSITES } from '../../graphql/queries';
 import { SCRAPE_ORGANIZATION, SUBMIT_RESOURCE_LINK } from '../../graphql/mutations';
 import { useNavigate } from 'react-router-dom';
+import PaginationControls from '../../components/PaginationControls';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 
 interface Website {
   id: string;
@@ -15,6 +17,19 @@ interface Website {
   createdAt: string;
 }
 
+interface WebsitesResponse {
+  websites: {
+    nodes: Website[];
+    pageInfo: {
+      hasNextPage: boolean;
+      hasPreviousPage: boolean;
+      startCursor: string | null;
+      endCursor: string | null;
+    };
+    totalCount: number;
+  };
+}
+
 export function Resources() {
   const navigate = useNavigate();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -22,11 +37,25 @@ export function Resources() {
   const [error, setError] = useState<string | null>(null);
   const [scrapingId, setScrapingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(
+  const pagination = useCursorPagination({ pageSize: 20 });
+
+  const { data, loading, refetch } = useQuery<WebsitesResponse>(
     GET_ALL_WEBSITES,
     {
-      variables: { status: null }, // Get all websites
+      variables: {
+        ...pagination.variables,
+        status: null, // Get all websites
+      },
     }
+  );
+
+  const websites = data?.websites?.nodes || [];
+  const totalCount = data?.websites?.totalCount || 0;
+  const pageInfo = data?.websites?.pageInfo || { hasNextPage: false, hasPreviousPage: false };
+  const fullPageInfo = pagination.buildPageInfo(
+    pageInfo.hasNextPage,
+    pageInfo.startCursor,
+    pageInfo.endCursor
   );
 
   const [scrapeOrganization] = useMutation(SCRAPE_ORGANIZATION, {
@@ -82,7 +111,7 @@ export function Resources() {
     return new Date(dateString).toLocaleString();
   };
 
-  if (loading) {
+  if (loading && websites.length === 0) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-stone-600">Loading resources...</div>
@@ -162,7 +191,7 @@ export function Resources() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-stone-200">
-              {data?.websites.map((website) => (
+              {websites.map((website) => (
                 <tr key={website.id} className="hover:bg-stone-50">
                   <td className="px-6 py-4">
                     <a
@@ -215,12 +244,27 @@ export function Resources() {
             </tbody>
           </table>
 
-          {data?.websites?.length === 0 && (
+          {websites.length === 0 && (
             <div className="text-center py-12 text-stone-600">
               No websites found. Add a website to get started.
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {websites.length > 0 && (
+          <div className="mt-6">
+            <PaginationControls
+              pageInfo={fullPageInfo}
+              totalCount={totalCount}
+              currentPage={pagination.currentPage}
+              pageSize={pagination.pageSize}
+              onNextPage={() => pagination.goToNextPage(pageInfo.endCursor)}
+              onPreviousPage={pagination.goToPreviousPage}
+              loading={loading}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

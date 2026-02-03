@@ -212,10 +212,7 @@ mod tests {
     fn test_record_and_retrieve_messages() {
         let nats = TestNats::new();
 
-        nats.record_publish(
-            "chat.messages".to_string(),
-            Bytes::from(r#"{"id":"123"}"#),
-        );
+        nats.record_publish("chat.messages".to_string(), Bytes::from(r#"{"id":"123"}"#));
 
         assert_eq!(nats.publish_count(), 1);
         assert!(nats.was_published_to("chat.messages"));

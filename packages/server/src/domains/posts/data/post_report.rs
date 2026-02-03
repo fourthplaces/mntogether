@@ -1,6 +1,4 @@
-use crate::domains::posts::models::post_report::{
-    PostReportRecord, PostReportWithDetails,
-};
+use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
 use crate::server::graphql::context::GraphQLContext;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};

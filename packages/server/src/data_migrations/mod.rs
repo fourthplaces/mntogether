@@ -160,5 +160,7 @@ pub fn all_migrations() -> Vec<MigrationEntry> {
 
 /// Find a migration by name
 pub fn find_migration(name: &str) -> Option<MigrationEntry> {
-    all_migrations().into_iter().find(|e| e.migration.name() == name)
+    all_migrations()
+        .into_iter()
+        .find(|e| e.migration.name() == name)
 }

@@ -86,11 +86,10 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
 
     async fn execute_one(&self, id: Uuid, ctx: &MigrationContext) -> Result<MigrationResult> {
         // Get current domain
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT domain FROM websites WHERE id = $1")
-                .bind(id)
-                .fetch_optional(&ctx.db_pool)
-                .await?;
+        let row: Option<(String,)> = sqlx::query_as("SELECT domain FROM websites WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&ctx.db_pool)
+            .await?;
 
         let current_domain = match row {
             Some((domain,)) => domain,
@@ -114,13 +113,12 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
 
         if ctx.dry_run {
             // Check if this would create a duplicate
-            let existing: Option<(Uuid,)> = sqlx::query_as(
-                "SELECT id FROM websites WHERE domain = $1 AND id != $2",
-            )
-            .bind(&normalized)
-            .bind(id)
-            .fetch_optional(&ctx.db_pool)
-            .await?;
+            let existing: Option<(Uuid,)> =
+                sqlx::query_as("SELECT id FROM websites WHERE domain = $1 AND id != $2")
+                    .bind(&normalized)
+                    .bind(id)
+                    .fetch_optional(&ctx.db_pool)
+                    .await?;
 
             if existing.is_some() {
                 info!(
@@ -134,13 +132,12 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
         }
 
         // Check if normalizing would create a duplicate
-        let existing: Option<(Uuid,)> = sqlx::query_as(
-            "SELECT id FROM websites WHERE domain = $1 AND id != $2",
-        )
-        .bind(&normalized)
-        .bind(id)
-        .fetch_optional(&ctx.db_pool)
-        .await?;
+        let existing: Option<(Uuid,)> =
+            sqlx::query_as("SELECT id FROM websites WHERE domain = $1 AND id != $2")
+                .bind(&normalized)
+                .bind(id)
+                .fetch_optional(&ctx.db_pool)
+                .await?;
 
         if let Some((existing_id,)) = existing {
             // Merge this website into the existing one
@@ -187,7 +184,10 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
 
             if duplicates.0 > 0 {
                 return Ok(VerifyResult::Failed {
-                    issues: vec![format!("{} duplicate domains found after normalization", duplicates.0)],
+                    issues: vec![format!(
+                        "{} duplicate domains found after normalization",
+                        duplicates.0
+                    )],
                 });
             }
 

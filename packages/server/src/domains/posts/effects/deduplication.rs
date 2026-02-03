@@ -109,7 +109,10 @@ pub async fn deduplicate_posts_llm(
         .request()
         .model("gpt-5")
         .system(DEDUP_SYSTEM_PROMPT)
-        .user(&format!("Analyze these posts for duplicates:\n\n{}", posts_json))
+        .user(&format!(
+            "Analyze these posts for duplicates:\n\n{}",
+            posts_json
+        ))
         .schema_hint(DEDUP_SCHEMA)
         .max_retries(3)
         .output()
@@ -288,7 +291,10 @@ The explanation should:
 - Sound natural and helpful, not technical
 
 Example: "This listing has been consolidated with 'Community Food Shelf' to provide you with the most complete and up-to-date information in one place.""#,
-        removed_title, kept_title, kept_id.as_uuid(), reasoning
+        removed_title,
+        kept_title,
+        kept_id.as_uuid(),
+        reasoning
     );
 
     let reason: String = ai

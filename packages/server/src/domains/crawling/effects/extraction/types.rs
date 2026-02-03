@@ -1,7 +1,6 @@
-//! Types for two-pass post extraction
+//! Types for page summarization
 //!
-//! Pass 1: Summarize each page -> PageSummary { url, content }
-//! Pass 2: Synthesize all summaries -> Posts with Tags
+//! Used for AI-generated page summaries displayed in admin UI.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -11,71 +10,115 @@ use uuid::Uuid;
 pub struct PageToSummarize {
     pub snapshot_id: Uuid,
     pub url: String,
-    pub raw_content: String,   // Raw HTML/markdown from snapshot
-    pub content_hash: String,  // For cache lookup
+    pub raw_content: String,  // Raw HTML/markdown from snapshot
+    pub content_hash: String, // For cache lookup
 }
 
-/// Output from Pass 1: meaningful content extracted from a page
+/// Output from Pass 1: structured content extracted from a page
 #[derive(Debug, Clone)]
 pub struct SummarizedPage {
     pub snapshot_id: Uuid,
     pub url: String,
-    pub content: String, // Extracted meaningful content
+    pub content: String, // JSON string of PageSummaryContent
 }
 
-/// Input for Pass 2: all summaries for a website
-#[derive(Debug, Clone)]
-pub struct SynthesisInput {
-    pub website_domain: String,
-    pub pages: Vec<SummarizedPage>,
+/// Structured content extracted from a single page
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PageSummaryContent {
+    /// Organization info found on this page
+    #[serde(default)]
+    pub organization: Option<OrganizationInfo>,
+    /// Distinct programs/services found on this page
+    #[serde(default)]
+    pub programs: Vec<ProgramInfo>,
+    /// Contact information found on this page
+    #[serde(default)]
+    pub contact: Option<ContactInfo>,
+    /// Location/address information
+    #[serde(default)]
+    pub location: Option<LocationInfo>,
+    /// Hours of operation
+    #[serde(default)]
+    pub hours: Option<HoursInfo>,
+    /// Events or time-sensitive items
+    #[serde(default)]
+    pub events: Vec<EventInfo>,
+    /// Raw text summary for context that doesn't fit structured fields
+    #[serde(default)]
+    pub additional_context: Option<String>,
 }
 
-/// Output from Pass 2: extracted post with tags
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedPost {
-    pub title: String,
-    pub tldr: String,
-    pub description: String,
-    /// Primary audience for this post - who the post is FOR
-    /// Valid values: "recipient", "volunteer", "donor", "job-seeker", "participant"
+pub struct OrganizationInfo {
+    pub name: Option<String>,
+    pub mission: Option<String>,
+    pub description: Option<String>,
     #[serde(default)]
-    pub primary_audience: Option<String>,
-    #[serde(default)]
-    pub contact: Option<ExtractedContact>,
-    #[serde(default)]
+    pub languages_served: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProgramInfo {
+    pub name: String,
+    /// Plain English description - what this program offers, written for someone seeking help.
+    /// This should be readable and user-friendly, not just keywords.
+    pub description: Option<String>,
+    /// Who this program serves (e.g., "families with children", "seniors 60+")
+    pub serves: Option<String>,
+    /// How to access this program (e.g., "Walk in during open hours", "Call to make appointment")
+    pub how_to_access: Option<String>,
+    /// What to bring or eligibility requirements
+    pub eligibility: Option<String>,
+    /// Program-specific contact if different from org
+    pub contact: Option<ContactInfo>,
+    /// Program-specific hours if different from org
+    pub hours: Option<String>,
+    /// Program-specific location if different from org
     pub location: Option<String>,
-    #[serde(default)]
-    pub tags: Vec<ExtractedTag>,
-    #[serde(default)]
-    pub source_urls: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedContact {
+pub struct ContactInfo {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub website: Option<String>,
+    /// Additional contact methods (fax, TTY, etc.)
+    #[serde(default)]
+    pub other: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExtractedTag {
-    pub kind: String,
-    pub value: String,
-    #[serde(default)]
-    pub display_name: Option<String>,
+pub struct LocationInfo {
+    pub address: Option<String>,
+    pub city: Option<String>,
+    pub state: Option<String>,
+    pub zip: Option<String>,
+    /// Service area description (e.g., "Twin Cities metro", "Statewide")
+    pub service_area: Option<String>,
 }
 
-impl ExtractedTag {
-    pub fn new(kind: impl Into<String>, value: impl Into<String>) -> Self {
-        Self {
-            kind: kind.into(),
-            value: value.into(),
-            display_name: None,
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HoursInfo {
+    /// General hours description
+    pub general: Option<String>,
+    /// Structured hours by day if available
+    #[serde(default)]
+    pub by_day: Vec<DayHours>,
+    /// Notes about hours (holidays, seasonal changes, etc.)
+    pub notes: Option<String>,
+}
 
-    pub fn with_display_name(mut self, name: impl Into<String>) -> Self {
-        self.display_name = Some(name.into());
-        self
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DayHours {
+    pub day: String,
+    pub hours: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventInfo {
+    pub name: String,
+    pub date: Option<String>,
+    pub time: Option<String>,
+    pub description: Option<String>,
+    pub registration_info: Option<String>,
 }
