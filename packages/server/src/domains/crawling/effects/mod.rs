@@ -3,6 +3,8 @@
 //! Effects are thin orchestrators that delegate to actions.
 //! Handlers respond to internal cascade events in the multi-step workflow.
 
+#![allow(deprecated)] // Re-exports deprecated items for backward compatibility
+
 pub mod crawler;
 pub mod discovery;
 pub mod extraction;

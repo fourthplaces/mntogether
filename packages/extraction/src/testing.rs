@@ -194,6 +194,7 @@ impl MockAI {
             gaps: vec![],
             grounding,
             conflicts: vec![],
+            status: crate::types::extraction::ExtractionStatus::Found,
         }
     }
 }

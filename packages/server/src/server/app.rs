@@ -1,3 +1,5 @@
+//! Application setup and server configuration.
+
 use std::sync::Arc;
 
 use axum::{
@@ -36,7 +38,6 @@ use crate::domains::domain_approval::effects::domain_approval_effect;
 use crate::domains::member::effects::member_effect;
 use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::providers::effects::provider_effect;
-use crate::domains::resources::effects::resource_effect;
 use crate::domains::website::effects::website_effect;
 
 /// Shared application state
@@ -44,6 +45,7 @@ use crate::domains::website::effects::website_effect;
 pub struct AxumAppState {
     pub db_pool: PgPool,
     pub engine: Arc<AppEngine>,
+    pub server_deps: Arc<ServerDeps>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
@@ -62,6 +64,7 @@ async fn create_graphql_context(
     let context = GraphQLContext::new(
         state.db_pool.clone(),
         state.engine.clone(),
+        state.server_deps.clone(),
         auth_user,
         state.twilio.clone(),
         state.jwt_service.clone(),
@@ -96,8 +99,6 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
         .with_effect(domain_approval_effect())
         // Providers domain
         .with_effect(provider_effect())
-        // Resources domain
-        .with_effect(resource_effect())
 }
 
 /// Build the Axum application router
@@ -147,30 +148,46 @@ pub fn build_app(
         Some(openai_api_key),
     );
 
-    // Create web scraper with Firecrawl fallback for 403 errors
-    let web_scraper = crate::kernel::FallbackScraper::new(firecrawl_api_key)
-        .unwrap_or_else(|e| panic!("Failed to initialize web scraper: {}", e));
+    // Create ingestor with SSRF protection
+    // Use Firecrawl if API key is provided, otherwise basic HTTP
+    let ingestor: Arc<dyn extraction::Ingestor> = if let Some(key) = firecrawl_api_key.clone() {
+        match extraction::FirecrawlIngestor::new(key) {
+            Ok(firecrawl) => Arc::new(extraction::ValidatedIngestor::new(firecrawl)),
+            Err(e) => {
+                tracing::warn!("Failed to create Firecrawl ingestor: {}, falling back to HTTP", e);
+                Arc::new(extraction::ValidatedIngestor::new(
+                    extraction::HttpIngestor::new(),
+                ))
+            }
+        }
+    } else {
+        Arc::new(extraction::ValidatedIngestor::new(
+            extraction::HttpIngestor::new(),
+        ))
+    };
 
-    // Create Tavily search client (required)
-    let search_service: Arc<dyn crate::kernel::BaseSearchService> = Arc::new(
-        crate::kernel::TavilyClient::new(tavily_api_key)
-            .unwrap_or_else(|e| panic!("Failed to initialize Tavily client: {}. Check TAVILY_API_KEY environment variable.", e))
-    );
+    // Create web searcher (Tavily)
+    let web_searcher: Arc<dyn extraction::WebSearcher> =
+        Arc::new(extraction::TavilyWebSearcher::new(tavily_api_key));
 
     let server_deps = ServerDeps::new(
         pool.clone(),
-        Arc::new(web_scraper),
+        ingestor,
         openai_client.clone(),
         Arc::new(crate::common::utils::EmbeddingService::new(
             embedding_api_key,
         )),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         Arc::new(TwilioAdapter::new(twilio.clone())),
-        search_service,
+        web_searcher,
         pii_detector,
+        None, // Extraction service - initialized on demand via GraphQL
         test_identifier_enabled,
         admin_identifiers,
     );
+
+    // Clone server_deps before moving into engine
+    let server_deps_arc = Arc::new(server_deps.clone());
 
     // Build seesaw engine with effects (0.6.0 builder pattern)
     let engine = Arc::new(build_engine(server_deps));
@@ -182,6 +199,7 @@ pub fn build_app(
     let app_state = AxumAppState {
         db_pool: pool.clone(),
         engine: engine.clone(),
+        server_deps: server_deps_arc,
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),

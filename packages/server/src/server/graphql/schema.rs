@@ -1,3 +1,12 @@
+//! GraphQL schema definition.
+//!
+//! # Deprecation Note
+//!
+//! Some queries use deprecated `PageSnapshot` model. See the crawling domain
+//! models for migration paths to extraction library types.
+
+#![allow(deprecated)] // Uses deprecated PageSnapshot during migration
+
 use super::context::GraphQLContext;
 use anyhow::Context as AnyhowContext;
 use juniper::{EmptySubscription, FieldError, FieldResult, RootNode};
@@ -13,11 +22,11 @@ use crate::domains::auth::actions as auth_actions;
 use crate::domains::chatrooms::actions as chatroom_actions;
 use crate::domains::crawling::actions as crawling_actions;
 use crate::domains::domain_approval::actions as domain_approval_actions;
+use crate::domains::extraction::actions as extraction_actions;
 use crate::domains::member::actions as member_actions;
 use crate::domains::organization::actions as organization_actions;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::providers::actions as provider_actions;
-use crate::domains::resources::actions as resource_actions;
 use crate::domains::website::actions as website_actions;
 
 // Domain data types (GraphQL types)
@@ -37,8 +46,9 @@ use crate::domains::posts::data::{
 use crate::domains::providers::data::{
     ProviderConnection, ProviderData, SubmitProviderInput, UpdateProviderInput,
 };
-use crate::domains::resources::data::{
-    EditResourceInput, ResourceConnection, ResourceData, ResourceStatusData,
+use crate::domains::extraction::data::{
+    ExtractionData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
+    TriggerExtractionResult,
 };
 use crate::domains::website::data::{PageSnapshotData, WebsiteConnection, WebsiteData};
 
@@ -544,7 +554,7 @@ impl Query {
         let threshold = threshold.unwrap_or(0.7) as f32;
 
         // Generate embedding for the query
-        let embedding_response = ctx
+        let query_embedding = ctx
             .openai_client
             .create_embedding(&query)
             .await
@@ -555,15 +565,9 @@ impl Query {
                 )
             })?;
 
-        let query_embedding = embedding_response
-            .data
-            .first()
-            .map(|d| &d.embedding)
-            .ok_or_else(|| FieldError::new("No embedding returned", juniper::Value::null()))?;
-
         // Search websites by embedding similarity
         let results = WebsiteAssessment::search_by_similarity(
-            query_embedding,
+            &query_embedding,
             threshold,
             limit,
             &ctx.db_pool,
@@ -700,88 +704,6 @@ impl Query {
 
         Ok(providers.into_iter().map(ProviderData::from).collect())
     }
-
-    // =========================================================================
-    // Resource Queries
-    // =========================================================================
-
-    /// Get a single resource by ID
-    async fn resource(ctx: &GraphQLContext, id: String) -> FieldResult<Option<ResourceData>> {
-        let resource = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::get_resource(id, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(resource.map(ResourceData::from))
-    }
-
-    /// Get resources with pagination and optional status filter
-    /// Get paginated resources with cursor-based pagination (Relay spec)
-    ///
-    /// Arguments:
-    /// - status: Filter by resource status
-    /// - first: Return first N items (forward pagination)
-    /// - after: Return items after this cursor (forward pagination)
-    /// - last: Return last N items (backward pagination)
-    /// - before: Return items before this cursor (backward pagination)
-    async fn resources(
-        ctx: &GraphQLContext,
-        status: Option<ResourceStatusData>,
-        first: Option<i32>,
-        after: Option<String>,
-        last: Option<i32>,
-        before: Option<String>,
-    ) -> FieldResult<ResourceConnection> {
-        let pagination_args = PaginationArgs {
-            first,
-            after,
-            last,
-            before,
-        };
-        let validated = pagination_args
-            .validate()
-            .map_err(|e| FieldError::new(e, juniper::Value::null()))?;
-
-        let connection = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::get_resources_paginated(status, &validated, ectx))
-            .await
-            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-        Ok(connection)
-    }
-
-    /// Get pending resources (for admin approval queue)
-    async fn pending_resources(ctx: &GraphQLContext) -> FieldResult<Vec<ResourceData>> {
-        let resources = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::get_pending_resources(ectx))
-            .await
-            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-        Ok(resources.into_iter().map(ResourceData::from).collect())
-    }
-
-    /// Get active resources
-    async fn active_resources(
-        ctx: &GraphQLContext,
-        limit: Option<i32>,
-    ) -> FieldResult<Vec<ResourceData>> {
-        let limit_val = limit.unwrap_or(50) as i64;
-
-        let resources = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::get_active_resources(limit_val, ectx))
-            .await
-            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-        Ok(resources.into_iter().map(ResourceData::from).collect())
-    }
 }
 
 pub struct Mutation;
@@ -827,6 +749,9 @@ impl Mutation {
     }
 
     /// Crawl a website (multi-page) to discover and extract listings (admin only)
+    ///
+    /// **Deprecated**: Use `ingestWebsite` instead which uses the extraction library.
+    #[allow(deprecated)] // Uses deprecated crawl_website during migration to ingest_website
     async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
         info!(website_id = %website_id, "Crawling website");
 
@@ -1185,16 +1110,11 @@ impl Mutation {
             )
         })?;
 
-        let search_service =
-            crate::kernel::TavilyClient::new(config.tavily_api_key).map_err(|e| {
-                FieldError::new(
-                    format!("Failed to create search client: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
+        let web_searcher =
+            extraction::TavilyWebSearcher::new(config.tavily_api_key);
 
         let result =
-            crate::domains::posts::effects::run_discovery_searches(&search_service, &ctx.db_pool)
+            crate::domains::posts::effects::run_discovery_searches(&web_searcher, &ctx.db_pool)
                 .await
                 .map_err(|e| {
                     FieldError::new(
@@ -2161,122 +2081,6 @@ impl Mutation {
     }
 
     // =========================================================================
-    // Resource Mutations
-    // =========================================================================
-
-    /// Approve a resource (admin only)
-    async fn approve_resource(
-        ctx: &GraphQLContext,
-        resource_id: String,
-    ) -> FieldResult<ResourceData> {
-        info!("approve_resource mutation called: {}", resource_id);
-
-        let resource = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::approve_resource(resource_id, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ResourceData::from(resource))
-    }
-
-    /// Reject a resource (admin only)
-    async fn reject_resource(
-        ctx: &GraphQLContext,
-        resource_id: String,
-        reason: String,
-    ) -> FieldResult<ResourceData> {
-        info!("reject_resource mutation called: {}", resource_id);
-
-        let resource = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::reject_resource(resource_id, reason, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ResourceData::from(resource))
-    }
-
-    /// Edit a resource (admin only)
-    async fn edit_resource(
-        ctx: &GraphQLContext,
-        resource_id: String,
-        input: EditResourceInput,
-    ) -> FieldResult<ResourceData> {
-        info!("edit_resource mutation called: {}", resource_id);
-
-        let resource = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::edit_resource(resource_id, input, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ResourceData::from(resource))
-    }
-
-    /// Edit and approve a resource in one operation (admin only)
-    async fn edit_and_approve_resource(
-        ctx: &GraphQLContext,
-        resource_id: String,
-        input: EditResourceInput,
-    ) -> FieldResult<ResourceData> {
-        info!("edit_and_approve_resource mutation called: {}", resource_id);
-
-        let resource = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::edit_and_approve_resource(resource_id, input, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ResourceData::from(resource))
-    }
-
-    /// Delete a resource (admin only)
-    async fn delete_resource(ctx: &GraphQLContext, resource_id: String) -> FieldResult<bool> {
-        info!("delete_resource mutation called: {}", resource_id);
-
-        ctx.engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::delete_resource(resource_id, ectx))
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(true)
-    }
-
-    /// Generate missing embeddings for resources (admin only)
-    async fn generate_missing_embeddings(
-        ctx: &GraphQLContext,
-        batch_size: Option<i32>,
-    ) -> FieldResult<GenerateEmbeddingsResult> {
-        info!("generate_missing_embeddings mutation called");
-
-        let _user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let limit = batch_size.unwrap_or(50) as i64;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| resource_actions::generate_missing_embeddings(limit, ectx))
-            .await
-            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
-
-        Ok(GenerateEmbeddingsResult {
-            processed: result.processed,
-            failed: result.failed,
-            remaining: result.remaining,
-        })
-    }
-
-    // =========================================================================
     // Listing Tags
     // =========================================================================
 
@@ -2345,6 +2149,134 @@ impl Mutation {
             .await
             .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))
     }
+
+    // =========================================================================
+    // Extraction Mutations (Phase 15-17)
+    // =========================================================================
+
+    /// Submit a URL for extraction (public)
+    ///
+    /// Crawls the URL, extracts content, and returns extraction results.
+    /// This is the main entry point for users to submit events, services, etc.
+    async fn submit_url(ctx: &GraphQLContext, input: SubmitUrlInput) -> FieldResult<SubmitUrlResult> {
+        info!(url = %input.url, "Submitting URL for extraction");
+
+        let deps = ctx.deps();
+
+        match extraction_actions::submit_url(&input.url, input.query.as_deref(), deps).await {
+            Ok(extractions) => {
+                let extraction = extractions.into_iter().next().map(ExtractionData::from);
+
+                Ok(SubmitUrlResult {
+                    success: true,
+                    url: input.url,
+                    extraction,
+                    error: None,
+                })
+            }
+            Err(e) => {
+                error!(error = %e, "URL submission failed");
+                Ok(SubmitUrlResult {
+                    success: false,
+                    url: input.url,
+                    extraction: None,
+                    error: Some(e.to_string()),
+                })
+            }
+        }
+    }
+
+    /// Trigger an extraction query (admin only)
+    ///
+    /// Runs an extraction query against stored content.
+    async fn trigger_extraction(
+        ctx: &GraphQLContext,
+        input: TriggerExtractionInput,
+    ) -> FieldResult<TriggerExtractionResult> {
+        // Admin check
+        let user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        if !user.is_admin {
+            return Err(FieldError::new(
+                "Admin access required",
+                juniper::Value::null(),
+            ));
+        }
+
+        info!(query = %input.query, site = ?input.site, "Triggering extraction");
+
+        let deps = ctx.deps();
+
+        match extraction_actions::trigger_extraction(&input.query, input.site.as_deref(), deps).await
+        {
+            Ok(extractions) => Ok(TriggerExtractionResult {
+                success: true,
+                query: input.query,
+                site: input.site,
+                extractions: extractions.into_iter().map(ExtractionData::from).collect(),
+                error: None,
+            }),
+            Err(e) => {
+                error!(error = %e, "Extraction query failed");
+                Ok(TriggerExtractionResult {
+                    success: false,
+                    query: input.query,
+                    site: input.site,
+                    extractions: vec![],
+                    error: Some(e.to_string()),
+                })
+            }
+        }
+    }
+
+    /// Ingest a site for extraction (admin only)
+    ///
+    /// Crawls and indexes a site for future extraction queries.
+    async fn ingest_site(
+        ctx: &GraphQLContext,
+        site_url: String,
+        max_pages: Option<i32>,
+    ) -> FieldResult<IngestSiteResult> {
+        // Admin check
+        let user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        if !user.is_admin {
+            return Err(FieldError::new(
+                "Admin access required",
+                juniper::Value::null(),
+            ));
+        }
+
+        info!(site_url = %site_url, max_pages = ?max_pages, "Ingesting site");
+
+        let deps = ctx.deps();
+
+        let result = extraction_actions::ingest_site(&site_url, max_pages, deps)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(IngestSiteResult {
+            site_url: result.site_url,
+            pages_crawled: result.pages_crawled,
+            pages_summarized: result.pages_summarized,
+            pages_skipped: result.pages_skipped,
+        })
+    }
+}
+
+/// Result of site ingestion
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct IngestSiteResult {
+    pub site_url: String,
+    pub pages_crawled: i32,
+    pub pages_summarized: i32,
+    pub pages_skipped: i32,
 }
 
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;

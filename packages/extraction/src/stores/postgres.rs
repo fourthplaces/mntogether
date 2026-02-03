@@ -58,12 +58,30 @@ impl PostgresStore {
             .await
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        Self::from_pool(pool).await
+    }
+
+    /// Create a PostgreSQL store from an existing connection pool.
+    ///
+    /// Use this when your application already has a connection pool (e.g., from
+    /// the server's `PgPool`). This avoids creating duplicate connections.
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// use extraction::PostgresStore;
+    /// use sqlx::PgPool;
+    ///
+    /// // Reuse server's pool
+    /// let store = PostgresStore::from_pool(server_pool.clone()).await?;
+    /// ```
+    pub async fn from_pool(pool: PgPool) -> Result<Self> {
         let mut store = Self {
             pool,
             has_pgvector: false,
             has_hnsw: false,
             rrf_k: DEFAULT_RRF_K,
         };
+        store.detect_capabilities().await?;
         store.run_migrations().await?;
         Ok(store)
     }
@@ -75,8 +93,8 @@ impl PostgresStore {
         Ok(store)
     }
 
-    /// Run database migrations (base schema).
-    async fn run_migrations(&mut self) -> Result<()> {
+    /// Detect pgvector and HNSW capabilities.
+    async fn detect_capabilities(&mut self) -> Result<()> {
         // Check for pgvector extension
         let pgvector_check: Option<(String,)> =
             sqlx::query_as("SELECT extname FROM pg_extension WHERE extname = 'vector'")
@@ -99,6 +117,14 @@ impl PostgresStore {
             }
         }
 
+        Ok(())
+    }
+
+    /// Run database migrations (base schema).
+    ///
+    /// Note: `detect_capabilities()` must be called before this to set
+    /// `has_pgvector` and `has_hnsw` flags correctly.
+    async fn run_migrations(&mut self) -> Result<()> {
         // Create pages table
         sqlx::query(
             r#"

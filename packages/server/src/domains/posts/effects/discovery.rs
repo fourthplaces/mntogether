@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use tracing::info;
 
 use crate::domains::website::models::Website;
-use crate::kernel::traits::BaseSearchService;
+use extraction::WebSearcher;
 
 /// Search queries for discovering community resources.
 ///
@@ -69,7 +69,7 @@ pub struct DiscoveryResult {
 /// 3. Create pending websites for new domains
 /// 4. Human review takes it from there
 pub async fn run_discovery_searches(
-    search_service: &dyn BaseSearchService,
+    web_searcher: &dyn WebSearcher,
     pool: &PgPool,
 ) -> Result<DiscoveryResult> {
     let mut total_results = 0;
@@ -81,10 +81,7 @@ pub async fn run_discovery_searches(
         info!(query = %query, "Running discovery search");
 
         // Run search with sensible defaults
-        let results = match search_service
-            .search(&query, Some(10), Some("basic"), Some(30))
-            .await
-        {
+        let results = match web_searcher.search_with_limit(&query, 10).await {
             Ok(r) => r,
             Err(e) => {
                 tracing::warn!(query = %query, error = %e, "Search failed, skipping");
@@ -97,11 +94,11 @@ pub async fn run_discovery_searches(
         // Create websites for new domains
         for result in results {
             // Skip low relevance
-            if result.score < 0.5 {
+            if result.score.unwrap_or(0.0) < 0.5 {
                 continue;
             }
 
-            let domain = match extract_domain(&result.url) {
+            let domain = match extract_domain(result.url.as_str()) {
                 Some(d) => d,
                 None => continue,
             };

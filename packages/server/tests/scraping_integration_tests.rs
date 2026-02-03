@@ -14,7 +14,8 @@ use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
 use server_core::domains::posts::models::Post;
 use server_core::domains::website::models::Website;
-use server_core::kernel::test_dependencies::{MockAI, MockEmbeddingService, MockWebScraper};
+use extraction::{MockIngestor, RawPage};
+use server_core::kernel::test_dependencies::{MockAI, MockEmbeddingService};
 use server_core::kernel::TestDependencies;
 use test_context::test_context;
 use uuid::Uuid;
@@ -143,16 +144,16 @@ fn posts_query(website_id: Uuid) -> String {
 #[tokio::test]
 async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHarness) {
     // Arrange: Mock scraper returns multiple pages with different content
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://community-org.test",
             "# Community Organization\n\nWe help families in need through various programs.",
         ),
-        (
+        RawPage::new(
             "https://community-org.test/food-shelf",
             "# Food Shelf\n\nOur food shelf provides groceries to families.\n\n## Hours\nMonday-Friday 9am-5pm\n\nContact: food@community.org",
         ),
-        (
+        RawPage::new(
             "https://community-org.test/volunteer",
             "# Volunteer Opportunities\n\n## Food Sorters Needed\nHelp sort donations every Saturday morning.\n\nContact: volunteer@community.org",
         ),
@@ -193,7 +194,7 @@ async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHa
         MockEmbeddingService::new().with_different_texts(vec!["Food Shelf", "Food Sorters"]);
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -251,12 +252,12 @@ async fn test_full_crawl_workflow_creates_posts_from_multiple_pages(ctx: &TestHa
 #[tokio::test]
 async fn test_duplicate_posts_are_soft_deleted_with_reason(ctx: &TestHarness) {
     // Arrange: Create two similar posts that should be detected as duplicates
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://dedup-test.org",
             "# Food Programs\n\nWe offer food assistance.",
         ),
-        (
+        RawPage::new(
             "https://dedup-test.org/programs",
             "# SuperShelf Food Program\n\nFood assistance for families.",
         ),
@@ -284,7 +285,7 @@ async fn test_duplicate_posts_are_soft_deleted_with_reason(ctx: &TestHarness) {
         MockEmbeddingService::new().with_similar_texts("Valley Food Shelf", "Valley SuperShelf");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -412,12 +413,12 @@ async fn test_soft_deleted_posts_excluded_from_queries(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
     // First, do an initial crawl to create snapshots
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://regen-test.org",
             "# Organization\n\nWe provide community services.",
         ),
-        (
+        RawPage::new(
             "https://regen-test.org/services",
             "# Services\n\n## Meal Program\nHot meals served daily.\n\nContact: meals@org.test",
         ),
@@ -457,7 +458,7 @@ async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
     let mock_embeddings = MockEmbeddingService::new().with_different_texts(vec!["Meal Program"]);
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -518,16 +519,16 @@ async fn test_regenerate_posts_uses_existing_snapshots(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_mixed_info_across_pages_creates_complete_posts(ctx: &TestHarness) {
     // Arrange: Pages with complementary information
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://mixed-info.org",
             "# Welcome\n\nWe run a tutoring program for kids.",
         ),
-        (
+        RawPage::new(
             "https://mixed-info.org/tutoring",
             "# Tutoring Program\n\nFree tutoring for K-12 students.\n\nSubjects: Math, Science, Reading",
         ),
-        (
+        RawPage::new(
             "https://mixed-info.org/contact",
             "# Contact Us\n\nTutoring inquiries: tutoring@mixed.org\nPhone: 555-123-4567\nLocation: 123 Main St",
         ),
@@ -565,7 +566,7 @@ async fn test_mixed_info_across_pages_creates_complete_posts(ctx: &TestHarness) 
     let mock_embeddings = MockEmbeddingService::new();
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -611,8 +612,8 @@ async fn test_mixed_info_across_pages_creates_complete_posts(ctx: &TestHarness) 
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![("https://status-test.org", "# Test\n\nContent")]);
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://status-test.org", "# Test\n\nContent"));
 
     // Two-pass extraction: page summary + synthesis
     let mock_ai = MockAI::new()
@@ -621,7 +622,7 @@ async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
         .with_response("[]"); // Extra for retry
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -718,9 +719,9 @@ async fn test_non_admin_cannot_crawl_website(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_scraper_failure_returns_error_status(ctx: &TestHarness) {
     // Arrange: Mock scraper that returns no pages (simulates failure)
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![]); // Empty = no pages
+    let mock_ingestor = MockIngestor::new(); // Empty = no pages
 
-    let deps = TestDependencies::new().mock_scraper(mock_scraper);
+    let deps = TestDependencies::new().mock_ingestor(mock_ingestor);
 
     let ctx = TestHarness::with_deps(deps)
         .await
@@ -743,10 +744,10 @@ async fn test_scraper_failure_returns_error_status(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_ai_extraction_failure_handled_gracefully(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://ai-fail.test",
         "# Content\n\nSome page content here.",
-    )]);
+    ));
 
     // Two-pass extraction: page summary succeeds, but synthesis fails with invalid JSON
     let mock_ai = MockAI::new()
@@ -758,7 +759,7 @@ async fn test_ai_extraction_failure_handled_gracefully(ctx: &TestHarness) {
         .with_response("definitely not json");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -862,9 +863,9 @@ async fn test_crawl_unapproved_website_fails(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_empty_page_content_handled(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://empty-content.test", ""),
-        ("https://empty-content.test/blank", "   \n\n   "),
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new("https://empty-content.test", ""),
+        RawPage::new("https://empty-content.test/blank", "   \n\n   "),
     ]);
 
     // Two-pass extraction: 2 page summaries + synthesis
@@ -875,7 +876,7 @@ async fn test_empty_page_content_handled(ctx: &TestHarness) {
         .with_response("[]"); // Extra for retry
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -902,12 +903,10 @@ async fn test_empty_page_content_handled(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
-            "https://unicode-test.org",
-            "# Välkommen! 欢迎 مرحبا\n\nWe serve diverse communities.\n\n## Servicios en Español\nAyuda disponible.",
-        ),
-    ]);
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
+        "https://unicode-test.org",
+        "# Välkommen! 欢迎 مرحبا\n\nWe serve diverse communities.\n\n## Servicios en Español\nAyuda disponible.",
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![(
@@ -923,7 +922,7 @@ async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -961,10 +960,10 @@ async fn test_unicode_content_handled_correctly(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_single_page_website(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://single-page.test",
         "# About Us\n\nWe provide food assistance.\n\nContact: food@single.test",
-    )]);
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![(
@@ -980,7 +979,7 @@ async fn test_single_page_website(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1011,8 +1010,8 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
     let long_content = "Lorem ipsum dolor sit amet. ".repeat(500);
     let page_content = format!("# Services\n\n{}", long_content);
 
-    let mock_scraper =
-        MockWebScraper::new().with_crawl_pages(vec![("https://long-content.test", &page_content)]);
+    let mock_ingestor =
+        MockIngestor::new().with_page(RawPage::new("https://long-content.test", &page_content));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![(
@@ -1028,7 +1027,7 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1051,12 +1050,12 @@ async fn test_very_long_content_handled(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_duplicate_titles_different_pages(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://dup-titles.test/page1",
             "# Food Bank\n\nWe provide food assistance.",
         ),
-        (
+        RawPage::new(
             "https://dup-titles.test/page2",
             "# Food Bank\n\nDifferent food bank location.",
         ),
@@ -1093,7 +1092,7 @@ async fn test_duplicate_titles_different_pages(ctx: &TestHarness) {
     let mock_embeddings = MockEmbeddingService::new().with_similar_texts("Food Bank", "food bank");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -1127,12 +1126,12 @@ async fn test_duplicate_titles_different_pages(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_recrawl_after_failure(ctx: &TestHarness) {
     // First crawl will "fail" with no content
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![("https://retry-test.org", "# Empty")])
-        .with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://retry-test.org", "# Empty"))
+        .with_page(RawPage::new(
             "https://retry-test.org",
             "# Services\n\nFood assistance available.",
-        )]);
+        ));
 
     // Two-pass extraction for each crawl:
     // First crawl: page summary + synthesis (no posts)
@@ -1181,7 +1180,7 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1214,10 +1213,10 @@ async fn test_recrawl_after_failure(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_post_contacts_saved_correctly(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://contact-test.org",
         "# Services\n\nContact us at help@example.org or 555-1234",
-    )]);
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![(
@@ -1242,7 +1241,7 @@ async fn test_post_contacts_saved_correctly(ctx: &TestHarness) {
         );
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1285,8 +1284,8 @@ async fn test_post_contacts_saved_correctly(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
-    let mock_scraper =
-        MockWebScraper::new().with_crawl_pages(vec![("https://timestamp-test.org", "# Test Page")]);
+    let mock_ingestor =
+        MockIngestor::new().with_page(RawPage::new("https://timestamp-test.org", "# Test Page"));
 
     // Two-pass extraction: page summary + synthesis
     let mock_ai = MockAI::new()
@@ -1295,7 +1294,7 @@ async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
         .with_response("[]"); // Extra for retry
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1348,18 +1347,16 @@ async fn test_website_crawl_timestamps_updated(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new(
             "https://cache-test.org",
             "# Static Content\n\nThis content doesn't change.",
-        )])
-        .with_crawl_pages(vec![
-            // Same content on second crawl - should use cache
-            (
-                "https://cache-test.org",
-                "# Static Content\n\nThis content doesn't change.",
-            ),
-        ]);
+        ))
+        // Same content on second crawl - should use cache
+        .with_page(RawPage::new(
+            "https://cache-test.org",
+            "# Static Content\n\nThis content doesn't change.",
+        ));
 
     // AI responses - only provide enough for first crawl
     // If cache works, second crawl won't need these
@@ -1389,7 +1386,7 @@ async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1445,14 +1442,14 @@ async fn test_summary_cache_used_when_content_matches(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
     // Create 7 pages to trigger chunking (chunks of 5)
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        ("https://many-pages.org", "# Home Page"),
-        ("https://many-pages.org/page1", "# Page 1\n\nService 1 info"),
-        ("https://many-pages.org/page2", "# Page 2\n\nService 2 info"),
-        ("https://many-pages.org/page3", "# Page 3\n\nService 3 info"),
-        ("https://many-pages.org/page4", "# Page 4\n\nService 4 info"),
-        ("https://many-pages.org/page5", "# Page 5\n\nService 5 info"),
-        ("https://many-pages.org/page6", "# Page 6\n\nService 6 info"),
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new("https://many-pages.org", "# Home Page"),
+        RawPage::new("https://many-pages.org/page1", "# Page 1\n\nService 1 info"),
+        RawPage::new("https://many-pages.org/page2", "# Page 2\n\nService 2 info"),
+        RawPage::new("https://many-pages.org/page3", "# Page 3\n\nService 3 info"),
+        RawPage::new("https://many-pages.org/page4", "# Page 4\n\nService 4 info"),
+        RawPage::new("https://many-pages.org/page5", "# Page 5\n\nService 5 info"),
+        RawPage::new("https://many-pages.org/page6", "# Page 6\n\nService 6 info"),
     ]);
 
     // Need 7 page summaries + 1 synthesis
@@ -1472,7 +1469,7 @@ async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1518,23 +1515,23 @@ async fn test_many_pages_concurrent_chunking(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
     // Scraper always returns content but AI always says no listings
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new(
             "https://no-posts.org",
             "# Company Info\n\nAbout us page.",
-        )])
-        .with_crawl_pages(vec![(
+        ))
+        .with_page(RawPage::new(
             "https://no-posts.org",
             "# Company Info\n\nAbout us page.",
-        )])
-        .with_crawl_pages(vec![(
+        ))
+        .with_page(RawPage::new(
             "https://no-posts.org",
             "# Company Info\n\nAbout us page.",
-        )])
-        .with_crawl_pages(vec![(
+        ))
+        .with_page(RawPage::new(
             "https://no-posts.org",
             "# Company Info\n\nAbout us page.",
-        )]); // Extra for safety
+        )); // Extra for safety
 
     // Two-pass extraction responses: page summary + synthesis (empty) for each crawl
     let mock_ai = MockAI::new()
@@ -1550,7 +1547,7 @@ async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
         .with_response("[]");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1594,10 +1591,10 @@ async fn test_max_retries_exhausted_marks_no_listings(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://urgency-test.org",
         "# Urgent Help Needed\n\nCritical assistance required.",
-    )]);
+    ));
 
     // AI returns invalid urgency "critical" (valid values: low, medium, high, urgent)
     let mock_ai = MockAI::new()
@@ -1619,7 +1616,7 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
         );
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1663,8 +1660,8 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![("https://role-test.org", "# Service for Everyone")]);
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://role-test.org", "# Service for Everyone"));
 
     // AI returns unknown role "other" (valid: recipient, donor, volunteer, participant)
     let mock_ai = MockAI::new()
@@ -1689,7 +1686,7 @@ async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
         );
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1720,8 +1717,8 @@ async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_embedding_failure_continues_sync(ctx: &TestHarness) {
-    let mock_scraper =
-        MockWebScraper::new().with_crawl_pages(vec![("https://embed-fail.org", "# Two Services")]);
+    let mock_ingestor =
+        MockIngestor::new().with_page(RawPage::new("https://embed-fail.org", "# Two Services"));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![
@@ -1749,7 +1746,7 @@ async fn test_embedding_failure_continues_sync(ctx: &TestHarness) {
     // Service A won't match any pattern, causing it to use default embedding
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai)
         .mock_embeddings(mock_embeddings);
 
@@ -1803,10 +1800,10 @@ fn regenerate_page_posts_mutation(page_snapshot_id: Uuid) -> String {
 #[tokio::test]
 async fn test_regenerate_single_page_summary(ctx: &TestHarness) {
     // First crawl to create a snapshot
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://regen-summary.org",
         "# Original Content\n\nSome services here.",
-    )]);
+    ));
 
     let mock_ai = MockAI::new()
         // First crawl: Pass 1 (page summary)
@@ -1845,7 +1842,7 @@ async fn test_regenerate_single_page_summary(ctx: &TestHarness) {
         .with_response("[]");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -1941,10 +1938,10 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
     .expect("Failed to create post");
 
     // Now crawl with same title but different content
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://title-match.org",
         "# Exact Title Match\n\nUpdated description here.",
-    )]);
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(mock_page_summary(vec![(
@@ -1965,7 +1962,7 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
         );
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -2011,15 +2008,15 @@ async fn test_title_match_fast_path(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_double_crawl_no_duplicate_posts(ctx: &TestHarness) {
-    let mock_scraper = MockWebScraper::new()
-        .with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new(
             "https://double-crawl.test",
             "# Food Bank\n\nWe provide food.",
-        )])
-        .with_crawl_pages(vec![(
+        ))
+        .with_page(RawPage::new(
             "https://double-crawl.test",
             "# Food Bank\n\nWe provide food.",
-        )]);
+        ));
 
     let mock_ai = MockAI::new()
         // First crawl
@@ -2048,7 +2045,7 @@ async fn test_double_crawl_no_duplicate_posts(ctx: &TestHarness) {
         )]));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -2104,12 +2101,12 @@ async fn test_double_crawl_no_duplicate_posts(ctx: &TestHarness) {
 #[tokio::test]
 async fn test_posts_linked_to_source_pages(ctx: &TestHarness) {
     // Arrange: Mock scraper with two pages
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://page-link.test",
             "# Welcome\n\nOur organization helps the community.",
         ),
-        (
+        RawPage::new(
             "https://page-link.test/services",
             "# Services\n\n## Food Pantry\nWe provide groceries to families in need.\nContact: food@test.org",
         ),
@@ -2131,7 +2128,7 @@ async fn test_posts_linked_to_source_pages(ctx: &TestHarness) {
         .with_response(mock_llm_sync_response(1));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)

@@ -16,9 +16,9 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{ExtractionError, Result};
-use crate::traits::ai::{ClassificationResponse, ExtractionStrategy, Partition, AI};
+use crate::traits::ai::{ExtractionStrategy, Partition, AI};
 use crate::types::{
-    extraction::{Extraction, GapQuery, GroundingGrade, Source, SourceRole},
+    extraction::{Extraction, GapQuery, Source, SourceRole},
     page::CachedPage,
     summary::{RecallSignals, Summary, SummaryResponse},
 };
@@ -26,6 +26,7 @@ use crate::types::{
 /// OpenAI-based AI implementation.
 ///
 /// Uses GPT-4o for text generation and text-embedding-3-small for embeddings.
+#[derive(Clone)]
 pub struct OpenAI {
     client: Client,
     api_key: String,
@@ -71,10 +72,166 @@ impl OpenAI {
         self
     }
 
+    /// Get the current model name.
+    pub fn model(&self) -> &str {
+        &self.model
+    }
+
+    /// Get the API key (for bridge implementations that need it).
+    pub fn api_key(&self) -> &str {
+        &self.api_key
+    }
+
+    // =========================================================================
+    // Generic AI methods (for server integration)
+    // =========================================================================
+
+    /// Generic chat completion (for server's BaseAI trait).
+    pub async fn complete(&self, prompt: &str) -> Result<String> {
+        self.chat("You are a helpful assistant.", prompt).await
+    }
+
+    /// Chat completion with specific model override.
+    pub async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        let model_to_use = model.unwrap_or(&self.model);
+        self.chat_with_model("You are a helpful assistant.", prompt, model_to_use)
+            .await
+    }
+
+    /// Structured output with JSON schema (OpenAI's json_schema response_format).
+    pub async fn generate_structured(
+        &self,
+        system: &str,
+        user: &str,
+        schema: serde_json::Value,
+    ) -> Result<String> {
+        #[derive(Serialize)]
+        struct StructuredRequest {
+            model: String,
+            messages: Vec<ChatMessage>,
+            temperature: f32,
+            response_format: ResponseFormat,
+        }
+
+        #[derive(Serialize)]
+        struct ResponseFormat {
+            #[serde(rename = "type")]
+            format_type: String,
+            json_schema: JsonSchemaFormat,
+        }
+
+        #[derive(Serialize)]
+        struct JsonSchemaFormat {
+            name: String,
+            strict: bool,
+            schema: serde_json::Value,
+        }
+
+        let request = StructuredRequest {
+            model: self.model.clone(),
+            messages: vec![
+                ChatMessage {
+                    role: "system".to_string(),
+                    content: system.to_string(),
+                },
+                ChatMessage {
+                    role: "user".to_string(),
+                    content: user.to_string(),
+                },
+            ],
+            temperature: 0.0,
+            response_format: ResponseFormat {
+                format_type: "json_schema".to_string(),
+                json_schema: JsonSchemaFormat {
+                    name: "structured_response".to_string(),
+                    strict: true,
+                    schema,
+                },
+            },
+        };
+
+        let response = self
+            .client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request)
+            .send()
+            .await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ExtractionError::AI(
+                format!("OpenAI structured output error: {}", error_text).into(),
+            ));
+        }
+
+        let chat_response: ChatResponse = response
+            .json()
+            .await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        chat_response
+            .choices
+            .into_iter()
+            .next()
+            .map(|c| c.message.content)
+            .ok_or_else(|| ExtractionError::AI("No response from OpenAI".into()))
+    }
+
+    /// Tool calling support (for agentic extraction).
+    pub async fn generate_with_tools(
+        &self,
+        messages: &[serde_json::Value],
+        tools: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let request_body = serde_json::json!({
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            "tool_choice": "auto"
+        });
+
+        let response = self
+            .client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
+            .json(&request_body)
+            .send()
+            .await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        if !response.status().is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            return Err(ExtractionError::AI(
+                format!("OpenAI tools API error: {}", error_text).into(),
+            ));
+        }
+
+        let response_json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        // Extract the assistant message
+        Ok(response_json["choices"][0]["message"].clone())
+    }
+
+    // =========================================================================
+    // Internal methods
+    // =========================================================================
+
     /// Make a chat completion request.
     async fn chat(&self, system: &str, user: &str) -> Result<String> {
+        self.chat_with_model(system, user, &self.model).await
+    }
+
+    /// Make a chat completion request with specific model.
+    async fn chat_with_model(&self, system: &str, user: &str, model: &str) -> Result<String> {
         let request = ChatRequest {
-            model: self.model.clone(),
+            model: model.to_string(),
             messages: vec![
                 ChatMessage {
                     role: "system".to_string(),
@@ -198,7 +355,7 @@ Be factual. Only extract what's explicitly stated."#;
             .map_err(|e| ExtractionError::AI(format!("Failed to parse summary: {}", e).into()))?;
 
         Ok(SummaryResponse {
-            text: parsed.summary,
+            summary: parsed.summary,
             signals: RecallSignals {
                 calls_to_action: parsed.signals.calls_to_action,
                 offers: parsed.signals.offers,
@@ -419,16 +576,27 @@ Only include information explicitly stated in the sources. Mark anything inferre
 
         let grounding = Extraction::calculate_grounding(&sources, &[], false);
 
+        let gaps: Vec<GapQuery> = parsed
+            .gaps
+            .into_iter()
+            .map(|g| GapQuery::new(g.field, g.query))
+            .collect();
+
+        let status = if parsed.content.is_empty() && !gaps.is_empty() {
+            crate::types::extraction::ExtractionStatus::Missing
+        } else if !gaps.is_empty() {
+            crate::types::extraction::ExtractionStatus::Partial
+        } else {
+            crate::types::extraction::ExtractionStatus::Found
+        };
+
         Ok(Extraction {
             content: parsed.content,
             sources,
-            gaps: parsed
-                .gaps
-                .into_iter()
-                .map(|g| GapQuery::new(g.field, g.query))
-                .collect(),
+            gaps,
             grounding,
             conflicts: vec![],
+            status,
         })
     }
 

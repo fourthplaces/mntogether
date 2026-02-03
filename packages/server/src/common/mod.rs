@@ -4,6 +4,7 @@ pub mod app_state;
 pub mod auth;
 pub mod embedding;
 pub mod entity_ids;
+pub mod extraction_types;
 pub mod id;
 pub mod nats;
 pub mod nats_tap;
@@ -27,3 +28,9 @@ pub use pagination::{
 pub use read_result::ReadResult;
 pub use readable::Readable;
 pub use types::*;
+
+// Unified extraction types - use these instead of domain-specific definitions
+pub use extraction_types::{
+    CallToAction, ContactInfo, DayHours, EligibilityInfo, ExtractionType, LocationInfo,
+    ScheduleInfo,
+};

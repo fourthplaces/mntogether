@@ -1,9 +1,13 @@
+//! LLM-based PII detection
+//!
+//! Uses the BaseAI trait for context-aware PII detection that can
+//! catch unstructured PII like names and addresses that regex misses.
+
 use anyhow::Result;
-use rig::completion::Prompt;
-use rig::providers::openai;
 use serde::{Deserialize, Serialize};
 
 use super::detector::{PiiFindings, PiiType};
+use crate::kernel::BaseAI;
 
 /// PII entity detected by LLM with context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -14,19 +18,8 @@ pub struct PiiEntity {
     pub context: Option<String>,
 }
 
-/// Detect PII using GPT-4 for context-aware analysis
-/// This detects unstructured PII like names, addresses, and medical info
-/// that regex patterns cannot reliably catch.
-pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
-    if text.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    // Create OpenAI client
-    let client = openai::Client::new(openai_api_key);
-
-    // System prompt for PII detection
-    let system_prompt = r#"You are a PII (Personally Identifiable Information) detection system.
+/// System prompt for PII detection
+const PII_DETECTION_PROMPT: &str = r#"You are a PII (Personally Identifiable Information) detection system.
 Analyze the provided text and identify any PII that could identify a specific individual.
 
 Detect:
@@ -55,28 +48,44 @@ Return ONLY a JSON array of detected entities:
 
 If no PII is detected, return an empty array: []"#;
 
+/// Detect PII using an AI model for context-aware analysis.
+///
+/// This detects unstructured PII like names, addresses, and medical info
+/// that regex patterns cannot reliably catch.
+pub async fn detect_pii_with_ai(text: &str, ai: &dyn BaseAI) -> Result<Vec<PiiEntity>> {
+    if text.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
     let user_prompt = format!("Analyze this text for PII:\n\n{}", text);
 
-    // Call GPT-4 with structured output
-    let agent = client
-        .agent("gpt-4")
-        .preamble(system_prompt)
-        .temperature(0.1) // Low temperature for consistent detection
-        .max_tokens(1000)
-        .build();
-
-    // For now, we'll use a simple prompt approach
-    // In production, you'd use structured outputs or function calling
-    let completion_text = agent
-        .prompt(&user_prompt)
-        .await
-        .map_err(|e| anyhow::anyhow!("GPT prompt failed: {}", e))?;
+    // Call AI with the PII detection prompt
+    let prompt = format!("{}\n\n{}", PII_DETECTION_PROMPT, user_prompt);
+    let completion_text = ai.complete_json(&prompt).await?;
 
     // Parse the JSON response
     let entities: Vec<PiiEntity> =
-        serde_json::from_str(&completion_text).unwrap_or_else(|_| Vec::new());
+        serde_json::from_str(&completion_text).unwrap_or_else(|_| {
+            // Try to extract JSON from markdown code block
+            let trimmed = completion_text.trim();
+            let json_str = trimmed
+                .trim_start_matches("```json")
+                .trim_start_matches("```")
+                .trim_end_matches("```")
+                .trim();
+            serde_json::from_str(json_str).unwrap_or_default()
+        });
 
     Ok(entities)
+}
+
+/// Legacy function that takes an API key directly.
+///
+/// Creates an OpenAI client internally. Prefer `detect_pii_with_ai` for
+/// better testability and consistency with the rest of the codebase.
+pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
+    let ai = crate::kernel::OpenAIClient::new(openai_api_key.to_string());
+    detect_pii_with_ai(text, &ai).await
 }
 
 /// Convert LLM-detected entities to PiiFindings format
@@ -143,6 +152,33 @@ pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFi
         // Check if this overlaps with existing matches
         let overlaps = findings.matches.iter().any(|existing| {
             // Check for overlap
+            (new_match.start >= existing.start && new_match.start < existing.end)
+                || (new_match.end > existing.start && new_match.end <= existing.end)
+                || (new_match.start <= existing.start && new_match.end >= existing.end)
+        });
+
+        if !overlaps {
+            findings.matches.push(new_match);
+        }
+    }
+
+    Ok(findings)
+}
+
+/// Hybrid detection with a BaseAI instance (preferred for testing)
+pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &dyn BaseAI) -> Result<PiiFindings> {
+    use super::detector::detect_structured_pii;
+
+    // Start with regex detection (fast, reliable for structured data)
+    let mut findings = detect_structured_pii(text);
+
+    // Add LLM detection for unstructured PII
+    let entities = detect_pii_with_ai(text, ai).await?;
+    let llm_findings = entities_to_findings(text, &entities);
+
+    // Merge findings (deduplicating overlaps)
+    for new_match in llm_findings.matches {
+        let overlaps = findings.matches.iter().any(|existing| {
             (new_match.start >= existing.start && new_match.start < existing.end)
                 || (new_match.end > existing.start && new_match.end <= existing.end)
                 || (new_match.start <= existing.start && new_match.end >= existing.end)

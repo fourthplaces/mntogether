@@ -11,9 +11,12 @@ use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::kernel::{
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseTwilioService, BaseWebScraper,
+    extraction_service::ProductionExtractionService, BaseAI, BaseEmbeddingService, BasePiiDetector,
+    BasePushNotificationService, BaseTwilioService,
 };
+
+// Import from extraction library
+use extraction::{Ingestor, WebSearcher};
 
 // =============================================================================
 // TwilioService Adapter (implements BaseTwilioService trait)
@@ -54,40 +57,47 @@ impl BaseTwilioService for TwilioAdapter {
 #[derive(Clone)]
 pub struct ServerDeps {
     pub db_pool: PgPool,
-    pub web_scraper: Arc<dyn BaseWebScraper>,
+    /// Ingestor for crawling/scraping (from extraction library)
+    pub ingestor: Arc<dyn Ingestor>,
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<dyn BaseTwilioService>,
-    pub search_service: Arc<dyn BaseSearchService>,
+    /// Web searcher for discovery (from extraction library)
+    pub web_searcher: Arc<dyn WebSearcher>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
+    /// Extraction service for query-driven content extraction
+    pub extraction: Option<Arc<ProductionExtractionService>>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
 
 impl ServerDeps {
     /// Create new ServerDeps with the given dependencies
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         db_pool: PgPool,
-        web_scraper: Arc<dyn BaseWebScraper>,
+        ingestor: Arc<dyn Ingestor>,
         ai: Arc<dyn BaseAI>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<dyn BaseTwilioService>,
-        search_service: Arc<dyn BaseSearchService>,
+        web_searcher: Arc<dyn WebSearcher>,
         pii_detector: Arc<dyn BasePiiDetector>,
+        extraction: Option<Arc<ProductionExtractionService>>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
         Self {
             db_pool,
-            web_scraper,
+            ingestor,
             ai,
             embedding_service,
             push_service,
             twilio,
-            search_service,
+            web_searcher,
             pii_detector,
+            extraction,
             test_identifier_enabled,
             admin_identifiers,
         }

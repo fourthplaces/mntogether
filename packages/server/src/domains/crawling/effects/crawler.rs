@@ -76,6 +76,7 @@ pub fn crawler_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
             // =================================================================
             CrawlEvent::WebsiteMarkedNoListings { .. }
             | CrawlEvent::WebsiteCrawlFailed { .. }
+            | CrawlEvent::WebsiteIngested { .. } // extraction lib handles summarization internally
             | CrawlEvent::PostsSynced { .. }
             | CrawlEvent::PageSummariesRegenerated { .. }
             | CrawlEvent::PageSummaryRegenerated { .. }

@@ -9,7 +9,8 @@ use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::MemberId;
 use server_core::domains::crawling::models::WebsiteSnapshot;
 use server_core::domains::website::models::Website;
-use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
+use extraction::{MockIngestor, RawPage};
+use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
 
@@ -36,9 +37,10 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 #[tokio::test]
 async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     // Arrange: Set up initial scrape with first content
-    let mock_scraper = MockWebScraper::new()
-        .with_response("# Food Bank\n\nInitial content")
-        .with_response("# Food Bank\n\nUPDATED content - new information!");
+    // Note: MockIngestor returns pages by URL, so for refresh we need same URL with new content
+    // For this test we'll use a single page that gets returned by fetch_one
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://test-refresh.org", "# Food Bank\n\nInitial content"));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // First scrape
@@ -49,7 +51,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         .with_response(r#"[]"#);
 
     let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let test_ctx = TestHarness::with_deps(test_deps)
@@ -302,9 +304,8 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     // Arrange: Set up scrape with same content twice
     let same_content = "# Food Bank\n\nSame content both times";
 
-    let mock_scraper = MockWebScraper::new()
-        .with_response(same_content)
-        .with_response(same_content); // Same content for refresh
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://test-unchanged.org", same_content));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#)
@@ -315,7 +316,7 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
         .with_response(r#"[]"#);
 
     let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let test_ctx = TestHarness::with_deps(test_deps)

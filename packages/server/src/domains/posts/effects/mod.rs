@@ -8,8 +8,8 @@ pub mod ai;
 pub mod composite;
 pub mod deduplication;
 pub mod discovery;
+pub mod enrichment_tools;
 pub mod extraction_tools;
-pub mod llm_sync;
 pub mod post;
 pub mod post_extraction;
 pub mod post_operations;
@@ -18,6 +18,8 @@ pub mod scraper;
 pub mod sync;
 pub mod syncing;
 pub mod utils;
+
+// llm_sync moved to actions/llm_sync.rs - it's business logic, not an effect
 
 pub use composite::post_composite_effect;
 pub use discovery::{run_discovery_searches, DiscoveryResult, DEFAULT_LOCATION, DISCOVERY_QUERIES};

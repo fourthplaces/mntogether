@@ -65,15 +65,6 @@ pub struct Provider;
 /// Marker type for Contact entities (polymorphic contact information).
 pub struct Contact;
 
-/// Marker type for Resource entities (extracted services/programs from websites).
-pub struct Resource;
-
-/// Marker type for ResourceSource entities (links resources to source pages).
-pub struct ResourceSource;
-
-/// Marker type for ResourceVersion entities (audit trail for resource changes).
-pub struct ResourceVersion;
-
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -119,12 +110,3 @@ pub type ProviderId = Id<Provider>;
 
 /// Typed ID for Contact entities.
 pub type ContactId = Id<Contact>;
-
-/// Typed ID for Resource entities (extracted services/programs).
-pub type ResourceId = Id<Resource>;
-
-/// Typed ID for ResourceSource entities.
-pub type ResourceSourceId = Id<ResourceSource>;
-
-/// Typed ID for ResourceVersion entities.
-pub type ResourceVersionId = Id<ResourceVersion>;

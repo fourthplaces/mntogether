@@ -7,8 +7,8 @@ use anyhow::Result;
 use tracing::info;
 
 use crate::common::{ExtractedPost, WebsiteId};
+use crate::domains::posts::actions::llm_sync::{llm_sync_posts, SyncResult};
 use crate::domains::posts::effects::deduplication::{apply_dedup_results, deduplicate_posts_llm};
-use crate::domains::posts::effects::llm_sync::{llm_sync_posts, SyncResult};
 use crate::kernel::ServerDeps;
 
 /// Result of sync and deduplication.

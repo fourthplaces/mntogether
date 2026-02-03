@@ -11,7 +11,8 @@ use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::{ContactInfo, ExtractedPostWithSource, MemberId};
 use server_core::domains::crawling::models::PageSnapshot;
 use server_core::domains::website::models::Website;
-use server_core::kernel::test_dependencies::{MockAI, MockWebScraper};
+use extraction::{MockIngestor, RawPage};
+use server_core::kernel::test_dependencies::MockAI;
 use server_core::kernel::TestDependencies;
 use test_context::test_context;
 use uuid::Uuid;
@@ -74,6 +75,7 @@ fn mock_extraction_response(posts: Vec<(&str, &str, &str)>) -> String {
                 phone: None,
                 email: Some("contact@example.org".to_string()),
                 website: None,
+                ..Default::default()
             }),
             location: None,
             urgency: Some("medium".to_string()),
@@ -185,12 +187,12 @@ fn crawl_mutation_simple(website_id: Uuid) -> String {
 #[tokio::test]
 async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
     // Arrange: Set up mocks with test dependencies
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://volunteer-org.example",
             "# Welcome\n\nWe help the community through volunteer work.",
         ),
-        (
+        RawPage::new(
             "https://volunteer-org.example/volunteer",
             "# Volunteer Opportunities\n\n## Food Pantry Helpers\nHelp sort and distribute food donations every Saturday.",
         ),
@@ -216,7 +218,7 @@ async fn crawl_website_extracts_listings_from_pages(ctx: &TestHarness) {
         .with_response(mock_llm_sync_response(1));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -367,16 +369,16 @@ async fn crawl_website_nonexistent_returns_error(ctx: &TestHarness) {
 #[tokio::test]
 async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
     // Arrange: Set up mocks
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![
-        (
+    let mock_ingestor = MockIngestor::new().with_pages(vec![
+        RawPage::new(
             "https://snapshot-test.example",
             "# Home Page\n\nWelcome to our organization.",
         ),
-        (
+        RawPage::new(
             "https://snapshot-test.example/about",
             "# About Us\n\nWe are a nonprofit.",
         ),
-        (
+        RawPage::new(
             "https://snapshot-test.example/volunteer",
             "# Volunteer\n\n## Help Needed\nWe need volunteers.",
         ),
@@ -401,7 +403,7 @@ async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
         .with_response(mock_llm_sync_response(1));
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -440,10 +442,10 @@ async fn crawl_website_creates_page_snapshots(ctx: &TestHarness) {
 #[tokio::test]
 async fn crawl_website_handles_no_listings(ctx: &TestHarness) {
     // Arrange: Set up mocks that return no listings
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://no-listings.example",
         "# Company Website\n\nWe sell products. No volunteer opportunities here.",
-    )]);
+    ));
 
     // AI returns empty array - provide multiple responses in case of retries
     let mock_ai = MockAI::new()
@@ -452,7 +454,7 @@ async fn crawl_website_handles_no_listings(ctx: &TestHarness) {
         .with_response("[]");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)
@@ -484,15 +486,15 @@ async fn crawl_website_handles_no_listings(ctx: &TestHarness) {
 // Mock Call Verification Tests
 // =============================================================================
 
-/// Test that the scraper is called with correct parameters
+/// Test that the ingestor is called with correct parameters
 #[test_context(TestHarness)]
 #[tokio::test]
-async fn crawl_website_passes_correct_params_to_scraper(ctx: &TestHarness) {
-    // Arrange: Create mock scraper we can inspect
-    let mock_scraper = MockWebScraper::new().with_crawl_pages(vec![(
+async fn crawl_website_passes_correct_params_to_ingestor(ctx: &TestHarness) {
+    // Arrange: Create mock ingestor we can inspect
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
         "https://params-test.example",
         "# Test\n\nContent here.",
-    )]);
+    ));
 
     // Provide multiple empty array responses in case of retries
     let mock_ai = MockAI::new()
@@ -501,7 +503,7 @@ async fn crawl_website_passes_correct_params_to_scraper(ctx: &TestHarness) {
         .with_response("[]");
 
     let deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(deps)

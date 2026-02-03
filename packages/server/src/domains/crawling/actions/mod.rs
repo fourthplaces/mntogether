@@ -3,10 +3,13 @@
 //! All crawling operations go through these actions via `engine.activate().process()`.
 //! Actions are self-contained: they take raw Uuid types, handle conversions,
 //! and return results directly.
+//!
+//! Use `ingest_website()` for crawling websites - it uses the extraction library's
+//! Ingestor pattern with SSRF protection and integrated summarization.
 
 pub mod authorization;
 pub mod build_pages;
-pub mod crawl_website;
+pub mod ingest_website;
 pub mod regenerate_page;
 pub mod sync_posts;
 pub mod website_context;
@@ -30,7 +33,7 @@ pub use build_pages::{
     build_page_to_summarize_from_snapshot, build_pages_to_summarize, fetch_single_page_context,
     SinglePageContext,
 };
-pub use crawl_website::{crawl_website_pages, get_crawl_priorities, store_crawled_pages};
+pub use ingest_website::{ingest_urls, ingest_website};
 pub use regenerate_page::{regenerate_posts_for_page, regenerate_summary_for_page};
 pub use sync_posts::{
     llm_deduplicate_website_posts, sync_and_deduplicate_posts, SyncAndDedupResult,
@@ -48,114 +51,25 @@ pub struct CrawlJobResult {
 
 /// Crawl a website (multi-page)
 /// Returns job result directly.
+///
+/// # Deprecated
+/// Use `ingest_website()` instead which uses the extraction library's
+/// Ingestor pattern. The new function provides:
+/// - Pluggable ingestors (HTTP, Firecrawl)
+/// - SSRF protection via ValidatedIngestor
+/// - Integrated summarization and embedding
+/// - Storage in extraction_pages table (not page_snapshots)
+///
+/// This function now delegates to `ingest_website()`.
+#[deprecated(since = "0.1.0", note = "Use ingest_website() instead")]
 pub async fn crawl_website(
     website_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<CrawlJobResult> {
-    let website_id_typed = WebsiteId::from_uuid(website_id);
-    let requested_by = MemberId::from_uuid(member_id);
-    let job_id = JobId::new();
-
-    info!(website_id = %website_id_typed, job_id = %job_id, "Starting multi-page crawl");
-
-    // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "CrawlWebsite", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
-
-    // Fetch website
-    let website = match Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await {
-        Ok(w) => w,
-        Err(e) => {
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Failed to find website: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Website not found: {}", e)),
-            });
-        }
-    };
-
-    // Start crawl
-    if let Err(e) = Website::start_crawl(website_id_typed, &ctx.deps().db_pool).await {
-        warn!(website_id = %website_id_typed, error = %e, "Failed to update crawl status");
-    }
-
-    // Crawl and store pages
-    let crawled_pages = match crawl_website_pages(
-        &website,
-        job_id,
-        ctx.deps().web_scraper.as_ref(),
-        ctx.deps(),
-    )
-    .await
-    {
-        Ok(pages) => pages,
-        Err(event) => {
-            ctx.emit(event);
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some("Crawl failed".to_string()),
-            });
-        }
-    };
-
-    // Update website status
-    let _ = Website::complete_crawl(
-        website_id_typed,
-        "crawling",
-        crawled_pages.len() as i32,
-        &ctx.deps().db_pool,
-    )
-    .await;
-
-    info!(website_id = %website_id_typed, pages_stored = crawled_pages.len(), "Emitting WebsiteCrawled");
-
-    // Emit WebsiteCrawled event to trigger extraction cascade
-    ctx.emit(CrawlEvent::WebsiteCrawled {
-        website_id: website_id_typed,
-        job_id,
-        pages: crawled_pages,
-    });
-
-    // Check final status
-    let final_website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool)
-        .await
-        .ok();
-    let (status, message) = match final_website.map(|w| w.status) {
-        Some(ref s) if s == "no_posts_found" => (
-            "no_posts".to_string(),
-            Some("No listings found".to_string()),
-        ),
-        _ => (
-            "completed".to_string(),
-            Some("Crawl completed successfully".to_string()),
-        ),
-    };
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        status,
-        message,
-    })
+    // Delegate to ingest_website with Firecrawl disabled (basic HTTP crawling)
+    ingest_website(website_id, member_id, is_admin, false, ctx).await
 }
 
 /// Regenerate posts from existing page snapshots
@@ -495,7 +409,7 @@ pub async fn discover_website(
     let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
     let discovered = match discover_pages(
         &website.domain,
-        ctx.deps().search_service.as_ref(),
+        ctx.deps().web_searcher.as_ref(),
         max_pages,
     )
     .await

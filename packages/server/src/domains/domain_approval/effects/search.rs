@@ -62,8 +62,8 @@ pub async fn handle_conduct_searches(
         // Execute search
         let results = ctx
             .deps()
-            .search_service
-            .search(query_text, Some(5), Some("basic"), None)
+            .web_searcher
+            .search_with_limit(query_text, 5)
             .await
             .context(format!("Failed to execute search: {}", query_text))?;
 
@@ -89,7 +89,15 @@ pub async fn handle_conduct_searches(
         if !results.is_empty() {
             let result_tuples: Vec<_> = results
                 .into_iter()
-                .map(|r| (r.title, r.url, r.content, r.score, r.published_date))
+                .map(|r| {
+                    (
+                        r.title.unwrap_or_default(),
+                        r.url.to_string(),
+                        r.snippet.unwrap_or_default(),
+                        r.score.unwrap_or(0.0) as f64,
+                        None::<String>, // published_date not available in extraction SearchResult
+                    )
+                })
                 .collect();
 
             total_results += result_tuples.len();

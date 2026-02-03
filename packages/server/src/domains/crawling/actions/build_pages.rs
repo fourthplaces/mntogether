@@ -1,6 +1,19 @@
 //! Build pages for summarization
 //!
 //! Loads page snapshots and builds PageToSummarize list.
+//!
+//! # Deprecation Notice
+//!
+//! This module is part of the deprecated `crawl_website()` path. Use the extraction
+//! library's `ingest_website()` flow instead, which stores pages in `extraction_pages`
+//! and handles summarization internally.
+//!
+//! **Migration path:**
+//! - Use `ExtractionService::ingest()` for website crawling
+//! - Use `ExtractionService::extract()` for querying extracted content
+//! - Pages are automatically summarized during ingestion
+
+#![allow(deprecated)] // Uses deprecated PageSnapshot during migration
 
 use std::collections::HashMap;
 

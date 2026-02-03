@@ -351,3 +351,82 @@ export const GENERATE_POST_EMBEDDING = gql`
     generatePostEmbedding(postId: $postId)
   }
 `;
+
+// Extraction mutations
+export const SUBMIT_URL = gql`
+  mutation SubmitUrl($input: SubmitUrlInput!) {
+    submitUrl(input: $input) {
+      success
+      url
+      extraction {
+        content
+        status
+        grounding
+        sources {
+          url
+          title
+          fetchedAt
+          role
+        }
+        gaps {
+          field
+          suggestedQuery
+          isSearchable
+        }
+        conflicts {
+          topic
+          claims {
+            statement
+            sourceUrl
+          }
+        }
+      }
+      error
+    }
+  }
+`;
+
+export const TRIGGER_EXTRACTION = gql`
+  mutation TriggerExtraction($input: TriggerExtractionInput!) {
+    triggerExtraction(input: $input) {
+      success
+      query
+      site
+      extractions {
+        content
+        status
+        grounding
+        sources {
+          url
+          title
+          fetchedAt
+          role
+        }
+        gaps {
+          field
+          suggestedQuery
+          isSearchable
+        }
+        conflicts {
+          topic
+          claims {
+            statement
+            sourceUrl
+          }
+        }
+      }
+      error
+    }
+  }
+`;
+
+export const INGEST_SITE = gql`
+  mutation IngestSite($siteUrl: String!, $maxPages: Int) {
+    ingestSite(siteUrl: $siteUrl, maxPages: $maxPages) {
+      siteUrl
+      pagesCrawled
+      pagesSummarized
+      pagesSkipped
+    }
+  }
+`;

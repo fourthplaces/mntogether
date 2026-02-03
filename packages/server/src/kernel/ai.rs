@@ -1,140 +1,80 @@
-// AI implementation using OpenAI
-//
-// This is the infrastructure implementation of BaseAI.
-// Business logic (what to prompt for) lives in domain layers.
+//! AI implementation using OpenAI
+//!
+//! This module provides `OpenAIClient`, which wraps the extraction library's
+//! OpenAI implementation to provide backwards compatibility with existing
+//! server code.
+//!
+//! The actual AI implementation lives in `extraction::ai::OpenAI`. This module
+//! provides the bridge between that and the server's `BaseAI` trait.
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use rig::completion::Prompt;
-use rig::providers::openai;
-use serde::{Deserialize, Serialize};
+use extraction::ai::OpenAI as ExtractionOpenAI;
+use extraction::AI;
 
 use super::{BaseAI, BaseEmbeddingService};
 
-#[derive(Debug, Serialize)]
-struct EmbeddingRequest {
-    input: String,
-    model: String,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EmbeddingResponse {
-    pub data: Vec<EmbeddingData>,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct EmbeddingData {
-    pub embedding: Vec<f32>,
-}
-
-/// OpenAI implementation of AI capabilities
+/// OpenAI implementation of AI capabilities.
+///
+/// This wraps the extraction library's `OpenAI` implementation to provide
+/// backwards compatibility with existing server code that uses `OpenAIClient`.
+///
+/// # Migration Note
+///
+/// New code should use `ExtractionAIBridge` directly from `extraction_bridge`,
+/// or the extraction library's `OpenAI` implementation.
 #[derive(Clone)]
 pub struct OpenAIClient {
-    client: openai::Client,
-    api_key: String,
+    inner: ExtractionOpenAI,
 }
 
 impl OpenAIClient {
+    /// Create a new OpenAI client with the given API key.
     pub fn new(api_key: String) -> Self {
-        let client = openai::Client::new(&api_key);
-        Self { client, api_key }
+        Self {
+            inner: ExtractionOpenAI::new(api_key),
+        }
     }
 
-    /// Generate embeddings using OpenAI's text-embedding-ada-002 model
-    pub async fn create_embedding(&self, text: &str) -> Result<EmbeddingResponse> {
-        let http_client = reqwest::Client::new();
+    /// Create from environment variable `OPENAI_API_KEY`.
+    pub fn from_env() -> Result<Self> {
+        let inner = ExtractionOpenAI::from_env()
+            .map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))?;
+        Ok(Self { inner })
+    }
 
-        let request = EmbeddingRequest {
-            input: text.to_string(),
-            model: "text-embedding-ada-002".to_string(),
-        };
+    /// Get the underlying extraction OpenAI instance.
+    pub fn inner(&self) -> &ExtractionOpenAI {
+        &self.inner
+    }
 
-        let response = http_client
-            .post("https://api.openai.com/v1/embeddings")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .context("Failed to send embedding request to OpenAI")?;
-
-        let embedding_response: EmbeddingResponse = response
-            .json()
-            .await
-            .context("Failed to parse embedding response")?;
-
-        Ok(embedding_response)
+    /// Get the API key.
+    pub fn api_key(&self) -> &str {
+        self.inner.api_key()
     }
 }
 
 #[async_trait]
 impl BaseAI for OpenAIClient {
     async fn complete(&self, prompt: &str) -> Result<String> {
-        self.complete_with_model(prompt, None).await
+        self.inner
+            .complete(prompt)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     async fn complete_json(&self, prompt: &str) -> Result<String> {
-        self.complete_json_with_model(prompt, None).await
+        self.complete(prompt).await
     }
 
     async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
-        let model_id = model.unwrap_or("gpt-4-turbo");
-
-        tracing::debug!(
-            prompt_length = prompt.len(),
-            model = model_id,
-            "Building OpenAI agent for completion"
-        );
-
-        // Build agent with the specified model
-        let agent = match model_id {
-            "gpt-5" => self
-                .client
-                .agent("gpt-5")
-                .preamble("You are a helpful assistant.")
-                .max_tokens(4096)
-                .build(),
-            "gpt-4o" => self
-                .client
-                .agent(openai::GPT_4O)
-                .preamble("You are a helpful assistant.")
-                .max_tokens(4096)
-                .build(),
-            "gpt-4-turbo" | _ => self
-                .client
-                .agent(openai::GPT_4_TURBO)
-                .preamble("You are a helpful assistant.")
-                .max_tokens(4096)
-                .build(),
-        };
-
-        tracing::info!(model = model_id, "Calling OpenAI API");
-
-        let response = agent
-            .prompt(prompt)
+        self.inner
+            .complete_with_model(prompt, model)
             .await
-            .map_err(|e| {
-                tracing::error!(
-                    error = %e,
-                    model = model_id,
-                    prompt_preview = %&prompt[..prompt.len().min(200)],
-                    "OpenAI API call failed"
-                );
-                e
-            })
-            .context("Failed to call OpenAI API")?;
-
-        tracing::info!(
-            response_length = response.len(),
-            model = model_id,
-            "OpenAI API response received"
-        );
-
-        Ok(response)
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     async fn complete_json_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
-        // Same as complete_with_model for OpenAI
         self.complete_with_model(prompt, model).await
     }
 
@@ -144,55 +84,10 @@ impl BaseAI for OpenAIClient {
         user_prompt: &str,
         schema: serde_json::Value,
     ) -> Result<String> {
-        let http_client = reqwest::Client::new();
-
-        let request_body = serde_json::json!({
-            "model": "gpt-4o",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": {
-                    "name": "structured_response",
-                    "strict": true,
-                    "schema": schema
-                }
-            }
-        });
-
-        tracing::debug!(
-            system_prompt_len = system_prompt.len(),
-            user_prompt_len = user_prompt.len(),
-            "Calling OpenAI structured output API"
-        );
-
-        let response = http_client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
+        self.inner
+            .generate_structured(system_prompt, user_prompt, schema)
             .await
-            .context("Failed to send structured output request to OpenAI")?;
-
-        let status = response.status();
-        let response_text = response.text().await.context("Failed to read response")?;
-
-        if !status.is_success() {
-            tracing::error!(status = %status, response = %response_text, "OpenAI API error");
-            anyhow::bail!("OpenAI API error: {} - {}", status, response_text);
-        }
-
-        let response_json: serde_json::Value =
-            serde_json::from_str(&response_text).context("Failed to parse OpenAI response")?;
-
-        let content = response_json["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| anyhow::anyhow!("No content in response"))?;
-
-        Ok(content.to_string())
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 
     async fn generate_with_tools(
@@ -200,65 +95,35 @@ impl BaseAI for OpenAIClient {
         messages: &[serde_json::Value],
         tools: &serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let http_client = reqwest::Client::new();
-
-        let request_body = serde_json::json!({
-            "model": "gpt-4o",
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto"
-        });
-
-        tracing::debug!(
-            messages_count = messages.len(),
-            tools_count = tools.as_array().map(|a| a.len()).unwrap_or(0),
-            "Calling OpenAI tools API"
-        );
-
-        let response = http_client
-            .post("https://api.openai.com/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
+        self.inner
+            .generate_with_tools(messages, tools)
             .await
-            .context("Failed to send tools request to OpenAI")?;
-
-        let status = response.status();
-        let response_text = response.text().await.context("Failed to read response")?;
-
-        if !status.is_success() {
-            tracing::error!(status = %status, response = %response_text, "OpenAI API error");
-            anyhow::bail!("OpenAI API error: {} - {}", status, response_text);
-        }
-
-        let response_json: serde_json::Value =
-            serde_json::from_str(&response_text).context("Failed to parse OpenAI response")?;
-
-        // Extract the assistant message
-        let message = response_json["choices"][0]["message"].clone();
-
-        Ok(message)
+            .map_err(|e| anyhow::anyhow!("{}", e))
     }
 }
 
 #[async_trait]
 impl BaseEmbeddingService for OpenAIClient {
-    /// Generate embedding using OpenAI's text-embedding-ada-002 model
     async fn generate(&self, text: &str) -> Result<Vec<f32>> {
-        let response = self
-            .create_embedding(text)
+        self.inner
+            .embed(text)
             .await
-            .context("Failed to create embedding")?;
+            .map_err(|e| anyhow::anyhow!("{}", e))
+            .context("Failed to generate embedding")
+    }
+}
 
-        let embedding = response
-            .data
-            .first()
-            .ok_or_else(|| anyhow::anyhow!("No embedding returned"))?
-            .embedding
-            .clone();
-
-        Ok(embedding)
+impl OpenAIClient {
+    /// Create an embedding for the given text.
+    ///
+    /// Alias for `BaseEmbeddingService::generate` for code that expects
+    /// `create_embedding` method name.
+    pub async fn create_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        self.inner
+            .embed(text)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))
+            .context("Failed to create embedding")
     }
 }
 
@@ -266,39 +131,12 @@ impl BaseEmbeddingService for OpenAIClient {
 mod tests {
     use super::*;
 
-    #[tokio::test]
-    #[ignore] // Requires API key
-    async fn test_complete() {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .expect("OPENAI_API_KEY must be set for integration tests");
+    #[test]
+    fn test_client_compiles() {
+        fn _assert_base_ai<T: BaseAI>() {}
+        fn _assert_embedding<T: BaseEmbeddingService>() {}
 
-        let client = OpenAIClient::new(api_key);
-
-        let response = client
-            .complete("Say 'Hello, World!' and nothing else.")
-            .await
-            .expect("AI completion should succeed");
-
-        assert!(response.contains("Hello"));
-    }
-
-    #[tokio::test]
-    #[ignore] // Requires API key
-    async fn test_embedding() {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .expect("OPENAI_API_KEY must be set for integration tests");
-
-        let client = OpenAIClient::new(api_key);
-
-        let embedding = client
-            .generate("Hello, world!")
-            .await
-            .expect("Embedding generation should succeed");
-
-        assert_eq!(
-            embedding.len(),
-            1536,
-            "OpenAI embeddings should be 1536 dimensions"
-        );
+        _assert_base_ai::<OpenAIClient>();
+        _assert_embedding::<OpenAIClient>();
     }
 }

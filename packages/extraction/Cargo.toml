@@ -9,6 +9,10 @@ license = "MIT"
 # Error handling (thiserror for libraries, not anyhow)
 thiserror = "2.0"
 
+# LLM framework
+rig-core = "0.9"
+schemars = "0.8"
+
 # Async
 async-trait = "0.1"
 tokio = { version = "1", features = ["full"] }
@@ -55,3 +59,4 @@ default = []
 sqlite = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
 openai = []  # Reference OpenAI implementation
+firecrawl = []  # Firecrawl API ingestor

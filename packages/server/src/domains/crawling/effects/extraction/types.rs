@@ -5,6 +5,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// Import unified types from common
+use crate::common::{ContactInfo, LocationInfo, ScheduleInfo};
+
 /// Input for Pass 1: a page to summarize
 #[derive(Debug, Clone)]
 pub struct PageToSummarize {
@@ -37,9 +40,9 @@ pub struct PageSummaryContent {
     /// Location/address information
     #[serde(default)]
     pub location: Option<LocationInfo>,
-    /// Hours of operation
+    /// Hours of operation (uses unified ScheduleInfo)
     #[serde(default)]
-    pub hours: Option<HoursInfo>,
+    pub hours: Option<ScheduleInfo>,
     /// Events or time-sensitive items
     #[serde(default)]
     pub events: Vec<EventInfo>,
@@ -78,43 +81,6 @@ pub struct ProgramInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactInfo {
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub website: Option<String>,
-    /// Additional contact methods (fax, TTY, etc.)
-    #[serde(default)]
-    pub other: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LocationInfo {
-    pub address: Option<String>,
-    pub city: Option<String>,
-    pub state: Option<String>,
-    pub zip: Option<String>,
-    /// Service area description (e.g., "Twin Cities metro", "Statewide")
-    pub service_area: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HoursInfo {
-    /// General hours description
-    pub general: Option<String>,
-    /// Structured hours by day if available
-    #[serde(default)]
-    pub by_day: Vec<DayHours>,
-    /// Notes about hours (holidays, seasonal changes, etc.)
-    pub notes: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DayHours {
-    pub day: String,
-    pub hours: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventInfo {
     pub name: String,
     pub date: Option<String>,
@@ -122,3 +88,6 @@ pub struct EventInfo {
     pub description: Option<String>,
     pub registration_info: Option<String>,
 }
+
+/// Type alias for backwards compatibility - HoursInfo is now ScheduleInfo
+pub type HoursInfo = ScheduleInfo;

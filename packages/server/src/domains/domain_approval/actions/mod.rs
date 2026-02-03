@@ -104,28 +104,29 @@ pub async fn assess_website(
         info!(research_id = %research.id, "Research is stale, creating fresh research");
     }
 
-    // Step 3: Create fresh research - scrape homepage
-    info!(website_domain = %website.domain, "Scraping homepage");
+    // Step 3: Create fresh research - fetch homepage using ingestor
+    info!(website_domain = %website.domain, "Fetching homepage");
 
+    let homepage_url = format!("https://{}", &website.domain);
     let homepage_content = match ctx
         .deps()
-        .web_scraper
-        .scrape(&format!("https://{}", &website.domain))
+        .ingestor
+        .fetch_one(&homepage_url)
         .await
     {
-        Ok(result) => {
+        Ok(page) => {
             info!(
                 website_domain = %website.domain,
-                markdown_length = result.markdown.len(),
-                "Homepage scraped successfully"
+                content_length = page.content.len(),
+                "Homepage fetched successfully"
             );
-            Some(result.markdown)
+            Some(page.content)
         }
         Err(e) => {
             tracing::warn!(
                 website_domain = %website.domain,
                 error = %e,
-                "Failed to scrape homepage, continuing with search-based research"
+                "Failed to fetch homepage, continuing with search-based research"
             );
             None
         }

@@ -3,101 +3,10 @@
 // These are INFRASTRUCTURE traits only - no business logic.
 // Business logic (like "extract needs") should be domain functions that use these traits.
 //
-// Naming convention: Base* for trait names (e.g., BaseWebScraper, BaseAI)
+// Naming convention: Base* for trait names (e.g., BaseAI, BaseEmbeddingService)
 
 use anyhow::Result;
 use async_trait::async_trait;
-
-// =============================================================================
-// Web Scraping Trait (Infrastructure)
-// =============================================================================
-
-/// Result of scraping a single page
-#[derive(Debug, Clone)]
-pub struct ScrapeResult {
-    pub url: String,
-    pub markdown: String,
-    pub title: Option<String>,
-}
-
-/// Result of crawling multiple pages from a website
-#[derive(Debug, Clone)]
-pub struct CrawlResult {
-    pub pages: Vec<CrawledPage>,
-}
-
-/// A single page that was crawled
-#[derive(Debug, Clone)]
-pub struct CrawledPage {
-    pub url: String,
-    pub markdown: String,
-    pub title: Option<String>,
-}
-
-/// Link priorities for crawl scoring
-/// High-priority keywords are followed first, skip keywords are ignored
-#[derive(Debug, Clone, Default)]
-pub struct LinkPriorities {
-    pub high: Vec<String>,
-    pub skip: Vec<String>,
-}
-
-impl LinkPriorities {
-    /// Score a URL path based on keywords
-    /// Returns: positive for high priority, negative for skip, 0 for neutral
-    pub fn score_path(&self, path: &str) -> i32 {
-        let path_lower = path.to_lowercase();
-
-        // Check skip first (negative score)
-        for keyword in &self.skip {
-            if path_lower.contains(&keyword.to_lowercase()) {
-                return -100;
-            }
-        }
-
-        // Check high priority (positive score)
-        for keyword in &self.high {
-            if path_lower.contains(&keyword.to_lowercase()) {
-                return 100;
-            }
-        }
-
-        0
-    }
-
-    /// Check if a path should be skipped entirely
-    pub fn should_skip(&self, path: &str) -> bool {
-        self.score_path(path) < 0
-    }
-
-    /// Check if empty (no keywords configured)
-    pub fn is_empty(&self) -> bool {
-        self.high.is_empty() && self.skip.is_empty()
-    }
-}
-
-#[async_trait]
-pub trait BaseWebScraper: Send + Sync {
-    /// Scrape a single page and return clean text content
-    async fn scrape(&self, url: &str) -> Result<ScrapeResult>;
-
-    /// Crawl multiple pages from a website starting from the given URL
-    ///
-    /// # Arguments
-    /// * `url` - The starting URL to crawl from
-    /// * `max_depth` - Maximum depth to crawl (0 = only the starting page)
-    /// * `max_pages` - Maximum number of pages to crawl
-    /// * `delay_seconds` - Delay between requests (rate limiting)
-    /// * `priorities` - Optional link priorities for scoring/filtering
-    async fn crawl(
-        &self,
-        url: &str,
-        max_depth: i32,
-        max_pages: i32,
-        delay_seconds: i32,
-        priorities: Option<&LinkPriorities>,
-    ) -> Result<CrawlResult>;
-}
 
 // =============================================================================
 // AI Trait (Infrastructure - Generic LLM capabilities)
@@ -242,31 +151,3 @@ pub trait BasePiiDetector: Send + Sync {
     ) -> Result<PiiScrubResult>;
 }
 
-// =============================================================================
-// Search Service Trait (Infrastructure)
-// =============================================================================
-
-use serde::{Deserialize, Serialize};
-
-/// Result from a web search
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchResult {
-    pub title: String,
-    pub url: String,
-    pub content: String,
-    pub score: f64,
-    pub published_date: Option<String>,
-}
-
-/// Search service trait for discovering web content
-#[async_trait]
-pub trait BaseSearchService: Send + Sync {
-    /// Search for content with optional filters
-    async fn search(
-        &self,
-        query: &str,
-        max_results: Option<usize>,
-        search_depth: Option<&str>,
-        days: Option<i32>,
-    ) -> Result<Vec<SearchResult>>;
-}

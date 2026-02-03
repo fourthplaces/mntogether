@@ -206,13 +206,14 @@ impl TestHarness {
 
         let server_deps = ServerDeps::new(
             kernel.db_pool.clone(),
-            kernel.web_scraper.clone(),
+            kernel.ingestor.clone(),
             kernel.ai.clone(),
             kernel.embedding_service.clone(),
             kernel.push_service.clone(),
             Arc::new(TwilioAdapter::new(twilio)),
-            kernel.search_service.clone(),
+            kernel.web_searcher.clone(),
             kernel.pii_detector.clone(),
+            None,   // No extraction service in tests
             true,   // test_identifier_enabled
             vec![], // admin_identifiers
         );
@@ -223,11 +224,11 @@ impl TestHarness {
         // Create kernel without bus (bus is removed in 0.6.0)
         let kernel = Arc::new(ServerKernel {
             db_pool: kernel.db_pool.clone(),
-            web_scraper: kernel.web_scraper.clone(),
+            ingestor: kernel.ingestor.clone(),
             ai: kernel.ai.clone(),
             embedding_service: kernel.embedding_service.clone(),
             push_service: kernel.push_service.clone(),
-            search_service: kernel.search_service.clone(),
+            web_searcher: kernel.web_searcher.clone(),
             pii_detector: kernel.pii_detector.clone(),
             job_queue: Arc::new(SpyJobQueue::new()),
         });
