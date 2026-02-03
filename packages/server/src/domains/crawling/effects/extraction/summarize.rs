@@ -1,6 +1,6 @@
 //! Pass 1: Summarize individual pages with caching
 //!
-//! Each page is summarized to extract meaningful content.
+//! Each page is summarized to extract structured content as JSON.
 //! Results are cached by content hash - if page content hasn't changed,
 //! we reuse the cached summary.
 
@@ -11,9 +11,9 @@ use sqlx::PgPool;
 use tracing::info;
 
 use crate::domains::crawling::models::PageSummary;
-use crate::kernel::BaseAI;
+use crate::kernel::{BaseAI, LlmRequestExt};
 
-use super::types::{PageToSummarize, SummarizedPage};
+use super::types::{PageSummaryContent, PageToSummarize, SummarizedPage};
 
 /// Summarize a page, using cache if available
 pub async fn summarize_page(
@@ -90,53 +90,132 @@ pub fn hash_content(content: &str) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// AI call to extract meaningful content from a page
+/// AI call to extract structured content from a page
 ///
-/// This extracts ALL meaningful information from a webpage, identifying each
-/// distinct program or service as a potential post. The goal is thorough extraction,
-/// not compression - we want the full details that would help someone find or use services.
+/// This extracts ALL meaningful information from a webpage as structured JSON.
+/// The goal is thorough extraction with explicit fields for contact, hours, location,
+/// so synthesis can reliably combine information across pages.
 async fn generate_page_content(ai: &dyn BaseAI, url: &str, raw_content: &str) -> Result<String> {
-    let prompt = format!(
-        r#"Extract ALL meaningful information from this webpage.
-
-For each distinct program, service, or offering you find, create a clearly labeled section with:
-- Program/service name
-- What it offers and who it helps
-- Contact information (phone, email, address, hours of operation)
-- Eligibility requirements or how to access
-- Any time-sensitive information (events, deadlines, registration periods)
-- Geographic service area or coverage
-
-Also extract any general organization information:
-- Organization name and mission
-- Overall contact information
-- Physical location and service hours
-- Languages served
-
-BE THOROUGH. Include all details that would help someone find or use these services.
-Do NOT compress or summarize - we want the full details extracted.
-Each distinct program/service should be its own section.
-
-IGNORE:
-- Navigation menus, headers, footers
-- Ads and promotional banners
-- Social media links and share buttons
-- Cookie notices and legal boilerplate
-- Duplicate content
-
-Write in plain text, no markdown formatting.
-Use clear section headers like "PROGRAM:" or "SERVICE:" to separate distinct offerings.
-
-URL: {}
-
-Page Content:
-{}"#,
+    let system = PAGE_SUMMARY_SYSTEM_PROMPT;
+    let user = format!(
+        "URL: {}\n\nPage Content:\n{}",
         url,
         truncate_content(raw_content, 30000)
     );
 
-    ai.complete(&prompt).await
+    let content: PageSummaryContent = ai
+        .request()
+        .system(system)
+        .user(user)
+        .schema_hint(PAGE_SUMMARY_SCHEMA)
+        .max_retries(2)
+        .output()
+        .await?;
+
+    // Serialize to JSON for storage
+    Ok(serde_json::to_string(&content)?)
 }
+
+const PAGE_SUMMARY_SYSTEM_PROMPT: &str = r#"Extract ALL meaningful information from this webpage.
+
+Your goal is THOROUGH extraction. Every piece of contact info, every program detail, every hour of operation matters. This data will be combined with other pages to create complete service listings.
+
+EXTRACT:
+
+1. ORGANIZATION INFO - If this page mentions the organization:
+   - Name of the organization
+   - Mission statement or description (in plain, readable English)
+   - Languages served
+
+2. PROGRAMS/SERVICES - Each distinct program or service should be a separate entry:
+   - Program name (required)
+   - **description**: A READABLE, user-friendly explanation of what this program offers. Write it as if explaining to someone who needs help. Example: "Provides free groceries to families in the St. Cloud area. You can visit once per month and receive enough food for 5-7 days worth of meals."
+   - **serves**: Who this program helps (e.g., "Families with children under 18", "Anyone in need")
+   - **how_to_access**: Step-by-step how someone would get this service (e.g., "Walk in during open hours - no appointment needed", "Call ahead to schedule")
+   - **eligibility**: What's required or what to bring (e.g., "Bring photo ID and proof of address", "No requirements - open to all")
+   - Program-specific contact/hours/location if different from org-wide
+
+3. CONTACT INFO - Extract ALL contact methods found:
+   - Phone numbers (include what they're for, e.g., "main line", "crisis hotline")
+   - Email addresses
+   - Website URLs
+   - Other methods (fax, TTY, text lines)
+
+4. LOCATION - Physical presence:
+   - Street address
+   - City, state, zip
+   - Service area (what geographic area they cover)
+
+5. HOURS - When they operate:
+   - General hours description
+   - Day-by-day hours if listed
+   - Notes about closures, holidays, seasonal changes
+
+6. EVENTS - Time-sensitive items:
+   - Event/class names
+   - Dates and times
+   - Registration information
+
+IMPORTANT:
+- Program descriptions should be READABLE and USER-FRIENDLY, not just keywords
+- Write descriptions as if explaining to someone seeking help
+- Extract EVERYTHING - don't compress details
+- If contact info appears anywhere on the page, capture it
+- If hours are mentioned anywhere, capture them
+- Each distinct program should be its own entry in the programs array
+- Use additional_context for important info that doesn't fit the structured fields
+
+IGNORE:
+- Navigation menus, headers, footers
+- Social media links, share buttons
+- Cookie notices, legal boilerplate
+- Advertising content"#;
+
+const PAGE_SUMMARY_SCHEMA: &str = r#"Expected structure:
+{
+  "organization": {
+    "name": "string or null",
+    "mission": "string or null - readable mission statement",
+    "description": "string or null - plain English description of what they do",
+    "languages_served": ["string"]
+  },
+  "programs": [{
+    "name": "string - program/service name (required)",
+    "description": "string or null - READABLE explanation of what this offers, written for someone seeking help. Example: 'Provides free groceries to families. Visit once per month for 5-7 days of food.'",
+    "serves": "string or null - who it helps (e.g., 'Families in Washington County')",
+    "how_to_access": "string or null - exactly how to get help (e.g., 'Walk in Mon-Fri 9am-3pm, no appointment needed')",
+    "eligibility": "string or null - requirements or what to bring (e.g., 'Bring photo ID and utility bill')",
+    "contact": { "phone": "string or null", "email": "string or null", "website": "string or null", "other": ["string"] },
+    "hours": "string or null - program-specific hours",
+    "location": "string or null - program-specific location"
+  }],
+  "contact": {
+    "phone": "string or null - main phone",
+    "email": "string or null - main email",
+    "website": "string or null",
+    "other": ["string - other contact methods like fax, TTY"]
+  },
+  "location": {
+    "address": "string or null - street address",
+    "city": "string or null",
+    "state": "string or null",
+    "zip": "string or null",
+    "service_area": "string or null - geographic coverage (e.g., 'Washington County residents')"
+  },
+  "hours": {
+    "general": "string or null - general hours description",
+    "by_day": [{ "day": "string", "hours": "string" }],
+    "notes": "string or null - holiday/seasonal notes"
+  },
+  "events": [{
+    "name": "string",
+    "date": "string or null",
+    "time": "string or null",
+    "description": "string or null",
+    "registration_info": "string or null"
+  }],
+  "additional_context": "string or null - important info that doesn't fit above"
+}"#;
 
 /// Truncate content to fit in context window
 ///

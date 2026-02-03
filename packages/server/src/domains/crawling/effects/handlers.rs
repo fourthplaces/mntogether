@@ -12,10 +12,12 @@ use tracing::info;
 
 use crate::common::{AppState, ExtractedPost, JobId, MemberId, WebsiteId};
 use crate::domains::crawling::actions::{
-    build_pages_to_summarize, crawl_website, extract_posts_from_pages, sync_and_deduplicate_posts,
-    update_page_extraction_status,
+    build_pages_to_summarize, crawl_website, sync_and_deduplicate_posts,
 };
-use crate::domains::crawling::events::{CrawledPageInfo, CrawlEvent, PageExtractionResult};
+use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
+use crate::domains::posts::effects::agentic_extraction::{
+    extract_from_website, to_extracted_posts,
+};
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
@@ -24,17 +26,16 @@ use crate::kernel::ServerDeps;
 // ============================================================================
 
 /// Handle extract posts request - cascade handler.
+/// Uses agentic extraction with tool-calling for rich post enrichment.
 pub async fn handle_extract_from_pages(
     website_id: WebsiteId,
     job_id: JobId,
     pages: Vec<CrawledPageInfo>,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<()> {
-    info!(website_id = %website_id, pages_count = pages.len(), "Extracting posts");
+    info!(website_id = %website_id, pages_count = pages.len(), "Extracting posts (agentic)");
 
-    let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
-
-    // Build pages to summarize
+    // Build pages with content for agentic extraction
     let (pages_to_summarize, _) = build_pages_to_summarize(&pages, &ctx.deps().db_pool).await?;
 
     if pages_to_summarize.is_empty() {
@@ -48,28 +49,61 @@ pub async fn handle_extract_from_pages(
         return Ok(());
     }
 
-    // Extract posts using two-pass extraction
-    let result = match extract_posts_from_pages(
-        &website,
-        pages_to_summarize,
-        job_id,
+    // Convert to format expected by agentic extraction: (page_snapshot_id, url, content)
+    let pages_for_extraction: Vec<(uuid::Uuid, String, String)> = pages_to_summarize
+        .iter()
+        .map(|p| (p.snapshot_id, p.url.clone(), p.raw_content.clone()))
+        .collect();
+
+    // Run agentic extraction with tool-calling
+    let extraction_result = match extract_from_website(
+        website_id,
+        &pages_for_extraction,
+        &ctx.deps().db_pool,
+        Some(ctx.deps().search_service.as_ref()),
         ctx.deps().ai.as_ref(),
-        ctx.deps(),
     )
     .await
     {
         Ok(r) => r,
-        Err(event) => {
-            ctx.emit(event);
+        Err(e) => {
+            tracing::error!(website_id = %website_id, error = %e, "Agentic extraction failed");
+            ctx.emit(CrawlEvent::WebsiteCrawlNoListings {
+                website_id,
+                job_id,
+                attempt_number: 1,
+                pages_crawled: pages.len(),
+                should_retry: true,
+            });
             return Ok(());
         }
     };
 
-    // Update page extraction status
-    update_page_extraction_status(&result.page_results, &ctx.deps().db_pool).await;
+    // Convert EnrichedPosts to ExtractedPosts for pipeline compatibility
+    let extracted_posts = to_extracted_posts(&extraction_result.posts);
+
+    // Build page results from extraction
+    let page_results: Vec<PageExtractionResult> = pages_to_summarize
+        .iter()
+        .map(|p| {
+            // Count posts that came from this page
+            let posts_from_page = extraction_result
+                .posts
+                .iter()
+                .filter(|post| post.source_page_snapshot_id == Some(p.snapshot_id))
+                .count();
+
+            PageExtractionResult {
+                url: p.url.clone(),
+                snapshot_id: Some(p.snapshot_id),
+                listings_count: posts_from_page,
+                has_posts: posts_from_page > 0,
+            }
+        })
+        .collect();
 
     // Check if we found any posts
-    if result.posts.is_empty() {
+    if extracted_posts.is_empty() {
         let attempt_count = Website::increment_crawl_attempt(website_id, &ctx.deps().db_pool)
             .await
             .unwrap_or(1);
@@ -84,14 +118,21 @@ pub async fn handle_extract_from_pages(
         return Ok(());
     }
 
-    info!(website_id = %website_id, total_posts = result.posts.len(), "Extraction complete");
+    info!(
+        website_id = %website_id,
+        total_posts = extracted_posts.len(),
+        candidates_found = extraction_result.candidates_found,
+        candidates_skipped = extraction_result.candidates_skipped,
+        posts_merged = extraction_result.posts_merged,
+        "Agentic extraction complete"
+    );
     let _ = Website::reset_crawl_attempts(website_id, &ctx.deps().db_pool).await;
 
     ctx.emit(CrawlEvent::PostsExtractedFromPages {
         website_id,
         job_id,
-        posts: result.posts,
-        page_results: result.page_results,
+        posts: extracted_posts,
+        page_results,
     });
     Ok(())
 }
@@ -181,9 +222,10 @@ pub async fn handle_sync_crawled_posts(
     ctx.emit(CrawlEvent::PostsSynced {
         website_id,
         job_id,
-        new_count: result.sync_result.new_count,
-        updated_count: result.sync_result.updated_count,
-        unchanged_count: result.sync_result.unchanged_count,
+        new_count: result.sync_result.inserted,
+        updated_count: result.sync_result.updated,
+        // LLM sync doesn't track unchanged - use deleted + merged count as info
+        unchanged_count: result.sync_result.deleted + result.sync_result.merged,
     });
     Ok(())
 }

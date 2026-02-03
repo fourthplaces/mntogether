@@ -46,7 +46,8 @@ pub async fn sync_extracted_posts(
     let sync_input: Vec<ExtractedPostInput> = posts
         .into_iter()
         .map(|listing| ExtractedPostInput {
-            organization_name: extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
+            organization_name: extract_domain(&source.domain)
+                .unwrap_or_else(|| source.domain.clone()),
             title: listing.title,
             description: listing.description,
             description_markdown: None,

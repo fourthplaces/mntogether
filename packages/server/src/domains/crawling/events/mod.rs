@@ -38,7 +38,6 @@ pub enum CrawlEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)
     // =========================================================================
-
     /// Website was crawled (multiple pages discovered)
     WebsiteCrawled {
         website_id: WebsiteId,
@@ -109,7 +108,6 @@ pub enum CrawlEvent {
     // =========================================================================
     // Authorization Events
     // =========================================================================
-
     /// User attempted admin action without permission
     AuthorizationDenied {
         user_id: MemberId,

@@ -1,40 +1,56 @@
 //! Sync posts action
 //!
-//! Sync extracted posts to database and run LLM deduplication.
+//! Uses LLM-powered sync to intelligently handle INSERT/UPDATE/DELETE/MERGE
+//! in a single pass, avoiding duplicates.
 
 use anyhow::Result;
 use tracing::info;
 
 use crate::common::{ExtractedPost, WebsiteId};
-use crate::domains::posts::effects::syncing::{sync_extracted_posts, PostSyncResult};
 use crate::domains::posts::effects::deduplication::{apply_dedup_results, deduplicate_posts_llm};
+use crate::domains::posts::effects::llm_sync::{llm_sync_posts, SyncResult};
 use crate::kernel::ServerDeps;
 
 /// Result of sync and deduplication.
 pub struct SyncAndDedupResult {
-    pub sync_result: PostSyncResult,
+    pub sync_result: SyncResult,
     pub deduplicated_count: usize,
 }
 
-/// Sync extracted posts to database and run LLM deduplication.
+/// Sync extracted posts to database using LLM-powered intelligent sync.
+///
+/// The LLM analyzes fresh posts vs existing DB posts and decides:
+/// - INSERT: New posts that don't exist
+/// - UPDATE: Fresh posts that match existing (semantically)
+/// - DELETE: DB posts no longer in fresh extraction
+/// - MERGE: Consolidate pre-existing duplicates
 pub async fn sync_and_deduplicate_posts(
     website_id: WebsiteId,
     posts: Vec<ExtractedPost>,
     deps: &ServerDeps,
 ) -> Result<SyncAndDedupResult> {
-    // Sync posts using existing logic (title-match only, no embedding dedup)
-    let sync_result = sync_extracted_posts(website_id, posts, &deps.db_pool).await?;
+    // Use LLM-powered sync that handles INSERT/UPDATE/DELETE/MERGE in one pass
+    let sync_result = llm_sync_posts(website_id, posts, deps.ai.as_ref(), &deps.db_pool).await?;
 
     info!(
         website_id = %website_id,
-        new_count = sync_result.new_count,
-        updated_count = sync_result.updated_count,
-        unchanged_count = sync_result.unchanged_count,
-        "Sync completed"
+        inserted = sync_result.inserted,
+        updated = sync_result.updated,
+        deleted = sync_result.deleted,
+        merged = sync_result.merged,
+        "LLM sync completed"
     );
 
-    // Run LLM-based deduplication
-    let deduplicated_count = llm_deduplicate_website_posts(website_id, deps).await.unwrap_or(0);
+    // The LLM sync already handles deduplication via MERGE operations,
+    // but we can run a second pass to catch any edge cases
+    let deduplicated_count = if sync_result.merged == 0 {
+        // Only run extra dedup if LLM sync didn't merge anything
+        llm_deduplicate_website_posts(website_id, deps)
+            .await
+            .unwrap_or(0)
+    } else {
+        0
+    };
 
     Ok(SyncAndDedupResult {
         sync_result,

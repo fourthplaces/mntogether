@@ -28,8 +28,8 @@ export const GET_PUBLISHED_POSTS = gql`
 
 // Admin queries
 export const GET_PENDING_POSTS = gql`
-  query GetPendingPosts($limit: Int, $offset: Int) {
-    listings(status: PENDING_APPROVAL, limit: $limit, offset: $offset) {
+  query GetPendingPosts($first: Int, $after: String) {
+    listings(status: PENDING_APPROVAL, first: $first, after: $after) {
       nodes {
         id
         organizationName
@@ -41,20 +41,23 @@ export const GET_PENDING_POSTS = gql`
         submissionType
         createdAt
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       totalCount
-      hasNextPage
     }
   }
 `;
 
 export const GET_SCRAPED_PENDING_POSTS = gql`
-  query GetScrapedPendingPosts($limit: Int, $offset: Int, $postType: String) {
+  query GetScrapedPendingPosts($first: Int, $after: String, $postType: String) {
     listings(
       status: PENDING_APPROVAL
       submissionType: SCRAPED
       postType: $postType
-      limit: $limit
-      offset: $offset
+      first: $first
+      after: $after
     ) {
       nodes {
         id
@@ -108,15 +111,18 @@ export const GET_SCRAPED_PENDING_POSTS = gql`
           }
         }
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       totalCount
-      hasNextPage
     }
   }
 `;
 
 export const GET_ACTIVE_POSTS = gql`
-  query GetActivePosts($limit: Int, $offset: Int) {
-    listings(status: ACTIVE, limit: $limit, offset: $offset) {
+  query GetActivePosts($first: Int, $after: String) {
+    listings(status: ACTIVE, first: $first, after: $after) {
       nodes {
         id
         organizationName
@@ -126,8 +132,11 @@ export const GET_ACTIVE_POSTS = gql`
         submissionType
         createdAt
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       totalCount
-      hasNextPage
     }
   }
 `;
@@ -151,22 +160,26 @@ export const GET_POST_DETAIL = gql`
 `;
 
 export const GET_WEBSITES = gql`
-  query GetWebsites {
-    websites {
-      id
-      domain
-      lastScrapedAt
-      scrapeFrequencyHours
-      active
-      status
-      createdAt
+  query GetWebsites($first: Int, $after: String) {
+    websites(first: $first, after: $after) {
+      nodes {
+        id
+        url
+        status
+        createdAt
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
     }
   }
 `;
 
 export const GET_ORGANIZATION_SOURCE_POSTS = gql`
-  query GetOrganizationSourcePosts($status: ListingStatusData) {
-    listings(status: $status, limit: 1000) {
+  query GetOrganizationSourcePosts($first: Int, $after: String, $status: ListingStatusData) {
+    listings(first: $first, after: $after, status: $status) {
       nodes {
         id
         organizationName
@@ -177,6 +190,10 @@ export const GET_ORGANIZATION_SOURCE_POSTS = gql`
         submissionType
         sourceUrl
         createdAt
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
       totalCount
     }
@@ -227,20 +244,27 @@ export const GET_ORGANIZATION = gql`
 `;
 
 export const GET_CAUSE_DRIVEN_BUSINESSES = gql`
-  query GetCauseDrivenBusinesses {
-    organizations(limit: 100) {
-      id
-      name
-      description
-      businessInfo {
-        proceedsPercentage
-        onlineStoreUrl
-        isCauseDriven
+  query GetCauseDrivenBusinesses($first: Int, $after: String) {
+    organizations(first: $first, after: $after) {
+      nodes {
+        id
+        name
+        description
+        businessInfo {
+          proceedsPercentage
+          onlineStoreUrl
+          isCauseDriven
+        }
+        tags {
+          kind
+          value
+        }
       }
-      tags {
-        kind
-        value
+      pageInfo {
+        hasNextPage
+        endCursor
       }
+      totalCount
     }
   }
 `;
@@ -289,17 +313,24 @@ export const GET_PENDING_WEBSITES = gql`
 `;
 
 export const GET_ALL_WEBSITES = gql`
-  query GetAllWebsites($status: String) {
-    websites(status: $status) {
-      id
-      domain
-      status
-      lastScrapedAt
-      submittedBy
-      submitterType
-      createdAt
-      snapshotsCount
-      listingsCount
+  query GetAllWebsites($first: Int, $after: String, $status: String) {
+    websites(first: $first, after: $after, status: $status) {
+      nodes {
+        id
+        domain
+        status
+        lastScrapedAt
+        submittedBy
+        submitterType
+        createdAt
+        snapshotsCount
+        listingsCount
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
     }
   }
 `;
@@ -486,8 +517,8 @@ export const GET_PENDING_RESOURCES = gql`
 `;
 
 export const GET_RESOURCES = gql`
-  query GetResources($status: ResourceStatusData, $limit: Int, $offset: Int) {
-    resources(status: $status, limit: $limit, offset: $offset) {
+  query GetResources($first: Int, $after: String, $status: ResourceStatusData) {
+    resources(first: $first, after: $after, status: $status) {
       nodes {
         id
         websiteId
@@ -507,8 +538,11 @@ export const GET_RESOURCES = gql`
           displayName
         }
       }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
       totalCount
-      hasNextPage
     }
   }
 `;

@@ -15,9 +15,9 @@ use crate::kernel::ServerDeps;
 /// Extract domain from URL (e.g., "https://example.org/path" -> "example.org")
 pub fn extract_domain(url: &str) -> Option<String> {
     url::Url::parse(url).ok().and_then(|parsed| {
-        parsed.host_str().map(|host| {
-            host.strip_prefix("www.").unwrap_or(host).to_lowercase()
-        })
+        parsed
+            .host_str()
+            .map(|host| host.strip_prefix("www.").unwrap_or(host).to_lowercase())
     })
 }
 

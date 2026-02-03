@@ -24,9 +24,9 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{AppState, MemberId};
 use crate::config::Config;
+use crate::domains::member::models::member::Member;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::posts::effects::run_discovery_searches;
-use crate::domains::member::models::member::Member;
 use crate::domains::website::models::Website;
 use crate::kernel::TavilyClient;
 use crate::server::graphql::context::AppEngine;

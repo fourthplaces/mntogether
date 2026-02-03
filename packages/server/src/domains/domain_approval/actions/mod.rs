@@ -66,7 +66,8 @@ pub async fn assess_website(
 
     // Step 2: Check for existing fresh research (<7 days old)
     let existing =
-        WebsiteResearch::find_latest_by_website_id(website_id_typed.into(), &ctx.deps().db_pool).await?;
+        WebsiteResearch::find_latest_by_website_id(website_id_typed.into(), &ctx.deps().db_pool)
+            .await?;
 
     if let Some(research) = existing {
         let age_days = (chrono::Utc::now() - research.created_at).num_days();
@@ -84,21 +85,19 @@ pub async fn assess_website(
                 "Research is fresh, generating assessment directly"
             );
 
-            let assessment = generate_assessment(
-                research.id,
-                website_id_typed,
-                job_id,
-                requested_by,
-                ctx,
-            )
-            .await?;
+            let assessment =
+                generate_assessment(research.id, website_id_typed, job_id, requested_by, ctx)
+                    .await?;
 
             return Ok(AssessmentResult {
                 job_id: job_id.into_uuid(),
                 website_id,
                 assessment_id: Some(assessment.id),
                 status: "completed".to_string(),
-                message: Some(format!("Assessment generated using existing research ({} days old)", age_days)),
+                message: Some(format!(
+                    "Assessment generated using existing research ({} days old)",
+                    age_days
+                )),
             });
         }
 

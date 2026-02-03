@@ -187,7 +187,7 @@ For each listing, provide:
 2. **tldr**: A 1-2 sentence summary
 3. **description**: Full details (what they need, requirements, impact)
 4. **contact**: Any contact information (phone, email, website)
-5. **urgency**: Estimate urgency ("urgent", "normal", or "low")
+5. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
 6. **confidence**: Your confidence in this extraction ("high", "medium", or "low")
    - "high": Explicitly stated listing with clear details
    - "medium": Mentioned but some details are inferred
@@ -228,12 +228,12 @@ Extract listings as a JSON array."#,
 - "tldr": string
 - "description": string
 - "contact": { "phone": string|null, "email": string|null, "website": string|null }
-- "urgency": "urgent" | "normal" | "low"
+- "urgency": "urgent" | "high" | "medium" | "low"
 - "confidence": "high" | "medium" | "low"
 - "audience_roles": string[] (values: "recipient", "donor", "volunteer", "participant")
 
 Example:
-[{"title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": {"phone": null, "email": "help@org.com", "website": null}, "urgency": "normal", "confidence": "high", "audience_roles": ["volunteer"]}]"#;
+[{"title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": {"phone": null, "email": "help@org.com", "website": null}, "urgency": "medium", "confidence": "high", "audience_roles": ["volunteer"]}]"#;
 
     // Use the fluent LLM API with automatic retry
     let posts: Vec<ExtractedPost> = ai
@@ -317,7 +317,7 @@ For each listing, provide:
 3. **tldr**: A 1-2 sentence summary
 4. **description**: Full details (what they need, requirements, impact)
 5. **contact**: Any contact information (phone, email, website)
-6. **urgency**: Estimate urgency ("urgent", "normal", or "low")
+6. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
 7. **confidence**: Your confidence ("high", "medium", or "low")
 8. **audience_roles**: Array of who this is for: "recipient", "donor", "volunteer", "participant"
 
@@ -347,12 +347,12 @@ Extract all listings from ALL pages as a single JSON array. Each listing must in
 - "tldr": string
 - "description": string
 - "contact": { "phone": string|null, "email": string|null, "website": string|null }
-- "urgency": "urgent" | "normal" | "low"
+- "urgency": "urgent" | "high" | "medium" | "low"
 - "confidence": "high" | "medium" | "low"
 - "audience_roles": string[] (values: "recipient", "donor", "volunteer", "participant")
 
 Example:
-[{"source_url": "https://example.org/volunteer", "title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": null, "urgency": "normal", "confidence": "high", "audience_roles": ["volunteer"]}]"#;
+[{"source_url": "https://example.org/volunteer", "title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": null, "urgency": "medium", "confidence": "high", "audience_roles": ["volunteer"]}]"#;
 
     tracing::info!(
         pages_count = scrubbed_pages.len(),

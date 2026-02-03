@@ -87,7 +87,9 @@ pub async fn fetch_single_page_context(
     page_snapshot_id: Uuid,
     pool: &PgPool,
 ) -> Option<SinglePageContext> {
-    let page_snapshot = PageSnapshot::find_by_id(pool, page_snapshot_id).await.ok()?;
+    let page_snapshot = PageSnapshot::find_by_id(pool, page_snapshot_id)
+        .await
+        .ok()?;
 
     let website_snapshot = WebsiteSnapshot::find_by_page_snapshot_id(pool, page_snapshot_id)
         .await

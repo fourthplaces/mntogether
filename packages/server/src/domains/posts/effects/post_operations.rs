@@ -7,9 +7,9 @@ use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
-use crate::common::{PostId, MemberId, WebsiteId};
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
+use crate::common::{MemberId, PostId, WebsiteId};
 use crate::domains::organization::utils::generate_tldr;
+use crate::domains::posts::models::{Post, PostContact, PostStatus};
 use crate::kernel::BaseAI;
 
 /// Create a new listing with generated content hash and TLDR
@@ -78,11 +78,7 @@ pub async fn create_post(
 }
 
 /// Update listing status and return the appropriate status string
-pub async fn update_post_status(
-    post_id: PostId,
-    status: String,
-    pool: &PgPool,
-) -> Result<String> {
+pub async fn update_post_status(post_id: PostId, status: String, pool: &PgPool) -> Result<String> {
     Post::update_status(post_id, &status, pool)
         .await
         .context("Failed to update listing status")?;

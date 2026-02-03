@@ -20,6 +20,9 @@ pub async fn update_member_status(
     active: bool,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<ReadResult<Member>> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     info!("Updating member {} status to: {}", member_id, active);
 
     match Member::update_status(member_id, active, &ctx.deps().db_pool).await {

@@ -149,13 +149,8 @@ pub async fn scrape_source(
         info!(page_snapshot_id = %page_snapshot.id, "Created new page snapshot");
     }
 
-    if let Ok(website_snapshot) = WebsiteSnapshot::upsert(
-        &ctx.deps().db_pool,
-        source_id,
-        source.domain.clone(),
-        None,
-    )
-    .await
+    if let Ok(website_snapshot) =
+        WebsiteSnapshot::upsert(&ctx.deps().db_pool, source_id, source.domain.clone(), None).await
     {
         let _ = website_snapshot
             .link_snapshot(&ctx.deps().db_pool, page_snapshot.id)
@@ -177,6 +172,141 @@ pub async fn scrape_source(
         source_id: source_id.into_uuid(),
         status: "completed".to_string(),
         message: Some("Scraping completed".to_string()),
+    })
+}
+
+/// Result of refreshing a page snapshot
+#[derive(Debug, Clone)]
+pub struct RefreshPageSnapshotResult {
+    pub job_id: Uuid,
+    pub page_snapshot_id: Uuid,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+/// Refresh a specific page snapshot by re-scraping its URL (admin only)
+/// This re-downloads content for a single page, not the entire website.
+pub async fn refresh_page_snapshot(
+    page_snapshot_id: Uuid,
+    member_id: Uuid,
+    is_admin: bool,
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<RefreshPageSnapshotResult> {
+    let requested_by = MemberId::from_uuid(member_id);
+    let job_id = JobId::new();
+
+    info!(
+        page_snapshot_id = %page_snapshot_id,
+        job_id = %job_id,
+        requested_by = %requested_by,
+        "Starting refresh page snapshot action"
+    );
+
+    // Auth check
+    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+        .can(AdminCapability::TriggerScraping)
+        .check(ctx.deps())
+        .await
+    {
+        tracing::warn!(
+            page_snapshot_id = %page_snapshot_id,
+            requested_by = %requested_by,
+            error = %auth_err,
+            "Authorization denied"
+        );
+        ctx.emit(PostEvent::AuthorizationDenied {
+            user_id: requested_by,
+            action: "RefreshPageSnapshot".to_string(),
+            reason: auth_err.to_string(),
+        });
+        anyhow::bail!("Authorization denied: {}", auth_err);
+    }
+
+    // Find the existing page snapshot
+    let page_snapshot = match PageSnapshot::find_by_id(&ctx.deps().db_pool, page_snapshot_id).await
+    {
+        Ok(ps) => {
+            info!(
+                page_snapshot_id = %page_snapshot_id,
+                url = %ps.url,
+                "Found page snapshot to refresh"
+            );
+            ps
+        }
+        Err(e) => {
+            tracing::error!(page_snapshot_id = %page_snapshot_id, error = %e, "Page snapshot not found");
+            return Ok(RefreshPageSnapshotResult {
+                job_id: job_id.into_uuid(),
+                page_snapshot_id,
+                status: "failed".to_string(),
+                message: Some(format!("Page snapshot not found: {}", e)),
+            });
+        }
+    };
+
+    // Re-scrape the specific page URL
+    let scrape_result = match ctx.deps().web_scraper.scrape(&page_snapshot.url).await {
+        Ok(r) => {
+            info!(
+                page_snapshot_id = %page_snapshot_id,
+                url = %page_snapshot.url,
+                content_length = r.markdown.len(),
+                "Page re-scrape completed"
+            );
+            r
+        }
+        Err(e) => {
+            tracing::error!(
+                page_snapshot_id = %page_snapshot_id,
+                url = %page_snapshot.url,
+                error = %e,
+                "Page re-scraping failed"
+            );
+            return Ok(RefreshPageSnapshotResult {
+                job_id: job_id.into_uuid(),
+                page_snapshot_id,
+                status: "failed".to_string(),
+                message: Some(format!("Scraping failed: {}", e)),
+            });
+        }
+    };
+
+    // Update the page snapshot with new content
+    if let Err(e) = PageSnapshot::update_content(
+        &ctx.deps().db_pool,
+        page_snapshot_id,
+        scrape_result.markdown.clone(),
+        Some(scrape_result.markdown.clone()),
+        "firecrawl_refresh".to_string(),
+    )
+    .await
+    {
+        tracing::error!(
+            page_snapshot_id = %page_snapshot_id,
+            error = %e,
+            "Failed to update page snapshot content"
+        );
+        return Ok(RefreshPageSnapshotResult {
+            job_id: job_id.into_uuid(),
+            page_snapshot_id,
+            status: "failed".to_string(),
+            message: Some(format!("Failed to update content: {}", e)),
+        });
+    }
+
+    // Emit event to trigger post regeneration for this page
+    ctx.emit(PostEvent::PageSnapshotRefreshed {
+        page_snapshot_id,
+        job_id,
+        url: page_snapshot.url.clone(),
+        content: scrape_result.markdown,
+    });
+
+    Ok(RefreshPageSnapshotResult {
+        job_id: job_id.into_uuid(),
+        page_snapshot_id,
+        status: "completed".to_string(),
+        message: Some(format!("Page refreshed: {}", page_snapshot.url)),
     })
 }
 

@@ -174,7 +174,8 @@ pub async fn handle_generate_assessment(
     requested_by: MemberId,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<()> {
-    let assessment = generate_assessment(research_id, website_id, job_id, requested_by, ctx).await?;
+    let assessment =
+        generate_assessment(research_id, website_id, job_id, requested_by, ctx).await?;
 
     ctx.emit(DomainApprovalEvent::WebsiteAssessmentCompleted {
         website_id,

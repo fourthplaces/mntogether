@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, ProviderId, WebsiteId};
+use crate::common::{
+    MemberId, PaginationDirection, ProviderId, ValidatedPaginationArgs, WebsiteId,
+};
 
 /// Provider status enum for type-safe querying
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -140,11 +142,10 @@ impl Provider {
 
     /// Find provider by member ID
     pub async fn find_by_member_id(member_id: MemberId, pool: &PgPool) -> Result<Option<Self>> {
-        let provider =
-            sqlx::query_as::<_, Self>("SELECT * FROM providers WHERE member_id = $1")
-                .bind(member_id.as_uuid())
-                .fetch_optional(pool)
-                .await?;
+        let provider = sqlx::query_as::<_, Self>("SELECT * FROM providers WHERE member_id = $1")
+            .bind(member_id.as_uuid())
+            .fetch_optional(pool)
+            .await?;
         Ok(provider)
     }
 
@@ -419,6 +420,77 @@ impl Provider {
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    // =========================================================================
+    // Cursor-Based Pagination (Relay spec)
+    // =========================================================================
+
+    /// Find providers with cursor-based pagination
+    pub async fn find_paginated(
+        status: Option<&str>,
+        args: &ValidatedPaginationArgs,
+        pool: &PgPool,
+    ) -> Result<(Vec<Self>, bool)> {
+        let fetch_limit = args.fetch_limit();
+
+        let results = match args.direction {
+            PaginationDirection::Forward => {
+                sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM providers
+                    WHERE ($1::text IS NULL OR status = $1)
+                      AND ($2::uuid IS NULL OR id > $2)
+                    ORDER BY id ASC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?
+            }
+            PaginationDirection::Backward => {
+                let mut rows = sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM providers
+                    WHERE ($1::text IS NULL OR status = $1)
+                      AND ($2::uuid IS NULL OR id < $2)
+                    ORDER BY id DESC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?;
+
+                rows.reverse();
+                rows
+            }
+        };
+
+        let has_more = results.len() > args.limit as usize;
+        let results = if has_more {
+            results.into_iter().take(args.limit as usize).collect()
+        } else {
+            results
+        };
+
+        Ok((results, has_more))
+    }
+
+    /// Count providers with optional status filter
+    pub async fn count_with_filters(status: Option<&str>, pool: &PgPool) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM providers WHERE ($1::text IS NULL OR status = $1)",
+        )
+        .bind(status)
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
     }
 }
 

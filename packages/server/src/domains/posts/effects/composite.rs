@@ -146,7 +146,8 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
             | PostEvent::AuthorizationDenied { .. }
             | PostEvent::PostsDeduplicated { .. }
             | PostEvent::DeduplicationFailed { .. }
-            | PostEvent::WebsitePendingApproval { .. } => Ok(()),
+            | PostEvent::WebsitePendingApproval { .. }
+            | PostEvent::PageSnapshotRefreshed { .. } => Ok(()),
         }
     })
 }

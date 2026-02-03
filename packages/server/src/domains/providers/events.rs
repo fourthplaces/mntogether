@@ -11,7 +11,6 @@ pub enum ProviderEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)
     // =========================================================================
-
     /// Provider was submitted (goes to pending_review)
     ProviderCreated {
         provider_id: ProviderId,

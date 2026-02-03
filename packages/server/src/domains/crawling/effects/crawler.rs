@@ -32,7 +32,9 @@ pub fn crawler_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 website_id,
                 job_id,
                 pages,
-            } => handlers::handle_extract_from_pages(*website_id, *job_id, pages.clone(), &ctx).await,
+            } => {
+                handlers::handle_extract_from_pages(*website_id, *job_id, pages.clone(), &ctx).await
+            }
 
             // =================================================================
             // Cascade: PostsExtractedFromPages → sync posts to database

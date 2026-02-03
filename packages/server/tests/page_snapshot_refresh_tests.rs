@@ -100,7 +100,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         "completed"
     );
 
-    // Get the website snapshot ID
+    // Get the page snapshot ID (linked via website_snapshot)
     let snapshots = WebsiteSnapshot::find_by_website(&test_ctx.db_pool, website.id)
         .await
         .expect("Failed to fetch snapshots");
@@ -109,18 +109,29 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         1,
         "Expected one snapshot after initial scrape"
     );
-    let snapshot_id = snapshots[0].id;
+
+    // Get the page snapshot ID from the website snapshot
+    let page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
+        r#"
+        SELECT page_snapshot_id
+        FROM website_snapshots
+        WHERE id = $1
+        "#,
+    )
+    .bind(snapshots[0].id)
+    .fetch_one(&test_ctx.db_pool)
+    .await
+    .expect("Failed to fetch page snapshot id");
 
     // Get initial page snapshot content hash
     let initial_content_hash = sqlx::query_scalar::<_, Vec<u8>>(
         r#"
-        SELECT ps.content_hash
-        FROM page_snapshots ps
-        JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
-        WHERE ws.id = $1
+        SELECT content_hash
+        FROM page_snapshots
+        WHERE id = $1
         "#,
     )
-    .bind(snapshot_id)
+    .bind(page_snapshot_id)
     .fetch_one(&test_ctx.db_pool)
     .await
     .expect("Failed to fetch initial page snapshot");
@@ -138,7 +149,7 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     let mut refresh_vars = juniper::Variables::new();
     refresh_vars.insert(
         "snapshotId".to_string(),
-        juniper::InputValue::scalar(snapshot_id.to_string()),
+        juniper::InputValue::scalar(page_snapshot_id.to_string()),
     );
 
     let refresh_result = client.query_with_vars(refresh_mutation, refresh_vars).await;
@@ -151,16 +162,15 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
         "completed"
     );
 
-    // Verify new page snapshot was created with different content hash
+    // Verify page snapshot content hash was updated
     let updated_content_hash = sqlx::query_scalar::<_, Vec<u8>>(
         r#"
-        SELECT ps.content_hash
-        FROM page_snapshots ps
-        JOIN website_snapshots ws ON ws.page_snapshot_id = ps.id
-        WHERE ws.id = $1
+        SELECT content_hash
+        FROM page_snapshots
+        WHERE id = $1
         "#,
     )
-    .bind(snapshot_id)
+    .bind(page_snapshot_id)
     .fetch_one(&test_ctx.db_pool)
     .await
     .expect("Failed to fetch updated page snapshot");
@@ -193,19 +203,21 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
         .await
         .expect("Failed to approve website");
 
-    // Create a website snapshot manually
-    let snapshot_id = sqlx::query_scalar::<_, Uuid>(
+    // Create a page snapshot manually
+    let page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
-        INSERT INTO website_snapshots (website_id, page_url, scrape_status)
-        VALUES ($1, $2, 'pending')
+        INSERT INTO page_snapshots (id, url, content_hash, html, markdown, fetched_via, metadata, crawled_at, extraction_status)
+        VALUES ($1, $2, $3, $4, $4, 'test', '{}', NOW(), 'pending')
         RETURNING id
         "#,
     )
-    .bind(website.id.into_uuid())
+    .bind(Uuid::new_v4())
     .bind("https://test-refresh-auth.org")
+    .bind(vec![0u8; 32]) // dummy hash
+    .bind("# Test content")
     .fetch_one(&ctx.db_pool)
     .await
-    .expect("Failed to create snapshot");
+    .expect("Failed to create page snapshot");
 
     // Try to refresh without authentication
     let client = ctx.graphql();
@@ -221,7 +233,7 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
     let mut refresh_vars = juniper::Variables::new();
     refresh_vars.insert(
         "snapshotId".to_string(),
-        juniper::InputValue::scalar(snapshot_id.to_string()),
+        juniper::InputValue::scalar(page_snapshot_id.to_string()),
     );
 
     let result = client
@@ -236,7 +248,7 @@ async fn refresh_page_snapshot_requires_admin_auth(ctx: &TestHarness) {
     assert!(!result.errors.is_empty(), "Expected errors in response");
 }
 
-/// Test that refreshing nonexistent snapshot returns error
+/// Test that refreshing nonexistent snapshot returns failed status
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn refresh_nonexistent_snapshot_returns_error(ctx: &TestHarness) {
@@ -247,6 +259,7 @@ async fn refresh_nonexistent_snapshot_returns_error(ctx: &TestHarness) {
         mutation RefreshPageSnapshot($snapshotId: String!) {
             refreshPageSnapshot(snapshotId: $snapshotId) {
                 status
+                message
             }
         }
     "#;
@@ -262,12 +275,24 @@ async fn refresh_nonexistent_snapshot_returns_error(ctx: &TestHarness) {
         .execute_with_vars(refresh_mutation, refresh_vars)
         .await;
 
-    // Assert: Should return an error for nonexistent snapshot
-    assert!(
-        !result.is_ok(),
-        "Expected error for nonexistent snapshot, got success"
+    // Assert: Should return "failed" status for nonexistent snapshot
+    let data = result.data.expect("Expected data in response");
+    let status = data["refreshPageSnapshot"]["status"]
+        .as_str()
+        .expect("Expected status field");
+    assert_eq!(
+        status, "failed",
+        "Expected failed status for nonexistent snapshot"
     );
-    assert!(!result.errors.is_empty(), "Expected errors in response");
+
+    let message = data["refreshPageSnapshot"]["message"]
+        .as_str()
+        .unwrap_or("");
+    assert!(
+        message.contains("not found"),
+        "Expected message to contain 'not found', got: {:?}",
+        message
+    );
 }
 
 /// Test that refresh with unchanged content doesn't create duplicate page snapshot
@@ -334,24 +359,35 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
 
     client.query_with_vars(scrape_mutation, scrape_vars).await;
 
-    // Get snapshot ID
+    // Get page snapshot ID via website snapshot
     let snapshots = WebsiteSnapshot::find_by_website(&test_ctx.db_pool, website.id)
         .await
         .expect("Failed to fetch snapshots");
-    let snapshot_id = snapshots[0].id;
 
-    // Get initial page snapshot
-    let initial_page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
+    let page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
         r#"
         SELECT page_snapshot_id
         FROM website_snapshots
         WHERE id = $1
         "#,
     )
-    .bind(snapshot_id)
+    .bind(snapshots[0].id)
     .fetch_one(&test_ctx.db_pool)
     .await
     .expect("Failed to fetch page snapshot id");
+
+    // Get initial content hash
+    let initial_content_hash = sqlx::query_scalar::<_, Vec<u8>>(
+        r#"
+        SELECT content_hash
+        FROM page_snapshots
+        WHERE id = $1
+        "#,
+    )
+    .bind(page_snapshot_id)
+    .fetch_one(&test_ctx.db_pool)
+    .await
+    .expect("Failed to fetch initial content hash");
 
     // Act: Refresh with same content
     let refresh_mutation = r#"
@@ -365,26 +401,26 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     let mut refresh_vars = juniper::Variables::new();
     refresh_vars.insert(
         "snapshotId".to_string(),
-        juniper::InputValue::scalar(snapshot_id.to_string()),
+        juniper::InputValue::scalar(page_snapshot_id.to_string()),
     );
 
     client.query_with_vars(refresh_mutation, refresh_vars).await;
 
-    // Assert: Should still point to same page snapshot (content_hash deduplication)
-    let updated_page_snapshot_id = sqlx::query_scalar::<_, Uuid>(
+    // Assert: Content hash should be the same (same content)
+    let updated_content_hash = sqlx::query_scalar::<_, Vec<u8>>(
         r#"
-        SELECT page_snapshot_id
-        FROM website_snapshots
+        SELECT content_hash
+        FROM page_snapshots
         WHERE id = $1
         "#,
     )
-    .bind(snapshot_id)
+    .bind(page_snapshot_id)
     .fetch_one(&test_ctx.db_pool)
     .await
-    .expect("Failed to fetch updated page snapshot id");
+    .expect("Failed to fetch updated content hash");
 
     assert_eq!(
-        initial_page_snapshot_id, updated_page_snapshot_id,
-        "Should reuse same page snapshot when content hasn't changed"
+        initial_content_hash, updated_content_hash,
+        "Content hash should be the same when content hasn't changed"
     );
 }

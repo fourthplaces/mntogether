@@ -120,15 +120,23 @@ export const SEARCH_ORGANIZATIONS = `
 `;
 
 export const GET_ORGANIZATIONS = `
-  query GetOrganizations {
-    organizations {
-      id
-      name
-      description
-      summary
-      website
-      phone
-      primaryAddress
+  query GetOrganizations($first: Int, $after: String) {
+    organizations(first: $first, after: $after) {
+      nodes {
+        id
+        name
+        description
+        contactInfo {
+          website
+          phone
+        }
+        location
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      totalCount
     }
   }
 `;

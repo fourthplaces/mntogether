@@ -1,22 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useLazyQuery, gql } from '@apollo/client';
 import { useNavigate } from 'react-router-dom';
+import PaginationControls from '../../components/PaginationControls';
+import { useCursorPagination } from '../../hooks/useCursorPagination';
 
-const GET_ALL_WEBSITES = gql`
-  query GetAllWebsites {
-    websites(status: null) {
-      id
-      domain
-      status
-      submitterType
-      lastScrapedAt
-      snapshotsCount
-      listingsCount
-      createdAt
-      crawlStatus
-      crawlAttemptCount
-      pagesCrawledCount
+const GET_WEBSITES_PAGINATED = gql`
+  query GetWebsitesPaginated($first: Int, $after: String, $status: String) {
+    websites(first: $first, after: $after, status: $status) {
+      nodes {
+        id
+        domain
+        status
+        submitterType
+        lastScrapedAt
+        snapshotsCount
+        listingsCount
+        createdAt
+        crawlStatus
+        crawlAttemptCount
+        pagesCrawledCount
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+      totalCount
     }
+  }
+`;
+
+const GET_WEBSITE_COUNTS = gql`
+  query GetWebsiteCounts {
+    allWebsites: websites(first: 1) { totalCount }
+    pendingWebsites: websites(first: 1, status: "pending_review") { totalCount }
+    approvedWebsites: websites(first: 1, status: "approved") { totalCount }
+    rejectedWebsites: websites(first: 1, status: "rejected") { totalCount }
   }
 `;
 
@@ -106,26 +126,40 @@ export function Websites() {
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [crawlingId, setCrawlingId] = useState<string | null>(null);
 
-  const { data, loading, refetch } = useQuery<{ websites: Website[] }>(GET_ALL_WEBSITES);
+  const pagination = useCursorPagination({ pageSize: 20 });
+
+  // Reset pagination when filter changes
+  useEffect(() => {
+    pagination.reset();
+  }, [statusFilter]);
+
+  const { data: countsData, refetch: refetchCounts } = useQuery(GET_WEBSITE_COUNTS);
+
+  const { data, loading, refetch } = useQuery(GET_WEBSITES_PAGINATED, {
+    variables: {
+      ...pagination.variables,
+      status: statusFilter === 'all' ? null : statusFilter,
+    },
+  });
 
   const [executeSearch, { data: searchData, loading: searchLoading }] = useLazyQuery<{
     searchWebsites: WebsiteSearchResult[];
   }>(SEARCH_WEBSITES);
 
   const [approveWebsite] = useMutation(APPROVE_WEBSITE, {
-    onCompleted: () => refetch(),
+    onCompleted: () => handleRefetch(),
     onError: (err) => setError(err.message),
   });
 
   const [rejectWebsite] = useMutation(REJECT_WEBSITE, {
-    onCompleted: () => refetch(),
+    onCompleted: () => handleRefetch(),
     onError: (err) => setError(err.message),
   });
 
   const [crawlWebsite] = useMutation(CRAWL_WEBSITE, {
     onCompleted: () => {
       setCrawlingId(null);
-      refetch();
+      handleRefetch();
     },
     onError: (err) => {
       setError(err.message);
@@ -138,7 +172,7 @@ export function Websites() {
       setShowAddForm(false);
       setNewResourceUrl('');
       setError(null);
-      refetch();
+      handleRefetch();
     },
     onError: (err) => setError(err.message),
   });
@@ -208,15 +242,27 @@ export function Websites() {
     setSelectedWebsites(newSelection);
   };
 
-  // Filter websites
-  const filteredWebsites = data?.websites.filter((website) => {
-    if (statusFilter === 'all') return true;
-    return website.status === statusFilter;
-  });
+  // Get websites from paginated response
+  const websites = data?.websites?.nodes || [];
+  const totalCount = data?.websites?.totalCount || 0;
+  const pageInfo = data?.websites?.pageInfo || { hasNextPage: false, hasPreviousPage: false };
+  const fullPageInfo = pagination.buildPageInfo(
+    pageInfo.hasNextPage,
+    pageInfo.startCursor,
+    pageInfo.endCursor
+  );
 
-  const pendingCount = data?.websites.filter((d) => d.status === 'pending_review').length || 0;
-  const approvedCount = data?.websites.filter((d) => d.status === 'approved').length || 0;
-  const rejectedCount = data?.websites.filter((d) => d.status === 'rejected').length || 0;
+  // Get counts from separate query
+  const allCount = countsData?.allWebsites?.totalCount || 0;
+  const pendingCount = countsData?.pendingWebsites?.totalCount || 0;
+  const approvedCount = countsData?.approvedWebsites?.totalCount || 0;
+  const rejectedCount = countsData?.rejectedWebsites?.totalCount || 0;
+
+  // Refetch counts when mutations complete
+  const handleRefetch = () => {
+    refetch();
+    refetchCounts();
+  };
 
   if (loading) {
     return (
@@ -365,7 +411,7 @@ export function Websites() {
                   : 'text-stone-600 hover:text-stone-900'
               }`}
             >
-              All ({data?.websites.length || 0})
+              All ({allCount})
             </button>
             <button
               onClick={() => setStatusFilter('pending_review')}
@@ -438,7 +484,7 @@ export function Websites() {
                       onChange={(e) => {
                         if (e.target.checked) {
                           setSelectedWebsites(
-                            new Set(filteredWebsites?.map((d) => d.id) || [])
+                            new Set(websites?.map((d) => d.id) || [])
                           );
                         } else {
                           setSelectedWebsites(new Set());
@@ -465,7 +511,7 @@ export function Websites() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-stone-200">
-                {filteredWebsites?.map((website) => (
+                {websites?.map((website) => (
                   <tr
                     key={website.id}
                     className="hover:bg-stone-50 cursor-pointer"
@@ -572,7 +618,7 @@ export function Websites() {
 
           {/* Mobile Cards - Shown only on mobile/tablet */}
           <div className="lg:hidden divide-y divide-stone-200">
-            {filteredWebsites?.map((website) => (
+            {websites?.map((website) => (
               <div
                 key={website.id}
                 className="p-4 cursor-pointer hover:bg-stone-50"
@@ -655,12 +701,27 @@ export function Websites() {
             ))}
           </div>
 
-          {filteredWebsites?.length === 0 && (
+          {websites?.length === 0 && (
             <div className="text-center py-12 text-stone-600">
               No websites found with status: {statusFilter}
             </div>
           )}
         </div>
+
+        {/* Pagination */}
+        {websites.length > 0 && (
+          <div className="mt-6">
+            <PaginationControls
+              pageInfo={fullPageInfo}
+              totalCount={totalCount}
+              currentPage={pagination.currentPage}
+              pageSize={pagination.pageSize}
+              onNextPage={() => pagination.goToNextPage(pageInfo.endCursor)}
+              onPreviousPage={pagination.goToPreviousPage}
+              loading={loading}
+            />
+          </div>
+        )}
       </div>
 
       {/* Add Website Modal */}

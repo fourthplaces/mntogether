@@ -73,35 +73,29 @@ pub async fn deduplicate_posts(
     let mut total_groups = 0;
 
     for website in &websites {
-        let dedup_result = match deduplicate_posts_llm(
-            website.id,
-            ctx.deps().ai.as_ref(),
-            &ctx.deps().db_pool,
-        )
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
-                continue;
-            }
-        };
+        let dedup_result =
+            match deduplicate_posts_llm(website.id, ctx.deps().ai.as_ref(), &ctx.deps().db_pool)
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
+                    continue;
+                }
+            };
 
         total_groups += dedup_result.duplicate_groups.len();
 
-        let deleted = match apply_dedup_results(
-            dedup_result,
-            ctx.deps().ai.as_ref(),
-            &ctx.deps().db_pool,
-        )
-        .await
-        {
-            Ok(d) => d,
-            Err(e) => {
-                warn!(website_id = %website.id, error = %e, "Failed to apply deduplication");
-                continue;
-            }
-        };
+        let deleted =
+            match apply_dedup_results(dedup_result, ctx.deps().ai.as_ref(), &ctx.deps().db_pool)
+                .await
+            {
+                Ok(d) => d,
+                Err(e) => {
+                    warn!(website_id = %website.id, error = %e, "Failed to apply deduplication");
+                    continue;
+                }
+            };
 
         total_deleted += deleted;
 

@@ -60,13 +60,16 @@ pub async fn submit_provider(
     Ok(provider)
 }
 
-/// Update a provider
+/// Update a provider (admin only)
 /// Returns the updated Provider directly.
 pub async fn update_provider(
     provider_id: String,
     input: UpdateProviderInput,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Provider> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, "Updating provider");
@@ -91,13 +94,16 @@ pub async fn update_provider(
     Ok(provider)
 }
 
-/// Approve a provider
+/// Approve a provider (admin only)
 /// Returns the updated Provider directly.
 pub async fn approve_provider(
     provider_id: String,
     reviewed_by_id: Uuid,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Provider> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -114,7 +120,7 @@ pub async fn approve_provider(
     Ok(provider)
 }
 
-/// Reject a provider
+/// Reject a provider (admin only)
 /// Returns the updated Provider directly.
 pub async fn reject_provider(
     provider_id: String,
@@ -122,6 +128,9 @@ pub async fn reject_provider(
     reviewed_by_id: Uuid,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Provider> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -139,7 +148,7 @@ pub async fn reject_provider(
     Ok(provider)
 }
 
-/// Suspend a provider
+/// Suspend a provider (admin only)
 /// Returns the updated Provider directly.
 pub async fn suspend_provider(
     provider_id: String,
@@ -147,6 +156,9 @@ pub async fn suspend_provider(
     reviewed_by_id: Uuid,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Provider> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -164,7 +176,7 @@ pub async fn suspend_provider(
     Ok(provider)
 }
 
-/// Add a tag to a provider
+/// Add a tag to a provider (admin only)
 pub async fn add_provider_tag(
     provider_id: String,
     tag_kind: String,
@@ -172,6 +184,9 @@ pub async fn add_provider_tag(
     display_name: Option<String>,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Tag> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, tag_kind = %tag_kind, tag_value = %tag_value, "Adding provider tag");
@@ -182,12 +197,15 @@ pub async fn add_provider_tag(
     Ok(tag)
 }
 
-/// Remove a tag from a provider
+/// Remove a tag from a provider (admin only)
 pub async fn remove_provider_tag(
     provider_id: String,
     tag_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<bool> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let provider_id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let tag_id = TagId::parse(&tag_id).context("Invalid tag ID")?;
 
@@ -198,7 +216,7 @@ pub async fn remove_provider_tag(
     Ok(true)
 }
 
-/// Add a contact to a provider
+/// Add a contact to a provider (admin only)
 pub async fn add_provider_contact(
     provider_id: String,
     contact_type: String,
@@ -208,6 +226,9 @@ pub async fn add_provider_contact(
     display_order: Option<i32>,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Contact> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, contact_type = %contact_type, "Adding provider contact");
@@ -226,11 +247,14 @@ pub async fn add_provider_contact(
     Ok(contact)
 }
 
-/// Remove a contact from a provider
+/// Remove a contact from a provider (admin only)
 pub async fn remove_provider_contact(
     contact_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<bool> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ContactId::parse(&contact_id).context("Invalid contact ID")?;
 
     info!(contact_id = %id, "Removing provider contact");
@@ -240,7 +264,7 @@ pub async fn remove_provider_contact(
     Ok(true)
 }
 
-/// Delete a provider
+/// Delete a provider (admin only)
 ///
 /// Emits ProviderDeleted event which triggers cascade cleanup of contacts and tags
 /// via the provider effect handler. This keeps delete_provider focused on ONE thing
@@ -249,6 +273,9 @@ pub async fn delete_provider(
     provider_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<bool> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, "Deleting provider");

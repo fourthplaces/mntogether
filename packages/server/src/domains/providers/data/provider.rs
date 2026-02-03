@@ -215,3 +215,48 @@ pub struct ProviderStatusData {
     pub status: String,
     pub count: i32,
 }
+
+// ============================================================================
+// Relay Pagination Types
+// ============================================================================
+
+/// Edge containing a provider and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct ProviderEdge {
+    pub node: ProviderData,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ProviderEdge {
+    fn node(&self) -> &ProviderData {
+        &self.node
+    }
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated providers (Relay spec)
+#[derive(Debug, Clone)]
+pub struct ProviderConnection {
+    pub edges: Vec<ProviderEdge>,
+    pub page_info: crate::common::PageInfo,
+    pub total_count: i32,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ProviderConnection {
+    fn edges(&self) -> &[ProviderEdge] {
+        &self.edges
+    }
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    fn total_count(&self) -> i32 {
+        self.total_count
+    }
+    fn nodes(&self) -> Vec<&ProviderData> {
+        self.edges.iter().map(|e| &e.node).collect()
+    }
+}

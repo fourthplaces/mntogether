@@ -13,13 +13,8 @@ use crate::kernel::ServerDeps;
 
 /// Result of verifying OTP
 pub enum VerifyOtpResult {
-    Verified {
-        member_id: Uuid,
-        is_admin: bool,
-    },
-    Failed {
-        reason: String,
-    },
+    Verified { member_id: Uuid, is_admin: bool },
+    Failed { reason: String },
 }
 
 /// Verify OTP code.
@@ -47,10 +42,7 @@ pub async fn verify_otp(
         {
             Some(id) => id,
             None => {
-                info!(
-                    "Auto-creating test member and identifier: {}",
-                    phone_number
-                );
+                info!("Auto-creating test member and identifier: {}", phone_number);
                 let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
 
                 // Create member record first

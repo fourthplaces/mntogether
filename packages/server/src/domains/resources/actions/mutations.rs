@@ -20,6 +20,9 @@ pub async fn approve_resource(
     resource_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Resource> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
     info!(resource_id = %id, "Approving resource");
@@ -39,6 +42,9 @@ pub async fn reject_resource(
     reason: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Resource> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
     info!(resource_id = %id, reason = %reason, "Rejecting resource");
@@ -61,6 +67,9 @@ pub async fn edit_resource(
     input: EditResourceInput,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Resource> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
     info!(resource_id = %id, "Editing resource");
@@ -103,6 +112,9 @@ pub async fn edit_and_approve_resource(
     input: EditResourceInput,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<Resource> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
     info!(resource_id = %id, "Editing and approving resource");
@@ -150,6 +162,9 @@ pub async fn delete_resource(
     resource_id: String,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<bool> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     let id = ResourceId::parse(&resource_id).context("Invalid resource ID")?;
 
     info!(resource_id = %id, "Deleting resource");
@@ -175,6 +190,9 @@ pub async fn generate_missing_embeddings(
     batch_size: i64,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<GenerateEmbeddingsResult> {
+    // Admin authorization check
+    ctx.next_state().require_admin()?;
+
     info!(batch_size = batch_size, "Generating missing embeddings");
 
     let resources = Resource::find_without_embeddings(batch_size, &ctx.deps().db_pool).await?;
@@ -200,8 +218,7 @@ pub async fn generate_missing_embeddings(
         {
             Ok(embedding) => {
                 if let Err(e) =
-                    Resource::update_embedding(resource.id, &embedding, &ctx.deps().db_pool)
-                        .await
+                    Resource::update_embedding(resource.id, &embedding, &ctx.deps().db_pool).await
                 {
                     tracing::error!(resource_id = %resource.id.into_uuid(), error = %e, "Failed to save embedding");
                     failed += 1;

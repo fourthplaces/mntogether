@@ -1,7 +1,7 @@
 use crate::common::WebsiteId;
+use crate::domains::crawling::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::posts::data::PostData;
 use crate::domains::posts::models::post::Post;
-use crate::domains::crawling::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
@@ -76,11 +76,11 @@ impl PageSnapshotData {
         Ok(summary.map(|s| s.content))
     }
 
-    /// Get all listings extracted from this page
+    /// Get all listings extracted from this page (excludes soft-deleted)
     async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<PostData>> {
         use crate::domains::posts::models::Post;
         let posts = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE source_url = $1 ORDER BY created_at DESC"
+            "SELECT * FROM posts WHERE source_url = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
         )
         .bind(&self.url)
         .fetch_all(&context.db_pool)
@@ -89,10 +89,13 @@ impl PageSnapshotData {
     }
 
     /// Get the website snapshot ID that references this page snapshot (for re-scraping)
-    async fn website_snapshot_id(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<String>> {
+    async fn website_snapshot_id(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Option<String>> {
         let page_snapshot_id: PageSnapshotId = self.id.parse()?;
         let snapshot_id: Option<Uuid> = sqlx::query_scalar(
-            "SELECT id FROM website_snapshots WHERE page_snapshot_id = $1 LIMIT 1"
+            "SELECT id FROM website_snapshots WHERE page_snapshot_id = $1 LIMIT 1",
         )
         .bind(page_snapshot_id)
         .fetch_optional(&context.db_pool)
@@ -108,7 +111,7 @@ impl PageSnapshotData {
             "SELECT w.* FROM websites w
              INNER JOIN website_snapshots ws ON ws.website_id = w.id
              WHERE ws.page_snapshot_id = $1
-             LIMIT 1"
+             LIMIT 1",
         )
         .bind(page_snapshot_id)
         .fetch_optional(&context.db_pool)
@@ -186,7 +189,10 @@ impl WebsiteSnapshotData {
     }
 
     /// Get the full page snapshot data (if available)
-    async fn page_snapshot(&self, context: &GraphQLContext) -> juniper::FieldResult<Option<PageSnapshotData>> {
+    async fn page_snapshot(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Option<PageSnapshotData>> {
         let Some(ref page_snapshot_id_str) = self.page_snapshot_id else {
             return Ok(None);
         };
@@ -328,15 +334,16 @@ impl WebsiteData {
         Ok(count as i32)
     }
 
-    /// Get count of listings from this website
+    /// Get count of listings from this website (excludes soft-deleted)
     async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
-        let count =
-            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM posts WHERE website_id = $1")
-                .bind(website_id)
-                .fetch_one(&context.db_pool)
-                .await?;
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(website_id)
+        .fetch_one(&context.db_pool)
+        .await?;
         Ok(count as i32)
     }
 
@@ -356,6 +363,60 @@ impl WebsiteData {
         let uuid = Uuid::parse_str(&self.id)?;
         let website_id = WebsiteId::from_uuid(uuid);
         let snapshots = WebsiteSnapshot::find_by_website(&context.db_pool, website_id).await?;
-        Ok(snapshots.into_iter().map(WebsiteSnapshotData::from).collect())
+        Ok(snapshots
+            .into_iter()
+            .map(WebsiteSnapshotData::from)
+            .collect())
+    }
+}
+
+// ============================================================================
+// Relay Pagination Types
+// ============================================================================
+
+/// Edge containing a website and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct WebsiteEdge {
+    pub node: WebsiteData,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl WebsiteEdge {
+    /// The website at the end of the edge
+    fn node(&self) -> &WebsiteData {
+        &self.node
+    }
+    /// A cursor for pagination
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated websites (Relay spec)
+#[derive(Debug, Clone)]
+pub struct WebsiteConnection {
+    pub edges: Vec<WebsiteEdge>,
+    pub page_info: crate::common::PageInfo,
+    pub total_count: i32,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl WebsiteConnection {
+    /// A list of edges (website + cursor pairs)
+    fn edges(&self) -> &[WebsiteEdge] {
+        &self.edges
+    }
+    /// Information about pagination
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    /// Total count of websites matching the filter
+    fn total_count(&self) -> i32 {
+        self.total_count
+    }
+    /// Convenience: direct access to nodes (for simpler queries)
+    fn nodes(&self) -> Vec<&WebsiteData> {
+        self.edges.iter().map(|e| &e.node).collect()
     }
 }

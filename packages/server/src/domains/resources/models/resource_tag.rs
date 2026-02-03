@@ -35,7 +35,10 @@ impl ResourceTag {
     }
 
     /// Find all tags for a resource (returns full Tag objects)
-    pub async fn find_tags_for_resource(resource_id: ResourceId, pool: &PgPool) -> Result<Vec<Tag>> {
+    pub async fn find_tags_for_resource(
+        resource_id: ResourceId,
+        pool: &PgPool,
+    ) -> Result<Vec<Tag>> {
         let tags = sqlx::query_as::<_, Tag>(
             r#"
             SELECT t.*

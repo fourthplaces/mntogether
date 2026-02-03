@@ -30,14 +30,14 @@ use crate::server::static_files::{serve_admin, serve_web_app};
 
 // Import effect builder functions from each domain
 use crate::domains::auth::effects::auth_effect;
-use crate::domains::member::effects::member_effect;
 use crate::domains::chatrooms::effects::chat_effect;
-use crate::domains::website::effects::website_effect;
 use crate::domains::crawling::effects::crawler_effect;
-use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::domain_approval::effects::domain_approval_effect;
+use crate::domains::member::effects::member_effect;
+use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::providers::effects::provider_effect;
 use crate::domains::resources::effects::resource_effect;
+use crate::domains::website::effects::website_effect;
 
 /// Shared application state
 #[derive(Clone)]
@@ -161,7 +161,9 @@ pub fn build_app(
         pool.clone(),
         Arc::new(web_scraper),
         openai_client.clone(),
-        Arc::new(crate::common::utils::EmbeddingService::new(embedding_api_key)),
+        Arc::new(crate::common::utils::EmbeddingService::new(
+            embedding_api_key,
+        )),
         Arc::new(crate::common::utils::ExpoClient::new(expo_access_token)),
         Arc::new(TwilioAdapter::new(twilio.clone())),
         search_service,

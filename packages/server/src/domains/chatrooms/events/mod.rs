@@ -23,12 +23,13 @@ pub enum ChatEvent {
     },
 
     /// Message was created
-    MessageCreated {
-        message: Message,
-    },
+    MessageCreated { message: Message },
 
     /// Message creation failed
-    MessageFailed { container_id: ContainerId, reason: String },
+    MessageFailed {
+        container_id: ContainerId,
+        reason: String,
+    },
 
     /// AI reply generation failed
     ReplyGenerationFailed {
@@ -118,7 +119,9 @@ impl IntoNatsPayload for ChatEvent {
             ChatEvent::MessageCreated { message } => Some(message.container_id.into()),
             ChatEvent::MessageFailed { container_id, .. } => Some((*container_id).into()),
             ChatEvent::ReplyGenerationFailed { container_id, .. } => Some((*container_id).into()),
-            ChatEvent::GreetingGenerationFailed { container_id, .. } => Some((*container_id).into()),
+            ChatEvent::GreetingGenerationFailed { container_id, .. } => {
+                Some((*container_id).into())
+            }
         }
     }
 
@@ -135,14 +138,15 @@ impl IntoNatsPayload for ChatEvent {
                 .unwrap_or_default()
             }
 
-            ChatEvent::ContainerCreated { container, with_agent } => {
-                serde_json::to_value(ChatEventPayload::ContainerCreated {
-                    container_id: container.id.to_string(),
-                    container_type: container.container_type.clone(),
-                    with_agent: with_agent.clone(),
-                })
-                .unwrap_or_default()
-            }
+            ChatEvent::ContainerCreated {
+                container,
+                with_agent,
+            } => serde_json::to_value(ChatEventPayload::ContainerCreated {
+                container_id: container.id.to_string(),
+                container_type: container.container_type.clone(),
+                with_agent: with_agent.clone(),
+            })
+            .unwrap_or_default(),
 
             // Other events don't have payload representations
             _ => serde_json::Value::Null,

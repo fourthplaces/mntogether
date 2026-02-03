@@ -11,8 +11,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 
 use super::{
-    job_queue::JobQueue, BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
-    BaseSearchService, BaseWebScraper,
+    job_queue::JobQueue, BaseAI, BaseEmbeddingService, BasePiiDetector,
+    BasePushNotificationService, BaseSearchService, BaseWebScraper,
 };
 
 /// ServerKernel holds all server dependencies

@@ -79,15 +79,7 @@ pub async fn sync_resources(
     let mut errors = Vec::new();
 
     for input in extracted_resources {
-        match sync_single_resource(
-            &input,
-            website_id,
-            embedding_service,
-            ai,
-            pool,
-        )
-        .await
-        {
+        match sync_single_resource(&input, website_id, embedding_service, ai, pool).await {
             Ok(SyncAction::Created(id)) => {
                 info!(resource_id = %id, title = %input.title, "Created new resource");
                 new_resources.push(id);
@@ -149,14 +141,8 @@ async fn sync_single_resource(
         organization_name: input.organization_name.clone(),
     };
 
-    let dedup_action = deduplicate_resource(
-        &dedup_input,
-        website_id,
-        embedding_service,
-        ai,
-        pool,
-    )
-    .await?;
+    let dedup_action =
+        deduplicate_resource(&dedup_input, website_id, embedding_service, ai, pool).await?;
 
     match dedup_action {
         DedupAction::New { reasoning } => {
@@ -202,7 +188,9 @@ async fn sync_single_resource(
             // Add tags
             for (kind, value) in &input.tags {
                 use crate::domains::resources::models::ResourceTag;
-                if let Err(e) = ResourceTag::add_tag_by_value(resource.id, kind, value, None, pool).await {
+                if let Err(e) =
+                    ResourceTag::add_tag_by_value(resource.id, kind, value, None, pool).await
+                {
                     warn!(
                         resource_id = %resource.id,
                         kind = %kind,

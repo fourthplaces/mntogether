@@ -11,7 +11,6 @@ pub enum ResourceEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)
     // =========================================================================
-
     /// Resource was approved (status → Active)
     ResourceApproved { resource_id: ResourceId },
 

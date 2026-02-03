@@ -50,10 +50,7 @@ impl SimpleScraper {
             reqwest::header::ACCEPT_LANGUAGE,
             "en-US,en;q=0.5".parse().unwrap(),
         );
-        headers.insert(
-            reqwest::header::CONNECTION,
-            "keep-alive".parse().unwrap(),
-        );
+        headers.insert(reqwest::header::CONNECTION, "keep-alive".parse().unwrap());
         headers.insert(
             reqwest::header::UPGRADE_INSECURE_REQUESTS,
             "1".parse().unwrap(),
@@ -84,7 +81,10 @@ impl SimpleScraper {
             anyhow::bail!("HTTP {} for {}", status, url);
         }
 
-        response.text().await.context("Failed to read response body")
+        response
+            .text()
+            .await
+            .context("Failed to read response body")
     }
 
     /// Extract title from HTML document
@@ -412,7 +412,9 @@ impl BaseWebScraper for SimpleScraper {
                         // Apply priorities: filter skips and sort by score
                         if let Some(prio) = priorities {
                             links.retain(|link| !prio.should_skip(link));
-                            links.sort_by_cached_key(|link| std::cmp::Reverse(prio.score_path(link)));
+                            links.sort_by_cached_key(|link| {
+                                std::cmp::Reverse(prio.score_path(link))
+                            });
                         }
 
                         for link in links {

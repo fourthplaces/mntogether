@@ -14,5 +14,8 @@ pub mod tags;
 pub use core::*;
 pub use deduplication::{deduplicate_posts, DeduplicationResult};
 pub use reports::*;
-pub use scraping::{scrape_source, submit_resource_link, ScrapeJobResult, SubmitResourceLinkResult};
+pub use scraping::{
+    refresh_page_snapshot, scrape_source, submit_resource_link, RefreshPageSnapshotResult,
+    ScrapeJobResult, SubmitResourceLinkResult,
+};
 pub use tags::{add_post_tag, remove_post_tag, update_post_tags, TagInput};

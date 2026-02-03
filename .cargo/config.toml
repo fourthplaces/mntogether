@@ -1,0 +1,16 @@
+# Cargo configuration for reduced memory usage during compilation
+# This helps prevent OOM kills in Docker containers
+
+[build]
+# Limit parallel compilation jobs to reduce memory usage
+# Adjust based on available memory (fewer jobs = less memory but slower)
+jobs = 2
+
+[profile.dev]
+# Reduce codegen units in dev profile to save memory
+# Increases compile time but reduces peak memory usage
+codegen-units = 1
+
+[profile.dev.build-override]
+# Optimize build scripts even in dev mode
+opt-level = 2

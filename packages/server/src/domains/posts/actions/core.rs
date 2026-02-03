@@ -301,3 +301,54 @@ pub async fn track_post_click(
     ctx.emit(PostEvent::PostClicked { post_id });
     Ok(true)
 }
+
+// ============================================================================
+// Query Actions (Relay pagination)
+// ============================================================================
+
+use crate::common::{build_page_info, Cursor, ValidatedPaginationArgs};
+use crate::domains::posts::data::{PostConnection, PostEdge, PostType};
+
+/// Get paginated posts with cursor-based pagination (Relay spec)
+///
+/// This is the main query action for listing posts with proper pagination.
+/// Returns a PostConnection with edges, pageInfo, and totalCount.
+pub async fn get_posts_paginated(
+    status: &str,
+    args: &ValidatedPaginationArgs,
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<PostConnection> {
+    let pool = &ctx.deps().db_pool;
+
+    // Fetch posts with cursor pagination
+    let (posts, has_more) = Post::find_paginated(status, args, pool).await?;
+
+    // Get total count for the filter
+    let total_count = Post::count_by_status(status, pool).await? as i32;
+
+    // Build edges with cursors
+    let edges: Vec<PostEdge> = posts
+        .into_iter()
+        .map(|post| {
+            let cursor = Cursor::encode_uuid(post.id.into_uuid());
+            PostEdge {
+                node: PostType::from(post),
+                cursor,
+            }
+        })
+        .collect();
+
+    // Build page info
+    let page_info = build_page_info(
+        has_more,
+        args,
+        edges.first().map(|e| e.cursor.clone()),
+        edges.last().map(|e| e.cursor.clone()),
+    );
+
+    Ok(PostConnection {
+        edges,
+        page_info,
+        total_count,
+    })
+}

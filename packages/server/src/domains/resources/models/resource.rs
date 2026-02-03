@@ -9,7 +9,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
-use crate::common::{ResourceId, WebsiteId};
+use crate::common::{PaginationDirection, ResourceId, ValidatedPaginationArgs, WebsiteId};
 
 /// Resource status enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -126,10 +126,80 @@ impl Resource {
 
     /// Count resources by status
     pub async fn count_by_status(status: &str, pool: &PgPool) -> Result<i64> {
+        let count =
+            sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM resources WHERE status = $1")
+                .bind(status)
+                .fetch_one(pool)
+                .await?;
+        Ok(count)
+    }
+
+    /// Find resources with cursor-based pagination (Relay spec)
+    ///
+    /// Uses V7 UUID ordering (time-based) for stable pagination.
+    /// Fetches limit+1 to detect if there are more pages.
+    pub async fn find_paginated(
+        status: Option<&str>,
+        args: &ValidatedPaginationArgs,
+        pool: &PgPool,
+    ) -> Result<(Vec<Self>, bool)> {
+        let fetch_limit = args.fetch_limit();
+
+        let results = match args.direction {
+            PaginationDirection::Forward => {
+                sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM resources
+                    WHERE ($1::text IS NULL OR status = $1)
+                      AND ($2::uuid IS NULL OR id > $2)
+                    ORDER BY id ASC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?
+            }
+            PaginationDirection::Backward => {
+                let mut rows = sqlx::query_as::<_, Self>(
+                    r#"
+                    SELECT * FROM resources
+                    WHERE ($1::text IS NULL OR status = $1)
+                      AND ($2::uuid IS NULL OR id < $2)
+                    ORDER BY id DESC
+                    LIMIT $3
+                    "#,
+                )
+                .bind(status)
+                .bind(args.cursor)
+                .bind(fetch_limit)
+                .fetch_all(pool)
+                .await?;
+
+                rows.reverse();
+                rows
+            }
+        };
+
+        let has_more = results.len() > args.limit as usize;
+        let results = if has_more {
+            results.into_iter().take(args.limit as usize).collect()
+        } else {
+            results
+        };
+
+        Ok((results, has_more))
+    }
+
+    /// Count resources with optional status filter
+    pub async fn count_with_filters(status: Option<ResourceStatus>, pool: &PgPool) -> Result<i64> {
+        let status_str = status.map(|s| s.to_string());
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM resources WHERE status = $1",
+            "SELECT COUNT(*) FROM resources WHERE ($1::text IS NULL OR status = $1)",
         )
-        .bind(status)
+        .bind(status_str)
         .fetch_one(pool)
         .await?;
         Ok(count)
@@ -207,7 +277,11 @@ impl Resource {
     }
 
     /// Update resource status
-    pub async fn update_status(id: ResourceId, status: ResourceStatus, pool: &PgPool) -> Result<Self> {
+    pub async fn update_status(
+        id: ResourceId,
+        status: ResourceStatus,
+        pool: &PgPool,
+    ) -> Result<Self> {
         let resource = sqlx::query_as::<_, Self>(
             r#"
             UPDATE resources
@@ -385,17 +459,6 @@ impl Resource {
         match status {
             Some(s) => Self::find_by_status(&s.to_string(), limit, offset, pool).await,
             None => Self::find_by_status("pending_approval", limit, offset, pool).await,
-        }
-    }
-
-    /// Count resources with optional status filter
-    pub async fn count_with_filters(
-        status: Option<ResourceStatus>,
-        pool: &PgPool,
-    ) -> Result<i64> {
-        match status {
-            Some(s) => Self::count_by_status(&s.to_string(), pool).await,
-            None => Self::count_by_status("pending_approval", pool).await,
         }
     }
 }

@@ -27,4 +27,4 @@ pub use models::{
 };
 
 // Re-export effects
-pub use effects::{hash_content, summarize_pages, synthesize_posts, crawler_effect};
+pub use effects::{crawler_effect, hash_content, summarize_pages};

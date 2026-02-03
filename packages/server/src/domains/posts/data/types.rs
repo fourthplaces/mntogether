@@ -31,22 +31,54 @@ pub struct PostType {
 
 #[juniper::graphql_object(Context = GraphQLContext)]
 impl PostType {
-    fn id(&self) -> Uuid { self.id }
-    fn organization_name(&self) -> &str { &self.organization_name }
-    fn title(&self) -> &str { &self.title }
-    fn tldr(&self) -> Option<&str> { self.tldr.as_deref() }
-    fn description(&self) -> &str { &self.description }
-    fn description_markdown(&self) -> Option<&str> { self.description_markdown.as_deref() }
-    fn post_type(&self) -> &str { &self.post_type }
-    fn category(&self) -> &str { &self.category }
-    fn status(&self) -> PostStatusData { self.status }
-    fn urgency(&self) -> Option<&str> { self.urgency.as_deref() }
-    fn location(&self) -> Option<&str> { self.location.as_deref() }
-    fn submission_type(&self) -> Option<&str> { self.submission_type.as_deref() }
-    fn source_url(&self) -> Option<&str> { self.source_url.as_deref() }
-    fn website_id(&self) -> Option<Uuid> { self.website_id }
-    fn created_at(&self) -> DateTime<Utc> { self.created_at }
-    fn business_info(&self) -> Option<&BusinessInfo> { self.business_info.as_ref() }
+    fn id(&self) -> Uuid {
+        self.id
+    }
+    fn organization_name(&self) -> &str {
+        &self.organization_name
+    }
+    fn title(&self) -> &str {
+        &self.title
+    }
+    fn tldr(&self) -> Option<&str> {
+        self.tldr.as_deref()
+    }
+    fn description(&self) -> &str {
+        &self.description
+    }
+    fn description_markdown(&self) -> Option<&str> {
+        self.description_markdown.as_deref()
+    }
+    fn post_type(&self) -> &str {
+        &self.post_type
+    }
+    fn category(&self) -> &str {
+        &self.category
+    }
+    fn status(&self) -> PostStatusData {
+        self.status
+    }
+    fn urgency(&self) -> Option<&str> {
+        self.urgency.as_deref()
+    }
+    fn location(&self) -> Option<&str> {
+        self.location.as_deref()
+    }
+    fn submission_type(&self) -> Option<&str> {
+        self.submission_type.as_deref()
+    }
+    fn source_url(&self) -> Option<&str> {
+        self.source_url.as_deref()
+    }
+    fn website_id(&self) -> Option<Uuid> {
+        self.website_id
+    }
+    fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+    fn business_info(&self) -> Option<&BusinessInfo> {
+        self.business_info.as_ref()
+    }
 
     /// Get all tags for this listing
     async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
@@ -169,19 +201,51 @@ pub struct ScrapeJobResult {
     pub message: Option<String>,
 }
 
-/// Connection type for paginated listings
+/// Edge containing a post and its cursor (Relay spec)
+#[derive(Debug, Clone)]
+pub struct PostEdge {
+    pub node: PostType,
+    pub cursor: String,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl PostEdge {
+    /// The post at the end of the edge
+    fn node(&self) -> &PostType {
+        &self.node
+    }
+    /// A cursor for pagination
+    fn cursor(&self) -> &str {
+        &self.cursor
+    }
+}
+
+/// Connection type for paginated posts (Relay spec)
 #[derive(Debug, Clone)]
 pub struct PostConnection {
-    pub nodes: Vec<PostType>,
+    pub edges: Vec<PostEdge>,
+    pub page_info: crate::common::PageInfo,
     pub total_count: i32,
-    pub has_next_page: bool,
 }
 
 #[juniper::graphql_object(Context = GraphQLContext)]
 impl PostConnection {
-    fn nodes(&self) -> &[PostType] { &self.nodes }
-    fn total_count(&self) -> i32 { self.total_count }
-    fn has_next_page(&self) -> bool { self.has_next_page }
+    /// A list of edges (post + cursor pairs)
+    fn edges(&self) -> &[PostEdge] {
+        &self.edges
+    }
+    /// Information about pagination
+    fn page_info(&self) -> &crate::common::PageInfo {
+        &self.page_info
+    }
+    /// Total count of posts matching the filter
+    fn total_count(&self) -> i32 {
+        self.total_count
+    }
+    /// Convenience: direct access to nodes (for simpler queries)
+    fn nodes(&self) -> Vec<&PostType> {
+        self.edges.iter().map(|e| &e.node).collect()
+    }
 }
 
 /// Input for submitting a resource link from the public
