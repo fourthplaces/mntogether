@@ -12,8 +12,11 @@ use std::sync::Arc;
 
 use super::{
     job_queue::JobQueue, BaseAI, BaseEmbeddingService, BasePiiDetector,
-    BasePushNotificationService, BaseSearchService, BaseWebScraper,
+    BasePushNotificationService,
 };
+
+// Import from extraction library
+use extraction::{Ingestor, WebSearcher};
 
 /// ServerKernel holds all server dependencies
 ///
@@ -21,11 +24,13 @@ use super::{
 /// a reference to the Engine and call engine.activate() to emit events.
 pub struct ServerKernel {
     pub db_pool: PgPool,
-    pub web_scraper: Arc<dyn BaseWebScraper>,
+    /// Ingestor for crawling/scraping (from extraction library)
+    pub ingestor: Arc<dyn Ingestor>,
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
-    pub search_service: Arc<dyn BaseSearchService>,
+    /// Web searcher for discovery (from extraction library)
+    pub web_searcher: Arc<dyn WebSearcher>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
     /// Job queue for background command execution
     pub job_queue: Arc<dyn JobQueue>,
@@ -35,21 +40,21 @@ impl ServerKernel {
     /// Creates a new ServerKernel with the given dependencies
     pub fn new(
         db_pool: PgPool,
-        web_scraper: Arc<dyn BaseWebScraper>,
+        ingestor: Arc<dyn Ingestor>,
         ai: Arc<dyn BaseAI>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
-        search_service: Arc<dyn BaseSearchService>,
+        web_searcher: Arc<dyn WebSearcher>,
         pii_detector: Arc<dyn BasePiiDetector>,
         job_queue: Arc<dyn JobQueue>,
     ) -> Self {
         Self {
             db_pool,
-            web_scraper,
+            ingestor,
             ai,
             embedding_service,
             push_service,
-            search_service,
+            web_searcher,
             pii_detector,
             job_queue,
         }

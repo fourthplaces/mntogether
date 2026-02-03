@@ -1,6 +1,33 @@
 //! Page Snapshot - cached raw page content from crawling
 //!
 //! Snapshots are deduplicated by content hash to avoid storing duplicate content.
+//!
+//! TODO(migration): Remove this module after verifying no production callers.
+//! See `domains/crawling/MIGRATION.md` for removal checklist.
+//!
+//! # Deprecation Notice
+//!
+//! This module is deprecated. Use the extraction library's `CachedPage` instead.
+//!
+//! **Migration path:**
+//! - For **storing pages**: Use `ExtractionService::ingest()` which writes to `extraction_pages`
+//! - For **reading pages**: Use `extraction::PageCache::get_page()` on `PostgresStore`
+//! - For **page context**: Use extraction library's `CachedPage` type
+//!
+//! **Schema differences:**
+//!
+//! | page_snapshots (old) | extraction_pages (new) |
+//! |---------------------|------------------------|
+//! | UUID primary key | URL as primary key |
+//! | html + markdown columns | Single content column |
+//! | content_hash BYTEA | content_hash TEXT (hex) |
+//! | fetched_via column | In metadata |
+//! | crawled_at | fetched_at |
+//! | - | site_url, title, http_headers |
+//!
+//! The new path via `ingest_website()` stores pages directly in `extraction_pages`.
+
+#![allow(deprecated)]
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -9,8 +36,14 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+#[deprecated(since = "0.1.0", note = "Use extraction library's CachedPage from PostgresStore instead")]
 pub type PageSnapshotId = Uuid;
 
+/// Cached raw page content from crawling.
+///
+/// **Deprecated:** Use `extraction::CachedPage` instead.
+/// See module documentation for migration guide.
+#[deprecated(since = "0.1.0", note = "Use extraction library's CachedPage via ExtractionService instead")]
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PageSnapshot {
     pub id: PageSnapshotId,

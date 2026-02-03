@@ -66,8 +66,12 @@ md5 = "0.7"
 sqlx = { workspace = true, features = ["migrate"] }
 pgvector = { version = "0.4", features = ["sqlx", "serde"] }
 
-# AI / LLM
-rig-core = { workspace = true }
+# AI / LLM - via extraction library
+extraction = { path = "../extraction", features = ["postgres", "openai", "firecrawl"] }
+
+# LLM framework (rig.rs)
+rig-core = "0.9"
+schemars = "0.8"
 
 # GraphQL
 juniper = { workspace = true }
@@ -85,10 +89,9 @@ reqwest = { workspace = true }
 urlencoding = "2.1"
 url = "2.5"
 
-# Web scraping and search SDKs
+# Web scraping (search via extraction library's TavilyWebSearcher)
 scraper = "0.21"        # HTML parsing with CSS selectors
 htmd = "0.1"            # HTML to Markdown conversion
-tavily = "2.1.0"
 
 # Cron jobs
 tokio-cron-scheduler = "0.10"

@@ -17,6 +17,7 @@ pub struct WebsiteSnapshot {
     pub submitted_by: Option<Uuid>, // Raw UUID for sqlx compatibility
     pub submitted_at: DateTime<Utc>,
     pub last_scraped_at: Option<DateTime<Utc>>,
+    pub last_synced_at: Option<DateTime<Utc>>, // When extraction library last synced
     pub scrape_status: String,
     pub scrape_error: Option<String>,
     pub created_at: DateTime<Utc>,
@@ -148,5 +149,35 @@ impl WebsiteSnapshot {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    /// Mark as synced with extraction library
+    pub async fn mark_synced(&self, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE website_snapshots
+            SET last_synced_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(self.id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Find snapshots that haven't been synced with extraction library
+    pub async fn find_unsynced(pool: &PgPool, limit: i64) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM website_snapshots
+             WHERE last_synced_at IS NULL
+             ORDER BY submitted_at ASC
+             LIMIT $1",
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .context("Failed to fetch unsynced website snapshots")
     }
 }

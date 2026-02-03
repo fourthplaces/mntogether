@@ -446,3 +446,26 @@ edge!(
 2. **Context helpers** like `fetch_single_page_context()` consolidate repeated lookups
 3. **Auth actions** like `check_crawl_authorization()` eliminate copy-paste
 4. **Use `match` not `?`** when action returns `Result<_, Event>` (events don't impl Error)
+
+## Coding Permission Rule
+
+### HARD RULE: Never Code Without Explicit Permission
+
+**NEVER start writing code, editing files, or making changes until the user explicitly says "go", "do it", "proceed", or similar explicit approval.**
+
+When given a task:
+1. **First**: Present the plan, explain what you'll do
+2. **Wait**: For explicit user approval
+3. **Only then**: Execute the plan
+
+This applies to:
+- Creating new files
+- Editing existing files
+- Running commands that modify state
+- Any code generation
+
+**Reading files for research is OK. Writing/editing is NOT until approved.**
+
+Phrases that grant permission: "go", "do it", "proceed", "yes", "approved", "start coding", "make the changes"
+
+Phrases that do NOT grant permission: silence, "sounds good" (without action word), "interesting", questions about the plan

@@ -1,8 +1,32 @@
-//! Pass 1: Summarize individual pages with caching
+//! Pass 1: Summarize individual pages with caching (DEPRECATED)
 //!
 //! Each page is summarized to extract structured content as JSON.
 //! Results are cached by content hash - if page content hasn't changed,
 //! we reuse the cached summary.
+//!
+//! # Deprecation Notice
+//!
+//! This module is deprecated in favor of the extraction library's summarization.
+//!
+//! **Migration path:**
+//! - For **textual summaries** (search/retrieval): Use `extraction::AI::summarize()`
+//! - For **structured extraction** (contact, hours, programs): Use `extraction::Index::extract()`
+//!
+//! The extraction library stores summaries in `extraction_summaries` table with:
+//! - Content hash-based caching
+//! - Prompt version tracking (auto-invalidates stale summaries)
+//! - Embedding generation for semantic search
+//!
+//! **Current vs New:**
+//! | This Module | Extraction Library |
+//! |-------------|-------------------|
+//! | `summarize_pages()` | `extraction::pipeline::ingest::ingest_with_ingestor()` |
+//! | `hash_content()` | `extraction::CachedPage::hash_content()` |
+//! | `PageSummary` (server) | `extraction::Summary` (library) |
+//!
+//! This code remains for backward compatibility with existing pipelines.
+
+#![allow(deprecated)]
 
 use anyhow::Result;
 use futures::future::join_all;
@@ -16,6 +40,13 @@ use crate::kernel::{BaseAI, LlmRequestExt};
 use super::types::{PageSummaryContent, PageToSummarize, SummarizedPage};
 
 /// Summarize a page, using cache if available
+///
+/// # Deprecated
+/// Use extraction library's `ingest_with_ingestor()` or `AI::summarize()` instead.
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction library's ingest pipeline for summarization"
+)]
 pub async fn summarize_page(
     page: &PageToSummarize,
     ai: &dyn BaseAI,
@@ -46,8 +77,16 @@ pub async fn summarize_page(
 }
 
 /// Summarize multiple pages in parallel chunks
+///
+/// # Deprecated
+/// Use extraction library's `ingest_with_ingestor()` which handles
+/// concurrent summarization with configurable concurrency.
 const CONCURRENT_SUMMARIZATIONS: usize = 5;
 
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction library's ingest_with_ingestor() instead"
+)]
 pub async fn summarize_pages(
     pages: Vec<PageToSummarize>,
     ai: &dyn BaseAI,
@@ -84,6 +123,10 @@ pub async fn summarize_pages(
 }
 
 /// Generate content hash for cache key
+///
+/// # Deprecated
+/// Use `extraction::CachedPage::hash_content()` instead.
+#[deprecated(since = "0.1.0", note = "Use extraction::CachedPage::hash_content() instead")]
 pub fn hash_content(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());

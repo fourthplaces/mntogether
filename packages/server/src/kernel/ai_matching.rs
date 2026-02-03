@@ -156,14 +156,7 @@ impl AIMatchingService {
 
         loop {
             match self.openai_client.create_embedding(text).await {
-                Ok(response) => {
-                    let embedding = response
-                        .data
-                        .first()
-                        .ok_or_else(|| anyhow::anyhow!("No embedding returned from OpenAI"))?
-                        .embedding
-                        .clone();
-
+                Ok(embedding) => {
                     // Validate embedding dimension
                     if embedding.len() != 1536 {
                         anyhow::bail!(

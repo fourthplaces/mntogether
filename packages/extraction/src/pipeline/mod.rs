@@ -24,7 +24,12 @@ pub use extract::{
 };
 pub use grounding::{calculate_grounding, Claim, ClaimGrounding, Evidence, GroundingConfig};
 pub use index::Index;
-pub use ingest::{ingest, refresh, IngestConfig, IngestResult};
+pub use ingest::{
+    // Crawler-based (legacy)
+    ingest, ingest_single_page, refresh, IngestConfig, IngestResult, SinglePageResult,
+    // Ingestor-based (new)
+    ingest_with_ingestor, ingest_urls_with_ingestor, IngestorConfig,
+};
 pub use partition::{
     default_partition, merge_similar_partitions, parse_partition_response, split_large_partition,
     validate_partitions,

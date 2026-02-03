@@ -6,6 +6,8 @@
 //! Cascade flow:
 //!   WebsiteApproved → crawl_website action → WebsiteCrawled → ...
 
+#![allow(deprecated)] // Uses deprecated crawl_website during migration
+
 use seesaw_core::effect;
 use std::sync::Arc;
 use tracing::info;

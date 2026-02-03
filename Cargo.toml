@@ -35,8 +35,8 @@ serde_json = "1.0"
 # HTTP client
 reqwest = { version = "0.12", features = ["json"] }
 
-# AI/ML
-rig-core = "0.7"
+# AI/ML - via extraction library, no longer using rig-core directly
+# rig-core = "0.7"  # Removed - using extraction::ai::OpenAI instead
 
 # Crypto
 sha2 = "0.10"

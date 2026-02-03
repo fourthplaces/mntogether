@@ -45,23 +45,20 @@ async fn main() -> Result<()> {
             .create_embedding(&assessment.assessment_markdown)
             .await
         {
-            Ok(response) => {
-                if let Some(data) = response.data.first() {
-                    if let Err(e) =
-                        WebsiteAssessment::update_embedding(assessment.id, &data.embedding, &pool)
-                            .await
-                    {
-                        eprintln!(
-                            "Failed to store embedding for assessment {}: {}",
-                            assessment.id, e
-                        );
-                    } else {
-                        assessment_updated += 1;
-                        println!(
-                            "  Updated embedding for assessment {} (website: {})",
-                            assessment.id, assessment.website_id
-                        );
-                    }
+            Ok(embedding) => {
+                if let Err(e) =
+                    WebsiteAssessment::update_embedding(assessment.id, &embedding, &pool).await
+                {
+                    eprintln!(
+                        "Failed to store embedding for assessment {}: {}",
+                        assessment.id, e
+                    );
+                } else {
+                    assessment_updated += 1;
+                    println!(
+                        "  Updated embedding for assessment {} (website: {})",
+                        assessment.id, assessment.website_id
+                    );
                 }
             }
             Err(e) => {

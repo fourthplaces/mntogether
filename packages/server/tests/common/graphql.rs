@@ -5,7 +5,7 @@
 use juniper::Variables;
 use serde_json::Value;
 use server_core::domains::auth::JwtService;
-use server_core::kernel::{OpenAIClient, ServerKernel};
+use server_core::kernel::{OpenAIClient, ServerDeps, ServerKernel};
 use server_core::server::graphql::context::AppEngine;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
 use std::sync::Arc;
@@ -69,9 +69,13 @@ impl GraphQLClient {
         ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
+        // Create minimal server_deps for testing (extraction is None)
+        let server_deps = Arc::new(create_test_server_deps(kernel.clone()));
+
         let context = GraphQLContext::new(
             kernel.db_pool.clone(),
             engine,
+            server_deps,
             None, // No auth user by default
             twilio,
             jwt_service,
@@ -111,9 +115,13 @@ impl GraphQLClient {
             is_admin,
         };
 
+        // Create minimal server_deps for testing (extraction is None)
+        let server_deps = Arc::new(create_test_server_deps(kernel.clone()));
+
         let context = GraphQLContext::new(
             kernel.db_pool.clone(),
             engine,
+            server_deps,
             Some(auth_user),
             twilio,
             jwt_service,
@@ -169,4 +177,33 @@ impl GraphQLClient {
     pub async fn query_with_vars(&self, query: &str, variables: Variables) -> Value {
         self.execute_with_vars(query, variables).await.unwrap()
     }
+}
+
+/// Create test server deps with mock services
+fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
+    use extraction::{MockIngestor, MockWebSearcher};
+    use server_core::kernel::deps::TwilioAdapter;
+    use server_core::kernel::test_dependencies::{MockPiiDetector, MockPushNotificationService};
+
+    // Create mock services for testing
+    let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
+    let twilio = Arc::new(TwilioService::new(TwilioOptions {
+        account_sid: "test".to_string(),
+        auth_token: "test".to_string(),
+        service_id: "test".to_string(),
+    }));
+
+    ServerDeps::new(
+        kernel.db_pool.clone(),
+        Arc::new(MockIngestor::new()),
+        openai_client.clone(),
+        openai_client.clone(), // Also implements BaseEmbeddingService
+        Arc::new(MockPushNotificationService::new()),
+        Arc::new(TwilioAdapter::new(twilio)),
+        Arc::new(MockWebSearcher::new()),
+        Arc::new(MockPiiDetector::new()),
+        None, // No extraction service in tests
+        false,
+        vec![],
+    )
 }

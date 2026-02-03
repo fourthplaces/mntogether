@@ -10,7 +10,8 @@ mod common;
 use crate::common::{GraphQLClient, TestHarness};
 use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::website::models::Website;
-use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
+use extraction::{MockIngestor, RawPage};
+use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
 
@@ -37,8 +38,8 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 #[tokio::test]
 async fn query_website_with_snapshots(ctx: &TestHarness) {
     // Arrange: Set up mocked external services
-    let mock_scraper = MockWebScraper::new()
-        .with_response("# Food Bank\n\nWe provide food assistance to families in need.");
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://test-nested.org", "# Food Bank\n\nWe provide food assistance to families in need."));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence
@@ -46,7 +47,7 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
         .with_response(r#"[]"#);
 
     let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let test_ctx = TestHarness::with_deps(test_deps)
@@ -142,8 +143,8 @@ async fn query_website_with_snapshots(ctx: &TestHarness) {
 #[tokio::test]
 async fn query_website_with_full_nested_data(ctx: &TestHarness) {
     // Arrange: Set up mocked external services with listing data
-    let mock_scraper = MockWebScraper::new()
-        .with_response("# Volunteer Opportunities\n\n## Food Bank Helper\nHelp sort and distribute food to families.");
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://test-nested-full.org", "# Volunteer Opportunities\n\n## Food Bank Helper\nHelp sort and distribute food to families."));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // Empty array for simpler test
@@ -151,7 +152,7 @@ async fn query_website_with_full_nested_data(ctx: &TestHarness) {
         .with_response(r#"[]"#);
 
     let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let test_ctx = TestHarness::with_deps(test_deps)

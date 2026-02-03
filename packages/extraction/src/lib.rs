@@ -44,6 +44,7 @@
 
 pub mod crawlers;
 pub mod error;
+pub mod ingestors;
 pub mod pipeline;
 pub mod security;
 pub mod stores;
@@ -59,12 +60,15 @@ pub use error::{CrawlError, ExtractionError, SecurityError};
 pub use traits::{
     ai::AI,
     crawler::Crawler,
+    ingestor::{DiscoverConfig, Ingestor, RawPage, ValidatedIngestor},
+    searcher::{MockWebSearcher, SearchResult, TavilyWebSearcher, WebSearcher},
     store::{EmbeddingStore, PageCache, PageStore, SummaryCache},
 };
 pub use types::{
     config::{CrawlConfig, ExtractionConfig, QueryFilter},
     extraction::{
-        Conflict, ConflictingClaim, Extraction, GapQuery, GroundingGrade, Source, SourceRole,
+        Conflict, ConflictingClaim, Extraction, ExtractionStatus, GapQuery, GroundingGrade,
+        MissingField, MissingReason, Source, SourceRole,
     },
     investigation::{
         GapType, InvestigationAction, InvestigationPlan, InvestigationStep, StepResult,
@@ -86,8 +90,10 @@ pub use pipeline::{
     Claim, ClaimGrounding, Evidence, GroundingConfig,
     // Strategy
     QueryAnalysis, RecallConfig,
-    // Ingest
-    ingest, refresh, IngestConfig, IngestResult,
+    // Ingest (Crawler-based, legacy)
+    ingest, ingest_single_page, refresh, IngestConfig, IngestResult, SinglePageResult,
+    // Ingest (Ingestor-based, new)
+    ingest_with_ingestor, ingest_urls_with_ingestor, IngestorConfig,
     // Extraction parsing
     parse_extraction_response, transform_extraction, transform_narrative_response,
     transform_single_response, AIExtractionResponse, AINarrativeResponse, AISingleResponse,
@@ -117,6 +123,12 @@ pub use crawlers::{
     // robots.txt
     fetch_robots_txt, RobotsTxt,
 };
+
+// Re-export ingestors
+pub use ingestors::{HttpIngestor, MockIngestor};
+
+#[cfg(feature = "firecrawl")]
+pub use ingestors::FirecrawlIngestor;
 
 // Re-export testing utilities
 pub use testing::{MockAI, MockCrawler, TestScenario};

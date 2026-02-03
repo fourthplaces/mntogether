@@ -1,3 +1,12 @@
+//! Website data types for GraphQL.
+//!
+//! # Deprecation Note
+//!
+//! This module uses deprecated `PageSnapshot` and `WebsiteSnapshot` types.
+//! See crawling/models/ for migration paths to extraction library types.
+
+#![allow(deprecated)]
+
 use crate::common::WebsiteId;
 use crate::domains::crawling::models::{PageSnapshot, PageSnapshotId, PageSummary};
 use crate::domains::posts::data::PostData;

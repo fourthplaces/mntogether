@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use anyhow::Result;
 use tracing::info;
 
-use crate::kernel::BaseSearchService;
+use extraction::WebSearcher;
 
 /// A page discovered via search
 #[derive(Debug, Clone)]
@@ -38,7 +38,7 @@ const DISCOVERY_QUERIES: &[&str] = &[
 /// Returns pages sorted by relevance score.
 pub async fn discover_pages(
     domain: &str,
-    search_service: &dyn BaseSearchService,
+    web_searcher: &dyn WebSearcher,
     max_pages: usize,
 ) -> Result<Vec<DiscoveredPage>> {
     let mut all_results: Vec<DiscoveredPage> = Vec::new();
@@ -53,9 +53,7 @@ pub async fn discover_pages(
             "Running discovery search"
         );
 
-        let results = search_service
-            .search(&query, Some(5), Some("advanced"), None)
-            .await?;
+        let results = web_searcher.search_with_limit(&query, 5).await?;
 
         info!(
             domain = %domain,
@@ -68,23 +66,23 @@ pub async fn discover_pages(
         for result in &results {
             info!(
                 url = %result.url,
-                title = %result.title,
-                score = %result.score,
-                content_preview = %result.content.chars().take(100).collect::<String>(),
+                title = ?result.title,
+                score = ?result.score,
+                snippet_preview = ?result.snippet.as_ref().map(|s| s.chars().take(100).collect::<String>()),
                 "Discovered page"
             );
         }
 
         for result in results {
             // Normalize URL for deduplication
-            let normalized_url = normalize_url(&result.url);
+            let normalized_url = normalize_url(result.url.as_str());
 
             if seen_urls.insert(normalized_url.clone()) {
                 all_results.push(DiscoveredPage {
-                    url: result.url,
-                    title: result.title,
-                    content: result.content,
-                    relevance_score: result.score,
+                    url: result.url.to_string(),
+                    title: result.title.unwrap_or_default(),
+                    content: result.snippet.unwrap_or_default(),
+                    relevance_score: result.score.unwrap_or(0.0) as f64,
                     query_matched: query_terms.to_string(),
                 });
             }

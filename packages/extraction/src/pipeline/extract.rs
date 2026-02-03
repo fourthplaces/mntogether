@@ -166,12 +166,25 @@ pub fn transform_extraction(
     // Calculate grounding
     let grounding = calculate_grounding(&sources, &conflicts, has_inference, config);
 
+    // Calculate status
+    use crate::types::extraction::ExtractionStatus;
+    let status = if !conflicts.is_empty() {
+        ExtractionStatus::Contradictory
+    } else if response.content.is_empty() && !gaps.is_empty() {
+        ExtractionStatus::Missing
+    } else if !gaps.is_empty() {
+        ExtractionStatus::Partial
+    } else {
+        ExtractionStatus::Found
+    };
+
     Extraction {
         content: response.content,
         sources,
         gaps,
         grounding,
         conflicts,
+        status,
     }
 }
 
@@ -265,12 +278,22 @@ pub fn transform_single_response(
         vec![]
     };
 
+    use crate::types::extraction::ExtractionStatus;
+    let status = if !response.found {
+        ExtractionStatus::Missing
+    } else if !conflicts.is_empty() {
+        ExtractionStatus::Contradictory
+    } else {
+        ExtractionStatus::Found
+    };
+
     Extraction {
         content: response.content,
         sources,
         gaps,
         grounding,
         conflicts,
+        status,
     }
 }
 
@@ -334,12 +357,20 @@ pub fn transform_narrative_response(
 
     let grounding = calculate_grounding(&sources, &conflicts, false, config);
 
+    use crate::types::extraction::ExtractionStatus;
+    let status = if !conflicts.is_empty() {
+        ExtractionStatus::Contradictory
+    } else {
+        ExtractionStatus::Found
+    };
+
     Extraction {
         content: response.content,
         sources,
         gaps: vec![],
         grounding,
         conflicts,
+        status,
     }
 }
 

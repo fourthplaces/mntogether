@@ -6,6 +6,9 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+// Import unified ContactInfo from extraction_types
+use super::extraction_types::ContactInfo;
+
 /// A listing extracted from a website by AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedPost {
@@ -58,12 +61,4 @@ impl ExtractedPostWithSource {
             source_page_snapshot_id: None, // ExtractedPostWithSource doesn't have this
         }
     }
-}
-
-/// Contact information for a need/opportunity
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactInfo {
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub website: Option<String>,
 }

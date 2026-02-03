@@ -19,8 +19,8 @@ pub struct Extraction {
     /// Machine-readable queries for missing info.
     ///
     /// Each gap contains a search query that can be piped directly to
-    /// `search_for_gap()` without reformulation.
-    pub gaps: Vec<GapQuery>,
+    /// `search_for_gap()` or `WebSearcher::search()` without reformulation.
+    pub gaps: Vec<MissingField>,
 
     /// How well-grounded is this extraction?
     ///
@@ -32,6 +32,38 @@ pub struct Extraction {
     /// The library doesn't resolve conflicts - it exposes them for
     /// application-level resolution.
     pub conflicts: Vec<Conflict>,
+
+    /// Overall status of the extraction.
+    ///
+    /// Indicates whether the requested information was found, is missing,
+    /// or has contradictory data across sources.
+    pub status: ExtractionStatus,
+}
+
+/// Overall status of an extraction.
+///
+/// This tells the application at a glance whether the extraction succeeded
+/// and what kind of follow-up might be needed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ExtractionStatus {
+    /// The requested information was found in the sources.
+    #[default]
+    Found,
+
+    /// The requested information is partially available.
+    ///
+    /// Some fields were extracted, but gaps remain.
+    Partial,
+
+    /// The requested information was not found.
+    ///
+    /// Check `gaps` for details on what's missing and why.
+    Missing,
+
+    /// Sources contain contradictory information.
+    ///
+    /// Check `conflicts` for the specific contradictions.
+    Contradictory,
 }
 
 impl Extraction {
@@ -43,7 +75,47 @@ impl Extraction {
             gaps: Vec::new(),
             grounding: GroundingGrade::SingleSource,
             conflicts: Vec::new(),
+            status: ExtractionStatus::Found,
         }
+    }
+
+    /// Create an extraction representing "not found".
+    pub fn not_found(gaps: Vec<MissingField>) -> Self {
+        Self {
+            content: String::new(),
+            sources: Vec::new(),
+            gaps,
+            grounding: GroundingGrade::SingleSource,
+            conflicts: Vec::new(),
+            status: ExtractionStatus::Missing,
+        }
+    }
+
+    /// Calculate the extraction status from the current state.
+    pub fn calculate_status(&self) -> ExtractionStatus {
+        if !self.conflicts.is_empty() {
+            return ExtractionStatus::Contradictory;
+        }
+        if self.content.is_empty() && !self.gaps.is_empty() {
+            return ExtractionStatus::Missing;
+        }
+        if !self.gaps.is_empty() {
+            return ExtractionStatus::Partial;
+        }
+        ExtractionStatus::Found
+    }
+
+    /// Update the status based on current state.
+    pub fn update_status(&mut self) {
+        self.status = self.calculate_status();
+    }
+
+    /// Check if extraction needs enrichment (has gaps or is missing).
+    pub fn needs_enrichment(&self) -> bool {
+        matches!(
+            self.status,
+            ExtractionStatus::Missing | ExtractionStatus::Partial
+        )
     }
 
     /// Calculate the grounding grade from source analysis.
@@ -160,6 +232,9 @@ impl Extraction {
         // Note: we don't have has_inference here, so we check current grounding
         let has_inference = self.grounding == GroundingGrade::Inferred;
         self.grounding = Self::calculate_grounding(&self.sources, &self.conflicts, has_inference);
+
+        // Update status based on new state
+        self.update_status();
     }
 
     /// Merge multiple extractions.
@@ -293,32 +368,133 @@ impl Default for SourceRole {
     }
 }
 
-/// Machine-readable gap for agent-driven refinement.
+/// Why a field is missing.
 ///
-/// Instead of: `gaps: ["email"]`
-/// Use: `gaps: [GapQuery { field: "email", query: "the contact email..." }]`
-///
-/// This allows direct piping to `search_for_gap()` without reformulation.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GapQuery {
-    /// Human-readable field name (e.g., "contact email")
-    pub field: String,
-
-    /// Search query - pipe directly to `search_for_gap()`.
+/// This helps the application decide whether to pursue external search
+/// or accept that the information doesn't exist.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MissingReason {
+    /// No sources mentioned this field at all.
     ///
-    /// Example: "the contact email for the volunteer coordinator"
-    pub query: String,
+    /// External search might find pages that have the answer.
+    NotInSources,
+
+    /// A source exists but the value is redacted/hidden.
+    ///
+    /// Example: "Contact us for pricing" instead of actual prices.
+    Redacted,
+
+    /// The field was explicitly stated as not applicable.
+    ///
+    /// Example: "We do not accept volunteers at this time."
+    NotApplicable,
+
+    /// The information appears to be outdated/removed.
+    ///
+    /// Example: Page exists but content was removed.
+    Stale,
+
+    /// Sources conflict on this field (see `conflicts`).
+    Conflicting,
 }
 
-impl GapQuery {
-    /// Create a new gap query.
+impl Default for MissingReason {
+    fn default() -> Self {
+        Self::NotInSources
+    }
+}
+
+/// Machine-readable missing field for agent-driven refinement.
+///
+/// Each missing field contains:
+/// - What's missing (`field`)
+/// - A search query to find it (`query`)
+/// - Why it's missing (`reason`)
+///
+/// The `query` can be piped directly to `search_for_gap()` or
+/// `WebSearcher::search()` without reformulation.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// let extraction = index.extract("contact info", None).await?;
+///
+/// for gap in &extraction.gaps {
+///     match gap.reason {
+///         MissingReason::NotInSources => {
+///             // Worth searching externally
+///             let urls = searcher.search(&gap.query).await?;
+///         }
+///         MissingReason::NotApplicable => {
+///             // Don't search - it explicitly doesn't exist
+///             println!("{} is not applicable", gap.field);
+///         }
+///         _ => {}
+///     }
+/// }
+/// ```
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MissingField {
+    /// Human-readable field name (e.g., "contact email").
+    pub field: String,
+
+    /// Search query - pipe directly to `search_for_gap()` or `WebSearcher`.
+    ///
+    /// Example: "volunteer coordinator email address for Red Cross Portland"
+    pub query: String,
+
+    /// Why this field is missing.
+    ///
+    /// Helps the app decide whether external search is worthwhile.
+    pub reason: MissingReason,
+}
+
+impl MissingField {
+    /// Create a new missing field.
     pub fn new(field: impl Into<String>, query: impl Into<String>) -> Self {
         Self {
             field: field.into(),
             query: query.into(),
+            reason: MissingReason::NotInSources,
         }
     }
+
+    /// Create with a specific reason.
+    pub fn with_reason(mut self, reason: MissingReason) -> Self {
+        self.reason = reason;
+        self
+    }
+
+    /// Create a "not in sources" gap.
+    pub fn not_in_sources(field: impl Into<String>, query: impl Into<String>) -> Self {
+        Self::new(field, query).with_reason(MissingReason::NotInSources)
+    }
+
+    /// Create a "redacted" gap.
+    pub fn redacted(field: impl Into<String>, query: impl Into<String>) -> Self {
+        Self::new(field, query).with_reason(MissingReason::Redacted)
+    }
+
+    /// Create a "not applicable" gap.
+    pub fn not_applicable(field: impl Into<String>) -> Self {
+        Self {
+            field: field.into(),
+            query: String::new(), // No query - won't be found
+            reason: MissingReason::NotApplicable,
+        }
+    }
+
+    /// Check if this gap is worth searching externally.
+    pub fn is_searchable(&self) -> bool {
+        matches!(
+            self.reason,
+            MissingReason::NotInSources | MissingReason::Stale
+        )
+    }
 }
+
+/// Alias for backwards compatibility.
+pub type GapQuery = MissingField;
 
 /// A detected conflict between sources.
 ///
@@ -490,5 +666,75 @@ mod tests {
         assert!(combined.content.contains("Second"));
         assert!(combined.content.contains("Third"));
         assert_eq!(combined.grounding, GroundingGrade::Verified);
+    }
+
+    #[test]
+    fn test_extraction_status_found() {
+        let extraction = Extraction::new("Some content".to_string());
+        assert_eq!(extraction.status, ExtractionStatus::Found);
+        assert!(!extraction.needs_enrichment());
+    }
+
+    #[test]
+    fn test_extraction_status_partial() {
+        let mut extraction = Extraction::new("Partial content".to_string());
+        extraction.gaps.push(MissingField::new("email", "contact email"));
+        extraction.update_status();
+
+        assert_eq!(extraction.status, ExtractionStatus::Partial);
+        assert!(extraction.needs_enrichment());
+    }
+
+    #[test]
+    fn test_extraction_status_missing() {
+        let extraction = Extraction::not_found(vec![
+            MissingField::new("email", "contact email"),
+            MissingField::new("phone", "phone number"),
+        ]);
+
+        assert_eq!(extraction.status, ExtractionStatus::Missing);
+        assert!(extraction.needs_enrichment());
+    }
+
+    #[test]
+    fn test_extraction_status_contradictory() {
+        let mut extraction = Extraction::new("Some content".to_string());
+        extraction.conflicts.push(Conflict::new("Hours")
+            .with_claim("Open 9-5", "https://a.com")
+            .with_claim("Open 10-6", "https://b.com"));
+        extraction.update_status();
+
+        assert_eq!(extraction.status, ExtractionStatus::Contradictory);
+    }
+
+    #[test]
+    fn test_missing_field_is_searchable() {
+        let not_in_sources = MissingField::not_in_sources("email", "contact email");
+        assert!(not_in_sources.is_searchable());
+
+        let redacted = MissingField::redacted("pricing", "pricing information");
+        assert!(!redacted.is_searchable());
+
+        let not_applicable = MissingField::not_applicable("volunteers");
+        assert!(!not_applicable.is_searchable());
+    }
+
+    #[test]
+    fn test_missing_reason_determines_searchability() {
+        // NotInSources and Stale are searchable
+        let stale = MissingField::new("data", "query").with_reason(MissingReason::Stale);
+        assert!(stale.is_searchable());
+
+        // Redacted, NotApplicable, Conflicting are not searchable
+        let conflicting = MissingField::new("data", "query").with_reason(MissingReason::Conflicting);
+        assert!(!conflicting.is_searchable());
+    }
+
+    #[test]
+    fn test_gap_query_alias() {
+        // GapQuery is an alias for MissingField
+        let gap: GapQuery = MissingField::new("field", "query");
+        assert_eq!(gap.field, "field");
+        assert_eq!(gap.query, "query");
     }
 }

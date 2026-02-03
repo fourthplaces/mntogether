@@ -3,6 +3,14 @@
 //! These are called directly from GraphQL mutations via `process()`.
 //! Actions are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return results directly.
+//!
+//! # Deprecation Notice
+//!
+//! This module uses deprecated `PageSnapshot` and `WebsiteSnapshot` models.
+//! New code should use `ExtractionService::ingest()` for scraping which stores
+//! pages in `extraction_pages`.
+
+#![allow(deprecated)]
 
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
@@ -93,9 +101,9 @@ pub async fn scrape_source(
         }
     };
 
-    let scrape_result = match ctx.deps().web_scraper.scrape(&source.domain).await {
+    let raw_page = match ctx.deps().ingestor.fetch_one(&source.domain).await {
         Ok(r) => {
-            info!(source_id = %source_id, content_length = r.markdown.len(), "Scrape completed");
+            info!(source_id = %source_id, content_length = r.content.len(), "Scrape completed");
             r
         }
         Err(e) => {
@@ -117,9 +125,9 @@ pub async fn scrape_source(
     let (page_snapshot, is_new) = match PageSnapshot::upsert(
         &ctx.deps().db_pool,
         source.domain.clone(),
-        scrape_result.markdown.clone(),
-        Some(scrape_result.markdown.clone()),
-        "simple_scraper".to_string(),
+        raw_page.content.clone(),
+        Some(raw_page.content.clone()),
+        "ingestor".to_string(),
     )
     .await
     {
@@ -131,9 +139,9 @@ pub async fn scrape_source(
                     id: uuid::Uuid::new_v4(),
                     url: source.domain.clone(),
                     content_hash: vec![],
-                    html: scrape_result.markdown.clone(),
-                    markdown: Some(scrape_result.markdown.clone()),
-                    fetched_via: "simple_scraper".to_string(),
+                    html: raw_page.content.clone(),
+                    markdown: Some(raw_page.content.clone()),
+                    fetched_via: "ingestor".to_string(),
                     metadata: serde_json::json!({}),
                     crawled_at: chrono::Utc::now(),
                     listings_extracted_count: Some(0),
@@ -163,7 +171,7 @@ pub async fn scrape_source(
         source_id,
         job_id,
         organization_name: extract_domain(&source.domain).unwrap_or_else(|| source.domain.clone()),
-        content: scrape_result.markdown,
+        content: raw_page.content,
         page_snapshot_id: Some(page_snapshot.id),
     });
 
@@ -245,12 +253,12 @@ pub async fn refresh_page_snapshot(
     };
 
     // Re-scrape the specific page URL
-    let scrape_result = match ctx.deps().web_scraper.scrape(&page_snapshot.url).await {
+    let raw_page = match ctx.deps().ingestor.fetch_one(&page_snapshot.url).await {
         Ok(r) => {
             info!(
                 page_snapshot_id = %page_snapshot_id,
                 url = %page_snapshot.url,
-                content_length = r.markdown.len(),
+                content_length = r.content.len(),
                 "Page re-scrape completed"
             );
             r
@@ -275,9 +283,9 @@ pub async fn refresh_page_snapshot(
     if let Err(e) = PageSnapshot::update_content(
         &ctx.deps().db_pool,
         page_snapshot_id,
-        scrape_result.markdown.clone(),
-        Some(scrape_result.markdown.clone()),
-        "firecrawl_refresh".to_string(),
+        raw_page.content.clone(),
+        Some(raw_page.content.clone()),
+        "ingestor_refresh".to_string(),
     )
     .await
     {
@@ -299,7 +307,7 @@ pub async fn refresh_page_snapshot(
         page_snapshot_id,
         job_id,
         url: page_snapshot.url.clone(),
-        content: scrape_result.markdown,
+        content: raw_page.content,
     });
 
     Ok(RefreshPageSnapshotResult {

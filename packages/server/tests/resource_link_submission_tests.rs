@@ -230,11 +230,12 @@ async fn test_manual_scrape_creates_website_snapshot() {
     use server_core::common::MemberId;
     use server_core::domains::crawling::models::WebsiteSnapshot;
     use server_core::domains::website::models::Website;
-    use server_core::kernel::test_dependencies::{MockAI, MockWebScraper, TestDependencies};
+    use extraction::{MockIngestor, RawPage};
+    use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 
-    // Setup: Create test harness with mocked AI and web scraper
-    let mock_scraper =
-        MockWebScraper::new().with_response("# Test Page\n\nTest volunteer opportunity content");
+    // Setup: Create test harness with mocked AI and ingestor
+    let mock_ingestor = MockIngestor::new()
+        .with_page(RawPage::new("https://scrapetest.org", "# Test Page\n\nTest volunteer opportunity content"));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence
@@ -242,7 +243,7 @@ async fn test_manual_scrape_creates_website_snapshot() {
         .with_response(r#"[]"#);
 
     let test_deps = TestDependencies::new()
-        .mock_scraper(mock_scraper)
+        .mock_ingestor(mock_ingestor)
         .mock_ai(mock_ai);
 
     let ctx = TestHarness::with_deps(test_deps)

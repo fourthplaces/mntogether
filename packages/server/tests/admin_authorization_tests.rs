@@ -11,9 +11,8 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
-use server_core::common::{MemberId, ProviderId, ResourceId};
+use server_core::common::{MemberId, ProviderId};
 use server_core::domains::providers::models::{CreateProvider, Provider, ProviderStatus};
-use server_core::domains::resources::models::{Resource, ResourceStatus};
 use uuid::Uuid;
 
 // ============================================================================
@@ -82,23 +81,6 @@ async fn create_test_provider(harness: &TestHarness) -> Uuid {
     provider_id
 }
 
-/// Create a pending resource for testing (requires website_id)
-async fn create_test_resource(harness: &TestHarness) -> Uuid {
-    // First create a website since resources require website_id
-    let website_id = create_test_website(harness).await;
-
-    let resource_id = Uuid::new_v4();
-    sqlx::query(
-        r#"INSERT INTO resources (id, website_id, title, content, status, created_at, updated_at)
-           VALUES ($1, $2, 'Test Resource', 'Test content', 'pending_approval', NOW(), NOW())"#,
-    )
-    .bind(resource_id)
-    .bind(website_id)
-    .execute(&harness.db_pool)
-    .await
-    .expect("Failed to create test resource");
-    resource_id
-}
 
 /// Assert error contains admin required message
 fn assert_admin_required(errors: &[String]) {
@@ -867,56 +849,6 @@ async fn pending_providers_unauthenticated_fails() {
     assert_auth_required(&result.errors);
 }
 
-// --- pending_resources ---
-
-#[tokio::test]
-async fn pending_resources_as_admin_succeeds() {
-    let (harness, admin_id, _) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(admin_id, true);
-    let result = client
-        .execute(r#"query { pendingResources { id title } }"#)
-        .await;
-
-    assert!(
-        result.is_ok(),
-        "Admin should be able to view pending resources. Errors: {:?}",
-        result.errors
-    );
-}
-
-#[tokio::test]
-async fn pending_resources_as_non_admin_fails() {
-    let (harness, _, non_admin_id) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(non_admin_id, false);
-    let result = client
-        .execute(r#"query { pendingResources { id title } }"#)
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Non-admin should NOT be able to view pending resources"
-    );
-    assert_admin_required(&result.errors);
-}
-
-#[tokio::test]
-async fn pending_resources_unauthenticated_fails() {
-    let (harness, _, _) = setup_test_harness().await;
-
-    let client = harness.graphql();
-    let result = client
-        .execute(r#"query { pendingResources { id title } }"#)
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Unauthenticated should NOT be able to view pending resources"
-    );
-    assert_auth_required(&result.errors);
-}
-
 // --- pending_websites ---
 
 #[tokio::test]
@@ -1672,162 +1604,6 @@ async fn providers_unauthenticated_fails() {
     assert!(
         !result.is_ok(),
         "Unauthenticated should NOT be able to query providers"
-    );
-    assert_auth_required(&result.errors);
-}
-
-// --- resource query ---
-
-#[tokio::test]
-async fn resource_as_admin_succeeds() {
-    let (harness, admin_id, _) = setup_test_harness().await;
-    let resource_id = create_test_resource(&harness).await;
-
-    let client = harness.graphql_with_auth(admin_id, true);
-    let result = client
-        .execute(&format!(
-            r#"query {{ resource(id: "{}") {{ id }} }}"#,
-            resource_id
-        ))
-        .await;
-
-    assert!(
-        result.is_ok(),
-        "Admin should be able to query resource. Errors: {:?}",
-        result.errors
-    );
-}
-
-#[tokio::test]
-async fn resource_as_non_admin_fails() {
-    let (harness, _, non_admin_id) = setup_test_harness().await;
-    let resource_id = create_test_resource(&harness).await;
-
-    let client = harness.graphql_with_auth(non_admin_id, false);
-    let result = client
-        .execute(&format!(
-            r#"query {{ resource(id: "{}") {{ id }} }}"#,
-            resource_id
-        ))
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Non-admin should NOT be able to query resource"
-    );
-    assert_admin_required(&result.errors);
-}
-
-#[tokio::test]
-async fn resource_unauthenticated_fails() {
-    let (harness, _, _) = setup_test_harness().await;
-    let resource_id = create_test_resource(&harness).await;
-
-    let client = harness.graphql();
-    let result = client
-        .execute(&format!(
-            r#"query {{ resource(id: "{}") {{ id }} }}"#,
-            resource_id
-        ))
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Unauthenticated should NOT be able to query resource"
-    );
-    assert_auth_required(&result.errors);
-}
-
-// --- resources query ---
-
-#[tokio::test]
-async fn resources_as_admin_succeeds() {
-    let (harness, admin_id, _) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(admin_id, true);
-    let result = client
-        .execute(r#"query { resources { nodes { id } } }"#)
-        .await;
-
-    assert!(
-        result.is_ok(),
-        "Admin should be able to query resources. Errors: {:?}",
-        result.errors
-    );
-}
-
-#[tokio::test]
-async fn resources_as_non_admin_fails() {
-    let (harness, _, non_admin_id) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(non_admin_id, false);
-    let result = client
-        .execute(r#"query { resources { nodes { id } } }"#)
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Non-admin should NOT be able to query resources"
-    );
-    assert_admin_required(&result.errors);
-}
-
-#[tokio::test]
-async fn resources_unauthenticated_fails() {
-    let (harness, _, _) = setup_test_harness().await;
-
-    let client = harness.graphql();
-    let result = client
-        .execute(r#"query { resources { nodes { id } } }"#)
-        .await;
-
-    assert!(
-        !result.is_ok(),
-        "Unauthenticated should NOT be able to query resources"
-    );
-    assert_auth_required(&result.errors);
-}
-
-// --- active_resources query ---
-
-#[tokio::test]
-async fn active_resources_as_admin_succeeds() {
-    let (harness, admin_id, _) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(admin_id, true);
-    let result = client.execute(r#"query { activeResources { id } }"#).await;
-
-    assert!(
-        result.is_ok(),
-        "Admin should be able to query activeResources. Errors: {:?}",
-        result.errors
-    );
-}
-
-#[tokio::test]
-async fn active_resources_as_non_admin_fails() {
-    let (harness, _, non_admin_id) = setup_test_harness().await;
-
-    let client = harness.graphql_with_auth(non_admin_id, false);
-    let result = client.execute(r#"query { activeResources { id } }"#).await;
-
-    assert!(
-        !result.is_ok(),
-        "Non-admin should NOT be able to query activeResources"
-    );
-    assert_admin_required(&result.errors);
-}
-
-#[tokio::test]
-async fn active_resources_unauthenticated_fails() {
-    let (harness, _, _) = setup_test_harness().await;
-
-    let client = harness.graphql();
-    let result = client.execute(r#"query { activeResources { id } }"#).await;
-
-    assert!(
-        !result.is_ok(),
-        "Unauthenticated should NOT be able to query activeResources"
     );
     assert_auth_required(&result.errors);
 }

@@ -6,6 +6,8 @@
 //! Pattern:
 //!   Fact Event → Effect → Cascade Handler → do work → emit next event
 
+#![allow(deprecated)] // Uses deprecated crawl_website during migration
+
 use anyhow::Result;
 use seesaw_core::EffectContext;
 use tracing::info;
@@ -60,7 +62,7 @@ pub async fn handle_extract_from_pages(
         website_id,
         &pages_for_extraction,
         &ctx.deps().db_pool,
-        Some(ctx.deps().search_service.as_ref()),
+        Some(ctx.deps().web_searcher.as_ref()),
         ctx.deps().ai.as_ref(),
     )
     .await

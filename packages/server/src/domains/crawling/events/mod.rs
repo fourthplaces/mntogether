@@ -68,6 +68,14 @@ pub enum CrawlEvent {
         reason: String,
     },
 
+    /// Website ingested via extraction library (new pattern)
+    WebsiteIngested {
+        website_id: WebsiteId,
+        job_id: JobId,
+        pages_crawled: usize,
+        pages_summarized: usize,
+    },
+
     /// Posts extracted from multiple crawled pages
     PostsExtractedFromPages {
         website_id: WebsiteId,

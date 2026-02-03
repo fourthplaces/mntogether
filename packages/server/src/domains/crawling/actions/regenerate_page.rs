@@ -1,6 +1,14 @@
 //! Regenerate content for a single page
 //!
 //! Uses agentic extraction for post generation.
+//!
+//! # Deprecation Notice
+//!
+//! This module uses the deprecated `PageSnapshot` model. For new code, use
+//! the extraction library's `ExtractionService` which stores pages in
+//! `extraction_pages` and handles extraction via `Index::extract()`.
+
+#![allow(deprecated)] // Uses deprecated PageSnapshot during migration
 
 use tracing::{info, warn};
 use uuid::Uuid;
@@ -50,7 +58,7 @@ pub async fn regenerate_posts_for_page(
         page_ctx.website_id,
         &pages,
         &deps.db_pool,
-        Some(deps.search_service.as_ref()),
+        Some(deps.web_searcher.as_ref()),
         deps.ai.as_ref(),
     )
     .await

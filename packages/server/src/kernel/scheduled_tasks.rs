@@ -28,8 +28,9 @@ use crate::domains::member::models::member::Member;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::posts::effects::run_discovery_searches;
 use crate::domains::website::models::Website;
-use crate::kernel::TavilyClient;
 use crate::server::graphql::context::AppEngine;
+
+use extraction::TavilyWebSearcher;
 
 /// Start all scheduled tasks
 ///
@@ -151,11 +152,11 @@ async fn run_periodic_searches(pool: &PgPool) -> Result<()> {
     // Load config for Tavily API key
     let config = Config::from_env()?;
 
-    // Create Tavily search client
-    let search_service = TavilyClient::new(config.tavily_api_key.clone())?;
+    // Create Tavily web searcher
+    let web_searcher = TavilyWebSearcher::new(config.tavily_api_key.clone());
 
     // Run discovery searches with static queries
-    let result = run_discovery_searches(&search_service, pool).await?;
+    let result = run_discovery_searches(&web_searcher, pool).await?;
 
     tracing::info!(
         queries_run = result.queries_run,

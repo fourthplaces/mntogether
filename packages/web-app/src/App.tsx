@@ -21,6 +21,7 @@ import { OrganizationsList } from './pages/admin/OrganizationsList';
 import { WebsiteDetail } from './pages/admin/WebsiteDetail';
 import { PostDetail } from './pages/admin/PostDetail';
 import { PageSnapshotDetail } from './pages/admin/PageSnapshotDetail';
+import { Extraction } from './pages/admin/Extraction';
 
 // Components
 import { Chatroom } from './components/Chatroom';
@@ -69,6 +70,12 @@ function AdminLayout() {
                   className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
                 >
                   🔍 Scraped
+                </Link>
+                <Link
+                  to="/admin/extraction"
+                  className="border-transparent text-stone-600 hover:border-amber-500 hover:text-amber-700 inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium"
+                >
+                  🧠 Extract
                 </Link>
               </div>
             </div>
@@ -127,6 +134,7 @@ function AdminLayout() {
           <Route path="/posts/:postId" element={<PostDetail />} />
           <Route path="/pages/:snapshotId" element={<PageSnapshotDetail />} />
           <Route path="/scraped" element={<ScrapedPostsReview />} />
+          <Route path="/extraction" element={<Extraction />} />
           <Route path="/resources" element={<Resources />} />
           <Route path="/resources/:sourceId" element={<ResourceDetail />} />
           <Route path="/organizations" element={<OrganizationsList />} />

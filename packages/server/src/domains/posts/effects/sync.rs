@@ -13,10 +13,9 @@ use seesaw_core::EffectContext;
 
 use crate::common::AppState;
 use crate::common::{JobId, WebsiteId};
+use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::posts::events::PostEvent;
 use crate::kernel::ServerDeps;
-
-use super::llm_sync::llm_sync_posts;
 
 // ============================================================================
 // Handler action - emits events directly

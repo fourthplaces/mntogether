@@ -25,6 +25,7 @@ pub type AppEngine = Engine<AppState, ServerDeps>;
 pub struct GraphQLContext {
     pub db_pool: PgPool,
     pub engine: Arc<AppEngine>,
+    pub server_deps: Arc<ServerDeps>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
@@ -37,6 +38,7 @@ impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
         engine: Arc<AppEngine>,
+        server_deps: Arc<ServerDeps>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
         jwt_service: Arc<JwtService>,
@@ -45,6 +47,7 @@ impl GraphQLContext {
         Self {
             db_pool,
             engine,
+            server_deps,
             auth_user,
             twilio,
             jwt_service,
@@ -104,5 +107,13 @@ impl GraphQLContext {
             }
             None => AppState::anonymous(),
         }
+    }
+
+    /// Get server dependencies for direct access
+    ///
+    /// Use this for services that don't need the seesaw effect context,
+    /// like extraction queries.
+    pub fn deps(&self) -> &ServerDeps {
+        &self.server_deps
     }
 }

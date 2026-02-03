@@ -11,11 +11,13 @@ use uuid::Uuid;
 
 use super::{
     job_queue::{JobQueue, JobSpec},
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, BaseSearchService,
-    BaseWebScraper, CrawlResult, CrawledPage, LinkPriorities, PiiScrubResult, ScrapeResult,
-    SearchResult, ServerKernel,
+    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, PiiScrubResult,
+    ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
+
+// Import from extraction library
+use extraction::{MockIngestor, MockWebSearcher};
 
 // =============================================================================
 // Spy Job Queue (for testing)
@@ -69,169 +71,6 @@ impl JobQueue for SpyJobQueue {
     ) -> Result<Uuid> {
         self.jobs.lock().unwrap().push((payload, spec));
         Ok(Uuid::new_v4())
-    }
-}
-
-// =============================================================================
-// Mock Web Scraper
-// =============================================================================
-
-/// Arguments captured from a crawl call
-#[derive(Debug, Clone)]
-pub struct CrawlCallArgs {
-    pub url: String,
-    pub max_depth: i32,
-    pub max_pages: i32,
-    pub delay_seconds: i32,
-    pub priorities: Option<LinkPriorities>,
-}
-
-pub struct MockWebScraper {
-    responses: Arc<Mutex<Vec<ScrapeResult>>>,
-    crawl_responses: Arc<Mutex<Vec<CrawlResult>>>,
-    scrape_calls: Arc<Mutex<Vec<String>>>,
-    crawl_calls: Arc<Mutex<Vec<CrawlCallArgs>>>,
-}
-
-impl MockWebScraper {
-    pub fn new() -> Self {
-        Self {
-            responses: Arc::new(Mutex::new(Vec::new())),
-            crawl_responses: Arc::new(Mutex::new(Vec::new())),
-            scrape_calls: Arc::new(Mutex::new(Vec::new())),
-            crawl_calls: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    pub fn with_response(self, markdown: &str) -> Self {
-        let response = ScrapeResult {
-            url: "https://example.org".to_string(),
-            markdown: markdown.to_string(),
-            title: Some("Test Page".to_string()),
-        };
-        self.responses.lock().unwrap().push(response);
-        self
-    }
-
-    /// Add a crawl result to be returned
-    pub fn with_crawl_result(self, result: CrawlResult) -> Self {
-        self.crawl_responses.lock().unwrap().push(result);
-        self
-    }
-
-    /// Add a crawl result from (url, markdown) pairs
-    pub fn with_crawl_pages(self, pages: Vec<(&str, &str)>) -> Self {
-        let crawled_pages: Vec<CrawledPage> = pages
-            .into_iter()
-            .map(|(url, markdown)| CrawledPage {
-                url: url.to_string(),
-                markdown: markdown.to_string(),
-                title: Some(format!("Page: {}", url)),
-            })
-            .collect();
-        self.crawl_responses.lock().unwrap().push(CrawlResult {
-            pages: crawled_pages,
-        });
-        self
-    }
-
-    /// Get all URLs that were scraped
-    pub fn scrape_calls(&self) -> Vec<String> {
-        self.scrape_calls.lock().unwrap().clone()
-    }
-
-    /// Get all crawl calls with their arguments
-    pub fn crawl_calls(&self) -> Vec<CrawlCallArgs> {
-        self.crawl_calls.lock().unwrap().clone()
-    }
-
-    /// Check if a URL was scraped
-    pub fn was_scraped(&self, url: &str) -> bool {
-        self.scrape_calls.lock().unwrap().iter().any(|u| u == url)
-    }
-
-    /// Check if a URL was crawled
-    pub fn was_crawled(&self, url: &str) -> bool {
-        self.crawl_calls
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|c| c.url == url)
-    }
-}
-
-#[async_trait]
-impl BaseWebScraper for MockWebScraper {
-    async fn scrape(&self, url: &str) -> Result<ScrapeResult> {
-        // Record the call
-        self.scrape_calls.lock().unwrap().push(url.to_string());
-
-        let mut responses = self.responses.lock().unwrap();
-        if !responses.is_empty() {
-            Ok(responses.remove(0))
-        } else {
-            Ok(ScrapeResult {
-                url: url.to_string(),
-                markdown: "# Mock Content\n\nThis is mock scraped content.".to_string(),
-                title: Some("Mock Page".to_string()),
-            })
-        }
-    }
-
-    async fn crawl(
-        &self,
-        url: &str,
-        max_depth: i32,
-        max_pages: i32,
-        delay_seconds: i32,
-        priorities: Option<&LinkPriorities>,
-    ) -> Result<CrawlResult> {
-        // Record the call with all arguments
-        self.crawl_calls.lock().unwrap().push(CrawlCallArgs {
-            url: url.to_string(),
-            max_depth,
-            max_pages,
-            delay_seconds,
-            priorities: priorities.cloned(),
-        });
-
-        // Check for queued crawl responses first
-        let mut crawl_responses = self.crawl_responses.lock().unwrap();
-        if !crawl_responses.is_empty() {
-            return Ok(crawl_responses.remove(0));
-        }
-        drop(crawl_responses);
-
-        // Fall back to scrape responses converted to crawl pages
-        let mut responses = self.responses.lock().unwrap();
-        let pages: Vec<CrawledPage> = if !responses.is_empty() {
-            // Use queued responses as pages
-            responses
-                .drain(..)
-                .take(max_pages as usize)
-                .map(|r| CrawledPage {
-                    url: r.url,
-                    markdown: r.markdown,
-                    title: r.title,
-                })
-                .collect()
-        } else {
-            // Return default mock pages
-            vec![
-                CrawledPage {
-                    url: url.to_string(),
-                    markdown: "# Homepage\n\nThis is the mock homepage.".to_string(),
-                    title: Some("Homepage".to_string()),
-                },
-                CrawledPage {
-                    url: format!("{}/about", url),
-                    markdown: "# About\n\nThis is the mock about page.".to_string(),
-                    title: Some("About".to_string()),
-                },
-            ]
-        };
-
-        Ok(CrawlResult { pages })
     }
 }
 
@@ -454,46 +293,6 @@ impl BasePushNotificationService for MockPushNotificationService {
 }
 
 // =============================================================================
-// Mock Search Service
-// =============================================================================
-
-pub struct MockSearchService {
-    responses: Arc<Mutex<Vec<Vec<SearchResult>>>>,
-}
-
-impl MockSearchService {
-    pub fn new() -> Self {
-        Self {
-            responses: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    pub fn with_results(self, results: Vec<SearchResult>) -> Self {
-        self.responses.lock().unwrap().push(results);
-        self
-    }
-}
-
-#[async_trait]
-impl BaseSearchService for MockSearchService {
-    async fn search(
-        &self,
-        _query: &str,
-        _max_results: Option<usize>,
-        _search_depth: Option<&str>,
-        _days: Option<i32>,
-    ) -> Result<Vec<SearchResult>> {
-        let mut responses = self.responses.lock().unwrap();
-        if !responses.is_empty() {
-            Ok(responses.remove(0))
-        } else {
-            // Return empty results by default
-            Ok(vec![])
-        }
-    }
-}
-
-// =============================================================================
 // Mock PII Detector
 // =============================================================================
 
@@ -558,11 +357,11 @@ impl BasePiiDetector for MockPiiDetector {
 
 #[derive(Clone)]
 pub struct TestDependencies {
-    pub web_scraper: Arc<MockWebScraper>,
+    pub ingestor: Arc<MockIngestor>,
     pub ai: Arc<MockAI>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
-    pub search_service: Arc<MockSearchService>,
+    pub web_searcher: Arc<MockWebSearcher>,
     pub pii_detector: Arc<MockPiiDetector>,
     pub job_queue: Arc<SpyJobQueue>,
 }
@@ -570,19 +369,19 @@ pub struct TestDependencies {
 impl TestDependencies {
     pub fn new() -> Self {
         Self {
-            web_scraper: Arc::new(MockWebScraper::new()),
+            ingestor: Arc::new(MockIngestor::new()),
             ai: Arc::new(MockAI::new()),
             embedding_service: Arc::new(MockEmbeddingService::new()),
             push_service: Arc::new(MockPushNotificationService::new()),
-            search_service: Arc::new(MockSearchService::new()),
+            web_searcher: Arc::new(MockWebSearcher::new()),
             pii_detector: Arc::new(MockPiiDetector::new()),
             job_queue: Arc::new(SpyJobQueue::new()),
         }
     }
 
-    /// Set a mock web scraper
-    pub fn mock_scraper(mut self, scraper: MockWebScraper) -> Self {
-        self.web_scraper = Arc::new(scraper);
+    /// Set a mock ingestor (for crawling/scraping)
+    pub fn mock_ingestor(mut self, ingestor: MockIngestor) -> Self {
+        self.ingestor = Arc::new(ingestor);
         self
     }
 
@@ -604,9 +403,9 @@ impl TestDependencies {
         self
     }
 
-    /// Set a mock search service
-    pub fn mock_search(mut self, service: MockSearchService) -> Self {
-        self.search_service = Arc::new(service);
+    /// Set a mock web searcher
+    pub fn mock_web_searcher(mut self, searcher: MockWebSearcher) -> Self {
+        self.web_searcher = Arc::new(searcher);
         self
     }
 
@@ -623,11 +422,11 @@ impl TestDependencies {
     pub fn into_kernel(self, db_pool: PgPool) -> Arc<ServerKernel> {
         Arc::new(ServerKernel::new(
             db_pool,
-            self.web_scraper,
+            self.ingestor,
             self.ai,
             self.embedding_service,
             self.push_service,
-            self.search_service,
+            self.web_searcher,
             self.pii_detector,
             self.job_queue,
         ))

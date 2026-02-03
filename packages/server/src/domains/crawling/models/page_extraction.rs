@@ -10,17 +10,9 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use super::PageSnapshotId;
+use crate::common::ExtractionType;
 
 pub type PageExtractionId = Uuid;
-
-/// Known extraction types (not exhaustive - new types can be added without code changes)
-pub mod extraction_types {
-    pub const SUMMARY: &str = "summary";
-    pub const POSTS: &str = "posts";
-    pub const CONTACTS: &str = "contacts";
-    pub const HOURS: &str = "hours";
-    pub const EVENTS: &str = "events";
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PageExtraction {
@@ -224,7 +216,7 @@ impl PageExtraction {
         Self::create(
             pool,
             page_snapshot_id,
-            extraction_types::SUMMARY,
+            ExtractionType::Summary.as_str(),
             content,
             model,
             prompt_version,
@@ -248,7 +240,7 @@ impl PageExtraction {
         Self::create(
             pool,
             page_snapshot_id,
-            extraction_types::CONTACTS,
+            ExtractionType::Contacts.as_str(),
             content,
             model,
             prompt_version,

@@ -2,6 +2,13 @@
 //!
 //! These handlers respond to fact events and are called from the composite effect.
 //! Entry-point actions live in `actions/`, not here.
+//!
+//! # Deprecation Notice
+//!
+//! This module uses the deprecated `PageSnapshot` model. New code should use
+//! the extraction library's `ExtractionService` for scraping and extraction.
+
+#![allow(deprecated)]
 
 use anyhow::Result;
 use seesaw_core::EffectContext;
@@ -27,11 +34,11 @@ pub async fn handle_scrape_resource_link(
         "Starting resource link scrape (cascade)"
     );
 
-    let scrape_result = match ctx.deps().web_scraper.scrape(&url).await {
+    let raw_page = match ctx.deps().ingestor.fetch_one(&url).await {
         Ok(r) => {
             tracing::info!(
                 job_id = %job_id,
-                content_length = r.markdown.len(),
+                content_length = r.content.len(),
                 "Resource link scrape completed"
             );
             r
@@ -49,9 +56,9 @@ pub async fn handle_scrape_resource_link(
     let (page_snapshot, is_new) = match PageSnapshot::upsert(
         &ctx.deps().db_pool,
         url.clone(),
-        scrape_result.markdown.clone(),
-        Some(scrape_result.markdown.clone()),
-        "simple_scraper".to_string(),
+        raw_page.content.clone(),
+        Some(raw_page.content.clone()),
+        "ingestor".to_string(),
     )
     .await
     {
@@ -63,9 +70,9 @@ pub async fn handle_scrape_resource_link(
                     id: uuid::Uuid::new_v4(),
                     url: url.clone(),
                     content_hash: vec![],
-                    html: scrape_result.markdown.clone(),
-                    markdown: Some(scrape_result.markdown.clone()),
-                    fetched_via: "simple_scraper".to_string(),
+                    html: raw_page.content.clone(),
+                    markdown: Some(raw_page.content.clone()),
+                    fetched_via: "ingestor".to_string(),
                     metadata: serde_json::json!({}),
                     crawled_at: chrono::Utc::now(),
                     listings_extracted_count: Some(0),
@@ -84,7 +91,7 @@ pub async fn handle_scrape_resource_link(
     ctx.emit(PostEvent::ResourceLinkScraped {
         job_id,
         url,
-        content: scrape_result.markdown,
+        content: raw_page.content,
         context,
         submitter_contact,
         page_snapshot_id: Some(page_snapshot.id),

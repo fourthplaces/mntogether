@@ -602,6 +602,133 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
         let urls: Vec<&str> = result.pages_found.iter().map(|s| s.as_str()).collect();
         self.store.get_pages(&urls).await
     }
+
+    // =========================================================================
+    // Enrichment: On-the-fly index expansion
+    // =========================================================================
+
+    /// Ingest a single page discovered by external search.
+    ///
+    /// This is the "expansion" capability for the discovery loop. When extraction
+    /// returns gaps, the app can use a `WebSearcher` to find new URLs, then call
+    /// this method to add them to the index without doing a full site crawl.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// // Extraction returned gaps
+    /// let mut result = index.extract("volunteer contact info", None).await?;
+    ///
+    /// if result.needs_enrichment() {
+    ///     // Get searchable gaps
+    ///     let searchable_gaps: Vec<_> = result.gaps.iter()
+    ///         .filter(|g| g.is_searchable())
+    ///         .collect();
+    ///
+    ///     for gap in searchable_gaps {
+    ///         // Use external search to find pages
+    ///         let search_results = searcher.search(&gap.query).await?;
+    ///
+    ///         // Ingest discovered pages
+    ///         for search_result in search_results {
+    ///             index.ingest_url(search_result.url.as_str(), &crawler).await?;
+    ///         }
+    ///     }
+    ///
+    ///     // Re-extract with enriched index
+    ///     let enriched = index.extract("volunteer contact info", None).await?;
+    ///     result.merge(enriched.into_iter().next().unwrap_or_default());
+    /// }
+    /// ```
+    pub async fn ingest_url<C: crate::traits::crawler::Crawler>(
+        &self,
+        url: &str,
+        crawler: &C,
+    ) -> Result<crate::pipeline::ingest::SinglePageResult> {
+        crate::pipeline::ingest::ingest_single_page(url, &self.store, &self.ai, crawler).await
+    }
+
+    /// Get a reference to the store.
+    pub fn store(&self) -> &S {
+        &self.store
+    }
+
+    /// Get a reference to the AI.
+    pub fn ai(&self) -> &A {
+        &self.ai
+    }
+
+    // =========================================================================
+    // Ingestor-based Ingestion (new pattern)
+    // =========================================================================
+
+    /// Ingest pages from a URL using the provided ingestor.
+    ///
+    /// This is the main entry point for adding content to the index using
+    /// the new pluggable Ingestor pattern.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// use extraction::ingestors::{HttpIngestor, ValidatedIngestor, DiscoverConfig};
+    ///
+    /// let ingestor = ValidatedIngestor::new(HttpIngestor::new());
+    /// let config = DiscoverConfig::new("https://example.com").with_limit(10);
+    ///
+    /// let result = index.ingest(&config, &ingestor).await?;
+    /// println!("Ingested {} pages", result.pages_summarized);
+    /// ```
+    pub async fn ingest<I: crate::traits::ingestor::Ingestor>(
+        &self,
+        discover_config: &crate::traits::ingestor::DiscoverConfig,
+        ingestor: &I,
+    ) -> Result<crate::pipeline::ingest::IngestResult> {
+        let config = crate::pipeline::ingest::IngestorConfig::default();
+        crate::pipeline::ingest::ingest_with_ingestor(
+            discover_config,
+            &config,
+            &self.store,
+            &self.ai,
+            ingestor,
+        )
+        .await
+    }
+
+    /// Ingest pages with custom configuration.
+    pub async fn ingest_with_config<I: crate::traits::ingestor::Ingestor>(
+        &self,
+        discover_config: &crate::traits::ingestor::DiscoverConfig,
+        ingest_config: &crate::pipeline::ingest::IngestorConfig,
+        ingestor: &I,
+    ) -> Result<crate::pipeline::ingest::IngestResult> {
+        crate::pipeline::ingest::ingest_with_ingestor(
+            discover_config,
+            ingest_config,
+            &self.store,
+            &self.ai,
+            ingestor,
+        )
+        .await
+    }
+
+    /// Fetch and ingest specific URLs (for gap-filling).
+    ///
+    /// Used by the Detective to follow GapQuery suggestions.
+    pub async fn ingest_urls<I: crate::traits::ingestor::Ingestor>(
+        &self,
+        urls: &[String],
+        ingestor: &I,
+    ) -> Result<crate::pipeline::ingest::IngestResult> {
+        let config = crate::pipeline::ingest::IngestorConfig::default();
+        crate::pipeline::ingest::ingest_urls_with_ingestor(
+            urls,
+            &config,
+            &self.store,
+            &self.ai,
+            ingestor,
+        )
+        .await
+    }
 }
 
 #[cfg(test)]

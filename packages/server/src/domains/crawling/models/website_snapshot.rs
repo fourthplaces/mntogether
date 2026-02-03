@@ -1,6 +1,25 @@
 //! Website Snapshot - links a website to its crawled page snapshots
 //!
 //! Tracks which pages have been crawled for each website.
+//!
+//! TODO(migration): Remove this module after verifying no production callers.
+//! See `domains/crawling/MIGRATION.md` for removal checklist.
+//!
+//! # Deprecation Notice
+//!
+//! This junction table is deprecated. The extraction library's `extraction_pages` table
+//! has a `site_url` column that provides the same functionality without needing a
+//! separate junction table.
+//!
+//! **Migration path:**
+//! - For **linking pages to websites**: The extraction library's `site_url` column
+//!   on `extraction_pages` serves this purpose
+//! - For **finding pages for a website**: Use `extraction::PageCache::get_pages_for_site()`
+//!
+//! The old `crawl_website()` → `website_snapshots` → `page_snapshots` path is replaced by:
+//! `ingest_website()` → `extraction_pages` (with site_url)
+
+#![allow(deprecated)]
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
@@ -10,8 +29,14 @@ use uuid::Uuid;
 use super::PageSnapshotId;
 use crate::common::{MemberId, WebsiteId};
 
+#[deprecated(since = "0.1.0", note = "Junction table replaced by site_url on extraction_pages")]
 pub type WebsiteSnapshotId = Uuid;
 
+/// Links a website to its crawled page snapshots.
+///
+/// **Deprecated:** This junction table is replaced by the `site_url` column
+/// on `extraction_pages`. Use `extraction::PageCache::get_pages_for_site()` instead.
+#[deprecated(since = "0.1.0", note = "Use extraction library's site_url filtering instead")]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct WebsiteSnapshot {
     pub id: WebsiteSnapshotId,
