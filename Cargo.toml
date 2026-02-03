@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "packages/server",
     "packages/twilio-rs",
+    "packages/extraction",
 ]
 
 [workspace.package]
