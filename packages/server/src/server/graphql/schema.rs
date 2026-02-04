@@ -32,7 +32,7 @@ use crate::domains::website_approval::actions as website_approval_actions;
 // Domain data types (GraphQL types)
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
 use crate::domains::extraction::data::{
-    ExtractionData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
+    ExtractionData, ExtractionPageData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
     TriggerExtractionResult,
 };
 use crate::domains::member::data::{MemberConnection, MemberData};
@@ -96,6 +96,26 @@ pub struct DeduplicationResult {
 /// Result of generating missing embeddings
 #[derive(Debug, Clone, juniper::GraphQLObject)]
 pub struct GenerateEmbeddingsResult {
+    pub processed: i32,
+    pub failed: i32,
+    pub remaining: i32,
+}
+
+/// Result of semantic post search
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct PostSearchResultData {
+    pub post_id: Uuid,
+    pub title: String,
+    pub description: String,
+    pub organization_name: String,
+    pub category: String,
+    pub post_type: String,
+    pub similarity: f64,
+}
+
+/// Result of backfilling post embeddings
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct BackfillPostEmbeddingsResult {
     pub processed: i32,
     pub failed: i32,
     pub remaining: i32,
@@ -408,6 +428,52 @@ impl Query {
             .collect())
     }
 
+    /// Search posts using semantic similarity (public)
+    ///
+    /// Arguments:
+    /// - query: Natural language search query
+    /// - threshold: Minimum similarity score (0-1, default: 0.6)
+    /// - limit: Maximum results to return (default: 20)
+    async fn search_posts_semantic(
+        ctx: &GraphQLContext,
+        query: String,
+        threshold: Option<f64>,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<PostSearchResultData>> {
+        let threshold = threshold.unwrap_or(0.6) as f32;
+        let limit = limit.unwrap_or(20);
+
+        // Generate embedding for the query
+        let query_embedding = ctx
+            .openai_client
+            .create_embedding(&query, "text-embedding-3-small")
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to create embedding: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
+        // Search posts by embedding similarity
+        let results = Post::search_by_similarity(&query_embedding, threshold, limit, &ctx.db_pool)
+            .await
+            .map_err(|e| FieldError::new(format!("Search failed: {}", e), juniper::Value::null()))?;
+
+        Ok(results
+            .into_iter()
+            .map(|r| PostSearchResultData {
+                post_id: r.post_id.into_uuid(),
+                title: r.title,
+                description: r.description,
+                organization_name: r.organization_name,
+                category: r.category,
+                post_type: r.post_type,
+                similarity: r.similarity,
+            })
+            .collect())
+    }
+
     /// Get paginated organizations with cursor-based pagination (Relay spec)
     ///
     /// Arguments:
@@ -610,6 +676,50 @@ impl Query {
         .context("Failed to query page snapshot by URL")?;
 
         Ok(snapshot.map(PageSnapshotData::from))
+    }
+
+    // =========================================================================
+    // Extraction Page Queries (replaces deprecated PageSnapshot)
+    // =========================================================================
+
+    /// Get an extraction page by URL
+    ///
+    /// This replaces the deprecated `pageSnapshot` query. The extraction library
+    /// uses URL as the primary key.
+    async fn extraction_page(
+        ctx: &GraphQLContext,
+        url: String,
+    ) -> FieldResult<Option<ExtractionPageData>> {
+        let page = ExtractionPageData::find_by_url(&url, &ctx.db_pool)
+            .await
+            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(page)
+    }
+
+    /// Get extraction pages for a domain
+    ///
+    /// Returns pages from the extraction_pages table for the given domain.
+    async fn extraction_pages(
+        ctx: &GraphQLContext,
+        domain: String,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<ExtractionPageData>> {
+        let limit = limit.unwrap_or(50);
+        let pages = ExtractionPageData::find_by_domain(&domain, limit, &ctx.db_pool)
+            .await
+            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(pages)
+    }
+
+    /// Count extraction pages for a domain
+    async fn extraction_pages_count(
+        ctx: &GraphQLContext,
+        domain: String,
+    ) -> FieldResult<i32> {
+        let count = ExtractionPageData::count_by_domain(&domain, &ctx.db_pool)
+            .await
+            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(count)
     }
 
     // =========================================================================
@@ -1101,6 +1211,8 @@ impl Mutation {
 
     /// Generate embedding for a single post (admin only)
     async fn generate_post_embedding(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
+        use crate::domains::posts::effects::post_operations;
+
         let user = ctx
             .auth_user
             .as_ref()
@@ -1113,10 +1225,104 @@ impl Mutation {
             ));
         }
 
-        info!(post_id = %post_id, "Embedding generation is deprecated - no-op");
+        info!(post_id = %post_id, "Generating post embedding");
 
-        // Embeddings are deprecated - return success without doing anything
+        let post_id = PostId::from_uuid(post_id);
+        post_operations::generate_post_embedding(post_id, ctx.server_deps.embedding_service.as_ref(), &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to generate embedding: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
         Ok(true)
+    }
+
+    /// Backfill embeddings for posts that don't have them (admin only)
+    ///
+    /// Arguments:
+    /// - limit: Maximum number of posts to process (default: 100)
+    async fn backfill_post_embeddings(
+        ctx: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> FieldResult<BackfillPostEmbeddingsResult> {
+        use crate::domains::posts::effects::post_operations;
+
+        let user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        if !user.is_admin {
+            return Err(FieldError::new(
+                "Admin authorization required",
+                juniper::Value::null(),
+            ));
+        }
+
+        let limit = limit.unwrap_or(100);
+        info!(limit = %limit, "Backfilling post embeddings");
+
+        // Find posts without embeddings
+        let posts = Post::find_without_embeddings(limit, &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to find posts: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
+        let mut processed = 0;
+        let mut failed = 0;
+
+        for post in posts {
+            match post_operations::generate_post_embedding(
+                post.id,
+                ctx.server_deps.embedding_service.as_ref(),
+                &ctx.db_pool,
+            )
+            .await
+            {
+                Ok(_) => processed += 1,
+                Err(e) => {
+                    error!(post_id = %post.id, error = %e, "Failed to generate embedding");
+                    failed += 1;
+                }
+            }
+        }
+
+        // Count remaining posts without embeddings
+        let remaining_posts = Post::find_without_embeddings(1, &ctx.db_pool)
+            .await
+            .map_err(|e| {
+                FieldError::new(
+                    format!("Failed to count remaining: {}", e),
+                    juniper::Value::null(),
+                )
+            })?;
+
+        // Get actual count
+        let remaining = if remaining_posts.is_empty() {
+            0
+        } else {
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND deleted_at IS NULL AND status = 'active'"
+            )
+            .fetch_one(&ctx.db_pool)
+            .await
+            .unwrap_or(0) as i32
+        };
+
+        info!(processed = processed, failed = failed, remaining = remaining, "Backfill completed");
+
+        Ok(BackfillPostEmbeddingsResult {
+            processed,
+            failed,
+            remaining,
+        })
     }
 
     /// Deduplicate posts using embedding similarity (admin only)

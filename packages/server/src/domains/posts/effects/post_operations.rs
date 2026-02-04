@@ -135,55 +135,23 @@ pub async fn update_and_approve_post(
     Ok(())
 }
 
-/// Create a post for a listing and generate AI outreach copy
-/// Note: This function is deprecated - the announcement model was removed
-pub async fn create_post_for_post(
-    post_id: PostId,
-    _created_by: Option<MemberId>,
-    _custom_title: Option<String>,
-    _custom_description: Option<String>,
-    _expires_in_days: Option<i64>,
-    _ai: &OpenAIClient,
-    pool: &PgPool,
-) -> Result<Post> {
-    // The announcement system was removed, so we just return the post itself
-    Post::find_by_id(post_id, pool)
-        .await
-        .context("Failed to find listing")?
-        .ok_or_else(|| anyhow::anyhow!("Listing not found"))
-}
-
-/// Generate embedding for a listing
-/// NOTE: Embeddings are no longer used for deduplication. This function is deprecated
-/// and returns 0 for backwards compatibility.
-#[allow(unused_variables)]
+/// Generate embedding for a post (for semantic search)
 pub async fn generate_post_embedding(
     post_id: PostId,
     embedding_service: &dyn crate::kernel::BaseEmbeddingService,
     pool: &PgPool,
 ) -> Result<usize> {
-    // Embeddings are no longer used - LLM-based deduplication handles this now
-    Ok(0)
-}
+    let post = Post::find_by_id(post_id, pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Post not found"))?;
 
-/// Create a custom post with admin-provided content
-/// Note: This function is deprecated - the announcement model was removed
-pub async fn create_custom_post(
-    post_id: PostId,
-    _created_by: Option<MemberId>,
-    _custom_title: Option<String>,
-    _custom_description: Option<String>,
-    _custom_tldr: Option<String>,
-    _targeting_hints: Option<serde_json::Value>,
-    _expires_in_days: Option<i64>,
-    _ai: &OpenAIClient,
-    pool: &PgPool,
-) -> Result<Post> {
-    // The announcement system was removed, so we just return the post itself
-    Post::find_by_id(post_id, pool)
-        .await
-        .context("Failed to find listing")?
-        .ok_or_else(|| anyhow::anyhow!("Listing not found"))
+    let embedding_text = post.get_embedding_text();
+    let embedding = embedding_service.generate(&embedding_text).await?;
+    let dimensions = embedding.len();
+
+    Post::update_embedding(post_id, &embedding, pool).await?;
+
+    Ok(dimensions)
 }
 
 /// Expire a post

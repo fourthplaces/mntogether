@@ -147,16 +147,6 @@ export const SUSPEND_WEBSITE = gql`
   }
 `;
 
-export const REFRESH_PAGE_SNAPSHOT = gql`
-  mutation RefreshPageSnapshot($snapshotId: String!) {
-    refreshPageSnapshot(snapshotId: $snapshotId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
 export const GENERATE_WEBSITE_ASSESSMENT = gql`
   mutation GenerateWebsiteAssessment($websiteId: String!) {
     generateWebsiteAssessment(websiteId: $websiteId)
@@ -196,26 +186,6 @@ export const REGENERATE_POSTS = gql`
 export const REGENERATE_PAGE_SUMMARIES = gql`
   mutation RegeneratePageSummaries($websiteId: Uuid!) {
     regeneratePageSummaries(websiteId: $websiteId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
-export const REGENERATE_PAGE_SUMMARY = gql`
-  mutation RegeneratePageSummary($pageSnapshotId: Uuid!) {
-    regeneratePageSummary(pageSnapshotId: $pageSnapshotId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
-export const REGENERATE_PAGE_POSTS = gql`
-  mutation RegeneratePagePosts($pageSnapshotId: Uuid!) {
-    regeneratePagePosts(pageSnapshotId: $pageSnapshotId) {
       jobId
       status
       message

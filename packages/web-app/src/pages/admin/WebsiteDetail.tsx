@@ -31,14 +31,12 @@ const GET_WEBSITE_WITH_SNAPSHOTS = gql`
       pagesCrawledCount
       maxPagesPerCrawl
       snapshots {
-        id
-        pageUrl
-        pageSnapshotId
-        scrapeStatus
-        scrapeError
-        lastScrapedAt
-        submittedAt
-        summary
+        url
+        siteUrl
+        title
+        content
+        fetchedAt
+        listingsCount
       }
       listings {
         id
@@ -84,15 +82,13 @@ const UPDATE_CRAWL_SETTINGS = gql`
   }
 `;
 
-interface WebsiteSnapshot {
-  id: string;
-  pageUrl: string;
-  pageSnapshotId: string | null;
-  scrapeStatus: string;
-  scrapeError: string | null;
-  lastScrapedAt: string | null;
-  submittedAt: string;
-  summary: string | null;
+interface ExtractionPage {
+  url: string;
+  siteUrl: string;
+  title: string | null;
+  content: string;
+  fetchedAt: string;
+  listingsCount: number;
 }
 
 interface Tag {
@@ -129,7 +125,7 @@ interface Website {
   lastCrawlCompletedAt: string | null;
   pagesCrawledCount: number | null;
   maxPagesPerCrawl: number | null;
-  snapshots: WebsiteSnapshot[];
+  snapshots: ExtractionPage[];
   listings: Listing[];
 }
 
@@ -313,10 +309,6 @@ export function WebsiteDetail() {
   const startEditingMaxPages = () => {
     setMaxPagesInput(website?.maxPagesPerCrawl ?? 20);
     setIsEditingMaxPages(true);
-  };
-
-  const getListingsForSnapshot = (snapshotUrl: string) => {
-    return website?.listings?.filter((listing) => listing.sourceUrl === snapshotUrl) || [];
   };
 
   const formatDate = (dateString: string | null) => {
@@ -545,12 +537,12 @@ export function WebsiteDetail() {
                           }}
                           disabled={(website.snapshotsCount ?? 0) === 0}
                           className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                          title={(website.snapshotsCount ?? 0) === 0 ? 'No snapshots found' : 'View all page summaries for debugging'}
+                          title={(website.snapshotsCount ?? 0) === 0 ? 'No pages found' : 'View all page content for debugging'}
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                           </svg>
-                          View All Summaries
+                          View All Content
                         </button>
                       </div>
                     </div>
@@ -711,65 +703,48 @@ export function WebsiteDetail() {
               <div>
                 {website.snapshots && website.snapshots.length > 0 ? (
                   <div className="space-y-2">
-                    {website.snapshots.map((snapshot) => {
-                      const snapshotListings = getListingsForSnapshot(snapshot.pageUrl);
-
-                      return (
-                        <Link
-                          key={snapshot.id}
-                          to={snapshot.pageSnapshotId ? `/admin/pages/${snapshot.pageSnapshotId}` : '#'}
-                          className={`block p-3 border border-stone-200 rounded-lg transition-colors ${
-                            snapshot.pageSnapshotId ? 'hover:bg-stone-50 hover:border-stone-300' : 'opacity-60 cursor-not-allowed'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-stone-900 truncate">
-                                {snapshot.pageUrl}
-                              </p>
-                              <div className="flex items-center gap-3 mt-1">
-                                <span className="text-xs text-stone-500">
-                                  {formatDate(snapshot.lastScrapedAt)}
-                                </span>
-                                <a
-                                  href={snapshot.pageUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-0.5"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  Open original
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                                  </svg>
-                                </a>
-                              </div>
-                            </div>
-                            <div className="ml-4 flex items-center gap-2">
-                              <span
-                                className={`px-2 py-1 text-xs rounded-full ${
-                                  snapshot.scrapeStatus === 'scraped'
-                                    ? 'bg-green-100 text-green-800'
-                                    : snapshot.scrapeStatus === 'failed'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-amber-100 text-amber-800'
-                                }`}
-                              >
-                                {snapshot.scrapeStatus}
+                    {website.snapshots.map((snapshot) => (
+                      <Link
+                        key={snapshot.url}
+                        to={`/admin/extraction-pages?url=${encodeURIComponent(snapshot.url)}`}
+                        className="block p-3 border border-stone-200 rounded-lg hover:bg-stone-50 hover:border-stone-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-stone-900 truncate">
+                              {snapshot.title || snapshot.url}
+                            </p>
+                            <div className="flex items-center gap-3 mt-1">
+                              <span className="text-xs text-stone-500">
+                                {formatDate(snapshot.fetchedAt)}
                               </span>
-                              {snapshotListings.length > 0 && (
-                                <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
-                                  {snapshotListings.length} post{snapshotListings.length !== 1 ? 's' : ''}
-                                </span>
-                              )}
-                              <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
+                              <a
+                                href={snapshot.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-stone-400 hover:text-stone-600 flex items-center gap-0.5"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Open original
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                              </a>
                             </div>
                           </div>
-                        </Link>
-                      );
-                    })}
+                          <div className="ml-4 flex items-center gap-2">
+                            {snapshot.listingsCount > 0 && (
+                              <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                                {snapshot.listingsCount} post{snapshot.listingsCount !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            <svg className="w-4 h-4 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
                   </div>
                 ) : (
                   <div className="text-center py-12 bg-stone-50 rounded-lg border-2 border-dashed border-stone-300">
@@ -1055,15 +1030,15 @@ export function WebsiteDetail() {
         </div>
       </div>
 
-      {/* All Summaries Modal */}
+      {/* All Page Content Modal */}
       {showSummariesModal && website && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-6">
           <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col">
             <div className="p-6 border-b border-stone-200 flex justify-between items-center flex-shrink-0">
               <div>
-                <h2 className="text-xl font-semibold text-stone-900">All Page Summaries</h2>
+                <h2 className="text-xl font-semibold text-stone-900">All Page Content</h2>
                 <p className="text-sm text-stone-500 mt-1">
-                  {website.snapshots.filter(s => s.summary).length} of {website.snapshots.length} pages have summaries
+                  {website.snapshots.length} pages crawled
                 </p>
               </div>
               <button
@@ -1077,11 +1052,10 @@ export function WebsiteDetail() {
               <div className="mb-4 flex gap-2">
                 <button
                   onClick={() => {
-                    const allSummaries = website.snapshots
-                      .filter(s => s.summary)
-                      .map(s => `## ${s.pageUrl}\n\n${s.summary}`)
+                    const allContent = website.snapshots
+                      .map(s => `## ${s.title || s.url}\n\n${s.content}`)
                       .join('\n\n---\n\n');
-                    navigator.clipboard.writeText(allSummaries);
+                    navigator.clipboard.writeText(allContent);
                   }}
                   className="bg-stone-200 text-stone-700 px-3 py-1.5 rounded text-sm hover:bg-stone-300"
                 >
@@ -1090,30 +1064,26 @@ export function WebsiteDetail() {
               </div>
               <div className="space-y-6">
                 {website.snapshots.map((snapshot) => (
-                  <div key={snapshot.id} className="border border-stone-200 rounded-lg overflow-hidden">
+                  <div key={snapshot.url} className="border border-stone-200 rounded-lg overflow-hidden">
                     <div className="bg-stone-50 px-4 py-2 border-b border-stone-200">
                       <a
-                        href={snapshot.pageUrl}
+                        href={snapshot.url}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-sm font-medium text-blue-600 hover:underline break-all"
                       >
-                        {snapshot.pageUrl}
+                        {snapshot.title || snapshot.url}
                       </a>
                     </div>
                     <div className="p-4">
-                      {snapshot.summary ? (
-                        <pre className="text-sm text-stone-700 whitespace-pre-wrap font-mono bg-stone-50 p-4 rounded overflow-x-auto">
-                          {snapshot.summary}
-                        </pre>
-                      ) : (
-                        <p className="text-sm text-stone-400 italic">No summary available</p>
-                      )}
+                      <pre className="text-sm text-stone-700 whitespace-pre-wrap font-mono bg-stone-50 p-4 rounded overflow-x-auto max-h-64 overflow-y-auto">
+                        {snapshot.content}
+                      </pre>
                     </div>
                   </div>
                 ))}
                 {website.snapshots.length === 0 && (
-                  <p className="text-center text-stone-500 py-8">No page snapshots found. Run a crawl first.</p>
+                  <p className="text-center text-stone-500 py-8">No pages found. Run a crawl first.</p>
                 )}
               </div>
             </div>

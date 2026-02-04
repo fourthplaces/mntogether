@@ -20,7 +20,7 @@ import { OrganizationDetail } from './pages/admin/OrganizationDetail';
 import { OrganizationsList } from './pages/admin/OrganizationsList';
 import { WebsiteDetail } from './pages/admin/WebsiteDetail';
 import { PostDetail } from './pages/admin/PostDetail';
-import { PageSnapshotDetail } from './pages/admin/PageSnapshotDetail';
+import { ExtractionPageDetail } from './pages/admin/ExtractionPageDetail';
 import { Extraction } from './pages/admin/Extraction';
 
 // Components
@@ -132,7 +132,7 @@ function AdminLayout() {
           <Route path="/websites/:websiteId" element={<WebsiteDetail />} />
           <Route path="/posts" element={<PostApprovalQueue />} />
           <Route path="/posts/:postId" element={<PostDetail />} />
-          <Route path="/pages/:snapshotId" element={<PageSnapshotDetail />} />
+          <Route path="/extraction-pages" element={<ExtractionPageDetail />} />
           <Route path="/scraped" element={<ScrapedPostsReview />} />
           <Route path="/extraction" element={<Extraction />} />
           <Route path="/resources" element={<Resources />} />
