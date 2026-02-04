@@ -2,6 +2,8 @@
 //!
 //! Implements hybrid recall combining semantic and keyword search.
 
+use tracing::{debug, info};
+
 use crate::traits::store::cosine_similarity;
 use crate::types::summary::Summary;
 
@@ -56,12 +58,7 @@ pub fn has_specific_terms(query: &str) -> bool {
     let has_proper_nouns = words
         .iter()
         .skip(1) // Skip first word
-        .any(|w| {
-            w.chars()
-                .next()
-                .map(|c| c.is_uppercase())
-                .unwrap_or(false)
-        });
+        .any(|w| w.chars().next().map(|c| c.is_uppercase()).unwrap_or(false));
 
     if has_proper_nouns {
         return true;
@@ -139,7 +136,11 @@ pub fn keyword_match(query: &str, text: &str) -> f32 {
 }
 
 /// Rank summaries by keyword matching.
-pub fn rank_by_keyword<'a>(query: &str, summaries: &'a [Summary], limit: usize) -> Vec<(f32, &'a Summary)> {
+pub fn rank_by_keyword<'a>(
+    query: &str,
+    summaries: &'a [Summary],
+    limit: usize,
+) -> Vec<(f32, &'a Summary)> {
     let mut scored: Vec<_> = summaries
         .iter()
         .map(|s| {
@@ -195,11 +196,7 @@ pub fn hybrid_rank<'a>(
     let mut combined: Vec<_> = scores.into_values().collect();
     combined.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
-    combined
-        .into_iter()
-        .take(limit)
-        .map(|(_, s)| s)
-        .collect()
+    combined.into_iter().take(limit).map(|(_, s)| s).collect()
 }
 
 /// Perform hybrid recall on summaries.
@@ -210,17 +207,38 @@ pub fn hybrid_recall<'a>(
     config: &RecallConfig,
 ) -> Vec<&'a Summary> {
     let (semantic_weight, keyword_weight) = calculate_weights(query, config);
+    debug!(
+        query = %query,
+        summaries_count = summaries.len(),
+        semantic_weight = semantic_weight,
+        keyword_weight = keyword_weight,
+        limit = config.limit,
+        "Starting hybrid recall"
+    );
 
     let semantic_results = rank_by_embedding(query_embedding, summaries, config.limit * 2);
-    let keyword_results = rank_by_keyword(query, summaries, config.limit * 2);
+    debug!(query = %query, semantic_results_count = semantic_results.len(), "Semantic ranking complete");
 
-    hybrid_rank(
+    let keyword_results = rank_by_keyword(query, summaries, config.limit * 2);
+    debug!(query = %query, keyword_results_count = keyword_results.len(), "Keyword ranking complete");
+
+    let results = hybrid_rank(
         &semantic_results,
         &keyword_results,
         semantic_weight,
         keyword_weight,
         config.limit,
-    )
+    );
+
+    info!(
+        query = %query,
+        results_count = results.len(),
+        semantic_weight = semantic_weight,
+        keyword_weight = keyword_weight,
+        "Hybrid recall complete"
+    );
+
+    results
 }
 
 #[cfg(test)]
@@ -267,7 +285,10 @@ mod tests {
 
     #[test]
     fn test_keyword_match() {
-        let score = keyword_match("volunteer opportunities", "We offer volunteer opportunities for everyone");
+        let score = keyword_match(
+            "volunteer opportunities",
+            "We offer volunteer opportunities for everyone",
+        );
         assert!(score > 0.5);
 
         let score = keyword_match("volunteer opportunities", "Donate today");

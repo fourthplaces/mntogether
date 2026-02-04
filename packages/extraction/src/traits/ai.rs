@@ -72,11 +72,7 @@ pub trait AI: Send + Sync {
     ///
     /// Unlike `extract`, this returns a single piece of information
     /// rather than a list of items.
-    async fn extract_single(
-        &self,
-        query: &str,
-        pages: &[CachedPage],
-    ) -> Result<Extraction> {
+    async fn extract_single(&self, query: &str, pages: &[CachedPage]) -> Result<Extraction> {
         // Default implementation uses regular extract
         self.extract(query, pages, None).await
     }
@@ -84,13 +80,14 @@ pub trait AI: Send + Sync {
     /// Extract a narrative summary (for Narrative strategy).
     ///
     /// Aggregates information across pages into a cohesive description.
-    async fn extract_narrative(
-        &self,
-        query: &str,
-        pages: &[CachedPage],
-    ) -> Result<Extraction> {
+    async fn extract_narrative(&self, query: &str, pages: &[CachedPage]) -> Result<Extraction> {
         // Default implementation uses regular extract with narrative hint
-        self.extract(query, pages, Some(&["narrative".to_string(), "summary".to_string()])).await
+        self.extract(
+            query,
+            pages,
+            Some(&["narrative".to_string(), "summary".to_string()]),
+        )
+        .await
     }
 
     /// Generate embedding for text.

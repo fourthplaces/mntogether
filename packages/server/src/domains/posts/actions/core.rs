@@ -70,18 +70,11 @@ pub async fn approve_post(
 
     info!(post_id = %post_id, "Approving post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "ApprovePost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::update_post_status(post_id, "active".to_string(), &ctx.deps().db_pool).await?;
 
@@ -106,18 +99,11 @@ pub async fn reject_post(
 
     info!(post_id = %post_id, reason = %reason, "Rejecting post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "RejectPost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::update_post_status(post_id, "rejected".to_string(), &ctx.deps().db_pool)
         .await?;
@@ -144,18 +130,11 @@ pub async fn edit_and_approve_post(
 
     info!(post_id = %post_id, title = ?input.title, "Editing and approving post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "EditAndApprovePost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::update_and_approve_post(
         post_id,
@@ -190,18 +169,11 @@ pub async fn delete_post(
 
     info!(post_id = %post_id, "Deleting post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "DeletePost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::delete_post(post_id, &ctx.deps().db_pool).await?;
     ctx.emit(PostEvent::PostDeleted { post_id });
@@ -221,18 +193,11 @@ pub async fn expire_post(
 
     info!(post_id = %post_id, "Expiring post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "ExpirePost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::expire_post(post_id, &ctx.deps().db_pool).await?;
     ctx.emit(PostEvent::PostExpired { post_id });
@@ -255,18 +220,11 @@ pub async fn archive_post(
 
     info!(post_id = %post_id, "Archiving post");
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManagePosts)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "ArchivePost".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::archive_post(post_id, &ctx.deps().db_pool).await?;
     ctx.emit(PostEvent::PostArchived { post_id });

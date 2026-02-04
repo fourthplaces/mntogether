@@ -5,9 +5,8 @@
 
 use anyhow::{Context, Result};
 use extraction::{
-    ai::OpenAI as ExtractionOpenAI,
-    DiscoverConfig, Extraction, Index, Ingestor, IngestResult, IngestorConfig,
-    PostgresStore, QueryFilter, AI,
+    ai::OpenAI as ExtractionOpenAI, types::page::CachedPage, DiscoverConfig, Extraction, Index,
+    IngestResult, Ingestor, IngestorConfig, PostgresStore, QueryFilter, AI,
 };
 use sqlx::PgPool;
 use std::sync::Arc;
@@ -45,6 +44,67 @@ impl<A: AI + Clone> ExtractionService<A> {
         &self.index
     }
 
+    /// Search for relevant pages and return their raw content.
+    ///
+    /// Unlike `extract()` which returns RAG-summarized content, this returns
+    /// the full original page content - better for structured post extraction.
+    ///
+    /// # Arguments
+    /// * `query` - Natural language query (e.g., "volunteer opportunities")
+    /// * `site` - Optional site filter (e.g., "redcross.org")
+    /// * `limit` - Maximum number of pages to return
+    pub async fn search_and_get_pages(
+        &self,
+        query: &str,
+        site: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<CachedPage>> {
+        use extraction::traits::store::PageCache;
+
+        let filter = self.build_site_filter(site);
+
+        // Step 1: Search for relevant pages using embeddings
+        let page_refs = self
+            .index
+            .search(query, limit, filter.as_ref())
+            .await
+            .map_err(|e| anyhow::anyhow!("Search failed: {}", e))?;
+
+        if page_refs.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Step 2: Fetch full page content
+        let urls: Vec<&str> = page_refs.iter().map(|p| p.url.as_str()).collect();
+        let pages = self
+            .index
+            .store()
+            .get_pages(&urls)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to fetch pages: {}", e))?;
+
+        Ok(pages)
+    }
+
+    /// Build a QueryFilter for site filtering.
+    ///
+    /// Handles all URL variants (http/https, www/non-www).
+    fn build_site_filter(&self, site: Option<&str>) -> Option<QueryFilter> {
+        site.map(|s| {
+            let domain = s
+                .trim_start_matches("https://")
+                .trim_start_matches("http://")
+                .trim_start_matches("www.");
+
+            QueryFilter::for_sites([
+                format!("https://{}", domain),
+                format!("http://{}", domain),
+                format!("https://www.{}", domain),
+                format!("http://www.{}", domain),
+            ])
+        })
+    }
+
     /// Extract information matching a query.
     ///
     /// Returns all extractions found. For queries that expect multiple items
@@ -52,9 +112,12 @@ impl<A: AI + Clone> ExtractionService<A> {
     ///
     /// # Arguments
     /// * `query` - Natural language query (e.g., "volunteer opportunities")
-    /// * `site` - Optional site filter (e.g., "redcross.org")
+    /// * `site` - Optional site filter (e.g., "redcross.org" or "https://redcross.org")
+    ///
+    /// Note: The site filter includes http/https and www/non-www variants,
+    /// since extraction_pages.site_url may store URLs with any combination.
     pub async fn extract(&self, query: &str, site: Option<&str>) -> Result<Vec<Extraction>> {
-        let filter = site.map(QueryFilter::for_site);
+        let filter = self.build_site_filter(site);
         self.index
             .extract(query, filter)
             .await
@@ -66,9 +129,10 @@ impl<A: AI + Clone> ExtractionService<A> {
     /// Useful for singular queries where only one result is expected.
     pub async fn extract_one(&self, query: &str, site: Option<&str>) -> Result<Extraction> {
         let results = self.extract(query, site).await?;
-        Ok(results.into_iter().next().unwrap_or_else(|| {
-            Extraction::new("No matching content found.".to_string())
-        }))
+        Ok(results
+            .into_iter()
+            .next()
+            .unwrap_or_else(|| Extraction::new("No matching content found.".to_string())))
     }
 
     /// Extract with a pre-built filter.
@@ -157,20 +221,16 @@ impl<A: AI + Clone> ExtractionService<A> {
     /// Ingest a single URL (convenience method).
     ///
     /// Wraps `ingest_urls` for the common single-URL case.
-    pub async fn ingest_url<I: Ingestor>(
-        &self,
-        url: &str,
-        ingestor: &I,
-    ) -> Result<IngestResult> {
+    pub async fn ingest_url<I: Ingestor>(&self, url: &str, ingestor: &I) -> Result<IngestResult> {
         self.ingest_urls(&[url.to_string()], ingestor).await
     }
 }
 
-/// Type alias for production extraction service.
-pub type ProductionExtractionService = ExtractionService<ExtractionOpenAI>;
+/// Type alias for OpenAI-backed extraction service.
+pub type OpenAIExtractionService = ExtractionService<ExtractionOpenAI>;
 
-/// Create a production extraction service from environment.
-pub async fn create_production_service(pool: PgPool) -> Result<Arc<ProductionExtractionService>> {
+/// Create an extraction service from environment configuration.
+pub async fn create_extraction_service(pool: PgPool) -> Result<Arc<OpenAIExtractionService>> {
     let openai = ExtractionOpenAI::from_env()
         .map_err(|e| anyhow::anyhow!("Failed to create OpenAI client: {}", e))?;
 

@@ -219,9 +219,17 @@ impl From<extraction::Extraction> for ExtractionData {
             content: extraction.content,
             status: extraction.status.into(),
             grounding: extraction.grounding.into(),
-            sources: extraction.sources.into_iter().map(SourceData::from).collect(),
+            sources: extraction
+                .sources
+                .into_iter()
+                .map(SourceData::from)
+                .collect(),
             gaps: extraction.gaps.into_iter().map(GapData::from).collect(),
-            conflicts: extraction.conflicts.into_iter().map(ConflictData::from).collect(),
+            conflicts: extraction
+                .conflicts
+                .into_iter()
+                .map(ConflictData::from)
+                .collect(),
         }
     }
 }

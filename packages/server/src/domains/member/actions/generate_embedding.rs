@@ -1,79 +1,59 @@
 //! Generate embedding action - creates embedding vector for member's searchable text
+//!
+//! This is a pure action that returns a result - event emission happens in the effect handler.
 
-use anyhow::Result;
-use seesaw_core::EffectContext;
-use tracing::{debug, error, info};
+use anyhow::{Context, Result};
+use sqlx::PgPool;
+use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::common::AppState;
-use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
-use crate::kernel::ServerDeps;
+use crate::kernel::BaseEmbeddingService;
 
-/// Generate embedding for a member's searchable text - emits events directly.
+/// Result of embedding generation
+#[derive(Debug, Clone)]
+pub struct EmbeddingResult {
+    pub member_id: Uuid,
+    pub dimensions: usize,
+}
+
+/// Generate embedding for a member's searchable text.
 ///
-/// This action:
-/// 1. Loads the member from database
-/// 2. Generates embedding using the embedding service
-/// 3. Stores the embedding in the database
+/// This is a pure action - it returns a Result, not events.
+/// The effect handler wraps this and emits events.
 ///
-/// Emits:
-/// - `EmbeddingGenerated` on success
-/// - `EmbeddingFailed` if member not found or generation fails
-pub async fn handle_generate_embedding(
+/// Returns:
+/// - `Ok(EmbeddingResult)` on success
+/// - `Err` if member not found or generation fails
+pub async fn generate_embedding(
     member_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+    embedding_service: &dyn BaseEmbeddingService,
+    pool: &PgPool,
+) -> Result<EmbeddingResult> {
     info!("Generating embedding for member: {}", member_id);
 
     // Get member from database
-    let member = match Member::find_by_id(member_id, &ctx.deps().db_pool).await {
-        Ok(m) => m,
-        Err(e) => {
-            error!("Member not found: {}", e);
-            ctx.emit(MemberEvent::EmbeddingFailed {
-                member_id,
-                reason: format!("Member not found: {}", e),
-            });
-            return Ok(());
-        }
-    };
+    let member = Member::find_by_id(member_id, pool)
+        .await
+        .context(format!("Member not found: {}", member_id))?;
 
     // Generate embedding using the embedding service
-    let embedding = match ctx
-        .deps()
-        .embedding_service
+    let embedding = embedding_service
         .generate(&member.searchable_text)
         .await
-    {
-        Ok(emb) => emb,
-        Err(e) => {
-            error!("Failed to generate embedding: {}", e);
-            ctx.emit(MemberEvent::EmbeddingFailed {
-                member_id,
-                reason: format!("Embedding generation failed: {}", e),
-            });
-            return Ok(());
-        }
-    };
+        .context("Embedding generation failed")?;
 
     debug!("Generated embedding with {} dimensions", embedding.len());
 
     // Update member with embedding
-    if let Err(e) = Member::update_embedding(member_id, &embedding, &ctx.deps().db_pool).await {
-        error!("Failed to save embedding: {}", e);
-        ctx.emit(MemberEvent::EmbeddingFailed {
-            member_id,
-            reason: format!("Failed to save embedding: {}", e),
-        });
-        return Ok(());
-    }
+    Member::update_embedding(member_id, &embedding, pool)
+        .await
+        .context("Failed to save embedding")?;
 
     info!("Embedding generated and saved for member: {}", member_id);
 
-    ctx.emit(MemberEvent::EmbeddingGenerated {
+    Ok(EmbeddingResult {
         member_id,
         dimensions: embedding.len(),
-    });
-    Ok(())
+    })
 }

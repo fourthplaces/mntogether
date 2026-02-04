@@ -1,83 +1,97 @@
 //! Sync posts action
 //!
-//! Uses LLM-powered sync to intelligently handle INSERT/UPDATE/DELETE/MERGE
-//! in a single pass, avoiding duplicates.
+//! Simple delete-and-replace strategy for post synchronization.
 
 use anyhow::Result;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::common::{ExtractedPost, WebsiteId};
-use crate::domains::posts::actions::llm_sync::{llm_sync_posts, SyncResult};
-use crate::domains::posts::effects::deduplication::{apply_dedup_results, deduplicate_posts_llm};
+use crate::domains::posts::models::Post;
 use crate::kernel::ServerDeps;
 
-/// Result of sync and deduplication.
+/// Result of sync operation.
 pub struct SyncAndDedupResult {
     pub sync_result: SyncResult,
     pub deduplicated_count: usize,
 }
 
-/// Sync extracted posts to database using LLM-powered intelligent sync.
+/// Simple sync result.
+pub struct SyncResult {
+    pub inserted: usize,
+    pub updated: usize,
+    pub deleted: usize,
+    pub merged: usize,
+}
+
+/// Sync extracted posts to database.
 ///
-/// The LLM analyzes fresh posts vs existing DB posts and decides:
-/// - INSERT: New posts that don't exist
-/// - UPDATE: Fresh posts that match existing (semantically)
-/// - DELETE: DB posts no longer in fresh extraction
-/// - MERGE: Consolidate pre-existing duplicates
+/// Simple strategy: delete existing posts for the website, insert new ones.
 pub async fn sync_and_deduplicate_posts(
     website_id: WebsiteId,
     posts: Vec<ExtractedPost>,
     deps: &ServerDeps,
 ) -> Result<SyncAndDedupResult> {
-    // Use LLM-powered sync that handles INSERT/UPDATE/DELETE/MERGE in one pass
-    let sync_result = llm_sync_posts(website_id, posts, deps.ai.as_ref(), &deps.db_pool).await?;
+    let pool = &deps.db_pool;
+
+    // Delete existing posts for this website
+    let deleted = sqlx::query("DELETE FROM posts WHERE website_id = $1")
+        .bind(website_id.into_uuid())
+        .execute(pool)
+        .await?
+        .rows_affected() as usize;
+
+    // Insert new posts
+    let mut inserted = 0;
+    for post in &posts {
+        match Post::create(
+            post.title.clone(), // organization_name (using title as fallback)
+            post.title.clone(),
+            post.description.clone(),
+            Some(post.tldr.clone()),
+            "opportunity".to_string(), // post_type
+            "general".to_string(),     // category
+            None,                      // capacity_status
+            post.urgency.clone(),
+            post.location.clone(),
+            "active".to_string(),        // status
+            "en".to_string(),            // source_language
+            Some("scraped".to_string()), // submission_type
+            None,                        // submitted_by_admin_id
+            Some(website_id),            // website_id
+            None,                        // source_url
+            None,                        // organization_id
+            pool,
+        )
+        .await
+        {
+            Ok(_) => inserted += 1,
+            Err(e) => warn!(title = %post.title, error = %e, "Failed to insert post"),
+        }
+    }
 
     info!(
         website_id = %website_id,
-        inserted = sync_result.inserted,
-        updated = sync_result.updated,
-        deleted = sync_result.deleted,
-        merged = sync_result.merged,
-        "LLM sync completed"
+        deleted,
+        inserted,
+        "Posts synced (delete and replace)"
     );
 
-    // The LLM sync already handles deduplication via MERGE operations,
-    // but we can run a second pass to catch any edge cases
-    let deduplicated_count = if sync_result.merged == 0 {
-        // Only run extra dedup if LLM sync didn't merge anything
-        llm_deduplicate_website_posts(website_id, deps)
-            .await
-            .unwrap_or(0)
-    } else {
-        0
-    };
-
     Ok(SyncAndDedupResult {
-        sync_result,
-        deduplicated_count,
+        sync_result: SyncResult {
+            inserted,
+            updated: 0,
+            deleted,
+            merged: 0,
+        },
+        deduplicated_count: 0,
     })
 }
 
-/// Run LLM-based deduplication for a website's posts.
-///
-/// Returns the number of duplicate posts soft-deleted.
+/// Deprecated: LLM deduplication no longer used.
+#[deprecated(note = "Simple delete-and-replace makes this unnecessary")]
 pub async fn llm_deduplicate_website_posts(
-    website_id: WebsiteId,
-    deps: &ServerDeps,
+    _website_id: WebsiteId,
+    _deps: &ServerDeps,
 ) -> Result<usize> {
-    // Run LLM deduplication analysis
-    let dedup_result = deduplicate_posts_llm(website_id, deps.ai.as_ref(), &deps.db_pool).await?;
-
-    // Apply the results (soft-delete duplicates)
-    let deleted_count = apply_dedup_results(dedup_result, deps.ai.as_ref(), &deps.db_pool).await?;
-
-    if deleted_count > 0 {
-        info!(
-            website_id = %website_id,
-            deleted_count = deleted_count,
-            "LLM deduplication completed"
-        );
-    }
-
-    Ok(deleted_count)
+    Ok(0)
 }

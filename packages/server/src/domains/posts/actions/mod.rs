@@ -4,18 +4,19 @@
 //! Actions are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return final models/results.
 
-pub mod agentic_extraction;
 pub mod core;
 pub mod deduplication;
 pub mod llm_sync;
 pub mod reports;
 pub mod scraping;
 pub mod tags;
+// transformer module deprecated - use ai.generate_structured() directly
+// See crawling/effects/handlers.rs for example usage
 
 // Re-export for convenience
 pub use core::*;
 pub use deduplication::{deduplicate_posts, DeduplicationResult};
-pub use llm_sync::{llm_sync_posts, SyncResult};
+pub use llm_sync::{llm_sync_posts, LlmSyncResult};
 pub use reports::*;
 pub use scraping::{
     refresh_page_snapshot, scrape_source, submit_resource_link, RefreshPageSnapshotResult,

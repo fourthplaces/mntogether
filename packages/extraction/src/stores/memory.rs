@@ -5,7 +5,9 @@ use std::collections::HashMap;
 use std::sync::RwLock;
 
 use crate::error::Result;
-use crate::traits::store::{cosine_similarity, EmbeddingStore, KeywordSearch, PageCache, SummaryCache};
+use crate::traits::store::{
+    cosine_similarity, EmbeddingStore, KeywordSearch, PageCache, SummaryCache,
+};
 use crate::types::{
     config::QueryFilter,
     page::{CachedPage, PageRef},
@@ -217,7 +219,11 @@ impl EmbeddingStore for MemoryStore {
             })
             .collect();
 
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(limit);
 
         Ok(scored)
@@ -262,7 +268,8 @@ impl KeywordSearch for MemoryStore {
                     let count = content_lower.matches(term).count();
                     if count > 0 {
                         // TF-IDF-like scoring (simplified)
-                        score += (1.0 + (count as f32).ln()) / (1.0 + (page.content.len() as f32).ln());
+                        score +=
+                            (1.0 + (count as f32).ln()) / (1.0 + (page.content.len() as f32).ln());
                     }
                 }
 
@@ -279,7 +286,11 @@ impl KeywordSearch for MemoryStore {
             })
             .collect();
 
-        scored.sort_by(|a, b| b.score.partial_cmp(&a.score).unwrap_or(std::cmp::Ordering::Equal));
+        scored.sort_by(|a, b| {
+            b.score
+                .partial_cmp(&a.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         scored.truncate(limit);
 
         Ok(scored)

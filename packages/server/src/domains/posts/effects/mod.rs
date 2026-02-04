@@ -3,13 +3,10 @@
 //! Effects watch FACT events and call cascade handlers.
 //! Entry-point actions live in `actions/`, not here.
 
-pub mod agentic_extraction;
 pub mod ai;
 pub mod composite;
 pub mod deduplication;
 pub mod discovery;
-pub mod enrichment_tools;
-pub mod extraction_tools;
 pub mod post;
 pub mod post_extraction;
 pub mod post_operations;

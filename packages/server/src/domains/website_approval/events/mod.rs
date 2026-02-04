@@ -1,4 +1,4 @@
-//! Domain Approval events - FACT EVENTS ONLY
+//! Website Approval events - FACT EVENTS ONLY
 //!
 //! Events are immutable facts about what happened. Effects watch these
 //! and call handlers directly for cascade workflows (no *Requested events).
@@ -15,9 +15,9 @@
 use crate::common::{JobId, MemberId, WebsiteId};
 use uuid::Uuid;
 
-/// Domain approval events - FACT EVENTS ONLY
+/// Website approval events - FACT EVENTS ONLY
 #[derive(Debug, Clone)]
-pub enum DomainApprovalEvent {
+pub enum WebsiteApprovalEvent {
     // ========================================================================
     // Research Phase Events
     // ========================================================================

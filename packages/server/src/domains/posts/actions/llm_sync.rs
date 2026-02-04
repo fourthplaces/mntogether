@@ -116,9 +116,9 @@ impl SyncAnalysisResponse {
     }
 }
 
-/// Result of applying sync operations
+/// Result of applying LLM-based sync operations
 #[derive(Debug, Default)]
-pub struct SyncResult {
+pub struct LlmSyncResult {
     pub inserted: usize,
     pub updated: usize,
     pub deleted: usize,
@@ -132,7 +132,7 @@ pub async fn llm_sync_posts(
     fresh_posts: Vec<ExtractedPost>,
     ai: &dyn BaseAI,
     pool: &PgPool,
-) -> Result<SyncResult> {
+) -> Result<LlmSyncResult> {
     // Load existing posts from DB
     let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
 
@@ -165,7 +165,7 @@ pub async fn llm_sync_posts(
 
     // If no fresh posts and no existing posts, nothing to do
     if fresh_posts.is_empty() && existing_db_posts.is_empty() {
-        return Ok(SyncResult::default());
+        return Ok(LlmSyncResult::default());
     }
 
     // Convert to LLM-friendly format
@@ -337,8 +337,8 @@ async fn apply_sync_operations(
     existing_posts: &[Post],
     operations: Vec<SyncOperation>,
     pool: &PgPool,
-) -> Result<SyncResult> {
-    let mut result = SyncResult::default();
+) -> Result<LlmSyncResult> {
+    let mut result = LlmSyncResult::default();
 
     // Build lookup maps
     let fresh_by_id: std::collections::HashMap<String, &ExtractedPost> = fresh_posts

@@ -212,6 +212,45 @@ impl WebsiteSnapshotData {
     }
 }
 
+/// GraphQL-friendly representation of a crawl job
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrawlJobData {
+    pub job_id: String,
+    pub job_type: String,
+    pub status: String,
+    pub error_message: Option<String>,
+}
+
+impl From<crate::domains::crawling::JobInfo> for CrawlJobData {
+    fn from(job: crate::domains::crawling::JobInfo) -> Self {
+        Self {
+            job_id: job.job_id.to_string(),
+            job_type: job.job_type,
+            status: job.status,
+            error_message: job.error_message,
+        }
+    }
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl CrawlJobData {
+    fn job_id(&self) -> &str {
+        &self.job_id
+    }
+
+    fn job_type(&self) -> &str {
+        &self.job_type
+    }
+
+    fn status(&self) -> &str {
+        &self.status
+    }
+
+    fn error_message(&self) -> Option<&str> {
+        self.error_message.as_deref()
+    }
+}
+
 /// GraphQL-friendly representation of a website (for scraping/monitoring)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebsiteData {
@@ -376,6 +415,32 @@ impl WebsiteData {
             .into_iter()
             .map(WebsiteSnapshotData::from)
             .collect())
+    }
+
+    /// Get the latest crawl job for this website
+    async fn crawl_job(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Option<CrawlJobData>> {
+        use crate::domains::crawling::{CrawlWebsiteJob, JobInfo};
+        let uuid = Uuid::parse_str(&self.id)?;
+        let job =
+            JobInfo::find_latest_for_website(uuid, CrawlWebsiteJob::JOB_TYPE, &context.db_pool)
+                .await?;
+        Ok(job.map(CrawlJobData::from))
+    }
+
+    /// Get the latest regenerate posts job for this website
+    async fn regenerate_posts_job(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Option<CrawlJobData>> {
+        use crate::domains::crawling::{JobInfo, RegeneratePostsJob};
+        let uuid = Uuid::parse_str(&self.id)?;
+        let job =
+            JobInfo::find_latest_for_website(uuid, RegeneratePostsJob::JOB_TYPE, &context.db_pool)
+                .await?;
+        Ok(job.map(CrawlJobData::from))
     }
 }
 

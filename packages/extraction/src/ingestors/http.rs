@@ -5,6 +5,7 @@
 use async_trait::async_trait;
 use chrono::Utc;
 use std::collections::{HashMap, HashSet, VecDeque};
+use tracing::{debug, info, warn};
 use url::Url;
 
 use crate::error::{CrawlError, CrawlResult};
@@ -69,13 +70,17 @@ impl HttpIngestor {
 
     /// Fetch a single URL and return a RawPage.
     async fn fetch_url(&self, url: &str) -> CrawlResult<RawPage> {
+        debug!(url = %url, "HTTP fetch starting");
         let response = self
             .client
             .get(url)
             .header("User-Agent", &self.user_agent)
             .send()
             .await
-            .map_err(|e| CrawlError::Http(Box::new(e)))?;
+            .map_err(|e| {
+                warn!(url = %url, error = %e, "HTTP request failed");
+                CrawlError::Http(Box::new(e))
+            })?;
 
         let status = response.status();
         if !status.is_success() {
@@ -113,8 +118,7 @@ impl HttpIngestor {
         let title = self.extract_title(&html);
         let content = self.html_to_markdown(&html);
 
-        let mut page = RawPage::new(url, content)
-            .with_fetched_at(Utc::now());
+        let mut page = RawPage::new(url, content).with_fetched_at(Utc::now());
 
         if let Some(title) = title {
             page = page.with_title(title);
@@ -170,10 +174,7 @@ impl HttpIngestor {
         // Check include patterns
         if !config.include_patterns.is_empty() {
             let path = url.path();
-            let matches = config
-                .include_patterns
-                .iter()
-                .any(|p| path.contains(p));
+            let matches = config.include_patterns.iter().any(|p| path.contains(p));
             if !matches {
                 return false;
             }
@@ -182,10 +183,7 @@ impl HttpIngestor {
         // Check exclude patterns
         if !config.exclude_patterns.is_empty() {
             let path = url.path();
-            let excluded = config
-                .exclude_patterns
-                .iter()
-                .any(|p| path.contains(p));
+            let excluded = config.exclude_patterns.iter().any(|p| path.contains(p));
             if excluded {
                 return false;
             }
@@ -219,7 +217,8 @@ impl HttpIngestor {
         text = br_pattern.replace_all(&text, "\n").to_string();
 
         // Convert links
-        let link_pattern = regex::Regex::new(r#"<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
+        let link_pattern =
+            regex::Regex::new(r#"<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
         text = link_pattern.replace_all(&text, "[$2]($1)").to_string();
 
         // Convert lists
@@ -259,6 +258,13 @@ impl HttpIngestor {
 #[async_trait]
 impl Ingestor for HttpIngestor {
     async fn discover(&self, config: &DiscoverConfig) -> CrawlResult<Vec<RawPage>> {
+        info!(
+            url = %config.url,
+            limit = config.limit,
+            max_depth = config.max_depth,
+            "HttpIngestor.discover() starting"
+        );
+
         let base_url = Url::parse(&config.url).map_err(|_| CrawlError::InvalidUrl {
             url: config.url.clone(),
         })?;
@@ -268,6 +274,7 @@ impl Ingestor for HttpIngestor {
         let mut pages: Vec<RawPage> = Vec::new();
 
         queue.push_back((config.url.clone(), 0));
+        debug!(url = %config.url, "Starting BFS crawl");
 
         while let Some((url, depth)) = queue.pop_front() {
             // Check limits
@@ -283,9 +290,17 @@ impl Ingestor for HttpIngestor {
 
             visited.insert(url.clone());
 
+            debug!(url = %url, depth = depth, pages_so_far = pages.len(), "Fetching page");
+
             // Fetch page
             match self.fetch_url(&url).await {
                 Ok(page) => {
+                    debug!(
+                        url = %url,
+                        content_length = page.content.len(),
+                        "Page fetched successfully"
+                    );
+
                     // Extract links for further crawling (need to re-fetch HTML for link extraction)
                     // Note: This is inefficient - in production we'd cache the raw HTML
                     if depth < config.max_depth {
@@ -293,14 +308,20 @@ impl Ingestor for HttpIngestor {
                             if let Ok(html) = response.text().await {
                                 if let Ok(page_url) = Url::parse(&url) {
                                     let links = self.extract_links(&page_url, &html);
-                                    for link in links {
-                                        if let Ok(link_url) = Url::parse(&link) {
-                                            if self.should_crawl(&link_url, &base_url, config)
-                                                && !visited.contains(&link)
-                                            {
-                                                queue.push_back((link, depth + 1));
+                                    let new_links: Vec<_> = links
+                                        .into_iter()
+                                        .filter(|link| {
+                                            if let Ok(link_url) = Url::parse(link) {
+                                                self.should_crawl(&link_url, &base_url, config)
+                                                    && !visited.contains(link)
+                                            } else {
+                                                false
                                             }
-                                        }
+                                        })
+                                        .collect();
+                                    debug!(url = %url, new_links_count = new_links.len(), "Extracted links");
+                                    for link in new_links {
+                                        queue.push_back((link, depth + 1));
                                     }
                                 }
                             }
@@ -310,7 +331,7 @@ impl Ingestor for HttpIngestor {
                     pages.push(page);
                 }
                 Err(e) => {
-                    tracing::warn!("Failed to fetch {}: {}", url, e);
+                    warn!(url = %url, error = %e, "Failed to fetch page");
                 }
             }
 
@@ -319,6 +340,13 @@ impl Ingestor for HttpIngestor {
                 tokio::time::sleep(std::time::Duration::from_millis(self.rate_limit_ms)).await;
             }
         }
+
+        info!(
+            base_url = %config.url,
+            pages_crawled = pages.len(),
+            urls_visited = visited.len(),
+            "HttpIngestor.discover() completed"
+        );
 
         Ok(pages)
     }

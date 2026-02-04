@@ -1,6 +1,6 @@
 //! OpenAI implementation of the AI trait.
 //!
-//! A reference implementation using OpenAI's GPT-4 and text-embedding-3-small.
+//! A reference implementation using OpenAI's GPT-4o and text-embedding-3-small.
 //!
 //! # Example
 //!
@@ -14,6 +14,31 @@
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info, warn};
+
+/// Truncate a string to at most `max_bytes` bytes, ensuring we don't cut in the middle
+/// of a multi-byte UTF-8 character.
+fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
+    if s.len() <= max_bytes {
+        return s;
+    }
+    // Find the last valid char boundary at or before max_bytes
+    let mut end = max_bytes;
+    while !s.is_char_boundary(end) && end > 0 {
+        end -= 1;
+    }
+    &s[..end]
+}
+
+/// Strip markdown code blocks from a response.
+fn strip_code_blocks(response: &str) -> &str {
+    response
+        .trim()
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```")
+        .trim()
+}
 
 use crate::error::{ExtractionError, Result};
 use crate::traits::ai::{ExtractionStrategy, Partition, AI};
@@ -25,7 +50,7 @@ use crate::types::{
 
 /// OpenAI-based AI implementation.
 ///
-/// Uses GPT-4o for text generation and text-embedding-3-small for embeddings.
+/// Uses GPT-4-turbo for text generation and text-embedding-3-small for embeddings.
 #[derive(Clone)]
 pub struct OpenAI {
     client: Client,
@@ -41,7 +66,7 @@ impl OpenAI {
         Self {
             client: Client::new(),
             api_key: api_key.into(),
-            model: "gpt-4o".to_string(),
+            model: "gpt-4o".to_string(), // gpt-4o supports structured outputs (json_schema)
             embedding_model: "text-embedding-3-small".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
         }
@@ -109,7 +134,8 @@ impl OpenAI {
         struct StructuredRequest {
             model: String,
             messages: Vec<ChatMessage>,
-            temperature: f32,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            temperature: Option<f32>,
             response_format: ResponseFormat,
         }
 
@@ -127,6 +153,16 @@ impl OpenAI {
             schema: serde_json::Value,
         }
 
+        // Only set temperature for models that support it (not o1, o3, gpt-5, etc.)
+        let temperature = if self.model.starts_with("o1")
+            || self.model.starts_with("o3")
+            || self.model.starts_with("gpt-5")
+        {
+            None // These models only support default temperature (1.0)
+        } else {
+            Some(0.0)
+        };
+
         let request = StructuredRequest {
             model: self.model.clone(),
             messages: vec![
@@ -139,7 +175,7 @@ impl OpenAI {
                     content: user.to_string(),
                 },
             ],
-            temperature: 0.0,
+            temperature,
             response_format: ResponseFormat {
                 format_type: "json_schema".to_string(),
                 json_schema: JsonSchemaFormat {
@@ -228,8 +264,27 @@ impl OpenAI {
         self.chat_with_model(system, user, &self.model).await
     }
 
+    /// Check if a model requires max_completion_tokens instead of max_tokens.
+    fn uses_max_completion_tokens(model: &str) -> bool {
+        // Newer models (o1, o3, gpt-5, etc.) require max_completion_tokens
+        model.starts_with("o1")
+            || model.starts_with("o3")
+            || model.starts_with("gpt-5")
+            || model.contains("-o1")
+            || model.contains("-o3")
+    }
+
     /// Make a chat completion request with specific model.
     async fn chat_with_model(&self, system: &str, user: &str, model: &str) -> Result<String> {
+        let (max_completion_tokens, max_tokens, temperature) =
+            if Self::uses_max_completion_tokens(model) {
+                // Newer models: use max_completion_tokens, no temperature for reasoning models
+                (Some(4096), None, None)
+            } else {
+                // Older models: use max_tokens with temperature
+                (None, Some(4096), Some(0.0))
+            };
+
         let request = ChatRequest {
             model: model.to_string(),
             messages: vec![
@@ -242,10 +297,12 @@ impl OpenAI {
                     content: user.to_string(),
                 },
             ],
-            temperature: Some(0.0),
-            max_tokens: Some(4096),
+            temperature,
+            max_completion_tokens,
+            max_tokens,
         };
 
+        let start = std::time::Instant::now();
         let response = self
             .client
             .post(format!("{}/chat/completions", self.base_url))
@@ -254,10 +311,15 @@ impl OpenAI {
             .json(&request)
             .send()
             .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+            .map_err(|e| {
+                warn!(error = %e, "OpenAI request failed");
+                ExtractionError::AI(e.to_string().into())
+            })?;
 
-        if !response.status().is_success() {
+        let status = response.status();
+        if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            warn!(status = %status, error = %error_text, "OpenAI API error");
             return Err(ExtractionError::AI(
                 format!("OpenAI API error: {}", error_text).into(),
             ));
@@ -268,12 +330,55 @@ impl OpenAI {
             .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
-        chat_response
+        let result = chat_response
             .choices
             .into_iter()
             .next()
             .map(|c| c.message.content)
-            .ok_or_else(|| ExtractionError::AI("No response from OpenAI".into()))
+            .ok_or_else(|| ExtractionError::AI("No response from OpenAI".into()))?;
+
+        debug!(model = %model, duration_ms = start.elapsed().as_millis(), "OpenAI call");
+
+        Ok(result)
+    }
+
+    /// Parse JSON response with retry - if parsing fails, ask AI to fix it.
+    async fn parse_json_with_retry<T: serde::de::DeserializeOwned>(
+        &self,
+        response: &str,
+        context: &str,
+    ) -> Result<T> {
+        let cleaned = strip_code_blocks(response);
+
+        // First attempt
+        match serde_json::from_str::<T>(cleaned) {
+            Ok(parsed) => return Ok(parsed),
+            Err(first_error) => {
+                warn!(
+                    error = %first_error,
+                    context = %context,
+                    "JSON parse failed, asking AI to fix"
+                );
+
+                // Ask AI to fix the JSON
+                let fix_prompt = format!(
+                    "The following JSON is invalid. Fix it and return ONLY valid JSON, no explanation:\n\nError: {}\n\nInvalid JSON:\n{}",
+                    first_error,
+                    cleaned
+                );
+
+                let fixed_response = self
+                    .chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt)
+                    .await?;
+                let fixed_cleaned = strip_code_blocks(&fixed_response);
+
+                serde_json::from_str::<T>(fixed_cleaned).map_err(|e| {
+                    ExtractionError::AI(
+                        format!("Failed to parse {} after retry: {}", context, e).into(),
+                    )
+                })
+            }
+        }
     }
 
     /// Make an embedding request.
@@ -291,10 +396,14 @@ impl OpenAI {
             .json(&request)
             .send()
             .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+            .map_err(|e| {
+                warn!(error = %e, "Embedding request failed");
+                ExtractionError::AI(e.to_string().into())
+            })?;
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
+            warn!(error = %error_text, "OpenAI embedding error");
             return Err(ExtractionError::AI(
                 format!("OpenAI embedding error: {}", error_text).into(),
             ));
@@ -332,27 +441,13 @@ Output JSON with this structure:
 
 Be factual. Only extract what's explicitly stated."#;
 
-        let user = format!(
-            "URL: {}\n\nContent:\n{}",
-            url,
-            &content[..content.len().min(12000)]
-        );
+        let truncated_content = truncate_to_char_boundary(content, 12000);
+        let user = format!("URL: {}\n\nContent:\n{}", url, truncated_content);
 
         let response = self.chat(system, &user).await?;
 
-        // Parse JSON response
-        let parsed: SummaryJsonResponse = serde_json::from_str(&response)
-            .or_else(|_| {
-                // Try to extract JSON from markdown code block
-                let json_str = response
-                    .trim()
-                    .trim_start_matches("```json")
-                    .trim_start_matches("```")
-                    .trim_end_matches("```")
-                    .trim();
-                serde_json::from_str(json_str)
-            })
-            .map_err(|e| ExtractionError::AI(format!("Failed to parse summary: {}", e).into()))?;
+        // Parse JSON response with retry if needed
+        let parsed: SummaryJsonResponse = self.parse_json_with_retry(&response, "summary").await?;
 
         Ok(SummaryResponse {
             summary: parsed.summary,
@@ -370,19 +465,14 @@ Be factual. Only extract what's explicitly stated."#;
         let system = "Generate 5 related search terms for the query. Return as JSON array.";
         let response = self.chat(system, query).await?;
 
-        let terms: Vec<String> = serde_json::from_str(&response)
-            .or_else(|_| {
-                let json_str = response
-                    .trim()
-                    .trim_start_matches("```json")
-                    .trim_start_matches("```")
-                    .trim_end_matches("```")
-                    .trim();
-                serde_json::from_str(json_str)
-            })
-            .unwrap_or_else(|_| vec![query.to_string()]);
-
-        Ok(terms)
+        // Try parsing with retry, fall back to original query if all parsing fails
+        match self
+            .parse_json_with_retry::<Vec<String>>(&response, "expand_query")
+            .await
+        {
+            Ok(terms) => Ok(terms),
+            Err(_) => Ok(vec![query.to_string()]),
+        }
     }
 
     async fn classify_query(&self, query: &str) -> Result<ExtractionStrategy> {
@@ -400,16 +490,10 @@ Be factual. Only extract what's explicitly stated."#;
             strategy: String,
         }
 
-        let parsed: Classification = serde_json::from_str(&response)
-            .or_else(|_| {
-                let json_str = response
-                    .trim()
-                    .trim_start_matches("```json")
-                    .trim_start_matches("```")
-                    .trim_end_matches("```")
-                    .trim();
-                serde_json::from_str(json_str)
-            })
+        // Try parsing with retry, default to collection if all parsing fails
+        let parsed: Classification = self
+            .parse_json_with_retry(&response, "classify_query")
+            .await
             .unwrap_or(Classification {
                 strategy: "collection".to_string(),
             });
@@ -462,16 +546,10 @@ Each distinct item should be its own partition."#;
             rationale: String,
         }
 
-        let parsed: PartitionResponse = serde_json::from_str(&response)
-            .or_else(|_| {
-                let json_str = response
-                    .trim()
-                    .trim_start_matches("```json")
-                    .trim_start_matches("```")
-                    .trim_end_matches("```")
-                    .trim();
-                serde_json::from_str(json_str)
-            })
+        // Try parsing with retry, default to empty partitions if all parsing fails
+        let parsed: PartitionResponse = self
+            .parse_json_with_retry(&response, "recall_and_partition")
+            .await
             .unwrap_or(PartitionResponse { partitions: vec![] });
 
         Ok(parsed
@@ -495,18 +573,18 @@ Each distinct item should be its own partition."#;
             return Ok(Extraction::new("No pages to extract from.".to_string()));
         }
 
-        let system = r#"Extract information matching the query from the pages. Be evidence-grounded.
+        let system = r#"Extract comprehensive information matching the query from the pages. Be thorough and evidence-grounded.
 
 Output JSON:
 {
-  "content": "Markdown formatted extraction with citations [1], [2]",
+  "content": "Comprehensive markdown extraction with all relevant details, descriptions, contact information, locations, schedules, and requirements. Use citations [1], [2] to attribute sources.",
   "sources_used": ["url1", "url2"],
   "gaps": [{"field": "missing field", "query": "search query to find it"}],
   "has_conflicts": false,
   "conflicts": []
 }
 
-Only include information explicitly stated in the sources. Mark anything inferred."#;
+Include all relevant details found in the sources. Be thorough - extract everything that could be useful. Mark anything inferred."#;
 
         let pages_text: String = pages
             .iter()
@@ -517,7 +595,7 @@ Only include information explicitly stated in the sources. Mark anything inferre
                     i + 1,
                     p.url,
                     p.title.as_deref().unwrap_or("Untitled"),
-                    &p.content[..p.content.len().min(8000)]
+                    truncate_to_char_boundary(&p.content, 8000)
                 )
             })
             .collect::<Vec<_>>()
@@ -531,6 +609,7 @@ Only include information explicitly stated in the sources. Mark anything inferre
             content: String,
             sources_used: Vec<String>,
             gaps: Vec<GapItem>,
+            #[allow(dead_code)]
             has_conflicts: bool,
         }
 
@@ -540,19 +619,9 @@ Only include information explicitly stated in the sources. Mark anything inferre
             query: String,
         }
 
-        let parsed: ExtractionResponse = serde_json::from_str(&response)
-            .or_else(|_| {
-                let json_str = response
-                    .trim()
-                    .trim_start_matches("```json")
-                    .trim_start_matches("```")
-                    .trim_end_matches("```")
-                    .trim();
-                serde_json::from_str(json_str)
-            })
-            .map_err(|e| {
-                ExtractionError::AI(format!("Failed to parse extraction: {}", e).into())
-            })?;
+        // Parse with retry - if parsing fails, ask AI to fix the JSON
+        let parsed: ExtractionResponse =
+            self.parse_json_with_retry(&response, "extraction").await?;
 
         let sources: Vec<Source> = parsed
             .sources_used
@@ -590,6 +659,14 @@ Only include information explicitly stated in the sources. Mark anything inferre
             crate::types::extraction::ExtractionStatus::Found
         };
 
+        info!(
+            pages = pages.len(),
+            content_len = parsed.content.len(),
+            sources = sources.len(),
+            gaps = gaps.len(),
+            "Extraction complete"
+        );
+
         Ok(Extraction {
             content: parsed.content,
             sources,
@@ -605,7 +682,6 @@ Only include information explicitly stated in the sources. Mark anything inferre
     }
 
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        // OpenAI supports batch embeddings, but for simplicity use sequential
         let mut results = Vec::with_capacity(texts.len());
         for text in texts {
             results.push(self.embed_text(text).await?);
@@ -620,7 +696,13 @@ Only include information explicitly stated in the sources. Mark anything inferre
 struct ChatRequest {
     model: String,
     messages: Vec<ChatMessage>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     temperature: Option<f32>,
+    /// For newer models (o1, o3, gpt-5), use max_completion_tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_completion_tokens: Option<u32>,
+    /// For older models (gpt-4o, gpt-4, etc.), use max_tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<u32>,
 }
 

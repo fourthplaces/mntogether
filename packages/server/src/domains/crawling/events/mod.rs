@@ -7,12 +7,17 @@
 //!
 //! ALL *Requested events have been removed. GraphQL calls actions directly.
 //! Effects watch FACT events and call handlers directly for cascading.
+//!
+//! ## PLATINUM RULE: Events Are Facts Only
+//!
+//! Events represent facts about what happened - never errors or failures.
+//! Errors are returned via Result::Err, not as events.
 
 use serde::{Deserialize, Serialize};
 
-use crate::common::{ExtractedPost, JobId, MemberId, WebsiteId};
+use crate::common::{ExtractedPost, JobId, WebsiteId};
 
-/// Information about a crawled page (used in WebsiteCrawled event)
+/// Information about a crawled/discovered page
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrawledPageInfo {
     pub url: String,
@@ -32,43 +37,23 @@ pub struct PageExtractionResult {
 /// Crawling domain events - FACT EVENTS ONLY
 ///
 /// These are immutable facts about what happened. Effects watch these
-/// and call handlers directly for cascade workflows (no *Requested events).
+/// and call handlers directly for cascade workflows.
+///
+/// ## Key Cascades
+///
+/// - `WebsiteIngested` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
+/// - `WebsitePostsRegenerated` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
+/// - `WebsitePagesDiscovered` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
+/// - `PostsExtractedFromPages` → `handle_sync_crawled_posts` → `PostsSynced`
 #[derive(Debug, Clone)]
 pub enum CrawlEvent {
     // =========================================================================
-    // Fact Events (emitted by actions - what actually happened)
+    // Ingestion & Discovery Events (trigger post extraction cascade)
     // =========================================================================
-    /// Website was crawled (multiple pages discovered)
-    WebsiteCrawled {
-        website_id: WebsiteId,
-        job_id: JobId,
-        pages: Vec<CrawledPageInfo>,
-    },
-
-    /// No posts found after crawling all pages
-    WebsiteCrawlNoListings {
-        website_id: WebsiteId,
-        job_id: JobId,
-        attempt_number: i32,
-        pages_crawled: usize,
-        should_retry: bool,
-    },
-
-    /// Terminal: website marked as having no posts after max retries
-    WebsiteMarkedNoListings {
-        website_id: WebsiteId,
-        job_id: JobId,
-        total_attempts: i32,
-    },
-
-    /// Website crawl failed
-    WebsiteCrawlFailed {
-        website_id: WebsiteId,
-        job_id: JobId,
-        reason: String,
-    },
-
-    /// Website ingested via extraction library (new pattern)
+    /// Website ingested via extraction library
+    ///
+    /// Emitted by `ingest_website()` after pages are crawled and summarized.
+    /// Cascades to: `handle_extract_posts_from_pages`
     WebsiteIngested {
         website_id: WebsiteId,
         job_id: JobId,
@@ -76,7 +61,34 @@ pub enum CrawlEvent {
         pages_summarized: usize,
     },
 
-    /// Posts extracted from multiple crawled pages
+    /// Website posts regenerated from existing pages
+    ///
+    /// Emitted by `regenerate_posts()` when regenerating from existing page_snapshots.
+    /// Cascades to: `handle_extract_posts_from_pages`
+    WebsitePostsRegenerated {
+        website_id: WebsiteId,
+        job_id: JobId,
+        pages_processed: usize,
+    },
+
+    /// Pages discovered via search (Tavily) and stored
+    ///
+    /// Emitted by `discover_website()` after pages are discovered via search.
+    /// Cascades to: `handle_extract_posts_from_pages`
+    WebsitePagesDiscovered {
+        website_id: WebsiteId,
+        job_id: JobId,
+        pages: Vec<CrawledPageInfo>,
+        discovery_method: String, // "tavily", "sitemap", etc.
+    },
+
+    // =========================================================================
+    // Extraction & Sync Events
+    // =========================================================================
+    /// Posts extracted from crawled/ingested pages
+    ///
+    /// Emitted by `handle_extract_posts_from_pages` after agentic extraction.
+    /// Cascades to: `handle_sync_crawled_posts`
     PostsExtractedFromPages {
         website_id: WebsiteId,
         job_id: JobId,
@@ -84,7 +96,9 @@ pub enum CrawlEvent {
         page_results: Vec<PageExtractionResult>,
     },
 
-    /// Posts were synced with database (from crawled pages)
+    /// Posts synced to database
+    ///
+    /// Terminal event - emitted by `handle_sync_crawled_posts`.
     PostsSynced {
         website_id: WebsiteId,
         job_id: JobId,
@@ -93,6 +107,29 @@ pub enum CrawlEvent {
         unchanged_count: usize,
     },
 
+    // =========================================================================
+    // No-Posts Events
+    // =========================================================================
+    /// No posts found after crawling all pages
+    ///
+    /// Cascades to: `handle_mark_no_posts`
+    WebsiteCrawlNoListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+        attempt_number: i32,
+        pages_crawled: usize,
+    },
+
+    /// Terminal: website marked as having no posts
+    WebsiteMarkedNoListings {
+        website_id: WebsiteId,
+        job_id: JobId,
+        total_attempts: i32,
+    },
+
+    // =========================================================================
+    // Page-Level Events (terminal)
+    // =========================================================================
     /// Page summaries regenerated successfully
     PageSummariesRegenerated {
         website_id: WebsiteId,
@@ -111,15 +148,5 @@ pub enum CrawlEvent {
         page_snapshot_id: uuid::Uuid,
         job_id: JobId,
         posts_count: usize,
-    },
-
-    // =========================================================================
-    // Authorization Events
-    // =========================================================================
-    /// User attempted admin action without permission
-    AuthorizationDenied {
-        user_id: MemberId,
-        action: String,
-        reason: String,
     },
 }

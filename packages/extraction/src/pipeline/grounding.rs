@@ -141,9 +141,7 @@ pub fn detect_conflicts(claims: &[Claim]) -> Vec<Conflict> {
         // Check if claims from different sources have different content
         let sources_with_content: Vec<_> = topic_claims
             .iter()
-            .filter_map(|c| {
-                c.evidence.first().map(|e| (&c.statement, &e.source_url))
-            })
+            .filter_map(|c| c.evidence.first().map(|e| (&c.statement, &e.source_url)))
             .collect();
 
         // Group by source
@@ -156,10 +154,12 @@ pub fn detect_conflicts(claims: &[Claim]) -> Vec<Conflict> {
                 topic: topic.clone(),
                 claims: sources_with_content
                     .iter()
-                    .map(|(statement, url)| crate::types::extraction::ConflictingClaim {
-                        statement: (*statement).clone(),
-                        source_url: (*url).clone(),
-                    })
+                    .map(
+                        |(statement, url)| crate::types::extraction::ConflictingClaim {
+                            statement: (*statement).clone(),
+                            source_url: (*url).clone(),
+                        },
+                    )
                     .collect(),
             };
             conflicts.push(conflict);
@@ -178,7 +178,9 @@ pub fn aggregate_sources(claims: &[Claim]) -> Vec<Source> {
 
     for claim in claims {
         for evidence in &claim.evidence {
-            *source_counts.entry(evidence.source_url.clone()).or_insert(0) += 1;
+            *source_counts
+                .entry(evidence.source_url.clone())
+                .or_insert(0) += 1;
         }
     }
 
@@ -290,7 +292,9 @@ mod tests {
 
         let filtered = filter_claims(claims, &config);
         assert_eq!(filtered.len(), 2);
-        assert!(filtered.iter().all(|c| c.grounding != ClaimGrounding::Assumed));
+        assert!(filtered
+            .iter()
+            .all(|c| c.grounding != ClaimGrounding::Assumed));
     }
 
     #[test]

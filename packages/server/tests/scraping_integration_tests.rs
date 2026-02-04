@@ -10,11 +10,11 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
+use extraction::{MockIngestor, RawPage};
 use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::crawling::models::{PageSnapshot, WebsiteSnapshot};
 use server_core::domains::posts::models::Post;
 use server_core::domains::website::models::Website;
-use extraction::{MockIngestor, RawPage};
 use server_core::kernel::test_dependencies::{MockAI, MockEmbeddingService};
 use server_core::kernel::TestDependencies;
 use test_context::test_context;
@@ -612,8 +612,8 @@ async fn test_mixed_info_across_pages_creates_complete_posts(ctx: &TestHarness) 
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_website_status_updates_during_crawl(ctx: &TestHarness) {
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://status-test.org", "# Test\n\nContent"));
+    let mock_ingestor =
+        MockIngestor::new().with_page(RawPage::new("https://status-test.org", "# Test\n\nContent"));
 
     // Two-pass extraction: page summary + synthesis
     let mock_ai = MockAI::new()
@@ -1660,8 +1660,10 @@ async fn test_invalid_urgency_filtered(ctx: &TestHarness) {
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_unknown_audience_role_handled(ctx: &TestHarness) {
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://role-test.org", "# Service for Everyone"));
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
+        "https://role-test.org",
+        "# Service for Everyone",
+    ));
 
     // AI returns unknown role "other" (valid: recipient, donor, volunteer, participant)
     let mock_ai = MockAI::new()

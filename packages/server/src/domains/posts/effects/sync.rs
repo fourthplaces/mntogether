@@ -54,12 +54,7 @@ pub async fn handle_sync_posts(
                 error = %e,
                 "LLM sync failed"
             );
-            ctx.emit(PostEvent::SyncFailed {
-                source_id,
-                job_id,
-                reason: format!("Failed to sync posts: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("Failed to sync posts: {}", e));
         }
     };
 

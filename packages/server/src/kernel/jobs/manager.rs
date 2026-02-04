@@ -50,6 +50,7 @@ impl ScheduleOptions {
 
     /// Create options for a scheduled job.
     pub fn scheduled(
+        reference_id: Uuid,
         job_type: impl Into<String>,
         run_at: DateTime<Utc>,
     ) -> Self {
@@ -62,6 +63,7 @@ impl ScheduleOptions {
 
     /// Create options for a recurring job.
     pub fn recurring(
+        reference_id: Uuid,
         job_type: impl Into<String>,
         rrule: impl Into<String>,
         timezone: Option<String>,
@@ -189,8 +191,8 @@ impl JobManager for TestJobManager {
     async fn schedule(&self, options: ScheduleOptions) -> Result<Job> {
         // Create job
         let mut job = Job::new(
-            options.frequency,
             options.reference_id,
+            options.frequency,
             options.job_type,
             options.run_at,
             options.timezone,
@@ -327,8 +329,8 @@ impl JobManager for DefaultJobManager {
     async fn schedule(&self, options: ScheduleOptions) -> Result<Job> {
         // Create job (persistence is handled by effects in production)
         let mut job = Job::new(
-            options.frequency,
             options.reference_id,
+            options.frequency,
             options.job_type,
             options.run_at,
             options.timezone,

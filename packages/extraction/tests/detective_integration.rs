@@ -8,10 +8,10 @@
 //! 5. Merge results
 
 use extraction::{
-    types::extraction::{Extraction, GapQuery},
-    Index, MemoryStore, PageCache,
     testing::MockAI,
+    types::extraction::{Extraction, GapQuery},
     types::page::CachedPage,
+    Index, MemoryStore, PageCache,
 };
 
 /// Helper to create a test page.
@@ -60,10 +60,9 @@ async fn test_gap_type_affects_semantic_weight() {
 
     // Entity gap (should use FTS-heavy search)
     let mut entity_extraction = Extraction::new("Content".to_string());
-    entity_extraction.gaps.push(GapQuery::new(
-        "email",
-        "john@example.com email address",
-    ));
+    entity_extraction
+        .gaps
+        .push(GapQuery::new("email", "john@example.com email address"));
 
     let entity_plan = index.plan_investigation(&entity_extraction);
     let entity_step = &entity_plan.steps[0];
@@ -79,13 +78,24 @@ async fn test_gap_type_affects_semantic_weight() {
     let semantic_step = &semantic_plan.steps[0];
 
     // Verify different weights through the action
-    match (&entity_step.recommended_action, &semantic_step.recommended_action) {
+    match (
+        &entity_step.recommended_action,
+        &semantic_step.recommended_action,
+    ) {
         (
-            extraction::types::investigation::InvestigationAction::HybridSearch { semantic_weight: entity_weight, .. },
-            extraction::types::investigation::InvestigationAction::HybridSearch { semantic_weight: semantic_weight, .. },
+            extraction::types::investigation::InvestigationAction::HybridSearch {
+                semantic_weight: entity_weight,
+                ..
+            },
+            extraction::types::investigation::InvestigationAction::HybridSearch {
+                semantic_weight: semantic_weight,
+                ..
+            },
         ) => {
-            assert!(entity_weight < semantic_weight,
-                "Entity gaps should have lower semantic weight than semantic gaps");
+            assert!(
+                entity_weight < semantic_weight,
+                "Entity gaps should have lower semantic weight than semantic gaps"
+            );
         }
         _ => panic!("Expected HybridSearch actions"),
     }
@@ -93,17 +103,26 @@ async fn test_gap_type_affects_semantic_weight() {
 
 #[tokio::test]
 async fn test_extraction_merge_deduplicates_sources() {
-    use extraction::types::extraction::Source;
     use chrono::Utc;
+    use extraction::types::extraction::Source;
 
     let mut base = Extraction::new("Base content".to_string());
-    base.sources.push(Source::primary("https://example.com/page1".to_string(), Utc::now()));
+    base.sources.push(Source::primary(
+        "https://example.com/page1".to_string(),
+        Utc::now(),
+    ));
 
     let mut supplement = Extraction::new("Supplement content".to_string());
     // Add duplicate source
-    supplement.sources.push(Source::supporting("https://example.com/page1".to_string(), Utc::now()));
+    supplement.sources.push(Source::supporting(
+        "https://example.com/page1".to_string(),
+        Utc::now(),
+    ));
     // Add new source
-    supplement.sources.push(Source::supporting("https://example.com/page2".to_string(), Utc::now()));
+    supplement.sources.push(Source::supporting(
+        "https://example.com/page2".to_string(),
+        Utc::now(),
+    ));
 
     base.merge(supplement);
 
@@ -115,15 +134,18 @@ async fn test_extraction_merge_deduplicates_sources() {
 
 #[tokio::test]
 async fn test_extraction_merge_upgrades_grounding() {
-    use extraction::types::extraction::{Source, GroundingGrade};
     use chrono::Utc;
+    use extraction::types::extraction::{GroundingGrade, Source};
 
     let mut base = Extraction::new("Base".to_string());
-    base.sources.push(Source::primary("https://a.com".to_string(), Utc::now()));
+    base.sources
+        .push(Source::primary("https://a.com".to_string(), Utc::now()));
     base.grounding = GroundingGrade::SingleSource;
 
     let mut supplement = Extraction::new("Supplement".to_string());
-    supplement.sources.push(Source::supporting("https://b.com".to_string(), Utc::now()));
+    supplement
+        .sources
+        .push(Source::supporting("https://b.com".to_string(), Utc::now()));
 
     base.merge(supplement);
 
@@ -178,7 +200,7 @@ async fn test_full_detective_loop_pattern() {
 
 #[tokio::test]
 async fn test_step_result_tracks_metadata() {
-    use extraction::types::investigation::{InvestigationStep, InvestigationAction, StepResult};
+    use extraction::types::investigation::{InvestigationAction, InvestigationStep, StepResult};
     use uuid::Uuid;
 
     let step = InvestigationStep::new(

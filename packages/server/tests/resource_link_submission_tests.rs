@@ -227,15 +227,17 @@ async fn concurrent_submissions_handled_atomically(ctx: &TestHarness) {
 /// This is what happens when admin clicks "Run Scraper" button in UI
 #[tokio::test]
 async fn test_manual_scrape_creates_website_snapshot() {
+    use extraction::{MockIngestor, RawPage};
     use server_core::common::MemberId;
     use server_core::domains::crawling::models::WebsiteSnapshot;
     use server_core::domains::website::models::Website;
-    use extraction::{MockIngestor, RawPage};
     use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 
     // Setup: Create test harness with mocked AI and ingestor
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://scrapetest.org", "# Test Page\n\nTest volunteer opportunity content"));
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
+        "https://scrapetest.org",
+        "# Test Page\n\nTest volunteer opportunity content",
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence

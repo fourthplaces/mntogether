@@ -76,7 +76,7 @@ services:
 
       # Server Config
       PORT: ${PORT:-8080}
-      RUST_LOG: ${RUST_LOG:-info,server_core=debug}
+      RUST_LOG: ${RUST_LOG:-info,server_core=debug,extraction=debug}
 
       # AI Services
       OPENAI_API_KEY: ${OPENAI_API_KEY}

@@ -289,12 +289,12 @@ mod tests {
             ],
         );
 
-        let results = searcher.search("volunteer coordinator email").await.unwrap();
+        let results = searcher
+            .search("volunteer coordinator email")
+            .await
+            .unwrap();
         assert_eq!(results.len(), 2);
-        assert_eq!(
-            results[0].url.as_str(),
-            "https://redcross.org/volunteer"
-        );
+        assert_eq!(results[0].url.as_str(), "https://redcross.org/volunteer");
     }
 
     #[tokio::test]

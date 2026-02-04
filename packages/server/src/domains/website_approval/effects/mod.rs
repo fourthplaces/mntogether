@@ -1,4 +1,4 @@
-//! Domain Approval effects
+//! Website Approval effects
 //!
 //! Effects watch FACT events and call handlers directly for cascading.
 //! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
@@ -19,23 +19,23 @@ use seesaw_core::effect;
 use std::sync::Arc;
 
 use crate::common::AppState;
-use crate::domains::domain_approval::events::DomainApprovalEvent;
+use crate::domains::website_approval::events::WebsiteApprovalEvent;
 use crate::kernel::ServerDeps;
 
 pub use assessment::handle_generate_assessment;
 pub use search::handle_conduct_searches;
 
-/// Build the domain approval effect handler.
+/// Build the website approval effect handler.
 ///
 /// This effect watches FACT events and calls handlers directly for cascading.
 /// No *Requested events - the effect IS the cascade controller.
-pub fn domain_approval_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<DomainApprovalEvent>().run(|event: Arc<DomainApprovalEvent>, ctx| async move {
+pub fn website_approval_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
+    effect::on::<WebsiteApprovalEvent>().run(|event: Arc<WebsiteApprovalEvent>, ctx| async move {
         match event.as_ref() {
             // =================================================================
             // Cascade: WebsiteResearchCreated → conduct searches
             // =================================================================
-            DomainApprovalEvent::WebsiteResearchCreated {
+            WebsiteApprovalEvent::WebsiteResearchCreated {
                 research_id,
                 website_id,
                 job_id,
@@ -49,7 +49,7 @@ pub fn domain_approval_effect() -> seesaw_core::effect::Effect<AppState, ServerD
             // =================================================================
             // Cascade: ResearchSearchesCompleted → generate assessment
             // =================================================================
-            DomainApprovalEvent::ResearchSearchesCompleted {
+            WebsiteApprovalEvent::ResearchSearchesCompleted {
                 research_id,
                 website_id,
                 job_id,
@@ -63,10 +63,10 @@ pub fn domain_approval_effect() -> seesaw_core::effect::Effect<AppState, ServerD
             // =================================================================
             // Terminal events - no cascade needed
             // =================================================================
-            DomainApprovalEvent::WebsiteResearchFailed { .. }
-            | DomainApprovalEvent::ResearchSearchesFailed { .. }
-            | DomainApprovalEvent::WebsiteAssessmentCompleted { .. }
-            | DomainApprovalEvent::AssessmentGenerationFailed { .. } => Ok(()),
+            WebsiteApprovalEvent::WebsiteResearchFailed { .. }
+            | WebsiteApprovalEvent::ResearchSearchesFailed { .. }
+            | WebsiteApprovalEvent::WebsiteAssessmentCompleted { .. }
+            | WebsiteApprovalEvent::AssessmentGenerationFailed { .. } => Ok(()),
         }
     })
 }

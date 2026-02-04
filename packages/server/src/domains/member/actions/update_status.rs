@@ -13,7 +13,7 @@ use crate::kernel::ServerDeps;
 /// Update a member's active status.
 ///
 /// Called directly from GraphQL mutation via `process()`.
-/// Emits `MemberStatusUpdated` or `MemberNotFound` fact event.
+/// Emits `MemberStatusUpdated` fact event on success.
 /// Returns `ReadResult<Member>` for deferred read after effects settle.
 pub async fn update_member_status(
     member_id: Uuid,
@@ -36,7 +36,6 @@ pub async fn update_member_status(
         }
         Err(e) => {
             error!("Failed to update member status: {}", e);
-            ctx.emit(MemberEvent::MemberNotFound { member_id });
             Err(anyhow::anyhow!("Member not found: {}", member_id))
         }
     }

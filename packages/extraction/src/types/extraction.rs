@@ -247,7 +247,9 @@ impl Extraction {
     /// Create a combined extraction from multiple extractions.
     pub fn combine(extractions: impl IntoIterator<Item = Extraction>) -> Self {
         let mut iter = extractions.into_iter();
-        let mut combined = iter.next().unwrap_or_else(|| Extraction::new(String::new()));
+        let mut combined = iter
+            .next()
+            .unwrap_or_else(|| Extraction::new(String::new()));
         combined.merge_all(iter);
         combined
     }
@@ -519,7 +521,11 @@ impl Conflict {
     }
 
     /// Add a conflicting claim.
-    pub fn with_claim(mut self, statement: impl Into<String>, source_url: impl Into<String>) -> Self {
+    pub fn with_claim(
+        mut self,
+        statement: impl Into<String>,
+        source_url: impl Into<String>,
+    ) -> Self {
         self.claims.push(ConflictingClaim {
             statement: statement.into(),
             source_url: source_url.into(),
@@ -585,11 +591,16 @@ mod tests {
     #[test]
     fn test_merge_deduplicates_sources() {
         let mut base = Extraction::new("Base content".to_string());
-        base.sources.push(Source::primary("https://a.com".into(), Utc::now()));
+        base.sources
+            .push(Source::primary("https://a.com".into(), Utc::now()));
 
         let mut supplement = Extraction::new("Supplement content".to_string());
-        supplement.sources.push(Source::supporting("https://a.com".into(), Utc::now())); // Duplicate
-        supplement.sources.push(Source::supporting("https://b.com".into(), Utc::now())); // New
+        supplement
+            .sources
+            .push(Source::supporting("https://a.com".into(), Utc::now())); // Duplicate
+        supplement
+            .sources
+            .push(Source::supporting("https://b.com".into(), Utc::now())); // New
 
         base.merge(supplement);
 
@@ -601,11 +612,14 @@ mod tests {
     #[test]
     fn test_merge_upgrades_grounding() {
         let mut base = Extraction::new("Base".to_string());
-        base.sources.push(Source::primary("https://a.com".into(), Utc::now()));
+        base.sources
+            .push(Source::primary("https://a.com".into(), Utc::now()));
         base.grounding = GroundingGrade::SingleSource;
 
         let mut supplement = Extraction::new("Supplement".to_string());
-        supplement.sources.push(Source::supporting("https://b.com".into(), Utc::now()));
+        supplement
+            .sources
+            .push(Source::supporting("https://b.com".into(), Utc::now()));
 
         base.merge(supplement);
 
@@ -616,15 +630,22 @@ mod tests {
     #[test]
     fn test_merge_upgrades_source_role() {
         let mut base = Extraction::new("Base".to_string());
-        base.sources.push(Source::primary("https://a.com".into(), Utc::now()));
+        base.sources
+            .push(Source::primary("https://a.com".into(), Utc::now()));
 
         let mut supplement = Extraction::new("Supplement".to_string());
-        supplement.sources.push(Source::supporting("https://b.com".into(), Utc::now()));
+        supplement
+            .sources
+            .push(Source::supporting("https://b.com".into(), Utc::now()));
 
         base.merge(supplement);
 
         // New source should be marked as Corroborating
-        let new_source = base.sources.iter().find(|s| s.url == "https://b.com").unwrap();
+        let new_source = base
+            .sources
+            .iter()
+            .find(|s| s.url == "https://b.com")
+            .unwrap();
         assert_eq!(new_source.role, SourceRole::Corroborating);
     }
 
@@ -645,17 +666,20 @@ mod tests {
     fn test_combine_multiple() {
         let e1 = {
             let mut e = Extraction::new("First".to_string());
-            e.sources.push(Source::primary("https://1.com".into(), Utc::now()));
+            e.sources
+                .push(Source::primary("https://1.com".into(), Utc::now()));
             e
         };
         let e2 = {
             let mut e = Extraction::new("Second".to_string());
-            e.sources.push(Source::primary("https://2.com".into(), Utc::now()));
+            e.sources
+                .push(Source::primary("https://2.com".into(), Utc::now()));
             e
         };
         let e3 = {
             let mut e = Extraction::new("Third".to_string());
-            e.sources.push(Source::primary("https://3.com".into(), Utc::now()));
+            e.sources
+                .push(Source::primary("https://3.com".into(), Utc::now()));
             e
         };
 
@@ -678,7 +702,9 @@ mod tests {
     #[test]
     fn test_extraction_status_partial() {
         let mut extraction = Extraction::new("Partial content".to_string());
-        extraction.gaps.push(MissingField::new("email", "contact email"));
+        extraction
+            .gaps
+            .push(MissingField::new("email", "contact email"));
         extraction.update_status();
 
         assert_eq!(extraction.status, ExtractionStatus::Partial);
@@ -699,9 +725,11 @@ mod tests {
     #[test]
     fn test_extraction_status_contradictory() {
         let mut extraction = Extraction::new("Some content".to_string());
-        extraction.conflicts.push(Conflict::new("Hours")
-            .with_claim("Open 9-5", "https://a.com")
-            .with_claim("Open 10-6", "https://b.com"));
+        extraction.conflicts.push(
+            Conflict::new("Hours")
+                .with_claim("Open 9-5", "https://a.com")
+                .with_claim("Open 10-6", "https://b.com"),
+        );
         extraction.update_status();
 
         assert_eq!(extraction.status, ExtractionStatus::Contradictory);
@@ -726,7 +754,8 @@ mod tests {
         assert!(stale.is_searchable());
 
         // Redacted, NotApplicable, Conflicting are not searchable
-        let conflicting = MissingField::new("data", "query").with_reason(MissingReason::Conflicting);
+        let conflicting =
+            MissingField::new("data", "query").with_reason(MissingReason::Conflicting);
         assert!(!conflicting.is_searchable());
     }
 

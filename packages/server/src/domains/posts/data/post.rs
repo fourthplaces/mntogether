@@ -1,5 +1,6 @@
 use crate::common::PostId;
 use crate::domains::posts::models::Post;
+use crate::domains::tag::TagData;
 use crate::kernel::tag::Tag;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
@@ -37,15 +38,6 @@ pub struct PostData {
 
     // Source tracking
     pub source_url: Option<String>,
-}
-
-/// Tag data for GraphQL
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagData {
-    pub id: String,
-    pub kind: String,
-    pub value: String,
-    pub display_name: Option<String>,
 }
 
 /// Service-specific properties
@@ -96,17 +88,6 @@ impl From<Post> for PostData {
             created_at: post.created_at.to_rfc3339(),
             updated_at: post.updated_at.to_rfc3339(),
             source_url: post.source_url,
-        }
-    }
-}
-
-impl From<Tag> for TagData {
-    fn from(tag: Tag) -> Self {
-        Self {
-            id: tag.id.to_string(),
-            kind: tag.kind,
-            value: tag.value,
-            display_name: tag.display_name,
         }
     }
 }
@@ -190,25 +171,6 @@ impl PostData {
         let post_id = PostId::parse(&self.id)?;
         let tags = Tag::find_for_post(post_id, &context.db_pool).await?;
         Ok(tags.into_iter().map(TagData::from).collect())
-    }
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl TagData {
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-
-    fn kind(&self) -> String {
-        self.kind.clone()
-    }
-
-    fn value(&self) -> String {
-        self.value.clone()
-    }
-
-    fn display_name(&self) -> Option<String> {
-        self.display_name.clone()
     }
 }
 

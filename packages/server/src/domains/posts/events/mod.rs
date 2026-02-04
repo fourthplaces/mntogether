@@ -1,6 +1,6 @@
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedPost};
-use crate::common::{JobId, MemberId, PostId, WebsiteId};
+use crate::common::{JobId, PostId, WebsiteId};
 use crate::domains::posts::models::post_report::PostReportId;
 
 /// Posts domain events
@@ -70,30 +70,6 @@ pub enum PostEvent {
         unchanged_count: usize,
     },
 
-    /// Scraping failed (terminal event - clears pending state)
-    ScrapeFailed {
-        source_id: WebsiteId,
-        job_id: JobId,
-        reason: String,
-    },
-
-    /// Resource link scraping failed (terminal event)
-    ResourceLinkScrapeFailed { job_id: JobId, reason: String },
-
-    /// Listing extraction failed (terminal event - clears pending state)
-    ExtractFailed {
-        source_id: WebsiteId,
-        job_id: JobId,
-        reason: String,
-    },
-
-    /// Listing sync failed (terminal event - clears pending state)
-    SyncFailed {
-        source_id: WebsiteId,
-        job_id: JobId,
-        reason: String,
-    },
-
     /// A listing was created (from scraping or user submission)
     PostEntryCreated {
         post_id: PostId,
@@ -107,12 +83,6 @@ pub enum PostEvent {
 
     /// A listing was rejected by admin
     PostRejected { post_id: PostId, reason: String },
-
-    /// A listing was updated
-    ListingUpdated { post_id: PostId },
-
-    /// A post was created (when listing approved or custom post created)
-    PostCreated { post_id: PostId },
 
     /// A post was expired
     PostExpired { post_id: PostId },
@@ -147,17 +117,6 @@ pub enum PostEvent {
     /// Embedding generated for a listing
     PostEmbeddingGenerated { post_id: PostId, dimensions: usize },
 
-    /// Embedding generation failed for a listing
-    ListingEmbeddingFailed { post_id: PostId, reason: String },
-
-    // Authorization failures
-    /// User attempted admin action without permission
-    AuthorizationDenied {
-        user_id: MemberId,
-        action: String, // e.g., "ApproveListing", "ScrapeSource"
-        reason: String,
-    },
-
     // =========================================================================
     // Transition Events (workflow state changes, not entry points)
     // =========================================================================
@@ -189,10 +148,13 @@ pub enum PostEvent {
         posts_merged: usize,
         posts_deleted: usize,
     },
-
-    /// Deduplication failed
-    DeduplicationFailed { job_id: JobId, reason: String },
 }
+
+// NOTE: Failed/error events have been removed:
+// - ScrapeFailed, ResourceLinkScrapeFailed, ExtractFailed, SyncFailed
+// - ListingEmbeddingFailed, DeduplicationFailed
+// - AuthorizationDenied
+// Errors go in Result::Err, not in events. Events are for successful state changes.
 
 // Note: All *Requested events have been removed.
 // GraphQL mutations call actions directly via process().

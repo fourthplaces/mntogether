@@ -2,6 +2,11 @@
 //!
 //! NOTE: seesaw 0.3.0 removed the JobQueue abstraction.
 //! This module provides a standalone job queue for background tasks.
+//!
+//! # Deprecation Notice
+//!
+//! The `Job` struct in this module is a legacy adapter. For new code, use:
+//! - `kernel::jobs::Job` - Modern implementation with typed builder, policies, and workflows
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -33,6 +38,9 @@ pub trait JobQueue: Send + Sync {
 }
 
 /// PostgreSQL-backed job for background processing
+///
+/// **Deprecated:** Use `kernel::jobs::Job` instead for new code.
+#[deprecated(since = "0.1.0", note = "Use kernel::jobs::Job instead")]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Job {
     pub id: Uuid,

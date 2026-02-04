@@ -14,5 +14,5 @@ pub use crawler::*;
 pub use discovery::{discover_pages, DiscoveredPage};
 pub use extraction::{hash_content, summarize_pages, PageToSummarize, SummarizedPage};
 pub use handlers::{
-    handle_extract_from_pages, handle_mark_no_posts, handle_retry_crawl, handle_sync_crawled_posts,
+    handle_extract_posts_from_pages, handle_mark_no_posts, handle_sync_crawled_posts,
 };

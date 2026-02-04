@@ -37,11 +37,7 @@ pub async fn handle_generate_greeting(
         Ok(text) => text,
         Err(e) => {
             error!("Failed to generate AI greeting: {}", e);
-            ctx.emit(ChatEvent::GreetingGenerationFailed {
-                container_id,
-                reason: format!("AI generation failed: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("AI greeting generation failed: {}", e));
         }
     };
 
@@ -98,12 +94,7 @@ pub async fn handle_generate_reply(
         Ok(m) => m,
         Err(e) => {
             error!("Failed to load message: {}", e);
-            ctx.emit(ChatEvent::ReplyGenerationFailed {
-                message_id,
-                container_id,
-                reason: format!("Failed to load message: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("Failed to load message: {}", e));
         }
     };
 
@@ -118,12 +109,7 @@ pub async fn handle_generate_reply(
         Ok(m) => m,
         Err(e) => {
             error!("Failed to load conversation: {}", e);
-            ctx.emit(ChatEvent::ReplyGenerationFailed {
-                message_id,
-                container_id,
-                reason: format!("Failed to load conversation: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("Failed to load conversation: {}", e));
         }
     };
 
@@ -140,12 +126,7 @@ pub async fn handle_generate_reply(
         Ok(text) => text,
         Err(e) => {
             error!("Failed to generate AI reply: {}", e);
-            ctx.emit(ChatEvent::ReplyGenerationFailed {
-                message_id,
-                container_id,
-                reason: format!("AI generation failed: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("AI reply generation failed: {}", e));
         }
     };
 

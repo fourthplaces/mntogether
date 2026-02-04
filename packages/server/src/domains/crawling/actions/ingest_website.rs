@@ -4,11 +4,12 @@
 //! that uses the extraction library's Ingestor pattern.
 
 use anyhow::Result;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 use uuid::Uuid;
 
+use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{AppState, JobId, MemberId, WebsiteId};
-use crate::domains::crawling::actions::{check_crawl_authorization, CrawlJobResult};
+use crate::domains::crawling::actions::CrawlJobResult;
 use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::website::models::Website;
 use crate::kernel::{
@@ -20,27 +21,24 @@ use seesaw_core::EffectContext;
 ///
 /// This is the new preferred method for crawling websites. It:
 /// 1. Uses the extraction library's Ingestor pattern for fetching
-/// 2. Stores pages in both extraction_pages (via ExtractionService) and
-///    page_snapshots (for backward compatibility)
-/// 3. Creates website_snapshot junction entries
-/// 4. Emits events for the extraction cascade
+/// 2. Stores pages in extraction_pages (via ExtractionService)
+/// 3. Emits WebsiteIngested event to trigger post extraction cascade
 ///
 /// # Arguments
 ///
 /// * `website_id` - Website to ingest
-/// * `member_id` - Member requesting the action
-/// * `is_admin` - Whether the member is an admin
+/// * `visitor_id` - Visitor requesting the action
 /// * `use_firecrawl` - Whether to use Firecrawl (true) or basic HTTP (false)
-/// * `ctx` - Effect context for emitting events
+/// * `ctx` - Effect context for emitting events (contains is_admin via state)
 pub async fn ingest_website(
     website_id: Uuid,
-    member_id: Uuid,
-    is_admin: bool,
+    visitor_id: Uuid,
     use_firecrawl: bool,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<CrawlJobResult> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
-    let requested_by = MemberId::from_uuid(member_id);
+    let requested_by = MemberId::from_uuid(visitor_id);
+    let is_admin = ctx.next_state().is_admin;
     let job_id = JobId::new();
 
     info!(
@@ -51,104 +49,81 @@ pub async fn ingest_website(
     );
 
     // 1. Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "IngestWebsite", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    debug!(website_id = %website_id_typed, "Checking authorization");
+    Actor::new(requested_by, is_admin)
+        .can(AdminCapability::TriggerScraping)
+        .check(ctx.deps())
+        .await?;
+    debug!(website_id = %website_id_typed, "Authorization passed");
 
     // 2. Fetch website
-    let website = match Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await {
-        Ok(w) => w,
-        Err(e) => {
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Failed to find website: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Website not found: {}", e)),
-            });
-        }
-    };
+    debug!(website_id = %website_id_typed, "Fetching website from database");
+    let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
+    debug!(website_id = %website_id_typed, domain = %website.domain, "Website fetched successfully");
 
-    // 3. Start crawl status
-    if let Err(e) = Website::start_crawl(website_id_typed, &ctx.deps().db_pool).await {
-        warn!(website_id = %website_id_typed, error = %e, "Failed to update crawl status");
-    }
-
-    // 4. Get extraction service
-    let extraction = match ctx.deps().extraction.as_ref() {
-        Some(e) => e,
-        None => {
-            let _ = Website::complete_crawl(website_id_typed, "failed", 0, &ctx.deps().db_pool).await;
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: "Extraction service not configured".to_string(),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some("Extraction service not configured".to_string()),
-            });
-        }
-    };
+    // 3. Get extraction service (always available)
+    debug!(website_id = %website_id_typed, "Getting extraction service");
+    let extraction = &ctx.deps().extraction;
 
     // 5. Configure discovery
     let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
     let max_depth = website.max_crawl_depth as usize;
 
-    let discover_config = DiscoverConfig::new(&website.domain)
+    debug!(
+        website_id = %website_id_typed,
+        domain = %website.domain,
+        max_pages = max_pages,
+        max_depth = max_depth,
+        "Configuring discovery"
+    );
+
+    // Ensure URL has scheme - domain is stored without scheme
+    let url = if website.domain.starts_with("http://") || website.domain.starts_with("https://") {
+        website.domain.clone()
+    } else {
+        format!("https://{}", website.domain)
+    };
+
+    let discover_config = DiscoverConfig::new(&url)
         .with_limit(max_pages)
         .with_max_depth(max_depth);
 
     // 6. Create ingestor and run ingestion
+    info!(
+        website_id = %website_id_typed,
+        domain = %website.domain,
+        use_firecrawl = use_firecrawl,
+        "Starting ingestion with ingestor"
+    );
     let ingest_result = if use_firecrawl {
         // Try Firecrawl first
         match FirecrawlIngestor::from_env() {
             Ok(firecrawl) => {
+                info!(website_id = %website_id_typed, "Using Firecrawl ingestor");
                 let ingestor = ValidatedIngestor::new(firecrawl);
+                debug!(website_id = %website_id_typed, "Calling extraction.ingest() with Firecrawl");
                 extraction.ingest(&discover_config, &ingestor).await
             }
             Err(e) => {
                 warn!(error = %e, "Firecrawl not available, falling back to HTTP");
                 let http = HttpIngestor::new();
                 let ingestor = ValidatedIngestor::new(http);
+                debug!(website_id = %website_id_typed, "Calling extraction.ingest() with HTTP (fallback)");
                 extraction.ingest(&discover_config, &ingestor).await
             }
         }
     } else {
+        info!(website_id = %website_id_typed, "Using HTTP ingestor");
         let http = HttpIngestor::new();
         let ingestor = ValidatedIngestor::new(http);
+        debug!(website_id = %website_id_typed, "Calling extraction.ingest() with HTTP");
         extraction.ingest(&discover_config, &ingestor).await
     };
 
     let result = match ingest_result {
         Ok(r) => r,
         Err(e) => {
-            let _ = Website::complete_crawl(website_id_typed, "failed", 0, &ctx.deps().db_pool).await;
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Ingestion failed: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Ingestion failed: {}", e)),
-            });
+            return Err(anyhow::anyhow!("Ingestion failed: {}", e));
         }
     };
 
@@ -160,19 +135,7 @@ pub async fn ingest_website(
         "Extraction library ingestion completed"
     );
 
-    // 7. Update website status
-    // Note: Backward-compatible records (website_snapshots, page_snapshots) are not created
-    // here. The extraction library stores pages in extraction_pages table. We'll migrate
-    // the old tables out in a future phase.
-    let _ = Website::complete_crawl(
-        website_id_typed,
-        "crawling",
-        result.pages_summarized as i32,
-        &ctx.deps().db_pool,
-    )
-    .await;
-
-    // 8. Emit event to continue the cascade
+    // 7. Emit event to continue the cascade
     // Note: We're emitting with empty crawled_pages for now since the extraction
     // library handles summarization internally. The cascade may need adjustment.
     info!(
@@ -208,12 +171,12 @@ pub async fn ingest_website(
 pub async fn ingest_urls(
     website_id: Uuid,
     urls: Vec<String>,
-    member_id: Uuid,
-    is_admin: bool,
+    visitor_id: Uuid,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<CrawlJobResult> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
-    let requested_by = MemberId::from_uuid(member_id);
+    let requested_by = MemberId::from_uuid(visitor_id);
+    let is_admin = ctx.next_state().is_admin;
     let job_id = JobId::new();
 
     info!(
@@ -224,30 +187,13 @@ pub async fn ingest_urls(
     );
 
     // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "IngestUrls", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    Actor::new(requested_by, is_admin)
+        .can(AdminCapability::TriggerScraping)
+        .check(ctx.deps())
+        .await?;
 
-    // Get extraction service
-    let extraction = match ctx.deps().extraction.as_ref() {
-        Some(e) => e,
-        None => {
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some("Extraction service not configured".to_string()),
-            });
-        }
-    };
+    // Get extraction service (always available)
+    let extraction = &ctx.deps().extraction;
 
     // Create ingestor - prefer Firecrawl for specific URLs
     let result = match FirecrawlIngestor::from_env() {

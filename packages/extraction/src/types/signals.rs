@@ -263,7 +263,10 @@ impl StructuredSignals {
     }
 
     /// Get all signals of a specific type (case-insensitive).
-    pub fn by_type<'a>(&'a self, signal_type: &'a str) -> impl Iterator<Item = &'a ExtractedSignal> {
+    pub fn by_type<'a>(
+        &'a self,
+        signal_type: &'a str,
+    ) -> impl Iterator<Item = &'a ExtractedSignal> {
         self.signals
             .iter()
             .filter(move |s| s.signal_type.eq_ignore_ascii_case(signal_type))
@@ -271,7 +274,11 @@ impl StructuredSignals {
 
     /// Get all unique signal types in this collection.
     pub fn signal_types(&self) -> Vec<&str> {
-        let mut types: Vec<&str> = self.signals.iter().map(|s| s.signal_type.as_str()).collect();
+        let mut types: Vec<&str> = self
+            .signals
+            .iter()
+            .map(|s| s.signal_type.as_str())
+            .collect();
         types.sort();
         types.dedup();
         types
@@ -417,8 +424,8 @@ mod tests {
         assert!(product.has_tag("featured"));
 
         // Real estate domain
-        let listing = ExtractedSignal::new("listing", "3BR apartment downtown")
-            .with_subtype("rental");
+        let listing =
+            ExtractedSignal::new("listing", "3BR apartment downtown").with_subtype("rental");
 
         assert_eq!(listing.signal_type, "listing");
         assert_eq!(listing.subtype, Some("rental".to_string()));
@@ -476,7 +483,7 @@ mod tests {
         assert_eq!(signals.count(), 4);
         assert_eq!(signals.count_by_type("product"), 2);
         assert_eq!(signals.count_by_type("PRODUCT"), 2); // case-insensitive
-        // High confidence (>=0.8): "iPhone" (0.9), "$999" (1.0), "Great product!" (1.0)
+                                                         // High confidence (>=0.8): "iPhone" (0.9), "$999" (1.0), "Great product!" (1.0)
         assert_eq!(signals.high_confidence(0.8).count(), 3);
         assert_eq!(signals.with_tag("verified").count(), 1);
     }

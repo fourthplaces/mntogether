@@ -46,10 +46,7 @@ impl<C: Crawler, S: SearchService> InformedCrawler<C, S> {
         query: &str,
     ) -> CrawlResult<Vec<CrawledPage>> {
         // 1. Search-based discovery (jump to relevant pages)
-        let search_urls = self
-            .search
-            .search_site(&config.url, query, 20)
-            .await;
+        let search_urls = self.search.search_site(&config.url, query, 20).await;
 
         // 2. Standard crawl from root
         let crawled = self.http_crawler.crawl(config).await?;
@@ -85,10 +82,7 @@ impl<C: Crawler, S: SearchService> InformedCrawler<C, S> {
         gap_query: &str,
     ) -> CrawlResult<Vec<CrawledPage>> {
         // Search for pages that might have the answer
-        let urls = self
-            .search
-            .search_site(site_url, gap_query, 10)
-            .await;
+        let urls = self.search.search_site(site_url, gap_query, 10).await;
 
         // Fetch those pages
         let mut pages: Vec<CrawledPage> = Vec::new();
@@ -151,12 +145,7 @@ impl SearchService for WebSearchService {
         };
 
         // Log the search intent (actual implementation would call an API)
-        tracing::debug!(
-            "Search: site:{} {} (limit: {})",
-            domain,
-            query,
-            limit
-        );
+        tracing::debug!("Search: site:{} {} (limit: {})", domain, query, limit);
 
         // Return empty - subclasses should implement actual search
         vec![]
@@ -177,7 +166,10 @@ impl MockSearchService {
 
     /// Add results for a query.
     pub fn with_results(self, query: &str, urls: Vec<String>) -> Self {
-        self.results.write().unwrap().insert(query.to_string(), urls);
+        self.results
+            .write()
+            .unwrap()
+            .insert(query.to_string(), urls);
         self
     }
 }
@@ -291,8 +283,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_crawl_for_gap() {
-        let http_crawler = MockCrawler::new()
-            .with_page(CrawledPage::new("https://example.com/contact", "Contact info"));
+        let http_crawler = MockCrawler::new().with_page(CrawledPage::new(
+            "https://example.com/contact",
+            "Contact info",
+        ));
 
         let search = MockSearchService::new().with_results(
             "contact email",

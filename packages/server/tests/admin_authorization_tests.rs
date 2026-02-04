@@ -81,7 +81,6 @@ async fn create_test_provider(harness: &TestHarness) -> Uuid {
     provider_id
 }
 
-
 /// Assert error contains admin required message
 fn assert_admin_required(errors: &[String]) {
     assert!(!errors.is_empty(), "Expected admin error but got no errors");

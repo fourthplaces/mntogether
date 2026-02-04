@@ -36,14 +36,20 @@ use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-#[deprecated(since = "0.1.0", note = "Use extraction library's CachedPage from PostgresStore instead")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction library's CachedPage from PostgresStore instead"
+)]
 pub type PageSnapshotId = Uuid;
 
 /// Cached raw page content from crawling.
 ///
 /// **Deprecated:** Use `extraction::CachedPage` instead.
 /// See module documentation for migration guide.
-#[deprecated(since = "0.1.0", note = "Use extraction library's CachedPage via ExtractionService instead")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction library's CachedPage via ExtractionService instead"
+)]
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct PageSnapshot {
     pub id: PageSnapshotId,

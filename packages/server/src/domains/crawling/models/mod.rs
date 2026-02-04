@@ -13,11 +13,13 @@
 
 #![allow(deprecated)] // Re-exports deprecated items for backward compatibility
 
+pub mod extraction_page;
 pub mod page_extraction;
 pub mod page_snapshot;
 pub mod page_summary;
 pub mod website_snapshot;
 
+pub use extraction_page::*;
 pub use page_extraction::*;
 #[allow(deprecated)]
 pub use page_snapshot::*;

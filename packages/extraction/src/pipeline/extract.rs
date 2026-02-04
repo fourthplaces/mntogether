@@ -2,6 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::{debug, info, warn};
 
 use crate::types::extraction::{
     Conflict, ConflictingClaim, Extraction, GapQuery, GroundingGrade, Source, SourceRole,
@@ -102,6 +103,16 @@ pub fn transform_extraction(
     response: AIExtractionResponse,
     config: &ExtractionTransformConfig,
 ) -> Extraction {
+    debug!(
+        content_length = response.content.len(),
+        claims_count = response.claims.len(),
+        sources_count = response.sources.len(),
+        gaps_count = response.gaps.len(),
+        conflicts_count = response.conflicts.len(),
+        strict_mode = config.strict_mode,
+        "Transforming AI extraction response"
+    );
+
     // Filter claims if strict mode
     let filtered_claims: Vec<_> = if config.strict_mode {
         response
@@ -178,6 +189,15 @@ pub fn transform_extraction(
         ExtractionStatus::Found
     };
 
+    info!(
+        status = ?status,
+        grounding = ?grounding,
+        sources_count = sources.len(),
+        gaps_count = gaps.len(),
+        conflicts_count = conflicts.len(),
+        "Extraction transformation complete"
+    );
+
     Extraction {
         content: response.content,
         sources,
@@ -209,7 +229,12 @@ fn calculate_grounding(
 
 /// Parse AI JSON response into structured extraction response.
 pub fn parse_extraction_response(json: &str) -> Result<AIExtractionResponse, serde_json::Error> {
-    serde_json::from_str(json)
+    debug!(json_length = json.len(), "Parsing AI extraction response");
+    let result = serde_json::from_str(json);
+    if let Err(ref e) = result {
+        warn!(error = %e, json_preview = %json.chars().take(200).collect::<String>(), "Failed to parse extraction response");
+    }
+    result
 }
 
 /// Parse a single-answer response (for Singular strategy).

@@ -173,10 +173,7 @@ pub async fn fetch_robots_txt(
     client: &reqwest::Client,
     site_url: &str,
 ) -> Result<RobotsTxt, reqwest::Error> {
-    let url = format!(
-        "{}/robots.txt",
-        site_url.trim_end_matches('/')
-    );
+    let url = format!("{}/robots.txt", site_url.trim_end_matches('/'));
 
     match client.get(&url).send().await {
         Ok(response) if response.status().is_success() => {

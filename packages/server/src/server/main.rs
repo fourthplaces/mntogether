@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "info,server_core=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
+                "info,server_core=debug,extraction=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
             }),
         )
         .with(
@@ -80,7 +80,8 @@ async fn main() -> Result<()> {
         config.admin_identifiers,
         config.pii_scrubbing_enabled,
         config.pii_use_gpt_detection,
-    );
+    )
+    .await;
 
     // Start scheduled tasks (periodic scraping)
     let _scheduler = scheduled_tasks::start_scheduler(pool.clone(), engine)

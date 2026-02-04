@@ -35,18 +35,11 @@ pub async fn deduplicate_posts(
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "DeduplicatePosts".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     info!(job_id = %job_id, "Starting LLM-based post deduplication");
 

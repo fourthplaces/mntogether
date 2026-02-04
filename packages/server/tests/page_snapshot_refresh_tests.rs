@@ -6,10 +6,10 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
+use extraction::{MockIngestor, RawPage};
 use server_core::common::MemberId;
 use server_core::domains::crawling::models::WebsiteSnapshot;
 use server_core::domains::website::models::Website;
-use extraction::{MockIngestor, RawPage};
 use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
@@ -39,8 +39,10 @@ async fn refresh_page_snapshot_updates_content(ctx: &TestHarness) {
     // Arrange: Set up initial scrape with first content
     // Note: MockIngestor returns pages by URL, so for refresh we need same URL with new content
     // For this test we'll use a single page that gets returned by fetch_one
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://test-refresh.org", "# Food Bank\n\nInitial content"));
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
+        "https://test-refresh.org",
+        "# Food Bank\n\nInitial content",
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // First scrape
@@ -304,8 +306,8 @@ async fn refresh_with_unchanged_content_reuses_page_snapshot(ctx: &TestHarness) 
     // Arrange: Set up scrape with same content twice
     let same_content = "# Food Bank\n\nSame content both times";
 
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://test-unchanged.org", same_content));
+    let mock_ingestor =
+        MockIngestor::new().with_page(RawPage::new("https://test-unchanged.org", same_content));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#)

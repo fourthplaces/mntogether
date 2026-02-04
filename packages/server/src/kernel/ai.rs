@@ -87,7 +87,7 @@ impl BaseAI for OpenAIClient {
         self.inner
             .generate_structured(system_prompt, user_prompt, schema)
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+            .map_err(|e| anyhow::anyhow!("AI structured generation failed: {:#}", e))
     }
 
     async fn generate_with_tools(
@@ -98,7 +98,7 @@ impl BaseAI for OpenAIClient {
         self.inner
             .generate_with_tools(messages, tools)
             .await
-            .map_err(|e| anyhow::anyhow!("{}", e))
+            .map_err(|e| anyhow::anyhow!("AI tool generation failed: {:#}", e))
     }
 }
 

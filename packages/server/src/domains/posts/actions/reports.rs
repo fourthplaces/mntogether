@@ -59,18 +59,11 @@ pub async fn resolve_report(
     let report_id = PostReportId::from_uuid(report_id);
     let resolved_by = MemberId::from_uuid(member_id);
 
-    if let Err(auth_err) = Actor::new(resolved_by, is_admin)
+    Actor::new(resolved_by, is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: resolved_by,
-            action: "ResolveReport".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     PostReportRecord::resolve(
         report_id,
@@ -102,18 +95,11 @@ pub async fn dismiss_report(
     let report_id = PostReportId::from_uuid(report_id);
     let resolved_by = MemberId::from_uuid(member_id);
 
-    if let Err(auth_err) = Actor::new(resolved_by, is_admin)
+    Actor::new(resolved_by, is_admin)
         .can(AdminCapability::ManageNeeds)
         .check(ctx.deps())
         .await
-    {
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: resolved_by,
-            action: "DismissReport".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     PostReportRecord::dismiss(
         report_id,
