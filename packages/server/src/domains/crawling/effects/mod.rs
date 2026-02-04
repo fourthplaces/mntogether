@@ -10,5 +10,5 @@ pub mod handlers;
 pub use crawler::*;
 pub use discovery::{discover_pages, DiscoveredPage};
 pub use handlers::{
-    handle_extract_posts_from_pages, handle_mark_no_posts, handle_sync_crawled_posts,
+    handle_enqueue_extract_posts, handle_enqueue_sync_posts, handle_mark_no_posts,
 };

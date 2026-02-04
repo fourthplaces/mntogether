@@ -58,6 +58,7 @@ pub async fn create_post(
         website_id,
         None, // source_url - not applicable for user-submitted listings
         None, // organization_id
+        None, // revision_of_post_id
         pool,
     )
     .await

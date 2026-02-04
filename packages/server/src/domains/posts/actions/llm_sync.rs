@@ -18,7 +18,8 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, WebsiteId};
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
+use crate::domains::posts::actions::create_extracted_post;
+use crate::domains::posts::models::{Post, PostContact};
 use crate::domains::website::models::Website;
 use crate::kernel::LlmRequestExt;
 
@@ -608,21 +609,6 @@ async fn apply_sync_operations(
     Ok(result)
 }
 
-/// Valid urgency values per database constraint
-const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
-
-/// Normalize urgency value to a valid database value
-fn normalize_urgency(urgency: Option<String>) -> Option<String> {
-    urgency.and_then(|u| {
-        let normalized = u.to_lowercase();
-        if VALID_URGENCY_VALUES.contains(&normalized.as_str()) {
-            Some(normalized)
-        } else {
-            None
-        }
-    })
-}
-
 /// Insert a new post from fresh extraction
 async fn insert_post(
     website_id: WebsiteId,
@@ -631,111 +617,117 @@ async fn insert_post(
 ) -> Result<PostId> {
     let website = Website::find_by_id(website_id, pool).await?;
 
-    // Normalize urgency to valid database value
-    let urgency = normalize_urgency(fresh.urgency.clone());
-
-    // Create the post
-    let post = Post::create(
-        website.domain.clone(),
-        fresh.title.clone(),
-        fresh.description.clone(),
-        Some(fresh.tldr.clone()),
-        "opportunity".to_string(),
-        "general".to_string(),
-        Some("accepting".to_string()),
-        urgency,
-        fresh.location.clone(),
-        PostStatus::PendingApproval.to_string(),
-        "en".to_string(),
-        Some("scraped".to_string()),
-        None, // submitted_by_admin_id
+    let post = create_extracted_post(
+        &website.domain,
+        fresh,
         Some(website_id),
         Some(format!("https://{}", website.domain)),
-        None, // organization_id
         pool,
     )
     .await?;
 
-    // Create contact info if available
-    if let Some(ref contact) = fresh.contact {
-        let contact_json = serde_json::json!({
-            "phone": contact.phone,
-            "email": contact.email,
-            "website": contact.website
-        });
-        if let Err(e) = PostContact::create_from_json(post.id, &contact_json, pool).await {
-            tracing::warn!(
-                post_id = %post.id,
-                error = %e,
-                "Failed to save contact info"
-            );
-        }
-    }
-
-    // Link post to source page snapshot
-    if let Some(page_snapshot_id) = fresh.source_page_snapshot_id {
-        if let Err(e) = sqlx::query(
-            "INSERT INTO post_page_sources (post_id, page_snapshot_id) VALUES ($1, $2) ON CONFLICT DO NOTHING"
-        )
-        .bind(post.id.into_uuid())
-        .bind(page_snapshot_id)
-        .execute(pool)
-        .await
-        {
-            tracing::warn!(
-                post_id = %post.id,
-                page_snapshot_id = %page_snapshot_id,
-                error = %e,
-                "Failed to link post to page source"
-            );
-        } else {
-            tracing::info!(
-                post_id = %post.id,
-                page_snapshot_id = %page_snapshot_id,
-                "Linked post to page source"
-            );
-        }
-    }
-
     Ok(post.id)
 }
 
-/// Update an existing post with fresh data
+/// Update an existing post by creating a revision for review
+///
+/// Instead of directly modifying the original post, this creates a revision
+/// post with `revision_of_post_id` pointing to the original. The original
+/// stays untouched until an admin approves the revision.
+///
+/// If a revision already exists for this post, it gets replaced with the new data.
 async fn update_post(
     post_id: PostId,
     fresh: &ExtractedPost,
     _merge_description: bool,
     pool: &PgPool,
 ) -> Result<()> {
-    // For now, just update with fresh data
-    // TODO: If merge_description is true, combine existing + fresh descriptions
-    Post::update_content(
-        post_id,
-        Some(fresh.title.clone()),
-        Some(fresh.description.clone()),
-        None, // description_markdown
+    // Get original post for context
+    let original = Post::find_by_id(post_id, pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Original post not found"))?;
+
+    // Check if revision already exists for this post
+    if let Some(existing_revision) = Post::find_revision_for_post(post_id, pool).await? {
+        // Replace existing revision by updating its content
+        info!(
+            post_id = %post_id,
+            revision_id = %existing_revision.id,
+            "Replacing existing revision with new data"
+        );
+        Post::update_content(
+            existing_revision.id,
+            Some(fresh.title.clone()),
+            Some(fresh.description.clone()),
+            None, // description_markdown
+            Some(fresh.tldr.clone()),
+            None, // category
+            None, // urgency
+            fresh.location.clone(),
+            pool,
+        )
+        .await?;
+
+        // Update contact info on the revision if available
+        if let Some(ref contact) = fresh.contact {
+            let _ = PostContact::delete_all_for_post(existing_revision.id, pool).await;
+            let contact_json = serde_json::json!({
+                "phone": contact.phone,
+                "email": contact.email,
+                "website": contact.website
+            });
+            if let Err(e) = PostContact::create_from_json(existing_revision.id, &contact_json, pool).await {
+                tracing::warn!(
+                    revision_id = %existing_revision.id,
+                    error = %e,
+                    "Failed to update contact info on revision"
+                );
+            }
+        }
+        return Ok(());
+    }
+
+    // Create revision post with revision_of_post_id set
+    info!(
+        post_id = %post_id,
+        title = %fresh.title,
+        "Creating revision post for review"
+    );
+
+    let revision = Post::create(
+        original.organization_name.clone(),
+        fresh.title.clone(),
+        fresh.description.clone(),
         Some(fresh.tldr.clone()),
-        None, // category
+        original.post_type.clone(),
+        original.category.clone(),
+        original.capacity_status.clone(),
         None, // urgency
         fresh.location.clone(),
+        "pending_approval".to_string(),
+        original.source_language.clone(),
+        Some("revision".to_string()), // submission_type
+        None, // submitted_by_admin_id
+        original.website_id,
+        original.source_url.clone(),
+        original.organization_id,
+        Some(post_id), // revision_of_post_id
         pool,
     )
     .await?;
 
-    // Update contact info if available
+    // Create contact info on revision if available
     if let Some(ref contact) = fresh.contact {
-        // Delete existing contacts and recreate
-        let _ = PostContact::delete_all_for_post(post_id, pool).await;
         let contact_json = serde_json::json!({
             "phone": contact.phone,
             "email": contact.email,
             "website": contact.website
         });
-        if let Err(e) = PostContact::create_from_json(post_id, &contact_json, pool).await {
+        if let Err(e) = PostContact::create_from_json(revision.id, &contact_json, pool).await {
             tracing::warn!(
-                post_id = %post_id,
+                revision_id = %revision.id,
                 error = %e,
-                "Failed to update contact info"
+                "Failed to create contact info on revision"
             );
         }
     }

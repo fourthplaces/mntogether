@@ -6,7 +6,7 @@ use anyhow::Result;
 use tracing::{info, warn};
 
 use crate::common::{ExtractedPost, WebsiteId};
-use crate::domains::posts::models::Post;
+use crate::domains::posts::actions::create_extracted_post;
 use crate::kernel::ServerDeps;
 
 /// Result of sync operation.
@@ -43,23 +43,11 @@ pub async fn sync_and_deduplicate_posts(
     // Insert new posts
     let mut inserted = 0;
     for post in &posts {
-        match Post::create(
-            post.title.clone(), // organization_name (using title as fallback)
-            post.title.clone(),
-            post.description.clone(),
-            Some(post.tldr.clone()),
-            "opportunity".to_string(), // post_type
-            "general".to_string(),     // category
-            None,                      // capacity_status
-            post.urgency.clone(),
-            post.location.clone(),
-            "pending_approval".to_string(), // status - requires admin review
-            "en".to_string(),            // source_language
-            Some("scraped".to_string()), // submission_type
-            None,                        // submitted_by_admin_id
-            Some(website_id),            // website_id
-            None,                        // source_url
-            None,                        // organization_id
+        match create_extracted_post(
+            &post.title, // organization_name (using title as fallback)
+            post,
+            Some(website_id),
+            None, // source_url
             pool,
         )
         .await
@@ -86,4 +74,3 @@ pub async fn sync_and_deduplicate_posts(
         deduplicated_count: 0,
     })
 }
-

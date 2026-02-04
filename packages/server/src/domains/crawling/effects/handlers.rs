@@ -1,84 +1,98 @@
 //! Cascade event handlers for crawling domain
 //!
-//! These handlers implement the effect cascade for crawling workflows:
-//! - `handle_extract_posts_from_pages`: Extract posts from ingested pages
-//! - `handle_sync_crawled_posts`: Sync extracted posts to database
-//! - `handle_mark_no_posts`: Mark website as having no listings
+//! These handlers are THIN job enqueuers - they don't run business logic inline.
+//! Instead, they enqueue the next job in the pipeline.
+//!
+//! ## Pipeline Flow
+//!
+//! ```text
+//! WebsiteIngested → handle_enqueue_extract_posts → ExtractPostsJob
+//! PostsExtractedFromPages → handle_enqueue_sync_posts → SyncPostsJob
+//! PostsSynced → (terminal, no handler)
+//! ```
+//!
+//! The job executors (in `jobs/executor.rs`) run the actual business logic.
 
 use anyhow::Result;
 use seesaw_core::EffectContext;
 use tracing::info;
 
 use crate::common::{AppState, ExtractedPost, JobId, WebsiteId};
-use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
-use crate::domains::crawling::actions::sync_and_deduplicate_posts;
 use crate::domains::crawling::events::{CrawlEvent, PageExtractionResult};
+use crate::domains::crawling::jobs::{
+    execute_extract_posts_job, execute_sync_posts_job, ExtractPostsJob, SyncPostsJob,
+};
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
 // ============================================================================
-// Post Extraction Handler
+// Job Enqueue Handlers (Thin - just enqueue the next job)
 // ============================================================================
 
-/// Extract posts from pages using the extraction library.
+/// Enqueue an ExtractPostsJob when website ingestion completes.
 ///
-/// Uses search + raw page fetch to get comprehensive content, then
-/// structured extraction to parse directly to Vec<ExtractedPost>.
-///
-/// This approach separates retrieval (finding relevant pages) from extraction
-/// (parsing structured posts), avoiding the double-summarization issue where
-/// RAG-summarized content loses important details.
-pub async fn handle_extract_posts_from_pages(
+/// This is a THIN handler - it just creates and executes the extraction job.
+/// The actual extraction logic is in `execute_extract_posts_job`.
+pub async fn handle_enqueue_extract_posts(
     website_id: WebsiteId,
     job_id: JobId,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<()> {
-    info!(website_id = %website_id, job_id = %job_id, "Starting post extraction");
+    info!(
+        website_id = %website_id,
+        parent_job_id = %job_id,
+        "Enqueueing extract posts job"
+    );
 
-    let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
-
-    // Extraction service is required for post extraction
-    let extraction = ctx
-        .deps()
-        .extraction
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
-
-    // Search and extract posts using shared action
-    let result = extract_posts_for_domain(&website.domain, extraction.as_ref(), ctx.deps()).await?;
-
-    if result.posts.is_empty() && result.page_urls.is_empty() {
-        info!(website_id = %website_id, "No relevant pages found");
-        return Ok(());
-    }
-
-    // Build page results for the event
-    let page_results: Vec<PageExtractionResult> = result
-        .page_urls
-        .iter()
-        .map(|url| PageExtractionResult {
-            url: url.clone(),
-            snapshot_id: None,
-            listings_count: 0,
-            has_posts: true,
-        })
-        .collect();
+    let job = ExtractPostsJob::with_parent(website_id.into_uuid(), job_id.into_uuid());
+    let result = execute_extract_posts_job(job, ctx).await?;
 
     info!(
         website_id = %website_id,
-        posts_count = result.posts.len(),
-        "Post extraction completed"
+        extract_job_id = %result.job_id,
+        status = %result.status,
+        "Extract posts job completed"
     );
-
-    ctx.emit(CrawlEvent::PostsExtractedFromPages {
-        website_id,
-        job_id,
-        posts: result.posts,
-        page_results,
-    });
 
     Ok(())
 }
+
+/// Enqueue a SyncPostsJob when post extraction completes.
+///
+/// This is a THIN handler - it just creates and executes the sync job.
+/// The actual sync logic is in `execute_sync_posts_job`.
+pub async fn handle_enqueue_sync_posts(
+    website_id: WebsiteId,
+    job_id: JobId,
+    posts: Vec<ExtractedPost>,
+    _page_results: Vec<PageExtractionResult>,
+    ctx: &EffectContext<AppState, ServerDeps>,
+) -> Result<()> {
+    info!(
+        website_id = %website_id,
+        parent_job_id = %job_id,
+        posts_count = posts.len(),
+        "Enqueueing sync posts job"
+    );
+
+    // Use simple sync by default (not LLM sync)
+    let job = SyncPostsJob::new(website_id.into_uuid(), posts)
+        .with_parent(job_id.into_uuid());
+    let result = execute_sync_posts_job(job, ctx).await?;
+
+    info!(
+        website_id = %website_id,
+        sync_job_id = %result.job_id,
+        status = %result.status,
+        "Sync posts job completed"
+    );
+
+    Ok(())
+}
+
+// ============================================================================
+// Other Handlers
+// ============================================================================
 
 /// Mark website as having no posts.
 pub async fn handle_mark_no_posts(
@@ -95,28 +109,6 @@ pub async fn handle_mark_no_posts(
         website_id,
         job_id,
         total_attempts,
-    });
-    Ok(())
-}
-
-/// Sync posts to database.
-pub async fn handle_sync_crawled_posts(
-    website_id: WebsiteId,
-    job_id: JobId,
-    posts: Vec<ExtractedPost>,
-    _page_results: Vec<PageExtractionResult>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
-    info!(website_id = %website_id, posts_count = posts.len(), "Syncing posts");
-
-    let result = sync_and_deduplicate_posts(website_id, posts, ctx.deps()).await?;
-
-    ctx.emit(CrawlEvent::PostsSynced {
-        website_id,
-        job_id,
-        new_count: result.sync_result.inserted,
-        updated_count: result.sync_result.updated,
-        unchanged_count: result.sync_result.deleted + result.sync_result.merged,
     });
     Ok(())
 }
