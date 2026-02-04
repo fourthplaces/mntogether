@@ -53,7 +53,7 @@ pub async fn sync_and_deduplicate_posts(
             None,                      // capacity_status
             post.urgency.clone(),
             post.location.clone(),
-            "active".to_string(),        // status
+            "pending_approval".to_string(), // status - requires admin review
             "en".to_string(),            // source_language
             Some("scraped".to_string()), // submission_type
             None,                        // submitted_by_admin_id

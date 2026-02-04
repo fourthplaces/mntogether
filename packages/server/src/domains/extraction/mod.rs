@@ -51,8 +51,8 @@ pub use actions::{
     IngestSiteResult,
 };
 pub use data::{
-    ConflictData, ConflictingClaimData, ExtractionData, ExtractionStatusData, GapData,
-    GroundingGradeData, SourceData, SourceRoleData, SubmitUrlInput, SubmitUrlResult,
-    TriggerExtractionInput, TriggerExtractionResult,
+    ConflictData, ConflictingClaimData, ExtractionData, ExtractionPageData, ExtractionPageRow,
+    ExtractionStatusData, GapData, GroundingGradeData, SourceData, SourceRoleData, SubmitUrlInput,
+    SubmitUrlResult, TriggerExtractionInput, TriggerExtractionResult,
 };
 pub use events::ExtractionEvent;

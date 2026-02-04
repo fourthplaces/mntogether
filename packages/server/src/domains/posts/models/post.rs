@@ -53,6 +53,21 @@ pub struct Post {
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+
+    // Vector search (for semantic search)
+    pub embedding: Option<pgvector::Vector>,
+}
+
+/// Search result from semantic similarity search
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostSearchResult {
+    pub post_id: PostId,
+    pub title: String,
+    pub description: String,
+    pub organization_name: String,
+    pub category: String,
+    pub post_type: String,
+    pub similarity: f64,
 }
 
 // =============================================================================
@@ -716,5 +731,105 @@ impl Post {
         .await?;
 
         Ok(container_id.map(ContainerId::from))
+    }
+
+    // =========================================================================
+    // Embedding Methods (for semantic search)
+    // =========================================================================
+
+    /// Update embedding for a post
+    pub async fn update_embedding(id: PostId, embedding: &[f32], pool: &PgPool) -> Result<()> {
+        use pgvector::Vector;
+
+        let vector = Vector::from(embedding.to_vec());
+
+        sqlx::query("UPDATE posts SET embedding = $2, updated_at = NOW() WHERE id = $1")
+            .bind(id)
+            .bind(vector)
+            .execute(pool)
+            .await?;
+
+        Ok(())
+    }
+
+    /// Search posts by semantic similarity
+    pub async fn search_by_similarity(
+        query_embedding: &[f32],
+        threshold: f32,
+        limit: i32,
+        pool: &PgPool,
+    ) -> Result<Vec<PostSearchResult>> {
+        use pgvector::Vector;
+
+        let vector = Vector::from(query_embedding.to_vec());
+
+        let results = sqlx::query_as::<_, PostSearchResult>(
+            r#"
+            SELECT
+                p.id as post_id,
+                p.title,
+                p.description,
+                p.organization_name,
+                p.category,
+                p.post_type,
+                (1 - (p.embedding <=> $1))::float8 as similarity
+            FROM posts p
+            WHERE p.embedding IS NOT NULL
+              AND p.deleted_at IS NULL
+              AND p.status = 'active'
+              AND (1 - (p.embedding <=> $1)) > $2
+            ORDER BY p.embedding <=> $1
+            LIMIT $3
+            "#,
+        )
+        .bind(&vector)
+        .bind(threshold)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results)
+    }
+
+    /// Find posts without embeddings (for backfill)
+    pub async fn find_without_embeddings(limit: i32, pool: &PgPool) -> Result<Vec<Self>> {
+        let posts = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT * FROM posts
+            WHERE embedding IS NULL
+              AND deleted_at IS NULL
+              AND status = 'active'
+            ORDER BY created_at DESC
+            LIMIT $1
+            "#,
+        )
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(posts)
+    }
+
+    /// Get text for embedding generation
+    /// Combines title, description, tldr, category, post_type, and location
+    pub fn get_embedding_text(&self) -> String {
+        let mut parts = vec![self.title.clone()];
+
+        parts.push(self.description.clone());
+
+        if let Some(ref tldr) = self.tldr {
+            parts.push(tldr.clone());
+        }
+
+        parts.push(format!("Category: {}", self.category));
+        parts.push(format!("Type: {}", self.post_type));
+
+        if let Some(ref location) = self.location {
+            parts.push(format!("Location: {}", location));
+        }
+
+        parts.push(format!("Organization: {}", self.organization_name));
+
+        parts.join(" | ")
     }
 }

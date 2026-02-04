@@ -1,14 +1,16 @@
 //! Website data types for GraphQL.
 //!
-//! # Deprecation Note
+//! # Migration Note
 //!
-//! This module uses deprecated `PageSnapshot` and `WebsiteSnapshot` types.
-//! See crawling/models/ for migration paths to extraction library types.
+//! This module is being migrated from deprecated `PageSnapshot`/`WebsiteSnapshot` to
+//! the extraction library's `extraction_pages` table. The new `extractionPages` field
+//! should be used instead of the deprecated `snapshots` field.
 
 #![allow(deprecated)]
 
 use crate::common::WebsiteId;
 use crate::domains::crawling::models::{PageSnapshot, PageSnapshotId, PageSummary};
+use crate::domains::extraction::ExtractionPageData;
 use crate::domains::posts::data::PostData;
 use crate::domains::posts::models::post::Post;
 use crate::domains::website::models::{Website, WebsiteSnapshot};
@@ -369,17 +371,12 @@ impl WebsiteData {
         self.max_pages_per_crawl
     }
 
-    /// Get count of website snapshots (submitted pages)
+    /// Get count of extraction pages for this website's domain
     async fn snapshots_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
-        let uuid = Uuid::parse_str(&self.id)?;
-        let website_id = WebsiteId::from_uuid(uuid);
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM website_snapshots WHERE website_id = $1",
-        )
-        .bind(website_id)
-        .fetch_one(&context.db_pool)
-        .await?;
-        Ok(count as i32)
+        let count = ExtractionPageData::count_by_domain(&self.domain, &context.db_pool)
+            .await
+            .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(count)
     }
 
     /// Get count of listings from this website (excludes soft-deleted)
@@ -403,18 +400,31 @@ impl WebsiteData {
         Ok(posts.into_iter().map(PostData::from).collect())
     }
 
-    /// Get all snapshots (scraped pages) for this website
+    /// Get all extraction pages for this website's domain
+    ///
+    /// This now queries the extraction_pages table instead of the deprecated
+    /// website_snapshots table.
     async fn snapshots(
         &self,
         context: &GraphQLContext,
-    ) -> juniper::FieldResult<Vec<WebsiteSnapshotData>> {
-        let uuid = Uuid::parse_str(&self.id)?;
-        let website_id = WebsiteId::from_uuid(uuid);
-        let snapshots = WebsiteSnapshot::find_by_website(&context.db_pool, website_id).await?;
-        Ok(snapshots
-            .into_iter()
-            .map(WebsiteSnapshotData::from)
-            .collect())
+    ) -> juniper::FieldResult<Vec<ExtractionPageData>> {
+        let pages = ExtractionPageData::find_by_domain(&self.domain, 100, &context.db_pool)
+            .await
+            .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(pages)
+    }
+
+    /// Get extraction pages for this website's domain (alias for snapshots)
+    async fn extraction_pages(
+        &self,
+        context: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> juniper::FieldResult<Vec<ExtractionPageData>> {
+        let limit = limit.unwrap_or(100);
+        let pages = ExtractionPageData::find_by_domain(&self.domain, limit, &context.db_pool)
+            .await
+            .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
+        Ok(pages)
     }
 
     /// Get the latest crawl job for this website

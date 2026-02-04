@@ -273,6 +273,158 @@ pub struct TriggerExtractionResult {
 }
 
 // =============================================================================
+// Extraction Page (from extraction_pages table)
+// =============================================================================
+
+/// A crawled page from the extraction library's storage.
+///
+/// This replaces the deprecated PageSnapshot type. The extraction library
+/// uses URL as the primary key, not UUID.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
+pub struct ExtractionPageRow {
+    pub url: String,
+    pub site_url: String,
+    pub content: String,
+    pub content_hash: String,
+    pub fetched_at: DateTime<Utc>,
+    pub title: Option<String>,
+    pub metadata: serde_json::Value,
+}
+
+/// GraphQL-friendly representation of an extraction page
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ExtractionPageData {
+    pub url: String,
+    pub site_url: String,
+    pub content: String,
+    pub title: Option<String>,
+    pub fetched_at: String,
+}
+
+impl From<ExtractionPageRow> for ExtractionPageData {
+    fn from(row: ExtractionPageRow) -> Self {
+        Self {
+            url: row.url,
+            site_url: row.site_url,
+            content: row.content,
+            title: row.title,
+            fetched_at: row.fetched_at.to_rfc3339(),
+        }
+    }
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl ExtractionPageData {
+    /// URL of the page (primary key)
+    fn url(&self) -> &str {
+        &self.url
+    }
+
+    /// Site URL this page belongs to
+    fn site_url(&self) -> &str {
+        &self.site_url
+    }
+
+    /// Page content (markdown)
+    fn content(&self) -> &str {
+        &self.content
+    }
+
+    /// Page title (if available)
+    fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    /// When the page was fetched
+    fn fetched_at(&self) -> &str {
+        &self.fetched_at
+    }
+
+    /// Get all posts extracted from this page
+    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<crate::domains::posts::data::PostData>> {
+        use crate::domains::posts::models::Post;
+        let posts = sqlx::query_as::<_, Post>(
+            "SELECT * FROM posts WHERE source_url = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
+        )
+        .bind(&self.url)
+        .fetch_all(&context.db_pool)
+        .await?;
+        Ok(posts.into_iter().map(crate::domains::posts::data::PostData::from).collect())
+    }
+
+    /// Count of posts extracted from this page
+    async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM posts WHERE source_url = $1 AND deleted_at IS NULL"
+        )
+        .bind(&self.url)
+        .fetch_one(&context.db_pool)
+        .await?;
+        Ok(count.0 as i32)
+    }
+}
+
+impl ExtractionPageData {
+    /// Find a page by URL
+    pub async fn find_by_url(url: &str, pool: &sqlx::PgPool) -> anyhow::Result<Option<Self>> {
+        let row = sqlx::query_as::<_, ExtractionPageRow>(
+            "SELECT url, site_url, content, content_hash, fetched_at, title, metadata FROM extraction_pages WHERE url = $1"
+        )
+        .bind(url)
+        .fetch_optional(pool)
+        .await?;
+        Ok(row.map(Self::from))
+    }
+
+    /// Find pages by domain/site_url
+    pub async fn find_by_domain(domain: &str, limit: i32, pool: &sqlx::PgPool) -> anyhow::Result<Vec<Self>> {
+        let normalized = domain
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+
+        let https_prefix = format!("https://{}", normalized);
+        let http_prefix = format!("http://{}", normalized);
+
+        let rows = sqlx::query_as::<_, ExtractionPageRow>(
+            r#"
+            SELECT url, site_url, content, content_hash, fetched_at, title, metadata
+            FROM extraction_pages
+            WHERE site_url = $1 OR site_url = $2
+            ORDER BY fetched_at DESC
+            LIMIT $3
+            "#
+        )
+        .bind(&https_prefix)
+        .bind(&http_prefix)
+        .bind(limit as i64)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().map(Self::from).collect())
+    }
+
+    /// Count pages for a domain
+    pub async fn count_by_domain(domain: &str, pool: &sqlx::PgPool) -> anyhow::Result<i32> {
+        let normalized = domain
+            .trim_start_matches("https://")
+            .trim_start_matches("http://");
+
+        let https_prefix = format!("https://{}", normalized);
+        let http_prefix = format!("http://{}", normalized);
+
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM extraction_pages WHERE site_url = $1 OR site_url = $2"
+        )
+        .bind(&https_prefix)
+        .bind(&http_prefix)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(count.0 as i32)
+    }
+}
+
+// =============================================================================
 // Input Types
 // =============================================================================
 

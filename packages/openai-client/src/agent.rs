@@ -20,7 +20,7 @@
 
 use crate::tool::{ErasedTool, Tool, ToolCall};
 use crate::{OpenAIClient, OpenAIError, Result};
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 
 /// Builder for creating an Agent.
 pub struct AgentBuilder<'a> {
@@ -157,7 +157,13 @@ impl<'a> Agent<'a> {
                 )));
             }
 
-            debug!(iteration = iterations, "Agent iteration");
+            info!(
+                iteration = iterations,
+                model = %self.model,
+                message_count = messages.len(),
+                tool_count = self.tools.len(),
+                "Agent iteration starting"
+            );
 
             // Build request
             let mut request = serde_json::json!({
@@ -199,12 +205,27 @@ impl<'a> Agent<'a> {
                     .unwrap_or("")
                     .to_string();
 
+                info!(
+                    iterations = iterations,
+                    tool_calls_total = tool_calls_made.len(),
+                    response_len = content.len(),
+                    "Agent finished - final response received"
+                );
+
+                debug!(response_content = %content, "Agent final response content");
+
                 return Ok(AgentResponse {
                     content,
                     tool_calls_made,
                     iterations,
                 });
             }
+
+            info!(
+                iteration = iterations,
+                tool_call_count = tool_calls.len(),
+                "Agent received tool call request"
+            );
 
             // Add assistant message with tool calls to history
             messages.push(message.clone());
@@ -216,11 +237,23 @@ impl<'a> Agent<'a> {
                     continue;
                 };
 
-                debug!(tool = %tc.name, id = %tc.id, "Executing tool");
+                info!(
+                    tool = %tc.name,
+                    id = %tc.id,
+                    arguments = %tc.arguments,
+                    "Executing tool call"
+                );
                 tool_calls_made.push(tc.name.clone());
 
                 // Find and execute the tool
                 let result = self.execute_tool(&tc).await;
+
+                info!(
+                    tool = %tc.name,
+                    result_len = result.len(),
+                    result_preview = %truncate_for_log(&result, 200),
+                    "Tool execution complete"
+                );
 
                 // Add tool result to messages
                 messages.push(serde_json::json!({
@@ -238,18 +271,26 @@ impl<'a> Agent<'a> {
         let tool = self.tools.iter().find(|t| t.name() == call.name);
 
         let Some(tool) = tool else {
+            warn!(tool = %call.name, "Unknown tool requested");
             return format!("Error: Unknown tool '{}'", call.name);
         };
 
         // Execute
         match tool.call_erased(&call.arguments).await {
             Ok(result) => result,
-            Err(e) => format!("Error executing tool: {}", e),
+            Err(e) => {
+                warn!(tool = %call.name, error = %e, "Tool execution failed");
+                format!("Error executing tool: {}", e)
+            }
         }
     }
 
     /// Send a raw request to the OpenAI API.
     async fn send_request(&self, request: &serde_json::Value) -> Result<serde_json::Value> {
+        debug!(
+            model = %self.model,
+            "Sending request to OpenAI API"
+        );
         let response = reqwest::Client::new()
             .post(format!("{}/chat/completions", self.client.base_url()))
             .header("Authorization", format!("Bearer {}", self.client.api_key()))
@@ -268,6 +309,15 @@ impl<'a> Agent<'a> {
             .json()
             .await
             .map_err(|e| OpenAIError::Parse(e.to_string()))
+    }
+}
+
+/// Truncate a string for logging purposes.
+fn truncate_for_log(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else {
+        format!("{}...[truncated {} chars]", &s[..max_len], s.len() - max_len)
     }
 }
 

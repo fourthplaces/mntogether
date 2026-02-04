@@ -30,13 +30,6 @@ const GET_POST = gql`
   }
 `;
 
-const GET_PAGE_SNAPSHOT_BY_URL = gql`
-  query GetPageSnapshotByUrl($url: String!) {
-    pageSnapshotByUrl(url: $url) {
-      id
-    }
-  }
-`;
 
 const ADD_POST_TAG = gql`
   mutation AddPostTag($listingId: Uuid!, $tagKind: String!, $tagValue: String!, $displayName: String) {
@@ -56,15 +49,6 @@ const REMOVE_POST_TAG = gql`
 `;
 
 
-const REGENERATE_PAGE_POSTS = gql`
-  mutation RegeneratePagePosts($pageSnapshotId: Uuid!) {
-    regeneratePagePosts(pageSnapshotId: $pageSnapshotId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
 
 interface Tag {
   id: string;
@@ -102,7 +86,6 @@ const AUDIENCE_ROLES = [
 export function PostDetail() {
   const { postId } = useParams<{ postId: string }>();
   const [isEditingTags, setIsEditingTags] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
 
   const { data, loading, error, refetch } = useQuery<{ listing: Post | null }>(GET_POST, {
     variables: { id: postId },
@@ -111,35 +94,12 @@ export function PostDetail() {
 
   const post = data?.listing;
 
-  // Query for page snapshot by URL (only if post has sourceUrl)
-  const { data: pageSnapshotData } = useQuery<{ pageSnapshotByUrl: { id: string } | null }>(
-    GET_PAGE_SNAPSHOT_BY_URL,
-    {
-      variables: { url: post?.sourceUrl || '' },
-      skip: !post?.sourceUrl,
-    }
-  );
-
-  const pageSnapshotId = pageSnapshotData?.pageSnapshotByUrl?.id;
-
   const [addTag, { loading: addingTag }] = useMutation(ADD_POST_TAG, {
     onCompleted: () => refetch(),
   });
 
   const [removeTag, { loading: removingTag }] = useMutation(REMOVE_POST_TAG, {
     onCompleted: () => refetch(),
-  });
-
-  const [regeneratePagePosts, { loading: regeneratingPosts }] = useMutation(REGENERATE_PAGE_POSTS, {
-    onCompleted: (data) => {
-      setShowMoreMenu(false);
-      if (data.regeneratePagePosts.status === 'queued') {
-        alert('Post regeneration started. Refresh the page in a moment to see updates.');
-      }
-    },
-    onError: (error) => {
-      alert(`Failed to regenerate: ${error.message}`);
-    },
   });
 
   const formatDate = (dateString: string) => {
@@ -265,65 +225,20 @@ export function PostDetail() {
                 {post.status.replace('_', ' ')}
               </span>
 
-              {/* More Menu */}
-              <div className="relative">
-                <button
-                  onClick={() => setShowMoreMenu(!showMoreMenu)}
+              {/* View Source Button */}
+              {post.sourceUrl && (
+                <a
+                  href={post.sourceUrl.startsWith('http') ? post.sourceUrl : `https://${post.sourceUrl}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg"
-                  title="More actions"
+                  title="View source page"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                   </svg>
-                </button>
-
-                {showMoreMenu && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-10"
-                      onClick={() => setShowMoreMenu(false)}
-                    />
-                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 z-20">
-                      <div className="py-1">
-                        <button
-                          onClick={() => {
-                            if (pageSnapshotId) {
-                              regeneratePagePosts({ variables: { pageSnapshotId } });
-                            } else {
-                              alert('No page snapshot available for this post');
-                              setShowMoreMenu(false);
-                            }
-                          }}
-                          disabled={!pageSnapshotId || regeneratingPosts}
-                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                          </svg>
-                          {regeneratingPosts ? 'Regenerating...' : 'Regenerate from Source'}
-                        </button>
-                        <div className="border-t border-stone-200 my-1" />
-                        <button
-                          onClick={() => {
-                            setShowMoreMenu(false);
-                            if (post.sourceUrl) {
-                              const url = post.sourceUrl.startsWith('http') ? post.sourceUrl : `https://${post.sourceUrl}`;
-                              window.open(url, '_blank');
-                            }
-                          }}
-                          disabled={!post.sourceUrl}
-                          className="w-full px-4 py-2 text-left text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                          </svg>
-                          View Source Page
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
+                </a>
+              )}
             </div>
           </div>
 
@@ -399,16 +314,12 @@ export function PostDetail() {
               <div className="select-text col-span-2">
                 <span className="text-xs text-stone-500 uppercase">Source Page</span>
                 <div className="flex items-center gap-4">
-                  {pageSnapshotId ? (
-                    <Link
-                      to={`/admin/pages/${pageSnapshotId}`}
-                      className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                    >
-                      View Scraped Page →
-                    </Link>
-                  ) : (
-                    <span className="text-stone-400 text-sm">No scraped page available</span>
-                  )}
+                  <Link
+                    to={`/admin/extraction-pages?url=${encodeURIComponent(post.sourceUrl)}`}
+                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  >
+                    View Extracted Page →
+                  </Link>
                   <a
                     href={post.sourceUrl.startsWith('http') ? post.sourceUrl : `https://${post.sourceUrl}`}
                     target="_blank"
@@ -501,13 +412,26 @@ export function PostDetail() {
         {/* Description */}
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Description</h2>
-          {post.descriptionMarkdown ? (
-            <div className="prose prose-stone max-w-none select-text">
-              <ReactMarkdown>{post.descriptionMarkdown}</ReactMarkdown>
-            </div>
-          ) : (
-            <p className="text-stone-700 whitespace-pre-wrap select-text">{post.description}</p>
-          )}
+          <div className="select-text">
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p className="mb-4 text-stone-700">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
+                li: ({ children }) => <li className="text-stone-700">{children}</li>,
+                strong: ({ children }) => <strong className="font-semibold text-stone-900">{children}</strong>,
+                h3: ({ children }) => <h3 className="text-lg font-semibold text-stone-900 mt-6 mb-2">{children}</h3>,
+                h4: ({ children }) => <h4 className="text-base font-semibold text-stone-900 mt-4 mb-2">{children}</h4>,
+                a: ({ href, children }) => (
+                  <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
+              {post.descriptionMarkdown || post.description}
+            </ReactMarkdown>
+          </div>
         </div>
       </div>
     </div>
