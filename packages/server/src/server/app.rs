@@ -189,7 +189,7 @@ pub async fn build_app(
         Arc::new(TwilioAdapter::new(twilio.clone())),
         web_searcher,
         pii_detector,
-        extraction_service,
+        Some(extraction_service),
         test_identifier_enabled,
         admin_identifiers,
     );

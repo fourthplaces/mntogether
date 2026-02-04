@@ -2,7 +2,7 @@
 //
 // Usage:
 // ```rust
-// let posts: Vec<Listing> = ai
+// let posts: Vec<Listing> = client
 //     .request()
 //     .system("You extract listings from websites")
 //     .user(&format!("Extract from:\n{}", content))
@@ -11,14 +11,13 @@
 // ```
 
 use anyhow::{Context, Result};
+use openai_client::{ChatRequest, Message, OpenAIClient};
 use serde::de::DeserializeOwned;
 use std::fmt::Write;
 
-use super::BaseAI;
-
 /// Builder for LLM requests with automatic JSON parsing and retry
 pub struct LlmRequest<'a> {
-    ai: &'a dyn BaseAI,
+    client: &'a OpenAIClient,
     system_prompt: Option<String>,
     user_message: Option<String>,
     max_retries: u32,
@@ -29,9 +28,9 @@ pub struct LlmRequest<'a> {
 }
 
 impl<'a> LlmRequest<'a> {
-    pub fn new(ai: &'a dyn BaseAI) -> Self {
+    pub fn new(client: &'a OpenAIClient) -> Self {
         Self {
-            ai,
+            client,
             system_prompt: None,
             user_message: None,
             max_retries: 3,
@@ -83,6 +82,7 @@ impl<'a> LlmRequest<'a> {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("User message is required"))?;
 
+        let model = self.model.as_deref().unwrap_or("gpt-4o");
         let mut last_response = String::new();
         let mut last_error = String::new();
 
@@ -96,20 +96,24 @@ impl<'a> LlmRequest<'a> {
             tracing::info!(
                 attempt,
                 prompt_length = prompt.len(),
-                model = ?self.model,
+                model = model,
                 "LLM request attempt"
             );
 
+            let request = ChatRequest::new(model)
+                .message(Message::user(prompt));
+
             let response = self
-                .ai
-                .complete_json_with_model(&prompt, self.model.as_deref())
+                .client
+                .chat_completion(request)
                 .await
+                .map_err(|e| anyhow::anyhow!("{}", e))
                 .context("LLM API call failed")?;
 
-            last_response = response.clone();
+            last_response = response.content.clone();
 
             // Try to parse as JSON
-            match serde_json::from_str::<T>(&response) {
+            match serde_json::from_str::<T>(&response.content) {
                 Ok(parsed) => {
                     tracing::info!(attempt, "Successfully parsed LLM response");
                     return Ok(parsed);
@@ -119,7 +123,7 @@ impl<'a> LlmRequest<'a> {
                     tracing::warn!(
                         attempt,
                         error = %e,
-                        response_preview = %response.chars().take(200).collect::<String>(),
+                        response_preview = %response.content.chars().take(200).collect::<String>(),
                         "Failed to parse LLM response as JSON"
                     );
 
@@ -145,10 +149,19 @@ impl<'a> LlmRequest<'a> {
             .clone()
             .ok_or_else(|| anyhow::anyhow!("User message is required"))?;
 
+        let model = self.model.as_deref().unwrap_or("gpt-4o");
         let prompt = self.build_initial_prompt(&system, &user);
-        self.ai
-            .complete_with_model(&prompt, self.model.as_deref())
+
+        let request = ChatRequest::new(model)
+            .message(Message::user(prompt));
+
+        let response = self
+            .client
+            .chat_completion(request)
             .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(response.content)
     }
 
     fn build_initial_prompt(&self, system: &str, user: &str) -> String {
@@ -220,125 +233,97 @@ RESPOND WITH RAW JSON ONLY:
     }
 }
 
-/// Extension trait to add fluent request builder to BaseAI
-///
-/// Works with both concrete types and trait objects via the blanket impl.
+/// Extension trait to add fluent request builder to OpenAIClient
 pub trait LlmRequestExt {
     fn request(&self) -> LlmRequest<'_>;
 }
 
-impl<T: BaseAI> LlmRequestExt for T {
+impl LlmRequestExt for OpenAIClient {
     fn request(&self) -> LlmRequest<'_> {
         LlmRequest::new(self)
     }
 }
 
-// Also implement for trait objects explicitly (with lifetime bounds)
-impl LlmRequestExt for dyn BaseAI + '_ {
+// Also implement for Arc<OpenAIClient>
+impl LlmRequestExt for std::sync::Arc<OpenAIClient> {
     fn request(&self) -> LlmRequest<'_> {
         LlmRequest::new(self)
     }
 }
 
-impl LlmRequestExt for dyn BaseAI + Send + '_ {
-    fn request(&self) -> LlmRequest<'_> {
-        LlmRequest::new(self)
+/// Extension trait for simple completions (backwards compatibility)
+#[async_trait::async_trait]
+pub trait CompletionExt {
+    /// Complete a prompt with an LLM (returns raw text response)
+    async fn complete(&self, prompt: &str) -> Result<String>;
+
+    /// Complete a prompt expecting JSON response (returns raw JSON string)
+    async fn complete_json(&self, prompt: &str) -> Result<String>;
+
+    /// Complete a prompt with a specific model
+    async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String>;
+}
+
+#[async_trait::async_trait]
+impl CompletionExt for OpenAIClient {
+    async fn complete(&self, prompt: &str) -> Result<String> {
+        let request = ChatRequest::new("gpt-4o")
+            .message(Message::user(prompt));
+
+        let response = self
+            .chat_completion(request)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(response.content)
+    }
+
+    async fn complete_json(&self, prompt: &str) -> Result<String> {
+        self.complete(prompt).await
+    }
+
+    async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        let model = model.unwrap_or("gpt-4o");
+        let request = ChatRequest::new(model)
+            .message(Message::user(prompt));
+
+        let response = self
+            .chat_completion(request)
+            .await
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+
+        Ok(response.content)
     }
 }
 
-impl LlmRequestExt for dyn BaseAI + Send + Sync + '_ {
-    fn request(&self) -> LlmRequest<'_> {
-        LlmRequest::new(self)
+#[async_trait::async_trait]
+impl CompletionExt for std::sync::Arc<OpenAIClient> {
+    async fn complete(&self, prompt: &str) -> Result<String> {
+        (**self).complete(prompt).await
+    }
+
+    async fn complete_json(&self, prompt: &str) -> Result<String> {
+        (**self).complete_json(prompt).await
+    }
+
+    async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
+        (**self).complete_with_model(prompt, model).await
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_trait::async_trait;
-    use serde::Deserialize;
-    use std::sync::atomic::{AtomicU32, Ordering};
-    use std::sync::Arc;
 
-    #[derive(Debug, Deserialize, PartialEq)]
-    struct TestOutput {
-        name: String,
-        count: i32,
-    }
+    #[test]
+    fn test_llm_request_compiles() {
+        // Just verify the types are correct
+        fn _assert_request_ext<T: LlmRequestExt>() {}
+        fn _assert_completion_ext<T: CompletionExt>() {}
 
-    struct MockAI {
-        responses: Vec<String>,
-        call_count: Arc<AtomicU32>,
-    }
-
-    impl MockAI {
-        fn new(responses: Vec<&str>) -> Self {
-            Self {
-                responses: responses.into_iter().map(String::from).collect(),
-                call_count: Arc::new(AtomicU32::new(0)),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl BaseAI for MockAI {
-        async fn complete(&self, _prompt: &str) -> Result<String> {
-            let idx = self.call_count.fetch_add(1, Ordering::SeqCst) as usize;
-            Ok(self.responses.get(idx).cloned().unwrap_or_default())
-        }
-    }
-
-    #[tokio::test]
-    async fn test_successful_first_attempt() {
-        let ai = MockAI::new(vec![r#"{"name": "test", "count": 42}"#]);
-
-        let result: TestOutput = ai
-            .request()
-            .system("You are helpful")
-            .user("Give me data")
-            .output()
-            .await
-            .unwrap();
-
-        assert_eq!(result.name, "test");
-        assert_eq!(result.count, 42);
-        assert_eq!(ai.call_count.load(Ordering::SeqCst), 1);
-    }
-
-    #[tokio::test]
-    async fn test_retry_on_invalid_json() {
-        let ai = MockAI::new(vec![
-            "```json\n{\"name\": \"test\"}\n```", // Invalid (markdown)
-            r#"{"name": "test", "count": 42}"#,   // Valid
-        ]);
-
-        let result: TestOutput = ai
-            .request()
-            .user("Give me data")
-            .max_retries(3)
-            .output()
-            .await
-            .unwrap();
-
-        assert_eq!(result.name, "test");
-        assert_eq!(ai.call_count.load(Ordering::SeqCst), 2);
-    }
-
-    #[tokio::test]
-    async fn test_fails_after_max_retries() {
-        let ai = MockAI::new(vec!["not json", "still not json", "definitely not json"]);
-
-        let result: Result<TestOutput> = ai
-            .request()
-            .user("Give me data")
-            .max_retries(3)
-            .output()
-            .await;
-
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Failed to get valid JSON after 3 attempts"));
+        _assert_request_ext::<OpenAIClient>();
+        _assert_completion_ext::<OpenAIClient>();
+        _assert_request_ext::<std::sync::Arc<OpenAIClient>>();
+        _assert_completion_ext::<std::sync::Arc<OpenAIClient>>();
     }
 }

@@ -16,7 +16,7 @@ use crate::domains::website::models::{
     WebsiteResearchHomepage,
 };
 use crate::domains::website_approval::events::WebsiteApprovalEvent;
-use crate::kernel::{FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
+use crate::kernel::{CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
 use anyhow::{Context, Result};
 use seesaw_core::EffectContext;
 use tracing::info;
@@ -119,16 +119,23 @@ pub async fn assess_website(
     let homepage_url = format!("https://{}", &website.domain);
     let urls = vec![homepage_url.clone()];
 
+    // Get extraction service (required for homepage fetching)
+    let extraction = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
+
     // Use extraction library to ingest the homepage
     let ingest_result = match FirecrawlIngestor::from_env() {
         Ok(firecrawl) => {
             let ingestor = ValidatedIngestor::new(firecrawl);
-            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+            extraction.ingest_urls(&urls, &ingestor).await
         }
         Err(_) => {
             let http = HttpIngestor::new();
             let ingestor = ValidatedIngestor::new(http);
-            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+            extraction.ingest_urls(&urls, &ingestor).await
         }
     };
 
@@ -140,9 +147,7 @@ pub async fn assess_website(
                 "Homepage fetched and ingested successfully"
             );
             // Get the content from extraction index
-            match ctx
-                .deps()
-                .extraction
+            match extraction
                 .extract_one("homepage content", Some(&homepage_url))
                 .await
             {

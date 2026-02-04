@@ -3,10 +3,11 @@
 // This is DOMAIN LOGIC that uses infrastructure (AI) from the kernel.
 
 use anyhow::{Context, Result};
+use openai_client::OpenAIClient;
 
 use crate::common::pii::{DetectionContext, RedactionStrategy};
 use crate::common::{ExtractedPost, ExtractedPostWithSource};
-use crate::kernel::{BaseAI, BasePiiDetector, LlmRequestExt};
+use crate::kernel::{BasePiiDetector, CompletionExt, LlmRequestExt};
 use std::collections::HashMap;
 
 /// Sanitize user input before inserting into AI prompts
@@ -78,7 +79,7 @@ fn validate_extracted_posts(posts: &[ExtractedPost]) -> Result<()> {
 /// This is the preferred entry point that handles PII scrubbing automatically.
 /// It scrubs PII from input before sending to AI, and from output after extraction.
 pub async fn extract_posts_with_pii_scrub(
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pii_detector: &dyn BasePiiDetector,
     organization_name: &str,
     website_content: &str,
@@ -168,7 +169,7 @@ pub async fn extract_posts_with_pii_scrub(
 ///
 /// NOTE: Prefer `extract_posts_with_pii_scrub` which handles PII automatically.
 pub async fn extract_posts_raw(
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     organization_name: &str,
     website_content: &str,
     source_url: &str,
@@ -263,7 +264,7 @@ pub struct PageContent {
 /// This is more efficient than calling extract_posts_raw for each page.
 /// Returns a map from source_url to the listings extracted from that page.
 pub async fn extract_posts_batch(
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pii_detector: &dyn BasePiiDetector,
     organization_name: &str,
     pages: Vec<PageContent>,
@@ -408,7 +409,7 @@ Example:
 /// Generate a concise summary (tldr) from a longer description
 ///
 /// Uses AI to create a 1-2 sentence summary of the listing description.
-pub async fn generate_summary(ai: &dyn BaseAI, description: &str) -> Result<String> {
+pub async fn generate_summary(ai: &OpenAIClient, description: &str) -> Result<String> {
     // Sanitize input to prevent prompt injection
     let safe_description = sanitize_prompt_input(description);
 
@@ -439,7 +440,7 @@ Return ONLY the summary (no markdown, no explanation)."#,
 /// Creates enthusiastic, specific, actionable email text that can be
 /// used in mailto: links. Includes subject line and 3-sentence body.
 pub async fn generate_outreach_copy(
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     organization_name: &str,
     post_title: &str,
     post_description: &str,

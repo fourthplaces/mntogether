@@ -11,6 +11,7 @@
 //! - MERGE: Pre-existing duplicates in DB that should be consolidated
 
 use anyhow::Result;
+use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::info;
@@ -19,7 +20,7 @@ use uuid::Uuid;
 use crate::common::{ExtractedPost, PostId, WebsiteId};
 use crate::domains::posts::models::{Post, PostContact, PostStatus};
 use crate::domains::website::models::Website;
-use crate::kernel::{BaseAI, LlmRequestExt};
+use crate::kernel::LlmRequestExt;
 
 /// A fresh post from extraction, with a temporary ID for matching
 #[derive(Debug, Clone, Serialize)]
@@ -130,7 +131,7 @@ pub struct LlmSyncResult {
 pub async fn llm_sync_posts(
     website_id: WebsiteId,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     // Load existing posts from DB

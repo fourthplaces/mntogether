@@ -136,12 +136,23 @@ impl From<Post> for PostType {
     }
 }
 
-/// Contact information
+/// Contact information for GraphQL output
+/// This is a thin wrapper over common::ContactInfo for GraphQL serialization.
 #[derive(Debug, Clone, GraphQLObject, Serialize, Deserialize)]
-pub struct ContactInfo {
+pub struct ContactInfoGraphQL {
     pub phone: Option<String>,
     pub email: Option<String>,
     pub website: Option<String>,
+}
+
+impl From<crate::common::ContactInfo> for ContactInfoGraphQL {
+    fn from(c: crate::common::ContactInfo) -> Self {
+        Self {
+            phone: c.phone,
+            email: c.email,
+            website: c.website,
+        }
+    }
 }
 
 /// Listing status for GraphQL

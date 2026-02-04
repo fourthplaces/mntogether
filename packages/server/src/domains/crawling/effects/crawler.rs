@@ -79,11 +79,7 @@ pub fn crawler_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
             // =================================================================
             // Terminal events - no cascade needed
             // =================================================================
-            CrawlEvent::WebsiteMarkedNoListings { .. }
-            | CrawlEvent::PostsSynced { .. }
-            | CrawlEvent::PageSummariesRegenerated { .. }
-            | CrawlEvent::PageSummaryRegenerated { .. }
-            | CrawlEvent::PagePostsRegenerated { .. } => Ok(()),
+            CrawlEvent::WebsiteMarkedNoListings { .. } | CrawlEvent::PostsSynced { .. } => Ok(()),
         }
     })
 }

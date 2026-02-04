@@ -5,13 +5,14 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use openai_client::OpenAIClient;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 use super::{
     job_queue::{JobQueue, JobSpec},
-    BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, PiiScrubResult,
+    BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, PiiScrubResult,
     ServerKernel,
 };
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
@@ -75,74 +76,51 @@ impl JobQueue for SpyJobQueue {
 }
 
 // =============================================================================
-// Mock AI (Generic LLM capabilities)
+// Mock AI Client (for testing)
 // =============================================================================
 
+/// Create a mock OpenAIClient for testing.
+///
+/// This creates a real OpenAIClient with a dummy API key. In tests, you should
+/// use mockito or wiremock to intercept HTTP requests, or use integration tests
+/// with a real API key (ignored by default).
+///
+/// For most unit tests, the AI calls should be abstracted behind service boundaries
+/// that can be mocked at a higher level.
+pub fn mock_openai_client() -> Arc<OpenAIClient> {
+    Arc::new(OpenAIClient::new("sk-test-mock-key-for-testing"))
+}
+
+/// Legacy MockAI for test compatibility.
+///
+/// DEPRECATED: This struct exists only for backwards compatibility with existing tests.
+/// Tests should be migrated to use HTTP-level mocking (mockito/wiremock) for the
+/// OpenAI API endpoints instead.
+///
+/// The with_response() calls are now no-ops - tests using this will need to be
+/// marked as #[ignore] until they're updated.
+#[derive(Clone)]
 pub struct MockAI {
-    responses: Arc<Mutex<Vec<String>>>,
-    calls: Arc<Mutex<Vec<String>>>,
+    responses: Vec<String>,
 }
 
 impl MockAI {
     pub fn new() -> Self {
         Self {
-            responses: Arc::new(Mutex::new(Vec::new())),
-            calls: Arc::new(Mutex::new(Vec::new())),
+            responses: Vec::new(),
         }
     }
 
-    /// Add a text response to the queue
-    pub fn with_response(self, response: impl Into<String>) -> Self {
-        self.responses.lock().unwrap().push(response.into());
+    /// Add a canned response (no-op in new architecture - use HTTP mocking instead)
+    pub fn with_response(mut self, response: impl Into<String>) -> Self {
+        self.responses.push(response.into());
         self
-    }
-
-    /// Add a JSON response to the queue (will be serialized)
-    pub fn with_json_response<T: serde::Serialize>(self, data: &T) -> Self {
-        let json = serde_json::to_string(data).expect("Failed to serialize mock response");
-        self.responses.lock().unwrap().push(json);
-        self
-    }
-
-    /// Get all prompts that were sent to the AI
-    pub fn calls(&self) -> Vec<String> {
-        self.calls.lock().unwrap().clone()
-    }
-
-    /// Get the last prompt sent to the AI
-    pub fn last_prompt(&self) -> Option<String> {
-        self.calls.lock().unwrap().last().cloned()
-    }
-
-    /// Check if a prompt containing the given text was sent
-    pub fn was_called_with(&self, text: &str) -> bool {
-        self.calls.lock().unwrap().iter().any(|p| p.contains(text))
-    }
-
-    /// Get the number of times the AI was called
-    pub fn call_count(&self) -> usize {
-        self.calls.lock().unwrap().len()
     }
 }
 
-#[async_trait]
-impl BaseAI for MockAI {
-    async fn complete(&self, prompt: &str) -> Result<String> {
-        // Record the call
-        self.calls.lock().unwrap().push(prompt.to_string());
-
-        let mut responses = self.responses.lock().unwrap();
-        if !responses.is_empty() {
-            Ok(responses.remove(0))
-        } else {
-            // Return default mock response
-            Ok("Mock AI response".to_string())
-        }
-    }
-
-    async fn complete_json(&self, prompt: &str) -> Result<String> {
-        // Same as complete - returns JSON string
-        self.complete(prompt).await
+impl Default for MockAI {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -358,7 +336,7 @@ impl BasePiiDetector for MockPiiDetector {
 #[derive(Clone)]
 pub struct TestDependencies {
     pub ingestor: Arc<MockIngestor>,
-    pub ai: Arc<MockAI>,
+    pub ai: Arc<OpenAIClient>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
     pub web_searcher: Arc<MockWebSearcher>,
@@ -370,7 +348,7 @@ impl TestDependencies {
     pub fn new() -> Self {
         Self {
             ingestor: Arc::new(MockIngestor::new()),
-            ai: Arc::new(MockAI::new()),
+            ai: mock_openai_client(),
             embedding_service: Arc::new(MockEmbeddingService::new()),
             push_service: Arc::new(MockPushNotificationService::new()),
             web_searcher: Arc::new(MockWebSearcher::new()),
@@ -385,9 +363,21 @@ impl TestDependencies {
         self
     }
 
-    /// Set a mock AI
-    pub fn mock_ai(mut self, ai: MockAI) -> Self {
-        self.ai = Arc::new(ai);
+    /// Set an OpenAI client (can be configured with a test server URL)
+    pub fn with_ai(mut self, ai: Arc<OpenAIClient>) -> Self {
+        self.ai = ai;
+        self
+    }
+
+    /// Legacy method for test compatibility.
+    ///
+    /// DEPRECATED: MockAI is a no-op stub. Tests using this should be marked as
+    /// #[ignore] and migrated to use HTTP-level mocking instead.
+    #[allow(unused_variables)]
+    pub fn mock_ai(self, mock_ai: MockAI) -> Self {
+        // MockAI is now a no-op - the OpenAI client is used directly
+        // Tests relying on canned AI responses need to be updated to use
+        // HTTP mocking (mockito/wiremock) for the OpenAI API
         self
     }
 

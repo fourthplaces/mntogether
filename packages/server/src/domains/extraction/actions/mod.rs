@@ -31,8 +31,11 @@ pub async fn submit_url(
 ) -> Result<Vec<extraction::Extraction>> {
     info!(url = %url, "Submitting URL for extraction");
 
-    // Get the extraction service
-    let extraction_service = &deps.extraction;
+    // Get the extraction service (required)
+    let extraction_service = deps
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // Ingest the URL using the new Ingestor pattern
     let ingestor = ValidatedIngestor::new(HttpIngestor::new());
@@ -102,7 +105,11 @@ pub async fn trigger_extraction(
 ) -> Result<Vec<extraction::Extraction>> {
     info!(query = %query, site = ?site, "Triggering extraction");
 
-    let extraction_service = &deps.extraction;
+    // Get the extraction service (required)
+    let extraction_service = deps
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     let extractions = extraction_service
         .extract(query, site)
@@ -153,7 +160,11 @@ pub async fn ingest_site(
 ) -> Result<IngestSiteResult> {
     info!(site_url = %site_url, max_pages = ?max_pages, "Ingesting site");
 
-    let extraction_service = &deps.extraction;
+    // Get the extraction service (required)
+    let extraction_service = deps
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // Use the new Ingestor pattern
     let ingestor = ValidatedIngestor::new(HttpIngestor::new());

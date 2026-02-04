@@ -117,6 +117,47 @@ impl Message {
             content: content.into(),
         }
     }
+
+    /// Convert to a JSON value for function calling APIs.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "role": self.role,
+            "content": self.content
+        })
+    }
+}
+
+/// A tool result message for function calling.
+#[derive(Debug, Clone, Serialize)]
+pub struct ToolResultMessage {
+    /// Role is always "tool"
+    pub role: String,
+
+    /// The ID of the tool call this is a response to
+    pub tool_call_id: String,
+
+    /// The result content
+    pub content: String,
+}
+
+impl ToolResultMessage {
+    /// Create a new tool result message.
+    pub fn new(tool_call_id: impl Into<String>, content: impl Into<String>) -> Self {
+        Self {
+            role: "tool".to_string(),
+            tool_call_id: tool_call_id.into(),
+            content: content.into(),
+        }
+    }
+
+    /// Convert to a JSON value.
+    pub fn to_json(&self) -> serde_json::Value {
+        serde_json::json!({
+            "role": self.role,
+            "tool_call_id": self.tool_call_id,
+            "content": self.content
+        })
+    }
 }
 
 /// Chat completion response.

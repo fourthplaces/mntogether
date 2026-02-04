@@ -4,13 +4,13 @@
 // separated from the thin Effect orchestrator.
 
 use anyhow::{Context, Result};
+use openai_client::OpenAIClient;
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 
 use crate::common::{MemberId, PostId, WebsiteId};
 use crate::domains::organization::utils::generate_tldr;
 use crate::domains::posts::models::{Post, PostContact, PostStatus};
-use crate::kernel::BaseAI;
 
 /// Create a new listing with generated content hash and TLDR
 pub async fn create_post(
@@ -24,7 +24,7 @@ pub async fn create_post(
     ip_address: Option<String>,
     submission_type: String,
     website_id: Option<WebsiteId>,
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<Post> {
     // Log IP for spam tracking
@@ -143,7 +143,7 @@ pub async fn create_post_for_post(
     _custom_title: Option<String>,
     _custom_description: Option<String>,
     _expires_in_days: Option<i64>,
-    _ai: &dyn BaseAI,
+    _ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<Post> {
     // The announcement system was removed, so we just return the post itself
@@ -176,7 +176,7 @@ pub async fn create_custom_post(
     _custom_tldr: Option<String>,
     _targeting_hints: Option<serde_json::Value>,
     _expires_in_days: Option<i64>,
-    _ai: &dyn BaseAI,
+    _ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<Post> {
     // The announcement system was removed, so we just return the post itself

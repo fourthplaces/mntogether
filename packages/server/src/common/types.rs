@@ -3,6 +3,7 @@
 // These types are shared between the kernel and domain layers to avoid
 // circular dependencies while maintaining type safety.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -59,6 +60,35 @@ impl ExtractedPostWithSource {
             confidence: self.confidence,
             audience_roles: self.audience_roles,
             source_page_snapshot_id: None, // ExtractedPostWithSource doesn't have this
+        }
+    }
+}
+
+/// Information extracted/investigated for a post.
+///
+/// This is the output of the agentic investigation step (Pass 2).
+/// Combined with NarrativePost to create a complete ExtractedPost.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ExtractedPostInformation {
+    pub contact: ContactInfo,
+    pub location: Option<String>,
+    pub urgency: String,
+    pub confidence: String,
+    pub audience_roles: Vec<String>,
+}
+
+impl ExtractedPostInformation {
+    /// Returns contact as Option, None if all fields are empty
+    pub fn contact_or_none(&self) -> Option<ContactInfo> {
+        if self.contact.phone.is_none()
+            && self.contact.email.is_none()
+            && self.contact.website.is_none()
+            && self.contact.intake_form_url.is_none()
+            && self.contact.contact_name.is_none()
+        {
+            None
+        } else {
+            Some(self.contact.clone())
         }
     }
 }
