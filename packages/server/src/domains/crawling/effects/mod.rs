@@ -5,7 +5,6 @@
 
 pub mod crawler;
 pub mod discovery;
-pub mod extraction;
 pub mod handlers;
 
 pub use crawler::*;

@@ -29,7 +29,7 @@ use extraction::types::page::CachedPage;
 pub use authorization::check_crawl_authorization;
 pub use ingest_website::{ingest_urls, ingest_website};
 pub use sync_posts::{sync_and_deduplicate_posts, SyncAndDedupResult};
-pub use website_context::{fetch_approved_website, fetch_snapshots_as_crawled_pages};
+pub use website_context::fetch_approved_website;
 
 /// Result of a crawl/regenerate operation
 #[derive(Debug, Clone)]
@@ -38,30 +38,6 @@ pub struct CrawlJobResult {
     pub website_id: Uuid,
     pub status: String,
     pub message: Option<String>,
-}
-
-/// Crawl a website (multi-page)
-/// Returns job result directly.
-///
-/// # Deprecated
-/// Use `ingest_website()` instead which uses the extraction library's
-/// Ingestor pattern. The new function provides:
-/// - Pluggable ingestors (HTTP, Firecrawl)
-/// - SSRF protection via ValidatedIngestor
-/// - Integrated summarization and embedding
-/// - Storage in extraction_pages table (not page_snapshots)
-///
-/// This function now delegates to `ingest_website()`.
-#[deprecated(since = "0.1.0", note = "Use ingest_website() instead")]
-pub async fn crawl_website(
-    website_id: Uuid,
-    member_id: Uuid,
-    _is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
-    // Delegate to ingest_website with Firecrawl disabled (basic HTTP crawling)
-    // Note: is_admin is obtained from ctx.next_state() inside ingest_website
-    ingest_website(website_id, member_id, false, ctx).await
 }
 
 /// Regenerate posts from existing pages in extraction library.

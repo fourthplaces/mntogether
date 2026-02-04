@@ -7,93 +7,12 @@ use seesaw_core::EffectContext;
 
 use super::{post_extraction, ServerDeps};
 use crate::common::AppState;
-use crate::common::{JobId, WebsiteId};
+use crate::common::JobId;
 use crate::domains::posts::events::PostEvent;
-use crate::domains::website::models::Website;
 
 // ============================================================================
 // Handler actions - emit events directly
 // ============================================================================
-
-pub async fn handle_extract_posts(
-    source_id: WebsiteId,
-    job_id: JobId,
-    organization_name: String,
-    content: String,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
-    tracing::info!(
-        source_id = %source_id,
-        job_id = %job_id,
-        organization_name = %organization_name,
-        content_length = content.len(),
-        "Starting AI listing extraction"
-    );
-
-    // Get source for domain info
-    let source = match Website::find_by_id(source_id, &ctx.deps().db_pool).await {
-        Ok(s) => {
-            tracing::info!(source_id = %source_id, domain = %s.domain, "Source found for extraction");
-            s
-        }
-        Err(e) => {
-            tracing::error!(
-                source_id = %source_id,
-                error = %e,
-                "Failed to find source for extraction"
-            );
-            return Err(anyhow::anyhow!("Failed to find source: {}", e));
-        }
-    };
-
-    tracing::info!(
-        source_id = %source_id,
-        domain = %source.domain,
-        "Calling AI service to extract listings"
-    );
-
-    // Delegate to domain function with PII scrubbing
-    let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
-        ctx.deps().ai.as_ref(),
-        ctx.deps().pii_detector.as_ref(),
-        &organization_name,
-        &content,
-        &source.domain,
-    )
-    .await
-    {
-        Ok(listings) => {
-            tracing::info!(
-                source_id = %source_id,
-                listings_count = listings.len(),
-                "AI extraction completed successfully"
-            );
-            listings
-        }
-        Err(e) => {
-            tracing::error!(
-                source_id = %source_id,
-                error = %e,
-                "AI extraction failed"
-            );
-            return Err(anyhow::anyhow!("AI extraction failed: {}", e));
-        }
-    };
-
-    // Emit fact event
-    tracing::info!(
-        source_id = %source_id,
-        job_id = %job_id,
-        listings_count = extracted_posts.len(),
-        "Emitting PostsExtracted event"
-    );
-    ctx.emit(PostEvent::PostsExtracted {
-        source_id,
-        job_id,
-        posts: extracted_posts,
-    });
-    Ok(())
-}
 
 pub async fn handle_extract_posts_from_resource_link(
     job_id: JobId,

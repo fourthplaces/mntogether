@@ -1,11 +1,4 @@
 //! GraphQL schema definition.
-//!
-//! # Deprecation Note
-//!
-//! Some queries use deprecated `PageSnapshot` model. See the crawling domain
-//! models for migration paths to extraction library types.
-
-#![allow(deprecated)] // Uses deprecated PageSnapshot during migration
 
 use super::context::GraphQLContext;
 use anyhow::Context as AnyhowContext;
@@ -49,13 +42,12 @@ use crate::domains::posts::data::{
 use crate::domains::providers::data::{
     ProviderConnection, ProviderData, SubmitProviderInput, UpdateProviderInput,
 };
-use crate::domains::website::data::{PageSnapshotData, WebsiteConnection, WebsiteData};
+use crate::domains::website::data::{WebsiteConnection, WebsiteData};
 use crate::domains::website_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
 
 // Domain models (for queries)
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::contacts::ContactData;
-use crate::domains::crawling::models::PageSnapshot;
 use crate::domains::member::models::member::Member;
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::post_report::PostReportRecord;
@@ -648,44 +640,10 @@ impl Query {
     }
 
     // =========================================================================
-    // Page Snapshot Queries
-    // =========================================================================
-
-    /// Get a page snapshot by ID
-    async fn page_snapshot(
-        ctx: &GraphQLContext,
-        id: Uuid,
-    ) -> FieldResult<Option<PageSnapshotData>> {
-        match PageSnapshot::find_by_id(&ctx.db_pool, id).await {
-            Ok(snapshot) => Ok(Some(PageSnapshotData::from(snapshot))),
-            Err(_) => Ok(None),
-        }
-    }
-
-    /// Get a page snapshot by URL
-    async fn page_snapshot_by_url(
-        ctx: &GraphQLContext,
-        url: String,
-    ) -> FieldResult<Option<PageSnapshotData>> {
-        let snapshot: Option<PageSnapshot> = sqlx::query_as::<_, PageSnapshot>(
-            "SELECT * FROM page_snapshots WHERE url = $1 ORDER BY crawled_at DESC LIMIT 1",
-        )
-        .bind(&url)
-        .fetch_optional(&ctx.db_pool)
-        .await
-        .context("Failed to query page snapshot by URL")?;
-
-        Ok(snapshot.map(PageSnapshotData::from))
-    }
-
-    // =========================================================================
-    // Extraction Page Queries (replaces deprecated PageSnapshot)
+    // Extraction Page Queries
     // =========================================================================
 
     /// Get an extraction page by URL
-    ///
-    /// This replaces the deprecated `pageSnapshot` query. The extraction library
-    /// uses URL as the primary key.
     async fn extraction_page(
         ctx: &GraphQLContext,
         url: String,
@@ -1761,44 +1719,7 @@ impl Mutation {
         Ok(WebsiteData::from(website))
     }
 
-    /// Refresh a page snapshot by re-scraping the specific page URL (admin only)
-    async fn refresh_page_snapshot(
-        ctx: &GraphQLContext,
-        snapshot_id: String,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(snapshot_id = %snapshot_id, "Refreshing page snapshot");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let snapshot_uuid = Uuid::parse_str(&snapshot_id)
-            .map_err(|_| FieldError::new("Invalid snapshot ID", juniper::Value::null()))?;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| {
-                post_actions::refresh_page_snapshot(
-                    snapshot_uuid,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: result.job_id,
-            source_id: result.page_snapshot_id, // Return page snapshot ID as source_id
-            status: result.status,
-            message: result.message,
-        })
-    }
-
-    /// Regenerate posts from existing page snapshots (admin only)
+    /// Regenerate posts from existing extraction pages (admin only)
     ///
     /// Creates a job record, runs the regeneration immediately, and returns the result.
     /// Job is tracked in the database - query via the website's `regeneratePostsJob` field.

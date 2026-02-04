@@ -18,23 +18,6 @@ pub enum PostEvent {
     // =========================================================================
     // Fact Events (what actually happened)
     // =========================================================================
-    /// Source was scraped successfully
-    SourceScraped {
-        source_id: WebsiteId,
-        job_id: JobId,
-        organization_name: String,
-        content: String,
-        page_snapshot_id: Option<uuid::Uuid>, // Link to cached page content
-    },
-
-    /// A single page snapshot was refreshed (re-scraped)
-    PageSnapshotRefreshed {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        url: String,
-        content: String,
-    },
-
     /// User-submitted resource link was scraped successfully
     ResourceLinkScraped {
         job_id: JobId,
@@ -45,13 +28,6 @@ pub enum PostEvent {
         page_snapshot_id: Option<uuid::Uuid>, // Link to cached page content
     },
 
-    /// AI extracted listings from scraped content
-    PostsExtracted {
-        source_id: WebsiteId,
-        job_id: JobId,
-        posts: Vec<ExtractedPost>,
-    },
-
     /// AI extracted listings from user-submitted resource link
     ResourceLinkPostsExtracted {
         job_id: JobId,
@@ -59,15 +35,6 @@ pub enum PostEvent {
         posts: Vec<ExtractedPost>,
         context: Option<String>,
         submitter_contact: Option<String>,
-    },
-
-    /// Listings were synced with database
-    PostsSynced {
-        source_id: WebsiteId,
-        job_id: JobId,
-        new_count: usize,
-        updated_count: usize,
-        unchanged_count: usize,
     },
 
     /// A listing was created (from scraping or user submission)
