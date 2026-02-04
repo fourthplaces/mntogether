@@ -12,14 +12,14 @@ use crate::domains::crawling::effects::extraction::summarize_pages;
 use crate::domains::crawling::models::{PageSnapshot, PageSummary};
 use crate::kernel::ServerDeps;
 
-use super::post_extraction::{extract_posts_from_content, POST_SEARCH_QUERY};
+use super::post_extraction::extract_posts_for_domain;
 use super::{
     build_page_to_summarize_from_snapshot, fetch_single_page_context, sync_and_deduplicate_posts,
 };
 
 /// Regenerate posts for a single page snapshot.
 ///
-/// Uses extraction library's extract() + extract_posts_from_content().
+/// Uses the shared extract_posts_for_domain() action.
 /// Returns the number of posts created/updated, or 0 if anything fails.
 pub async fn regenerate_posts_for_page(
     page_snapshot_id: Uuid,
@@ -40,54 +40,28 @@ pub async fn regenerate_posts_for_page(
 
     info!(page_snapshot_id = %page_snapshot_id, url = %page_url, "Regenerating posts");
 
-    // Search for relevant pages and get raw content
-    let pages = match deps
-        .extraction
-        .search_and_get_pages(POST_SEARCH_QUERY, Some(website_domain), 50)
-        .await
-    {
-        Ok(p) => p,
-        Err(e) => {
-            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Search failed");
-            return 0;
-        }
-    };
-
-    if pages.is_empty() {
-        info!(page_snapshot_id = %page_snapshot_id, "No relevant pages found");
-        return 0;
-    }
-
-    // Combine raw page content
-    let combined_content: String = pages
-        .iter()
-        .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
-        .collect::<Vec<_>>()
-        .join("\n\n---\n\n");
-
-    // Extract structured posts
-    let context = format!("Source URL: {}", page_url);
-
-    let mut posts = match extract_posts_from_content(
-        &combined_content,
-        Some(&context),
+    // Search and extract posts using shared action
+    let result = match extract_posts_for_domain(
+        website_domain,
+        deps.extraction.as_ref(),
         deps.ai.as_ref(),
     )
     .await
     {
-        Ok(p) => p,
+        Ok(r) => r,
         Err(e) => {
-            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Structured extraction failed");
+            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Extraction failed");
             return 0;
         }
     };
 
-    if posts.is_empty() {
+    if result.posts.is_empty() {
         info!(page_snapshot_id = %page_snapshot_id, "No posts extracted");
         return 0;
     }
 
     // Set source page snapshot ID on all posts
+    let mut posts = result.posts;
     for post in &mut posts {
         post.source_page_snapshot_id = Some(page_snapshot_id);
     }

@@ -1,6 +1,7 @@
 //! OpenAI implementation of the AI trait.
 //!
-//! A reference implementation using OpenAI's GPT-4o and text-embedding-3-small.
+//! Uses the `openai-client` crate for API communication and implements
+//! extraction-specific logic (summarization, classification, etc.).
 //!
 //! # Example
 //!
@@ -12,33 +13,9 @@
 //! ```
 
 use async_trait::async_trait;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use tracing::{debug, info, warn};
-
-/// Truncate a string to at most `max_bytes` bytes, ensuring we don't cut in the middle
-/// of a multi-byte UTF-8 character.
-fn truncate_to_char_boundary(s: &str, max_bytes: usize) -> &str {
-    if s.len() <= max_bytes {
-        return s;
-    }
-    // Find the last valid char boundary at or before max_bytes
-    let mut end = max_bytes;
-    while !s.is_char_boundary(end) && end > 0 {
-        end -= 1;
-    }
-    &s[..end]
-}
-
-/// Strip markdown code blocks from a response.
-fn strip_code_blocks(response: &str) -> &str {
-    response
-        .trim()
-        .trim_start_matches("```json")
-        .trim_start_matches("```")
-        .trim_end_matches("```")
-        .trim()
-}
+use openai_client::{ChatRequest, Message, OpenAIClient};
+use serde::Deserialize;
+use tracing::{info, warn};
 
 use crate::error::{ExtractionError, Result};
 use crate::traits::ai::{ExtractionStrategy, Partition, AI};
@@ -48,35 +25,35 @@ use crate::types::{
     summary::{RecallSignals, Summary, SummaryResponse},
 };
 
-/// OpenAI-based AI implementation.
+/// OpenAI-based AI implementation for extraction.
 ///
-/// Uses GPT-4-turbo for text generation and text-embedding-3-small for embeddings.
+/// Wraps the pure `openai-client` and implements extraction-specific logic.
 #[derive(Clone)]
 pub struct OpenAI {
-    client: Client,
-    api_key: String,
+    client: OpenAIClient,
     model: String,
     embedding_model: String,
-    base_url: String,
 }
 
 impl OpenAI {
-    /// Create a new OpenAI client with the given API key.
+    /// Create a new OpenAI extraction AI with the given API key.
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
-            client: Client::new(),
-            api_key: api_key.into(),
-            model: "gpt-4o".to_string(), // gpt-4o supports structured outputs (json_schema)
+            client: OpenAIClient::new(api_key),
+            model: "gpt-4o".to_string(),
             embedding_model: "text-embedding-3-small".to_string(),
-            base_url: "https://api.openai.com/v1".to_string(),
         }
     }
 
     /// Create from environment variable `OPENAI_API_KEY`.
     pub fn from_env() -> Result<Self> {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .map_err(|_| ExtractionError::Config("OPENAI_API_KEY not set".into()))?;
-        Ok(Self::new(api_key))
+        let client = OpenAIClient::from_env()
+            .map_err(|e| ExtractionError::Config(e.to_string().into()))?;
+        Ok(Self {
+            client,
+            model: "gpt-4o".to_string(),
+            embedding_model: "text-embedding-3-small".to_string(),
+        })
     }
 
     /// Set the chat model (default: gpt-4o).
@@ -93,7 +70,7 @@ impl OpenAI {
 
     /// Set a custom base URL (for Azure, proxies, etc.).
     pub fn with_base_url(mut self, url: impl Into<String>) -> Self {
-        self.base_url = url.into();
+        self.client = self.client.with_base_url(url);
         self
     }
 
@@ -104,7 +81,7 @@ impl OpenAI {
 
     /// Get the API key (for bridge implementations that need it).
     pub fn api_key(&self) -> &str {
-        &self.api_key
+        self.client.api_key()
     }
 
     // =========================================================================
@@ -113,14 +90,28 @@ impl OpenAI {
 
     /// Generic chat completion (for server's BaseAI trait).
     pub async fn complete(&self, prompt: &str) -> Result<String> {
-        self.chat("You are a helpful assistant.", prompt).await
+        let request = ChatRequest::new(&self.model)
+            .message(Message::system("You are a helpful assistant."))
+            .message(Message::user(prompt));
+
+        let response = self.client.chat_completion(request).await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        Ok(response.content)
     }
 
     /// Chat completion with specific model override.
     pub async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
         let model_to_use = model.unwrap_or(&self.model);
-        self.chat_with_model("You are a helpful assistant.", prompt, model_to_use)
-            .await
+
+        let request = ChatRequest::new(model_to_use)
+            .message(Message::system("You are a helpful assistant."))
+            .message(Message::user(prompt));
+
+        let response = self.client.chat_completion(request).await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
+
+        Ok(response.content)
     }
 
     /// Structured output with JSON schema (OpenAI's json_schema response_format).
@@ -130,90 +121,10 @@ impl OpenAI {
         user: &str,
         schema: serde_json::Value,
     ) -> Result<String> {
-        #[derive(Serialize)]
-        struct StructuredRequest {
-            model: String,
-            messages: Vec<ChatMessage>,
-            #[serde(skip_serializing_if = "Option::is_none")]
-            temperature: Option<f32>,
-            response_format: ResponseFormat,
-        }
+        let request = openai_client::StructuredRequest::new(&self.model, system, user, schema);
 
-        #[derive(Serialize)]
-        struct ResponseFormat {
-            #[serde(rename = "type")]
-            format_type: String,
-            json_schema: JsonSchemaFormat,
-        }
-
-        #[derive(Serialize)]
-        struct JsonSchemaFormat {
-            name: String,
-            strict: bool,
-            schema: serde_json::Value,
-        }
-
-        // Only set temperature for models that support it (not o1, o3, gpt-5, etc.)
-        let temperature = if self.model.starts_with("o1")
-            || self.model.starts_with("o3")
-            || self.model.starts_with("gpt-5")
-        {
-            None // These models only support default temperature (1.0)
-        } else {
-            Some(0.0)
-        };
-
-        let request = StructuredRequest {
-            model: self.model.clone(),
-            messages: vec![
-                ChatMessage {
-                    role: "system".to_string(),
-                    content: system.to_string(),
-                },
-                ChatMessage {
-                    role: "user".to_string(),
-                    content: user.to_string(),
-                },
-            ],
-            temperature,
-            response_format: ResponseFormat {
-                format_type: "json_schema".to_string(),
-                json_schema: JsonSchemaFormat {
-                    name: "structured_response".to_string(),
-                    strict: true,
-                    schema,
-                },
-            },
-        };
-
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(ExtractionError::AI(
-                format!("OpenAI structured output error: {}", error_text).into(),
-            ));
-        }
-
-        let chat_response: ChatResponse = response
-            .json()
-            .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        chat_response
-            .choices
-            .into_iter()
-            .next()
-            .map(|c| c.message.content)
-            .ok_or_else(|| ExtractionError::AI("No response from OpenAI".into()))
+        self.client.structured_output(request).await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     /// Tool calling support (for agentic extraction).
@@ -222,124 +133,35 @@ impl OpenAI {
         messages: &[serde_json::Value],
         tools: &serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let request_body = serde_json::json!({
-            "model": self.model,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "auto"
-        });
+        let request = openai_client::FunctionRequest::new(&self.model, messages.to_vec(), tools.clone());
 
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request_body)
-            .send()
-            .await
+        let response = self.client.function_calling(request).await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            return Err(ExtractionError::AI(
-                format!("OpenAI tools API error: {}", error_text).into(),
-            ));
-        }
-
-        let response_json: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        // Extract the assistant message
-        Ok(response_json["choices"][0]["message"].clone())
+        Ok(response.message)
     }
 
     // =========================================================================
-    // Internal methods
+    // Internal helper methods
     // =========================================================================
 
-    /// Make a chat completion request.
+    /// Make a chat request and get response.
     async fn chat(&self, system: &str, user: &str) -> Result<String> {
-        self.chat_with_model(system, user, &self.model).await
-    }
+        let mut request = ChatRequest::new(&self.model)
+            .message(Message::system(system))
+            .message(Message::user(user));
 
-    /// Check if a model requires max_completion_tokens instead of max_tokens.
-    fn uses_max_completion_tokens(model: &str) -> bool {
-        // Newer models (o1, o3, gpt-5, etc.) require max_completion_tokens
-        model.starts_with("o1")
-            || model.starts_with("o3")
-            || model.starts_with("gpt-5")
-            || model.contains("-o1")
-            || model.contains("-o3")
-    }
-
-    /// Make a chat completion request with specific model.
-    async fn chat_with_model(&self, system: &str, user: &str, model: &str) -> Result<String> {
-        let (max_completion_tokens, max_tokens, temperature) =
-            if Self::uses_max_completion_tokens(model) {
-                // Newer models: use max_completion_tokens, no temperature for reasoning models
-                (Some(4096), None, None)
-            } else {
-                // Older models: use max_tokens with temperature
-                (None, Some(4096), Some(0.0))
-            };
-
-        let request = ChatRequest {
-            model: model.to_string(),
-            messages: vec![
-                ChatMessage {
-                    role: "system".to_string(),
-                    content: system.to_string(),
-                },
-                ChatMessage {
-                    role: "user".to_string(),
-                    content: user.to_string(),
-                },
-            ],
-            temperature,
-            max_completion_tokens,
-            max_tokens,
-        };
-
-        let start = std::time::Instant::now();
-        let response = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| {
-                warn!(error = %e, "OpenAI request failed");
-                ExtractionError::AI(e.to_string().into())
-            })?;
-
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            warn!(status = %status, error = %error_text, "OpenAI API error");
-            return Err(ExtractionError::AI(
-                format!("OpenAI API error: {}", error_text).into(),
-            ));
+        // Configure tokens based on model type
+        if ChatRequest::uses_max_completion_tokens(&self.model) {
+            request = request.max_completion_tokens(4096);
+        } else {
+            request = request.max_tokens(4096).temperature(0.0);
         }
 
-        let chat_response: ChatResponse = response
-            .json()
-            .await
+        let response = self.client.chat_completion(request).await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
-        let result = chat_response
-            .choices
-            .into_iter()
-            .next()
-            .map(|c| c.message.content)
-            .ok_or_else(|| ExtractionError::AI("No response from OpenAI".into()))?;
-
-        debug!(model = %model, duration_ms = start.elapsed().as_millis(), "OpenAI call");
-
-        Ok(result)
+        Ok(response.content)
     }
 
     /// Parse JSON response with retry - if parsing fails, ask AI to fix it.
@@ -348,7 +170,7 @@ impl OpenAI {
         response: &str,
         context: &str,
     ) -> Result<T> {
-        let cleaned = strip_code_blocks(response);
+        let cleaned = openai_client::strip_code_blocks(response);
 
         // First attempt
         match serde_json::from_str::<T>(cleaned) {
@@ -367,10 +189,8 @@ impl OpenAI {
                     cleaned
                 );
 
-                let fixed_response = self
-                    .chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt)
-                    .await?;
-                let fixed_cleaned = strip_code_blocks(&fixed_response);
+                let fixed_response = self.chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt).await?;
+                let fixed_cleaned = openai_client::strip_code_blocks(&fixed_response);
 
                 serde_json::from_str::<T>(fixed_cleaned).map_err(|e| {
                     ExtractionError::AI(
@@ -379,47 +199,6 @@ impl OpenAI {
                 })
             }
         }
-    }
-
-    /// Make an embedding request.
-    async fn embed_text(&self, text: &str) -> Result<Vec<f32>> {
-        let request = EmbeddingRequest {
-            model: self.embedding_model.clone(),
-            input: text.to_string(),
-        };
-
-        let response = self
-            .client
-            .post(format!("{}/embeddings", self.base_url))
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("Content-Type", "application/json")
-            .json(&request)
-            .send()
-            .await
-            .map_err(|e| {
-                warn!(error = %e, "Embedding request failed");
-                ExtractionError::AI(e.to_string().into())
-            })?;
-
-        if !response.status().is_success() {
-            let error_text = response.text().await.unwrap_or_default();
-            warn!(error = %error_text, "OpenAI embedding error");
-            return Err(ExtractionError::AI(
-                format!("OpenAI embedding error: {}", error_text).into(),
-            ));
-        }
-
-        let embed_response: EmbeddingResponse = response
-            .json()
-            .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        embed_response
-            .data
-            .into_iter()
-            .next()
-            .map(|d| d.embedding)
-            .ok_or_else(|| ExtractionError::AI("No embedding from OpenAI".into()))
     }
 }
 
@@ -441,7 +220,7 @@ Output JSON with this structure:
 
 Be factual. Only extract what's explicitly stated."#;
 
-        let truncated_content = truncate_to_char_boundary(content, 12000);
+        let truncated_content = openai_client::truncate_to_char_boundary(content, 12000);
         let user = format!("URL: {}\n\nContent:\n{}", url, truncated_content);
 
         let response = self.chat(system, &user).await?;
@@ -595,7 +374,7 @@ Include all relevant details found in the sources. Be thorough - extract everyth
                     i + 1,
                     p.url,
                     p.title.as_deref().unwrap_or("Untitled"),
-                    truncate_to_char_boundary(&p.content, 8000)
+                    openai_client::truncate_to_char_boundary(&p.content, 8000)
                 )
             })
             .collect::<Vec<_>>()
@@ -678,70 +457,17 @@ Include all relevant details found in the sources. Be thorough - extract everyth
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        self.embed_text(text).await
+        self.client.create_embedding(text, &self.embedding_model).await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        let mut results = Vec::with_capacity(texts.len());
-        for text in texts {
-            results.push(self.embed_text(text).await?);
-        }
-        Ok(results)
+        self.client.create_embeddings_batch(texts, &self.embedding_model).await
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 }
 
-// Request/Response types
-
-#[derive(Serialize)]
-struct ChatRequest {
-    model: String,
-    messages: Vec<ChatMessage>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    temperature: Option<f32>,
-    /// For newer models (o1, o3, gpt-5), use max_completion_tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_completion_tokens: Option<u32>,
-    /// For older models (gpt-4o, gpt-4, etc.), use max_tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    max_tokens: Option<u32>,
-}
-
-#[derive(Serialize)]
-struct ChatMessage {
-    role: String,
-    content: String,
-}
-
-#[derive(Deserialize)]
-struct ChatResponse {
-    choices: Vec<ChatChoice>,
-}
-
-#[derive(Deserialize)]
-struct ChatChoice {
-    message: ChatResponseMessage,
-}
-
-#[derive(Deserialize)]
-struct ChatResponseMessage {
-    content: String,
-}
-
-#[derive(Serialize)]
-struct EmbeddingRequest {
-    model: String,
-    input: String,
-}
-
-#[derive(Deserialize)]
-struct EmbeddingResponse {
-    data: Vec<EmbeddingData>,
-}
-
-#[derive(Deserialize)]
-struct EmbeddingData {
-    embedding: Vec<f32>,
-}
+// Extraction-specific response types
 
 #[derive(Deserialize)]
 struct SummaryJsonResponse {
@@ -774,6 +500,5 @@ mod tests {
 
         assert_eq!(ai.model, "gpt-4o-mini");
         assert_eq!(ai.embedding_model, "text-embedding-3-large");
-        assert_eq!(ai.base_url, "https://custom.api.com");
     }
 }

@@ -9,12 +9,60 @@
 use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tracing::{debug, info, warn};
+use url::Url;
 
 use crate::error::{ExtractionError, Result};
 use crate::pipeline::prompts::summarize_prompt_hash;
 use crate::traits::ingestor::RawPage;
 use crate::traits::{ai::AI, store::PageStore};
 use crate::types::{page::CachedPage, summary::Summary};
+
+// =============================================================================
+// URL Normalization
+// =============================================================================
+
+/// Normalize a URL to a canonical form for deduplication.
+///
+/// - Ensures https scheme
+/// - Removes www. prefix (canonical: non-www)
+/// - Removes trailing slashes from path
+/// - Removes query parameters (they often represent modal states, not content)
+/// - Removes fragments
+fn normalize_url(url: &str) -> String {
+    // Parse the URL
+    let parsed = match Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return url.to_string(), // Return as-is if unparseable
+    };
+
+    // Get host, removing www. prefix
+    let host = parsed
+        .host_str()
+        .unwrap_or("")
+        .trim_start_matches("www.");
+
+    // Get path, removing trailing slash (but keep "/" for root)
+    let path = parsed.path().trim_end_matches('/');
+    let path = if path.is_empty() { "/" } else { path };
+
+    // Reconstruct without query params or fragments
+    format!("https://{}{}", host, path)
+}
+
+/// Normalize a site URL (just the origin).
+fn normalize_site_url(url: &str) -> String {
+    let parsed = match Url::parse(url) {
+        Ok(u) => u,
+        Err(_) => return url.to_string(),
+    };
+
+    let host = parsed
+        .host_str()
+        .unwrap_or("")
+        .trim_start_matches("www.");
+
+    format!("https://{}", host)
+}
 
 /// Result of an ingest operation.
 #[derive(Debug, Clone)]
@@ -80,12 +128,18 @@ async fn should_skip_page<S: PageStore>(
     false
 }
 
-/// Convert a RawPage to CachedPage.
+/// Convert a RawPage to CachedPage with normalized URLs.
 fn raw_to_cached(raw: &RawPage, fallback_site_url: &str) -> CachedPage {
     let site_url = raw
         .site_url()
         .unwrap_or_else(|| fallback_site_url.to_string());
-    let cached = CachedPage::new(&raw.url, &site_url, &raw.content).with_fetched_at(raw.fetched_at);
+
+    // Normalize URLs for deduplication
+    let normalized_url = normalize_url(&raw.url);
+    let normalized_site_url = normalize_site_url(&site_url);
+
+    let cached =
+        CachedPage::new(&normalized_url, &normalized_site_url, &raw.content).with_fetched_at(raw.fetched_at);
     if let Some(ref title) = raw.title {
         cached.with_title(title.clone())
     } else {
@@ -392,6 +446,67 @@ mod tests {
     use crate::ingestors::{DiscoverConfig, MockIngestor, RawPage};
     use crate::stores::MemoryStore;
     use crate::testing::MockAI;
+
+    #[test]
+    fn test_normalize_url() {
+        // Basic normalization
+        assert_eq!(
+            normalize_url("https://example.com/page"),
+            "https://example.com/page"
+        );
+
+        // www removal
+        assert_eq!(
+            normalize_url("https://www.example.com/page"),
+            "https://example.com/page"
+        );
+
+        // http -> https
+        assert_eq!(
+            normalize_url("http://example.com/page"),
+            "https://example.com/page"
+        );
+
+        // Trailing slash removal
+        assert_eq!(
+            normalize_url("https://example.com/page/"),
+            "https://example.com/page"
+        );
+
+        // Root path keeps slash
+        assert_eq!(normalize_url("https://example.com/"), "https://example.com/");
+        assert_eq!(normalize_url("https://example.com"), "https://example.com/");
+
+        // Query params removed
+        assert_eq!(
+            normalize_url("https://example.com/page?overlay=modal&id=123"),
+            "https://example.com/page"
+        );
+
+        // Fragment removed
+        assert_eq!(
+            normalize_url("https://example.com/page#section"),
+            "https://example.com/page"
+        );
+
+        // Combined
+        assert_eq!(
+            normalize_url("http://www.example.com/page/?query=1#frag"),
+            "https://example.com/page"
+        );
+    }
+
+    #[test]
+    fn test_normalize_site_url() {
+        assert_eq!(
+            normalize_site_url("https://www.example.com/page"),
+            "https://example.com"
+        );
+        assert_eq!(
+            normalize_site_url("http://example.com"),
+            "https://example.com"
+        );
+    }
 
     #[tokio::test]
     async fn test_ingest_with_ingestor_basic() {

@@ -10,9 +10,7 @@ use seesaw_core::EffectContext;
 use tracing::info;
 
 use crate::common::{AppState, ExtractedPost, JobId, WebsiteId};
-use crate::domains::crawling::actions::post_extraction::{
-    extract_posts_from_content, POST_SEARCH_QUERY,
-};
+use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
 use crate::domains::crawling::actions::sync_and_deduplicate_posts;
 use crate::domains::crawling::events::{CrawlEvent, PageExtractionResult};
 use crate::domains::website::models::Website;
@@ -25,7 +23,7 @@ use crate::kernel::ServerDeps;
 /// Extract posts from pages using the extraction library.
 ///
 /// Uses search + raw page fetch to get comprehensive content, then
-/// extract_posts_from_content() to parse directly to Vec<ExtractedPost>.
+/// structured extraction to parse directly to Vec<ExtractedPost>.
 ///
 /// This approach separates retrieval (finding relevant pages) from extraction
 /// (parsing structured posts), avoiding the double-summarization issue where
@@ -39,44 +37,25 @@ pub async fn handle_extract_posts_from_pages(
 
     let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
 
-    // Use search + raw fetch (NOT extract which summarizes)
-    // This gives us full page content for comprehensive extraction
-    info!(
-        website_id = %website_id,
-        domain = %website.domain,
-        query = POST_SEARCH_QUERY,
-        "Searching for pages"
-    );
+    // Search and extract posts using shared action
+    let result = extract_posts_for_domain(
+        &website.domain,
+        ctx.deps().extraction.as_ref(),
+        ctx.deps().ai.as_ref(),
+    )
+    .await?;
 
-    let pages = ctx
-        .deps()
-        .extraction
-        .search_and_get_pages(POST_SEARCH_QUERY, Some(&website.domain), 50)
-        .await?;
-
-    info!(
-        website_id = %website_id,
-        pages_found = pages.len(),
-        page_urls = ?pages.iter().map(|p| &p.url).collect::<Vec<_>>(),
-        "Search results"
-    );
-
-    if pages.is_empty() {
+    if result.posts.is_empty() && result.page_urls.is_empty() {
         info!(website_id = %website_id, "No relevant pages found");
         return Ok(());
     }
 
-    // Combine raw page content (not summaries)
-    let combined_content: String = pages
+    // Build page results for the event
+    let page_results: Vec<PageExtractionResult> = result
+        .page_urls
         .iter()
-        .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
-        .collect::<Vec<_>>()
-        .join("\n\n---\n\n");
-
-    let page_results: Vec<PageExtractionResult> = pages
-        .iter()
-        .map(|p| PageExtractionResult {
-            url: p.url.clone(),
+        .map(|url| PageExtractionResult {
+            url: url.clone(),
             snapshot_id: None,
             listings_count: 0,
             has_posts: true,
@@ -85,31 +64,14 @@ pub async fn handle_extract_posts_from_pages(
 
     info!(
         website_id = %website_id,
-        pages_count = pages.len(),
-        content_len = combined_content.len(),
-        "Extracting structured posts from raw content"
-    );
-
-    // Extract structured posts from raw content
-    let context = format!(
-        "Organization: {}\nSource URL: https://{}",
-        website.domain, website.domain
-    );
-
-    let posts =
-        extract_posts_from_content(&combined_content, Some(&context), ctx.deps().ai.as_ref())
-            .await?;
-
-    info!(
-        website_id = %website_id,
-        posts_count = posts.len(),
+        posts_count = result.posts.len(),
         "Post extraction completed"
     );
 
     ctx.emit(CrawlEvent::PostsExtractedFromPages {
         website_id,
         job_id,
-        posts,
+        posts: result.posts,
         page_results,
     });
 
