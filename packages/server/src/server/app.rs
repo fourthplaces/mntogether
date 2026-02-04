@@ -28,7 +28,7 @@ use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
 };
-use crate::server::static_files::{serve_admin, serve_web_app};
+use crate::server::static_files::serve_web_app;
 
 // Import effect builder functions from each domain
 use crate::domains::auth::effects::auth_effect;
@@ -268,9 +268,6 @@ pub async fn build_app(
     let app = router
         // Health check (no rate limit)
         .route("/health", get(health_handler))
-        // Static file serving for admin SPA (no rate limit)
-        .route("/admin", get(serve_admin))
-        .route("/admin/*path", get(serve_admin))
         // Static file serving for web app (catch-all, must be last)
         .route("/", get(serve_web_app))
         .route("/*path", get(serve_web_app))

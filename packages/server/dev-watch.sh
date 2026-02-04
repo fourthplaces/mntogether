@@ -92,32 +92,6 @@ if [ "$SKIP_FRONTEND_BUILD" = "true" ]; then
     echo "[dev-watch] Skipping frontend builds (SKIP_FRONTEND_BUILD=true)"
     echo ""
 else
-    # Build admin-spa on startup
-    echo "[dev-watch] Building admin-spa..."
-    cd /app/packages/admin-spa
-    if [ -f "package.json" ]; then
-        # Remove node_modules and lock files to ensure clean ARM64 install
-        # (npm has a bug with optional dependencies - https://github.com/npm/cli/issues/4828)
-        if [ -d "node_modules" ]; then
-            echo "[dev-watch] Removing node_modules and lock files for clean ARM64 install..."
-            rm -rf node_modules package-lock.json yarn.lock
-        fi
-
-        echo "[dev-watch] Installing admin-spa dependencies..."
-        $INSTALL_CMD || {
-            echo "[dev-watch] WARNING: $PKG_MANAGER install failed, but continuing..."
-        }
-
-        # Build admin-spa
-        $BUILD_CMD || {
-            echo "[dev-watch] WARNING: Admin-spa build failed, but continuing..."
-        }
-        echo "[dev-watch] Admin-spa built successfully!"
-    else
-        echo "[dev-watch] WARNING: admin-spa package.json not found, skipping build"
-    fi
-    echo ""
-
     # Build web-app on startup
     echo "[dev-watch] Building web-app..."
     cd /app/packages/web-app
