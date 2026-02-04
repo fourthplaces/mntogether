@@ -103,6 +103,11 @@ pub fn is_admin_identifier(identifier: &str, admin_identifiers: &[String]) -> bo
     })
 }
 
+/// Check if an identifier is a test identifier (for development only)
+pub fn is_test_identifier(identifier: &str) -> bool {
+    identifier == "+1234567890" || identifier == "test@example.com"
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

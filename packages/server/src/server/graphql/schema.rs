@@ -1424,8 +1424,8 @@ impl Mutation {
 
         match result {
             auth_actions::SendOtpResult::Sent => Ok(true),
-            auth_actions::SendOtpResult::NotRegistered => Err(FieldError::new(
-                "Phone number not registered",
+            auth_actions::SendOtpResult::NotAuthorized => Err(FieldError::new(
+                "Not authorized",
                 juniper::Value::null(),
             )),
         }
