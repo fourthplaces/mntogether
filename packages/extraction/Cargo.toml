@@ -32,6 +32,9 @@ uuid = { version = "1", features = ["v4", "v7", "serde"] }
 url = "2.5"
 reqwest = { version = "0.12", features = ["json"] }
 
+# OpenAI client (optional)
+openai-client = { path = "../openai-client", optional = true }
+
 # Security
 secrecy = "0.10"  # For API key handling
 ipnet = "2.9"  # For CIDR blocking
@@ -58,5 +61,5 @@ proptest = "1.4"
 default = []
 sqlite = ["sqlx/sqlite"]
 postgres = ["sqlx/postgres"]
-openai = []  # Reference OpenAI implementation
+openai = ["dep:openai-client"]  # Reference OpenAI implementation
 firecrawl = []  # Firecrawl API ingestor

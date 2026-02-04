@@ -5,11 +5,12 @@
 //! effect handlers and the page regeneration actions.
 
 use anyhow::Result;
+use extraction::types::page::CachedPage;
 use serde_json::json;
-use tracing::warn;
+use tracing::{info, warn};
 
 use crate::common::ExtractedPost;
-use crate::kernel::BaseAI;
+use crate::kernel::{BaseAI, OpenAIExtractionService};
 
 /// System prompt for structured post extraction.
 pub const POST_EXTRACTION_PROMPT: &str = r#"You are an expert at extracting structured information from website content.
@@ -162,4 +163,87 @@ pub async fn extract_posts_from_content(
     };
 
     Ok(wrapper.posts)
+}
+
+/// Result of extracting posts for a domain.
+#[derive(Debug)]
+pub struct DomainExtractionResult {
+    /// Extracted posts
+    pub posts: Vec<ExtractedPost>,
+    /// URLs of pages that were searched
+    pub page_urls: Vec<String>,
+}
+
+/// Search for pages and extract posts for a domain.
+///
+/// This is the main entry point for post extraction. It:
+/// 1. Searches for relevant pages using semantic search
+/// 2. Combines raw page content
+/// 3. Extracts structured posts via LLM
+///
+/// # Arguments
+/// * `domain` - Website domain to search (e.g., "redcross.org")
+/// * `extraction` - Extraction service for page search
+/// * `ai` - AI service for structured extraction
+pub async fn extract_posts_for_domain(
+    domain: &str,
+    extraction: &OpenAIExtractionService,
+    ai: &dyn BaseAI,
+) -> Result<DomainExtractionResult> {
+    // Search for relevant pages
+    let pages = extraction
+        .search_and_get_pages(POST_SEARCH_QUERY, Some(domain), 50)
+        .await?;
+
+    info!(
+        domain = %domain,
+        pages_found = pages.len(),
+        page_urls = ?pages.iter().map(|p| &p.url).collect::<Vec<_>>(),
+        "Search results"
+    );
+
+    if pages.is_empty() {
+        return Ok(DomainExtractionResult {
+            posts: vec![],
+            page_urls: vec![],
+        });
+    }
+
+    let page_urls: Vec<String> = pages.iter().map(|p| p.url.clone()).collect();
+
+    // Combine and extract
+    let posts = extract_posts_from_pages(&pages, Some(domain), ai).await?;
+
+    Ok(DomainExtractionResult { posts, page_urls })
+}
+
+/// Extract posts from a set of pages.
+///
+/// Lower-level function that takes already-fetched pages.
+pub async fn extract_posts_from_pages(
+    pages: &[CachedPage],
+    domain: Option<&str>,
+    ai: &dyn BaseAI,
+) -> Result<Vec<ExtractedPost>> {
+    if pages.is_empty() {
+        return Ok(vec![]);
+    }
+
+    // Combine raw page content
+    let combined_content: String = pages
+        .iter()
+        .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n");
+
+    info!(
+        pages_count = pages.len(),
+        content_len = combined_content.len(),
+        "Extracting structured posts from raw content"
+    );
+
+    // Build context
+    let context = domain.map(|d| format!("Organization: {}\nSource URL: https://{}", d, d));
+
+    extract_posts_from_content(&combined_content, context.as_deref(), ai).await
 }
