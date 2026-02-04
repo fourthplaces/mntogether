@@ -1,7 +1,7 @@
 use crate::common::{PostId, WebsiteId};
 use crate::domains::organization::utils::generate_tldr;
+use crate::domains::posts::actions::tag_with_audience_roles;
 use crate::domains::posts::models::{Post, PostContact, PostStatus};
-use crate::domains::tag::models::{Tag, Taggable};
 use anyhow::Result;
 use sqlx::PgPool;
 
@@ -142,6 +142,7 @@ pub async fn sync_posts(
                 Some(website_id),
                 post_input.source_url.clone(),
                 None, // organization_id
+                None, // revision_of_post_id
                 pool,
             )
             .await
@@ -167,30 +168,7 @@ pub async fn sync_posts(
                     }
 
                     // Tag post with audience roles
-                    for role in &post_input.audience_roles {
-                        let normalized_role = role.to_lowercase();
-                        if let Ok(tag) =
-                            Tag::find_by_kind_value("audience_role", &normalized_role, pool).await
-                        {
-                            if let Some(tag) = tag {
-                                if let Err(e) =
-                                    Taggable::create_post_tag(created.id, tag.id, pool).await
-                                {
-                                    tracing::warn!(
-                                        post_id = %created.id,
-                                        role = %normalized_role,
-                                        error = %e,
-                                        "Failed to tag post with audience role"
-                                    );
-                                }
-                            } else {
-                                tracing::warn!(
-                                    role = %normalized_role,
-                                    "Unknown audience role from AI"
-                                );
-                            }
-                        }
-                    }
+                    tag_with_audience_roles(created.id, &post_input.audience_roles, pool).await;
 
                     new_posts.push(created.id);
                 }

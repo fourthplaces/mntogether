@@ -5,23 +5,19 @@ export const GET_PUBLISHED_POSTS = gql`
   query GetPublishedPosts($limit: Int) {
     publishedPosts(limit: $limit) {
       id
-      listingId
+      organizationName
+      title
+      tldr
+      description
+      postType
+      category
+      capacityStatus
+      urgency
       status
-      publishedAt
-      expiresAt
-      customTitle
-      customDescription
-      customTldr
-      listing {
-        id
-        organizationName
-        title
-        tldr
-        description
-        location
-        urgency
-        createdAt
-      }
+      location
+      sourceUrl
+      createdAt
+      updatedAt
     }
   }
 `;

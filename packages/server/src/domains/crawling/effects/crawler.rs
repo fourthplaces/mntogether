@@ -1,14 +1,19 @@
 //! CrawlerEffect - Handles multi-page website crawling workflow
 //!
-//! This effect watches FACT events and calls handlers directly for cascading.
-//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
+//! This effect watches FACT events and enqueues jobs for cascading.
+//! NO *Requested events - GraphQL calls actions, effects enqueue jobs on facts.
 //!
-//! Cascade flow:
-//!   WebsiteIngested → handle_extract_posts_from_pages → PostsExtractedFromPages
-//!   WebsitePostsRegenerated → handle_extract_posts_from_pages → PostsExtractedFromPages
-//!   WebsitePagesDiscovered → handle_extract_posts_from_pages → PostsExtractedFromPages
-//!   PostsExtractedFromPages → handle_sync_crawled_posts → PostsSynced
-//!   WebsiteCrawlNoListings (retry=false) → handle_mark_no_posts → WebsiteMarkedNoListings
+//! ## Job-Based Cascade Flow
+//!
+//! ```text
+//! WebsiteIngested → ExtractPostsJob → PostsExtractedFromPages
+//! WebsitePostsRegenerated → ExtractPostsJob → PostsExtractedFromPages
+//! WebsitePagesDiscovered → ExtractPostsJob → PostsExtractedFromPages
+//! PostsExtractedFromPages → SyncPostsJob → PostsSynced
+//! WebsiteCrawlNoListings → handle_mark_no_posts → WebsiteMarkedNoListings
+//! ```
+//!
+//! Each job runs independently and can be retried without re-running previous stages.
 
 use seesaw_core::effect;
 use std::sync::Arc;
@@ -27,28 +32,28 @@ pub fn crawler_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<CrawlEvent>().run(|event: Arc<CrawlEvent>, ctx| async move {
         match event.as_ref() {
             // =================================================================
-            // Cascade: WebsiteIngested → extract posts from ingested pages
+            // Cascade: WebsiteIngested → enqueue ExtractPostsJob
             // =================================================================
             CrawlEvent::WebsiteIngested {
                 website_id, job_id, ..
-            } => handlers::handle_extract_posts_from_pages(*website_id, *job_id, &ctx).await,
+            } => handlers::handle_enqueue_extract_posts(*website_id, *job_id, &ctx).await,
 
             // =================================================================
-            // Cascade: WebsitePostsRegenerated → extract posts from existing pages
+            // Cascade: WebsitePostsRegenerated → enqueue ExtractPostsJob
             // =================================================================
             CrawlEvent::WebsitePostsRegenerated {
                 website_id, job_id, ..
-            } => handlers::handle_extract_posts_from_pages(*website_id, *job_id, &ctx).await,
+            } => handlers::handle_enqueue_extract_posts(*website_id, *job_id, &ctx).await,
 
             // =================================================================
-            // Cascade: WebsitePagesDiscovered → extract posts from discovered pages
+            // Cascade: WebsitePagesDiscovered → enqueue ExtractPostsJob
             // =================================================================
             CrawlEvent::WebsitePagesDiscovered {
                 website_id, job_id, ..
-            } => handlers::handle_extract_posts_from_pages(*website_id, *job_id, &ctx).await,
+            } => handlers::handle_enqueue_extract_posts(*website_id, *job_id, &ctx).await,
 
             // =================================================================
-            // Cascade: PostsExtractedFromPages → sync posts to database
+            // Cascade: PostsExtractedFromPages → enqueue SyncPostsJob
             // =================================================================
             CrawlEvent::PostsExtractedFromPages {
                 website_id,
@@ -56,7 +61,7 @@ pub fn crawler_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 posts,
                 page_results,
             } => {
-                handlers::handle_sync_crawled_posts(
+                handlers::handle_enqueue_sync_posts(
                     *website_id,
                     *job_id,
                     posts.clone(),

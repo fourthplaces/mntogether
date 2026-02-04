@@ -68,7 +68,8 @@ pub async fn handle_create_posts_from_resource_link(
             None,
             Some(WebsiteId::from_uuid(source_id.into_uuid())),
             Some(url.clone()),
-            None,
+            None, // organization_id
+            None, // revision_of_post_id
             &ctx.deps().db_pool,
         )
         .await

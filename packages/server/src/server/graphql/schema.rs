@@ -640,6 +640,50 @@ impl Query {
     }
 
     // =========================================================================
+    // Post Revision Queries
+    // =========================================================================
+
+    /// Get all pending revisions (admin only)
+    ///
+    /// Revisions are draft posts created when AI updates detect changes.
+    /// They await review before being applied to the original post.
+    async fn pending_revisions(
+        ctx: &GraphQLContext,
+        website_id: Option<Uuid>,
+    ) -> FieldResult<Vec<PostType>> {
+        ctx.require_admin()?;
+
+        let website_id = website_id.map(WebsiteId::from_uuid);
+        let revisions = post_actions::get_pending_revisions(website_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        let mut result = Vec::with_capacity(revisions.len());
+        for post in revisions {
+            result.push(post_to_post_type(post, &ctx.db_pool).await);
+        }
+        Ok(result)
+    }
+
+    /// Get the revision for a specific post (if any exists) (admin only)
+    async fn revision_for_post(
+        ctx: &GraphQLContext,
+        post_id: Uuid,
+    ) -> FieldResult<Option<PostType>> {
+        ctx.require_admin()?;
+
+        let post_id = PostId::from_uuid(post_id);
+        let revision = post_actions::get_revision_for_post(post_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        match revision {
+            Some(post) => Ok(Some(post_to_post_type(post, &ctx.db_pool).await)),
+            None => Ok(None),
+        }
+    }
+
+    // =========================================================================
     // Extraction Page Queries
     // =========================================================================
 
@@ -1117,6 +1161,43 @@ impl Mutation {
             .await
             .map_err(to_field_error)
     }
+
+    // =========================================================================
+    // Post Revision Mutations
+    // =========================================================================
+
+    /// Approve a revision: copy revision fields to original, delete revision (admin only)
+    ///
+    /// When AI updates detect changes to an existing post, they create a revision
+    /// for review. This mutation applies those changes to the original post.
+    async fn approve_revision(ctx: &GraphQLContext, revision_id: Uuid) -> FieldResult<PostType> {
+        ctx.require_admin()?;
+
+        let revision_id = PostId::from_uuid(revision_id);
+        let updated_post = post_actions::approve_revision(revision_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(post_to_post_type(updated_post, &ctx.db_pool).await)
+    }
+
+    /// Reject a revision: delete revision, original unchanged (admin only)
+    ///
+    /// Use this when the AI-suggested changes should not be applied.
+    async fn reject_revision(ctx: &GraphQLContext, revision_id: Uuid) -> FieldResult<bool> {
+        ctx.require_admin()?;
+
+        let revision_id = PostId::from_uuid(revision_id);
+        post_actions::reject_revision(revision_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(true)
+    }
+
+    // =========================================================================
+    // Discovery Mutations
+    // =========================================================================
 
     /// Run discovery search manually (admin only)
     async fn run_discovery_search(ctx: &GraphQLContext) -> FieldResult<DiscoverySearchResult> {

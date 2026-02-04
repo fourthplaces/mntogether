@@ -56,6 +56,9 @@ pub struct Post {
 
     // Vector search (for semantic search)
     pub embedding: Option<pgvector::Vector>,
+
+    // Revision tracking (for draft mode)
+    pub revision_of_post_id: Option<PostId>,
 }
 
 /// Search result from semantic similarity search
@@ -237,7 +240,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE status = $1 AND deleted_at IS NULL
+             WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -267,6 +270,7 @@ impl Post {
                     SELECT * FROM posts
                     WHERE status = $1
                       AND deleted_at IS NULL
+                      AND revision_of_post_id IS NULL
                       AND ($2::uuid IS NULL OR id > $2)
                     ORDER BY id ASC
                     LIMIT $3
@@ -285,6 +289,7 @@ impl Post {
                     SELECT * FROM posts
                     WHERE status = $1
                       AND deleted_at IS NULL
+                      AND revision_of_post_id IS NULL
                       AND ($2::uuid IS NULL OR id < $2)
                     ORDER BY id DESC
                     LIMIT $3
@@ -324,7 +329,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL
+             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -345,7 +350,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL
+             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -366,7 +371,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL
+             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -378,10 +383,10 @@ impl Post {
         Ok(listings)
     }
 
-    /// Find listings by domain ID (excludes soft-deleted)
+    /// Find listings by domain ID (excludes soft-deleted and revisions)
     pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL",
+            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL",
         )
         .bind(website_id)
         .fetch_all(pool)
@@ -407,6 +412,7 @@ impl Post {
         website_id: Option<WebsiteId>,
         source_url: Option<String>,
         organization_id: Option<OrganizationId>,
+        revision_of_post_id: Option<PostId>,
         pool: &PgPool,
     ) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
@@ -427,8 +433,9 @@ impl Post {
                 submitted_by_admin_id,
                 website_id,
                 source_url,
-                organization_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                organization_id,
+                revision_of_post_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
             "#,
         )
@@ -448,6 +455,7 @@ impl Post {
         .bind(website_id)
         .bind(source_url)
         .bind(organization_id)
+        .bind(revision_of_post_id)
         .fetch_one(pool)
         .await?;
 
@@ -573,6 +581,7 @@ impl Post {
               AND status IN ('pending_approval', 'active')
               AND disappeared_at IS NULL
               AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
             "#,
         )
         .bind(website_id)
@@ -627,7 +636,7 @@ impl Post {
             r#"
             SELECT COUNT(*)
             FROM posts
-            WHERE status = $1 AND deleted_at IS NULL
+            WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL
             "#,
         )
         .bind(status)
@@ -777,6 +786,7 @@ impl Post {
             WHERE p.embedding IS NOT NULL
               AND p.deleted_at IS NULL
               AND p.status = 'active'
+              AND p.revision_of_post_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
             ORDER BY p.embedding <=> $1
             LIMIT $3
@@ -799,6 +809,7 @@ impl Post {
             WHERE embedding IS NULL
               AND deleted_at IS NULL
               AND status = 'active'
+              AND revision_of_post_id IS NULL
             ORDER BY created_at DESC
             LIMIT $1
             "#,
@@ -831,5 +842,90 @@ impl Post {
         parts.push(format!("Organization: {}", self.organization_name));
 
         parts.join(" | ")
+    }
+
+    // =========================================================================
+    // Revision Methods (for draft review workflow)
+    // =========================================================================
+
+    /// Find all pending revisions (posts that are revisions of other posts)
+    pub async fn find_pending_revisions(pool: &PgPool) -> Result<Vec<Self>> {
+        let revisions = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT * FROM posts
+            WHERE revision_of_post_id IS NOT NULL
+              AND deleted_at IS NULL
+              AND status = 'pending_approval'
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await?;
+        Ok(revisions)
+    }
+
+    /// Find revision for a specific post (if any)
+    pub async fn find_revision_for_post(post_id: PostId, pool: &PgPool) -> Result<Option<Self>> {
+        let revision = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT * FROM posts
+            WHERE revision_of_post_id = $1
+              AND deleted_at IS NULL
+            LIMIT 1
+            "#,
+        )
+        .bind(post_id)
+        .fetch_optional(pool)
+        .await?;
+        Ok(revision)
+    }
+
+    /// Find revisions by website (for bulk operations)
+    pub async fn find_revisions_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
+        let revisions = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT * FROM posts
+            WHERE revision_of_post_id IS NOT NULL
+              AND website_id = $1
+              AND deleted_at IS NULL
+              AND status = 'pending_approval'
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(website_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(revisions)
+    }
+
+    /// Delete a revision and update the original post with the revision's content
+    /// Returns the updated original post
+    pub async fn apply_revision(revision_id: PostId, pool: &PgPool) -> Result<Self> {
+        let revision = Self::find_by_id(revision_id, pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Revision not found"))?;
+
+        let original_id = revision
+            .revision_of_post_id
+            .ok_or_else(|| anyhow::anyhow!("Not a revision post"))?;
+
+        // Copy revision fields to original
+        let updated = Self::update_content(
+            original_id,
+            Some(revision.title),
+            Some(revision.description),
+            revision.description_markdown,
+            revision.tldr,
+            Some(revision.category),
+            revision.urgency,
+            revision.location,
+            pool,
+        )
+        .await?;
+
+        // Delete the revision
+        Self::delete(revision_id, pool).await?;
+
+        Ok(updated)
     }
 }
