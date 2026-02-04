@@ -158,6 +158,12 @@ impl OpenAIClient {
     ) -> Result<T> {
         let schema = T::openai_schema();
 
+        debug!(
+            type_name = T::type_name(),
+            schema = %serde_json::to_string_pretty(&schema).unwrap_or_default(),
+            "Generated OpenAI schema for extraction"
+        );
+
         let request = StructuredRequest::new(model, system_prompt, user_prompt, schema);
         let json_str = self.structured_output(request).await?;
 

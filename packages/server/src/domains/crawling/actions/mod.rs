@@ -15,15 +15,15 @@ pub mod website_context;
 
 use anyhow::Result;
 use seesaw_core::EffectContext;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{AppState, JobId, MemberId, WebsiteId};
 use crate::domains::crawling::effects::discovery::discover_pages;
 use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo};
-use crate::domains::crawling::models::PageSnapshot;
-use crate::domains::website::models::{Website, WebsiteSnapshot};
+use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
+use extraction::types::page::CachedPage;
 
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
@@ -154,47 +154,42 @@ pub async fn discover_website(
         "Discovered pages via Tavily search"
     );
 
-    // Store discovered pages as snapshots
-    let mut crawled_pages = Vec::new();
-    let pool = &ctx.deps().db_pool;
+    // Get extraction service
+    let extraction_service = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not configured"))?;
 
-    for page in discovered {
-        // Create page snapshot with Tavily content
-        // Note: We pass content as both html and markdown since Tavily gives us clean text
-        let (page_snapshot, _is_new) = match PageSnapshot::upsert(
-            pool,
-            page.url.clone(),
-            page.content.clone(),       // html (using content as placeholder)
-            Some(page.content.clone()), // markdown (the actual extracted content)
-            "tavily".to_string(),       // fetched_via
-        )
-        .await
-        {
-            Ok(result) => result,
-            Err(e) => {
-                warn!(url = %page.url, error = %e, "Failed to create page snapshot");
-                continue;
-            }
-        };
+    // Convert discovered pages to CachedPage format for extraction library
+    let site_url = format!("https://{}", website.domain);
+    let cached_pages: Vec<CachedPage> = discovered
+        .iter()
+        .map(|page| {
+            CachedPage::new(&page.url, &site_url, &page.content)
+                .with_title(&page.title)
+                .with_metadata("fetched_via", "tavily")
+        })
+        .collect();
 
-        // Create website_snapshot entry and link to page snapshot
-        match WebsiteSnapshot::upsert(pool, website_id_typed, page.url.clone(), None).await {
-            Ok(website_snapshot) => {
-                if let Err(e) = website_snapshot.link_snapshot(pool, page_snapshot.id).await {
-                    warn!(url = %page.url, error = %e, "Failed to link website_snapshot to page_snapshot");
-                }
-            }
-            Err(e) => {
-                warn!(url = %page.url, error = %e, "Failed to create website snapshot");
-            }
-        }
+    // Store in extraction_pages table
+    let stored_count = extraction_service.store_pages(&cached_pages).await?;
 
-        crawled_pages.push(CrawledPageInfo {
+    info!(
+        website_id = %website_id_typed,
+        stored_count = stored_count,
+        "Stored pages in extraction_pages"
+    );
+
+    // Build event payload
+    let crawled_pages: Vec<CrawledPageInfo> = discovered
+        .into_iter()
+        .map(|page| CrawledPageInfo {
             url: page.url,
             title: Some(page.title),
-            snapshot_id: Some(page_snapshot.id),
-        });
-    }
+            snapshot_id: None, // extraction_pages uses URL as key, not UUID
+        })
+        .collect();
 
     let pages_count = crawled_pages.len();
     info!(website_id = %website_id_typed, pages_stored = pages_count, "Emitting WebsitePagesDiscovered");

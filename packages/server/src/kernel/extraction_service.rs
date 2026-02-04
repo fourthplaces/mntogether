@@ -224,6 +224,49 @@ impl<A: AI + Clone> ExtractionService<A> {
     pub async fn ingest_url<I: Ingestor>(&self, url: &str, ingestor: &I) -> Result<IngestResult> {
         self.ingest_urls(&[url.to_string()], ingestor).await
     }
+
+    // =========================================================================
+    // Direct Storage Methods
+    // =========================================================================
+
+    /// Store pages directly without summarization or embedding.
+    ///
+    /// Use this for pages that were fetched externally (e.g., via Tavily search)
+    /// and need to be cached for later processing.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let pages = vec![
+    ///     CachedPage::new(url, site_url, content).with_title(title),
+    /// ];
+    /// extraction_service.store_pages(&pages).await?;
+    /// ```
+    pub async fn store_pages(&self, pages: &[CachedPage]) -> Result<usize> {
+        use extraction::traits::store::PageCache;
+
+        let mut stored = 0;
+        for page in pages {
+            self.index
+                .store()
+                .store_page(page)
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to store page {}: {}", page.url, e))?;
+            stored += 1;
+        }
+        Ok(stored)
+    }
+
+    /// Store a single page directly.
+    pub async fn store_page(&self, page: &CachedPage) -> Result<()> {
+        use extraction::traits::store::PageCache;
+
+        self.index
+            .store()
+            .store_page(page)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to store page {}: {}", page.url, e))
+    }
 }
 
 /// Type alias for OpenAI-backed extraction service.

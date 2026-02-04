@@ -58,7 +58,6 @@
 pub mod actions;
 pub mod effects;
 pub mod events;
-pub mod ingestors;
 pub mod jobs;
 pub mod models;
 
@@ -73,9 +72,6 @@ pub use models::{
 
 // Re-export effects
 pub use effects::crawler_effect;
-
-// Re-export ingestors
-pub use ingestors::PageSnapshotIngestor;
 
 // Re-export jobs
 pub use jobs::{
