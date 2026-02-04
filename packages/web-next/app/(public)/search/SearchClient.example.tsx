@@ -8,7 +8,8 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { graphqlFetchClient, SEARCH_ORGANIZATIONS } from "@/lib/graphql";
+import { graphqlFetchClient } from "@/lib/graphql/client";
+import { SEARCH_ORGANIZATIONS } from "@/lib/graphql/queries";
 import type { SearchOrganizationsResult, OrganizationMatch } from "@/lib/types";
 
 export function SearchClient() {

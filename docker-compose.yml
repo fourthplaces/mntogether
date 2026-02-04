@@ -137,32 +137,13 @@ services:
     restart: unless-stopped
 
   # ========================================
-  # Web App (React + Vite - Public + Admin)
+  # Web App (DEPRECATED - use web-next instead)
   # ========================================
-  web-app:
-    image: node:22-alpine
-    container_name: mndigitalaid_web_app
-    working_dir: /app
-    command: sh -c "corepack enable && corepack prepare yarn@4.12.0 --activate && yarn install && yarn dev --host 0.0.0.0 --port 3001"
-    environment:
-      NODE_ENV: development
-      VITE_API_URL: http://localhost:8080/graphql
-      DOCKER_ENV: "true"
-    ports:
-      - "3001:3001"
-    depends_on:
-      - api
-    volumes:
-      # Mount source for hot-reload
-      - ./packages/web-app:/app
-      # Prevent node_modules from being overwritten
-      - /app/node_modules
-    networks:
-      - mndigitalaid
-    restart: unless-stopped
+  # web-app service removed - migrated to web-next
+  # To restore temporarily, uncomment the web-app section below
 
   # ========================================
-  # Next.js Web (SSR Public Site) - Optional
+  # Next.js Web (Primary Frontend)
   # ========================================
   web-next:
     build:
@@ -170,7 +151,10 @@ services:
       dockerfile: Dockerfile.dev
     container_name: mndigitalaid_web_next
     environment:
+      # Client-side: browser uses localhost to reach API
       NEXT_PUBLIC_API_URL: http://localhost:8080/graphql
+      # Server-side: container uses Docker network to reach API
+      API_URL: http://api:8080/graphql
       NODE_ENV: development
       PORT: 3000
       HOSTNAME: "0.0.0.0"
@@ -188,8 +172,7 @@ services:
     networks:
       - mndigitalaid
     restart: unless-stopped
-    profiles:
-      - full  # Only start with --profile full
+    # Note: profile removed - web-next is now the primary frontend
 
 # ========================================
 # Volumes for data persistence

@@ -85,11 +85,11 @@ logs:
 logs-api:
 	docker compose logs -f api
 
-# View web app logs
+# View web (Next.js) logs
 logs-web:
-	docker compose logs -f web-app
+	docker compose logs -f web-next
 
-# View web-next logs
+# Alias for logs-web
 logs-next:
 	docker compose logs -f web-next
 

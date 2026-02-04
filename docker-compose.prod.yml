@@ -88,22 +88,29 @@ services:
           memory: 512M
 
   # ========================================
-  # Web App (Production Build)
+  # Web App (DEPRECATED - use web-next instead)
   # ========================================
-  web-app:
+  # web-app service removed - migrated to web-next
+
+  # ========================================
+  # Next.js Web (Production Build)
+  # ========================================
+  web-next:
     build:
-      context: ./packages/web-app
-      dockerfile: Dockerfile.prod
+      context: ./packages/web-next
+      dockerfile: Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.yourdomain.com/graphql}
-    container_name: mndigitalaid_web_app_prod
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.yourdomain.com/graphql}
+    container_name: mndigitalaid_web_next_prod
     environment:
       NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: "0.0.0.0"
     ports:
-      - "3001:80"
+      - "3000:3000"
     restart: always
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80"]
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -116,10 +123,10 @@ services:
       resources:
         limits:
           cpus: '1'
-          memory: 512M
+          memory: 1G
         reservations:
           cpus: '0.25'
-          memory: 128M
+          memory: 256M
 
 # ========================================
 # Networks

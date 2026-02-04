@@ -28,7 +28,7 @@ use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
 };
-use crate::server::static_files::serve_web_app;
+// Note: web-app static file serving removed - web-next runs as separate service
 
 // Import effect builder functions from each domain
 use crate::domains::auth::effects::auth_effect;
@@ -268,9 +268,7 @@ pub async fn build_app(
     let app = router
         // Health check (no rate limit)
         .route("/health", get(health_handler))
-        // Static file serving for web app (catch-all, must be last)
-        .route("/", get(serve_web_app))
-        .route("/*path", get(serve_web_app))
+        // Note: web-app static file routes removed - web-next runs as separate service
         // Middleware layers (applied in reverse order - last added runs first)
         .layer(middleware::from_fn(create_graphql_context)) // Create GraphQL context
         .layer(middleware::from_fn(move |req, next| {
