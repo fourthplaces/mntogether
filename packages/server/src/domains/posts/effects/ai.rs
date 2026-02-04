@@ -42,12 +42,7 @@ pub async fn handle_extract_posts(
                 error = %e,
                 "Failed to find source for extraction"
             );
-            ctx.emit(PostEvent::ExtractFailed {
-                source_id,
-                job_id,
-                reason: format!("Failed to find source: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("Failed to find source: {}", e));
         }
     };
 
@@ -81,12 +76,7 @@ pub async fn handle_extract_posts(
                 error = %e,
                 "AI extraction failed"
             );
-            ctx.emit(PostEvent::ExtractFailed {
-                source_id,
-                job_id,
-                reason: format!("AI extraction failed: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!("AI extraction failed: {}", e));
         }
     };
 
@@ -170,11 +160,10 @@ pub async fn handle_extract_posts_from_resource_link(
                 error = %e,
                 "AI extraction from resource link failed"
             );
-            ctx.emit(PostEvent::ResourceLinkScrapeFailed {
-                job_id,
-                reason: format!("AI extraction failed: {}", e),
-            });
-            return Ok(());
+            return Err(anyhow::anyhow!(
+                "AI extraction from resource link failed: {}",
+                e
+            ));
         }
     };
 

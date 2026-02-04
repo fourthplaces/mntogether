@@ -233,9 +233,10 @@ pub trait Ingestor: Send + Sync {
     /// Convenience method that calls `fetch_specific` with one URL.
     async fn fetch_one(&self, url: &str) -> CrawlResult<RawPage> {
         let pages = self.fetch_specific(&[url.to_string()]).await?;
-        pages.into_iter().next().ok_or_else(|| CrawlError::Http(
-            format!("Failed to fetch {}", url).into()
-        ))
+        pages
+            .into_iter()
+            .next()
+            .ok_or_else(|| CrawlError::Http(format!("Failed to fetch {}", url).into()))
     }
 
     /// Get the ingestor name (for logging/debugging).
@@ -369,7 +370,10 @@ mod tests {
         assert_eq!(config.max_depth, 3);
         assert!(config.include_patterns.contains(&"*/blog/*".to_string()));
         assert!(config.exclude_patterns.contains(&"*/admin/*".to_string()));
-        assert_eq!(config.options.get("scrape_formats"), Some(&"markdown".to_string()));
+        assert_eq!(
+            config.options.get("scrape_formats"),
+            Some(&"markdown".to_string())
+        );
     }
 
     #[test]

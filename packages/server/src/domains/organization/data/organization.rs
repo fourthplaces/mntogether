@@ -1,6 +1,8 @@
 use crate::common::OrganizationId;
 use crate::domains::organization::data::WebsiteData;
 use crate::domains::organization::models::Organization;
+use crate::domains::posts::data::types::ContactInfo;
+use crate::domains::tag::TagData;
 use crate::kernel::tag::Tag;
 use crate::server::graphql::context::GraphQLContext;
 use serde::{Deserialize, Serialize};
@@ -17,20 +19,6 @@ pub struct OrganizationData {
     pub verified: bool,
     pub created_at: String,
     pub updated_at: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactInfo {
-    pub email: Option<String>,
-    pub phone: Option<String>,
-    pub website: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct TagData {
-    pub id: String,
-    pub kind: String,
-    pub value: String,
 }
 
 impl From<Organization> for OrganizationData {
@@ -51,16 +39,6 @@ impl From<Organization> for OrganizationData {
             verified: org.verified,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
-        }
-    }
-}
-
-impl From<Tag> for TagData {
-    fn from(tag: Tag) -> Self {
-        Self {
-            id: tag.id.to_string(),
-            kind: tag.kind,
-            value: tag.value,
         }
     }
 }
@@ -121,36 +99,6 @@ impl OrganizationData {
         }
 
         Ok(None)
-    }
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl ContactInfo {
-    fn email(&self) -> Option<String> {
-        self.email.clone()
-    }
-
-    fn phone(&self) -> Option<String> {
-        self.phone.clone()
-    }
-
-    fn website(&self) -> Option<String> {
-        self.website.clone()
-    }
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl TagData {
-    fn id(&self) -> String {
-        self.id.clone()
-    }
-
-    fn kind(&self) -> String {
-        self.kind.clone()
-    }
-
-    fn value(&self) -> String {
-        self.value.clone()
     }
 }
 

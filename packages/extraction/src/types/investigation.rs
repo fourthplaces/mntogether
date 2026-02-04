@@ -240,7 +240,10 @@ impl InvestigationPlan {
     }
 
     /// Get steps by action type.
-    pub fn steps_by_action<'a>(&'a self, action_type: &'a str) -> impl Iterator<Item = &'a InvestigationStep> {
+    pub fn steps_by_action<'a>(
+        &'a self,
+        action_type: &'a str,
+    ) -> impl Iterator<Item = &'a InvestigationStep> {
         self.steps
             .iter()
             .filter(move |s| s.recommended_action.action_type() == action_type)
@@ -421,10 +424,7 @@ mod tests {
             GapType::classify("what services do they offer"),
             GapType::Semantic
         );
-        assert_eq!(
-            GapType::classify("phone number: 555-1234"),
-            GapType::Entity
-        );
+        assert_eq!(GapType::classify("phone number: 555-1234"), GapType::Entity);
     }
 
     #[test]

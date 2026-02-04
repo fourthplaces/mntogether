@@ -40,7 +40,11 @@ pub struct CachedPage {
 
 impl CachedPage {
     /// Create a new cached page.
-    pub fn new(url: impl Into<String>, site_url: impl Into<String>, content: impl Into<String>) -> Self {
+    pub fn new(
+        url: impl Into<String>,
+        site_url: impl Into<String>,
+        content: impl Into<String>,
+    ) -> Self {
         let content = content.into();
         let content_hash = Self::hash_content(&content);
 
@@ -219,12 +223,8 @@ mod tests {
 
     #[test]
     fn test_is_stale() {
-        let old_page = CachedPage::new(
-            "https://example.com",
-            "https://example.com",
-            "content",
-        )
-        .with_fetched_at(Utc::now() - chrono::Duration::hours(25));
+        let old_page = CachedPage::new("https://example.com", "https://example.com", "content")
+            .with_fetched_at(Utc::now() - chrono::Duration::hours(25));
 
         assert!(old_page.is_stale(chrono::Duration::hours(24)));
         assert!(!old_page.is_stale(chrono::Duration::hours(48)));

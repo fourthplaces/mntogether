@@ -46,7 +46,10 @@ pub mod data;
 pub mod events;
 
 // Re-exports
-pub use actions::{ingest_site, submit_url, submit_url_one, trigger_extraction, trigger_extraction_one, IngestSiteResult};
+pub use actions::{
+    ingest_site, submit_url, submit_url_one, trigger_extraction, trigger_extraction_one,
+    IngestSiteResult,
+};
 pub use data::{
     ConflictData, ConflictingClaimData, ExtractionData, ExtractionStatusData, GapData,
     GroundingGradeData, SourceData, SourceRoleData, SubmitUrlInput, SubmitUrlResult,

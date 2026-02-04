@@ -19,7 +19,8 @@ pub enum SendOtpResult {
 /// Send OTP to phone number or email via Twilio.
 ///
 /// Called directly from GraphQL mutation via `process()`.
-/// Emits `OTPSent` or `PhoneNotRegistered` fact event.
+/// Emits `OTPSent` fact event on success.
+/// Returns `SendOtpResult::NotRegistered` if phone not registered (not an event).
 pub async fn send_otp(
     phone_number: String,
     ctx: &EffectContext<AppState, ServerDeps>,
@@ -75,9 +76,6 @@ pub async fn send_otp(
             );
         } else {
             info!("Identifier not registered: {}", phone_number);
-            ctx.emit(AuthEvent::PhoneNotRegistered {
-                phone_number: phone_number.clone(),
-            });
             return Ok(SendOtpResult::NotRegistered);
         }
     }

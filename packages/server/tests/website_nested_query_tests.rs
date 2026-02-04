@@ -8,9 +8,9 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
+use extraction::{MockIngestor, RawPage};
 use server_core::common::{MemberId, WebsiteId};
 use server_core::domains::website::models::Website;
-use extraction::{MockIngestor, RawPage};
 use server_core::kernel::test_dependencies::{MockAI, TestDependencies};
 use test_context::test_context;
 use uuid::Uuid;
@@ -38,8 +38,10 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 #[tokio::test]
 async fn query_website_with_snapshots(ctx: &TestHarness) {
     // Arrange: Set up mocked external services
-    let mock_ingestor = MockIngestor::new()
-        .with_page(RawPage::new("https://test-nested.org", "# Food Bank\n\nWe provide food assistance to families in need."));
+    let mock_ingestor = MockIngestor::new().with_page(RawPage::new(
+        "https://test-nested.org",
+        "# Food Bank\n\nWe provide food assistance to families in need.",
+    ));
 
     let mock_ai = MockAI::new()
         .with_response(r#"[]"#) // Empty array - AI extraction expects a sequence

@@ -202,10 +202,9 @@ impl MockAI {
 #[async_trait]
 impl AI for MockAI {
     async fn summarize(&self, _content: &str, url: &str) -> Result<SummaryResponse> {
-        self.calls
-            .write()
-            .unwrap()
-            .push(MockAICall::Summarize { url: url.to_string() });
+        self.calls.write().unwrap().push(MockAICall::Summarize {
+            url: url.to_string(),
+        });
 
         // Return predefined summary or generate default
         Ok(self
@@ -218,12 +217,9 @@ impl AI for MockAI {
     }
 
     async fn expand_query(&self, query: &str) -> Result<Vec<String>> {
-        self.calls
-            .write()
-            .unwrap()
-            .push(MockAICall::ExpandQuery {
-                query: query.to_string(),
-            });
+        self.calls.write().unwrap().push(MockAICall::ExpandQuery {
+            query: query.to_string(),
+        });
 
         // Return predefined expansion or generate default
         Ok(self
@@ -242,12 +238,9 @@ impl AI for MockAI {
     }
 
     async fn classify_query(&self, query: &str) -> Result<ExtractionStrategy> {
-        self.calls
-            .write()
-            .unwrap()
-            .push(MockAICall::ClassifyQuery {
-                query: query.to_string(),
-            });
+        self.calls.write().unwrap().push(MockAICall::ClassifyQuery {
+            query: query.to_string(),
+        });
 
         // Return override or default to Collection
         Ok(self
@@ -264,13 +257,10 @@ impl AI for MockAI {
         query: &str,
         summaries: &[Summary],
     ) -> Result<Vec<Partition>> {
-        self.calls
-            .write()
-            .unwrap()
-            .push(MockAICall::Partition {
-                query: query.to_string(),
-                summary_count: summaries.len(),
-            });
+        self.calls.write().unwrap().push(MockAICall::Partition {
+            query: query.to_string(),
+            summary_count: summaries.len(),
+        });
 
         // Return predefined partitions or generate default (one partition per summary)
         Ok(self
@@ -415,10 +405,9 @@ impl Crawler for MockCrawler {
     }
 
     async fn fetch(&self, url: &str) -> CrawlResult<CrawledPage> {
-        self.calls
-            .write()
-            .unwrap()
-            .push(MockCrawlerCall::Fetch { url: url.to_string() });
+        self.calls.write().unwrap().push(MockCrawlerCall::Fetch {
+            url: url.to_string(),
+        });
 
         // Check if should fail
         if self.fail_urls.read().unwrap().contains(&url.to_string()) {
@@ -434,7 +423,9 @@ impl Crawler for MockCrawler {
             .unwrap()
             .get(url)
             .cloned()
-            .ok_or_else(|| CrawlError::InvalidUrl { url: url.to_string() })
+            .ok_or_else(|| CrawlError::InvalidUrl {
+                url: url.to_string(),
+            })
     }
 }
 
@@ -500,7 +491,10 @@ mod tests {
             },
         );
 
-        let result = ai.summarize("content", "https://example.com").await.unwrap();
+        let result = ai
+            .summarize("content", "https://example.com")
+            .await
+            .unwrap();
         assert_eq!(result.summary, "Test summary");
 
         // Check call was recorded
@@ -560,11 +554,17 @@ mod tests {
             .build();
 
         // Crawler should have the pages
-        let page = crawler.fetch("https://nonprofit.org/volunteer").await.unwrap();
+        let page = crawler
+            .fetch("https://nonprofit.org/volunteer")
+            .await
+            .unwrap();
         assert!(page.content.contains("Volunteer"));
 
         // AI should work with defaults
-        let summary = ai.summarize("content", "https://nonprofit.org").await.unwrap();
+        let summary = ai
+            .summarize("content", "https://nonprofit.org")
+            .await
+            .unwrap();
         assert!(!summary.summary.is_empty());
     }
 }

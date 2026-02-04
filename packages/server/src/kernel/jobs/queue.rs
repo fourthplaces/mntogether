@@ -5,15 +5,15 @@
 
 use std::sync::Arc;
 
-use anyhow::{Result, anyhow};
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{de::DeserializeOwned, Serialize};
 use tracing::info;
 use uuid::Uuid;
 
 use super::job::{ErrorKind, Job, JobPriority};
-use crate::common::sql::Record;
+use super::record::Record;
 use crate::kernel::ServerKernel;
 
 /// Result type for enqueue operations that handles idempotency.
@@ -211,7 +211,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(key)
-        .fetch_optional(&self.kernel.db_connection)
+        .fetch_optional(&self.kernel.db_pool)
         .await?;
 
         Ok(job)
@@ -222,6 +222,7 @@ impl PostgresJobQueue {
         &self,
         payload: serde_json::Value,
         job_type: &str,
+        reference_id: Option<Uuid>,
         idempotency_key: Option<String>,
         command_version: i32,
         priority: JobPriority,
@@ -259,7 +260,7 @@ impl PostgresJobQueue {
     /// Mark a job as successfully completed.
     pub async fn mark_succeeded(&self, job_id: Uuid) -> Result<()> {
         // Fetch the job to check if it's recurring
-        let job = Job::find_by_id(job_id, &self.kernel.db_connection).await?;
+        let job = Job::find_by_id(job_id, &self.kernel.db_pool).await?;
 
         // Handle recurring jobs - schedule next occurrence
         if job.frequency.is_some() {
@@ -285,7 +286,7 @@ impl PostgresJobQueue {
                 .bind(next_run)
                 .bind(format!("{}:{}", job.reference_id, next_run.timestamp()))
                 .bind(job_id)
-                .execute(&self.kernel.db_connection)
+                .execute(&self.kernel.db_pool)
                 .await?;
 
                 info!(
@@ -308,7 +309,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(job_id)
-        .execute(&self.kernel.db_connection)
+        .execute(&self.kernel.db_pool)
         .await?;
 
         Ok(())
@@ -317,7 +318,7 @@ impl PostgresJobQueue {
     /// Mark a job as failed with an error.
     pub async fn mark_failed(&self, job_id: Uuid, error: &str, kind: ErrorKind) -> Result<()> {
         // Fetch current job state
-        let job = Job::find_by_id(job_id, &self.kernel.db_connection).await?;
+        let job = Job::find_by_id(job_id, &self.kernel.db_pool).await?;
 
         if kind.should_retry() && job.retry_count < job.max_retries {
             // Schedule retry with exponential backoff
@@ -341,7 +342,7 @@ impl PostgresJobQueue {
             .bind(error)
             .bind(kind)
             .bind(job_id)
-            .execute(&self.kernel.db_connection)
+            .execute(&self.kernel.db_pool)
             .await?;
         } else {
             // No retries left - dead letter
@@ -360,7 +361,7 @@ impl PostgresJobQueue {
             .bind(error)
             .bind(kind)
             .bind(job_id)
-            .execute(&self.kernel.db_connection)
+            .execute(&self.kernel.db_pool)
             .await?;
         }
 
@@ -379,7 +380,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(job_id)
-        .execute(&self.kernel.db_connection)
+        .execute(&self.kernel.db_pool)
         .await?;
 
         Ok(result.rows_affected() > 0)
@@ -397,7 +398,7 @@ impl PostgresJobQueue {
         )
         .bind(self.default_lease_ms.to_string())
         .bind(job_id)
-        .execute(&self.kernel.db_connection)
+        .execute(&self.kernel.db_pool)
         .await?;
 
         Ok(())
@@ -500,29 +501,6 @@ impl PostgresJobQueue {
 
         // Insert (let DB handle idempotency constraint as backup)
         let inserted = job.insert(&self.kernel).await?;
-
-        // In test mode, also notify the TestJobManager for test assertions
-        if self.kernel.test_mode {
-            use super::manager::ScheduleOptions;
-
-            let test_options = ScheduleOptions::builder()
-                .reference_id(reference_id.unwrap_or(inserted.id))
-                .job_type(command_type)
-                .run_at(run_at)
-                .container_id(container_id)
-                .build();
-
-            // The job_manager schedule will store it in memory for TestJobManager
-            let _ = self.kernel.job_manager.schedule(test_options).await;
-        }
-
-        // Publish to NATS for job workers
-        let subject = format!("jobs.{}", command_type);
-        let payload = serde_json::to_vec(&inserted)?;
-        self.kernel
-            .nats_publisher
-            .publish(subject, payload.into())
-            .await?;
 
         Ok(EnqueueResult::Created(inserted.id))
     }

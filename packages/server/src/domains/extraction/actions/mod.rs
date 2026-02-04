@@ -3,10 +3,10 @@
 //! These actions provide the interface between GraphQL and the extraction library.
 
 use anyhow::{Context, Result};
-use extraction::{CrawlConfig, HttpCrawler, IngestConfig};
+use extraction::DiscoverConfig;
 use tracing::info;
 
-use crate::kernel::ServerDeps;
+use crate::kernel::{HttpIngestor, ServerDeps, ValidatedIngestor};
 
 // =============================================================================
 // URL Submission
@@ -32,24 +32,21 @@ pub async fn submit_url(
     info!(url = %url, "Submitting URL for extraction");
 
     // Get the extraction service
-    let extraction_service = deps
-        .extraction
-        .as_ref()
-        .context("Extraction service not configured")?;
+    let extraction_service = &deps.extraction;
 
-    // Create a crawler for fetching the page
-    let crawler = HttpCrawler::new();
-
-    // Ingest the URL into the extraction index
+    // Ingest the URL using the new Ingestor pattern
+    let ingestor = ValidatedIngestor::new(HttpIngestor::new());
     extraction_service
-        .index()
-        .ingest_url(url, &crawler)
+        .ingest_url(url, &ingestor)
         .await
         .map_err(|e| anyhow::anyhow!("Failed to ingest URL: {}", e))?;
 
     // Extract the site from the URL for filtering
     let site = extract_site(url);
-    let default_query = "events, services, programs, or volunteer opportunities";
+    let default_query = "Extract all volunteer opportunities, services, programs, and events with comprehensive details. \
+For each item include: full title, detailed description, contact information \
+(phone, email, website), physical location/address, schedule/hours, \
+eligibility requirements, and how to sign up or get involved.";
     let extraction_query = query.unwrap_or(default_query);
 
     // Run extraction on the ingested content
@@ -105,10 +102,7 @@ pub async fn trigger_extraction(
 ) -> Result<Vec<extraction::Extraction>> {
     info!(query = %query, site = ?site, "Triggering extraction");
 
-    let extraction_service = deps
-        .extraction
-        .as_ref()
-        .context("Extraction service not configured")?;
+    let extraction_service = &deps.extraction;
 
     let extractions = extraction_service
         .extract(query, site)
@@ -131,9 +125,10 @@ pub async fn trigger_extraction_one(
     deps: &ServerDeps,
 ) -> Result<extraction::Extraction> {
     let extractions = trigger_extraction(query, site, deps).await?;
-    Ok(extractions.into_iter().next().unwrap_or_else(|| {
-        extraction::Extraction::new("No matching content found.".to_string())
-    }))
+    Ok(extractions
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| extraction::Extraction::new("No matching content found.".to_string())))
 }
 
 // =============================================================================
@@ -158,22 +153,16 @@ pub async fn ingest_site(
 ) -> Result<IngestSiteResult> {
     info!(site_url = %site_url, max_pages = ?max_pages, "Ingesting site");
 
-    let extraction_service = deps
-        .extraction
-        .as_ref()
-        .context("Extraction service not configured")?;
+    let extraction_service = &deps.extraction;
 
-    let crawler = HttpCrawler::new();
-
-    // Configure ingestion with crawl settings
-    let config = IngestConfig::new(site_url)
-        .with_crawl(CrawlConfig::new(site_url).with_max_pages(max_pages.unwrap_or(50) as usize));
-
-    // Get store and AI from the index
-    let index = extraction_service.index();
+    // Use the new Ingestor pattern
+    let ingestor = ValidatedIngestor::new(HttpIngestor::new());
+    let discover_config =
+        DiscoverConfig::new(site_url).with_limit(max_pages.unwrap_or(50) as usize);
 
     // Run ingestion
-    let result = extraction::ingest(site_url, &config, index.store(), index.ai(), &crawler)
+    let result = extraction_service
+        .ingest(&discover_config, &ingestor)
         .await
         .map_err(|e| anyhow::anyhow!("Site ingestion failed: {}", e))?;
 

@@ -126,7 +126,10 @@ pub async fn summarize_pages(
 ///
 /// # Deprecated
 /// Use `extraction::CachedPage::hash_content()` instead.
-#[deprecated(since = "0.1.0", note = "Use extraction::CachedPage::hash_content() instead")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction::CachedPage::hash_content() instead"
+)]
 pub fn hash_content(content: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(content.as_bytes());

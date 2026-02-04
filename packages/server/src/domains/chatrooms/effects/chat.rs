@@ -55,13 +55,6 @@ pub fn chat_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 }
                 Ok(())
             }
-
-            // =================================================================
-            // Terminal events - no cascade needed
-            // =================================================================
-            ChatEvent::MessageFailed { .. }
-            | ChatEvent::ReplyGenerationFailed { .. }
-            | ChatEvent::GreetingGenerationFailed { .. } => Ok(()),
         }
     })
 }

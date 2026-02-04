@@ -49,7 +49,7 @@ pub struct DuplicateGroup {
 
 /// Result of LLM deduplication analysis
 #[derive(Debug, Clone, Deserialize)]
-pub struct DeduplicationResult {
+pub struct DuplicateAnalysis {
     /// Groups of duplicate posts
     pub duplicate_groups: Vec<DuplicateGroup>,
     /// Post IDs that are unique (no duplicates found)
@@ -58,12 +58,12 @@ pub struct DeduplicationResult {
 
 /// Analyze posts for a website using LLM to identify duplicates
 ///
-/// Returns a DeduplicationResult with groups of duplicates and unique posts.
+/// Returns a DuplicateAnalysis with groups of duplicates and unique posts.
 pub async fn deduplicate_posts_llm(
     website_id: WebsiteId,
     ai: &dyn BaseAI,
     pool: &PgPool,
-) -> Result<DeduplicationResult> {
+) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this website
     let posts = Post::find_active_by_website(website_id, pool).await?;
 
@@ -73,7 +73,7 @@ pub async fn deduplicate_posts_llm(
             posts_count = posts.len(),
             "Too few posts to deduplicate"
         );
-        return Ok(DeduplicationResult {
+        return Ok(DuplicateAnalysis {
             duplicate_groups: vec![],
             unique_post_ids: posts.iter().map(|p| p.id.as_uuid().to_string()).collect(),
         });
@@ -105,7 +105,7 @@ pub async fn deduplicate_posts_llm(
     // Build the prompt
     let posts_json = serde_json::to_string_pretty(&posts_for_dedup)?;
 
-    let result: DeduplicationResult = ai
+    let result: DuplicateAnalysis = ai
         .request()
         .model("gpt-5")
         .system(DEDUP_SYSTEM_PROMPT)
@@ -137,7 +137,7 @@ pub async fn deduplicate_posts_llm(
 ///
 /// Returns the count of posts soft-deleted.
 pub async fn apply_dedup_results(
-    result: DeduplicationResult,
+    result: DuplicateAnalysis,
     ai: &dyn BaseAI,
     pool: &PgPool,
 ) -> Result<usize> {
@@ -398,7 +398,7 @@ mod tests {
             "unique_post_ids": ["123e4567-e89b-12d3-a456-426614174002"]
         }"#;
 
-        let result: DeduplicationResult = serde_json::from_str(json).unwrap();
+        let result: DuplicateAnalysis = serde_json::from_str(json).unwrap();
         assert_eq!(result.duplicate_groups.len(), 1);
         assert_eq!(result.unique_post_ids.len(), 1);
         assert_eq!(result.duplicate_groups[0].duplicate_ids.len(), 1);

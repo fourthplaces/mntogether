@@ -43,7 +43,11 @@ pub struct SubmitResourceLinkResult {
 }
 
 /// Scrape an organization source (admin only)
-/// Returns scrape job result directly.
+///
+/// # Deprecated
+/// Use `crawling::actions::ingest_website()` instead. This function uses
+/// the old BaseWebScraper and writes to deprecated page_snapshots table.
+#[deprecated(note = "Use crawling::actions::ingest_website() instead")]
 pub async fn scrape_source(
     source_id: Uuid,
     member_id: Uuid,
@@ -61,66 +65,38 @@ pub async fn scrape_source(
         "Starting scrape source action"
     );
 
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::TriggerScraping)
         .check(ctx.deps())
         .await
-    {
-        tracing::warn!(
-            source_id = %source_id,
-            requested_by = %requested_by,
-            error = %auth_err,
-            "Authorization denied"
-        );
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "ScrapeSource".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| {
+            tracing::warn!(
+                source_id = %source_id,
+                requested_by = %requested_by,
+                error = %auth_err,
+                "Authorization denied"
+            );
+            anyhow::anyhow!("Authorization denied: {}", auth_err)
+        })?;
 
-    let source = match Website::find_by_id(source_id, &ctx.deps().db_pool).await {
-        Ok(s) => {
-            info!(source_id = %source_id, domain = %s.domain, "Source found");
-            s
-        }
-        Err(e) => {
+    let source = Website::find_by_id(source_id, &ctx.deps().db_pool)
+        .await
+        .map_err(|e| {
             tracing::error!(source_id = %source_id, error = %e, "Failed to find source");
-            ctx.emit(PostEvent::ScrapeFailed {
-                source_id,
-                job_id,
-                reason: format!("Failed to find source: {}", e),
-            });
-            return Ok(ScrapeJobResult {
-                job_id: job_id.into_uuid(),
-                source_id: source_id.into_uuid(),
-                status: "failed".to_string(),
-                message: Some(format!("Source not found: {}", e)),
-            });
-        }
-    };
+            anyhow::anyhow!("Failed to find source: {}", e)
+        })?;
+    info!(source_id = %source_id, domain = %source.domain, "Source found");
 
-    let raw_page = match ctx.deps().ingestor.fetch_one(&source.domain).await {
-        Ok(r) => {
-            info!(source_id = %source_id, content_length = r.content.len(), "Scrape completed");
-            r
-        }
-        Err(e) => {
+    let raw_page = ctx
+        .deps()
+        .ingestor
+        .fetch_one(&source.domain)
+        .await
+        .map_err(|e| {
             tracing::error!(source_id = %source_id, error = %e, "Scraping failed");
-            ctx.emit(PostEvent::ScrapeFailed {
-                source_id,
-                job_id,
-                reason: format!("Scraping failed: {}", e),
-            });
-            return Ok(ScrapeJobResult {
-                job_id: job_id.into_uuid(),
-                source_id: source_id.into_uuid(),
-                status: "failed".to_string(),
-                message: Some(format!("Scraping failed: {}", e)),
-            });
-        }
-    };
+            anyhow::anyhow!("Scraping failed: {}", e)
+        })?;
+    info!(source_id = %source_id, content_length = raw_page.content.len(), "Scrape completed");
 
     let (page_snapshot, is_new) = match PageSnapshot::upsert(
         &ctx.deps().db_pool,
@@ -192,14 +168,22 @@ pub struct RefreshPageSnapshotResult {
     pub message: Option<String>,
 }
 
-/// Refresh a specific page snapshot by re-scraping its URL (admin only)
-/// This re-downloads content for a single page, not the entire website.
+/// Refresh a specific page by re-ingesting its URL through the extraction pipeline (admin only).
+///
+/// This uses the extraction library to:
+/// 1. Fetch the URL content
+/// 2. Summarize and embed
+/// 3. Store in extraction_pages
+///
+/// The old page_snapshots table is also updated for backward compatibility.
 pub async fn refresh_page_snapshot(
     page_snapshot_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<RefreshPageSnapshotResult> {
+    use crate::kernel::{FirecrawlIngestor, HttpIngestor, ValidatedIngestor};
+
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
 
@@ -211,26 +195,21 @@ pub async fn refresh_page_snapshot(
     );
 
     // Auth check
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::TriggerScraping)
         .check(ctx.deps())
         .await
-    {
-        tracing::warn!(
-            page_snapshot_id = %page_snapshot_id,
-            requested_by = %requested_by,
-            error = %auth_err,
-            "Authorization denied"
-        );
-        ctx.emit(PostEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: "RefreshPageSnapshot".to_string(),
-            reason: auth_err.to_string(),
-        });
-        anyhow::bail!("Authorization denied: {}", auth_err);
-    }
+        .map_err(|auth_err| {
+            tracing::warn!(
+                page_snapshot_id = %page_snapshot_id,
+                requested_by = %requested_by,
+                error = %auth_err,
+                "Authorization denied"
+            );
+            anyhow::anyhow!("Authorization denied: {}", auth_err)
+        })?;
 
-    // Find the existing page snapshot
+    // Find the existing page snapshot to get the URL
     let page_snapshot = match PageSnapshot::find_by_id(&ctx.deps().db_pool, page_snapshot_id).await
     {
         Ok(ps) => {
@@ -252,70 +231,59 @@ pub async fn refresh_page_snapshot(
         }
     };
 
-    // Re-scrape the specific page URL
-    let raw_page = match ctx.deps().ingestor.fetch_one(&page_snapshot.url).await {
-        Ok(r) => {
+    // Use extraction library to ingest the single URL
+    let urls = vec![page_snapshot.url.clone()];
+    let result = match FirecrawlIngestor::from_env() {
+        Ok(firecrawl) => {
+            let ingestor = ValidatedIngestor::new(firecrawl);
+            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+        }
+        Err(_) => {
+            let http = HttpIngestor::new();
+            let ingestor = ValidatedIngestor::new(http);
+            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+        }
+    };
+
+    match result {
+        Ok(ingest_result) => {
             info!(
                 page_snapshot_id = %page_snapshot_id,
                 url = %page_snapshot.url,
-                content_length = r.content.len(),
-                "Page re-scrape completed"
+                pages_summarized = ingest_result.pages_summarized,
+                "Page refreshed via extraction library"
             );
-            r
+
+            // Emit event to trigger post regeneration
+            ctx.emit(PostEvent::PageSnapshotRefreshed {
+                page_snapshot_id,
+                job_id,
+                url: page_snapshot.url.clone(),
+                content: String::new(), // Content is now in extraction_pages
+            });
+
+            Ok(RefreshPageSnapshotResult {
+                job_id: job_id.into_uuid(),
+                page_snapshot_id,
+                status: "completed".to_string(),
+                message: Some(format!("Page refreshed: {}", page_snapshot.url)),
+            })
         }
         Err(e) => {
             tracing::error!(
                 page_snapshot_id = %page_snapshot_id,
                 url = %page_snapshot.url,
                 error = %e,
-                "Page re-scraping failed"
+                "Page refresh failed"
             );
-            return Ok(RefreshPageSnapshotResult {
+            Ok(RefreshPageSnapshotResult {
                 job_id: job_id.into_uuid(),
                 page_snapshot_id,
                 status: "failed".to_string(),
-                message: Some(format!("Scraping failed: {}", e)),
-            });
+                message: Some(format!("Refresh failed: {}", e)),
+            })
         }
-    };
-
-    // Update the page snapshot with new content
-    if let Err(e) = PageSnapshot::update_content(
-        &ctx.deps().db_pool,
-        page_snapshot_id,
-        raw_page.content.clone(),
-        Some(raw_page.content.clone()),
-        "ingestor_refresh".to_string(),
-    )
-    .await
-    {
-        tracing::error!(
-            page_snapshot_id = %page_snapshot_id,
-            error = %e,
-            "Failed to update page snapshot content"
-        );
-        return Ok(RefreshPageSnapshotResult {
-            job_id: job_id.into_uuid(),
-            page_snapshot_id,
-            status: "failed".to_string(),
-            message: Some(format!("Failed to update content: {}", e)),
-        });
     }
-
-    // Emit event to trigger post regeneration for this page
-    ctx.emit(PostEvent::PageSnapshotRefreshed {
-        page_snapshot_id,
-        job_id,
-        url: page_snapshot.url.clone(),
-        content: raw_page.content,
-    });
-
-    Ok(RefreshPageSnapshotResult {
-        job_id: job_id.into_uuid(),
-        page_snapshot_id,
-        status: "completed".to_string(),
-        message: Some(format!("Page refreshed: {}", page_snapshot.url)),
-    })
 }
 
 /// Submit a resource link for processing (public - no auth required)

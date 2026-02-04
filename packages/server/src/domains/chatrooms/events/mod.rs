@@ -13,6 +13,9 @@ use crate::common::{ContainerId, IntoNatsPayload, MemberId, MessageId};
 use crate::domains::chatrooms::models::{Container, Message};
 
 /// Chat domain events - FACT EVENTS ONLY
+///
+/// NOTE: Failed events have been removed (MessageFailed, ReplyGenerationFailed, GreetingGenerationFailed).
+/// Errors go in Result::Err, not in events. Events are for successful state changes.
 #[derive(Debug, Clone)]
 pub enum ChatEvent {
     /// Container was created
@@ -24,25 +27,6 @@ pub enum ChatEvent {
 
     /// Message was created
     MessageCreated { message: Message },
-
-    /// Message creation failed
-    MessageFailed {
-        container_id: ContainerId,
-        reason: String,
-    },
-
-    /// AI reply generation failed
-    ReplyGenerationFailed {
-        message_id: MessageId,
-        container_id: ContainerId,
-        reason: String,
-    },
-
-    /// AI greeting generation failed
-    GreetingGenerationFailed {
-        container_id: ContainerId,
-        reason: String,
-    },
 }
 
 /// Agent messaging events (pure effect pattern).
@@ -117,11 +101,6 @@ impl IntoNatsPayload for ChatEvent {
             // Fact events with container_id are published
             ChatEvent::ContainerCreated { container, .. } => Some(container.id.into()),
             ChatEvent::MessageCreated { message } => Some(message.container_id.into()),
-            ChatEvent::MessageFailed { container_id, .. } => Some((*container_id).into()),
-            ChatEvent::ReplyGenerationFailed { container_id, .. } => Some((*container_id).into()),
-            ChatEvent::GreetingGenerationFailed { container_id, .. } => {
-                Some((*container_id).into())
-            }
         }
     }
 

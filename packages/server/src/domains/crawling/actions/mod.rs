@@ -10,6 +10,7 @@
 pub mod authorization;
 pub mod build_pages;
 pub mod ingest_website;
+pub mod post_extraction;
 pub mod regenerate_page;
 pub mod sync_posts;
 pub mod website_context;
@@ -65,14 +66,15 @@ pub struct CrawlJobResult {
 pub async fn crawl_website(
     website_id: Uuid,
     member_id: Uuid,
-    is_admin: bool,
+    _is_admin: bool,
     ctx: &EffectContext<AppState, ServerDeps>,
 ) -> Result<CrawlJobResult> {
     // Delegate to ingest_website with Firecrawl disabled (basic HTTP crawling)
-    ingest_website(website_id, member_id, is_admin, false, ctx).await
+    // Note: is_admin is obtained from ctx.next_state() inside ingest_website
+    ingest_website(website_id, member_id, false, ctx).await
 }
 
-/// Regenerate posts from existing page snapshots
+/// Regenerate posts from existing pages in extraction library.
 /// Returns job result directly.
 pub async fn regenerate_posts(
     website_id: Uuid,
@@ -84,66 +86,41 @@ pub async fn regenerate_posts(
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
 
-    // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "RegeneratePosts", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    // Auth check - returns error, not event
+    check_crawl_authorization(requested_by, is_admin, "RegeneratePosts", ctx.deps()).await?;
 
     // Fetch approved website
-    if fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
+    let _website = fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
         .await
-        .is_none()
-    {
-        ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-            website_id: website_id_typed,
-            job_id,
-            reason: "Website not found or not approved".to_string(),
-        });
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "failed".to_string(),
-            message: Some("Website not found or not approved".to_string()),
-        });
+        .ok_or_else(|| anyhow::anyhow!("Website not found or not approved"))?;
+
+    // Count pages in extraction library to verify we have something to process
+    let page_count = crate::domains::crawling::models::ExtractionPage::count_by_domain(
+        &_website.domain,
+        &ctx.deps().db_pool,
+    )
+    .await?;
+
+    if page_count == 0 {
+        return Err(anyhow::anyhow!(
+            "No pages found in extraction library. Run a full crawl first."
+        ));
     }
 
-    // Get existing snapshots as crawled pages
-    let crawled_pages =
-        fetch_snapshots_as_crawled_pages(website_id_typed, &ctx.deps().db_pool).await;
-    if crawled_pages.is_empty() {
-        ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-            website_id: website_id_typed,
-            job_id,
-            reason: "No page snapshots found. Run a full crawl first.".to_string(),
-        });
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "failed".to_string(),
-            message: Some("No page snapshots found".to_string()),
-        });
-    }
+    info!(website_id = %website_id_typed, pages_count = page_count, "Triggering post regeneration");
 
-    info!(website_id = %website_id_typed, pages_count = crawled_pages.len(), "Triggering extraction");
-    ctx.emit(CrawlEvent::WebsiteCrawled {
+    // Emit fact event - posts are being regenerated from existing pages
+    ctx.emit(CrawlEvent::WebsitePostsRegenerated {
         website_id: website_id_typed,
         job_id,
-        pages: crawled_pages,
+        pages_processed: page_count,
     });
 
     Ok(CrawlJobResult {
         job_id: job_id.into_uuid(),
         website_id,
         status: "completed".to_string(),
-        message: Some("Regeneration completed".to_string()),
+        message: Some(format!("Regeneration triggered for {} pages", page_count)),
     })
 }
 
@@ -160,40 +137,18 @@ pub async fn regenerate_page_summaries(
     let job_id = JobId::new();
 
     // Auth check
-    if let Err(event) = check_crawl_authorization(
+    check_crawl_authorization(
         requested_by,
         is_admin,
         "RegeneratePageSummaries",
         ctx.deps(),
     )
-    .await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    .await?;
 
     // Fetch approved website
-    if fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
+    fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
         .await
-        .is_none()
-    {
-        ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-            website_id: website_id_typed,
-            job_id,
-            reason: "Website not found or not approved".to_string(),
-        });
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "failed".to_string(),
-            message: Some("Website not found or not approved".to_string()),
-        });
-    }
+        .ok_or_else(|| anyhow::anyhow!("Website not found or not approved"))?;
 
     // Get snapshots and delete cached summaries
     let crawled_pages =
@@ -206,60 +161,19 @@ pub async fn regenerate_page_summaries(
 
     // Build pages to summarize
     let (pages_to_summarize, _) =
-        match build_pages_to_summarize(&crawled_pages, &ctx.deps().db_pool).await {
-            Ok(result) => result,
-            Err(e) => {
-                ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                    website_id: website_id_typed,
-                    job_id,
-                    reason: format!("Failed to build pages: {}", e),
-                });
-                return Ok(CrawlJobResult {
-                    job_id: job_id.into_uuid(),
-                    website_id,
-                    status: "failed".to_string(),
-                    message: Some(format!("Failed to build pages: {}", e)),
-                });
-            }
-        };
+        build_pages_to_summarize(&crawled_pages, &ctx.deps().db_pool).await?;
 
     if pages_to_summarize.is_empty() {
-        ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-            website_id: website_id_typed,
-            job_id,
-            reason: "No page snapshots with content found.".to_string(),
-        });
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "failed".to_string(),
-            message: Some("No page snapshots with content found".to_string()),
-        });
+        return Err(anyhow::anyhow!("No page snapshots with content found"));
     }
 
     // Run summarization
-    let summaries = match summarize_pages(
+    let summaries = summarize_pages(
         pages_to_summarize,
         ctx.deps().ai.as_ref(),
         &ctx.deps().db_pool,
     )
-    .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Summarization failed: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Summarization failed: {}", e)),
-            });
-        }
-    };
+    .await?;
 
     info!(website_id = %website_id_typed, summaries = summaries.len(), "Page summaries regenerated");
     ctx.emit(CrawlEvent::PageSummariesRegenerated {
@@ -288,17 +202,7 @@ pub async fn regenerate_page_summary(
     let job_id = JobId::new();
 
     // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "RegeneratePageSummary", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id: page_snapshot_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    check_crawl_authorization(requested_by, is_admin, "RegeneratePageSummary", ctx.deps()).await?;
 
     // Delegate to helper
     regenerate_summary_for_page(page_snapshot_id, ctx.deps()).await;
@@ -327,17 +231,7 @@ pub async fn regenerate_page_posts(
     let job_id = JobId::new();
 
     // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "RegeneratePagePosts", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id: page_snapshot_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    check_crawl_authorization(requested_by, is_admin, "RegeneratePagePosts", ctx.deps()).await?;
 
     // Delegate to helper
     let posts_count = regenerate_posts_for_page(page_snapshot_id, job_id, ctx.deps()).await;
@@ -370,87 +264,23 @@ pub async fn discover_website(
     info!(website_id = %website_id_typed, job_id = %job_id, "Starting Tavily-based discovery");
 
     // Auth check
-    if let Err(event) =
-        check_crawl_authorization(requested_by, is_admin, "DiscoverWebsite", ctx.deps()).await
-    {
-        ctx.emit(event);
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "auth_failed".to_string(),
-            message: Some("Authorization denied".to_string()),
-        });
-    }
+    check_crawl_authorization(requested_by, is_admin, "DiscoverWebsite", ctx.deps()).await?;
 
     // Fetch website
-    let website = match Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await {
-        Ok(w) => w,
-        Err(e) => {
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Failed to find website: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Website not found: {}", e)),
-            });
-        }
-    };
-
-    // Start crawl status tracking
-    if let Err(e) = Website::start_crawl(website_id_typed, &ctx.deps().db_pool).await {
-        warn!(website_id = %website_id_typed, error = %e, "Failed to update crawl status");
-    }
+    let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
 
     // Run Tavily discovery
     let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
-    let discovered = match discover_pages(
-        &website.domain,
-        ctx.deps().web_searcher.as_ref(),
-        max_pages,
-    )
-    .await
-    {
-        Ok(pages) => pages,
-        Err(e) => {
-            let _ =
-                Website::complete_crawl(website_id_typed, "failed", 0, &ctx.deps().db_pool).await;
-            ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-                website_id: website_id_typed,
-                job_id,
-                reason: format!("Discovery failed: {}", e),
-            });
-            return Ok(CrawlJobResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                status: "failed".to_string(),
-                message: Some(format!("Discovery failed: {}", e)),
-            });
-        }
-    };
+    let discovered =
+        match discover_pages(&website.domain, ctx.deps().web_searcher.as_ref(), max_pages).await {
+            Ok(pages) => pages,
+            Err(e) => {
+                return Err(anyhow::anyhow!("Discovery failed: {}", e));
+            }
+        };
 
     if discovered.is_empty() {
-        let _ = Website::complete_crawl(
-            website_id_typed,
-            "no_listings_found",
-            0,
-            &ctx.deps().db_pool,
-        )
-        .await;
-        ctx.emit(CrawlEvent::WebsiteCrawlFailed {
-            website_id: website_id_typed,
-            job_id,
-            reason: "No pages discovered via search".to_string(),
-        });
-        return Ok(CrawlJobResult {
-            job_id: job_id.into_uuid(),
-            website_id,
-            status: "no_pages".to_string(),
-            message: Some("No pages discovered via search".to_string()),
-        });
+        return Err(anyhow::anyhow!("No pages discovered via search"));
     }
 
     info!(
@@ -501,23 +331,15 @@ pub async fn discover_website(
         });
     }
 
-    // Update website status
-    let _ = Website::complete_crawl(
-        website_id_typed,
-        "crawling",
-        crawled_pages.len() as i32,
-        &ctx.deps().db_pool,
-    )
-    .await;
-
     let pages_count = crawled_pages.len();
-    info!(website_id = %website_id_typed, pages_stored = pages_count, "Emitting WebsiteCrawled from discovery");
+    info!(website_id = %website_id_typed, pages_stored = pages_count, "Emitting WebsitePagesDiscovered");
 
-    // Emit WebsiteCrawled event to trigger extraction cascade
-    ctx.emit(CrawlEvent::WebsiteCrawled {
+    // Emit fact event - pages were discovered via search
+    ctx.emit(CrawlEvent::WebsitePagesDiscovered {
         website_id: website_id_typed,
         job_id,
         pages: crawled_pages,
+        discovery_method: "tavily".to_string(),
     });
 
     Ok(CrawlJobResult {

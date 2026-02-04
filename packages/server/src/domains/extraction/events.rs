@@ -29,8 +29,5 @@ pub enum ExtractionEvent {
     },
 
     /// Extraction failed
-    ExtractionFailed {
-        query: String,
-        error: String,
-    },
+    ExtractionFailed { query: String, error: String },
 }

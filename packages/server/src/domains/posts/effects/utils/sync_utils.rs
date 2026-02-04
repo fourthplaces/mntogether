@@ -25,9 +25,9 @@ fn normalize_urgency(urgency: Option<String>) -> Option<String> {
     })
 }
 
-/// Sync result showing what changed
+/// Result of title-based post matching/sync
 #[derive(Debug)]
-pub struct SyncResult {
+pub struct TitleMatchSyncResult {
     pub new_posts: Vec<PostId>,
     pub updated_posts: Vec<PostId>,
     pub unchanged_posts: Vec<PostId>,
@@ -65,7 +65,7 @@ pub async fn sync_posts(
     pool: &PgPool,
     website_id: WebsiteId,
     extracted_posts: Vec<ExtractedPostInput>,
-) -> Result<SyncResult> {
+) -> Result<TitleMatchSyncResult> {
     tracing::info!(
         website_id = %website_id,
         post_count = extracted_posts.len(),
@@ -212,7 +212,7 @@ pub async fn sync_posts(
         "Sync complete"
     );
 
-    Ok(SyncResult {
+    Ok(TitleMatchSyncResult {
         new_posts,
         updated_posts,
         unchanged_posts,

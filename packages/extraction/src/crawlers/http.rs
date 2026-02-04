@@ -95,10 +95,7 @@ impl HttpCrawler {
         // Check include patterns
         if !config.include_patterns.is_empty() {
             let path = url.path();
-            let matches = config
-                .include_patterns
-                .iter()
-                .any(|p| path.contains(p));
+            let matches = config.include_patterns.iter().any(|p| path.contains(p));
             if !matches {
                 return false;
             }
@@ -107,10 +104,7 @@ impl HttpCrawler {
         // Check exclude patterns
         if !config.exclude_patterns.is_empty() {
             let path = url.path();
-            let excluded = config
-                .exclude_patterns
-                .iter()
-                .any(|p| path.contains(p));
+            let excluded = config.exclude_patterns.iter().any(|p| path.contains(p));
             if excluded {
                 return false;
             }
@@ -147,7 +141,8 @@ impl HttpCrawler {
         text = br_pattern.replace_all(&text, "\n").to_string();
 
         // Convert links
-        let link_pattern = regex::Regex::new(r#"<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
+        let link_pattern =
+            regex::Regex::new(r#"<a[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>"#).unwrap();
         text = link_pattern.replace_all(&text, "[$2]($1)").to_string();
 
         // Convert lists

@@ -124,15 +124,9 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
             // Terminal events - no cascade needed
             // =================================================================
             PostEvent::PostsSynced { .. }
-            | PostEvent::ScrapeFailed { .. }
-            | PostEvent::ResourceLinkScrapeFailed { .. }
-            | PostEvent::ExtractFailed { .. }
-            | PostEvent::SyncFailed { .. }
             | PostEvent::PostEntryCreated { .. }
             | PostEvent::PostApproved { .. }
             | PostEvent::PostRejected { .. }
-            | PostEvent::ListingUpdated { .. }
-            | PostEvent::PostCreated { .. }
             | PostEvent::PostExpired { .. }
             | PostEvent::PostArchived { .. }
             | PostEvent::PostViewed { .. }
@@ -142,10 +136,7 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
             | PostEvent::ReportResolved { .. }
             | PostEvent::ReportDismissed { .. }
             | PostEvent::PostEmbeddingGenerated { .. }
-            | PostEvent::ListingEmbeddingFailed { .. }
-            | PostEvent::AuthorizationDenied { .. }
             | PostEvent::PostsDeduplicated { .. }
-            | PostEvent::DeduplicationFailed { .. }
             | PostEvent::WebsitePendingApproval { .. }
             | PostEvent::PageSnapshotRefreshed { .. } => Ok(()),
         }

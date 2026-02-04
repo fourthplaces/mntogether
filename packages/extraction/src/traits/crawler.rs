@@ -63,10 +63,7 @@ impl UrlValidator {
     /// Create a new URL validator with default security rules.
     pub fn new() -> Self {
         Self {
-            allowed_schemes: ["http", "https"]
-                .into_iter()
-                .map(String::from)
-                .collect(),
+            allowed_schemes: ["http", "https"].into_iter().map(String::from).collect(),
             blocked_hosts: [
                 "localhost",
                 "127.0.0.1",
@@ -272,7 +269,9 @@ mod tests {
     fn test_blocks_metadata_services() {
         let validator = UrlValidator::new();
         assert!(validator.validate("http://169.254.169.254/").is_err());
-        assert!(validator.validate("http://metadata.google.internal/").is_err());
+        assert!(validator
+            .validate("http://metadata.google.internal/")
+            .is_err());
     }
 
     #[test]

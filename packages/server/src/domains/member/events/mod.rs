@@ -4,6 +4,9 @@ use uuid::Uuid;
 ///
 /// These are immutable facts about what happened. Effects watch these
 /// and call handlers directly for cascade workflows (no *Requested events).
+///
+/// NOTE: Failed/error events have been removed (MemberNotFound, EmbeddingFailed).
+/// Errors go in Result::Err, not in events. Events are for successful state changes.
 #[derive(Debug, Clone)]
 pub enum MemberEvent {
     /// Member was successfully registered
@@ -18,12 +21,6 @@ pub enum MemberEvent {
     /// Member status was updated
     MemberStatusUpdated { member_id: Uuid, active: bool },
 
-    /// Member was not found
-    MemberNotFound { member_id: Uuid },
-
     /// Embedding was generated successfully
     EmbeddingGenerated { member_id: Uuid, dimensions: usize },
-
-    /// Embedding generation failed
-    EmbeddingFailed { member_id: Uuid, reason: String },
 }

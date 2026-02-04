@@ -21,17 +21,20 @@ use crate::common::{ContainerId, PaginationArgs, PostId, WebsiteId};
 use crate::domains::auth::actions as auth_actions;
 use crate::domains::chatrooms::actions as chatroom_actions;
 use crate::domains::crawling::actions as crawling_actions;
-use crate::domains::domain_approval::actions as domain_approval_actions;
 use crate::domains::extraction::actions as extraction_actions;
 use crate::domains::member::actions as member_actions;
 use crate::domains::organization::actions as organization_actions;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::providers::actions as provider_actions;
 use crate::domains::website::actions as website_actions;
+use crate::domains::website_approval::actions as website_approval_actions;
 
 // Domain data types (GraphQL types)
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
-use crate::domains::domain_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
+use crate::domains::extraction::data::{
+    ExtractionData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
+    TriggerExtractionResult,
+};
 use crate::domains::member::data::{MemberConnection, MemberData};
 use crate::domains::organization::data::{OrganizationConnection, OrganizationData};
 use crate::domains::posts::data::post_report::{
@@ -46,11 +49,8 @@ use crate::domains::posts::data::{
 use crate::domains::providers::data::{
     ProviderConnection, ProviderData, SubmitProviderInput, UpdateProviderInput,
 };
-use crate::domains::extraction::data::{
-    ExtractionData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
-    TriggerExtractionResult,
-};
 use crate::domains::website::data::{PageSnapshotData, WebsiteConnection, WebsiteData};
+use crate::domains::website_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
 
 // Domain models (for queries)
 use crate::domains::chatrooms::models::{Container, Message};
@@ -714,69 +714,32 @@ impl Mutation {
     // Post Mutations
     // =========================================================================
 
-    /// Scrape an organization source and extract listings (admin only)
-    async fn scrape_organization(
-        ctx: &GraphQLContext,
-        source_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(source_id = %source_id, "Scraping organization source");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| {
-                post_actions::scrape_source(
-                    source_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: result.job_id,
-            source_id: result.source_id,
-            status: result.status,
-            message: result.message,
-        })
-    }
-
     /// Crawl a website (multi-page) to discover and extract listings (admin only)
     ///
-    /// **Deprecated**: Use `ingestWebsite` instead which uses the extraction library.
-    #[allow(deprecated)] // Uses deprecated crawl_website during migration to ingest_website
+    /// Creates a job record, runs the crawl immediately, and returns the result.
+    /// Job is tracked in the database - query via the website's `crawlJob` field.
     async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
-        info!(website_id = %website_id, "Crawling website");
+        use crate::domains::crawling::{execute_crawl_website_job, CrawlWebsiteJob};
+
+        info!(website_id = %website_id, "Crawling website (with job tracking)");
 
         let user = ctx
             .auth_user
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
+        let job = CrawlWebsiteJob::new(website_id, user.member_id.into_uuid(), true);
+
         let result = ctx
             .engine
             .activate(ctx.app_state())
-            .process(|ectx| {
-                crawling_actions::crawl_website(
-                    website_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
+            .process(|ectx| execute_crawl_website_job(job.clone(), ectx))
             .await
             .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
             job_id: result.job_id,
-            source_id: result.website_id,
+            source_id: website_id,
             status: result.status,
             message: result.message,
         })
@@ -1110,8 +1073,7 @@ impl Mutation {
             )
         })?;
 
-        let web_searcher =
-            extraction::TavilyWebSearcher::new(config.tavily_api_key);
+        let web_searcher = extraction::TavilyWebSearcher::new(config.tavily_api_key);
 
         let result =
             crate::domains::posts::effects::run_discovery_searches(&web_searcher, &ctx.db_pool)
@@ -1631,136 +1593,34 @@ impl Mutation {
     }
 
     /// Regenerate posts from existing page snapshots (admin only)
+    ///
+    /// Creates a job record, runs the regeneration immediately, and returns the result.
+    /// Job is tracked in the database - query via the website's `regeneratePostsJob` field.
     async fn regenerate_posts(
         ctx: &GraphQLContext,
         website_id: Uuid,
     ) -> FieldResult<ScrapeJobResult> {
-        info!(website_id = %website_id, "Regenerating posts");
+        use crate::domains::crawling::{execute_regenerate_posts_job, RegeneratePostsJob};
+
+        info!(website_id = %website_id, "Regenerating posts (with job tracking)");
 
         let user = ctx
             .auth_user
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
+        let job = RegeneratePostsJob::new(website_id, user.member_id.into_uuid());
+
         let result = ctx
             .engine
             .activate(ctx.app_state())
-            .process(|ectx| {
-                crawling_actions::regenerate_posts(
-                    website_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
+            .process(|ectx| execute_regenerate_posts_job(job.clone(), ectx))
             .await
             .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
             job_id: result.job_id,
-            source_id: result.website_id,
-            status: result.status,
-            message: result.message,
-        })
-    }
-
-    /// Regenerate page summaries for existing snapshots (admin only)
-    async fn regenerate_page_summaries(
-        ctx: &GraphQLContext,
-        website_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(website_id = %website_id, "Regenerating page summaries");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| {
-                crawling_actions::regenerate_page_summaries(
-                    website_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: result.job_id,
-            source_id: result.website_id,
-            status: result.status,
-            message: result.message,
-        })
-    }
-
-    /// Regenerate AI summary for a single page snapshot (admin only)
-    async fn regenerate_page_summary(
-        ctx: &GraphQLContext,
-        page_snapshot_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(page_snapshot_id = %page_snapshot_id, "Regenerating page summary");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| {
-                crawling_actions::regenerate_page_summary(
-                    page_snapshot_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: result.job_id,
-            source_id: result.website_id,
-            status: result.status,
-            message: result.message,
-        })
-    }
-
-    /// Regenerate posts for a single page snapshot (admin only)
-    async fn regenerate_page_posts(
-        ctx: &GraphQLContext,
-        page_snapshot_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(page_snapshot_id = %page_snapshot_id, "Regenerating page posts");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| {
-                crawling_actions::regenerate_page_posts(
-                    page_snapshot_id,
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    ectx,
-                )
-            })
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: result.job_id,
-            source_id: result.website_id,
+            source_id: website_id,
             status: result.status,
             message: result.message,
         })
@@ -1788,7 +1648,7 @@ impl Mutation {
             .engine
             .activate(ctx.app_state())
             .process(|ectx| {
-                domain_approval_actions::assess_website(
+                website_approval_actions::assess_website(
                     website_uuid,
                     user.member_id.into_uuid(),
                     ectx,
@@ -2158,7 +2018,10 @@ impl Mutation {
     ///
     /// Crawls the URL, extracts content, and returns extraction results.
     /// This is the main entry point for users to submit events, services, etc.
-    async fn submit_url(ctx: &GraphQLContext, input: SubmitUrlInput) -> FieldResult<SubmitUrlResult> {
+    async fn submit_url(
+        ctx: &GraphQLContext,
+        input: SubmitUrlInput,
+    ) -> FieldResult<SubmitUrlResult> {
         info!(url = %input.url, "Submitting URL for extraction");
 
         let deps = ctx.deps();
@@ -2210,7 +2073,8 @@ impl Mutation {
 
         let deps = ctx.deps();
 
-        match extraction_actions::trigger_extraction(&input.query, input.site.as_deref(), deps).await
+        match extraction_actions::trigger_extraction(&input.query, input.site.as_deref(), deps)
+            .await
         {
             Ok(extractions) => Ok(TriggerExtractionResult {
                 success: true,

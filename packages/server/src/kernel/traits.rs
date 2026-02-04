@@ -150,4 +150,3 @@ pub trait BasePiiDetector: Send + Sync {
         strategy: RedactionStrategy,
     ) -> Result<PiiScrubResult>;
 }
-

@@ -1,12 +1,6 @@
 //! Regenerate content for a single page
 //!
-//! Uses agentic extraction for post generation.
-//!
-//! # Deprecation Notice
-//!
-//! This module uses the deprecated `PageSnapshot` model. For new code, use
-//! the extraction library's `ExtractionService` which stores pages in
-//! `extraction_pages` and handles extraction via `Index::extract()`.
+//! Uses the extraction library + structured extraction for post generation.
 
 #![allow(deprecated)] // Uses deprecated PageSnapshot during migration
 
@@ -16,74 +10,89 @@ use uuid::Uuid;
 use crate::common::JobId;
 use crate::domains::crawling::effects::extraction::summarize_pages;
 use crate::domains::crawling::models::{PageSnapshot, PageSummary};
-use crate::domains::posts::effects::agentic_extraction::{
-    extract_from_website, to_extracted_posts,
-};
 use crate::kernel::ServerDeps;
 
+use super::post_extraction::{extract_posts_from_content, POST_SEARCH_QUERY};
 use super::{
     build_page_to_summarize_from_snapshot, fetch_single_page_context, sync_and_deduplicate_posts,
 };
 
-/// Regenerate posts for a single page snapshot using agentic extraction.
+/// Regenerate posts for a single page snapshot.
 ///
-/// Uses the same agentic extraction as the main crawl pipeline for consistency.
+/// Uses extraction library's extract() + extract_posts_from_content().
 /// Returns the number of posts created/updated, or 0 if anything fails.
 pub async fn regenerate_posts_for_page(
     page_snapshot_id: Uuid,
     _job_id: JobId,
     deps: &ServerDeps,
 ) -> usize {
-    // Fetch context
     let Some(page_ctx) = fetch_single_page_context(page_snapshot_id, &deps.db_pool).await else {
         return 0;
     };
 
-    // Get page content directly from snapshot
-    let page_content = page_ctx
-        .page_snapshot
-        .markdown
-        .clone()
-        .unwrap_or_else(|| page_ctx.page_snapshot.html.clone());
-
     let page_url = page_ctx.page_snapshot.url.clone();
+    let website_domain = page_url
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .split('/')
+        .next()
+        .unwrap_or("");
 
-    info!(page_snapshot_id = %page_snapshot_id, url = %page_url, "Regenerating posts with agentic extraction");
+    info!(page_snapshot_id = %page_snapshot_id, url = %page_url, "Regenerating posts");
 
-    // Build single-page input for agentic extraction
-    let pages = vec![(page_snapshot_id, page_url.clone(), page_content)];
-
-    // Run agentic extraction
-    let extraction_result = match extract_from_website(
-        page_ctx.website_id,
-        &pages,
-        &deps.db_pool,
-        Some(deps.web_searcher.as_ref()),
-        deps.ai.as_ref(),
-    )
-    .await
+    // Search for relevant pages and get raw content
+    let pages = match deps
+        .extraction
+        .search_and_get_pages(POST_SEARCH_QUERY, Some(website_domain), 50)
+        .await
     {
-        Ok(r) => r,
+        Ok(p) => p,
         Err(e) => {
-            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Agentic extraction failed");
+            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Search failed");
             return 0;
         }
     };
 
-    if extraction_result.posts.is_empty() {
+    if pages.is_empty() {
+        info!(page_snapshot_id = %page_snapshot_id, "No relevant pages found");
+        return 0;
+    }
+
+    // Combine raw page content
+    let combined_content: String = pages
+        .iter()
+        .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
+        .collect::<Vec<_>>()
+        .join("\n\n---\n\n");
+
+    // Extract structured posts
+    let context = format!("Source URL: {}", page_url);
+
+    let mut posts = match extract_posts_from_content(
+        &combined_content,
+        Some(&context),
+        deps.ai.as_ref(),
+    )
+    .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Structured extraction failed");
+            return 0;
+        }
+    };
+
+    if posts.is_empty() {
         info!(page_snapshot_id = %page_snapshot_id, "No posts extracted");
         return 0;
     }
 
-    // Convert to ExtractedPost format and sync
-    let posts = to_extracted_posts(&extraction_result.posts);
-    let posts_count = posts.len();
+    // Set source page snapshot ID on all posts
+    for post in &mut posts {
+        post.source_page_snapshot_id = Some(page_snapshot_id);
+    }
 
-    info!(
-        page_snapshot_id = %page_snapshot_id,
-        posts_count,
-        "Starting sync for extracted posts"
-    );
+    let posts_count = posts.len();
 
     match sync_and_deduplicate_posts(page_ctx.website_id, posts, deps).await {
         Ok(result) => {
@@ -92,20 +101,11 @@ pub async fn regenerate_posts_for_page(
                 posts_count,
                 inserted = result.sync_result.inserted,
                 updated = result.sync_result.updated,
-                deleted = result.sync_result.deleted,
-                merged = result.sync_result.merged,
-                candidates_found = extraction_result.candidates_found,
-                candidates_skipped = extraction_result.candidates_skipped,
-                "Posts regenerated with agentic extraction"
+                "Posts regenerated"
             );
         }
         Err(e) => {
-            warn!(
-                page_snapshot_id = %page_snapshot_id,
-                error = %e,
-                posts_count,
-                "Sync failed for regenerated posts"
-            );
+            warn!(page_snapshot_id = %page_snapshot_id, error = %e, "Sync failed");
         }
     }
 
@@ -113,18 +113,14 @@ pub async fn regenerate_posts_for_page(
 }
 
 /// Regenerate AI summary for a single page snapshot.
-///
-/// Returns true if summary was regenerated, false if page not found or failed.
 pub async fn regenerate_summary_for_page(page_snapshot_id: Uuid, deps: &ServerDeps) -> bool {
     let page_snapshot = match PageSnapshot::find_by_id(&deps.db_pool, page_snapshot_id).await {
         Ok(s) => s,
         Err(_) => return false,
     };
 
-    // Delete cached summary
     let _ = PageSummary::delete_for_snapshot(page_snapshot_id, &deps.db_pool).await;
 
-    // Build and summarize
     let page_to_summarize =
         build_page_to_summarize_from_snapshot(&page_snapshot, page_snapshot.url.clone());
     let summaries = summarize_pages(vec![page_to_summarize], deps.ai.as_ref(), &deps.db_pool)

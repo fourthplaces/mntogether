@@ -16,6 +16,7 @@ use async_trait::async_trait;
 use sha2::{Digest, Sha256};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::FromRow;
+use tracing::{debug, info, instrument, warn};
 use uuid::Uuid;
 
 use crate::error::{ExtractionError, Result};
@@ -280,28 +281,41 @@ impl PostgresStore {
 
         // Run each migration if not already applied
         let migrations = [
-            ("001_normalize_signals", include_str!("../../migrations/001_normalize_signals.sql")),
-            ("002_hnsw_index", include_str!("../../migrations/002_hnsw_index.sql")),
-            ("003_multilang_fts", include_str!("../../migrations/003_multilang_fts.sql")),
-            ("004_investigation_tables", include_str!("../../migrations/004_investigation_tables.sql")),
-            ("005_generalize_signal_type", include_str!("../../migrations/005_generalize_signal_type.sql")),
+            (
+                "001_normalize_signals",
+                include_str!("../../migrations/001_normalize_signals.sql"),
+            ),
+            (
+                "002_hnsw_index",
+                include_str!("../../migrations/002_hnsw_index.sql"),
+            ),
+            (
+                "003_multilang_fts",
+                include_str!("../../migrations/003_multilang_fts.sql"),
+            ),
+            (
+                "004_investigation_tables",
+                include_str!("../../migrations/004_investigation_tables.sql"),
+            ),
+            (
+                "005_generalize_signal_type",
+                include_str!("../../migrations/005_generalize_signal_type.sql"),
+            ),
         ];
 
         for (name, sql) in migrations {
-            let applied: Option<(String,)> = sqlx::query_as(
-                "SELECT name FROM extraction_migrations WHERE name = $1",
-            )
-            .bind(name)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
+            let applied: Option<(String,)> =
+                sqlx::query_as("SELECT name FROM extraction_migrations WHERE name = $1")
+                    .bind(name)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
             if applied.is_none() {
                 // Run the migration
-                sqlx::raw_sql(sql)
-                    .execute(&self.pool)
-                    .await
-                    .map_err(|e| ExtractionError::Storage(format!("Migration {} failed: {}", name, e).into()))?;
+                sqlx::raw_sql(sql).execute(&self.pool).await.map_err(|e| {
+                    ExtractionError::Storage(format!("Migration {} failed: {}", name, e).into())
+                })?;
 
                 // Mark as applied
                 sqlx::query("INSERT INTO extraction_migrations (name) VALUES ($1)")
@@ -347,6 +361,7 @@ impl PostgresStore {
     /// `score = weight/(k + semantic_rank) + (1-weight)/(k + keyword_rank)`
     ///
     /// Where k is the RRF constant (default 60.0).
+    #[instrument(skip(self, query_embedding, filter), fields(query = %query, limit = limit, semantic_weight = semantic_weight))]
     pub async fn hybrid_search_rrf(
         &self,
         query: &str,
@@ -355,8 +370,19 @@ impl PostgresStore {
         filter: Option<&QueryFilter>,
         semantic_weight: f32,
     ) -> Result<Vec<PageRef>> {
+        let filter_sites = filter.map(|f| f.include_sites.len()).unwrap_or(0);
+        debug!(
+            query = %query,
+            limit = limit,
+            semantic_weight = semantic_weight,
+            filter_sites = filter_sites,
+            has_pgvector = self.has_pgvector,
+            "Starting hybrid RRF search"
+        );
+
         if !self.has_pgvector {
             // Fallback to keyword-only search
+            warn!("pgvector not available, falling back to keyword-only search");
             return self.keyword_search(query, limit, filter).await;
         }
 
@@ -372,6 +398,12 @@ impl PostgresStore {
         let k = self.rrf_k;
         let semantic_w = semantic_weight.clamp(0.0, 1.0);
         let keyword_w = 1.0 - semantic_w;
+        debug!(
+            rrf_k = k,
+            semantic_w = semantic_w,
+            keyword_w = keyword_w,
+            "RRF parameters"
+        );
 
         // Use a CTE-based RRF query
         let rows = match filter {
@@ -456,7 +488,7 @@ impl PostgresStore {
             }
         };
 
-        Ok(rows
+        let results: Vec<PageRef> = rows
             .into_iter()
             .map(|(url, site_url, title, score)| PageRef {
                 url,
@@ -464,7 +496,15 @@ impl PostgresStore {
                 site_url,
                 score: score as f32,
             })
-            .collect())
+            .collect();
+
+        debug!(
+            query = %query,
+            result_count = results.len(),
+            top_score = results.first().map(|r| r.score).unwrap_or(0.0),
+            "Hybrid RRF search completed"
+        );
+        Ok(results)
     }
 
     // =========================================================================
@@ -474,11 +514,7 @@ impl PostgresStore {
     /// Create a new extraction job for tracking.
     ///
     /// Returns the job ID for use with gap and log tracking.
-    pub async fn create_job(
-        &self,
-        query: &str,
-        strategy: &str,
-    ) -> Result<Uuid> {
+    pub async fn create_job(&self, query: &str, strategy: &str) -> Result<Uuid> {
         let job_id = Uuid::new_v4();
         let query_hash = Self::hash_query(query);
 
@@ -568,11 +604,7 @@ impl PostgresStore {
     }
 
     /// Mark a gap as resolved.
-    pub async fn resolve_gap(
-        &self,
-        gap_id: Uuid,
-        resolution_source: &str,
-    ) -> Result<()> {
+    pub async fn resolve_gap(&self, gap_id: Uuid, resolution_source: &str) -> Result<()> {
         sqlx::query(
             r#"
             UPDATE extraction_gaps
@@ -919,7 +951,9 @@ pub struct GapRecord {
 
 #[async_trait]
 impl PageCache for PostgresStore {
+    #[instrument(skip(self), fields(url = %url))]
     async fn get_page(&self, url: &str) -> Result<Option<CachedPage>> {
+        debug!(url = %url, "Getting page from cache");
         let row = sqlx::query_as::<_, PageRow>(
             "SELECT url, site_url, content, content_hash, fetched_at, title, http_headers, metadata FROM extraction_pages WHERE url = $1",
         )
@@ -929,12 +963,20 @@ impl PageCache for PostgresStore {
         .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
         match row {
-            Some(r) => Ok(Some(r.into_cached_page()?)),
-            None => Ok(None),
+            Some(r) => {
+                debug!(url = %url, "Page found in cache");
+                Ok(Some(r.into_cached_page()?))
+            }
+            None => {
+                debug!(url = %url, "Page not in cache");
+                Ok(None)
+            }
         }
     }
 
+    #[instrument(skip(self, page), fields(url = %page.url, content_len = page.content.len()))]
     async fn store_page(&self, page: &CachedPage) -> Result<()> {
+        debug!(url = %page.url, content_len = page.content.len(), "Storing page");
         let http_headers = serde_json::to_value(&page.http_headers)
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
         let metadata = serde_json::to_value(&page.metadata)
@@ -969,7 +1011,9 @@ impl PageCache for PostgresStore {
         Ok(())
     }
 
+    #[instrument(skip(self), fields(site_url = %site_url))]
     async fn get_pages_for_site(&self, site_url: &str) -> Result<Vec<CachedPage>> {
+        debug!(site_url = %site_url, "Getting all pages for site");
         let rows = sqlx::query_as::<_, PageRow>(
             "SELECT url, site_url, content, content_hash, fetched_at, title, http_headers, metadata FROM extraction_pages WHERE site_url = $1",
         )
@@ -978,20 +1022,27 @@ impl PageCache for PostgresStore {
         .await
         .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        let count = rows.len();
+        debug!(site_url = %site_url, page_count = count, "Retrieved pages for site");
         rows.into_iter().map(|r| r.into_cached_page()).collect()
     }
 
+    #[instrument(skip(self), fields(url = %url))]
     async fn delete_page(&self, url: &str) -> Result<()> {
+        debug!(url = %url, "Deleting page from cache");
         sqlx::query("DELETE FROM extraction_pages WHERE url = $1")
             .bind(url)
             .execute(&self.pool)
             .await
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        info!(url = %url, "Deleted page from cache");
         Ok(())
     }
 
+    #[instrument(skip(self), fields(site_url = %site_url))]
     async fn count_pages(&self, site_url: &str) -> Result<usize> {
+        debug!(site_url = %site_url, "Counting pages for site");
         let count: (i64,) =
             sqlx::query_as("SELECT COUNT(*) FROM extraction_pages WHERE site_url = $1")
                 .bind(site_url)
@@ -999,13 +1050,17 @@ impl PageCache for PostgresStore {
                 .await
                 .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
-        Ok(count.0 as usize)
+        let page_count = count.0 as usize;
+        debug!(site_url = %site_url, page_count = page_count, "Page count for site");
+        Ok(page_count)
     }
 }
 
 #[async_trait]
 impl SummaryCache for PostgresStore {
+    #[instrument(skip(self), fields(url = %url, content_hash = %content_hash))]
     async fn get_summary(&self, url: &str, content_hash: &str) -> Result<Option<Summary>> {
+        debug!(url = %url, content_hash = %content_hash, "Getting summary from cache");
         let row = sqlx::query_as::<_, SummaryRow>(
             "SELECT url, site_url, text, signals, language, created_at, prompt_hash, content_hash FROM extraction_summaries WHERE url = $1 AND content_hash = $2",
         )
@@ -1016,12 +1071,20 @@ impl SummaryCache for PostgresStore {
         .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
         match row {
-            Some(r) => Ok(Some(r.into_summary()?)),
-            None => Ok(None),
+            Some(r) => {
+                debug!(url = %url, "Summary found in cache");
+                Ok(Some(r.into_summary()?))
+            }
+            None => {
+                debug!(url = %url, "Summary not in cache");
+                Ok(None)
+            }
         }
     }
 
+    #[instrument(skip(self, summary), fields(url = %summary.url, summary_len = summary.text.len()))]
     async fn store_summary(&self, summary: &Summary) -> Result<()> {
+        debug!(url = %summary.url, summary_len = summary.text.len(), "Storing summary");
         let signals = serde_json::to_value(&summary.signals)
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
@@ -1051,10 +1114,13 @@ impl SummaryCache for PostgresStore {
         .await
         .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        debug!(url = %summary.url, "Summary stored successfully");
         Ok(())
     }
 
+    #[instrument(skip(self), fields(site_url = %site_url))]
     async fn get_summaries_for_site(&self, site_url: &str) -> Result<Vec<Summary>> {
+        debug!(site_url = %site_url, "Getting all summaries for site");
         let rows = sqlx::query_as::<_, SummaryRow>(
             "SELECT url, site_url, text, signals, language, created_at, prompt_hash, content_hash FROM extraction_summaries WHERE site_url = $1",
         )
@@ -1063,10 +1129,16 @@ impl SummaryCache for PostgresStore {
         .await
         .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        let count = rows.len();
+        debug!(site_url = %site_url, summary_count = count, "Retrieved summaries for site");
         rows.into_iter().map(|r| r.into_summary()).collect()
     }
 
+    #[instrument(skip(self, filter))]
     async fn get_summaries(&self, filter: Option<&QueryFilter>) -> Result<Vec<Summary>> {
+        let filter_sites = filter.map(|f| f.include_sites.len()).unwrap_or(0);
+        debug!(filter_sites = filter_sites, "Getting summaries with filter");
+
         let rows = match filter {
             Some(f) if !f.include_sites.is_empty() => {
                 sqlx::query_as::<_, SummaryRow>(
@@ -1087,33 +1159,44 @@ impl SummaryCache for PostgresStore {
             }
         };
 
+        let count = rows.len();
+        debug!(summary_count = count, "Retrieved summaries");
         rows.into_iter().map(|r| r.into_summary()).collect()
     }
 
+    #[instrument(skip(self), fields(url = %url))]
     async fn delete_summary(&self, url: &str) -> Result<()> {
+        debug!(url = %url, "Deleting summary");
         sqlx::query("DELETE FROM extraction_summaries WHERE url = $1")
             .bind(url)
             .execute(&self.pool)
             .await
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        info!(url = %url, "Deleted summary");
         Ok(())
     }
 
+    #[instrument(skip(self), fields(current_prompt_hash = %current_prompt_hash))]
     async fn invalidate_stale_summaries(&self, current_prompt_hash: &str) -> Result<usize> {
+        debug!(current_prompt_hash = %current_prompt_hash, "Invalidating stale summaries");
         let result = sqlx::query("DELETE FROM extraction_summaries WHERE prompt_hash != $1")
             .bind(current_prompt_hash)
             .execute(&self.pool)
             .await
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
-        Ok(result.rows_affected() as usize)
+        let deleted = result.rows_affected() as usize;
+        info!(deleted_count = deleted, "Invalidated stale summaries");
+        Ok(deleted)
     }
 }
 
 #[async_trait]
 impl EmbeddingStore for PostgresStore {
+    #[instrument(skip(self, embedding), fields(url = %url, embedding_dim = embedding.len()))]
     async fn store_embedding(&self, url: &str, embedding: &[f32]) -> Result<()> {
+        debug!(url = %url, embedding_dim = embedding.len(), has_pgvector = self.has_pgvector, "Storing embedding");
         // Get site_url from pages table
         let site_url: Option<(String,)> =
             sqlx::query_as("SELECT site_url FROM extraction_pages WHERE url = $1")
@@ -1152,8 +1235,7 @@ impl EmbeddingStore for PostgresStore {
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
         } else {
             // Fallback: store as BYTEA
-            let embedding_bytes: Vec<u8> =
-                embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
+            let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
 
             sqlx::query(
                 r#"
@@ -1172,19 +1254,21 @@ impl EmbeddingStore for PostgresStore {
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
         }
 
+        debug!(url = %url, "Embedding stored successfully");
         Ok(())
     }
 
+    #[instrument(skip(self), fields(url = %url))]
     async fn get_embedding(&self, url: &str) -> Result<Option<Vec<f32>>> {
+        debug!(url = %url, has_pgvector = self.has_pgvector, "Getting embedding");
         if self.has_pgvector {
             // Extract from vector type
-            let row: Option<(String,)> = sqlx::query_as(
-                "SELECT embedding::text FROM extraction_embeddings WHERE url = $1",
-            )
-            .bind(url)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
+            let row: Option<(String,)> =
+                sqlx::query_as("SELECT embedding::text FROM extraction_embeddings WHERE url = $1")
+                    .bind(url)
+                    .fetch_optional(&self.pool)
+                    .await
+                    .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
             match row {
                 Some((vector_str,)) => {
@@ -1194,9 +1278,13 @@ impl EmbeddingStore for PostgresStore {
                         .split(',')
                         .filter_map(|s| s.trim().parse().ok())
                         .collect();
+                    debug!(url = %url, embedding_dim = embedding.len(), "Embedding found");
                     Ok(Some(embedding))
                 }
-                None => Ok(None),
+                None => {
+                    debug!(url = %url, "Embedding not found");
+                    Ok(None)
+                }
             }
         } else {
             // Extract from BYTEA
@@ -1216,19 +1304,32 @@ impl EmbeddingStore for PostgresStore {
                             f32::from_le_bytes(arr)
                         })
                         .collect();
+                    debug!(url = %url, embedding_dim = embedding.len(), "Embedding found (BYTEA)");
                     Ok(Some(embedding))
                 }
-                None => Ok(None),
+                None => {
+                    debug!(url = %url, "Embedding not found");
+                    Ok(None)
+                }
             }
         }
     }
 
+    #[instrument(skip(self, query_embedding, filter), fields(limit = limit, embedding_dim = query_embedding.len()))]
     async fn search_similar(
         &self,
         query_embedding: &[f32],
         limit: usize,
         filter: Option<&QueryFilter>,
     ) -> Result<Vec<PageRef>> {
+        let filter_sites = filter.map(|f| f.include_sites.len()).unwrap_or(0);
+        debug!(
+            limit = limit,
+            filter_sites = filter_sites,
+            has_pgvector = self.has_pgvector,
+            "Searching similar embeddings"
+        );
+
         if self.has_pgvector {
             // Use native vector similarity
             let vector_str = format!(
@@ -1259,25 +1360,23 @@ impl EmbeddingStore for PostgresStore {
                     .await
                     .map_err(|e| ExtractionError::Storage(e.to_string().into()))?
                 }
-                _ => {
-                    sqlx::query_as::<_, (String, String, Option<String>, f64)>(
-                        r#"
+                _ => sqlx::query_as::<_, (String, String, Option<String>, f64)>(
+                    r#"
                         SELECT e.url, e.site_url, p.title, 1 - (e.embedding <=> $1::vector) as score
                         FROM extraction_embeddings e
                         LEFT JOIN extraction_pages p ON e.url = p.url
                         ORDER BY e.embedding <=> $1::vector
                         LIMIT $2
                         "#,
-                    )
-                    .bind(&vector_str)
-                    .bind(limit as i64)
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(|e| ExtractionError::Storage(e.to_string().into()))?
-                }
+                )
+                .bind(&vector_str)
+                .bind(limit as i64)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| ExtractionError::Storage(e.to_string().into()))?,
             };
 
-            Ok(rows
+            let results: Vec<PageRef> = rows
                 .into_iter()
                 .map(|(url, site_url, title, score)| PageRef {
                     url,
@@ -1285,9 +1384,15 @@ impl EmbeddingStore for PostgresStore {
                     site_url,
                     score: score as f32,
                 })
-                .collect())
+                .collect();
+            debug!(
+                result_count = results.len(),
+                "Semantic search completed (pgvector)"
+            );
+            Ok(results)
         } else {
             // Fallback: compute similarity in Rust
+            debug!("Using BYTEA fallback for similarity search");
             let rows = match filter {
                 Some(f) if !f.include_sites.is_empty() => {
                     sqlx::query_as::<_, (String, String, Vec<u8>, Option<String>)>(
@@ -1303,19 +1408,23 @@ impl EmbeddingStore for PostgresStore {
                     .await
                     .map_err(|e| ExtractionError::Storage(e.to_string().into()))?
                 }
-                _ => {
-                    sqlx::query_as::<_, (String, String, Vec<u8>, Option<String>)>(
-                        r#"
+                _ => sqlx::query_as::<_, (String, String, Vec<u8>, Option<String>)>(
+                    r#"
                         SELECT e.url, e.site_url, e.embedding, p.title
                         FROM extraction_embeddings e
                         LEFT JOIN extraction_pages p ON e.url = p.url
                         "#,
-                    )
-                    .fetch_all(&self.pool)
-                    .await
-                    .map_err(|e| ExtractionError::Storage(e.to_string().into()))?
-                }
+                )
+                .fetch_all(&self.pool)
+                .await
+                .map_err(|e| ExtractionError::Storage(e.to_string().into()))?,
             };
+
+            let candidate_count = rows.len();
+            debug!(
+                candidate_count = candidate_count,
+                "Computing similarity in Rust"
+            );
 
             let mut results: Vec<PageRef> = rows
                 .into_iter()
@@ -1347,29 +1456,40 @@ impl EmbeddingStore for PostgresStore {
             });
             results.truncate(limit);
 
+            debug!(
+                result_count = results.len(),
+                "Semantic search completed (BYTEA fallback)"
+            );
             Ok(results)
         }
     }
 
+    #[instrument(skip(self), fields(url = %url))]
     async fn delete_embedding(&self, url: &str) -> Result<()> {
+        debug!(url = %url, "Deleting embedding");
         sqlx::query("DELETE FROM extraction_embeddings WHERE url = $1")
             .bind(url)
             .execute(&self.pool)
             .await
             .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
+        info!(url = %url, "Deleted embedding");
         Ok(())
     }
 }
 
 #[async_trait]
 impl KeywordSearch for PostgresStore {
+    #[instrument(skip(self, filter), fields(query = %query, limit = limit))]
     async fn keyword_search(
         &self,
         query: &str,
         limit: usize,
         filter: Option<&QueryFilter>,
     ) -> Result<Vec<PageRef>> {
+        let filter_sites = filter.map(|f| f.include_sites.len()).unwrap_or(0);
+        debug!(query = %query, limit = limit, filter_sites = filter_sites, "Keyword search");
+
         // Use PostgreSQL full-text search
         let rows = match filter {
             Some(f) if !f.include_sites.is_empty() => {
@@ -1410,7 +1530,7 @@ impl KeywordSearch for PostgresStore {
             }
         };
 
-        Ok(rows
+        let results: Vec<PageRef> = rows
             .into_iter()
             .map(|(url, site_url, title, score)| PageRef {
                 url,
@@ -1418,7 +1538,10 @@ impl KeywordSearch for PostgresStore {
                 site_url,
                 score,
             })
-            .collect())
+            .collect();
+
+        debug!(query = %query, result_count = results.len(), "Keyword search completed");
+        Ok(results)
     }
 }
 

@@ -21,7 +21,7 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
-use crate::kernel::{OpenAIClient, ServerDeps, TwilioAdapter};
+use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, TwilioAdapter};
 use crate::server::graphql::context::AppEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
@@ -34,11 +34,11 @@ use crate::server::static_files::{serve_admin, serve_web_app};
 use crate::domains::auth::effects::auth_effect;
 use crate::domains::chatrooms::effects::chat_effect;
 use crate::domains::crawling::effects::crawler_effect;
-use crate::domains::domain_approval::effects::domain_approval_effect;
 use crate::domains::member::effects::member_effect;
 use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::providers::effects::provider_effect;
 use crate::domains::website::effects::website_effect;
+use crate::domains::website_approval::effects::website_approval_effect;
 
 /// Shared application state
 #[derive(Clone)]
@@ -95,8 +95,8 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
         .with_effect(crawler_effect())
         // Posts domain (composite effect)
         .with_effect(post_composite_effect())
-        // Domain approval domain
-        .with_effect(domain_approval_effect())
+        // Website approval domain
+        .with_effect(website_approval_effect())
         // Providers domain
         .with_effect(provider_effect())
 }
@@ -107,7 +107,7 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
 /// GraphQL mutations use engine.activate(initial_state) to execute workflows.
 ///
 /// Returns (Router, Arc<AppEngine>) - engine is needed for scheduled tasks.
-pub fn build_app(
+pub async fn build_app(
     pool: PgPool,
     openai_api_key: String,
     tavily_api_key: String,
@@ -154,7 +154,10 @@ pub fn build_app(
         match extraction::FirecrawlIngestor::new(key) {
             Ok(firecrawl) => Arc::new(extraction::ValidatedIngestor::new(firecrawl)),
             Err(e) => {
-                tracing::warn!("Failed to create Firecrawl ingestor: {}, falling back to HTTP", e);
+                tracing::warn!(
+                    "Failed to create Firecrawl ingestor: {}, falling back to HTTP",
+                    e
+                );
                 Arc::new(extraction::ValidatedIngestor::new(
                     extraction::HttpIngestor::new(),
                 ))
@@ -170,6 +173,11 @@ pub fn build_app(
     let web_searcher: Arc<dyn extraction::WebSearcher> =
         Arc::new(extraction::TavilyWebSearcher::new(tavily_api_key));
 
+    // Create extraction service (required for all crawling operations)
+    let extraction_service = create_extraction_service(pool.clone())
+        .await
+        .expect("Failed to create extraction service - this is required for server operation");
+
     let server_deps = ServerDeps::new(
         pool.clone(),
         ingestor,
@@ -181,7 +189,7 @@ pub fn build_app(
         Arc::new(TwilioAdapter::new(twilio.clone())),
         web_searcher,
         pii_detector,
-        None, // Extraction service - initialized on demand via GraphQL
+        extraction_service,
         test_identifier_enabled,
         admin_identifiers,
     );

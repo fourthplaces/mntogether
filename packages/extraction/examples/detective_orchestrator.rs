@@ -31,11 +31,8 @@
 
 use std::collections::HashMap;
 
-use extraction::{
-    Extraction, Index,
-    PageStore, AI,
-};
 use extraction::traits::store::KeywordSearch;
+use extraction::{Extraction, Index, PageStore, AI};
 
 /// Configuration for the Detective orchestrator.
 #[derive(Debug, Clone)]
@@ -198,10 +195,7 @@ impl<'a, S: PageStore + KeywordSearch, A: AI> DetectiveOrchestrator<'a, S, A> {
                 }
 
                 // MECHANISM: Execute the step
-                let result = self
-                    .index
-                    .execute_step(step, filter.as_ref())
-                    .await?;
+                let result = self.index.execute_step(step, filter.as_ref()).await?;
 
                 // POLICY: Check if step was successful enough
                 if result.pages_found.len() >= self.config.min_pages_for_success {
@@ -212,7 +206,8 @@ impl<'a, S: PageStore + KeywordSearch, A: AI> DetectiveOrchestrator<'a, S, A> {
                         let supplement = self.index.extract_from(query, &pages).await?;
 
                         // Track tokens (estimate based on content size)
-                        let estimated_tokens = pages.iter().map(|p| p.content.len() / 4).sum::<usize>();
+                        let estimated_tokens =
+                            pages.iter().map(|p| p.content.len() / 4).sum::<usize>();
                         state.tokens_used += estimated_tokens;
 
                         // MECHANISM: Merge the new information
@@ -246,7 +241,7 @@ impl<'a, S: PageStore + KeywordSearch, A: AI> DetectiveOrchestrator<'a, S, A> {
 /// Example usage showing the Detective orchestrator in action.
 #[cfg(feature = "postgres")]
 async fn example_usage() -> extraction::error::Result<()> {
-    use extraction::{PostgresStore, ExtractionConfig};
+    use extraction::{ExtractionConfig, PostgresStore};
 
     // Setup (your AI implementation)
     let store = PostgresStore::new("postgres://localhost/extraction").await?;
@@ -255,9 +250,9 @@ async fn example_usage() -> extraction::error::Result<()> {
 
     // Configure the Detective
     let config = DetectiveConfig {
-        max_iterations: 5,      // More iterations for complex queries
-        token_budget: 50_000,   // Higher budget for important extractions
-        max_gap_attempts: 3,    // Standard ghost gap prevention
+        max_iterations: 5,    // More iterations for complex queries
+        token_budget: 50_000, // Higher budget for important extractions
+        max_gap_attempts: 3,  // Standard ghost gap prevention
         min_pages_for_success: 1,
     };
 

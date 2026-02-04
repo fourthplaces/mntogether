@@ -24,8 +24,8 @@ use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::{AppState, MemberId};
 use crate::config::Config;
+use crate::domains::crawling::actions::ingest_website;
 use crate::domains::member::models::member::Member;
-use crate::domains::posts::actions as post_actions;
 use crate::domains::posts::effects::run_discovery_searches;
 use crate::domains::website::models::Website;
 use crate::server::graphql::context::AppEngine;
@@ -103,16 +103,15 @@ async fn run_periodic_scrape(pool: &PgPool, engine: &Arc<AppEngine>) -> Result<(
 
     tracing::info!("Found {} sources due for scraping", sources.len());
 
-    // Call scrape action for each source
-    for source in sources {
-        // Call the action directly via process() - action creates its own job_id
+    // Ingest each website using the extraction library
+    for website in sources {
         let result = engine
             .activate(AppState::default())
             .process(|ectx| {
-                post_actions::scrape_source(
-                    source.id.into_uuid(),
+                ingest_website(
+                    website.id.into_uuid(),
                     MemberId::nil().into_uuid(), // System user
-                    true,                        // System has admin privileges
+                    true,                        // Use Firecrawl for better JS rendering
                     ectx,
                 )
             })
@@ -121,18 +120,18 @@ async fn run_periodic_scrape(pool: &PgPool, engine: &Arc<AppEngine>) -> Result<(
         match result {
             Ok(job_result) => {
                 tracing::info!(
-                    "Scraped source {} ({}) with job {} - status: {}",
-                    source.id,
-                    source.domain,
+                    "Ingested website {} ({}) with job {} - status: {}",
+                    website.id,
+                    website.domain,
                     job_result.job_id,
                     job_result.status
                 );
             }
             Err(e) => {
                 tracing::error!(
-                    "Failed to scrape source {} ({}): {}",
-                    source.id,
-                    source.domain,
+                    "Failed to ingest website {} ({}): {}",
+                    website.id,
+                    website.domain,
                     e
                 );
             }

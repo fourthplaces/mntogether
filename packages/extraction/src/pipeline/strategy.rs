@@ -98,15 +98,22 @@ pub fn classify_by_heuristics(query: &str) -> Option<ExtractionStrategy> {
     }
 
     // Need at least 2x the score of others to be confident
-    if collection_score >= 1 && collection_score > singular_score && collection_score > narrative_score {
+    if collection_score >= 1
+        && collection_score > singular_score
+        && collection_score > narrative_score
+    {
         return Some(ExtractionStrategy::Collection);
     }
 
-    if singular_score >= 1 && singular_score > collection_score && singular_score > narrative_score {
+    if singular_score >= 1 && singular_score > collection_score && singular_score > narrative_score
+    {
         return Some(ExtractionStrategy::Singular);
     }
 
-    if narrative_score >= 1 && narrative_score > collection_score && narrative_score > singular_score {
+    if narrative_score >= 1
+        && narrative_score > collection_score
+        && narrative_score > singular_score
+    {
         return Some(ExtractionStrategy::Narrative);
     }
 
@@ -145,9 +152,7 @@ impl QueryAnalysis {
             uses_plural: words.iter().any(|w| {
                 w.ends_with("ies") || (w.ends_with('s') && !w.ends_with("ss") && w.len() > 3)
             }),
-            mentions_specific_field: SINGULAR_KEYWORDS
-                .iter()
-                .any(|k| query_lower.contains(k)),
+            mentions_specific_field: SINGULAR_KEYWORDS.iter().any(|k| query_lower.contains(k)),
             word_count: words.len(),
         }
     }

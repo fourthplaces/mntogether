@@ -6,6 +6,7 @@ pub mod deps;
 pub mod extraction_bridge;
 pub mod extraction_service;
 pub mod job_queue;
+pub mod jobs;
 pub mod llm_request;
 pub mod nats;
 pub mod pii;
@@ -20,15 +21,26 @@ pub use ai::OpenAIClient;
 
 // Extraction library integration
 pub use extraction_bridge::ExtractionAIBridge;
-pub use extraction_service::{create_production_service, ExtractionService, ProductionExtractionService};
+pub use extraction_service::{
+    create_extraction_service, ExtractionService, OpenAIExtractionService,
+};
 
 // Re-export from extraction library for easy access
 pub use extraction::{
     // Ingestors
-    DiscoverConfig, FirecrawlIngestor, HttpIngestor, Ingestor, IngestResult,
-    MockIngestor, RawPage, ValidatedIngestor,
+    DiscoverConfig,
+    FirecrawlIngestor,
+    HttpIngestor,
+    IngestResult,
+    Ingestor,
+    MockIngestor,
     // Web search
-    MockWebSearcher, SearchResult, TavilyWebSearcher, WebSearcher,
+    MockWebSearcher,
+    RawPage,
+    SearchResult,
+    TavilyWebSearcher,
+    ValidatedIngestor,
+    WebSearcher,
 };
 
 // Other exports

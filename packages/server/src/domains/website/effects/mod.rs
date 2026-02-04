@@ -37,11 +37,11 @@ pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                     "Website approved, triggering auto-crawl"
                 );
 
-                // Trigger crawl - approver must be admin
-                let _ = crawling_actions::crawl_website(
+                // Trigger crawl via ingest_website (use Firecrawl for better JS rendering)
+                let _ = crawling_actions::ingest_website(
                     website_id.into_uuid(),
                     reviewed_by.into_uuid(),
-                    true, // is_admin (approver must be admin)
+                    true, // use_firecrawl
                     &ctx,
                 )
                 .await;

@@ -115,12 +115,9 @@ pub async fn verify_otp(
         }
         Err(e) => {
             error!("OTP verification failed: {}", e);
-            let reason = e.to_string();
-            ctx.emit(AuthEvent::OTPFailed {
-                phone_number: phone_number.clone(),
-                reason: reason.clone(),
-            });
-            Ok(VerifyOtpResult::Failed { reason })
+            Ok(VerifyOtpResult::Failed {
+                reason: e.to_string(),
+            })
         }
     }
 }

@@ -7,16 +7,30 @@ use sqlx::FromRow;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::sql::Record;
-use crate::common::utils::{calculate_next_run_at, hash::db_id, is_rrule};
+use super::record::Record;
+
+// Simple utility functions (inlined to avoid missing dependencies)
+fn db_id() -> Uuid {
+    Uuid::new_v4()
+}
+
+fn is_rrule(freq: &str) -> bool {
+    freq.starts_with("RRULE:") || freq.starts_with("FREQ=")
+}
+
+fn calculate_next_run_at(_freq: &str, _tz: &str) -> Result<Option<DateTime<Utc>>> {
+    // TODO: Implement proper RRULE parsing if needed
+    // For now, recurring jobs are not actively used
+    Ok(None)
+}
 use crate::kernel::ServerKernel;
 
 // ============================================================================
 // Enums
 // ============================================================================
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, Default)]
-#[sqlx(type_name = "job_status", rename_all = "snake_case")]
+/// Job status stored as TEXT in the database
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum JobStatus {
     #[default]
     Pending,
@@ -28,8 +42,70 @@ pub enum JobStatus {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, Default)]
-#[sqlx(type_name = "job_priority", rename_all = "snake_case")]
+impl JobStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            JobStatus::Pending => "pending",
+            JobStatus::Running => "running",
+            JobStatus::Succeeded => "succeeded",
+            JobStatus::Failed => "failed",
+            JobStatus::Completed => "completed",
+            JobStatus::DeadLetter => "dead_letter",
+            JobStatus::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "pending" => JobStatus::Pending,
+            "running" => JobStatus::Running,
+            "succeeded" => JobStatus::Succeeded,
+            "failed" => JobStatus::Failed,
+            "completed" => JobStatus::Completed,
+            "dead_letter" => JobStatus::DeadLetter,
+            "cancelled" => JobStatus::Cancelled,
+            _ => JobStatus::Pending, // Default for unknown values
+        }
+    }
+}
+
+impl std::fmt::Display for JobStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+// SQLx Decode implementation for TEXT column
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for JobStatus {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s: &str = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(JobStatus::from_str(s))
+    }
+}
+
+// SQLx Encode implementation for TEXT column
+impl sqlx::Encode<'_, sqlx::Postgres> for JobStatus {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
+    }
+}
+
+// SQLx Type implementation for TEXT
+impl sqlx::Type<sqlx::Postgres> for JobStatus {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <String as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <String as sqlx::Type<sqlx::Postgres>>::compatible(ty)
+    }
+}
+
+/// Job priority stored as INTEGER in the database (0=critical, 1=high, 2=normal, 3=low)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum JobPriority {
     Critical,
     High,
@@ -39,8 +115,8 @@ pub enum JobPriority {
 }
 
 impl JobPriority {
-    /// Convert to integer for efficient DB ordering (lower = higher priority)
-    pub fn as_i16(&self) -> i16 {
+    /// Convert to integer for DB storage (lower = higher priority)
+    pub fn as_i32(&self) -> i32 {
         match self {
             JobPriority::Critical => 0,
             JobPriority::High => 1,
@@ -48,10 +124,47 @@ impl JobPriority {
             JobPriority::Low => 3,
         }
     }
+
+    pub fn from_i32(v: i32) -> Self {
+        match v {
+            0 => JobPriority::Critical,
+            1 => JobPriority::High,
+            2 => JobPriority::Normal,
+            3 => JobPriority::Low,
+            _ => JobPriority::Normal,
+        }
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, Default)]
-#[sqlx(type_name = "overlap_policy", rename_all = "snake_case")]
+// SQLx implementations for INTEGER column
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for JobPriority {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let v: i32 = <i32 as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(JobPriority::from_i32(v))
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for JobPriority {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <i32 as sqlx::Encode<sqlx::Postgres>>::encode(self.as_i32(), buf)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for JobPriority {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <i32 as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <i32 as sqlx::Type<sqlx::Postgres>>::compatible(ty)
+    }
+}
+
+/// Overlap policy stored as TEXT in the database
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum OverlapPolicy {
     /// Allow multiple runs to be queued even if previous is still running
     Allow,
@@ -62,8 +175,53 @@ pub enum OverlapPolicy {
     CoalesceLatest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, Default)]
-#[sqlx(type_name = "misfire_policy", rename_all = "snake_case")]
+impl OverlapPolicy {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OverlapPolicy::Allow => "allow",
+            OverlapPolicy::Skip => "skip",
+            OverlapPolicy::CoalesceLatest => "coalesce_latest",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "allow" => OverlapPolicy::Allow,
+            "skip" => OverlapPolicy::Skip,
+            "coalesce_latest" => OverlapPolicy::CoalesceLatest,
+            _ => OverlapPolicy::Skip,
+        }
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for OverlapPolicy {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s: &str = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(OverlapPolicy::from_str(s))
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for OverlapPolicy {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for OverlapPolicy {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <String as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <String as sqlx::Type<sqlx::Postgres>>::compatible(ty)
+    }
+}
+
+/// Misfire policy stored as TEXT in the database
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum MisfirePolicy {
     /// Enqueue all missed occurrences
     CatchUp,
@@ -72,8 +230,51 @@ pub enum MisfirePolicy {
     SkipToLatest,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, sqlx::Type, Default)]
-#[sqlx(type_name = "error_kind", rename_all = "snake_case")]
+impl MisfirePolicy {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MisfirePolicy::CatchUp => "catch_up",
+            MisfirePolicy::SkipToLatest => "skip_to_latest",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "catch_up" => MisfirePolicy::CatchUp,
+            "skip_to_latest" => MisfirePolicy::SkipToLatest,
+            _ => MisfirePolicy::SkipToLatest,
+        }
+    }
+}
+
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for MisfirePolicy {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s: &str = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(MisfirePolicy::from_str(s))
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for MisfirePolicy {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for MisfirePolicy {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <String as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <String as sqlx::Type<sqlx::Postgres>>::compatible(ty)
+    }
+}
+
+/// Error kind stored as TEXT in the database
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub enum ErrorKind {
     /// Transient error - will retry if attempts remain
     #[default]
@@ -91,14 +292,50 @@ impl ErrorKind {
     pub fn should_retry(&self) -> bool {
         matches!(self, ErrorKind::Retryable | ErrorKind::Shutdown)
     }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            ErrorKind::Retryable => "retryable",
+            ErrorKind::NonRetryable => "non_retryable",
+            ErrorKind::Cancelled => "cancelled",
+            ErrorKind::Shutdown => "shutdown",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "retryable" => ErrorKind::Retryable,
+            "non_retryable" => ErrorKind::NonRetryable,
+            "cancelled" => ErrorKind::Cancelled,
+            "shutdown" => ErrorKind::Shutdown,
+            _ => ErrorKind::Retryable,
+        }
+    }
 }
 
-impl From<seesaw::FailureKind> for ErrorKind {
-    fn from(kind: seesaw::FailureKind) -> Self {
-        match kind {
-            seesaw::FailureKind::Retryable => ErrorKind::Retryable,
-            seesaw::FailureKind::NonRetryable => ErrorKind::NonRetryable,
-        }
+impl<'r> sqlx::Decode<'r, sqlx::Postgres> for ErrorKind {
+    fn decode(value: sqlx::postgres::PgValueRef<'r>) -> Result<Self, sqlx::error::BoxDynError> {
+        let s: &str = <&str as sqlx::Decode<sqlx::Postgres>>::decode(value)?;
+        Ok(ErrorKind::from_str(s))
+    }
+}
+
+impl sqlx::Encode<'_, sqlx::Postgres> for ErrorKind {
+    fn encode_by_ref(
+        &self,
+        buf: &mut sqlx::postgres::PgArgumentBuffer,
+    ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
+        <&str as sqlx::Encode<sqlx::Postgres>>::encode(self.as_str(), buf)
+    }
+}
+
+impl sqlx::Type<sqlx::Postgres> for ErrorKind {
+    fn type_info() -> sqlx::postgres::PgTypeInfo {
+        <String as sqlx::Type<sqlx::Postgres>>::type_info()
+    }
+
+    fn compatible(ty: &sqlx::postgres::PgTypeInfo) -> bool {
+        <String as sqlx::Type<sqlx::Postgres>>::compatible(ty)
     }
 }
 
@@ -238,6 +475,7 @@ impl Job {
 
     /// Legacy constructor for backward compatibility with TestJobManager
     pub fn new(
+        reference_id: Uuid,
         frequency: Option<String>,
         job_type: String,
         next_run_at: Option<DateTime<Utc>>,
@@ -290,6 +528,7 @@ impl Job {
     pub fn for_command(
         job_type: &str,
         args: serde_json::Value,
+        reference_id: Option<Uuid>,
         run_at: Option<DateTime<Utc>>,
         idempotency_key: Option<String>,
         command_version: i32,
@@ -300,6 +539,7 @@ impl Job {
     ) -> Self {
         Self {
             id: db_id(),
+            reference_id: reference_id.unwrap_or_else(db_id),
             job_type: job_type.to_string(),
             frequency: None,
             timezone: "UTC".to_string(),
@@ -344,6 +584,7 @@ impl Job {
 
     /// Find a job by reference_id and job_type
     pub async fn find_by_reference(
+        reference_id: Uuid,
         job_type: &str,
         kernel: &ServerKernel,
     ) -> Result<Option<Self>> {
@@ -362,7 +603,7 @@ impl Job {
         )
         .bind(reference_id)
         .bind(job_type)
-        .fetch_optional(&kernel.db_connection)
+        .fetch_optional(&kernel.db_pool)
         .await?;
 
         Ok(job)
@@ -370,6 +611,7 @@ impl Job {
 
     /// Delete a job by reference_id and job_type
     pub async fn delete_by_reference(
+        reference_id: Uuid,
         job_type: &str,
         kernel: &ServerKernel,
     ) -> Result<u64> {
@@ -377,7 +619,7 @@ impl Job {
             sqlx::query("DELETE FROM jobs WHERE reference_id = $1 AND job_type = $2")
                 .bind(reference_id)
                 .bind(job_type)
-                .execute(&kernel.db_connection)
+                .execute(&kernel.db_pool)
                 .await?
                 .rows_affected();
 
@@ -432,7 +674,7 @@ impl Job {
             LIMIT 1
             "#,
         )
-        .fetch_optional(&kernel.db_connection)
+        .fetch_optional(&kernel.db_pool)
         .await?;
 
         Ok(result)
@@ -458,7 +700,7 @@ impl Job {
             "#,
         )
         .bind(limit)
-        .fetch_all(&kernel.db_connection)
+        .fetch_all(&kernel.db_pool)
         .await?;
 
         Ok(jobs)
@@ -503,7 +745,7 @@ impl Job {
         .bind(limit)
         .bind(lease_duration_ms.to_string())
         .bind(worker_id)
-        .fetch_all(&kernel.db_connection)
+        .fetch_all(&kernel.db_pool)
         .await?;
 
         Ok(jobs)
@@ -521,7 +763,7 @@ impl Job {
         )
         .bind(self.lease_duration_ms.to_string())
         .bind(self.id)
-        .execute(&kernel.db_connection)
+        .execute(&kernel.db_pool)
         .await?;
 
         Ok(())
@@ -545,6 +787,7 @@ impl Job {
     pub fn create_retry(&self, scheduled_for: DateTime<Utc>) -> Self {
         Self {
             id: db_id(),
+            reference_id: self.reference_id,
             job_type: self.job_type.clone(),
             frequency: self.frequency.clone(),
             timezone: self.timezone.clone(),
@@ -844,7 +1087,7 @@ impl Record for Job {
         .bind(self.attempt)
         .bind(&self.idempotency_key)
         .bind(self.command_version)
-        .fetch_one(&kernel.db_connection)
+        .fetch_one(&kernel.db_pool)
         .await?;
 
         Ok(job)
@@ -905,7 +1148,7 @@ impl Record for Job {
         .bind(&self.idempotency_key)
         .bind(self.command_version)
         .bind(self.id)
-        .fetch_one(&kernel.db_connection)
+        .fetch_one(&kernel.db_pool)
         .await?;
 
         Ok(job)
@@ -914,14 +1157,14 @@ impl Record for Job {
     async fn delete(&self, kernel: &ServerKernel) -> Result<()> {
         sqlx::query("DELETE FROM jobs WHERE id = $1")
             .bind(self.id)
-            .execute(&kernel.db_connection)
+            .execute(&kernel.db_pool)
             .await?;
 
         Ok(())
     }
 
     async fn read(&self, kernel: &ServerKernel) -> Result<Self> {
-        Self::find_by_id(self.id, &kernel.db_connection).await
+        Self::find_by_id(self.id, &kernel.db_pool).await
     }
 }
 

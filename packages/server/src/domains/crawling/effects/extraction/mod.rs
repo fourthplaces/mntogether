@@ -1,7 +1,7 @@
 //! Page summarization module (DEPRECATED)
 //!
 //! Generates AI summaries of pages for display in admin UI.
-//! Post extraction now uses agentic extraction (see posts/effects/agentic_extraction.rs)
+//! Post extraction now uses `posts::extraction::PostExtractor`.
 //!
 //! # Deprecation Notice
 //!

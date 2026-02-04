@@ -11,7 +11,7 @@ use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::kernel::{
-    extraction_service::ProductionExtractionService, BaseAI, BaseEmbeddingService, BasePiiDetector,
+    extraction_service::OpenAIExtractionService, BaseAI, BaseEmbeddingService, BasePiiDetector,
     BasePushNotificationService, BaseTwilioService,
 };
 
@@ -57,7 +57,9 @@ impl BaseTwilioService for TwilioAdapter {
 #[derive(Clone)]
 pub struct ServerDeps {
     pub db_pool: PgPool,
-    /// Ingestor for crawling/scraping (from extraction library)
+    /// DEPRECATED: Use ExtractionService methods with specific ingestors instead.
+    /// This field is retained for backward compatibility with deprecated code paths.
+    /// Use `extraction.ingest()` or `extraction.ingest_urls()` with FirecrawlIngestor/HttpIngestor.
     pub ingestor: Arc<dyn Ingestor>,
     pub ai: Arc<dyn BaseAI>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
@@ -67,7 +69,7 @@ pub struct ServerDeps {
     pub web_searcher: Arc<dyn WebSearcher>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
     /// Extraction service for query-driven content extraction
-    pub extraction: Option<Arc<ProductionExtractionService>>,
+    pub extraction: Arc<OpenAIExtractionService>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -84,7 +86,7 @@ impl ServerDeps {
         twilio: Arc<dyn BaseTwilioService>,
         web_searcher: Arc<dyn WebSearcher>,
         pii_detector: Arc<dyn BasePiiDetector>,
-        extraction: Option<Arc<ProductionExtractionService>>,
+        extraction: Arc<OpenAIExtractionService>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {

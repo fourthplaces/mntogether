@@ -157,7 +157,11 @@ pub trait CrawlerExt: Crawler + Sized {
     }
 
     /// Wrap with rate limiting and burst support.
-    fn rate_limited_with_burst(self, requests_per_second: u32, burst: u32) -> RateLimitedCrawler<Self> {
+    fn rate_limited_with_burst(
+        self,
+        requests_per_second: u32,
+        burst: u32,
+    ) -> RateLimitedCrawler<Self> {
         RateLimitedCrawler::with_burst(self, requests_per_second, burst)
     }
 }
@@ -174,9 +178,18 @@ mod tests {
     #[tokio::test]
     async fn test_rate_limiting() {
         let mock = MockCrawler::new()
-            .with_page(crate::types::page::CrawledPage::new("https://example.com/1", "Page 1"))
-            .with_page(crate::types::page::CrawledPage::new("https://example.com/2", "Page 2"))
-            .with_page(crate::types::page::CrawledPage::new("https://example.com/3", "Page 3"));
+            .with_page(crate::types::page::CrawledPage::new(
+                "https://example.com/1",
+                "Page 1",
+            ))
+            .with_page(crate::types::page::CrawledPage::new(
+                "https://example.com/2",
+                "Page 2",
+            ))
+            .with_page(crate::types::page::CrawledPage::new(
+                "https://example.com/3",
+                "Page 3",
+            ));
 
         // 2 requests per second
         let crawler = mock.rate_limited(2);
@@ -184,7 +197,11 @@ mod tests {
         let start = Instant::now();
 
         // Fetch 3 pages
-        let urls = ["https://example.com/1", "https://example.com/2", "https://example.com/3"];
+        let urls = [
+            "https://example.com/1",
+            "https://example.com/2",
+            "https://example.com/3",
+        ];
         let pages = crawler.fetch_pages(&urls).await.unwrap();
 
         let elapsed = start.elapsed();
@@ -193,7 +210,11 @@ mod tests {
 
         // Should take at least 1 second for 3 requests at 2/sec
         // (first is immediate, 2nd and 3rd wait)
-        assert!(elapsed.as_millis() >= 500, "Rate limiting not working: {:?}", elapsed);
+        assert!(
+            elapsed.as_millis() >= 500,
+            "Rate limiting not working: {:?}",
+            elapsed
+        );
     }
 
     #[tokio::test]

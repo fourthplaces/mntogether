@@ -8,10 +8,10 @@
 mod common;
 
 use crate::common::{GraphQLClient, TestHarness};
+use extraction::{MockIngestor, RawPage};
 use server_core::common::{ContactInfo, ExtractedPostWithSource, MemberId};
 use server_core::domains::crawling::models::PageSnapshot;
 use server_core::domains::website::models::Website;
-use extraction::{MockIngestor, RawPage};
 use server_core::kernel::test_dependencies::MockAI;
 use server_core::kernel::TestDependencies;
 use test_context::test_context;

@@ -251,6 +251,63 @@ CREATE TABLE tavily_results (
 );
 ```
 
+## Domain Structure Rules
+
+### HARD RULE: Database Queries Live in Models
+
+**All database queries must live in `domains/*/models/` modules, not in effects or handlers.**
+
+Models are the data access layer. Effects are thin orchestrators that call actions. Never put SQL queries directly in effect handlers.
+
+#### ✅ Correct Pattern:
+
+```rust
+// domains/crawling/models/extraction_page.rs
+pub struct ExtractionPage;
+
+impl ExtractionPage {
+    pub async fn find_by_domain(domain: &str, pool: &PgPool) -> Result<Vec<(Uuid, String, String)>> {
+        sqlx::query_as::<_, (String, String)>(
+            "SELECT url, content FROM extraction_pages WHERE site_url = $1"
+        )
+        .bind(domain)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+}
+```
+
+Then in the effect handler:
+```rust
+// domains/crawling/effects/handlers.rs
+let pages = ExtractionPage::find_by_domain(&website.domain, &ctx.deps().db_pool).await?;
+```
+
+#### ❌ Incorrect Pattern:
+
+```rust
+// BAD: SQL query directly in effect handler
+async fn handle_extract_posts(ctx: &EffectContext<...>) -> Result<()> {
+    let pages = sqlx::query_as::<_, (String, String)>(
+        "SELECT url, content FROM extraction_pages WHERE site_url = $1"
+    )
+    .bind(&domain)
+    .fetch_all(&ctx.deps().db_pool)
+    .await?;
+    // ...
+}
+```
+
+#### Why This Rule Exists:
+
+- **Single source of truth**: All queries for a table are in one place
+- **Reusability**: Multiple handlers can use the same query methods
+- **Testability**: Models can be unit tested without effect machinery
+- **Discoverability**: Easy to find all queries for a given table
+
+---
+
 ## Seesaw Architecture Rules (v0.4.0+)
 
 ### Overview
@@ -260,6 +317,21 @@ Seesaw uses an event-driven architecture with three main components:
 1. **Effects** - Thin dispatchers that route commands to handlers
 2. **Actions** - Reusable business logic in `domains/*/actions/` modules
 3. **Edges** - Event-to-command transitions that can run business logic
+
+### PLATINUM RULE: Events Are Facts Only
+
+**Events must represent facts about what happened. Never emit events for failures, errors, or hypotheticals.**
+
+- ✅ `PostsRegenerated` - fact: posts were regenerated
+- ✅ `WebsiteCrawled` - fact: a website was crawled
+- ✅ `UserCreated` - fact: a user was created
+- ❌ `CrawlFailed` - not a fact, it's an error (use `Result::Err`)
+- ❌ `WebsiteIngested` - misleading if you're regenerating, not ingesting
+- ❌ `ProcessingStarted` - not a fact about what happened, it's a status
+
+**Errors go in `Result::Err`, not in events.** If an operation fails, return an error. Events are for successful state changes that other parts of the system may need to react to.
+
+**Be precise about what happened.** Don't emit `PostsSynced` when posts were regenerated. Don't emit `WebsiteIngested` when you extracted posts from already-ingested pages. The event name must accurately describe the fact.
 
 ### HARD RULE: Effects Must Be Ultra-Thin
 
@@ -277,21 +349,20 @@ async fn handle_regenerate_posts(
     requested_by: MemberId,
     is_admin: bool,
     ctx: &EffectContext<ServerDeps>,
-) -> Result<CrawlEvent> {
-    // 1. Auth check (using reusable action)
-    if let Err(event) = actions::check_crawl_authorization(
+) -> Result<()> {
+    // 1. Auth check (using reusable action) - returns Result, not event
+    actions::check_crawl_authorization(
         requested_by, is_admin, "RegeneratePosts", ctx.deps()
-    ).await {
-        return Ok(event);
-    }
+    ).await?;
 
     // 2. Delegate to action (all business logic lives there)
     let posts_count = actions::regenerate_posts_for_page(
         page_snapshot_id, job_id, ctx.deps()
     ).await;
 
-    // 3. Return event
-    Ok(CrawlEvent::PagePostsRegenerated { page_snapshot_id, job_id, posts_count })
+    // 3. Emit fact event
+    ctx.emit(CrawlEvent::PagePostsRegenerated { page_snapshot_id, job_id, posts_count });
+    Ok(())
 }
 ```
 
@@ -377,24 +448,20 @@ pub async fn regenerate_posts_for_page(
 // actions/authorization.rs
 
 /// Reusable authorization check - replaces 5+ identical blocks.
+/// Returns Result<()>, NOT Result<(), Event> - auth failures are errors, not events.
 pub async fn check_crawl_authorization<D: HasAuthContext>(
     requested_by: MemberId,
     is_admin: bool,
     action_name: &str,
     deps: &D,
-) -> Result<(), CrawlEvent> {
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
+) -> Result<()> {
+    Actor::new(requested_by, is_admin)
         .can(AdminCapability::TriggerScraping)
         .check(deps)
         .await
-    {
-        return Err(CrawlEvent::AuthorizationDenied {
-            user_id: requested_by,
-            action: action_name.to_string(),
-            reason: auth_err.to_string(),
-        });
-    }
-    Ok(())
+        .map_err(|auth_err| {
+            anyhow::anyhow!("Authorization denied for {}: {}", action_name, auth_err)
+        })
 }
 ```
 
@@ -444,8 +511,8 @@ edge!(
 
 1. **Workflow actions** return simple values (`usize`, `bool`, `Option<T>`)
 2. **Context helpers** like `fetch_single_page_context()` consolidate repeated lookups
-3. **Auth actions** like `check_crawl_authorization()` eliminate copy-paste
-4. **Use `match` not `?`** when action returns `Result<_, Event>` (events don't impl Error)
+3. **Auth actions** like `check_crawl_authorization()` return `Result<()>` and use `?` operator
+4. **Auth failures are errors**, not events - use `anyhow::anyhow!` or custom error types
 
 ## Coding Permission Rule
 

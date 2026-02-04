@@ -188,10 +188,7 @@ impl RecallSignals {
 
     /// Get total count of all signals.
     pub fn count(&self) -> usize {
-        self.calls_to_action.len()
-            + self.offers.len()
-            + self.asks.len()
-            + self.entities.len()
+        self.calls_to_action.len() + self.offers.len() + self.asks.len() + self.entities.len()
     }
 }
 

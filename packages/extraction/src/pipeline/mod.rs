@@ -24,19 +24,14 @@ pub use extract::{
 };
 pub use grounding::{calculate_grounding, Claim, ClaimGrounding, Evidence, GroundingConfig};
 pub use index::Index;
-pub use ingest::{
-    // Crawler-based (legacy)
-    ingest, ingest_single_page, refresh, IngestConfig, IngestResult, SinglePageResult,
-    // Ingestor-based (new)
-    ingest_with_ingestor, ingest_urls_with_ingestor, IngestorConfig,
-};
+pub use ingest::{ingest_urls_with_ingestor, ingest_with_ingestor, IngestResult, IngestorConfig};
 pub use partition::{
     default_partition, merge_similar_partitions, parse_partition_response, split_large_partition,
     validate_partitions,
 };
 pub use prompts::{
-    format_extract_prompt, format_partition_prompt, format_summarize_prompt,
-    summarize_prompt_hash, EXTRACT_PROMPT, PARTITION_PROMPT, SUMMARIZE_PROMPT,
+    format_extract_prompt, format_partition_prompt, format_summarize_prompt, summarize_prompt_hash,
+    EXTRACT_PROMPT, PARTITION_PROMPT, SUMMARIZE_PROMPT,
 };
 pub use recall::{hybrid_recall, RecallConfig};
 pub use strategy::{classify_query, QueryAnalysis};

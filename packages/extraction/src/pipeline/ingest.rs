@@ -1,17 +1,20 @@
 //! Ingestion pipeline - crawl, summarize, and index sites.
+//!
+//! This module provides the ingestion pipeline that processes pages through:
+//! 1. Discovery - via pluggable Ingestors (HttpIngestor, FirecrawlIngestor, etc.)
+//! 2. Summarization - via AI
+//! 3. Embedding - via AI
+//! 4. Storage - via PageStore
 
 use std::sync::Arc;
 use tokio::sync::Semaphore;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::error::{ExtractionError, Result};
 use crate::pipeline::prompts::summarize_prompt_hash;
-use crate::traits::{ai::AI, crawler::Crawler, store::PageStore};
-use crate::types::{
-    config::CrawlConfig,
-    page::CachedPage,
-    summary::Summary,
-};
+use crate::traits::ingestor::RawPage;
+use crate::traits::{ai::AI, store::PageStore};
+use crate::types::{page::CachedPage, summary::Summary};
 
 /// Result of an ingest operation.
 #[derive(Debug, Clone)]
@@ -52,107 +55,72 @@ impl Default for IngestResult {
     }
 }
 
-/// Configuration for ingest operations.
-#[derive(Debug, Clone)]
-pub struct IngestConfig {
-    /// Crawl configuration
-    pub crawl: CrawlConfig,
+// =============================================================================
+// Shared helpers
+// =============================================================================
 
-    /// Number of concurrent summarization tasks
-    pub concurrency: usize,
+/// Check if a page should be skipped (already cached with fresh summary).
+async fn should_skip_page<S: PageStore>(
+    url: &str,
+    content_hash: &str,
+    prompt_hash: &str,
+    skip_cached: bool,
+    force_resummarize: bool,
+    store: &S,
+) -> bool {
+    if !skip_cached || force_resummarize {
+        return false;
+    }
 
-    /// Batch size for summarization (pages per LLM call)
-    pub batch_size: usize,
-
-    /// Skip pages that are already cached and fresh
-    pub skip_cached: bool,
-
-    /// Force re-summarization even if summary exists
-    pub force_resummarize: bool,
-}
-
-impl IngestConfig {
-    /// Create a new ingest config for a URL.
-    pub fn new(url: impl Into<String>) -> Self {
-        Self {
-            crawl: CrawlConfig::new(url),
-            concurrency: 5,
-            batch_size: 5,
-            skip_cached: true,
-            force_resummarize: false,
+    if let Ok(Some(existing_summary)) = store.get_summary(url, content_hash).await {
+        if !existing_summary.is_prompt_stale(prompt_hash) {
+            return true;
         }
     }
+    false
+}
 
-    /// Set crawl config.
-    pub fn with_crawl(mut self, crawl: CrawlConfig) -> Self {
-        self.crawl = crawl;
-        self
-    }
-
-    /// Set concurrency.
-    pub fn with_concurrency(mut self, concurrency: usize) -> Self {
-        self.concurrency = concurrency;
-        self
-    }
-
-    /// Set batch size.
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
-        self.batch_size = batch_size;
-        self
-    }
-
-    /// Force re-summarization.
-    pub fn force_resummarize(mut self) -> Self {
-        self.force_resummarize = true;
-        self
+/// Convert a RawPage to CachedPage.
+fn raw_to_cached(raw: &RawPage, fallback_site_url: &str) -> CachedPage {
+    let site_url = raw
+        .site_url()
+        .unwrap_or_else(|| fallback_site_url.to_string());
+    let cached = CachedPage::new(&raw.url, &site_url, &raw.content).with_fetched_at(raw.fetched_at);
+    if let Some(ref title) = raw.title {
+        cached.with_title(title.clone())
+    } else {
+        cached
     }
 }
 
-/// Ingest a site: crawl → summarize → store.
-pub async fn ingest<S, A, C>(
-    site_url: &str,
-    config: &IngestConfig,
+/// Process a list of pages: check cache, store, and summarize.
+/// Returns the number of pages summarized and skipped.
+async fn process_pages<S: PageStore, A: AI>(
+    pages: Vec<CachedPage>,
+    prompt_hash: &str,
+    skip_cached: bool,
+    force_resummarize: bool,
+    concurrency: usize,
     store: &S,
     ai: &A,
-    crawler: &C,
-) -> Result<IngestResult>
-where
-    S: PageStore,
-    A: AI,
-    C: Crawler,
-{
-    let mut result = IngestResult::new();
-
-    // 1. Crawl pages
-    info!("Crawling site: {}", site_url);
-    let crawled_pages = crawler
-        .crawl(&config.crawl)
-        .await
-        .map_err(ExtractionError::Crawl)?;
-
-    result.pages_crawled = crawled_pages.len();
-    info!("Crawled {} pages from {}", crawled_pages.len(), site_url);
-
-    // 2. Convert to cached pages and store
+    result: &mut IngestResult,
+) {
     let mut pages_to_summarize: Vec<CachedPage> = Vec::new();
-    let current_prompt_hash = summarize_prompt_hash();
 
-    for crawled in crawled_pages {
-        let cached = CachedPage::new(&crawled.url, site_url, &crawled.content)
-            .with_title(crawled.title.unwrap_or_default());
-
-        // Check if we need to process this page
-        if config.skip_cached && !config.force_resummarize {
-            if let Ok(Some(existing_summary)) = store
-                .get_summary(&cached.url, &cached.content_hash)
-                .await
-            {
-                // Summary exists and content hasn't changed
-                if !existing_summary.is_prompt_stale(&current_prompt_hash) {
-                    result.pages_skipped += 1;
-                    continue;
-                }
-            }
+    for cached in pages {
+        // Check cache
+        if should_skip_page(
+            &cached.url,
+            &cached.content_hash,
+            prompt_hash,
+            skip_cached,
+            force_resummarize,
+            store,
+        )
+        .await
+        {
+            result.pages_skipped += 1;
+            continue;
         }
 
         // Store the page
@@ -165,41 +133,31 @@ where
         pages_to_summarize.push(cached);
     }
 
-    info!(
-        "Summarizing {} pages ({} skipped)",
-        pages_to_summarize.len(),
-        result.pages_skipped
-    );
+    if !pages_to_summarize.is_empty() {
+        debug!(
+            to_summarize = pages_to_summarize.len(),
+            skipped = result.pages_skipped,
+            "Processing pages"
+        );
+    }
 
-    // 3. Summarize pages (with concurrency control)
-    let semaphore = Arc::new(Semaphore::new(config.concurrency));
+    // Summarize with concurrency control
+    let semaphore = Arc::new(Semaphore::new(concurrency));
 
-    // Process in batches for efficiency
-    for chunk in pages_to_summarize.chunks(config.batch_size) {
+    for page in pages_to_summarize {
         let _permit = semaphore.acquire().await.unwrap();
+        let site_url = page.site_url.clone();
 
-        for page in chunk {
-            match summarize_and_store(page, site_url, &current_prompt_hash, store, ai).await {
-                Ok(_) => {
-                    result.pages_summarized += 1;
-                }
-                Err(e) => {
-                    warn!("Failed to summarize {}: {}", page.url, e);
-                    result.failed_urls.push(page.url.clone());
-                }
+        match summarize_and_store(&page, &site_url, prompt_hash, store, ai).await {
+            Ok(_) => {
+                result.pages_summarized += 1;
+            }
+            Err(e) => {
+                warn!("Failed to summarize {}: {}", page.url, e);
+                result.failed_urls.push(page.url.clone());
             }
         }
     }
-
-    info!(
-        "Ingest complete: {} crawled, {} summarized, {} skipped, {} failed",
-        result.pages_crawled,
-        result.pages_summarized,
-        result.pages_skipped,
-        result.failed_urls.len()
-    );
-
-    Ok(result)
 }
 
 /// Summarize a single page and store the result.
@@ -241,177 +199,8 @@ async fn summarize_and_store<S: PageStore, A: AI>(
     Ok(())
 }
 
-/// Ingest a single page on-the-fly.
-///
-/// This is the "expansion" capability for the discovery loop. When extraction
-/// returns gaps, the app can use a `WebSearcher` to find new URLs, then call
-/// this method to add them to the index without doing a full site crawl.
-///
-/// # Example
-///
-/// ```rust,ignore
-/// // Extraction returned gaps
-/// let result = index.extract("volunteer contact info").await?;
-///
-/// if result.needs_enrichment() {
-///     // Use external search to find pages
-///     let search_results = searcher.search(&result.gaps[0].query).await?;
-///
-///     // Ingest discovered pages
-///     for search_result in search_results {
-///         ingest_single_page(
-///             search_result.url.as_str(),
-///             &store,
-///             &ai,
-///             &crawler,
-///         ).await?;
-///     }
-///
-///     // Re-extract with enriched index
-///     let enriched = index.extract("volunteer contact info").await?;
-/// }
-/// ```
-pub async fn ingest_single_page<S, A, C>(
-    url: &str,
-    store: &S,
-    ai: &A,
-    crawler: &C,
-) -> Result<SinglePageResult>
-where
-    S: PageStore,
-    A: AI,
-    C: Crawler,
-{
-    use crate::error::{CrawlError, ExtractionError};
-
-    // Extract site URL from the page URL
-    let parsed = url::Url::parse(url).map_err(|_| {
-        ExtractionError::Crawl(CrawlError::InvalidUrl {
-            url: url.to_string(),
-        })
-    })?;
-    let site_url = format!(
-        "{}://{}",
-        parsed.scheme(),
-        parsed.host_str().unwrap_or("unknown")
-    );
-
-    // Check if page is already cached
-    if let Ok(Some(existing)) = store.get_page(url).await {
-        // Check if we have a fresh summary
-        let current_prompt_hash = summarize_prompt_hash();
-        if let Ok(Some(summary)) = store.get_summary(url, &existing.content_hash).await {
-            if !summary.is_prompt_stale(&current_prompt_hash) {
-                return Ok(SinglePageResult::AlreadyCached);
-            }
-        }
-    }
-
-    // Fetch the page
-    let crawled = crawler
-        .fetch(url)
-        .await
-        .map_err(ExtractionError::Crawl)?;
-
-    // Convert to cached page
-    let cached = CachedPage::new(&crawled.url, &site_url, &crawled.content)
-        .with_title(crawled.title.unwrap_or_default());
-
-    // Store the page
-    store.store_page(&cached).await?;
-
-    // Summarize and store
-    let current_prompt_hash = summarize_prompt_hash();
-    summarize_and_store(&cached, &site_url, &current_prompt_hash, store, ai).await?;
-
-    Ok(SinglePageResult::Ingested {
-        url: url.to_string(),
-        site_url,
-    })
-}
-
-/// Result of ingesting a single page.
-#[derive(Debug, Clone)]
-pub enum SinglePageResult {
-    /// Page was already cached and fresh.
-    AlreadyCached,
-
-    /// Page was fetched, summarized, and stored.
-    Ingested {
-        /// The URL of the ingested page.
-        url: String,
-        /// The site URL derived from the page URL.
-        site_url: String,
-    },
-}
-
-impl SinglePageResult {
-    /// Check if the page was newly ingested.
-    pub fn was_ingested(&self) -> bool {
-        matches!(self, Self::Ingested { .. })
-    }
-}
-
-/// Refresh stale pages for a site.
-pub async fn refresh<S, A, C>(
-    site_url: &str,
-    store: &S,
-    ai: &A,
-    crawler: &C,
-) -> Result<IngestResult>
-where
-    S: PageStore,
-    A: AI,
-    C: Crawler,
-{
-    // Get existing pages for the site
-    let existing_pages = store.get_pages_for_site(site_url).await?;
-
-    let mut result = IngestResult::new();
-    let current_prompt_hash = summarize_prompt_hash();
-
-    for page in existing_pages {
-        // Re-fetch the page
-        match crawler.fetch(&page.url).await {
-            Ok(fresh) => {
-                let new_hash = CachedPage::hash_content(&fresh.content);
-
-                // Check if content changed
-                if new_hash != page.content_hash {
-                    let cached = CachedPage::new(&fresh.url, site_url, &fresh.content)
-                        .with_title(fresh.title.unwrap_or_default());
-
-                    // Store updated page
-                    store.store_page(&cached).await?;
-
-                    // Re-summarize
-                    match summarize_and_store(&cached, site_url, &current_prompt_hash, store, ai)
-                        .await
-                    {
-                        Ok(_) => result.pages_summarized += 1,
-                        Err(e) => {
-                            warn!("Failed to summarize {}: {}", cached.url, e);
-                            result.failed_urls.push(cached.url);
-                        }
-                    }
-                } else {
-                    result.pages_skipped += 1;
-                }
-
-                result.pages_crawled += 1;
-            }
-            Err(e) => {
-                warn!("Failed to refresh {}: {}", page.url, e);
-                result.failed_urls.push(page.url);
-            }
-        }
-    }
-
-    Ok(result)
-}
-
 // =============================================================================
-// Ingestor-based ingestion (new pattern)
+// Ingestor-based ingestion
 // =============================================================================
 
 /// Configuration for ingestor-based ingestion.
@@ -464,8 +253,7 @@ impl IngestorConfig {
 
 /// Ingest pages using an Ingestor.
 ///
-/// This is the new preferred ingestion method that works with the pluggable
-/// Ingestor trait instead of the Crawler trait.
+/// This is the main ingestion method that works with pluggable Ingestors.
 ///
 /// # Example
 ///
@@ -494,91 +282,46 @@ where
     let mut result = IngestResult::new();
 
     // 1. Discover and fetch raw pages
-    info!("Discovering pages from: {}", discover_config.url);
     let raw_pages = ingestor
         .discover(discover_config)
         .await
         .map_err(ExtractionError::Crawl)?;
 
     result.pages_crawled = raw_pages.len();
-    info!("Discovered {} pages from {}", raw_pages.len(), discover_config.url);
-
-    // 2. Convert to cached pages and store
-    let mut pages_to_summarize: Vec<CachedPage> = Vec::new();
-    let current_prompt_hash = summarize_prompt_hash();
-
-    for raw in raw_pages {
-        // Skip empty content
-        if !raw.has_content() {
-            continue;
-        }
-
-        // Extract site URL
-        let site_url = raw.site_url().unwrap_or_else(|| discover_config.url.clone());
-
-        // Create cached page
-        let cached = CachedPage::new(&raw.url, &site_url, &raw.content)
-            .with_fetched_at(raw.fetched_at);
-        let cached = if let Some(title) = raw.title {
-            cached.with_title(title)
-        } else {
-            cached
-        };
-
-        // Check if we need to process this page
-        if config.skip_cached && !config.force_resummarize {
-            if let Ok(Some(existing_summary)) = store
-                .get_summary(&cached.url, &cached.content_hash)
-                .await
-            {
-                // Summary exists and content hasn't changed
-                if !existing_summary.is_prompt_stale(&current_prompt_hash) {
-                    result.pages_skipped += 1;
-                    continue;
-                }
-            }
-        }
-
-        // Store the page
-        if let Err(e) = store.store_page(&cached).await {
-            warn!("Failed to store page {}: {}", cached.url, e);
-            result.failed_urls.push(cached.url.clone());
-            continue;
-        }
-
-        pages_to_summarize.push(cached);
-    }
-
-    info!(
-        "Summarizing {} pages ({} skipped)",
-        pages_to_summarize.len(),
-        result.pages_skipped
+    debug!(
+        url = %discover_config.url,
+        pages = raw_pages.len(),
+        "Discovered pages"
     );
 
-    // 3. Summarize pages (with concurrency control)
-    let semaphore = Arc::new(Semaphore::new(config.concurrency));
+    // 2. Convert to cached pages (skip empty content)
+    let pages: Vec<CachedPage> = raw_pages
+        .iter()
+        .filter(|raw| raw.has_content())
+        .map(|raw| raw_to_cached(raw, &discover_config.url))
+        .collect();
 
-    for page in pages_to_summarize {
-        let _permit = semaphore.acquire().await.unwrap();
-        let site_url = page.site_url.clone();
-
-        match summarize_and_store(&page, &site_url, &current_prompt_hash, store, ai).await {
-            Ok(_) => {
-                result.pages_summarized += 1;
-            }
-            Err(e) => {
-                warn!("Failed to summarize {}: {}", page.url, e);
-                result.failed_urls.push(page.url.clone());
-            }
-        }
-    }
+    // 3. Process pages (cache check, store, summarize)
+    let prompt_hash = summarize_prompt_hash();
+    process_pages(
+        pages,
+        &prompt_hash,
+        config.skip_cached,
+        config.force_resummarize,
+        config.concurrency,
+        store,
+        ai,
+        &mut result,
+    )
+    .await;
 
     info!(
-        "Ingest complete: {} crawled, {} summarized, {} skipped, {} failed",
-        result.pages_crawled,
-        result.pages_summarized,
-        result.pages_skipped,
-        result.failed_urls.len()
+        url = %discover_config.url,
+        crawled = result.pages_crawled,
+        summarized = result.pages_summarized,
+        skipped = result.pages_skipped,
+        failed = result.failed_urls.len(),
+        "Ingest complete"
     );
 
     Ok(result)
@@ -604,59 +347,41 @@ where
 {
     let mut result = IngestResult::new();
 
-    // Fetch specific URLs
+    // 1. Fetch specific URLs
     let raw_pages = ingestor
         .fetch_specific(urls)
         .await
         .map_err(ExtractionError::Crawl)?;
 
     result.pages_crawled = raw_pages.len();
-    let current_prompt_hash = summarize_prompt_hash();
 
-    for raw in raw_pages {
-        if !raw.has_content() {
-            continue;
-        }
+    // 2. Convert to cached pages (skip empty content, use URL as fallback site)
+    let pages: Vec<CachedPage> = raw_pages
+        .iter()
+        .filter(|raw| raw.has_content())
+        .map(|raw| raw_to_cached(raw, &raw.url))
+        .collect();
 
-        let site_url = raw.site_url().unwrap_or_else(|| raw.url.clone());
+    // 3. Process pages (cache check, store, summarize)
+    let prompt_hash = summarize_prompt_hash();
+    process_pages(
+        pages,
+        &prompt_hash,
+        config.skip_cached,
+        config.force_resummarize,
+        config.concurrency,
+        store,
+        ai,
+        &mut result,
+    )
+    .await;
 
-        let cached = CachedPage::new(&raw.url, &site_url, &raw.content)
-            .with_fetched_at(raw.fetched_at);
-        let cached = if let Some(title) = raw.title {
-            cached.with_title(title)
-        } else {
-            cached
-        };
-
-        // Check cache
-        if config.skip_cached && !config.force_resummarize {
-            if let Ok(Some(existing_summary)) = store
-                .get_summary(&cached.url, &cached.content_hash)
-                .await
-            {
-                if !existing_summary.is_prompt_stale(&current_prompt_hash) {
-                    result.pages_skipped += 1;
-                    continue;
-                }
-            }
-        }
-
-        // Store page
-        if let Err(e) = store.store_page(&cached).await {
-            warn!("Failed to store page {}: {}", cached.url, e);
-            result.failed_urls.push(cached.url.clone());
-            continue;
-        }
-
-        // Summarize
-        match summarize_and_store(&cached, &site_url, &current_prompt_hash, store, ai).await {
-            Ok(_) => result.pages_summarized += 1,
-            Err(e) => {
-                warn!("Failed to summarize {}: {}", cached.url, e);
-                result.failed_urls.push(cached.url.clone());
-            }
-        }
-    }
+    info!(
+        urls = urls.len(),
+        summarized = result.pages_summarized,
+        skipped = result.pages_skipped,
+        "URL ingest complete"
+    );
 
     Ok(result)
 }
@@ -664,162 +389,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ingestors::{DiscoverConfig, MockIngestor, RawPage};
     use crate::stores::MemoryStore;
-    use crate::testing::{MockAI, MockCrawler};
-    use crate::types::page::CrawledPage;
-
-    #[tokio::test]
-    async fn test_ingest_basic() {
-        let store = MemoryStore::new();
-        let ai = MockAI::new();
-        let crawler = MockCrawler::new()
-            .with_page(CrawledPage::new("https://example.com/", "Home page content"))
-            .with_page(CrawledPage::new(
-                "https://example.com/about",
-                "About page content",
-            ));
-
-        let config = IngestConfig::new("https://example.com");
-        let result = ingest("https://example.com", &config, &store, &ai, &crawler)
-            .await
-            .unwrap();
-
-        assert_eq!(result.pages_crawled, 2);
-        assert_eq!(result.pages_summarized, 2);
-        assert!(result.is_success());
-
-        // Verify stored
-        assert_eq!(store.page_count(), 2);
-        assert_eq!(store.summary_count(), 2);
-    }
-
-    #[tokio::test]
-    async fn test_ingest_skips_cached() {
-        let store = MemoryStore::new();
-        let ai = MockAI::new();
-        let crawler = MockCrawler::new()
-            .with_page(CrawledPage::new("https://example.com/", "Content"));
-
-        let config = IngestConfig::new("https://example.com");
-
-        // First ingest
-        let result1 = ingest("https://example.com", &config, &store, &ai, &crawler)
-            .await
-            .unwrap();
-        assert_eq!(result1.pages_summarized, 1);
-
-        // Second ingest - should skip
-        let result2 = ingest("https://example.com", &config, &store, &ai, &crawler)
-            .await
-            .unwrap();
-        assert_eq!(result2.pages_skipped, 1);
-        assert_eq!(result2.pages_summarized, 0);
-    }
-
-    #[tokio::test]
-    async fn test_ingest_force_resummarize() {
-        let store = MemoryStore::new();
-        let ai = MockAI::new();
-        let crawler = MockCrawler::new()
-            .with_page(CrawledPage::new("https://example.com/", "Content"));
-
-        // First ingest
-        let config1 = IngestConfig::new("https://example.com");
-        ingest("https://example.com", &config1, &store, &ai, &crawler)
-            .await
-            .unwrap();
-
-        // Second ingest with force
-        let config2 = IngestConfig::new("https://example.com").force_resummarize();
-        let result = ingest("https://example.com", &config2, &store, &ai, &crawler)
-            .await
-            .unwrap();
-
-        assert_eq!(result.pages_summarized, 1);
-        assert_eq!(result.pages_skipped, 0);
-    }
-
-    #[tokio::test]
-    async fn test_ingest_single_page() {
-        let store = MemoryStore::new();
-        let ai = MockAI::new();
-        let crawler = MockCrawler::new()
-            .with_page(CrawledPage::new(
-                "https://newsite.com/contact",
-                "Contact page with email",
-            ));
-
-        let result = ingest_single_page(
-            "https://newsite.com/contact",
-            &store,
-            &ai,
-            &crawler,
-        )
-        .await
-        .unwrap();
-
-        assert!(result.was_ingested());
-        if let SinglePageResult::Ingested { url, site_url } = result {
-            assert_eq!(url, "https://newsite.com/contact");
-            assert_eq!(site_url, "https://newsite.com");
-        }
-
-        // Verify stored
-        assert_eq!(store.page_count(), 1);
-        assert_eq!(store.summary_count(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_ingest_single_page_skips_cached() {
-        let store = MemoryStore::new();
-        let ai = MockAI::new();
-        let crawler = MockCrawler::new()
-            .with_page(CrawledPage::new(
-                "https://example.com/page",
-                "Content",
-            ));
-
-        // First ingest
-        let result1 = ingest_single_page(
-            "https://example.com/page",
-            &store,
-            &ai,
-            &crawler,
-        )
-        .await
-        .unwrap();
-        assert!(result1.was_ingested());
-
-        // Second ingest - should be cached
-        let result2 = ingest_single_page(
-            "https://example.com/page",
-            &store,
-            &ai,
-            &crawler,
-        )
-        .await
-        .unwrap();
-        assert!(!result2.was_ingested());
-        assert!(matches!(result2, SinglePageResult::AlreadyCached));
-    }
-
-    #[tokio::test]
-    async fn test_single_page_result_methods() {
-        let cached = SinglePageResult::AlreadyCached;
-        assert!(!cached.was_ingested());
-
-        let ingested = SinglePageResult::Ingested {
-            url: "https://example.com".to_string(),
-            site_url: "https://example.com".to_string(),
-        };
-        assert!(ingested.was_ingested());
-    }
-
-    // ==========================================================================
-    // Ingestor-based tests
-    // ==========================================================================
-
-    use crate::ingestors::{MockIngestor, RawPage, DiscoverConfig};
+    use crate::testing::MockAI;
 
     #[tokio::test]
     async fn test_ingest_with_ingestor_basic() {
@@ -827,7 +399,10 @@ mod tests {
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
         ingestor.add_page(RawPage::new("https://example.com/", "Home page content"));
-        ingestor.add_page(RawPage::new("https://example.com/about", "About page content"));
+        ingestor.add_page(RawPage::new(
+            "https://example.com/about",
+            "About page content",
+        ));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
         let config = IngestorConfig::default();

@@ -58,6 +58,8 @@
 pub mod actions;
 pub mod effects;
 pub mod events;
+pub mod ingestors;
+pub mod jobs;
 pub mod models;
 
 // Re-export events
@@ -71,3 +73,12 @@ pub use models::{
 
 // Re-export effects
 pub use effects::{crawler_effect, hash_content, summarize_pages};
+
+// Re-export ingestors
+pub use ingestors::PageSnapshotIngestor;
+
+// Re-export jobs
+pub use jobs::{
+    execute_crawl_website_job, execute_regenerate_posts_job, CrawlWebsiteJob, JobExecutionResult,
+    JobInfo, RegeneratePostsJob,
+};

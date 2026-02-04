@@ -13,9 +13,10 @@
 //! in the caller's orchestrator. See `examples/detective_orchestrator.rs`.
 
 use async_stream::stream;
-use futures::Stream;
+use futures::{future::join_all, Stream};
 use std::pin::Pin;
 use tokio_util::sync::CancellationToken;
+use tracing::{debug, info};
 use uuid::Uuid;
 
 use crate::error::{ExtractionError, Result};
@@ -26,7 +27,9 @@ use crate::traits::{
 use crate::types::{
     config::{ExtractionConfig, QueryFilter},
     extraction::Extraction,
-    investigation::{GapType, InvestigationAction, InvestigationPlan, InvestigationStep, StepResult},
+    investigation::{
+        GapType, InvestigationAction, InvestigationPlan, InvestigationStep, StepResult,
+    },
     page::{CachedPage, PageRef},
     summary::Summary,
 };
@@ -108,11 +111,7 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
     /// PRIMITIVE: Extract from specific pages (skip recall).
     ///
     /// Useful for agents that want to control which pages to extract from.
-    pub async fn extract_from(
-        &self,
-        query: &str,
-        pages: &[CachedPage],
-    ) -> Result<Extraction> {
+    pub async fn extract_from(&self, query: &str, pages: &[CachedPage]) -> Result<Extraction> {
         let hints = if self.config.hints.is_empty() {
             None
         } else {
@@ -151,11 +150,10 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
         filter: Option<QueryFilter>,
     ) -> Result<Vec<Extraction>> {
         let strategy = self.classify_query(query).await;
+        debug!(query = %query, strategy = ?strategy, "Extraction strategy");
 
         match strategy {
-            ExtractionStrategy::Collection => {
-                self.extract_collection(query, filter.as_ref()).await
-            }
+            ExtractionStrategy::Collection => self.extract_collection(query, filter.as_ref()).await,
             ExtractionStrategy::Singular => {
                 let extraction = self.extract_singular(query, filter.as_ref()).await?;
                 Ok(vec![extraction])
@@ -269,7 +267,7 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
             .unwrap_or(ExtractionStrategy::Collection)
     }
 
-    /// Collection strategy: Recall → Partition → Extract each bucket.
+    /// Collection strategy: Recall → Partition → Extract each bucket (in parallel).
     async fn extract_collection(
         &self,
         query: &str,
@@ -277,8 +275,8 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
     ) -> Result<Vec<Extraction>> {
         let partitions = self.recall_and_partition(query, filter).await?;
 
-        let mut extractions = Vec::with_capacity(partitions.len());
-        for partition in partitions {
+        // Process all partitions in parallel
+        let futures = partitions.into_iter().map(|partition| async move {
             let urls: Vec<&str> = partition.urls.iter().map(|s| s.as_str()).collect();
             let pages = self.store.get_pages(&urls).await?;
 
@@ -288,10 +286,26 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
                 Some(self.config.hints.as_slice())
             };
 
-            let extraction = self.ai.extract(query, &pages, hints).await?;
-            extractions.push(extraction);
+            self.ai.extract(query, &pages, hints).await
+        });
+
+        let results: Vec<Result<Extraction>> = join_all(futures).await;
+
+        // Collect successes, log errors
+        let mut extractions = Vec::with_capacity(results.len());
+        for result in results {
+            match result {
+                Ok(extraction) => extractions.push(extraction),
+                Err(e) => {
+                    tracing::warn!(error = %e, "Partition extraction failed");
+                }
+            }
         }
 
+        info!(
+            partitions = extractions.len(),
+            "Collection extraction complete"
+        );
         Ok(extractions)
     }
 
@@ -325,14 +339,12 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
         query: &str,
         filter: Option<&QueryFilter>,
     ) -> Result<Vec<crate::traits::ai::Partition>> {
-        // Get summaries (with ranking for large sites)
         let summaries = self.ranked_recall(query, filter).await?;
 
         if summaries.is_empty() {
             return Ok(vec![]);
         }
 
-        // LLM partitioning
         self.ai.recall_and_partition(query, &summaries).await
     }
 
@@ -591,61 +603,13 @@ impl<S: PageStore + KeywordSearch, A: AI> Index<S, A> {
     /// Get pages from step result URLs.
     ///
     /// Convenience method to fetch full page content after `execute_step()`.
-    pub async fn pages_from_step_result(
-        &self,
-        result: &StepResult,
-    ) -> Result<Vec<CachedPage>> {
+    pub async fn pages_from_step_result(&self, result: &StepResult) -> Result<Vec<CachedPage>> {
         if result.pages_found.is_empty() {
             return Ok(vec![]);
         }
 
         let urls: Vec<&str> = result.pages_found.iter().map(|s| s.as_str()).collect();
         self.store.get_pages(&urls).await
-    }
-
-    // =========================================================================
-    // Enrichment: On-the-fly index expansion
-    // =========================================================================
-
-    /// Ingest a single page discovered by external search.
-    ///
-    /// This is the "expansion" capability for the discovery loop. When extraction
-    /// returns gaps, the app can use a `WebSearcher` to find new URLs, then call
-    /// this method to add them to the index without doing a full site crawl.
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// // Extraction returned gaps
-    /// let mut result = index.extract("volunteer contact info", None).await?;
-    ///
-    /// if result.needs_enrichment() {
-    ///     // Get searchable gaps
-    ///     let searchable_gaps: Vec<_> = result.gaps.iter()
-    ///         .filter(|g| g.is_searchable())
-    ///         .collect();
-    ///
-    ///     for gap in searchable_gaps {
-    ///         // Use external search to find pages
-    ///         let search_results = searcher.search(&gap.query).await?;
-    ///
-    ///         // Ingest discovered pages
-    ///         for search_result in search_results {
-    ///             index.ingest_url(search_result.url.as_str(), &crawler).await?;
-    ///         }
-    ///     }
-    ///
-    ///     // Re-extract with enriched index
-    ///     let enriched = index.extract("volunteer contact info", None).await?;
-    ///     result.merge(enriched.into_iter().next().unwrap_or_default());
-    /// }
-    /// ```
-    pub async fn ingest_url<C: crate::traits::crawler::Crawler>(
-        &self,
-        url: &str,
-        crawler: &C,
-    ) -> Result<crate::pipeline::ingest::SinglePageResult> {
-        crate::pipeline::ingest::ingest_single_page(url, &self.store, &self.ai, crawler).await
     }
 
     /// Get a reference to the store.
@@ -806,9 +770,14 @@ mod tests {
         assert_eq!(step.field, "contact email");
 
         // Entity gaps should get lower semantic weight (FTS-heavy)
-        if let InvestigationAction::HybridSearch { semantic_weight, .. } = &step.recommended_action
+        if let InvestigationAction::HybridSearch {
+            semantic_weight, ..
+        } = &step.recommended_action
         {
-            assert!(*semantic_weight < 0.5, "Entity gap should use FTS-heavy search");
+            assert!(
+                *semantic_weight < 0.5,
+                "Entity gap should use FTS-heavy search"
+            );
         } else {
             panic!("Expected HybridSearch action");
         }
@@ -835,7 +804,9 @@ mod tests {
         let step = &plan.steps[0];
 
         // Semantic gaps should get higher semantic weight
-        if let InvestigationAction::HybridSearch { semantic_weight, .. } = &step.recommended_action
+        if let InvestigationAction::HybridSearch {
+            semantic_weight, ..
+        } = &step.recommended_action
         {
             assert!(
                 *semantic_weight > 0.5,
@@ -859,10 +830,9 @@ mod tests {
         extraction
             .gaps
             .push(GapQuery::new("email", "contact@example.com email address"));
-        extraction.gaps.push(GapQuery::new(
-            "mission",
-            "what is their mission statement",
-        ));
+        extraction
+            .gaps
+            .push(GapQuery::new("mission", "what is their mission statement"));
         extraction.gaps.push(GapQuery::new(
             "board",
             "the board of directors section is missing",
@@ -877,8 +847,9 @@ mod tests {
             .steps
             .iter()
             .filter_map(|s| {
-                if let InvestigationAction::HybridSearch { semantic_weight, .. } =
-                    &s.recommended_action
+                if let InvestigationAction::HybridSearch {
+                    semantic_weight, ..
+                } = &s.recommended_action
                 {
                     Some(*semantic_weight)
                 } else {

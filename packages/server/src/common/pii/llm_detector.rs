@@ -64,17 +64,16 @@ pub async fn detect_pii_with_ai(text: &str, ai: &dyn BaseAI) -> Result<Vec<PiiEn
     let completion_text = ai.complete_json(&prompt).await?;
 
     // Parse the JSON response
-    let entities: Vec<PiiEntity> =
-        serde_json::from_str(&completion_text).unwrap_or_else(|_| {
-            // Try to extract JSON from markdown code block
-            let trimmed = completion_text.trim();
-            let json_str = trimmed
-                .trim_start_matches("```json")
-                .trim_start_matches("```")
-                .trim_end_matches("```")
-                .trim();
-            serde_json::from_str(json_str).unwrap_or_default()
-        });
+    let entities: Vec<PiiEntity> = serde_json::from_str(&completion_text).unwrap_or_else(|_| {
+        // Try to extract JSON from markdown code block
+        let trimmed = completion_text.trim();
+        let json_str = trimmed
+            .trim_start_matches("```json")
+            .trim_start_matches("```")
+            .trim_end_matches("```")
+            .trim();
+        serde_json::from_str(json_str).unwrap_or_default()
+    });
 
     Ok(entities)
 }

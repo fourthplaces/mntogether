@@ -110,7 +110,10 @@ impl Clone for MockIngestor {
 impl Ingestor for MockIngestor {
     async fn discover(&self, config: &DiscoverConfig) -> CrawlResult<Vec<RawPage>> {
         // Record the call
-        self.discover_calls.write().unwrap().push(config.url.clone());
+        self.discover_calls
+            .write()
+            .unwrap()
+            .push(config.url.clone());
 
         // Return all pages that match the site, up to limit
         let pages = self.pages.read().unwrap();
@@ -175,9 +178,8 @@ impl MockIngestorBuilder {
 
     /// Add a page with a title.
     pub fn page_with_title(self, url: &str, title: &str, content: &str) -> Self {
-        self.mock.add_page(
-            RawPage::new(url, content).with_title(title)
-        );
+        self.mock
+            .add_page(RawPage::new(url, content).with_title(title));
         self
     }
 
@@ -210,7 +212,9 @@ mod tests {
 
         // Should only return pages from example.com
         assert_eq!(pages.len(), 2);
-        assert!(pages.iter().all(|p| p.url.starts_with("https://example.com")));
+        assert!(pages
+            .iter()
+            .all(|p| p.url.starts_with("https://example.com")));
     }
 
     #[tokio::test]
@@ -221,11 +225,14 @@ mod tests {
             .page("https://example.com/c", "Page C")
             .build();
 
-        let pages = mock.fetch_specific(&[
-            "https://example.com/a".to_string(),
-            "https://example.com/c".to_string(),
-            "https://example.com/missing".to_string(),
-        ]).await.unwrap();
+        let pages = mock
+            .fetch_specific(&[
+                "https://example.com/a".to_string(),
+                "https://example.com/c".to_string(),
+                "https://example.com/missing".to_string(),
+            ])
+            .await
+            .unwrap();
 
         // Should return only found pages
         assert_eq!(pages.len(), 2);
@@ -242,12 +249,17 @@ mod tests {
         mock.discover(&config).await.unwrap();
 
         assert_eq!(mock.discover_call_count(), 2);
-        assert_eq!(mock.discover_calls(), vec![
-            "https://example.com".to_string(),
-            "https://example.com".to_string(),
-        ]);
+        assert_eq!(
+            mock.discover_calls(),
+            vec![
+                "https://example.com".to_string(),
+                "https://example.com".to_string(),
+            ]
+        );
 
-        mock.fetch_specific(&["https://example.com/a".to_string()]).await.unwrap();
+        mock.fetch_specific(&["https://example.com/a".to_string()])
+            .await
+            .unwrap();
         assert_eq!(mock.fetch_call_count(), 1);
     }
 
@@ -255,7 +267,10 @@ mod tests {
     async fn test_mock_discover_limit() {
         let mock = MockIngestor::new();
         for i in 0..100 {
-            mock.add_page(RawPage::new(format!("https://example.com/{}", i), format!("Page {}", i)));
+            mock.add_page(RawPage::new(
+                format!("https://example.com/{}", i),
+                format!("Page {}", i),
+            ));
         }
 
         let config = DiscoverConfig::new("https://example.com").with_limit(5);

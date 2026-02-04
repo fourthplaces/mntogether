@@ -1,4 +1,4 @@
-//! Domain Approval - website assessment workflow for approval decisions
+//! Website Approval - website assessment workflow for approval decisions
 //!
 //! Architecture (seesaw 0.6.0 direct-call pattern):
 //!   GraphQL → process(action) → emit(FactEvent) → Effect watches facts → calls handlers
@@ -13,5 +13,5 @@ pub mod effects;
 pub mod events;
 
 pub use data::*;
-pub use effects::domain_approval_effect;
-pub use events::DomainApprovalEvent;
+pub use effects::website_approval_effect;
+pub use events::WebsiteApprovalEvent;

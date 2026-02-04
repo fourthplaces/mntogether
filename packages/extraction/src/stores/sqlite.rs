@@ -151,12 +151,14 @@ impl PageRow {
             .with_timezone(&chrono::Utc);
 
         let http_headers: std::collections::HashMap<String, String> =
-            serde_json::from_str(&self.http_headers)
-                .map_err(|e| ExtractionError::Storage(format!("Invalid headers JSON: {}", e).into()))?;
+            serde_json::from_str(&self.http_headers).map_err(|e| {
+                ExtractionError::Storage(format!("Invalid headers JSON: {}", e).into())
+            })?;
 
         let metadata: std::collections::HashMap<String, String> =
-            serde_json::from_str(&self.metadata)
-                .map_err(|e| ExtractionError::Storage(format!("Invalid metadata JSON: {}", e).into()))?;
+            serde_json::from_str(&self.metadata).map_err(|e| {
+                ExtractionError::Storage(format!("Invalid metadata JSON: {}", e).into())
+            })?;
 
         Ok(CachedPage {
             url: self.url,
@@ -441,15 +443,10 @@ impl EmbeddingStore for SqliteStore {
                 .await
                 .map_err(|e| ExtractionError::Storage(e.to_string().into()))?;
 
-        let site_url = site_url
-            .map(|(s,)| s)
-            .unwrap_or_else(|| url.to_string());
+        let site_url = site_url.map(|(s,)| s).unwrap_or_else(|| url.to_string());
 
         // Convert f32 slice to bytes
-        let embedding_bytes: Vec<u8> = embedding
-            .iter()
-            .flat_map(|f| f.to_le_bytes())
-            .collect();
+        let embedding_bytes: Vec<u8> = embedding.iter().flat_map(|f| f.to_le_bytes()).collect();
 
         sqlx::query(
             r#"
@@ -582,7 +579,12 @@ impl KeywordSearch for SqliteStore {
         // Use FTS5 for keyword search
         let rows = match filter {
             Some(f) if !f.include_sites.is_empty() => {
-                let placeholders = f.include_sites.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+                let placeholders = f
+                    .include_sites
+                    .iter()
+                    .map(|_| "?")
+                    .collect::<Vec<_>>()
+                    .join(",");
                 let query_str = format!(
                     r#"
                     SELECT p.url, p.site_url, p.title, bm25(pages_fts) as score
@@ -603,9 +605,8 @@ impl KeywordSearch for SqliteStore {
                 q = q.bind(limit as i64);
                 q.fetch_all(&self.pool).await.unwrap_or_default()
             }
-            _ => {
-                sqlx::query_as::<_, (String, String, Option<String>, f64)>(
-                    r#"
+            _ => sqlx::query_as::<_, (String, String, Option<String>, f64)>(
+                r#"
                     SELECT p.url, p.site_url, p.title, bm25(pages_fts) as score
                     FROM pages_fts f
                     JOIN pages p ON f.url = p.url
@@ -613,13 +614,12 @@ impl KeywordSearch for SqliteStore {
                     ORDER BY score
                     LIMIT ?
                     "#,
-                )
-                .bind(query)
-                .bind(limit as i64)
-                .fetch_all(&self.pool)
-                .await
-                .unwrap_or_default()
-            }
+            )
+            .bind(query)
+            .bind(limit as i64)
+            .fetch_all(&self.pool)
+            .await
+            .unwrap_or_default(),
         };
 
         Ok(rows

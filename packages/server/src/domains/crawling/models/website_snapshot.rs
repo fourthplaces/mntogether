@@ -29,14 +29,20 @@ use uuid::Uuid;
 use super::PageSnapshotId;
 use crate::common::{MemberId, WebsiteId};
 
-#[deprecated(since = "0.1.0", note = "Junction table replaced by site_url on extraction_pages")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Junction table replaced by site_url on extraction_pages"
+)]
 pub type WebsiteSnapshotId = Uuid;
 
 /// Links a website to its crawled page snapshots.
 ///
 /// **Deprecated:** This junction table is replaced by the `site_url` column
 /// on `extraction_pages`. Use `extraction::PageCache::get_pages_for_site()` instead.
-#[deprecated(since = "0.1.0", note = "Use extraction library's site_url filtering instead")]
+#[deprecated(
+    since = "0.1.0",
+    note = "Use extraction library's site_url filtering instead"
+)]
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct WebsiteSnapshot {
     pub id: WebsiteSnapshotId,
