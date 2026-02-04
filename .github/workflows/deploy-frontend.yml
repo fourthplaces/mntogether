@@ -7,8 +7,8 @@ on:
   push:
     branches: [main, dev]
     paths:
-      - "packages/web-app/**"
-      - "infra/packages/web-app/**"
+      - "packages/web-next/**"
+      - "infra/packages/web-next/**"
       - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
     inputs:
@@ -32,8 +32,8 @@ permissions:
   id-token: write
 
 jobs:
-  deploy-web-app:
-    name: Deploy Web App
+  deploy-web-next:
+    name: Deploy Web (Next.js)
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' || github.event_name == 'push'
     env:
@@ -67,8 +67,8 @@ jobs:
       - name: Install dependencies
         run: yarn install
 
-      - name: Build web app
-        working-directory: packages/web-app
+      - name: Build web-next
+        working-directory: packages/web-next
         run: yarn build
         env:
           NODE_ENV: production
@@ -89,8 +89,8 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: us-east-1
 
-      - name: Deploy web app
-        working-directory: infra/packages/web-app
+      - name: Deploy web-next
+        working-directory: infra/packages/web-next
         env:
           PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
         run: |
@@ -99,7 +99,7 @@ jobs:
 
       - name: Get deployment URL
         id: url
-        working-directory: infra/packages/web-app
+        working-directory: infra/packages/web-next
         run: |
           URL=$(pulumi stack output targetUrl)
           echo "url=$URL" >> "$GITHUB_OUTPUT"
@@ -107,12 +107,12 @@ jobs:
       - name: Notify success
         if: success()
         run: |
-          echo "✅ Web app deployed successfully!"
+          echo "Web app deployed successfully!"
           echo "Environment: ${{ steps.env.outputs.env }}"
           echo "URL: ${{ steps.url.outputs.url }}"
 
       - name: Notify failure
         if: failure()
         run: |
-          echo "❌ Web app deployment failed"
+          echo "Web app deployment failed"
           exit 1
