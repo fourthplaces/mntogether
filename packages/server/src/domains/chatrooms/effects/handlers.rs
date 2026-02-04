@@ -15,7 +15,7 @@ use crate::common::{AppState, ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
-use crate::kernel::ServerDeps;
+use crate::kernel::{CompletionExt, ServerDeps};
 
 // ============================================================================
 // Handler: Generate Greeting (cascade from ContainerCreated with agent)

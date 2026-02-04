@@ -5,13 +5,14 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
+use openai_client::OpenAIClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::kernel::{
-    extraction_service::OpenAIExtractionService, BaseAI, BaseEmbeddingService, BasePiiDetector,
+    extraction_service::OpenAIExtractionService, BaseEmbeddingService, BasePiiDetector,
     BasePushNotificationService, BaseTwilioService,
 };
 
@@ -61,15 +62,17 @@ pub struct ServerDeps {
     /// This field is retained for backward compatibility with deprecated code paths.
     /// Use `extraction.ingest()` or `extraction.ingest_urls()` with FirecrawlIngestor/HttpIngestor.
     pub ingestor: Arc<dyn Ingestor>,
-    pub ai: Arc<dyn BaseAI>,
+    /// OpenAI client for LLM operations. Use with `LlmRequestExt` for fluent API
+    /// or `CompletionExt` for simple completions.
+    pub ai: Arc<OpenAIClient>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<dyn BaseTwilioService>,
     /// Web searcher for discovery (from extraction library)
     pub web_searcher: Arc<dyn WebSearcher>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
-    /// Extraction service for query-driven content extraction
-    pub extraction: Arc<OpenAIExtractionService>,
+    /// Extraction service for query-driven content extraction (optional for tests)
+    pub extraction: Option<Arc<OpenAIExtractionService>>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -80,13 +83,13 @@ impl ServerDeps {
     pub fn new(
         db_pool: PgPool,
         ingestor: Arc<dyn Ingestor>,
-        ai: Arc<dyn BaseAI>,
+        ai: Arc<OpenAIClient>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<dyn BaseTwilioService>,
         web_searcher: Arc<dyn WebSearcher>,
         pii_detector: Arc<dyn BasePiiDetector>,
-        extraction: Arc<OpenAIExtractionService>,
+        extraction: Option<Arc<OpenAIExtractionService>>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {

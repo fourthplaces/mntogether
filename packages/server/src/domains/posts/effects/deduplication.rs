@@ -10,6 +10,7 @@
 //! 4. Same service described differently = merge (LLM understands identity)
 
 use anyhow::Result;
+use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::{info, warn};
@@ -17,7 +18,7 @@ use uuid::Uuid;
 
 use crate::common::{PostId, WebsiteId};
 use crate::domains::posts::models::Post;
-use crate::kernel::{BaseAI, LlmRequestExt};
+use crate::kernel::LlmRequestExt;
 
 /// Post data formatted for deduplication analysis
 #[derive(Debug, Clone, Serialize)]
@@ -61,7 +62,7 @@ pub struct DuplicateAnalysis {
 /// Returns a DuplicateAnalysis with groups of duplicates and unique posts.
 pub async fn deduplicate_posts_llm(
     website_id: WebsiteId,
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this website
@@ -138,7 +139,7 @@ pub async fn deduplicate_posts_llm(
 /// Returns the count of posts soft-deleted.
 pub async fn apply_dedup_results(
     result: DuplicateAnalysis,
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<usize> {
     let mut deleted_count = 0;
@@ -276,7 +277,7 @@ async fn generate_merge_reason(
     kept_title: &str,
     kept_id: PostId,
     reasoning: &str,
-    ai: &dyn BaseAI,
+    ai: &OpenAIClient,
 ) -> Result<String> {
     let prompt = format!(
         r#"Write a brief, friendly explanation (1-2 sentences) for why a listing was merged with another.

@@ -8,10 +8,8 @@
 //! Ingestor pattern with SSRF protection and integrated summarization.
 
 pub mod authorization;
-pub mod build_pages;
 pub mod ingest_website;
 pub mod post_extraction;
-pub mod regenerate_page;
 pub mod sync_posts;
 pub mod website_context;
 
@@ -22,23 +20,15 @@ use uuid::Uuid;
 
 use crate::common::{AppState, JobId, MemberId, WebsiteId};
 use crate::domains::crawling::effects::discovery::discover_pages;
-use crate::domains::crawling::effects::extraction::summarize_pages;
 use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo};
-use crate::domains::crawling::models::{PageSnapshot, PageSummary};
+use crate::domains::crawling::models::PageSnapshot;
 use crate::domains::website::models::{Website, WebsiteSnapshot};
 use crate::kernel::ServerDeps;
 
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
-pub use build_pages::{
-    build_page_to_summarize_from_snapshot, build_pages_to_summarize, fetch_single_page_context,
-    SinglePageContext,
-};
 pub use ingest_website::{ingest_urls, ingest_website};
-pub use regenerate_page::{regenerate_posts_for_page, regenerate_summary_for_page};
-pub use sync_posts::{
-    llm_deduplicate_website_posts, sync_and_deduplicate_posts, SyncAndDedupResult,
-};
+pub use sync_posts::{sync_and_deduplicate_posts, SyncAndDedupResult};
 pub use website_context::{fetch_approved_website, fetch_snapshots_as_crawled_pages};
 
 /// Result of a crawl/regenerate operation
@@ -121,131 +111,6 @@ pub async fn regenerate_posts(
         website_id,
         status: "completed".to_string(),
         message: Some(format!("Regeneration triggered for {} pages", page_count)),
-    })
-}
-
-/// Regenerate AI summaries for all pages of a website
-/// Returns job result directly.
-pub async fn regenerate_page_summaries(
-    website_id: Uuid,
-    member_id: Uuid,
-    is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
-    let website_id_typed = WebsiteId::from_uuid(website_id);
-    let requested_by = MemberId::from_uuid(member_id);
-    let job_id = JobId::new();
-
-    // Auth check
-    check_crawl_authorization(
-        requested_by,
-        is_admin,
-        "RegeneratePageSummaries",
-        ctx.deps(),
-    )
-    .await?;
-
-    // Fetch approved website
-    fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
-        .await
-        .ok_or_else(|| anyhow::anyhow!("Website not found or not approved"))?;
-
-    // Get snapshots and delete cached summaries
-    let crawled_pages =
-        fetch_snapshots_as_crawled_pages(website_id_typed, &ctx.deps().db_pool).await;
-    for page in &crawled_pages {
-        if let Some(ps_id) = page.snapshot_id {
-            let _ = PageSummary::delete_for_snapshot(ps_id, &ctx.deps().db_pool).await;
-        }
-    }
-
-    // Build pages to summarize
-    let (pages_to_summarize, _) =
-        build_pages_to_summarize(&crawled_pages, &ctx.deps().db_pool).await?;
-
-    if pages_to_summarize.is_empty() {
-        return Err(anyhow::anyhow!("No page snapshots with content found"));
-    }
-
-    // Run summarization
-    let summaries = summarize_pages(
-        pages_to_summarize,
-        ctx.deps().ai.as_ref(),
-        &ctx.deps().db_pool,
-    )
-    .await?;
-
-    info!(website_id = %website_id_typed, summaries = summaries.len(), "Page summaries regenerated");
-    ctx.emit(CrawlEvent::PageSummariesRegenerated {
-        website_id: website_id_typed,
-        job_id,
-        pages_processed: summaries.len(),
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        status: "completed".to_string(),
-        message: Some(format!("Page summaries regenerated ({})", summaries.len())),
-    })
-}
-
-/// Regenerate AI summary for a single page
-/// Returns job result directly.
-pub async fn regenerate_page_summary(
-    page_snapshot_id: Uuid,
-    member_id: Uuid,
-    is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
-    let requested_by = MemberId::from_uuid(member_id);
-    let job_id = JobId::new();
-
-    // Auth check
-    check_crawl_authorization(requested_by, is_admin, "RegeneratePageSummary", ctx.deps()).await?;
-
-    // Delegate to helper
-    regenerate_summary_for_page(page_snapshot_id, ctx.deps()).await;
-    ctx.emit(CrawlEvent::PageSummaryRegenerated {
-        page_snapshot_id,
-        job_id,
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id: page_snapshot_id,
-        status: "completed".to_string(),
-        message: Some("AI summary regenerated".to_string()),
-    })
-}
-
-/// Regenerate posts for a single page
-/// Returns job result directly.
-pub async fn regenerate_page_posts(
-    page_snapshot_id: Uuid,
-    member_id: Uuid,
-    is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
-    let requested_by = MemberId::from_uuid(member_id);
-    let job_id = JobId::new();
-
-    // Auth check
-    check_crawl_authorization(requested_by, is_admin, "RegeneratePagePosts", ctx.deps()).await?;
-
-    // Delegate to helper
-    let posts_count = regenerate_posts_for_page(page_snapshot_id, job_id, ctx.deps()).await;
-    ctx.emit(CrawlEvent::PagePostsRegenerated {
-        page_snapshot_id,
-        job_id,
-        posts_count,
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id: page_snapshot_id,
-        status: "completed".to_string(),
-        message: Some(format!("Posts regenerated ({})", posts_count)),
     })
 }
 

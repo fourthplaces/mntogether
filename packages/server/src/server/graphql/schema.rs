@@ -556,7 +556,7 @@ impl Query {
         // Generate embedding for the query
         let query_embedding = ctx
             .openai_client
-            .create_embedding(&query)
+            .create_embedding(&query, "text-embedding-3-small")
             .await
             .map_err(|e| {
                 FieldError::new(

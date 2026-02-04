@@ -231,17 +231,24 @@ pub async fn refresh_page_snapshot(
         }
     };
 
+    // Get extraction service (required)
+    let extraction = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
+
     // Use extraction library to ingest the single URL
     let urls = vec![page_snapshot.url.clone()];
     let result = match FirecrawlIngestor::from_env() {
         Ok(firecrawl) => {
             let ingestor = ValidatedIngestor::new(firecrawl);
-            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+            extraction.ingest_urls(&urls, &ingestor).await
         }
         Err(_) => {
             let http = HttpIngestor::new();
             let ingestor = ValidatedIngestor::new(http);
-            ctx.deps().extraction.ingest_urls(&urls, &ingestor).await
+            extraction.ingest_urls(&urls, &ingestor).await
         }
     };
 

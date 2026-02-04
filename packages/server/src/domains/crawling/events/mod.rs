@@ -127,26 +127,4 @@ pub enum CrawlEvent {
         total_attempts: i32,
     },
 
-    // =========================================================================
-    // Page-Level Events (terminal)
-    // =========================================================================
-    /// Page summaries regenerated successfully
-    PageSummariesRegenerated {
-        website_id: WebsiteId,
-        job_id: JobId,
-        pages_processed: usize,
-    },
-
-    /// Single page summary regenerated successfully
-    PageSummaryRegenerated {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-    },
-
-    /// Single page posts regenerated successfully
-    PagePostsRegenerated {
-        page_snapshot_id: uuid::Uuid,
-        job_id: JobId,
-        posts_count: usize,
-    },
 }

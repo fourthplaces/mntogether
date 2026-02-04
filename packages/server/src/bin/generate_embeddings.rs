@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
+use openai_client::OpenAIClient;
 use server_core::config::Config;
 use server_core::domains::website::models::WebsiteAssessment;
-use server_core::kernel::ai::OpenAIClient;
 use server_core::kernel::ai_matching::AIMatchingService;
 use sqlx::PgPool;
 
@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
     let mut assessment_updated = 0;
     for assessment in assessments {
         match openai_client
-            .create_embedding(&assessment.assessment_markdown)
+            .create_embedding(&assessment.assessment_markdown, "text-embedding-3-small")
             .await
         {
             Ok(embedding) => {

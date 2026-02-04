@@ -72,7 +72,7 @@ pub use models::{
 };
 
 // Re-export effects
-pub use effects::{crawler_effect, hash_content, summarize_pages};
+pub use effects::crawler_effect;
 
 // Re-export ingestors
 pub use ingestors::PageSnapshotIngestor;

@@ -3,12 +3,13 @@
 //! This is the SINGLE source of truth for extraction-related types.
 //! All domains should import from here instead of defining their own versions.
 
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Contact information - unified across all extraction contexts.
 ///
 /// Superset of all fields needed by crawling, posts, and organization domains.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
 pub struct ContactInfo {
     pub phone: Option<String>,
     pub email: Option<String>,

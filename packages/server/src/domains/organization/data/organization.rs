@@ -1,7 +1,7 @@
 use crate::common::OrganizationId;
 use crate::domains::organization::data::WebsiteData;
 use crate::domains::organization::models::Organization;
-use crate::domains::posts::data::types::ContactInfo;
+use crate::domains::posts::data::types::ContactInfoGraphQL;
 use crate::domains::tag::TagData;
 use crate::kernel::tag::Tag;
 use crate::server::graphql::context::GraphQLContext;
@@ -14,7 +14,7 @@ pub struct OrganizationData {
     pub name: String,
     pub description: Option<String>,
     pub website_id: Option<String>,
-    pub contact_info: Option<ContactInfo>,
+    pub contact_info: Option<ContactInfoGraphQL>,
     pub location: Option<String>,
     pub verified: bool,
     pub created_at: String,
@@ -23,7 +23,7 @@ pub struct OrganizationData {
 
 impl From<Organization> for OrganizationData {
     fn from(org: Organization) -> Self {
-        let contact_info = Some(ContactInfo {
+        let contact_info = Some(ContactInfoGraphQL {
             email: org.email,
             phone: org.phone,
             website: org.website,
@@ -57,7 +57,7 @@ impl OrganizationData {
         self.description.clone()
     }
 
-    fn contact_info(&self) -> Option<ContactInfo> {
+    fn contact_info(&self) -> Option<ContactInfoGraphQL> {
         self.contact_info.clone()
     }
 

@@ -7,11 +7,12 @@
 // engine.activate(state) pattern. ServerKernel is kept for scheduled tasks
 // and background services that need access to dependencies.
 
+use openai_client::OpenAIClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 
 use super::{
-    job_queue::JobQueue, BaseAI, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
+    job_queue::JobQueue, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
 };
 
 // Import from extraction library
@@ -25,7 +26,8 @@ pub struct ServerKernel {
     pub db_pool: PgPool,
     /// Ingestor for crawling/scraping (from extraction library)
     pub ingestor: Arc<dyn Ingestor>,
-    pub ai: Arc<dyn BaseAI>,
+    /// OpenAI client for LLM operations
+    pub ai: Arc<OpenAIClient>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     /// Web searcher for discovery (from extraction library)
@@ -40,7 +42,7 @@ impl ServerKernel {
     pub fn new(
         db_pool: PgPool,
         ingestor: Arc<dyn Ingestor>,
-        ai: Arc<dyn BaseAI>,
+        ai: Arc<OpenAIClient>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         web_searcher: Arc<dyn WebSearcher>,

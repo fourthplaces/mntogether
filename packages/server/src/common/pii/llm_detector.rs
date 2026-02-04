@@ -1,13 +1,14 @@
 //! LLM-based PII detection
 //!
-//! Uses the BaseAI trait for context-aware PII detection that can
+//! Uses the OpenAIClient for context-aware PII detection that can
 //! catch unstructured PII like names and addresses that regex misses.
 
 use anyhow::Result;
+use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 
 use super::detector::{PiiFindings, PiiType};
-use crate::kernel::BaseAI;
+use crate::kernel::CompletionExt;
 
 /// PII entity detected by LLM with context
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -52,7 +53,7 @@ If no PII is detected, return an empty array: []"#;
 ///
 /// This detects unstructured PII like names, addresses, and medical info
 /// that regex patterns cannot reliably catch.
-pub async fn detect_pii_with_ai(text: &str, ai: &dyn BaseAI) -> Result<Vec<PiiEntity>> {
+pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<PiiEntity>> {
     if text.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -83,7 +84,7 @@ pub async fn detect_pii_with_ai(text: &str, ai: &dyn BaseAI) -> Result<Vec<PiiEn
 /// Creates an OpenAI client internally. Prefer `detect_pii_with_ai` for
 /// better testability and consistency with the rest of the codebase.
 pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
-    let ai = crate::kernel::OpenAIClient::new(openai_api_key.to_string());
+    let ai = OpenAIClient::new(openai_api_key.to_string());
     detect_pii_with_ai(text, &ai).await
 }
 
@@ -164,8 +165,8 @@ pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFi
     Ok(findings)
 }
 
-/// Hybrid detection with a BaseAI instance (preferred for testing)
-pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &dyn BaseAI) -> Result<PiiFindings> {
+/// Hybrid detection with an OpenAIClient instance (preferred for testing)
+pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAIClient) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
     // Start with regex detection (fast, reliable for structured data)

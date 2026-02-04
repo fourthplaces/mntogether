@@ -45,7 +45,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use crate::domains::organization::models::Organization;
-use crate::kernel::ai::OpenAIClient;
+use openai_client::OpenAIClient;
 
 const DEFAULT_SIMILARITY_THRESHOLD: f32 = 0.7;
 const DEFAULT_RESULT_LIMIT: i32 = 10;
@@ -155,7 +155,11 @@ impl AIMatchingService {
         let mut retries = 0;
 
         loop {
-            match self.openai_client.create_embedding(text).await {
+            match self
+                .openai_client
+                .create_embedding(text, "text-embedding-3-small")
+                .await
+            {
                 Ok(embedding) => {
                     // Validate embedding dimension
                     if embedding.len() != 1536 {
@@ -179,7 +183,7 @@ impl AIMatchingService {
                 }
                 Err(e) => {
                     tracing::error!(error = %e, "Failed to generate embedding after all retries");
-                    return Err(e.into());
+                    return Err(anyhow::anyhow!("{}", e));
                 }
             }
         }
@@ -326,48 +330,9 @@ impl AIMatchingService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domains::organization::models::{CreateOrganization, Organization};
-    use crate::kernel::{test_dependencies::MockEmbeddingService, BaseEmbeddingService};
-    use sqlx::PgPool;
 
-    struct MockOpenAI {
-        embedding: Vec<f32>,
-    }
-
-    #[async_trait::async_trait]
-    impl BaseEmbeddingService for MockOpenAI {
-        async fn generate(&self, _text: &str) -> Result<Vec<f32>> {
-            Ok(self.embedding.clone())
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl crate::kernel::BaseAI for MockOpenAI {
-        async fn complete(&self, _prompt: &str) -> Result<String> {
-            Ok("Mock response".to_string())
-        }
-    }
-
-    impl Clone for MockOpenAI {
-        fn clone(&self) -> Self {
-            Self {
-                embedding: self.embedding.clone(),
-            }
-        }
-    }
-
-    impl MockOpenAI {
-        fn new() -> Self {
-            // Create a mock embedding (1536 zeros)
-            Self {
-                embedding: vec![0.5; 1536],
-            }
-        }
-    }
-
-    #[tokio::test]
-    #[ignore] // Requires database
-    async fn test_ai_matching_config() {
+    #[test]
+    fn test_ai_matching_config() {
         let config = AIMatchingConfig::default();
         assert_eq!(config.similarity_threshold, 0.7);
         assert_eq!(config.result_limit, 10);
@@ -391,10 +356,11 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ignore] // Requires database
+    #[ignore] // Requires database and API key
     async fn test_find_relevant_organizations() {
         // This test requires a running database with pgvector extension
-        // Run with: cargo test --features integration_tests test_find_relevant_organizations -- --ignored
+        // and an OpenAI API key.
+        // Run with: cargo test test_find_relevant_organizations -- --ignored
 
         // Setup would create test organizations with embeddings
         // Then search for them using semantic search

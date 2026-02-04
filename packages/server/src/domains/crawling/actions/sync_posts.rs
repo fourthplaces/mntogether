@@ -87,11 +87,3 @@ pub async fn sync_and_deduplicate_posts(
     })
 }
 
-/// Deprecated: LLM deduplication no longer used.
-#[deprecated(note = "Simple delete-and-replace makes this unnecessary")]
-pub async fn llm_deduplicate_website_posts(
-    _website_id: WebsiteId,
-    _deps: &ServerDeps,
-) -> Result<usize> {
-    Ok(0)
-}

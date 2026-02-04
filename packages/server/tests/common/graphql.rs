@@ -5,7 +5,8 @@
 use juniper::Variables;
 use serde_json::Value;
 use server_core::domains::auth::JwtService;
-use server_core::kernel::{OpenAIClient, ServerDeps, ServerKernel};
+use server_core::kernel::test_dependencies::{MockEmbeddingService, MockPiiDetector, MockPushNotificationService};
+use server_core::kernel::{OpenAIClient, ServerDeps, ServerKernel, TwilioAdapter};
 use server_core::server::graphql::context::AppEngine;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
 use std::sync::Arc;
@@ -182,8 +183,6 @@ impl GraphQLClient {
 /// Create test server deps with mock services
 fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
     use extraction::{MockIngestor, MockWebSearcher};
-    use server_core::kernel::deps::TwilioAdapter;
-    use server_core::kernel::test_dependencies::{MockPiiDetector, MockPushNotificationService};
 
     // Create mock services for testing
     let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
@@ -197,7 +196,7 @@ fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
         kernel.db_pool.clone(),
         Arc::new(MockIngestor::new()),
         openai_client.clone(),
-        openai_client.clone(), // Also implements BaseEmbeddingService
+        Arc::new(MockEmbeddingService::new()),
         Arc::new(MockPushNotificationService::new()),
         Arc::new(TwilioAdapter::new(twilio)),
         Arc::new(MockWebSearcher::new()),

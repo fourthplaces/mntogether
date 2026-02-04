@@ -61,9 +61,13 @@ pub async fn ingest_website(
     let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
     debug!(website_id = %website_id_typed, domain = %website.domain, "Website fetched successfully");
 
-    // 3. Get extraction service (always available)
+    // 3. Get extraction service (required for ingestion)
     debug!(website_id = %website_id_typed, "Getting extraction service");
-    let extraction = &ctx.deps().extraction;
+    let extraction = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // 5. Configure discovery
     let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
@@ -192,8 +196,12 @@ pub async fn ingest_urls(
         .check(ctx.deps())
         .await?;
 
-    // Get extraction service (always available)
-    let extraction = &ctx.deps().extraction;
+    // Get extraction service (required for ingestion)
+    let extraction = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // Create ingestor - prefer Firecrawl for specific URLs
     let result = match FirecrawlIngestor::from_env() {

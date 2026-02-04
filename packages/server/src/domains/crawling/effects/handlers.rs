@@ -37,13 +37,15 @@ pub async fn handle_extract_posts_from_pages(
 
     let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
 
+    // Extraction service is required for post extraction
+    let extraction = ctx
+        .deps()
+        .extraction
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
+
     // Search and extract posts using shared action
-    let result = extract_posts_for_domain(
-        &website.domain,
-        ctx.deps().extraction.as_ref(),
-        ctx.deps().ai.as_ref(),
-    )
-    .await?;
+    let result = extract_posts_for_domain(&website.domain, extraction.as_ref(), ctx.deps()).await?;
 
     if result.posts.is_empty() && result.page_urls.is_empty() {
         info!(website_id = %website_id, "No relevant pages found");

@@ -1240,8 +1240,8 @@ mod tests {
 
     #[test]
     fn priority_ordering_is_correct() {
-        assert!(JobPriority::Critical.as_i16() < JobPriority::High.as_i16());
-        assert!(JobPriority::High.as_i16() < JobPriority::Normal.as_i16());
-        assert!(JobPriority::Normal.as_i16() < JobPriority::Low.as_i16());
+        assert!(JobPriority::Critical.as_i32() < JobPriority::High.as_i32());
+        assert!(JobPriority::High.as_i32() < JobPriority::Normal.as_i32());
+        assert!(JobPriority::Normal.as_i32() < JobPriority::Low.as_i32());
     }
 }

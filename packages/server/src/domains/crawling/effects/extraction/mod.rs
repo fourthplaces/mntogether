@@ -1,19 +1,12 @@
-//! Page summarization module (DEPRECATED)
+//! Page extraction module (DEPRECATED)
 //!
-//! Generates AI summaries of pages for display in admin UI.
+//! This module previously contained page summarization code.
 //! Post extraction now uses `posts::extraction::PostExtractor`.
 //!
 //! # Deprecation Notice
 //!
-//! This module is deprecated. Use the extraction library's summarization instead:
+//! This module is deprecated and empty. Use the extraction library instead:
 //! - `extraction::pipeline::ingest::ingest_with_ingestor()` - full ingestion with summarization
 //! - `extraction::AI::summarize()` - direct summarization
-//! - `extraction::CachedPage::hash_content()` - content hashing
-
-#![allow(deprecated)]
-
-pub mod summarize;
-pub mod types;
-
-pub use summarize::*;
-pub use types::*;
+//!
+//! The module is kept for backwards compatibility during migration.
