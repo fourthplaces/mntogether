@@ -12,7 +12,6 @@ pub mod post_extraction;
 pub mod post_operations;
 pub mod post_report;
 pub mod scraper;
-pub mod sync;
 pub mod syncing;
 pub mod utils;
 

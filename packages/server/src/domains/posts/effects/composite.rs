@@ -6,7 +6,6 @@
 //! NO *Requested events. Effects watch FACT events and cascade directly.
 //!
 //! Cascade flows:
-//!   SourceScraped → handle_extract_posts → PostsExtracted → handle_sync_posts → PostsSynced
 //!   ResourceLinkScraped → handle_extract_from_resource_link → ResourceLinkPostsExtracted → handle_create_from_resource_link
 //!   WebsiteCreatedFromLink → handle_scrape_resource_link → ResourceLinkScraped → ...
 
@@ -17,10 +16,9 @@ use crate::common::AppState;
 use crate::domains::posts::events::PostEvent;
 use crate::kernel::ServerDeps;
 
-use super::ai::{handle_extract_posts, handle_extract_posts_from_resource_link};
+use super::ai::handle_extract_posts_from_resource_link;
 use super::post::handle_create_posts_from_resource_link;
 use super::scraper::handle_scrape_resource_link;
-use super::sync::handle_sync_posts;
 
 /// Build the post composite effect handler using the 0.6.0 builder pattern.
 ///
@@ -29,26 +27,6 @@ use super::sync::handle_sync_posts;
 pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<PostEvent>().run(|event: Arc<PostEvent>, ctx| async move {
         match event.as_ref() {
-            // =================================================================
-            // Cascade: SourceScraped → extract posts
-            // =================================================================
-            PostEvent::SourceScraped {
-                source_id,
-                job_id,
-                organization_name,
-                content,
-                ..
-            } => {
-                handle_extract_posts(
-                    *source_id,
-                    *job_id,
-                    organization_name.clone(),
-                    content.clone(),
-                    &ctx,
-                )
-                .await
-            }
-
             // =================================================================
             // Cascade: ResourceLinkScraped → extract posts from resource link
             // =================================================================
@@ -70,15 +48,6 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
                 )
                 .await
             }
-
-            // =================================================================
-            // Cascade: PostsExtracted → sync posts to database
-            // =================================================================
-            PostEvent::PostsExtracted {
-                source_id,
-                job_id,
-                posts,
-            } => handle_sync_posts(*source_id, *job_id, posts.clone(), &ctx).await,
 
             // =================================================================
             // Cascade: ResourceLinkPostsExtracted → create posts from resource link
@@ -123,8 +92,7 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
             // =================================================================
             // Terminal events - no cascade needed
             // =================================================================
-            PostEvent::PostsSynced { .. }
-            | PostEvent::PostEntryCreated { .. }
+            PostEvent::PostEntryCreated { .. }
             | PostEvent::PostApproved { .. }
             | PostEvent::PostRejected { .. }
             | PostEvent::PostExpired { .. }
@@ -137,8 +105,7 @@ pub fn post_composite_effect() -> seesaw_core::effect::Effect<AppState, ServerDe
             | PostEvent::ReportDismissed { .. }
             | PostEvent::PostEmbeddingGenerated { .. }
             | PostEvent::PostsDeduplicated { .. }
-            | PostEvent::WebsitePendingApproval { .. }
-            | PostEvent::PageSnapshotRefreshed { .. } => Ok(()),
+            | PostEvent::WebsitePendingApproval { .. } => Ok(()),
         }
     })
 }

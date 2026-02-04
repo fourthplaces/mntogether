@@ -14,46 +14,12 @@
 //!
 //! Both use `ExtractionService` from the kernel as the underlying engine.
 //!
-//! # Domain Ownership
-//!
-//! This domain is being migrated to use the extraction library. Current ownership:
-//!
-//! | Component | Owner | Status |
-//! |-----------|-------|--------|
-//! | `ingest_website()` | Crawling | **NEW** - uses extraction library |
-//! | `crawl_website()` | Crawling | DEPRECATED - uses old BaseWebScraper |
-//! | `PageSnapshot` | Crawling | DEPRECATED - use extraction_pages |
-//! | `PageSummary` | Crawling | DEPRECATED - use extraction_summaries |
-//! | `WebsiteSnapshot` | Crawling | DEPRECATED - use site_url on extraction_pages |
-//! | Event cascade | Crawling | KEEP - orchestrates post extraction |
-//!
-//! # Migration Path
-//!
-//! **Old flow (deprecated):**
-//! ```text
-//! crawl_website() → BaseWebScraper → page_snapshots → WebsiteCrawled event
-//! ```
-//!
-//! **New flow (preferred):**
-//! ```text
-//! ingest_website() → ExtractionService → extraction_pages → WebsiteIngested event
-//! ```
-//!
-//! # Why Two Domains?
-//!
-//! - **Extraction domain** is simple: GraphQL → action → ExtractionService → result
-//! - **Crawling domain** is complex: event-driven orchestration, background jobs, cascade
-//!
-//! Keeping them separate maintains single responsibility principle.
-//!
 //! # Components
 //!
-//! - `actions/` - Business logic (ingest_website, crawl_website deprecated)
+//! - `actions/` - Business logic (ingest_website)
 //! - `effects/` - Event handlers for the crawl cascade
-//! - `models/` - Data models (PageSnapshot deprecated, PageSummary deprecated)
-//! - `events/` - Crawl events (WebsiteIngested, WebsiteCrawled deprecated)
-
-#![allow(deprecated)] // Re-exports deprecated items for backward compatibility
+//! - `models/` - Data models (ExtractionPage)
+//! - `events/` - Crawl events (WebsiteIngested)
 
 pub mod actions;
 pub mod effects;
@@ -65,10 +31,7 @@ pub mod models;
 pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
 
 // Re-export models
-pub use models::{
-    hash_to_hex, PageSnapshot, PageSnapshotId, PageSummary, PageSummaryId, WebsiteSnapshot,
-    WebsiteSnapshotId,
-};
+pub use models::ExtractionPage;
 
 // Re-export effects
 pub use effects::crawler_effect;
