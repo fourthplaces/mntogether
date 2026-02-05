@@ -1,11 +1,9 @@
 //! Verify OTP action
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::common::AppState;
 use crate::domains::auth::events::AuthEvent;
 use crate::domains::auth::models::{
     hash_phone_number, is_admin_identifier, is_test_identifier, Identifier,
@@ -13,57 +11,69 @@ use crate::domains::auth::models::{
 use crate::domains::member::models::Member;
 use crate::kernel::ServerDeps;
 
-/// Result of verifying OTP
-pub enum VerifyOtpResult {
-    Verified { member_id: Uuid, is_admin: bool },
-    Failed { reason: String },
+/// Error returned when OTP verification fails
+#[derive(Debug, thiserror::Error)]
+#[error("Verification failed: {reason}")]
+pub struct VerificationFailedError {
+    pub reason: String,
 }
 
-/// Verify OTP code and create member if needed.
+/// Verify OTP code, create member if needed, and return AuthEvent::OTPVerified.
 ///
 /// Test identifiers skip Twilio verification.
 /// Creates member + identifier on first successful verification.
+///
+/// Returns AuthEvent::OTPVerified with token on success.
 pub async fn verify_otp(
     phone_number: String,
     code: String,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<VerifyOtpResult> {
-    let is_test = ctx.deps().test_identifier_enabled && is_test_identifier(&phone_number);
+    deps: &ServerDeps,
+) -> Result<AuthEvent> {
+    let is_test = deps.test_identifier_enabled && is_test_identifier(&phone_number);
 
     // Verify with Twilio (unless test identifier)
     if !is_test {
-        if let Err(e) = ctx.deps().twilio.verify_otp(&phone_number, &code).await {
+        if let Err(e) = deps.twilio.verify_otp(&phone_number, &code).await {
             error!("OTP verification failed: {}", e);
-            return Ok(VerifyOtpResult::Failed {
+            return Err(VerificationFailedError {
                 reason: e.to_string(),
-            });
+            }
+            .into());
         }
     } else {
-        info!("Test identifier: skipping Twilio verification for {}", phone_number);
+        info!(
+            "Test identifier: skipping Twilio verification for {}",
+            phone_number
+        );
     }
 
     // Find or create member
     let phone_hash = hash_phone_number(&phone_number);
     let (member_id, is_admin) =
-        match Identifier::find_by_phone_hash(&phone_hash, &ctx.deps().db_pool).await? {
+        match Identifier::find_by_phone_hash(&phone_hash, &deps.db_pool).await? {
             Some(identifier) => (identifier.member_id, identifier.is_admin),
             None => {
-                let is_admin = is_admin_identifier(&phone_number, &ctx.deps().admin_identifiers);
-                let member_id = create_member(&phone_number, &ctx.deps().db_pool).await?;
-                Identifier::create(member_id, phone_hash, is_admin, &ctx.deps().db_pool).await?;
+                let is_admin = is_admin_identifier(&phone_number, &deps.admin_identifiers);
+                let member_id = create_member(&phone_number, &deps.db_pool).await?;
+                Identifier::create(member_id, phone_hash, is_admin, &deps.db_pool).await?;
                 info!("Created new member {} for {}", member_id, phone_number);
                 (member_id, is_admin)
             }
         };
 
     info!("OTP verified for member {}", member_id);
-    ctx.emit(AuthEvent::OTPVerified {
-        member_id,
-        phone_number: phone_number.clone(),
-        is_admin,
-    });
 
-    Ok(VerifyOtpResult::Verified { member_id, is_admin })
+    // Create JWT token
+    let token = deps
+        .jwt_service
+        .create_token(member_id, phone_number.clone(), is_admin)?;
+
+    Ok(AuthEvent::OTPVerified {
+        member_id,
+        phone_number,
+        is_admin,
+        token,
+    })
 }
 
 /// Create a new member for the given identifier.

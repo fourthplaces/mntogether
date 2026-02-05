@@ -18,12 +18,12 @@ pub mod tags;
 // Re-export for convenience
 pub use core::*;
 pub use create_post::{create_extracted_post, tag_with_audience_roles};
-pub use deduplication::{deduplicate_posts, DeduplicationResult};
+pub use deduplication::deduplicate_posts;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
 pub use reports::*;
 pub use revision_actions::{
     approve_revision, count_pending_revisions, get_pending_revisions, get_revision_for_post,
     reject_revision,
 };
-pub use scraping::{submit_resource_link, SubmitResourceLinkResult};
+pub use scraping::submit_resource_link;
 pub use tags::{add_post_tag, remove_post_tag, update_post_tags, TagInput};

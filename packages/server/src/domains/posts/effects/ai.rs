@@ -1,17 +1,15 @@
 //! AI effect handlers - handle AI extraction request events
 //!
-//! These handlers emit events directly and are called from the composite effect.
+//! These handlers return events directly and are called from the composite effect.
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 
 use super::{post_extraction, ServerDeps};
-use crate::common::AppState;
 use crate::common::JobId;
 use crate::domains::posts::events::PostEvent;
 
 // ============================================================================
-// Handler actions - emit events directly
+// Handler actions - return events directly
 // ============================================================================
 
 pub async fn handle_extract_posts_from_resource_link(
@@ -20,8 +18,8 @@ pub async fn handle_extract_posts_from_resource_link(
     content: String,
     context: Option<String>,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     tracing::info!(
         job_id = %job_id,
         url = %url,
@@ -56,8 +54,8 @@ pub async fn handle_extract_posts_from_resource_link(
 
     // Delegate to domain function with PII scrubbing
     let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
-        ctx.deps().ai.as_ref(),
-        ctx.deps().pii_detector.as_ref(),
+        deps.ai.as_ref(),
+        deps.pii_detector.as_ref(),
         &organization_name,
         &content_with_context,
         &url,
@@ -86,19 +84,18 @@ pub async fn handle_extract_posts_from_resource_link(
         }
     };
 
-    // Emit fact event
     tracing::info!(
         job_id = %job_id,
         url = %url,
         listings_count = extracted_posts.len(),
-        "Emitting ResourceLinkPostsExtracted event"
+        "Returning ResourceLinkPostsExtracted event"
     );
-    ctx.emit(PostEvent::ResourceLinkPostsExtracted {
+
+    Ok(PostEvent::ResourceLinkPostsExtracted {
         job_id,
         url,
         posts: extracted_posts,
         context,
         submitter_contact,
-    });
-    Ok(())
+    })
 }

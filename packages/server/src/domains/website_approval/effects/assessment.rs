@@ -4,36 +4,34 @@
 //! This handler is called when ResearchSearchesCompleted is emitted.
 
 use crate::common::{AppState, JobId, MemberId, WebsiteId};
+use crate::domains::website::models::WebsiteAssessment;
 use crate::domains::website_approval::actions;
-use crate::domains::website_approval::events::WebsiteApprovalEvent;
 use crate::kernel::ServerDeps;
 use anyhow::Result;
 use seesaw_core::EffectContext;
+use tracing::info;
 use uuid::Uuid;
 
 /// Effect handler for ResearchSearchesCompleted cascade.
 ///
-/// Thin wrapper that calls the generate_assessment action and emits completion event.
+/// Calls the generate_assessment action and returns the assessment.
 pub async fn handle_generate_assessment(
     research_id: Uuid,
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
     ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+) -> Result<WebsiteAssessment> {
     // Call action
     let assessment =
-        actions::generate_assessment(research_id, website_id, job_id, requested_by, ctx).await?;
+        actions::generate_assessment(research_id, website_id, job_id, requested_by, ctx.deps()).await?;
 
-    // Emit event
-    ctx.emit(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
-        website_id,
-        job_id,
-        assessment_id: assessment.id,
-        recommendation: assessment.recommendation.clone(),
-        confidence_score: assessment.confidence_score,
-        organization_name: assessment.organization_name.clone(),
-    });
+    info!(
+        assessment_id = %assessment.id,
+        website_id = %website_id,
+        recommendation = %assessment.recommendation,
+        "Assessment completed"
+    );
 
-    Ok(())
+    Ok(assessment)
 }

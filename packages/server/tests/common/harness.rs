@@ -9,7 +9,8 @@ use server_core::common::AppState;
 use server_core::domains::crawling::effects::crawler_effect;
 use server_core::domains::member::effects::member_effect;
 use server_core::domains::posts::effects::post_composite_effect;
-use server_core::kernel::{ServerDeps, SpyJobQueue, TwilioAdapter};
+use server_core::kernel::jobs::SpyJobQueue;
+use server_core::kernel::{ServerDeps, TwilioAdapter};
 use server_core::kernel::{ServerKernel, TestDependencies};
 use server_core::server::graphql::context::AppEngine;
 use sqlx::PgPool;
@@ -21,6 +22,7 @@ use testcontainers_modules::redis::Redis;
 use tokio::sync::OnceCell;
 
 use super::GraphQLClient;
+use server_core::domains::auth::JwtService;
 use twilio::{TwilioOptions, TwilioService};
 
 // =============================================================================
@@ -204,6 +206,12 @@ impl TestHarness {
             service_id: "test_service_id".to_string(),
         }));
 
+        // Create spy job queue for testing
+        let spy_job_queue = Arc::new(SpyJobQueue::new());
+
+        // Create JWT service for testing
+        let jwt_service = Arc::new(JwtService::new("test_secret", "test_issuer".to_string()));
+
         let server_deps = ServerDeps::new(
             kernel.db_pool.clone(),
             kernel.ingestor.clone(),
@@ -214,6 +222,8 @@ impl TestHarness {
             kernel.web_searcher.clone(),
             kernel.pii_detector.clone(),
             None,   // No extraction service in tests
+            spy_job_queue.clone(),
+            jwt_service,
             true,   // test_identifier_enabled
             vec![], // admin_identifiers
         );
@@ -256,10 +266,10 @@ impl TestHarness {
 
     /// Emit an event and wait for effects to settle.
     ///
-    /// In seesaw 0.6.0, use engine.activate() to emit events.
+    /// In seesaw 0.7.3, use handle.run() to emit events (emit is private).
     pub async fn emit<E: Clone + Send + Sync + 'static>(&self, event: E) {
         let handle = self.engine.activate(AppState::default());
-        handle.context.emit(event);
+        let _ = handle.run(|_ctx| Ok(event));
         let _ = handle.settled().await;
     }
 

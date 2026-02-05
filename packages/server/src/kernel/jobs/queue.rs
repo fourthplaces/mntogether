@@ -114,24 +114,66 @@ pub trait CommandMeta {
     }
 }
 
+/// Serialized command info for enqueuing.
+///
+/// This struct holds the already-serialized command data plus metadata,
+/// allowing the JobQueue trait to be dyn-compatible.
+#[derive(Debug, Clone)]
+pub struct EnqueueCommand {
+    /// The serialized command payload (JSON)
+    pub payload: serde_json::Value,
+    /// The command type name
+    pub command_type: &'static str,
+    /// Optional idempotency key
+    pub idempotency_key: Option<String>,
+    /// Command version for schema evolution
+    pub command_version: i32,
+    /// Job priority
+    pub priority: JobPriority,
+    /// Optional reference ID
+    pub reference_id: Option<Uuid>,
+    /// Optional container scope
+    pub container_id: Option<Uuid>,
+    /// Maximum retries
+    pub max_retries: i32,
+}
+
+impl EnqueueCommand {
+    /// Create from a command that implements CommandMeta + Serialize
+    pub fn from_command<C: Serialize + CommandMeta>(command: &C) -> Result<Self> {
+        Ok(Self {
+            payload: serde_json::to_value(command)?,
+            command_type: command.command_type(),
+            idempotency_key: command.idempotency_key(),
+            command_version: command.command_version(),
+            priority: command.priority(),
+            reference_id: command.reference_id(),
+            container_id: command.container_id(),
+            max_retries: command.max_retries(),
+        })
+    }
+}
+
 /// Trait for job queue operations.
 ///
 /// Implementations provide the storage and retrieval of serialized Commands
 /// for background execution.
+///
+/// This trait is dyn-compatible by accepting pre-serialized command data.
 #[async_trait]
 pub trait JobQueue: Send + Sync {
     /// Enqueue a command for immediate execution.
     ///
     /// If the command provides an idempotency key and a matching pending/running
     /// job exists, returns `EnqueueResult::Duplicate` with the existing job ID.
-    async fn enqueue<C>(&self, command: C) -> Result<EnqueueResult>
-    where
-        C: Serialize + Send + CommandMeta;
+    async fn enqueue_command(&self, command: EnqueueCommand) -> Result<EnqueueResult>;
 
     /// Schedule a command for future execution.
-    async fn schedule<C>(&self, command: C, run_at: DateTime<Utc>) -> Result<EnqueueResult>
-    where
-        C: Serialize + Send + CommandMeta;
+    async fn schedule_command(
+        &self,
+        command: EnqueueCommand,
+        run_at: DateTime<Utc>,
+    ) -> Result<EnqueueResult>;
 
     /// Claim up to `limit` jobs for processing.
     ///
@@ -160,6 +202,35 @@ pub trait JobQueue: Send + Sync {
     /// Find the next scheduled run time (for sleep optimization).
     async fn next_run_time(&self) -> Result<Option<DateTime<Utc>>>;
 }
+
+/// Extension trait for JobQueue that provides ergonomic generic methods.
+///
+/// This trait provides `enqueue` and `schedule` methods that accept
+/// any type implementing `CommandMeta + Serialize`, automatically
+/// serializing them before delegating to the base trait methods.
+#[async_trait]
+pub trait JobQueueExt: JobQueue {
+    /// Enqueue a command for immediate execution.
+    async fn enqueue<C>(&self, command: C) -> Result<EnqueueResult>
+    where
+        C: Serialize + Send + CommandMeta,
+    {
+        let cmd = EnqueueCommand::from_command(&command)?;
+        self.enqueue_command(cmd).await
+    }
+
+    /// Schedule a command for future execution.
+    async fn schedule<C>(&self, command: C, run_at: DateTime<Utc>) -> Result<EnqueueResult>
+    where
+        C: Serialize + Send + CommandMeta,
+    {
+        let cmd = EnqueueCommand::from_command(&command)?;
+        self.schedule_command(cmd, run_at).await
+    }
+}
+
+// Blanket implementation for all JobQueue implementations
+impl<T: JobQueue + ?Sized> JobQueueExt for T {}
 
 /// PostgreSQL-backed job queue implementation.
 pub struct PostgresJobQueue {
@@ -417,18 +488,16 @@ impl PostgresJobQueue {
 
 #[async_trait]
 impl JobQueue for PostgresJobQueue {
-    async fn enqueue<C>(&self, command: C) -> Result<EnqueueResult>
-    where
-        C: Serialize + Send + CommandMeta,
-    {
-        self.enqueue_internal(command, None).await
+    async fn enqueue_command(&self, command: EnqueueCommand) -> Result<EnqueueResult> {
+        self.enqueue_command_internal(command, None).await
     }
 
-    async fn schedule<C>(&self, command: C, run_at: DateTime<Utc>) -> Result<EnqueueResult>
-    where
-        C: Serialize + Send + CommandMeta,
-    {
-        self.enqueue_internal(command, Some(run_at)).await
+    async fn schedule_command(
+        &self,
+        command: EnqueueCommand,
+        run_at: DateTime<Utc>,
+    ) -> Result<EnqueueResult> {
+        self.enqueue_command_internal(command, Some(run_at)).await
     }
 
     async fn claim(&self, worker_id: &str, limit: i64) -> Result<Vec<ClaimedJob>> {
@@ -463,39 +532,29 @@ impl JobQueue for PostgresJobQueue {
 
 impl PostgresJobQueue {
     /// Internal method to enqueue a command.
-    async fn enqueue_internal<C>(
+    async fn enqueue_command_internal(
         &self,
-        command: C,
+        command: EnqueueCommand,
         run_at: Option<DateTime<Utc>>,
-    ) -> Result<EnqueueResult>
-    where
-        C: Serialize + Send + CommandMeta,
-    {
+    ) -> Result<EnqueueResult> {
         // Check idempotency first
-        if let Some(key) = command.idempotency_key() {
-            if let Some(existing) = self.find_by_idempotency_key(&key).await? {
+        if let Some(key) = &command.idempotency_key {
+            if let Some(existing) = self.find_by_idempotency_key(key).await? {
                 return Ok(EnqueueResult::Duplicate(existing.id));
             }
         }
 
-        // Serialize command to JSON
-        let args = serde_json::to_value(&command)?;
-
         // Build job using the command constructor
-        let command_type = command.command_type();
-        let reference_id = command.reference_id();
-        let container_id = command.container_id();
-
         let job = Job::for_command(
-            command_type,
-            args,
-            reference_id,
+            command.command_type,
+            command.payload,
+            command.reference_id,
             run_at,
-            command.idempotency_key(),
-            command.command_version(),
-            command.priority(),
-            command.max_retries(),
-            container_id,
+            command.idempotency_key,
+            command.command_version,
+            command.priority,
+            command.max_retries,
+            command.container_id,
             self.default_lease_ms,
         );
 

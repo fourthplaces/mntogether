@@ -11,9 +11,7 @@ use openai_client::OpenAIClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 
-use super::{
-    job_queue::JobQueue, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
-};
+use super::{jobs::JobQueue, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService};
 
 // Import from extraction library
 use extraction::{Ingestor, WebSearcher};

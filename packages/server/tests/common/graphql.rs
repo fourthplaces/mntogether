@@ -192,6 +192,13 @@ fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
         service_id: "test".to_string(),
     }));
 
+    use server_core::kernel::jobs::NoopJobQueue;
+    use server_core::domains::auth::JwtService;
+
+    // Create job queue and JWT service for tests
+    let job_queue: Arc<dyn server_core::kernel::jobs::JobQueue> = Arc::new(NoopJobQueue::new());
+    let jwt_service = Arc::new(JwtService::new("test_secret", "test_issuer".to_string()));
+
     ServerDeps::new(
         kernel.db_pool.clone(),
         Arc::new(MockIngestor::new()),
@@ -202,6 +209,8 @@ fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
         Arc::new(MockWebSearcher::new()),
         Arc::new(MockPiiDetector::new()),
         None, // No extraction service in tests
+        job_queue,
+        jwt_service,
         false,
         vec![],
     )

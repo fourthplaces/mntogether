@@ -4,7 +4,7 @@
 //! 1. Creates a Job record for tracking
 //! 2. Runs the job logic immediately (synchronously)
 //! 3. Updates the Job status on completion
-//! 4. Emits events to trigger the next job in the pipeline
+//! 4. Returns results (cascading is handled by effect handlers)
 //!
 //! Jobs run immediately when called - no polling delay.
 //!
@@ -12,20 +12,19 @@
 //!
 //! ```text
 //! CrawlWebsiteJob → WebsiteIngested event → ExtractPostsJob
-//! ExtractPostsJob → PostsExtractedFromPages event → SyncPostsJob
-//! SyncPostsJob → PostsSynced event (terminal)
+//! ExtractPostsJob → returns posts → SyncPostsJob (chained by handler)
+//! SyncPostsJob → terminal
 //! ```
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::common::{AppState, JobId, WebsiteId};
+use crate::common::{ExtractedPost, WebsiteId};
 use crate::domains::crawling::actions::ingest_website;
 use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
 use crate::domains::crawling::actions::sync_and_deduplicate_posts;
-use crate::domains::crawling::events::{CrawlEvent, PageExtractionResult};
+use crate::domains::crawling::events::PageExtractionResult;
 use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::website::models::Website;
 use crate::kernel::jobs::{Job, JobStatus};
@@ -39,6 +38,40 @@ pub struct JobExecutionResult {
     pub job_id: Uuid,
     pub status: String,
     pub message: Option<String>,
+    /// Extracted posts (for extract jobs)
+    pub posts: Vec<ExtractedPost>,
+    /// Page results (for extract jobs)
+    pub page_results: Vec<PageExtractionResult>,
+}
+
+impl JobExecutionResult {
+    /// Create a basic result without posts
+    fn basic(job_id: Uuid, status: &str, message: Option<String>) -> Self {
+        Self {
+            job_id,
+            status: status.to_string(),
+            message,
+            posts: vec![],
+            page_results: vec![],
+        }
+    }
+
+    /// Create a result with extracted posts
+    fn with_posts(
+        job_id: Uuid,
+        status: &str,
+        message: Option<String>,
+        posts: Vec<ExtractedPost>,
+        page_results: Vec<PageExtractionResult>,
+    ) -> Self {
+        Self {
+            job_id,
+            status: status.to_string(),
+            message,
+            posts,
+            page_results,
+        }
+    }
 }
 
 /// Execute a CrawlWebsiteJob with job tracking.
@@ -47,7 +80,8 @@ pub struct JobExecutionResult {
 /// Returns the job execution result with final status.
 pub async fn execute_crawl_website_job(
     job: CrawlWebsiteJob,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    is_admin: bool,
+    deps: &ServerDeps,
 ) -> Result<JobExecutionResult> {
     let website_id = WebsiteId::from_uuid(job.website_id);
 
@@ -59,7 +93,7 @@ pub async fn execute_crawl_website_job(
         .status(JobStatus::Running)
         .build();
 
-    let db_job = db_job.insert_with_pool(&ctx.deps().db_pool).await?;
+    let db_job = db_job.insert_with_pool(&deps.db_pool).await?;
     let job_id = db_job.id;
 
     info!(
@@ -69,28 +103,27 @@ pub async fn execute_crawl_website_job(
     );
 
     // Run the actual crawl
-    let result = ingest_website(job.website_id, job.visitor_id, job.use_firecrawl, ctx).await;
+    let result = ingest_website(job.website_id, job.visitor_id, job.use_firecrawl, is_admin, deps).await;
 
     // Update job status based on result and return execution result
     match result {
-        Ok(crawl_result) => {
+        Ok(_event) => {
             info!(
                 job_id = %job_id,
-                status = %crawl_result.status,
                 "Crawl website job completed"
             );
 
             // Mark job as succeeded
             sqlx::query("UPDATE jobs SET status = 'succeeded', updated_at = NOW() WHERE id = $1")
                 .bind(job_id)
-                .execute(&ctx.deps().db_pool)
+                .execute(&deps.db_pool)
                 .await?;
 
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::basic(
                 job_id,
-                status: crawl_result.status,
-                message: crawl_result.message,
-            })
+                "succeeded",
+                Some("Crawl completed".to_string()),
+            ))
         }
         Err(e) => {
             error!(
@@ -105,14 +138,14 @@ pub async fn execute_crawl_website_job(
             )
             .bind(e.to_string())
             .bind(job_id)
-            .execute(&ctx.deps().db_pool)
+            .execute(&deps.db_pool)
             .await?;
 
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::basic(
                 job_id,
-                status: "failed".to_string(),
-                message: Some(e.to_string()),
-            })
+                "failed",
+                Some(e.to_string()),
+            ))
         }
     }
 }
@@ -123,7 +156,8 @@ pub async fn execute_crawl_website_job(
 /// Returns the job execution result with final status.
 pub async fn execute_regenerate_posts_job(
     job: RegeneratePostsJob,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    is_admin: bool,
+    deps: &ServerDeps,
 ) -> Result<JobExecutionResult> {
     let website_id = WebsiteId::from_uuid(job.website_id);
 
@@ -135,7 +169,7 @@ pub async fn execute_regenerate_posts_job(
         .status(JobStatus::Running)
         .build();
 
-    let db_job = db_job.insert_with_pool(&ctx.deps().db_pool).await?;
+    let db_job = db_job.insert_with_pool(&deps.db_pool).await?;
     let job_id = db_job.id;
 
     info!(
@@ -148,28 +182,26 @@ pub async fn execute_regenerate_posts_job(
     use crate::domains::crawling::actions::regenerate_posts;
 
     // Run the actual regeneration immediately
-    let is_admin = ctx.next_state().is_admin;
-    let result = regenerate_posts(job.website_id, job.visitor_id, is_admin, ctx).await;
+    let result = regenerate_posts(job.website_id, job.visitor_id, is_admin, deps).await;
 
     // Update job status based on result and return execution result
     match result {
-        Ok(regen_result) => {
+        Ok(_event) => {
             info!(
                 job_id = %job_id,
-                status = %regen_result.status,
                 "Regenerate posts job completed"
             );
 
             sqlx::query("UPDATE jobs SET status = 'succeeded', updated_at = NOW() WHERE id = $1")
                 .bind(job_id)
-                .execute(&ctx.deps().db_pool)
+                .execute(&deps.db_pool)
                 .await?;
 
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::basic(
                 job_id,
-                status: regen_result.status,
-                message: regen_result.message,
-            })
+                "succeeded",
+                Some("Regeneration triggered".to_string()),
+            ))
         }
         Err(e) => {
             error!(
@@ -183,14 +215,14 @@ pub async fn execute_regenerate_posts_job(
             )
             .bind(e.to_string())
             .bind(job_id)
-            .execute(&ctx.deps().db_pool)
+            .execute(&deps.db_pool)
             .await?;
 
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::basic(
                 job_id,
-                status: "failed".to_string(),
-                message: Some(e.to_string()),
-            })
+                "failed",
+                Some(e.to_string()),
+            ))
         }
     }
 }
@@ -198,10 +230,10 @@ pub async fn execute_regenerate_posts_job(
 /// Execute an ExtractPostsJob with job tracking.
 ///
 /// Creates a Job record, runs the three-pass extraction, and updates the status.
-/// Emits `PostsExtractedFromPages` event on success to trigger sync job.
+/// Returns extracted posts and page results (cascading handled by caller).
 pub async fn execute_extract_posts_job(
     job: ExtractPostsJob,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<JobExecutionResult> {
     let website_id = WebsiteId::from_uuid(job.website_id);
 
@@ -214,9 +246,8 @@ pub async fn execute_extract_posts_job(
         .timeout_ms(600_000) // 10 minutes for extraction
         .build();
 
-    let db_job = db_job.insert_with_pool(&ctx.deps().db_pool).await?;
+    let db_job = db_job.insert_with_pool(&deps.db_pool).await?;
     let job_id = db_job.id;
-    let event_job_id = JobId::from_uuid(job_id);
 
     info!(
         job_id = %job_id,
@@ -226,36 +257,36 @@ pub async fn execute_extract_posts_job(
     );
 
     // Fetch website
-    let website = match Website::find_by_id(website_id, &ctx.deps().db_pool).await {
+    let website = match Website::find_by_id(website_id, &deps.db_pool).await {
         Ok(w) => w,
         Err(e) => {
             error!(job_id = %job_id, error = %e, "Website not found");
-            mark_job_failed(job_id, &e.to_string(), &ctx.deps().db_pool).await?;
-            return Ok(JobExecutionResult {
+            mark_job_failed(job_id, &e.to_string(), &deps.db_pool).await?;
+            return Ok(JobExecutionResult::basic(
                 job_id,
-                status: "failed".to_string(),
-                message: Some(e.to_string()),
-            });
+                "failed",
+                Some(e.to_string()),
+            ));
         }
     };
 
     // Get extraction service
-    let extraction = match ctx.deps().extraction.as_ref() {
+    let extraction = match deps.extraction.as_ref() {
         Some(e) => e,
         None => {
             let err = "Extraction service not available";
             error!(job_id = %job_id, err);
-            mark_job_failed(job_id, err, &ctx.deps().db_pool).await?;
-            return Ok(JobExecutionResult {
+            mark_job_failed(job_id, err, &deps.db_pool).await?;
+            return Ok(JobExecutionResult::basic(
                 job_id,
-                status: "failed".to_string(),
-                message: Some(err.to_string()),
-            });
+                "failed",
+                Some(err.to_string()),
+            ));
         }
     };
 
     // Run three-pass extraction
-    let result = extract_posts_for_domain(&website.domain, extraction.as_ref(), ctx.deps()).await;
+    let result = extract_posts_for_domain(&website.domain, extraction.as_ref(), deps).await;
 
     match result {
         Ok(extraction_result) => {
@@ -269,10 +300,10 @@ pub async fn execute_extract_posts_job(
             // Mark job as succeeded
             sqlx::query("UPDATE jobs SET status = 'succeeded', updated_at = NOW() WHERE id = $1")
                 .bind(job_id)
-                .execute(&ctx.deps().db_pool)
+                .execute(&deps.db_pool)
                 .await?;
 
-            // Build page results for the event
+            // Build page results
             let page_results: Vec<PageExtractionResult> = extraction_result
                 .page_urls
                 .iter()
@@ -284,29 +315,23 @@ pub async fn execute_extract_posts_job(
                 })
                 .collect();
 
-            // Emit event to trigger sync job
-            ctx.emit(CrawlEvent::PostsExtractedFromPages {
-                website_id,
-                job_id: event_job_id,
-                posts: extraction_result.posts,
-                page_results,
-            });
-
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::with_posts(
                 job_id,
-                status: "succeeded".to_string(),
-                message: Some(format!("Extracted {} posts", posts_count)),
-            })
+                "succeeded",
+                Some(format!("Extracted {} posts", posts_count)),
+                extraction_result.posts,
+                page_results,
+            ))
         }
         Err(e) => {
             error!(job_id = %job_id, error = %e, "Extract posts job failed");
-            mark_job_failed(job_id, &e.to_string(), &ctx.deps().db_pool).await?;
+            mark_job_failed(job_id, &e.to_string(), &deps.db_pool).await?;
 
-            Ok(JobExecutionResult {
+            Ok(JobExecutionResult::basic(
                 job_id,
-                status: "failed".to_string(),
-                message: Some(e.to_string()),
-            })
+                "failed",
+                Some(e.to_string()),
+            ))
         }
     }
 }
@@ -314,10 +339,10 @@ pub async fn execute_extract_posts_job(
 /// Execute a SyncPostsJob with job tracking.
 ///
 /// Creates a Job record, runs sync (simple or LLM), and updates the status.
-/// Emits `PostsSynced` event on success (terminal event).
+/// Returns result (terminal - no further cascading).
 pub async fn execute_sync_posts_job(
     job: SyncPostsJob,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<JobExecutionResult> {
     let website_id = WebsiteId::from_uuid(job.website_id);
 
@@ -330,9 +355,8 @@ pub async fn execute_sync_posts_job(
         .timeout_ms(300_000) // 5 minutes for sync
         .build();
 
-    let db_job = db_job.insert_with_pool(&ctx.deps().db_pool).await?;
+    let db_job = db_job.insert_with_pool(&deps.db_pool).await?;
     let job_id = db_job.id;
-    let event_job_id = JobId::from_uuid(job_id);
 
     info!(
         job_id = %job_id,
@@ -346,7 +370,7 @@ pub async fn execute_sync_posts_job(
     // Run sync
     let sync_result = if job.use_llm_sync {
         // LLM-based intelligent sync
-        match llm_sync_posts(website_id, job.extracted_posts, ctx.deps().ai.as_ref(), &ctx.deps().db_pool).await {
+        match llm_sync_posts(website_id, job.extracted_posts, deps.ai.as_ref(), &deps.db_pool).await {
             Ok(result) => SyncResult {
                 inserted: result.inserted,
                 updated: result.updated,
@@ -355,17 +379,17 @@ pub async fn execute_sync_posts_job(
             },
             Err(e) => {
                 error!(job_id = %job_id, error = %e, "LLM sync failed");
-                mark_job_failed(job_id, &e.to_string(), &ctx.deps().db_pool).await?;
-                return Ok(JobExecutionResult {
+                mark_job_failed(job_id, &e.to_string(), &deps.db_pool).await?;
+                return Ok(JobExecutionResult::basic(
                     job_id,
-                    status: "failed".to_string(),
-                    message: Some(e.to_string()),
-                });
+                    "failed",
+                    Some(e.to_string()),
+                ));
             }
         }
     } else {
         // Simple delete-and-replace sync
-        match sync_and_deduplicate_posts(website_id, job.extracted_posts, ctx.deps()).await {
+        match sync_and_deduplicate_posts(website_id, job.extracted_posts, deps).await {
             Ok(result) => SyncResult {
                 inserted: result.sync_result.inserted,
                 updated: result.sync_result.updated,
@@ -374,12 +398,12 @@ pub async fn execute_sync_posts_job(
             },
             Err(e) => {
                 error!(job_id = %job_id, error = %e, "Simple sync failed");
-                mark_job_failed(job_id, &e.to_string(), &ctx.deps().db_pool).await?;
-                return Ok(JobExecutionResult {
+                mark_job_failed(job_id, &e.to_string(), &deps.db_pool).await?;
+                return Ok(JobExecutionResult::basic(
                     job_id,
-                    status: "failed".to_string(),
-                    message: Some(e.to_string()),
-                });
+                    "failed",
+                    Some(e.to_string()),
+                ));
             }
         }
     };
@@ -396,26 +420,17 @@ pub async fn execute_sync_posts_job(
     // Mark job as succeeded
     sqlx::query("UPDATE jobs SET status = 'succeeded', updated_at = NOW() WHERE id = $1")
         .bind(job_id)
-        .execute(&ctx.deps().db_pool)
+        .execute(&deps.db_pool)
         .await?;
 
-    // Emit terminal event
-    ctx.emit(CrawlEvent::PostsSynced {
-        website_id,
-        job_id: event_job_id,
-        new_count: sync_result.inserted,
-        updated_count: sync_result.updated,
-        unchanged_count: sync_result.deleted + sync_result.merged,
-    });
-
-    Ok(JobExecutionResult {
+    Ok(JobExecutionResult::basic(
         job_id,
-        status: "succeeded".to_string(),
-        message: Some(format!(
+        "succeeded",
+        Some(format!(
             "Synced {} new, {} updated, {} deleted, {} merged",
             sync_result.inserted, sync_result.updated, sync_result.deleted, sync_result.merged
         )),
-    })
+    ))
 }
 
 /// Internal sync result for job reporting

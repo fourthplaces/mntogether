@@ -8,37 +8,45 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{AppState, JobId, MemberId, WebsiteId};
-use crate::domains::crawling::actions::CrawlJobResult;
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::website::models::Website;
 use crate::kernel::{
     DiscoverConfig, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor,
 };
-use seesaw_core::EffectContext;
+
+/// Result of an ingest_urls operation (no event emission)
+#[derive(Debug, Clone)]
+pub struct IngestUrlsResult {
+    pub job_id: Uuid,
+    pub website_id: Uuid,
+    pub status: String,
+    pub message: Option<String>,
+}
 
 /// Ingest a website using the extraction library.
 ///
 /// This is the new preferred method for crawling websites. It:
 /// 1. Uses the extraction library's Ingestor pattern for fetching
 /// 2. Stores pages in extraction_pages (via ExtractionService)
-/// 3. Emits WebsiteIngested event to trigger post extraction cascade
+/// 3. Returns WebsiteIngested event to trigger post extraction cascade
 ///
 /// # Arguments
 ///
 /// * `website_id` - Website to ingest
 /// * `visitor_id` - Visitor requesting the action
 /// * `use_firecrawl` - Whether to use Firecrawl (true) or basic HTTP (false)
-/// * `ctx` - Effect context for emitting events (contains is_admin via state)
+/// * `is_admin` - Whether the requester is an admin
+/// * `deps` - Server dependencies
 pub async fn ingest_website(
     website_id: Uuid,
     visitor_id: Uuid,
     use_firecrawl: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
+    is_admin: bool,
+    deps: &ServerDeps,
+) -> Result<CrawlEvent> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
-    let is_admin = ctx.next_state().is_admin;
     let job_id = JobId::new();
 
     info!(
@@ -52,19 +60,18 @@ pub async fn ingest_website(
     debug!(website_id = %website_id_typed, "Checking authorization");
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::TriggerScraping)
-        .check(ctx.deps())
+        .check(deps)
         .await?;
     debug!(website_id = %website_id_typed, "Authorization passed");
 
     // 2. Fetch website
     debug!(website_id = %website_id_typed, "Fetching website from database");
-    let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
+    let website = Website::find_by_id(website_id_typed, &deps.db_pool).await?;
     debug!(website_id = %website_id_typed, domain = %website.domain, "Website fetched successfully");
 
     // 3. Get extraction service (required for ingestion)
     debug!(website_id = %website_id_typed, "Getting extraction service");
-    let extraction = ctx
-        .deps()
+    let extraction = deps
         .extraction
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
@@ -139,30 +146,11 @@ pub async fn ingest_website(
         "Extraction library ingestion completed"
     );
 
-    // 7. Emit event to continue the cascade
-    // Note: We're emitting with empty crawled_pages for now since the extraction
-    // library handles summarization internally. The cascade may need adjustment.
-    info!(
-        website_id = %website_id_typed,
-        pages_processed = result.pages_summarized,
-        "Emitting WebsiteIngested event"
-    );
-
-    ctx.emit(CrawlEvent::WebsiteIngested {
+    Ok(CrawlEvent::WebsiteIngested {
         website_id: website_id_typed,
         job_id,
         pages_crawled: result.pages_crawled,
         pages_summarized: result.pages_summarized,
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        status: "completed".to_string(),
-        message: Some(format!(
-            "Ingested {} pages ({} summarized, {} skipped)",
-            result.pages_crawled, result.pages_summarized, result.pages_skipped
-        )),
     })
 }
 
@@ -172,15 +160,17 @@ pub async fn ingest_website(
 /// - User-submitted URLs
 /// - Gap-filling (fetching specific pages to answer questions)
 /// - Adding individual pages to an existing website
+///
+/// Note: This function does not emit events - it's a utility for batch URL ingestion.
 pub async fn ingest_urls(
     website_id: Uuid,
     urls: Vec<String>,
     visitor_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
+    is_admin: bool,
+    deps: &ServerDeps,
+) -> Result<IngestUrlsResult> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
-    let is_admin = ctx.next_state().is_admin;
     let job_id = JobId::new();
 
     info!(
@@ -193,12 +183,11 @@ pub async fn ingest_urls(
     // Auth check
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::TriggerScraping)
-        .check(ctx.deps())
+        .check(deps)
         .await?;
 
     // Get extraction service (required for ingestion)
-    let extraction = ctx
-        .deps()
+    let extraction = deps
         .extraction
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
@@ -223,14 +212,14 @@ pub async fn ingest_urls(
                 pages_summarized = r.pages_summarized,
                 "URL ingestion completed"
             );
-            Ok(CrawlJobResult {
+            Ok(IngestUrlsResult {
                 job_id: job_id.into_uuid(),
                 website_id,
                 status: "completed".to_string(),
                 message: Some(format!("Ingested {} URLs", r.pages_summarized)),
             })
         }
-        Err(e) => Ok(CrawlJobResult {
+        Err(e) => Ok(IngestUrlsResult {
             job_id: job_id.into_uuid(),
             website_id,
             status: "failed".to_string(),

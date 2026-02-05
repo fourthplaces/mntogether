@@ -9,7 +9,7 @@ mod common;
 use crate::common::TestHarness;
 use indexmap::IndexMap;
 use juniper::{InputValue, Variables};
-use server_core::domains::website::models::Website;
+use server_core::domains::website::models::{CreateWebsite, Website};
 use test_context::test_context;
 
 // Helper function to create mutation variables
@@ -82,11 +82,11 @@ async fn submit_approved_website_returns_pending_status(ctx: &TestHarness) {
 
     // Setup: Create an approved website
     let website = Website::create(
-        "https://approvedwebsite.org".to_string(),
-        None,
-        "test".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://approvedwebsite.org")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -120,7 +120,7 @@ async fn submit_approved_website_returns_pending_status(ctx: &TestHarness) {
     // Verify GraphQL response - should indicate scraping will happen
     assert_eq!(
         result["submitResourceLink"]["status"].as_str().unwrap(),
-        "pending"
+        "processing"
     );
     assert!(result["submitResourceLink"]["message"]
         .as_str()

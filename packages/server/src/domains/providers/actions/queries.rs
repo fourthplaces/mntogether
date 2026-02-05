@@ -1,43 +1,38 @@
 //! Provider query actions
 //!
-//! All provider read operations go through these actions via `engine.activate().process()`.
-//! Actions are self-contained: they handle ID parsing and return final models.
+//! Query actions return data directly and are called without process().
+//! Auth checks are done at the GraphQL layer.
 
 use anyhow::{Context, Result};
-use seesaw_core::EffectContext;
 use tracing::info;
 
-use crate::common::{build_page_info, AppState, Cursor, ProviderId, ValidatedPaginationArgs};
+use crate::common::{build_page_info, Cursor, ProviderId, ValidatedPaginationArgs};
 use crate::domains::providers::data::{ProviderConnection, ProviderData, ProviderEdge};
 use crate::domains::providers::models::Provider;
 use crate::kernel::ServerDeps;
 
-/// Get a single provider by ID (admin only)
+/// Get a single provider by ID
+/// Note: Admin auth is checked at the GraphQL layer
 pub async fn get_provider(
     provider_id: String,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<Option<Provider>> {
-    // Admin authorization check
-    ctx.next_state().require_admin()?;
-
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, "Getting provider");
 
-    Provider::find_by_id_optional(id, &ctx.deps().db_pool).await
+    Provider::find_by_id_optional(id, &deps.db_pool).await
 }
 
-/// Get all providers with optional filters (admin only)
+/// Get all providers with optional filters
+/// Note: Admin auth is checked at the GraphQL layer
 pub async fn get_providers(
     status: Option<String>,
     accepting_clients: Option<bool>,
     limit: Option<i32>,
     offset: Option<i32>,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<Vec<Provider>> {
-    // Admin authorization check
-    ctx.next_state().require_admin()?;
-
     info!(
         status = ?status,
         accepting_clients = ?accepting_clients,
@@ -49,41 +44,38 @@ pub async fn get_providers(
         accepting_clients,
         limit,
         offset,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await
 }
 
 /// Get all pending providers (for admin approval queue)
+/// Note: Admin auth is checked at the GraphQL layer
 pub async fn get_pending_providers(
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<Vec<Provider>> {
-    // Admin authorization check
-    ctx.next_state().require_admin()?;
-
     info!("Getting pending providers");
 
-    Provider::find_pending(&ctx.deps().db_pool).await
+    Provider::find_pending(&deps.db_pool).await
 }
 
 /// Get all approved providers
 pub async fn get_approved_providers(
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<Vec<Provider>> {
     info!("Getting approved providers");
 
-    Provider::find_approved(&ctx.deps().db_pool).await
+    Provider::find_approved(&deps.db_pool).await
 }
 
 /// Get paginated providers with cursor-based pagination (Relay spec)
+/// Note: Admin auth is checked at the GraphQL layer
 pub async fn get_providers_paginated(
     status: Option<&str>,
     args: &ValidatedPaginationArgs,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<ProviderConnection> {
-    ctx.next_state().require_admin()?;
-
-    let pool = &ctx.deps().db_pool;
+    let pool = &deps.db_pool;
 
     let (providers, has_more) = Provider::find_paginated(status, args, pool).await?;
     let total_count = Provider::count_with_filters(status, pool).await? as i32;
