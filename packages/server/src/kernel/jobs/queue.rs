@@ -12,9 +12,10 @@ use serde::{de::DeserializeOwned, Serialize};
 use tracing::info;
 use uuid::Uuid;
 
+use sqlx::PgPool;
+
 use super::job::{ErrorKind, Job, JobPriority};
 use super::record::Record;
-use crate::kernel::ServerKernel;
 
 /// Result type for enqueue operations that handles idempotency.
 #[derive(Debug, Clone)]
@@ -234,23 +235,23 @@ impl<T: JobQueue + ?Sized> JobQueueExt for T {}
 
 /// PostgreSQL-backed job queue implementation.
 pub struct PostgresJobQueue {
-    kernel: Arc<ServerKernel>,
+    db_pool: PgPool,
     default_lease_ms: i64,
 }
 
 impl PostgresJobQueue {
     /// Create a new PostgreSQL job queue.
-    pub fn new(kernel: Arc<ServerKernel>) -> Self {
+    pub fn new(db_pool: PgPool) -> Self {
         Self {
-            kernel,
+            db_pool,
             default_lease_ms: 60_000, // 1 minute
         }
     }
 
     /// Create with a custom lease duration.
-    pub fn with_lease_duration(kernel: Arc<ServerKernel>, lease_ms: i64) -> Self {
+    pub fn with_lease_duration(db_pool: PgPool, lease_ms: i64) -> Self {
         Self {
-            kernel,
+            db_pool,
             default_lease_ms: lease_ms,
         }
     }
@@ -260,9 +261,9 @@ impl PostgresJobQueue {
         self.default_lease_ms
     }
 
-    /// Get a reference to the kernel.
-    pub fn kernel(&self) -> &Arc<ServerKernel> {
-        &self.kernel
+    /// Get a reference to the database pool.
+    pub fn db_pool(&self) -> &PgPool {
+        &self.db_pool
     }
 
     /// Check if a job with the given idempotency key already exists.
@@ -282,7 +283,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(key)
-        .fetch_optional(&self.kernel.db_pool)
+        .fetch_optional(&self.db_pool)
         .await?;
 
         Ok(job)
@@ -323,7 +324,7 @@ impl PostgresJobQueue {
         );
 
         // Insert
-        let inserted = job.insert(&self.kernel).await?;
+        let inserted = job.insert_with_pool(&self.db_pool).await?;
 
         Ok(EnqueueResult::Created(inserted.id))
     }
@@ -331,7 +332,7 @@ impl PostgresJobQueue {
     /// Mark a job as successfully completed.
     pub async fn mark_succeeded(&self, job_id: Uuid) -> Result<()> {
         // Fetch the job to check if it's recurring
-        let job = Job::find_by_id(job_id, &self.kernel.db_pool).await?;
+        let job = Job::find_by_id(job_id, &self.db_pool).await?;
 
         // Handle recurring jobs - schedule next occurrence
         if job.frequency.is_some() {
@@ -357,7 +358,7 @@ impl PostgresJobQueue {
                 .bind(next_run)
                 .bind(format!("{}:{}", job.reference_id, next_run.timestamp()))
                 .bind(job_id)
-                .execute(&self.kernel.db_pool)
+                .execute(&self.db_pool)
                 .await?;
 
                 info!(
@@ -380,7 +381,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(job_id)
-        .execute(&self.kernel.db_pool)
+        .execute(&self.db_pool)
         .await?;
 
         Ok(())
@@ -389,7 +390,7 @@ impl PostgresJobQueue {
     /// Mark a job as failed with an error.
     pub async fn mark_failed(&self, job_id: Uuid, error: &str, kind: ErrorKind) -> Result<()> {
         // Fetch current job state
-        let job = Job::find_by_id(job_id, &self.kernel.db_pool).await?;
+        let job = Job::find_by_id(job_id, &self.db_pool).await?;
 
         if kind.should_retry() && job.retry_count < job.max_retries {
             // Schedule retry with exponential backoff
@@ -397,7 +398,7 @@ impl PostgresJobQueue {
             let retry_at = Utc::now() + chrono::Duration::seconds(delay_secs);
 
             let retry_job = job.create_retry(retry_at);
-            retry_job.insert(&self.kernel).await?;
+            retry_job.insert_with_pool(&self.db_pool).await?;
 
             // Mark original as failed
             sqlx::query(
@@ -413,7 +414,7 @@ impl PostgresJobQueue {
             .bind(error)
             .bind(kind)
             .bind(job_id)
-            .execute(&self.kernel.db_pool)
+            .execute(&self.db_pool)
             .await?;
         } else {
             // No retries left - dead letter
@@ -432,7 +433,7 @@ impl PostgresJobQueue {
             .bind(error)
             .bind(kind)
             .bind(job_id)
-            .execute(&self.kernel.db_pool)
+            .execute(&self.db_pool)
             .await?;
         }
 
@@ -451,7 +452,7 @@ impl PostgresJobQueue {
             "#,
         )
         .bind(job_id)
-        .execute(&self.kernel.db_pool)
+        .execute(&self.db_pool)
         .await?;
 
         Ok(result.rows_affected() > 0)
@@ -469,7 +470,7 @@ impl PostgresJobQueue {
         )
         .bind(self.default_lease_ms.to_string())
         .bind(job_id)
-        .execute(&self.kernel.db_pool)
+        .execute(&self.db_pool)
         .await?;
 
         Ok(())
@@ -477,12 +478,12 @@ impl PostgresJobQueue {
 
     /// Find the next scheduled run time (for sleep optimization).
     pub async fn next_run_time(&self) -> Result<Option<DateTime<Utc>>> {
-        Job::find_next_run_time(&self.kernel).await
+        Job::find_next_run_time_with_pool(&self.db_pool).await
     }
 
     /// Claim jobs for processing (internal, returns raw Jobs).
     pub async fn claim_jobs_internal(&self, worker_id: &str, limit: i64) -> Result<Vec<Job>> {
-        Job::claim_jobs(limit, worker_id, self.default_lease_ms, &self.kernel).await
+        Job::claim_jobs_with_pool(limit, worker_id, self.default_lease_ms, &self.db_pool).await
     }
 }
 
@@ -501,7 +502,7 @@ impl JobQueue for PostgresJobQueue {
     }
 
     async fn claim(&self, worker_id: &str, limit: i64) -> Result<Vec<ClaimedJob>> {
-        let jobs = Job::claim_jobs(limit, worker_id, self.default_lease_ms, &self.kernel).await?;
+        let jobs = Job::claim_jobs_with_pool(limit, worker_id, self.default_lease_ms, &self.db_pool).await?;
 
         Ok(jobs
             .into_iter()
@@ -559,7 +560,7 @@ impl PostgresJobQueue {
         );
 
         // Insert (let DB handle idempotency constraint as backup)
-        let inserted = job.insert(&self.kernel).await?;
+        let inserted = job.insert_with_pool(&self.db_pool).await?;
 
         Ok(EnqueueResult::Created(inserted.id))
     }

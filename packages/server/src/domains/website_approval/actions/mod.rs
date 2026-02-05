@@ -94,120 +94,30 @@ pub async fn assess_website(
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
 
-    info!(
-        website_id = %website_id,
-        job_id = %job_id,
-        "Starting website assessment"
-    );
+    info!(website_id = %website_id, job_id = %job_id, "Starting website assessment");
 
-    // Step 1: Fetch website to ensure it exists
     let website = Website::find_by_id(website_id_typed.into(), &deps.db_pool)
         .await
         .context(format!("Website not found: {}", website_id))?;
 
-    info!(
-        website_id = %website_id,
-        website_domain = %website.domain,
-        "Website found"
-    );
-
-    // Step 2: Check for existing fresh research (<7 days old)
-    let existing =
-        WebsiteResearch::find_latest_by_website_id(website_id_typed.into(), &deps.db_pool)
-            .await?;
-
-    if let Some(research) = existing {
-        let age_days = (chrono::Utc::now() - research.created_at).num_days();
-
-        info!(
-            research_id = %research.id,
-            age_days = age_days,
-            "Found existing research"
-        );
-
-        if age_days < 7 {
-            // Fresh research exists - generate assessment synchronously
-            info!(
-                research_id = %research.id,
-                "Research is fresh, generating assessment directly"
-            );
-
-            let assessment =
-                generate_assessment(research.id, website_id_typed, job_id, requested_by, deps)
-                    .await?;
-
-            return Ok(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
-                website_id: website_id_typed,
-                job_id,
-                assessment_id: assessment.id,
-                recommendation: assessment.recommendation.clone(),
-                confidence_score: assessment.confidence_score,
-                organization_name: assessment.organization_name.clone(),
-            });
-        }
-
-        info!(research_id = %research.id, "Research is stale, creating fresh research");
+    // Check for fresh research (< 7 days old)
+    if let Some(research) = find_fresh_research(website_id_typed, 7, &deps.db_pool).await? {
+        info!(research_id = %research.id, "Research is fresh, generating assessment directly");
+        let assessment = generate_assessment(research.id, website_id_typed, job_id, requested_by, deps).await?;
+        return Ok(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
+            website_id: website_id_typed,
+            job_id,
+            assessment_id: assessment.id,
+            recommendation: assessment.recommendation.clone(),
+            confidence_score: assessment.confidence_score,
+            organization_name: assessment.organization_name.clone(),
+        });
     }
 
-    // Step 3: Create fresh research - fetch homepage using extraction library
-    info!(website_domain = %website.domain, "Fetching homepage via extraction library");
+    // Create fresh research
+    info!(website_domain = %website.domain, "Creating fresh research");
+    let homepage_content = fetch_homepage_content(&website.domain, deps).await;
 
-    let homepage_url = format!("https://{}", &website.domain);
-    let urls = vec![homepage_url.clone()];
-
-    // Get extraction service (required for homepage fetching)
-    let extraction = deps
-        .extraction
-        .as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
-
-    // Use extraction library to ingest the homepage
-    let ingest_result = match FirecrawlIngestor::from_env() {
-        Ok(firecrawl) => {
-            let ingestor = ValidatedIngestor::new(firecrawl);
-            extraction.ingest_urls(&urls, &ingestor).await
-        }
-        Err(_) => {
-            let http = HttpIngestor::new();
-            let ingestor = ValidatedIngestor::new(http);
-            extraction.ingest_urls(&urls, &ingestor).await
-        }
-    };
-
-    let homepage_content = match ingest_result {
-        Ok(result) if result.pages_summarized > 0 => {
-            info!(
-                website_domain = %website.domain,
-                pages_summarized = result.pages_summarized,
-                "Homepage fetched and ingested successfully"
-            );
-            // Get the content from extraction index
-            match extraction
-                .extract_one("homepage content", Some(&homepage_url))
-                .await
-            {
-                Ok(extraction) => Some(extraction.content),
-                Err(_) => None,
-            }
-        }
-        Ok(_) => {
-            tracing::warn!(
-                website_domain = %website.domain,
-                "Homepage ingested but no content summarized"
-            );
-            None
-        }
-        Err(e) => {
-            tracing::warn!(
-                website_domain = %website.domain,
-                error = %e,
-                "Failed to fetch homepage, continuing with search-based research"
-            );
-            None
-        }
-    };
-
-    // Step 4: Create research record
     let research = WebsiteResearch::create(
         website_id_typed.into(),
         website.domain.clone(),
@@ -219,22 +129,13 @@ pub async fn assess_website(
 
     info!(research_id = %research.id, "Research record created");
 
-    // Step 5: Store homepage content (if available)
     if let Some(content) = homepage_content {
-        WebsiteResearchHomepage::create(
-            research.id,
-            Some(content.clone()),
-            Some(content),
-            &deps.db_pool,
-        )
-        .await
-        .context("Failed to store homepage content")?;
-
+        WebsiteResearchHomepage::create(research.id, Some(content.clone()), Some(content), &deps.db_pool)
+            .await
+            .context("Failed to store homepage content")?;
         info!(research_id = %research.id, "Homepage content stored");
     }
 
-    // Step 6: Return event to trigger async search cascade
-    // Flow: WebsiteResearchCreated → conduct_searches → generate_assessment → WebsiteAssessmentCompleted
     Ok(WebsiteApprovalEvent::WebsiteResearchCreated {
         research_id: research.id,
         website_id: website_id_typed,
@@ -259,77 +160,24 @@ pub async fn generate_assessment(
     requested_by: MemberId,
     deps: &ServerDeps,
 ) -> Result<WebsiteAssessment> {
-    info!(
-        research_id = %research_id,
-        website_id = %website_id,
-        job_id = %job_id,
-        "Generating assessment from research"
-    );
+    info!(research_id = %research_id, website_id = %website_id, job_id = %job_id, "Generating assessment from research");
 
-    // Step 1: Load website
     let website = Website::find_by_id(website_id.into(), &deps.db_pool)
         .await
         .context(format!("Website not found: {}", website_id))?;
 
-    // Step 2: Load research data
-    let homepage = WebsiteResearchHomepage::find_by_research_id(research_id, &deps.db_pool)
-        .await
-        .context("Failed to load homepage")?;
+    let research_data = load_research_data(research_id, &deps.db_pool).await?;
+    info!(research_id = %research_id, query_count = research_data.search_results.len(), "Research data loaded");
 
-    let queries = TavilySearchQuery::find_by_research_id(research_id, &deps.db_pool)
-        .await
-        .context("Failed to load search queries")?;
+    let prompt = build_assessment_prompt(&website, research_data.homepage.as_ref(), &research_data.search_results);
+    info!(website_id = %website_id, prompt_length = prompt.len(), "Generating AI assessment");
 
-    let mut all_results = Vec::new();
-    for query in &queries {
-        let results = TavilySearchResult::find_by_query_id(query.id, &deps.db_pool)
-            .await
-            .context("Failed to load search results")?;
-        all_results.push((query.clone(), results));
-    }
+    let assessment_markdown = deps.ai.complete(&prompt).await.context("Failed to generate AI assessment")?;
+    info!(website_id = %website_id, assessment_length = assessment_markdown.len(), "AI assessment generated");
 
-    info!(
-        research_id = %research_id,
-        query_count = queries.len(),
-        total_results = all_results.iter().map(|(_, r)| r.len()).sum::<usize>(),
-        "Research data loaded"
-    );
+    let (recommendation, confidence, org_name, founded_year) = parse_assessment_metadata(&assessment_markdown);
+    info!(website_id = %website_id, recommendation = %recommendation, confidence = ?confidence, "Assessment metadata parsed");
 
-    // Step 3: Build assessment prompt
-    let prompt = build_assessment_prompt(&website, homepage.as_ref(), &all_results);
-
-    info!(
-        website_id = %website_id,
-        prompt_length = prompt.len(),
-        "Generating AI assessment"
-    );
-
-    // Step 4: Generate AI assessment
-    let assessment_markdown = deps
-        .ai
-        .complete(&prompt)
-        .await
-        .context("Failed to generate AI assessment")?;
-
-    info!(
-        website_id = %website_id,
-        assessment_length = assessment_markdown.len(),
-        "AI assessment generated"
-    );
-
-    // Step 5: Parse metadata from assessment
-    let (recommendation, confidence, org_name, founded_year) =
-        parse_assessment_metadata(&assessment_markdown);
-
-    info!(
-        website_id = %website_id,
-        recommendation = %recommendation,
-        confidence = ?confidence,
-        org_name = ?org_name,
-        "Assessment metadata parsed"
-    );
-
-    // Step 6: Store assessment
     let assessment = WebsiteAssessment::create(
         CreateWebsiteAssessment::builder()
             .website_id(website_id.into_uuid())
@@ -347,44 +195,9 @@ pub async fn generate_assessment(
     .await
     .context("Failed to store assessment")?;
 
-    info!(
-        website_id = %website_id,
-        assessment_id = %assessment.id,
-        "Assessment stored successfully"
-    );
+    info!(website_id = %website_id, assessment_id = %assessment.id, "Assessment stored successfully");
 
-    // Step 7: Generate and store embedding for semantic search (non-fatal)
-    match deps
-        .embedding_service
-        .generate(&assessment_markdown)
-        .await
-    {
-        Ok(embedding) => {
-            if let Err(e) =
-                WebsiteAssessment::update_embedding(assessment.id, &embedding, &deps.db_pool)
-                    .await
-            {
-                tracing::warn!(
-                    assessment_id = %assessment.id,
-                    error = %e,
-                    "Failed to store assessment embedding (non-fatal)"
-                );
-            } else {
-                info!(
-                    assessment_id = %assessment.id,
-                    embedding_dim = embedding.len(),
-                    "Assessment embedding stored"
-                );
-            }
-        }
-        Err(e) => {
-            tracing::warn!(
-                assessment_id = %assessment.id,
-                error = %e,
-                "Failed to generate assessment embedding (non-fatal)"
-            );
-        }
-    }
+    store_assessment_embedding(assessment.id, &assessment_markdown, deps).await;
 
     Ok(assessment)
 }
@@ -397,28 +210,15 @@ pub async fn conduct_searches(
     website_id: WebsiteId,
     deps: &ServerDeps,
 ) -> Result<SearchResult> {
-    info!(
-        research_id = %research_id,
-        website_id = %website_id,
-        "Conducting research searches"
-    );
+    info!(research_id = %research_id, website_id = %website_id, "Conducting research searches");
 
-    // Step 1: Load research to get website URL
-    let research =
-        WebsiteResearch::find_latest_by_website_id(website_id.into(), &deps.db_pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
+    let research = WebsiteResearch::find_latest_by_website_id(website_id.into(), &deps.db_pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
 
-    // Step 2: Extract domain name from URL
     let domain_name = extract_domain_name(&research.homepage_url);
+    info!(research_id = %research_id, domain_name = %domain_name, "Extracted domain name");
 
-    info!(
-        research_id = %research_id,
-        domain_name = %domain_name,
-        "Extracted domain name"
-    );
-
-    // Step 3: Define research queries
     let queries = vec![
         format!("{} organization background mission", domain_name),
         format!("{} reviews complaints problems", domain_name),
@@ -426,88 +226,176 @@ pub async fn conduct_searches(
     ];
 
     let mut total_results = 0;
-
-    // Step 4: Execute each search and store results
     for query_text in &queries {
-        info!(query = %query_text, "Executing Tavily search");
-
-        // Execute search
-        let results = deps
-            .web_searcher
-            .search_with_limit(query_text, 5)
-            .await
-            .context(format!("Failed to execute search: {}", query_text))?;
-
-        info!(
-            query = %query_text,
-            result_count = results.len(),
-            "Tavily search completed"
-        );
-
-        // Store query record
-        let query_record = TavilySearchQuery::create(
-            CreateTavilySearchQuery::builder()
-                .website_research_id(research.id)
-                .query(query_text.clone())
-                .search_depth(Some("basic".to_string()))
-                .max_results(Some(5))
-                .build(),
-            &deps.db_pool,
-        )
-        .await
-        .context("Failed to store query record")?;
-
-        // Store results
-        if !results.is_empty() {
-            let result_tuples: Vec<_> = results
-                .into_iter()
-                .map(|r| {
-                    (
-                        r.title.unwrap_or_default(),
-                        r.url.to_string(),
-                        r.snippet.unwrap_or_default(),
-                        r.score.unwrap_or(0.0) as f64,
-                        None::<String>, // published_date not available in extraction SearchResult
-                    )
-                })
-                .collect();
-
-            total_results += result_tuples.len();
-
-            TavilySearchResult::create_batch(query_record.id, result_tuples, &deps.db_pool)
-                .await
-                .context("Failed to store search results")?;
-
-            info!(
-                query_id = %query_record.id,
-                result_count = total_results,
-                "Search results stored"
-            );
-        }
+        total_results += execute_and_store_search(research.id, query_text, deps).await?;
     }
 
-    // Step 5: Mark research as complete
-    research
-        .mark_tavily_complete(&deps.db_pool)
-        .await
-        .context("Failed to mark research complete")?;
+    research.mark_tavily_complete(&deps.db_pool).await.context("Failed to mark research complete")?;
+    info!(research_id = %research_id, total_queries = queries.len(), total_results = total_results, "All research searches completed");
 
-    info!(
-        research_id = %research_id,
-        total_queries = queries.len(),
-        total_results = total_results,
-        "All research searches completed"
-    );
-
-    Ok(SearchResult {
-        total_queries: queries.len(),
-        total_results,
-    })
+    Ok(SearchResult { total_queries: queries.len(), total_results })
 }
 
 // ============================================================================
 // Helper Functions
 // ============================================================================
+
+/// Check for existing fresh research (less than max_age_days old)
+async fn find_fresh_research(
+    website_id: WebsiteId,
+    max_age_days: i64,
+    pool: &sqlx::PgPool,
+) -> Result<Option<WebsiteResearch>> {
+    let existing = WebsiteResearch::find_latest_by_website_id(website_id.into(), pool).await?;
+
+    if let Some(ref research) = existing {
+        let age_days = (chrono::Utc::now() - research.created_at).num_days();
+        info!(research_id = %research.id, age_days = age_days, "Found existing research");
+
+        if age_days < max_age_days {
+            return Ok(existing);
+        }
+        info!(research_id = %research.id, "Research is stale");
+    }
+
+    Ok(None)
+}
+
+/// Fetch homepage content using extraction service with fallback
+async fn fetch_homepage_content(
+    domain: &str,
+    deps: &ServerDeps,
+) -> Option<String> {
+    let extraction = deps.extraction.as_ref()?;
+
+    let homepage_url = format!("https://{}", domain);
+    let urls = vec![homepage_url.clone()];
+
+    let ingest_result = match FirecrawlIngestor::from_env() {
+        Ok(firecrawl) => {
+            let ingestor = ValidatedIngestor::new(firecrawl);
+            extraction.ingest_urls(&urls, &ingestor).await
+        }
+        Err(_) => {
+            let http = HttpIngestor::new();
+            let ingestor = ValidatedIngestor::new(http);
+            extraction.ingest_urls(&urls, &ingestor).await
+        }
+    };
+
+    match ingest_result {
+        Ok(result) if result.pages_summarized > 0 => {
+            info!(website_domain = %domain, pages_summarized = result.pages_summarized, "Homepage fetched successfully");
+            extraction.extract_one("homepage content", Some(&homepage_url)).await.ok().map(|e| e.content)
+        }
+        Ok(_) => {
+            tracing::warn!(website_domain = %domain, "Homepage ingested but no content summarized");
+            None
+        }
+        Err(e) => {
+            tracing::warn!(website_domain = %domain, error = %e, "Failed to fetch homepage");
+            None
+        }
+    }
+}
+
+/// Research data loaded for assessment generation
+pub struct ResearchData {
+    pub homepage: Option<WebsiteResearchHomepage>,
+    pub search_results: Vec<(TavilySearchQuery, Vec<TavilySearchResult>)>,
+}
+
+/// Load all research data for assessment generation
+async fn load_research_data(research_id: Uuid, pool: &sqlx::PgPool) -> Result<ResearchData> {
+    let homepage = WebsiteResearchHomepage::find_by_research_id(research_id, pool)
+        .await
+        .context("Failed to load homepage")?;
+
+    let queries = TavilySearchQuery::find_by_research_id(research_id, pool)
+        .await
+        .context("Failed to load search queries")?;
+
+    let mut search_results = Vec::with_capacity(queries.len());
+    for query in queries {
+        let results = TavilySearchResult::find_by_query_id(query.id, pool)
+            .await
+            .context("Failed to load search results")?;
+        search_results.push((query, results));
+    }
+
+    Ok(ResearchData { homepage, search_results })
+}
+
+/// Store assessment embedding (non-fatal on failure)
+async fn store_assessment_embedding(
+    assessment_id: Uuid,
+    markdown: &str,
+    deps: &ServerDeps,
+) {
+    match deps.embedding_service.generate(markdown).await {
+        Ok(embedding) => {
+            if let Err(e) = WebsiteAssessment::update_embedding(assessment_id, &embedding, &deps.db_pool).await {
+                tracing::warn!(assessment_id = %assessment_id, error = %e, "Failed to store assessment embedding (non-fatal)");
+            } else {
+                info!(assessment_id = %assessment_id, embedding_dim = embedding.len(), "Assessment embedding stored");
+            }
+        }
+        Err(e) => {
+            tracing::warn!(assessment_id = %assessment_id, error = %e, "Failed to generate assessment embedding (non-fatal)");
+        }
+    }
+}
+
+/// Execute a single search query and store results
+async fn execute_and_store_search(
+    research_id: Uuid,
+    query_text: &str,
+    deps: &ServerDeps,
+) -> Result<usize> {
+    info!(query = %query_text, "Executing Tavily search");
+
+    let results = deps.web_searcher
+        .search_with_limit(query_text, 5)
+        .await
+        .context(format!("Failed to execute search: {}", query_text))?;
+
+    info!(query = %query_text, result_count = results.len(), "Tavily search completed");
+
+    let query_record = TavilySearchQuery::create(
+        CreateTavilySearchQuery::builder()
+            .website_research_id(research_id)
+            .query(query_text.to_string())
+            .search_depth(Some("basic".to_string()))
+            .max_results(Some(5))
+            .build(),
+        &deps.db_pool,
+    )
+    .await
+    .context("Failed to store query record")?;
+
+    if results.is_empty() {
+        return Ok(0);
+    }
+
+    let result_tuples: Vec<_> = results
+        .into_iter()
+        .map(|r| (
+            r.title.unwrap_or_default(),
+            r.url.to_string(),
+            r.snippet.unwrap_or_default(),
+            r.score.unwrap_or(0.0) as f64,
+            None::<String>,
+        ))
+        .collect();
+
+    let count = result_tuples.len();
+    TavilySearchResult::create_batch(query_record.id, result_tuples, &deps.db_pool)
+        .await
+        .context("Failed to store search results")?;
+
+    info!(query_id = %query_record.id, result_count = count, "Search results stored");
+    Ok(count)
+}
 
 /// Build the assessment prompt from website and research data.
 pub fn build_assessment_prompt(

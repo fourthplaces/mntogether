@@ -1,11 +1,8 @@
-//! Cascade event handlers for chatrooms domain
+//! AI response generation actions for chatrooms
 //!
-//! These handlers respond to FACT events in the multi-step workflow.
-//! They are called by the effect dispatcher when cascading is needed.
-//!
-//! Cascade flow:
-//!   ContainerCreated (with_agent) → handle_generate_greeting → MessageCreated
-//!   MessageCreated (user role) → handle_generate_reply → MessageCreated
+//! These actions handle AI-generated greetings and replies.
+//! Business logic moved from effects/handlers.rs to follow
+//! the "actions contain business logic" pattern.
 
 use anyhow::Result;
 use tracing::{error, info};
@@ -16,31 +13,25 @@ use crate::domains::tag::Tag;
 use crate::kernel::{CompletionExt, ServerDeps};
 
 // ============================================================================
-// Handler: Generate Greeting (cascade from ContainerCreated with agent)
+// Action: Generate Greeting
 // ============================================================================
 
-/// Handle generate greeting for new container with agent.
+/// Generate a greeting message for a new container with an agent.
 ///
 /// Creates an assistant message with the greeting. Returns the created message.
-/// The effect handles any further cascading internally.
-pub async fn handle_generate_greeting(
+pub async fn generate_greeting(
     container_id: ContainerId,
-    agent_config: String,
+    agent_config: &str,
     deps: &ServerDeps,
 ) -> Result<Message> {
     info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
 
-    // Get greeting prompt based on agent config
-    let greeting_prompt = get_greeting_prompt(&agent_config);
+    let greeting_prompt = get_greeting_prompt(agent_config);
 
-    // Generate greeting using AI service
-    let greeting_text = match deps.ai.complete(greeting_prompt).await {
-        Ok(text) => text,
-        Err(e) => {
-            error!("Failed to generate AI greeting: {}", e);
-            return Err(anyhow::anyhow!("AI greeting generation failed: {}", e));
-        }
-    };
+    let greeting_text = deps.ai.complete(greeting_prompt).await.map_err(|e| {
+        error!("Failed to generate AI greeting: {}", e);
+        anyhow::anyhow!("AI greeting generation failed: {}", e)
+    })?;
 
     info!(
         container_id = %container_id,
@@ -48,10 +39,7 @@ pub async fn handle_generate_greeting(
         "Agent greeting generated, creating message"
     );
 
-    // For now, use a placeholder agent member ID
     let agent_member_id = MemberId::new();
-
-    // Create the greeting message directly
     let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     let message = Message::create(
@@ -60,78 +48,61 @@ pub async fn handle_generate_greeting(
         greeting_text,
         Some(agent_member_id),
         Some("approved".to_string()),
-        None, // No parent for greeting
+        None,
         sequence_number,
         &deps.db_pool,
     )
     .await?;
 
-    // Update container activity
     Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    info!(
-        message_id = %message.id,
-        "Greeting message created"
-    );
+    info!(message_id = %message.id, "Greeting message created");
 
     Ok(message)
 }
 
 // ============================================================================
-// Handler: Generate Reply (cascade from MessageCreated when user message)
+// Action: Generate Reply
 // ============================================================================
 
-/// Handle generate reply for user message in container with agent.
+/// Generate a reply to a user message in a container with an agent.
 ///
 /// Creates an assistant reply message. Returns the created message.
-/// The effect handles any further cascading internally.
-pub async fn handle_generate_reply(
+pub async fn generate_reply(
     message_id: MessageId,
     container_id: ContainerId,
     deps: &ServerDeps,
 ) -> Result<Message> {
     info!(message_id = %message_id, container_id = %container_id, "Generating agent reply");
 
-    // Load the original message
-    let original_message = match Message::find_by_id(message_id, &deps.db_pool).await {
-        Ok(m) => m,
-        Err(e) => {
-            error!("Failed to load message: {}", e);
-            return Err(anyhow::anyhow!("Failed to load message: {}", e));
-        }
-    };
+    let original_message = Message::find_by_id(message_id, &deps.db_pool).await.map_err(|e| {
+        error!("Failed to load message: {}", e);
+        anyhow::anyhow!("Failed to load message: {}", e)
+    })?;
 
     // Skip if the author is already an assistant (prevent loops)
     if original_message.role == "assistant" {
         info!("Skipping reply - original message is from assistant");
-        return Err(anyhow::anyhow!("Skipping reply - original message is from assistant"));
+        return Err(anyhow::anyhow!(
+            "Skipping reply - original message is from assistant"
+        ));
     }
 
-    // Load conversation context (all messages in container)
-    let messages = match Message::find_by_container(container_id, &deps.db_pool).await {
-        Ok(m) => m,
-        Err(e) => {
+    let messages = Message::find_by_container(container_id, &deps.db_pool)
+        .await
+        .map_err(|e| {
             error!("Failed to load conversation: {}", e);
-            return Err(anyhow::anyhow!("Failed to load conversation: {}", e));
-        }
-    };
+            anyhow::anyhow!("Failed to load conversation: {}", e)
+        })?;
 
     let conversation = build_conversation_messages(&messages);
-
-    // Get system prompt based on auth context
-    let system_prompt = get_system_prompt(false); // Default to non-admin for now
-
-    // Build full prompt with system context and conversation
+    let system_prompt = get_system_prompt(false);
     let full_prompt = build_chat_prompt(system_prompt, &conversation);
 
-    // Generate reply using AI service
-    let reply_text = match deps.ai.complete(&full_prompt).await {
-        Ok(text) => text,
-        Err(e) => {
-            error!("Failed to generate AI reply: {}", e);
-            return Err(anyhow::anyhow!("AI reply generation failed: {}", e));
-        }
-    };
+    let reply_text = deps.ai.complete(&full_prompt).await.map_err(|e| {
+        error!("Failed to generate AI reply: {}", e);
+        anyhow::anyhow!("AI reply generation failed: {}", e)
+    })?;
 
     info!(
         message_id = %message_id,
@@ -139,10 +110,7 @@ pub async fn handle_generate_reply(
         "Agent reply generated, creating message"
     );
 
-    // For now, use a placeholder agent member ID
     let agent_member_id = MemberId::new();
-
-    // Create the assistant message directly
     let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     let new_message = Message::create(
@@ -151,19 +119,15 @@ pub async fn handle_generate_reply(
         reply_text,
         Some(agent_member_id),
         Some("approved".to_string()),
-        Some(message_id), // Parent is the message we're replying to
+        Some(message_id),
         sequence_number,
         &deps.db_pool,
     )
     .await?;
 
-    // Update container activity
     Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    info!(
-        new_message_id = %new_message.id,
-        "Assistant message created"
-    );
+    info!(new_message_id = %new_message.id, "Assistant message created");
 
     Ok(new_message)
 }
@@ -177,18 +141,16 @@ pub async fn get_container_agent_config(
     container_id: ContainerId,
     pool: &sqlx::PgPool,
 ) -> Option<String> {
-    // Look for with_agent tag on this container
     let tags: Vec<Tag> = Tag::find_for_container(container_id, pool).await.ok()?;
     tags.into_iter()
         .find(|t| t.kind == "with_agent")
         .map(|t| t.value)
 }
 
-// =============================================================================
-// Helper Functions
-// =============================================================================
+// ============================================================================
+// Private Helpers
+// ============================================================================
 
-/// Build conversation context for AI from message history.
 fn build_conversation_messages(messages: &[Message]) -> String {
     messages
         .iter()
@@ -197,7 +159,6 @@ fn build_conversation_messages(messages: &[Message]) -> String {
         .join("\n\n")
 }
 
-/// Build full chat prompt with system context and conversation.
 fn build_chat_prompt(system_prompt: &str, conversation: &str) -> String {
     format!(
         r#"{system_prompt}
@@ -215,7 +176,6 @@ Your response:"#
     )
 }
 
-/// Get system prompt based on auth context.
 fn get_system_prompt(is_admin: bool) -> &'static str {
     if is_admin {
         r#"You are an admin assistant for MN Together, a resource-sharing platform.
@@ -235,7 +195,6 @@ Be friendly and helpful in your responses."#
     }
 }
 
-/// Get greeting prompt based on agent config.
 fn get_greeting_prompt(agent_config: &str) -> &'static str {
     match agent_config {
         "admin" => {

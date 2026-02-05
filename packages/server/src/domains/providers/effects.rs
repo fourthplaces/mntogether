@@ -18,49 +18,32 @@ use crate::kernel::ServerDeps;
 ///
 /// Cascade flow:
 ///   ProviderDeleted → cleanup contacts and tags (terminal)
+/// Errors propagate to global on_error() handler.
 pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<ProviderEvent>().then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
-        match event.as_ref() {
-            // =================================================================
-            // Cascade: ProviderDeleted → cleanup contacts and tags
-            // =================================================================
-            ProviderEvent::ProviderDeleted { provider_id } => {
-                info!(provider_id = %provider_id, "Cascading provider delete - cleaning up contacts and tags");
+            match event.as_ref() {
+                // =================================================================
+                // Cascade: ProviderDeleted → cleanup contacts and tags
+                // =================================================================
+                ProviderEvent::ProviderDeleted { provider_id } => {
+                    info!(provider_id = %provider_id, "Cascading provider delete - cleaning up contacts and tags");
 
-                // Clean up contacts
-                if let Err(e) =
-                    Contact::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await
-                {
-                    tracing::warn!(
-                        provider_id = %provider_id,
-                        error = %e,
-                        "Failed to delete provider contacts (non-fatal)"
-                    );
+                    Contact::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
+                    Taggable::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
+
+                    info!(provider_id = %provider_id, "Provider cascade cleanup completed");
+                    Ok(())
                 }
 
-                // Clean up tags
-                if let Err(e) =
-                    Taggable::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await
-                {
-                    tracing::warn!(
-                        provider_id = %provider_id,
-                        error = %e,
-                        "Failed to delete provider tags (non-fatal)"
-                    );
-                }
-
-                info!(provider_id = %provider_id, "Provider cascade cleanup completed");
-                Ok(()) // Terminal - no further events
+                // =================================================================
+                // Terminal events - no cascade needed
+                // =================================================================
+                ProviderEvent::ProviderCreated { .. }
+                | ProviderEvent::ProviderApproved { .. }
+                | ProviderEvent::ProviderRejected { .. }
+                | ProviderEvent::ProviderSuspended { .. } => Ok(()),
             }
-
-            // =================================================================
-            // Terminal events - no cascade needed
-            // =================================================================
-            ProviderEvent::ProviderCreated { .. }
-            | ProviderEvent::ProviderApproved { .. }
-            | ProviderEvent::ProviderRejected { .. }
-            | ProviderEvent::ProviderSuspended { .. } => Ok(()), // Terminal
-        }
-    })
+        },
+    )
 }

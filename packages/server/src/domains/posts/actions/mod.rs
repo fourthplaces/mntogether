@@ -11,6 +11,7 @@ pub mod llm_sync;
 pub mod reports;
 pub mod revision_actions;
 pub mod scraping;
+pub mod sync_operations;
 pub mod tags;
 // transformer module deprecated - use ai.generate_structured() directly
 // See crawling/effects/handlers.rs for example usage
@@ -20,6 +21,9 @@ pub use core::*;
 pub use create_post::{create_extracted_post, tag_with_audience_roles};
 pub use deduplication::deduplicate_posts;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
+pub use sync_operations::{
+    apply_delete, apply_insert, apply_merge, apply_update, MergeArgs, SyncOpResult,
+};
 pub use reports::*;
 pub use revision_actions::{
     approve_revision, count_pending_revisions, get_pending_revisions, get_revision_for_post,

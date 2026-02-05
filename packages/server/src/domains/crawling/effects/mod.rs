@@ -1,14 +1,12 @@
 //! Effects (side effects) for crawling domain
 //!
-//! Effects are thin orchestrators that delegate to actions.
-//! Handlers respond to internal cascade events in the multi-step workflow.
+//! Effects are thin orchestrators that watch events and execute jobs.
+//! The crawler effect handles the extraction → sync pipeline.
 
 pub mod crawler;
 pub mod discovery;
-pub mod handlers;
+pub mod job_handlers;
 
-pub use crawler::*;
+pub use crawler::mark_no_listings_effect;
 pub use discovery::{discover_pages, DiscoveredPage};
-pub use handlers::{
-    handle_enqueue_extract_posts, handle_enqueue_sync_posts, handle_mark_no_posts,
-};
+pub use job_handlers::register_crawling_jobs;

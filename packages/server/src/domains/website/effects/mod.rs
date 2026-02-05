@@ -19,6 +19,7 @@ use crate::kernel::ServerDeps;
 ///
 /// Cascade flow:
 ///   WebsiteApproved → auto-trigger crawl (terminal)
+/// Errors propagate to global on_error() handler.
 pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<WebsiteEvent>().then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
@@ -37,14 +38,14 @@ pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                     );
 
                     // Trigger crawl via ingest_website (use Firecrawl for better JS rendering)
-                    let _ = crawling_actions::ingest_website(
+                    crawling_actions::ingest_website(
                         website_id.into_uuid(),
                         reviewed_by.into_uuid(),
                         true,  // use_firecrawl
                         true,  // is_admin (website approval is admin-only)
                         ctx.deps(),
                     )
-                    .await;
+                    .await?;
 
                     Ok(()) // Terminal - crawling domain handles further events
                 }

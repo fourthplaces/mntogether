@@ -680,6 +680,26 @@ impl Job {
         Ok(result)
     }
 
+    /// Find the next scheduled run time for any pending job (pool version)
+    pub async fn find_next_run_time_with_pool(pool: &sqlx::PgPool) -> Result<Option<DateTime<Utc>>> {
+        let result = sqlx::query_scalar::<_, DateTime<Utc>>(
+            r#"
+            SELECT next_run_at
+            FROM jobs
+            WHERE status = 'pending'
+              AND enabled = true
+              AND next_run_at IS NOT NULL
+              AND retry_count < max_retries
+            ORDER BY next_run_at ASC
+            LIMIT 1
+            "#,
+        )
+        .fetch_optional(pool)
+        .await?;
+
+        Ok(result)
+    }
+
     /// Find jobs that are ready to run (for polling)
     pub async fn find_ready_jobs(limit: i64, kernel: &ServerKernel) -> Result<Vec<Self>> {
         let jobs = sqlx::query_as::<_, Self>(
@@ -746,6 +766,50 @@ impl Job {
         .bind(lease_duration_ms.to_string())
         .bind(worker_id)
         .fetch_all(&kernel.db_pool)
+        .await?;
+
+        Ok(jobs)
+    }
+
+    /// Claim jobs atomically using FOR UPDATE SKIP LOCKED (pool version)
+    pub async fn claim_jobs_with_pool(
+        limit: i64,
+        worker_id: &str,
+        lease_duration_ms: i64,
+        pool: &sqlx::PgPool,
+    ) -> Result<Vec<Self>> {
+        let jobs = sqlx::query_as::<_, Self>(
+            r#"
+            WITH next_jobs AS (
+                SELECT id
+                FROM jobs
+                WHERE
+                    (status = 'pending' AND enabled = true AND (next_run_at IS NULL OR next_run_at <= NOW()) AND retry_count < max_retries)
+                    OR (status = 'running' AND lease_expires_at < NOW())
+                ORDER BY priority, COALESCE(next_run_at, created_at)
+                LIMIT $1
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE jobs
+            SET
+                status = 'running',
+                last_run_at = COALESCE(last_run_at, NOW()),
+                lease_expires_at = NOW() + ($2 || ' milliseconds')::INTERVAL,
+                worker_id = $3,
+                updated_at = NOW()
+            WHERE id IN (SELECT id FROM next_jobs)
+            RETURNING id, status, frequency, reference_id, job_type, timezone,
+                      last_run_at, next_run_at, max_retries, retry_count, created_at, updated_at, container_id, workflow_id,
+                      args, version, priority, overlap_policy, misfire_policy, timeout_ms, lease_duration_ms,
+                      lease_expires_at, worker_id, enabled, error_message, error_kind,
+                      dead_lettered_at, dead_letter_reason, replay_count, resolved_at, resolution_note,
+                      root_job_id, dedupe_key, attempt, idempotency_key, command_version
+            "#,
+        )
+        .bind(limit)
+        .bind(lease_duration_ms.to_string())
+        .bind(worker_id)
+        .fetch_all(pool)
         .await?;
 
         Ok(jobs)
@@ -831,6 +895,27 @@ impl Job {
         self.dead_lettered_at = Some(Utc::now());
         self.dead_letter_reason = Some(reason.to_string());
         self.update(kernel).await?;
+        Ok(())
+    }
+
+    /// Mark a job as succeeded (static method for use without full Job object)
+    pub async fn mark_succeeded(job_id: Uuid, pool: &sqlx::PgPool) -> Result<()> {
+        sqlx::query("UPDATE jobs SET status = 'succeeded', updated_at = NOW() WHERE id = $1")
+            .bind(job_id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
+
+    /// Mark a job as failed with error message (static method for use without full Job object)
+    pub async fn mark_failed(job_id: Uuid, error_message: &str, pool: &sqlx::PgPool) -> Result<()> {
+        sqlx::query(
+            "UPDATE jobs SET status = 'failed', error_message = $1, updated_at = NOW() WHERE id = $2",
+        )
+        .bind(error_message)
+        .bind(job_id)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 

@@ -15,12 +15,9 @@ use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::info;
-use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, WebsiteId};
-use crate::domains::posts::actions::create_extracted_post;
 use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
-use crate::domains::website::models::Website;
 use crate::kernel::LlmRequestExt;
 
 /// A fresh post from extraction, with a temporary ID for matching
@@ -128,50 +125,9 @@ pub struct LlmSyncResult {
     pub errors: Vec<String>,
 }
 
-/// Analyze and sync fresh posts against existing DB posts using LLM
-pub async fn llm_sync_posts(
-    website_id: WebsiteId,
-    fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenAIClient,
-    pool: &PgPool,
-) -> Result<LlmSyncResult> {
-    // Load existing posts from DB
-    let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
-
-    info!(
-        website_id = %website_id,
-        fresh_count = fresh_posts.len(),
-        existing_count = existing_db_posts.len(),
-        "Starting LLM sync analysis"
-    );
-
-    // Log fresh posts being considered
-    for (i, post) in fresh_posts.iter().enumerate() {
-        info!(
-            fresh_id = format!("fresh_{}", i + 1),
-            title = %post.title,
-            has_contact = post.contact.is_some(),
-            "Fresh post for sync"
-        );
-    }
-
-    // Log existing posts being considered
-    for post in &existing_db_posts {
-        info!(
-            existing_id = %post.id,
-            title = %post.title,
-            status = %post.status,
-            "Existing post for sync"
-        );
-    }
-
-    // If no fresh posts and no existing posts, nothing to do
-    if fresh_posts.is_empty() && existing_db_posts.is_empty() {
-        return Ok(LlmSyncResult::default());
-    }
-
-    // Convert to LLM-friendly format
-    let fresh: Vec<FreshPost> = fresh_posts
+/// Convert fresh ExtractedPosts to LLM-friendly FreshPost format
+fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
+    fresh_posts
         .iter()
         .enumerate()
         .map(|(i, p)| FreshPost {
@@ -184,22 +140,16 @@ pub async fn llm_sync_posts(
             contact_phone: p.contact.as_ref().and_then(|c| c.phone.clone()),
             contact_email: p.contact.as_ref().and_then(|c| c.email.clone()),
         })
-        .collect();
+        .collect()
+}
 
-    // Load contact info for existing posts
-    let mut existing: Vec<ExistingPost> = Vec::with_capacity(existing_db_posts.len());
-    for p in &existing_db_posts {
-        let contacts = PostContact::find_by_post(p.id, pool)
-            .await
-            .unwrap_or_default();
-        let contact_phone = contacts
-            .iter()
-            .find(|c| c.contact_type == "phone")
-            .map(|c| c.contact_value.clone());
-        let contact_email = contacts
-            .iter()
-            .find(|c| c.contact_type == "email")
-            .map(|c| c.contact_value.clone());
+/// Convert existing Posts to LLM-friendly ExistingPost format, loading contact info
+async fn convert_existing_posts(existing_posts: &[Post], pool: &PgPool) -> Vec<ExistingPost> {
+    let mut existing = Vec::with_capacity(existing_posts.len());
+    for p in existing_posts {
+        let contacts = PostContact::find_by_post(p.id, pool).await.unwrap_or_default();
+        let contact_phone = contacts.iter().find(|c| c.contact_type == "phone").map(|c| c.contact_value.clone());
+        let contact_email = contacts.iter().find(|c| c.contact_type == "email").map(|c| c.contact_value.clone());
 
         existing.push(ExistingPost {
             id: p.id.as_uuid().to_string(),
@@ -212,17 +162,79 @@ pub async fn llm_sync_posts(
             contact_email,
         });
     }
+    existing
+}
 
-    // Build prompt
-    let fresh_json = serde_json::to_string_pretty(&fresh)?;
-    let existing_json = serde_json::to_string_pretty(&existing)?;
+/// Log diagnostic info about posts being synced (debug only)
+fn log_sync_diagnostics(fresh_posts: &[ExtractedPost], existing_posts: &[Post]) {
+    for (i, post) in fresh_posts.iter().enumerate() {
+        info!(fresh_id = format!("fresh_{}", i + 1), title = %post.title, has_contact = post.contact.is_some(), "Fresh post for sync");
+    }
+    for post in existing_posts {
+        info!(existing_id = %post.id, title = %post.title, status = %post.status, "Existing post for sync");
+    }
+}
 
-    let user_prompt = format!(
+/// Log each sync operation decision from the LLM
+fn log_sync_operations(operations: &[SyncOperation], fresh: &[FreshPost], existing: &[ExistingPost]) {
+    for op in operations {
+        match op {
+            SyncOperation::Insert { fresh_id } => {
+                if let Some(f) = fresh.iter().find(|f| &f.temp_id == fresh_id) {
+                    info!(op = "INSERT", fresh_id = %fresh_id, title = %f.title, "LLM decision: insert new post");
+                }
+            }
+            SyncOperation::Update { fresh_id, existing_id, merge_description } => {
+                let fresh_title = fresh.iter().find(|f| &f.temp_id == fresh_id).map(|f| f.title.as_str()).unwrap_or("?");
+                let existing_title = existing.iter().find(|e| &e.id == existing_id).map(|e| e.title.as_str()).unwrap_or("?");
+                info!(op = "UPDATE", fresh_id = %fresh_id, existing_id = %existing_id, fresh_title = %fresh_title, existing_title = %existing_title, merge_description = %merge_description, "LLM decision: update existing post");
+            }
+            SyncOperation::Delete { existing_id, reason } => {
+                let existing_title = existing.iter().find(|e| &e.id == existing_id).map(|e| e.title.as_str()).unwrap_or("?");
+                info!(op = "DELETE", existing_id = %existing_id, existing_title = %existing_title, reason = %reason, "LLM decision: delete stale post");
+            }
+            SyncOperation::Merge { canonical_id, duplicate_ids, reason, .. } => {
+                let canonical_title = existing.iter().find(|e| &e.id == canonical_id).map(|e| e.title.as_str()).unwrap_or("?");
+                info!(op = "MERGE", canonical_id = %canonical_id, canonical_title = %canonical_title, duplicate_count = duplicate_ids.len(), reason = %reason, "LLM decision: merge duplicates");
+            }
+        }
+    }
+}
+
+/// Build the LLM prompt for sync analysis
+fn build_sync_prompt(fresh: &[FreshPost], existing: &[ExistingPost]) -> Result<String> {
+    let fresh_json = serde_json::to_string_pretty(fresh)?;
+    let existing_json = serde_json::to_string_pretty(existing)?;
+    Ok(format!(
         "## Fresh Posts (just extracted from website)\n\n{}\n\n## Existing Posts (currently in database)\n\n{}",
         fresh_json, existing_json
-    );
+    ))
+}
 
-    // Call LLM
+/// Analyze and sync fresh posts against existing DB posts using LLM
+///
+/// Thin orchestrator that delegates to helper functions.
+pub async fn llm_sync_posts(
+    website_id: WebsiteId,
+    fresh_posts: Vec<ExtractedPost>,
+    ai: &OpenAIClient,
+    pool: &PgPool,
+) -> Result<LlmSyncResult> {
+    let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
+
+    info!(website_id = %website_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
+
+    if fresh_posts.is_empty() && existing_db_posts.is_empty() {
+        return Ok(LlmSyncResult::default());
+    }
+
+    log_sync_diagnostics(&fresh_posts, &existing_db_posts);
+
+    let fresh = convert_fresh_posts(&fresh_posts);
+    let existing = convert_existing_posts(&existing_db_posts, pool).await;
+
+    let user_prompt = build_sync_prompt(&fresh, &existing)?;
+
     let response: SyncAnalysisResponse = ai
         .request()
         .system(SYNC_SYSTEM_PROMPT)
@@ -233,106 +245,16 @@ pub async fn llm_sync_posts(
         .await?;
 
     let (operations, summary) = response.into_parts();
+    info!(website_id = %website_id, operations_count = operations.len(), summary = %summary, "LLM sync analysis complete");
 
-    info!(
-        website_id = %website_id,
-        operations_count = operations.len(),
-        summary = %summary,
-        "LLM sync analysis complete"
-    );
+    log_sync_operations(&operations, &fresh, &existing);
 
-    // Log each operation for debugging
-    for op in &operations {
-        match op {
-            SyncOperation::Insert { fresh_id } => {
-                if let Some(fresh) = fresh.iter().find(|f| &f.temp_id == fresh_id) {
-                    info!(
-                        op = "INSERT",
-                        fresh_id = %fresh_id,
-                        title = %fresh.title,
-                        "LLM decision: insert new post"
-                    );
-                }
-            }
-            SyncOperation::Update {
-                fresh_id,
-                existing_id,
-                merge_description,
-            } => {
-                let fresh_title = fresh
-                    .iter()
-                    .find(|f| &f.temp_id == fresh_id)
-                    .map(|f| f.title.as_str())
-                    .unwrap_or("?");
-                let existing_title = existing
-                    .iter()
-                    .find(|e| &e.id == existing_id)
-                    .map(|e| e.title.as_str())
-                    .unwrap_or("?");
-                info!(
-                    op = "UPDATE",
-                    fresh_id = %fresh_id,
-                    existing_id = %existing_id,
-                    fresh_title = %fresh_title,
-                    existing_title = %existing_title,
-                    merge_description = %merge_description,
-                    "LLM decision: update existing post"
-                );
-            }
-            SyncOperation::Delete {
-                existing_id,
-                reason,
-            } => {
-                let existing_title = existing
-                    .iter()
-                    .find(|e| &e.id == existing_id)
-                    .map(|e| e.title.as_str())
-                    .unwrap_or("?");
-                info!(
-                    op = "DELETE",
-                    existing_id = %existing_id,
-                    existing_title = %existing_title,
-                    reason = %reason,
-                    "LLM decision: delete stale post"
-                );
-            }
-            SyncOperation::Merge {
-                canonical_id,
-                duplicate_ids,
-                reason,
-                ..
-            } => {
-                let canonical_title = existing
-                    .iter()
-                    .find(|e| &e.id == canonical_id)
-                    .map(|e| e.title.as_str())
-                    .unwrap_or("?");
-                info!(
-                    op = "MERGE",
-                    canonical_id = %canonical_id,
-                    canonical_title = %canonical_title,
-                    duplicate_count = duplicate_ids.len(),
-                    reason = %reason,
-                    "LLM decision: merge duplicates"
-                );
-            }
-        }
-    }
-
-    // Apply operations
-    let result = apply_sync_operations(
-        website_id,
-        &fresh_posts,
-        &existing_db_posts,
-        operations,
-        pool,
-    )
-    .await?;
-
-    Ok(result)
+    apply_sync_operations(website_id, &fresh_posts, &existing_db_posts, operations, pool).await
 }
 
 /// Apply the sync operations to the database
+///
+/// Thin dispatcher that delegates to individual operation functions.
 async fn apply_sync_operations(
     website_id: WebsiteId,
     fresh_posts: &[ExtractedPost],
@@ -340,6 +262,8 @@ async fn apply_sync_operations(
     operations: Vec<SyncOperation>,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
+    use super::sync_operations::{self, SyncOpResult};
+
     let mut result = LlmSyncResult::default();
 
     // Build lookup maps
@@ -364,228 +288,60 @@ async fn apply_sync_operations(
         match op {
             SyncOperation::Insert { fresh_id } => {
                 if let Some(fresh) = fresh_by_id.get(&fresh_id) {
-                    info!(
-                        action = "INSERTING",
-                        fresh_id = %fresh_id,
-                        title = %fresh.title,
-                        "Inserting new post into database"
-                    );
-                    match insert_post(website_id, fresh, pool).await {
-                        Ok(post_id) => {
-                            info!(
-                                action = "INSERTED",
-                                post_id = %post_id,
-                                title = %fresh.title,
-                                "Successfully inserted new post"
-                            );
-                            result.inserted += 1;
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                action = "INSERT_FAILED",
-                                fresh_id = %fresh_id,
-                                title = %fresh.title,
-                                error = %e,
-                                "Failed to insert post"
-                            );
-                            result.errors.push(format!("Insert {}: {}", fresh_id, e));
-                        }
+                    match sync_operations::apply_insert(&fresh_id, fresh, website_id, pool).await {
+                        SyncOpResult::Inserted(_) => result.inserted += 1,
+                        SyncOpResult::Error(e) => result.errors.push(e),
+                        _ => {}
                     }
                 } else {
-                    tracing::warn!(
-                        fresh_id = %fresh_id,
-                        "Insert operation references unknown fresh_id"
-                    );
+                    tracing::warn!(fresh_id = %fresh_id, "Insert operation references unknown fresh_id");
                 }
             }
 
-            SyncOperation::Update {
-                fresh_id,
-                existing_id,
-                merge_description,
-            } => {
+            SyncOperation::Update { fresh_id, existing_id, merge_description } => {
                 if let (Some(fresh), Some(existing)) =
                     (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
                 {
-                    info!(
-                        action = "UPDATING",
-                        post_id = %existing.id,
-                        old_title = %existing.title,
-                        new_title = %fresh.title,
-                        "Updating existing post"
-                    );
-                    match update_post(existing.id, fresh, merge_description, pool).await {
-                        Ok(_) => {
-                            info!(
-                                action = "UPDATED",
-                                post_id = %existing.id,
-                                title = %fresh.title,
-                                "Successfully updated post"
-                            );
-                            result.updated += 1;
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                action = "UPDATE_FAILED",
-                                post_id = %existing_id,
-                                error = %e,
-                                "Failed to update post"
-                            );
-                            result.errors.push(format!("Update {}: {}", existing_id, e));
-                        }
+                    match sync_operations::apply_update(&fresh_id, &existing_id, existing, fresh, merge_description, pool).await {
+                        SyncOpResult::Updated(_) => result.updated += 1,
+                        SyncOpResult::Error(e) => result.errors.push(e),
+                        _ => {}
                     }
                 } else {
-                    tracing::warn!(
-                        fresh_id = %fresh_id,
-                        existing_id = %existing_id,
-                        "Update operation references unknown IDs"
-                    );
+                    tracing::warn!(fresh_id = %fresh_id, existing_id = %existing_id, "Update operation references unknown IDs");
                 }
             }
 
-            SyncOperation::Delete {
-                existing_id,
-                reason,
-            } => {
-                if let Ok(id) = Uuid::parse_str(&existing_id) {
-                    let post_id = PostId::from(id);
-                    // Only delete posts that are explicitly rejected or expired
-                    // Protect active AND pending_approval posts from accidental deletion
-                    if let Some(existing) = existing_by_id.get(&existing_id) {
-                        let protected_statuses = ["active", "pending_approval"];
-                        if protected_statuses.contains(&existing.status.as_str()) {
-                            info!(
-                                action = "DELETE_SKIPPED",
-                                post_id = %existing_id,
-                                title = %existing.title,
-                                status = %existing.status,
-                                "Skipping delete of protected post (only rejected/expired can be deleted)"
-                            );
-                            continue;
-                        }
-                    }
-                    let title = existing_by_id
-                        .get(&existing_id)
-                        .map(|e| e.title.as_str())
-                        .unwrap_or("?");
-                    info!(
-                        action = "DELETING",
-                        post_id = %existing_id,
-                        title = %title,
-                        reason = %reason,
-                        "Soft-deleting stale post"
-                    );
-                    match Post::soft_delete(post_id, &reason, pool).await {
-                        Ok(_) => {
-                            info!(
-                                action = "DELETED",
-                                post_id = %existing_id,
-                                title = %title,
-                                "Successfully soft-deleted post"
-                            );
-                            result.deleted += 1;
-                        }
-                        Err(e) => {
-                            tracing::error!(
-                                action = "DELETE_FAILED",
-                                post_id = %existing_id,
-                                error = %e,
-                                "Failed to delete post"
-                            );
-                            result.errors.push(format!("Delete {}: {}", existing_id, e));
-                        }
+            SyncOperation::Delete { existing_id, reason } => {
+                if let Some(existing) = existing_by_id.get(&existing_id) {
+                    match sync_operations::apply_delete(&existing_id, existing, &reason, pool).await {
+                        SyncOpResult::Deleted(_) => result.deleted += 1,
+                        SyncOpResult::Error(e) => result.errors.push(e),
+                        _ => {}
                     }
                 }
             }
 
-            SyncOperation::Merge {
-                canonical_id,
-                duplicate_ids,
-                merged_title,
-                merged_description,
-                reason,
-            } => {
-                let canonical_title = existing_by_id
-                    .get(&canonical_id)
-                    .map(|e| e.title.as_str())
-                    .unwrap_or("?");
-                info!(
-                    action = "MERGING",
-                    canonical_id = %canonical_id,
-                    canonical_title = %canonical_title,
-                    duplicate_count = duplicate_ids.len(),
-                    reason = %reason,
-                    "Merging duplicate posts"
-                );
+            SyncOperation::Merge { canonical_id, duplicate_ids, merged_title, merged_description, reason } => {
+                if let Some(canonical) = existing_by_id.get(&canonical_id) {
+                    let merge_results = sync_operations::apply_merge(
+                        sync_operations::MergeArgs::builder()
+                            .canonical_id(&canonical_id)
+                            .canonical(canonical)
+                            .duplicate_ids(&duplicate_ids)
+                            .existing_by_id(&existing_by_id)
+                            .merged_title(merged_title.as_deref())
+                            .merged_description(merged_description.as_deref())
+                            .reason(&reason)
+                            .pool(pool)
+                            .build()
+                    ).await;
 
-                // Update canonical with merged content if provided
-                if let Ok(id) = Uuid::parse_str(&canonical_id) {
-                    let post_id = PostId::from(id);
-                    if merged_title.is_some() || merged_description.is_some() {
-                        info!(
-                            action = "MERGE_UPDATE_CANONICAL",
-                            post_id = %canonical_id,
-                            new_title = ?merged_title,
-                            "Updating canonical post with merged content"
-                        );
-                        let _ = Post::update_content(
-                            UpdatePostContent::builder()
-                                .id(post_id)
-                                .title(merged_title)
-                                .description(merged_description)
-                                .build(),
-                            pool,
-                        )
-                        .await;
-                    }
-                }
-
-                // Delete duplicates
-                for dup_id in duplicate_ids {
-                    if let Ok(id) = Uuid::parse_str(&dup_id) {
-                        let post_id = PostId::from(id);
-                        let dup_title = existing_by_id
-                            .get(&dup_id)
-                            .map(|e| e.title.as_str())
-                            .unwrap_or("?");
-                        // Don't delete active posts
-                        if let Some(existing) = existing_by_id.get(&dup_id) {
-                            if existing.status == "active" {
-                                info!(
-                                    action = "MERGE_SKIP_ACTIVE",
-                                    dup_id = %dup_id,
-                                    dup_title = %dup_title,
-                                    "Skipping merge of active duplicate"
-                                );
-                                continue;
-                            }
-                        }
-                        info!(
-                            action = "MERGE_DELETE_DUP",
-                            dup_id = %dup_id,
-                            dup_title = %dup_title,
-                            canonical_id = %canonical_id,
-                            "Deleting duplicate post"
-                        );
-                        match Post::soft_delete(post_id, &reason, pool).await {
-                            Ok(_) => {
-                                info!(
-                                    action = "MERGE_DELETED",
-                                    dup_id = %dup_id,
-                                    dup_title = %dup_title,
-                                    "Successfully merged (deleted) duplicate"
-                                );
-                                result.merged += 1;
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    action = "MERGE_DELETE_FAILED",
-                                    dup_id = %dup_id,
-                                    error = %e,
-                                    "Failed to delete duplicate"
-                                );
-                                result.errors.push(format!("Merge {}: {}", dup_id, e));
-                            }
+                    for res in merge_results {
+                        match res {
+                            SyncOpResult::Merged { .. } => result.merged += 1,
+                            SyncOpResult::Error(e) => result.errors.push(e),
+                            _ => {}
                         }
                     }
                 }
@@ -606,26 +362,6 @@ async fn apply_sync_operations(
     Ok(result)
 }
 
-/// Insert a new post from fresh extraction
-async fn insert_post(
-    website_id: WebsiteId,
-    fresh: &ExtractedPost,
-    pool: &PgPool,
-) -> Result<PostId> {
-    let website = Website::find_by_id(website_id, pool).await?;
-
-    let post = create_extracted_post(
-        &website.domain,
-        fresh,
-        Some(website_id),
-        Some(format!("https://{}", website.domain)),
-        pool,
-    )
-    .await?;
-
-    Ok(post.id)
-}
-
 /// Update an existing post by creating a revision for review
 ///
 /// Instead of directly modifying the original post, this creates a revision
@@ -633,7 +369,7 @@ async fn insert_post(
 /// stays untouched until an admin approves the revision.
 ///
 /// If a revision already exists for this post, it gets replaced with the new data.
-async fn update_post(
+pub async fn update_post(
     post_id: PostId,
     fresh: &ExtractedPost,
     _merge_description: bool,
