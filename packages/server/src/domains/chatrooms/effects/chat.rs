@@ -17,7 +17,7 @@ use crate::kernel::ServerDeps;
 /// Each match arm calls an action directly - no handler indirection.
 /// Errors propagate to global on_error() handler.
 pub fn chat_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<ChatEvent>().then(
+    effect::on::<ChatEvent>().id("chat_handler").then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
             match event.as_ref() {
                 // =================================================================

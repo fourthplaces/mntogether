@@ -28,7 +28,7 @@ use super::scraper::handle_scrape_resource_link;
 /// Step 1: Scrape effect - handles WebsiteCreatedFromLink
 /// RETURNS ResourceLinkScraped
 pub fn scrape_resource_link_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    on! {
+    let mut effect = on! {
         PostEvent::WebsiteCreatedFromLink { job_id, url, submitter_contact, .. } => |ctx: EffectContext<AppState, ServerDeps>| async move {
             info!(job_id = %job_id, url = %url, "Starting resource link scrape");
 
@@ -43,13 +43,15 @@ pub fn scrape_resource_link_effect() -> seesaw_core::effect::Effect<AppState, Se
             info!(url = %url, "Scrape complete, returning ResourceLinkScraped");
             Ok(event)
         },
-    }
+    };
+    effect.id = "resource_link_scrape".to_string();
+    effect
 }
 
 /// Step 2: Extract effect - handles ResourceLinkScraped
 /// RETURNS ResourceLinkPostsExtracted
 pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    on! {
+    let mut effect = on! {
         PostEvent::ResourceLinkScraped { job_id, url, content, context, submitter_contact, .. } => |ctx: EffectContext<AppState, ServerDeps>| async move {
             info!(job_id = %job_id, url = %url, "Starting post extraction");
 
@@ -65,13 +67,15 @@ pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDep
             info!(url = %url, "Extraction complete, returning ResourceLinkPostsExtracted");
             Ok(event)
         },
-    }
+    };
+    effect.id = "resource_link_extract".to_string();
+    effect
 }
 
 /// Step 3: Create effect - handles ResourceLinkPostsExtracted
 /// Terminal handler - creates posts and returns unit.
 pub fn create_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    on! {
+    let mut effect = on! {
         PostEvent::ResourceLinkPostsExtracted { job_id, url, posts, context, submitter_contact, .. } => |ctx: EffectContext<AppState, ServerDeps>| async move {
             info!(job_id = %job_id, url = %url, posts_count = posts.len(), "Starting post creation");
 
@@ -89,7 +93,9 @@ pub fn create_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps
             }
             Ok(())
         },
-    }
+    };
+    effect.id = "resource_link_create".to_string();
+    effect
 }
 
 /// Composite effect combining all three steps.

@@ -15,7 +15,7 @@ use crate::kernel::ServerDeps;
 /// Auth has no cascading effects - all events are terminal.
 /// This effect is registered for completeness but does nothing.
 pub fn auth_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<AuthEvent>().then(|_event, _ctx| async move {
+    effect::on::<AuthEvent>().id("auth_terminal").then(|_event, _ctx| async move {
         // All auth events are terminal - no cascading actions needed
         Ok(())
     })

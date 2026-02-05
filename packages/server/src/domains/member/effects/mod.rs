@@ -18,7 +18,7 @@ use crate::kernel::ServerDeps;
 /// Cascade flow:
 ///   MemberRegistered → generate embedding (terminal)
 pub fn member_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<MemberEvent>().then(
+    effect::on::<MemberEvent>().id("member_embedding").then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
             match event.as_ref() {
                 // =================================================================

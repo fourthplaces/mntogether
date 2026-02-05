@@ -21,7 +21,7 @@ use crate::kernel::ServerDeps;
 ///   WebsiteApproved → auto-trigger crawl (terminal)
 /// Errors propagate to global on_error() handler.
 pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<WebsiteEvent>().then(
+    effect::on::<WebsiteEvent>().id("website_crawl_on_approval").then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
             match event.as_ref() {
                 // =================================================================
