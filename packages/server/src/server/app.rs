@@ -21,7 +21,8 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
-use crate::kernel::jobs::NoopJobQueue;
+use crate::domains::crawling::effects::register_crawling_jobs;
+use crate::kernel::jobs::{JobRegistry, JobRunner, PostgresJobQueue};
 use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, TwilioAdapter};
 use crate::server::graphql::context::AppEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
@@ -34,7 +35,7 @@ use crate::server::routes::{
 // Import effect builder functions from each domain
 use crate::domains::auth::effects::auth_effect;
 use crate::domains::chatrooms::effects::chat_effect;
-use crate::domains::crawling::effects::crawler_effect;
+use crate::domains::crawling::effects::mark_no_listings_effect;
 use crate::domains::member::effects::member_effect;
 use crate::domains::posts::effects::post_composite_effect;
 use crate::domains::providers::effects::provider_effect;
@@ -80,11 +81,16 @@ async fn create_graphql_context(
 
 /// Build the seesaw engine with all domain effects
 ///
-/// In seesaw 0.7.2, effects are registered using:
-/// - `effect::on::<E>().extract().then()` for single variant handling
+/// In seesaw 0.7.6, effects are registered using:
+/// - `effect::on::<E>().then()` for single variant handling
 /// - `on!` macro for multi-variant matching with explicit event returns
+/// - `.on_error()` for global error handling (errors no longer stop other effects)
 fn build_engine(server_deps: ServerDeps) -> AppEngine {
     Engine::with_deps(server_deps)
+        // Global error handler - logs all effect errors
+        .on_error(|error, _type_id, _ctx| async move {
+            tracing::error!(error = %error, "Effect failed");
+        })
         // Auth domain
         .with_effect(auth_effect())
         // Member domain
@@ -93,8 +99,8 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
         .with_effect(chat_effect())
         // Website domain
         .with_effect(website_effect())
-        // Crawling domain
-        .with_effect(crawler_effect())
+        // Crawling domain (job chaining handled by JobRunner + job_handlers)
+        .with_effect(mark_no_listings_effect())
         // Posts domain (composite effect)
         .with_effect(post_composite_effect())
         // Website approval domain
@@ -180,9 +186,12 @@ pub async fn build_app(
         .await
         .expect("Failed to create extraction service - this is required for server operation");
 
-    // Create job queue (NoopJobQueue for now - jobs are processed inline)
-    // TODO: Replace with PostgresJobQueue when job worker is running
-    let job_queue: Arc<dyn crate::kernel::jobs::JobQueue> = Arc::new(NoopJobQueue::new());
+    // Create job queue with PostgreSQL backend
+    let job_queue: Arc<dyn crate::kernel::jobs::JobQueue> =
+        Arc::new(PostgresJobQueue::new(pool.clone()));
+
+    // Clone for job runner before moving into ServerDeps
+    let job_queue_for_runner = job_queue.clone();
 
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer.clone()));
@@ -210,6 +219,23 @@ pub async fn build_app(
 
     // Build seesaw engine with effects (0.7.2 pattern)
     let engine = Arc::new(build_engine(server_deps));
+
+    // Create job registry and register all job handlers
+    let mut job_registry = JobRegistry::new();
+    register_crawling_jobs(&mut job_registry);
+    let job_registry = Arc::new(job_registry);
+
+    // Create and spawn the job runner as a background task
+    let runner = JobRunner::new(
+        job_queue_for_runner,
+        job_registry,
+        server_deps_arc.clone(),
+    );
+    tokio::spawn(async move {
+        if let Err(e) = runner.run().await {
+            tracing::error!(error = %e, "Job runner exited with error");
+        }
+    });
 
     // Create shared app state
     let app_state = AxumAppState {

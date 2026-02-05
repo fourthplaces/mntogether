@@ -35,6 +35,8 @@ mod job;
 pub mod manager;
 mod queue;
 mod record;
+mod registry;
+mod runner;
 // mod seesaw_adapter;
 pub mod testing;
 // mod worker;
@@ -47,6 +49,8 @@ pub use queue::{
     ClaimedJob, CommandMeta, EnqueueCommand, EnqueueResult, JobQueue, JobQueueExt,
     PostgresJobQueue,
 };
+pub use registry::{JobRegistry, SharedJobRegistry};
+pub use runner::{JobRunner, JobRunnerConfig};
 pub use testing::{NoopJobQueue, RecordedCommand, SpyJobQueue};
 // pub use seesaw_adapter::SeesawJobQueueAdapter;
 // pub use worker::{JobWorker, JobWorkerConfig, SeesawCommandHandler};

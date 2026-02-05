@@ -33,11 +33,8 @@ pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
 // Re-export models
 pub use models::ExtractionPage;
 
-// Re-export effects
-pub use effects::crawler_effect;
+// Re-export effects (job chaining now handled by JobRunner + job_handlers)
+pub use effects::mark_no_listings_effect;
 
-// Re-export jobs
-pub use jobs::{
-    execute_crawl_website_job, execute_regenerate_posts_job, CrawlWebsiteJob, JobExecutionResult,
-    JobInfo, RegeneratePostsJob,
-};
+// Re-export job types and helpers
+pub use jobs::{CrawlWebsiteJob, ExtractPostsJob, JobInfo, RegeneratePostsJob, SyncPostsJob};

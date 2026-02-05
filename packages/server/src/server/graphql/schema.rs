@@ -853,12 +853,13 @@ impl Mutation {
 
     /// Crawl a website (multi-page) to discover and extract listings (admin only)
     ///
-    /// Creates a job record, runs the crawl immediately, and returns the result.
+    /// Enqueues a crawl job and returns immediately. The job runs in the background.
     /// Job is tracked in the database - query via the website's `crawlJob` field.
     async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
-        use crate::domains::crawling::{execute_crawl_website_job, CrawlWebsiteJob};
+        use crate::domains::crawling::CrawlWebsiteJob;
+        use crate::kernel::jobs::JobQueueExt;
 
-        info!(website_id = %website_id, "Crawling website (with job tracking)");
+        info!(website_id = %website_id, "Enqueueing crawl website job");
 
         let user = ctx
             .auth_user
@@ -866,20 +867,19 @@ impl Mutation {
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
         let job = CrawlWebsiteJob::new(website_id, user.member_id.into_uuid(), true);
-        let is_admin = user.is_admin;
 
         let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| execute_crawl_website_job(job, is_admin, ectx.deps()))
+            .server_deps
+            .jobs
+            .enqueue(job)
             .await
             .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
-            job_id: result.job_id,
+            job_id: result.job_id(),
             source_id: website_id,
-            status: result.status,
-            message: result.message,
+            status: "enqueued".to_string(),
+            message: Some("Job enqueued for background processing".to_string()),
         })
     }
 
@@ -1973,15 +1973,16 @@ impl Mutation {
 
     /// Regenerate posts from existing extraction pages (admin only)
     ///
-    /// Creates a job record, runs the regeneration immediately, and returns the result.
+    /// Enqueues a regeneration job and returns immediately. The job runs in the background.
     /// Job is tracked in the database - query via the website's `regeneratePostsJob` field.
     async fn regenerate_posts(
         ctx: &GraphQLContext,
         website_id: Uuid,
     ) -> FieldResult<ScrapeJobResult> {
-        use crate::domains::crawling::{execute_regenerate_posts_job, RegeneratePostsJob};
+        use crate::domains::crawling::RegeneratePostsJob;
+        use crate::kernel::jobs::JobQueueExt;
 
-        info!(website_id = %website_id, "Regenerating posts (with job tracking)");
+        info!(website_id = %website_id, "Enqueueing regenerate posts job");
 
         let user = ctx
             .auth_user
@@ -1989,20 +1990,19 @@ impl Mutation {
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
         let job = RegeneratePostsJob::new(website_id, user.member_id.into_uuid());
-        let is_admin = user.is_admin;
 
         let result = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| execute_regenerate_posts_job(job.clone(), is_admin, ectx.deps()))
+            .server_deps
+            .jobs
+            .enqueue(job)
             .await
             .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
-            job_id: result.job_id,
+            job_id: result.job_id(),
             source_id: website_id,
-            status: result.status,
-            message: result.message,
+            status: "enqueued".to_string(),
+            message: Some("Job enqueued for background processing".to_string()),
         })
     }
 

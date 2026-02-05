@@ -39,12 +39,10 @@ pub struct PageExtractionResult {
 /// These are immutable facts about what happened. Effects watch these
 /// and call handlers directly for cascade workflows.
 ///
-/// ## Key Cascades
+/// ## Event-Driven Pipeline
 ///
-/// - `WebsiteIngested` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
-/// - `WebsitePostsRegenerated` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
-/// - `WebsitePagesDiscovered` → `handle_extract_posts_from_pages` → `PostsExtractedFromPages`
-/// - `PostsExtractedFromPages` → `handle_sync_crawled_posts` → `PostsSynced`
+/// - `WebsiteIngested | WebsitePostsRegenerated | WebsitePagesDiscovered` → ExtractPostsJob → PostsExtractedFromPages
+/// - `PostsExtractedFromPages` → SyncPostsJob → `PostsSynced`
 #[derive(Debug, Clone)]
 pub enum CrawlEvent {
     // =========================================================================
@@ -53,7 +51,7 @@ pub enum CrawlEvent {
     /// Website ingested via extraction library
     ///
     /// Emitted by `ingest_website()` after pages are crawled and summarized.
-    /// Cascades to: `handle_extract_posts_from_pages`
+    /// Triggers: ExtractPostsJob → SyncPostsJob pipeline
     WebsiteIngested {
         website_id: WebsiteId,
         job_id: JobId,
@@ -64,7 +62,7 @@ pub enum CrawlEvent {
     /// Website posts regenerated from existing pages
     ///
     /// Emitted by `regenerate_posts()` when regenerating from existing page_snapshots.
-    /// Cascades to: `handle_extract_posts_from_pages`
+    /// Triggers: ExtractPostsJob → SyncPostsJob pipeline
     WebsitePostsRegenerated {
         website_id: WebsiteId,
         job_id: JobId,
@@ -74,7 +72,7 @@ pub enum CrawlEvent {
     /// Pages discovered via search (Tavily) and stored
     ///
     /// Emitted by `discover_website()` after pages are discovered via search.
-    /// Cascades to: `handle_extract_posts_from_pages`
+    /// Triggers: ExtractPostsJob → SyncPostsJob pipeline
     WebsitePagesDiscovered {
         website_id: WebsiteId,
         job_id: JobId,
@@ -87,8 +85,8 @@ pub enum CrawlEvent {
     // =========================================================================
     /// Posts extracted from crawled/ingested pages
     ///
-    /// Emitted by `handle_extract_posts_from_pages` after agentic extraction.
-    /// Cascades to: `handle_sync_crawled_posts`
+    /// Emitted by ExtractPostsJob after agentic extraction.
+    /// Triggers: SyncPostsJob
     PostsExtractedFromPages {
         website_id: WebsiteId,
         job_id: JobId,
@@ -98,7 +96,7 @@ pub enum CrawlEvent {
 
     /// Posts synced to database
     ///
-    /// Terminal event - emitted by `handle_sync_crawled_posts`.
+    /// Terminal event - emitted by SyncPostsJob.
     PostsSynced {
         website_id: WebsiteId,
         job_id: JobId,
@@ -112,7 +110,7 @@ pub enum CrawlEvent {
     // =========================================================================
     /// No posts found after crawling all pages
     ///
-    /// Cascades to: `handle_mark_no_posts`
+    /// Triggers: Website marking (no further cascade)
     WebsiteCrawlNoListings {
         website_id: WebsiteId,
         job_id: JobId,

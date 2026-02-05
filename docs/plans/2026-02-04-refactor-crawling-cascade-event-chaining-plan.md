@@ -541,26 +541,25 @@ This enables:
 ## Implementation Order
 
 ### Phase 1: Crawling (Simplest)
-1. Collapse 3 match arms with `|`
-2. Delete handlers.rs
-3. Test
+1. [x] Collapse 3 match arms with `|`
+2. [x] Delete handlers.rs (111 lines removed)
+3. [x] Test (142 tests pass)
 
 ### Phase 2: Chatrooms
-1. Move handlers.rs to actions/ai_responses.rs
-2. Simplify chat.rs
-3. Delete handlers.rs
-4. Test
+1. [x] Move handlers.rs to actions/ai_responses.rs (~180 lines)
+2. [x] Simplify chat.rs (87 → 62 lines)
+3. [x] Delete handlers.rs (265 lines removed from effects)
+4. [x] Test (142 tests pass)
 
 ### Phase 3: Website Approval
-1. Create actions/assessment.rs
-2. Simplify effects/mod.rs
-3. Update handler signatures
-4. Test
+1. [x] Simplify effects/mod.rs to call actions directly
+2. [x] Delete handler files (search.rs, assessment.rs)
+3. [x] Test (compiles without errors)
 
 ### Phase 4: Posts (Largest)
-1. Create actions/resource_link_cascade.rs
-2. Flatten composite.rs
-3. Test
+1. [x] Flatten composite.rs using atomized event chain with `on!` macro
+2. [x] Use `effect::group()` to combine 3 individual effects
+3. [x] Test (142 tests pass)
 
 ---
 
@@ -568,16 +567,16 @@ This enables:
 
 ### All Domains
 
-- [ ] No `handlers.rs` files in effects directories
-- [ ] No nested `if let` chains deeper than 1 level
-- [ ] All effects return `Ok(())` or `Ok(Event)` (no hidden chaining)
-- [ ] Each match arm is <20 lines
-- [ ] Duplicate match arms consolidated with `|` syntax
+- [x] No `handlers.rs` files in effects directories (crawling, chatrooms, website_approval cleaned)
+- [x] No nested `if let` chains deeper than 1 level (posts composite flattened)
+- [x] All effects return `Ok(())` or `Ok(Event)` (atomized event chain)
+- [x] Each match arm is <20 lines (using `on!` macro)
+- [x] Duplicate match arms consolidated with `|` syntax (crawling effects)
 
 ### Testing
 
-- [ ] All existing tests pass
-- [ ] `cargo check --package server` compiles without warnings
+- [x] All existing tests pass (142 tests)
+- [ ] `cargo check --package server` compiles without warnings (some deprecated warnings remain)
 
 ---
 

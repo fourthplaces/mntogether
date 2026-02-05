@@ -10,19 +10,16 @@
 //! 2. ExtractPostsJob - Run three-pass extraction on ingested pages
 //! 3. SyncPostsJob - Write extracted posts to database
 //!
-//! Jobs chain via Seesaw events, enabling independent retries.
+//! Job handlers are in effects/job_handlers.rs and are registered with the JobRunner.
 
 mod crawl_website;
-mod executor;
 mod extract_posts;
+mod job_info;
 mod regenerate_posts;
 mod sync_posts;
 
 pub use crawl_website::CrawlWebsiteJob;
-pub use executor::{
-    execute_crawl_website_job, execute_extract_posts_job, execute_regenerate_posts_job,
-    execute_sync_posts_job, JobExecutionResult, JobInfo,
-};
 pub use extract_posts::ExtractPostsJob;
+pub use job_info::JobInfo;
 pub use regenerate_posts::RegeneratePostsJob;
 pub use sync_posts::SyncPostsJob;

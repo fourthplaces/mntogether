@@ -6,7 +6,7 @@
 //!   MemberRegistered → generate embedding (terminal)
 
 use seesaw_core::{effect, EffectContext};
-use tracing::{error, info};
+use tracing::info;
 
 use super::actions;
 use super::events::MemberEvent;
@@ -25,30 +25,19 @@ pub fn member_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 // Cascade: MemberRegistered → generate embedding
                 // =================================================================
                 MemberEvent::MemberRegistered { member_id, .. } => {
-                    // Call the action to generate embedding
-                    match actions::generate_embedding(
+                    let result = actions::generate_embedding(
                         *member_id,
                         ctx.deps().embedding_service.as_ref(),
                         &ctx.deps().db_pool,
                     )
-                    .await
-                    {
-                        Ok(result) => {
-                            info!(
-                                member_id = %result.member_id,
-                                dimensions = result.dimensions,
-                                "Embedding generated for member"
-                            );
-                        }
-                        Err(e) => {
-                            error!(
-                                member_id = %member_id,
-                                error = %e,
-                                "Embedding generation failed for member (non-fatal)"
-                            );
-                        }
-                    }
-                    Ok(()) // Terminal
+                    .await?;
+
+                    info!(
+                        member_id = %result.member_id,
+                        dimensions = result.dimensions,
+                        "Embedding generated for member"
+                    );
+                    Ok(())
                 }
 
                 // =================================================================

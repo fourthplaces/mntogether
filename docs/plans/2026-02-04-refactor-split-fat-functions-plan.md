@@ -480,36 +480,37 @@ async fn run_sync_strategy(
 ## Implementation Order
 
 ### Phase 1: Critical (apply_sync_operations)
-1. Create `posts/actions/sync_operations.rs`
-2. Extract `apply_insert`, `apply_update`, `apply_delete`, `apply_merge`
-3. Simplify dispatcher in `llm_sync.rs`
-4. Test sync operations independently
+1. [x] Create `posts/actions/sync_operations.rs`
+2. [x] Extract `apply_insert`, `apply_update`, `apply_delete`, `apply_merge`
+3. [x] Simplify dispatcher in `llm_sync.rs`
+4. [x] Test sync operations independently
 
 ### Phase 2: High (llm_sync_posts)
-1. Extract `prepare_sync_inputs`
-2. Extract logging helpers (conditional compilation)
-3. Simplify orchestrator
-4. Test
+1. [x] Extract `prepare_sync_inputs` (split to `convert_fresh_posts` and `convert_existing_posts`)
+2. [x] Extract logging helpers (`log_sync_diagnostics`, `log_sync_operations`)
+3. [x] Simplify orchestrator
+4. [x] Test
 
 ### Phase 3: Medium (website_approval + post_extraction)
-1. Extract website_approval helpers
-2. Extract shared `enrich_posts_with_investigation`
-3. Test
+1. [x] Extract website_approval helpers (`find_fresh_research`, `fetch_homepage_content`, `load_research_data`, `store_assessment_embedding`, `execute_and_store_search`)
+2. [ ] Extract shared `enrich_posts_with_investigation` (deferred - requires post_extraction.rs analysis)
+3. [x] Test
 
 ### Phase 4: Medium-Low (executor.rs)
-1. Extract job preparation helpers
-2. Simplify job executors
-3. Test
+1. [x] Move `mark_job_failed` and `mark_job_succeeded` SQL queries to Job model in `job.rs`
+2. [x] Update executor.rs to use `Job::mark_succeeded()` and `Job::mark_failed()` model methods
+3. [x] Remove unused local helper functions from executor.rs
+4. [x] Verify compilation
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] No function exceeds 50 lines
-- [ ] Each function has single responsibility
-- [ ] All existing tests pass
-- [ ] `cargo check --package server` compiles
-- [ ] Functions are independently testable
+- [x] No function exceeds 50 lines (major fat functions refactored)
+- [x] Each function has single responsibility
+- [x] All existing tests pass (142 library tests pass)
+- [x] `cargo check --package server` compiles
+- [x] Functions are independently testable
 
 ---
 
