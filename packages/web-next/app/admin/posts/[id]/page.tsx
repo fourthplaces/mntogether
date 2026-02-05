@@ -1,18 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
 import { GET_POST } from "@/lib/graphql/queries";
-import { ADD_POST_TAG, REMOVE_POST_TAG } from "@/lib/graphql/mutations";
-import { useState } from "react";
+import { ADD_POST_TAG, REMOVE_POST_TAG, REGENERATE_POST, DELETE_POST } from "@/lib/graphql/mutations";
+import { useState, useRef, useEffect } from "react";
 
 interface Tag {
   id: string;
   kind: string;
   value: string;
   displayName: string | null;
+}
+
+interface SourcePage {
+  url: string;
+  title: string | null;
+  fetchedAt: string;
+  content: string;
 }
 
 interface PostDetail {
@@ -31,6 +39,7 @@ interface PostDetail {
   websiteId: string | null;
   createdAt: string;
   tags: Tag[];
+  sourcePages: SourcePage[];
 }
 
 interface GetPostResult {
@@ -47,9 +56,25 @@ const AUDIENCE_ROLES = [
 
 export default function PostDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const postId = params.id as string;
   const [isEditingTags, setIsEditingTags] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const { data, isLoading, error, mutate: refetch } = useGraphQL<GetPostResult>(
     GET_POST,
@@ -117,18 +142,41 @@ export default function PostDetailPage() {
       refetch();
     } catch (err) {
       console.error("Failed to update tag:", err);
-      alert("Failed to update tag");
+
     } finally {
       setIsUpdating(false);
     }
   };
 
+  const handleRegenerate = async () => {
+    setActionInProgress("regenerate");
+    setMenuOpen(false);
+    try {
+      await graphqlMutateClient(REGENERATE_POST, { postId });
+      refetch();
+    } catch (err) {
+      console.error("Failed to regenerate post:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Are you sure you want to delete this post? This cannot be undone.")) return;
+
+    setActionInProgress("delete");
+    setMenuOpen(false);
+    try {
+      await graphqlMutateClient(DELETE_POST, { listingId: postId });
+      router.push("/admin/posts");
+    } catch (err) {
+      console.error("Failed to delete post:", err);
+      setActionInProgress(null);
+    }
+  };
+
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading post...</div>
-      </div>
-    );
+    return <AdminLoader label="Loading post..." />;
   }
 
   if (error) {
@@ -163,6 +211,7 @@ export default function PostDetailPage() {
   }
 
   const missingFields: string[] = [];
+  if (!post.sourceUrl && post.websiteId) missingFields.push("source URL");
   if (!post.tldr) missingFields.push("TLDR");
   if (!post.location) missingFields.push("location");
   if (audienceRoleTags.length === 0) missingFields.push("audience role");
@@ -203,6 +252,37 @@ export default function PostDetailPage() {
                   {"\u{1F517}"}
                 </a>
               )}
+
+              {/* More Actions Dropdown */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen(!menuOpen)}
+                  disabled={actionInProgress !== null}
+                  className="px-3 py-2 bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50"
+                >
+                  {actionInProgress ? "..." : "\u22EF"}
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                    {post.websiteId && post.sourceUrl && (
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        Regenerate
+                      </button>
+                    )}
+                    <button
+                      onClick={handleDelete}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Delete Post
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -323,6 +403,82 @@ export default function PostDetailPage() {
                   <span className="text-stone-500">{tag.kind}:</span> {tag.displayName || tag.value}
                 </span>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Source Pages */}
+        {post.sourcePages && post.sourcePages.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">
+              Source Pages ({post.sourcePages.length})
+            </h2>
+            <p className="text-sm text-stone-500 mb-4">
+              Pages from which this post was extracted.
+            </p>
+            <div className="space-y-3">
+              {post.sourcePages.map((page) => {
+                const isExpanded = expandedPages.has(page.url);
+                return (
+                  <div key={page.url} className="border border-stone-200 rounded-lg">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex-1 min-w-0">
+                        <a
+                          href={page.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate block"
+                        >
+                          {page.title || page.url}
+                        </a>
+                        <p className="text-xs text-stone-400 truncate mt-1">{page.url}</p>
+                        <p className="text-xs text-stone-400 mt-1">
+                          Fetched {formatDate(page.fetchedAt)}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const next = new Set(expandedPages);
+                          if (isExpanded) {
+                            next.delete(page.url);
+                          } else {
+                            next.add(page.url);
+                          }
+                          setExpandedPages(next);
+                        }}
+                        className="ml-4 px-3 py-1 text-xs text-stone-500 hover:text-stone-700 border border-stone-200 rounded hover:bg-stone-50"
+                      >
+                        {isExpanded ? "Hide content" : "Show content"}
+                      </button>
+                    </div>
+                    {isExpanded && (
+                      <div className="border-t border-stone-200 p-4 bg-stone-50 max-h-96 overflow-y-auto">
+                        <div className="prose prose-sm prose-stone max-w-none">
+                          <ReactMarkdown
+                            components={{
+                              p: ({ children }) => <p className="mb-2 text-stone-600 text-sm">{children}</p>,
+                              ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-0.5">{children}</ul>,
+                              ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-0.5">{children}</ol>,
+                              li: ({ children }) => <li className="text-stone-600 text-sm">{children}</li>,
+                              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                              a: ({ href, children }) => (
+                                <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+                                  {children}
+                                </a>
+                              ),
+                              h1: ({ children }) => <h1 className="text-base font-bold text-stone-800 mt-3 mb-1">{children}</h1>,
+                              h2: ({ children }) => <h2 className="text-sm font-bold text-stone-800 mt-3 mb-1">{children}</h2>,
+                              h3: ({ children }) => <h3 className="text-sm font-semibold text-stone-700 mt-2 mb-1">{children}</h3>,
+                            }}
+                          >
+                            {page.content}
+                          </ReactMarkdown>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

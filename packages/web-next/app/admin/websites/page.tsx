@@ -1,20 +1,20 @@
 "use client";
 
-import Link from "next/link";
-import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
+import { useRouter } from "next/navigation";
+import { useGraphQL } from "@/lib/graphql/client";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { GET_ALL_WEBSITES } from "@/lib/graphql/queries";
-import { APPROVE_WEBSITE, REJECT_WEBSITE, CRAWL_WEBSITE } from "@/lib/graphql/mutations";
 import { useCursorPagination } from "@/lib/hooks/useCursorPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import type { Website, GetWebsitesResult } from "@/lib/types";
 import { useState } from "react";
 
 export default function WebsitesPage() {
+  const router = useRouter();
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
-  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const pagination = useCursorPagination({ pageSize: 20 });
 
-  const { data, isLoading, error, mutate: refetch } = useGraphQL<GetWebsitesResult>(
+  const { data, isLoading, error } = useGraphQL<GetWebsitesResult>(
     GET_ALL_WEBSITES,
     {
       ...pagination.variables,
@@ -31,53 +31,6 @@ export default function WebsitesPage() {
     pageInfo.startCursor,
     pageInfo.endCursor
   );
-
-  const handleApprove = async (websiteId: string) => {
-    if (!confirm("Approve this website for crawling?")) return;
-
-    setActionInProgress(websiteId);
-    try {
-      await graphqlMutateClient(APPROVE_WEBSITE, { websiteId });
-      invalidateAllMatchingQuery(GET_ALL_WEBSITES);
-      refetch();
-    } catch (err) {
-      console.error("Failed to approve:", err);
-      alert("Failed to approve website");
-    } finally {
-      setActionInProgress(null);
-    }
-  };
-
-  const handleReject = async (websiteId: string) => {
-    const reason = prompt("Reason for rejection:");
-    if (reason === null) return;
-
-    setActionInProgress(websiteId);
-    try {
-      await graphqlMutateClient(REJECT_WEBSITE, { websiteId, reason: reason || "Rejected" });
-      invalidateAllMatchingQuery(GET_ALL_WEBSITES);
-      refetch();
-    } catch (err) {
-      console.error("Failed to reject:", err);
-      alert("Failed to reject website");
-    } finally {
-      setActionInProgress(null);
-    }
-  };
-
-  const handleCrawl = async (websiteId: string) => {
-    setActionInProgress(websiteId);
-    try {
-      await graphqlMutateClient(CRAWL_WEBSITE, { websiteId });
-      alert("Crawl started");
-      refetch();
-    } catch (err) {
-      console.error("Failed to start crawl:", err);
-      alert("Failed to start crawl");
-    } finally {
-      setActionInProgress(null);
-    }
-  };
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
@@ -96,7 +49,7 @@ export default function WebsitesPage() {
   };
 
   if (isLoading && websites.length === 0) {
-    return <div className="p-8">Loading...</div>;
+    return <AdminLoader label="Loading websites..." />;
   }
 
   return (
@@ -149,21 +102,17 @@ export default function WebsitesPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Last Scraped
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Actions
-                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-stone-200">
                 {websites.map((website) => (
-                  <tr key={website.id} className="hover:bg-stone-50">
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <Link
-                        href={`/admin/websites/${website.id}`}
-                        className="text-amber-600 hover:text-amber-800 font-medium"
-                      >
-                        {website.domain}
-                      </Link>
+                  <tr
+                    key={website.id}
+                    onClick={() => router.push(`/admin/websites/${website.id}`)}
+                    className="hover:bg-stone-50 cursor-pointer"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap font-medium text-stone-900">
+                      {website.domain}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(website.status)}`}>
@@ -177,43 +126,6 @@ export default function WebsitesPage() {
                       {website.lastScrapedAt
                         ? new Date(website.lastScrapedAt).toLocaleDateString()
                         : "Never"}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                      <div className="flex justify-end gap-2">
-                        {website.status === "pending_review" && (
-                          <>
-                            <button
-                              onClick={() => handleApprove(website.id)}
-                              disabled={actionInProgress === website.id}
-                              className="text-green-600 hover:text-green-800 disabled:opacity-50"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleReject(website.id)}
-                              disabled={actionInProgress === website.id}
-                              className="text-red-600 hover:text-red-800 disabled:opacity-50"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        {website.status === "approved" && (
-                          <button
-                            onClick={() => handleCrawl(website.id)}
-                            disabled={actionInProgress === website.id}
-                            className="text-amber-600 hover:text-amber-800 disabled:opacity-50"
-                          >
-                            Crawl
-                          </button>
-                        )}
-                        <Link
-                          href={`/admin/websites/${website.id}`}
-                          className="text-stone-600 hover:text-stone-800"
-                        >
-                          Details
-                        </Link>
-                      </div>
                     </td>
                   </tr>
                 ))}

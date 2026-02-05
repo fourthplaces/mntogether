@@ -2,7 +2,7 @@ use crate::common::MemberId;
 use crate::domains::auth::JwtService;
 use axum::{middleware::Next, response::Response};
 use std::sync::Arc;
-use tracing::debug;
+use tracing::{debug, trace};
 
 /// Authenticated user information from JWT
 #[derive(Clone, Debug)]
@@ -31,7 +31,7 @@ pub async fn jwt_auth_middleware(
         );
         request.extensions_mut().insert(user);
     } else {
-        debug!("No valid authentication token");
+        trace!("No valid authentication token");
     }
 
     next.run(request).await

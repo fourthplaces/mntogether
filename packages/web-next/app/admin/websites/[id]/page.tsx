@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
@@ -121,7 +122,7 @@ export default function WebsiteDetailPage() {
       refetchWebsite();
     } catch (err) {
       console.error("Failed to approve:", err);
-      alert("Failed to approve website");
+
     } finally {
       setActionInProgress(null);
     }
@@ -138,7 +139,7 @@ export default function WebsiteDetailPage() {
       refetchWebsite();
     } catch (err) {
       console.error("Failed to reject:", err);
-      alert("Failed to reject website");
+
     } finally {
       setActionInProgress(null);
     }
@@ -148,11 +149,11 @@ export default function WebsiteDetailPage() {
     setActionInProgress("crawl");
     try {
       await graphqlMutateClient(CRAWL_WEBSITE, { websiteId });
-      alert("Crawl started");
+
       refetchWebsite();
     } catch (err) {
       console.error("Failed to start crawl:", err);
-      alert("Failed to start crawl");
+
     } finally {
       setActionInProgress(null);
     }
@@ -166,7 +167,7 @@ export default function WebsiteDetailPage() {
       refetchAssessment();
     } catch (err) {
       console.error("Failed to generate assessment:", err);
-      alert("Failed to generate assessment");
+
     } finally {
       setActionInProgress(null);
     }
@@ -177,11 +178,11 @@ export default function WebsiteDetailPage() {
     setMenuOpen(false);
     try {
       await graphqlMutateClient(REGENERATE_POSTS, { websiteId });
-      alert("Post regeneration started");
+
       refetchWebsite();
     } catch (err) {
       console.error("Failed to regenerate posts:", err);
-      alert("Failed to regenerate posts");
+
     } finally {
       setActionInProgress(null);
     }
@@ -209,11 +210,7 @@ export default function WebsiteDetailPage() {
   };
 
   if (websiteLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading website...</div>
-      </div>
-    );
+    return <AdminLoader label="Loading website..." />;
   }
 
   if (websiteError) {
@@ -409,6 +406,7 @@ export default function WebsiteDetailPage() {
                         </span>
                       </div>
                       <div className="text-sm text-stone-600 line-clamp-3">
+                        {/* Truncate content before markdown parsing for performance */}
                         <ReactMarkdown
                           components={{
                             p: ({ children }) => <span>{children}</span>,
@@ -419,7 +417,7 @@ export default function WebsiteDetailPage() {
                             a: ({ children }) => <span>{children}</span>,
                           }}
                         >
-                          {snapshot.content}
+                          {snapshot.content.slice(0, 500)}
                         </ReactMarkdown>
                       </div>
                     </div>

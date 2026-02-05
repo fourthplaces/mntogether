@@ -47,7 +47,7 @@ pub async fn sync_and_deduplicate_posts(
             &post.title, // organization_name (using title as fallback)
             post,
             Some(website_id),
-            None, // source_url
+            post.source_url.clone(),
             pool,
         )
         .await

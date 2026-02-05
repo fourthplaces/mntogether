@@ -18,9 +18,9 @@ use anyhow::{anyhow, Result};
 use tracing::info;
 
 use crate::common::WebsiteId;
-use crate::domains::crawling::actions::{ingest_website, regenerate_posts, sync_and_deduplicate_posts};
+use crate::domains::crawling::actions::{ingest_website, regenerate_posts, regenerate_single_post, sync_and_deduplicate_posts};
 use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
-use crate::domains::crawling::jobs::{CrawlWebsiteJob, ExtractPostsJob, RegeneratePostsJob, SyncPostsJob};
+use crate::domains::crawling::jobs::{CrawlWebsiteJob, ExtractPostsJob, RegeneratePostsJob, RegenerateSinglePostJob, SyncPostsJob};
 use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::website::models::Website;
 use crate::kernel::jobs::JobQueueExt;
@@ -175,6 +175,22 @@ pub async fn handle_regenerate_posts(job: RegeneratePostsJob, deps: Arc<ServerDe
     Ok(())
 }
 
+/// Handle RegenerateSinglePostJob.
+///
+/// Regenerates a single post from its source extraction pages. Terminal job.
+pub async fn handle_regenerate_single_post(job: RegenerateSinglePostJob, deps: Arc<ServerDeps>) -> Result<()> {
+    info!(
+        post_id = %job.post_id,
+        "Handling regenerate single post job"
+    );
+
+    regenerate_single_post(job.post_id, &deps).await?;
+
+    info!(post_id = %job.post_id, "Single post regeneration complete");
+
+    Ok(())
+}
+
 /// Register all crawling job handlers with the registry.
 ///
 /// Call this at startup to register handlers for all crawling jobs.
@@ -193,5 +209,9 @@ pub fn register_crawling_jobs(registry: &mut crate::kernel::jobs::JobRegistry) {
 
     registry.register::<RegeneratePostsJob, _, _>(RegeneratePostsJob::JOB_TYPE, |job, deps| async move {
         handle_regenerate_posts(job, deps).await
+    });
+
+    registry.register::<RegenerateSinglePostJob, _, _>(RegenerateSinglePostJob::JOB_TYPE, |job, deps| async move {
+        handle_regenerate_single_post(job, deps).await
     });
 }

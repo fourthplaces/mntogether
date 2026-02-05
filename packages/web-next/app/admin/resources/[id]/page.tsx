@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useParams } from "next/navigation";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
 import { GET_RESOURCE } from "@/lib/graphql/queries";
@@ -31,7 +32,7 @@ export default function ResourceDetailPage() {
       refetch();
     } catch (err) {
       console.error("Failed to approve:", err);
-      alert("Failed to approve resource");
+
     } finally {
       setActionInProgress(null);
     }
@@ -47,7 +48,7 @@ export default function ResourceDetailPage() {
       refetch();
     } catch (err) {
       console.error("Failed to reject:", err);
-      alert("Failed to reject resource");
+
     } finally {
       setActionInProgress(null);
     }
@@ -73,11 +74,7 @@ export default function ResourceDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading resource...</div>
-      </div>
-    );
+    return <AdminLoader label="Loading resource..." />;
   }
 
   if (error) {

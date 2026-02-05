@@ -37,4 +37,7 @@ pub use models::ExtractionPage;
 pub use effects::mark_no_listings_effect;
 
 // Re-export job types and helpers
-pub use jobs::{CrawlWebsiteJob, ExtractPostsJob, JobInfo, RegeneratePostsJob, SyncPostsJob};
+pub use jobs::{
+    CrawlWebsiteJob, ExtractPostsJob, JobInfo, RegeneratePostsJob, RegenerateSinglePostJob,
+    SyncPostsJob,
+};

@@ -2006,6 +2006,40 @@ impl Mutation {
         })
     }
 
+    /// Regenerate a single post from its source extraction pages (admin only)
+    ///
+    /// Enqueues a regeneration job and returns immediately. The job runs in the background.
+    async fn regenerate_post(
+        ctx: &GraphQLContext,
+        post_id: Uuid,
+    ) -> FieldResult<ScrapeJobResult> {
+        use crate::domains::crawling::RegenerateSinglePostJob;
+        use crate::kernel::jobs::JobQueueExt;
+
+        info!(post_id = %post_id, "Enqueueing regenerate single post job");
+
+        let user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        let job = RegenerateSinglePostJob::new(post_id, user.member_id.into_uuid());
+
+        let result = ctx
+            .server_deps
+            .jobs
+            .enqueue(job)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(ScrapeJobResult {
+            job_id: result.job_id(),
+            source_id: post_id,
+            status: "enqueued".to_string(),
+            message: Some("Post regeneration job enqueued for background processing".to_string()),
+        })
+    }
+
     /// Generate a comprehensive assessment report for a website (admin only)
     async fn generate_website_assessment(
         ctx: &GraphQLContext,

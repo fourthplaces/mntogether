@@ -8,6 +8,7 @@ import { APPROVE_POST, REJECT_POST } from "@/lib/graphql/mutations";
 import { useCursorPagination } from "@/lib/hooks/useCursorPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { PostReviewCard } from "@/components/admin/PostReviewCard";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import type { Post, GetListingsResult, PendingPostsStatsResult } from "@/lib/types";
 
 type PostTypeFilter = "all" | "service" | "opportunity" | "business";
@@ -60,7 +61,7 @@ export default function PostsPage() {
       refetch();
     } catch (err) {
       console.error("Failed to approve post:", err);
-      alert("Failed to approve post. Check console for details.");
+
     } finally {
       setApprovingId(null);
     }
@@ -78,7 +79,7 @@ export default function PostsPage() {
       refetch();
     } catch (err) {
       console.error("Failed to reject post:", err);
-      alert("Failed to reject post. Check console for details.");
+
     } finally {
       setRejectingId(null);
     }
@@ -227,10 +228,7 @@ export default function PostsPage() {
 
         {/* Loading State */}
         {isLoading && posts.length === 0 && (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-600"></div>
-            <p className="mt-2 text-stone-600">Loading posts...</p>
-          </div>
+          <AdminLoader label="Loading posts..." />
         )}
 
         {/* Error State */}

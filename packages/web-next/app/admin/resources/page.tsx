@@ -1,6 +1,7 @@
 "use client";
 
 import { useGraphQL } from "@/lib/graphql/client";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { GET_RESOURCES } from "@/lib/graphql/queries";
 import { useCursorPagination } from "@/lib/hooks/useCursorPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
@@ -29,7 +30,7 @@ export default function ResourcesPage() {
   );
 
   if (isLoading && resources.length === 0) {
-    return <div className="p-8">Loading...</div>;
+    return <AdminLoader label="Loading resources..." />;
   }
 
   return (

@@ -90,6 +90,7 @@ mod tests {
             confidence: None,
             audience_roles: vec!["recipient".to_string()],
             source_page_snapshot_id: None,
+            source_url: None,
         }
     }
 

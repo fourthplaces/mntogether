@@ -1,4 +1,5 @@
 use crate::common::PostId;
+use crate::domains::extraction::data::ExtractionPageData;
 use crate::domains::posts::models::Post;
 use crate::domains::tag::models::Tag;
 use crate::domains::tag::TagData;
@@ -85,6 +86,22 @@ impl PostType {
         let post_id = PostId::from_uuid(self.id);
         let tags = Tag::find_for_post(post_id, &context.db_pool).await?;
         Ok(tags.into_iter().map(TagData::from).collect())
+    }
+
+    /// Get extraction pages this post was sourced from
+    async fn source_pages(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ExtractionPageData>> {
+        let Some(source_url) = &self.source_url else {
+            return Ok(vec![]);
+        };
+        // Handle comma-separated URLs from dedup merge
+        let urls: Vec<&str> = source_url.split(',').map(|u| u.trim()).collect();
+        let mut pages = Vec::new();
+        for url in urls {
+            if let Some(page) = ExtractionPageData::find_by_url(url, &context.db_pool).await? {
+                pages.push(page);
+            }
+        }
+        Ok(pages)
     }
 }
 
