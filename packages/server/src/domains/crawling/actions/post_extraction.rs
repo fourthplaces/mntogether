@@ -484,6 +484,7 @@ pub async fn extract_posts_from_content(
             confidence: Some(info.confidence),
             audience_roles: info.audience_roles,
             source_page_snapshot_id: None,
+            source_url: Some(narrative.source_url),
         });
     }
 
@@ -682,6 +683,7 @@ pub async fn extract_posts_from_pages(
             confidence: Some(info.confidence),
             audience_roles: info.audience_roles,
             source_page_snapshot_id: None,
+            source_url: Some(narrative.source_url),
         });
     }
 

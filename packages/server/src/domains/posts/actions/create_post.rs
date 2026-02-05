@@ -82,7 +82,7 @@ pub async fn create_extracted_post(
 }
 
 /// Save contact info for a post.
-async fn save_contact_info(post_id: PostId, contact: &ContactInfo, pool: &PgPool) {
+pub async fn save_contact_info(post_id: PostId, contact: &ContactInfo, pool: &PgPool) {
     let contact_json = serde_json::json!({
         "phone": contact.phone,
         "email": contact.email,

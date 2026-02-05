@@ -705,6 +705,12 @@ export const GET_POST = `
         value
         displayName
       }
+      sourcePages {
+        url
+        title
+        fetchedAt
+        content
+      }
     }
   }
 `;

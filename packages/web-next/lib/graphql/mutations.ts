@@ -216,6 +216,16 @@ export const REGENERATE_POSTS = `
   }
 `;
 
+export const REGENERATE_POST = `
+  mutation RegeneratePost($postId: Uuid!) {
+    regeneratePost(postId: $postId) {
+      jobId
+      status
+      message
+    }
+  }
+`;
+
 export const REGENERATE_PAGE_SUMMARIES = `
   mutation RegeneratePageSummaries($websiteId: Uuid!) {
     regeneratePageSummaries(websiteId: $websiteId) {

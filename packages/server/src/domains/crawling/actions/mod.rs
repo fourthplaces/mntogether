@@ -10,6 +10,7 @@
 pub mod authorization;
 pub mod ingest_website;
 pub mod post_extraction;
+pub mod regenerate_single_post;
 pub mod sync_posts;
 pub mod website_context;
 
@@ -27,6 +28,7 @@ use extraction::types::page::CachedPage;
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
 pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
+pub use regenerate_single_post::regenerate_single_post;
 pub use sync_posts::{sync_and_deduplicate_posts, SyncAndDedupResult};
 pub use website_context::fetch_approved_website;
 
@@ -45,10 +47,10 @@ pub async fn regenerate_posts(
     // Auth check - returns error, not event
     check_crawl_authorization(requested_by, is_admin, "RegeneratePosts", deps).await?;
 
-    // Fetch approved website
-    let _website = fetch_approved_website(website_id_typed, &deps.db_pool)
+    // Fetch website (admin can regenerate regardless of approval status)
+    let _website = Website::find_by_id(website_id_typed, &deps.db_pool)
         .await
-        .ok_or_else(|| anyhow::anyhow!("Website not found or not approved"))?;
+        .map_err(|_| anyhow::anyhow!("Website not found"))?;
 
     // Count pages in extraction library to verify we have something to process
     let page_count = crate::domains::crawling::models::ExtractionPage::count_by_domain(

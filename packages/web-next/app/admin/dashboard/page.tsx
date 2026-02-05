@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useGraphQL } from "@/lib/graphql/client";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { GET_ADMIN_STATS } from "@/lib/graphql/queries";
 
 interface Website {
@@ -28,11 +29,7 @@ export default function DashboardPage() {
   });
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading dashboard...</div>
-      </div>
-    );
+    return <AdminLoader label="Loading dashboard..." />;
   }
 
   // Calculate stats

@@ -28,6 +28,9 @@ pub struct ExtractedPost {
     /// The page snapshot this post was extracted from (for linking)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_page_snapshot_id: Option<Uuid>,
+    /// Source URL(s) where this post was extracted from (may be comma-separated after dedup)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 /// A listing extracted with its source URL (for batch extraction)
@@ -48,7 +51,7 @@ pub struct ExtractedPostWithSource {
 }
 
 impl ExtractedPostWithSource {
-    /// Convert to ExtractedPost (dropping source_url)
+    /// Convert to ExtractedPost, preserving source_url
     pub fn into_post(self) -> ExtractedPost {
         ExtractedPost {
             title: self.title,
@@ -59,7 +62,8 @@ impl ExtractedPostWithSource {
             urgency: self.urgency,
             confidence: self.confidence,
             audience_roles: self.audience_roles,
-            source_page_snapshot_id: None, // ExtractedPostWithSource doesn't have this
+            source_page_snapshot_id: None,
+            source_url: Some(self.source_url),
         }
     }
 }

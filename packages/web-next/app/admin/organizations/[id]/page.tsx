@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useGraphQL } from "@/lib/graphql/client";
 import { GET_ORGANIZATION } from "@/lib/graphql/queries";
 
@@ -46,11 +47,7 @@ export default function OrganizationDetailPage() {
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-stone-600">Loading organization...</div>
-      </div>
-    );
+    return <AdminLoader label="Loading organization..." />;
   }
 
   if (error) {

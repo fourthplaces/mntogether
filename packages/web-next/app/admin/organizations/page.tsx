@@ -1,6 +1,7 @@
 "use client";
 
 import { useGraphQL } from "@/lib/graphql/client";
+import { AdminLoader } from "@/components/admin/AdminLoader";
 import { GET_ORGANIZATIONS } from "@/lib/graphql/queries";
 import { useCursorPagination } from "@/lib/hooks/useCursorPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
@@ -26,7 +27,7 @@ export default function OrganizationsPage() {
   );
 
   if (isLoading && organizations.length === 0) {
-    return <div className="p-8">Loading...</div>;
+    return <AdminLoader label="Loading organizations..." />;
   }
 
   return (

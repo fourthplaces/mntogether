@@ -16,10 +16,12 @@ mod crawl_website;
 mod extract_posts;
 mod job_info;
 mod regenerate_posts;
+mod regenerate_single_post;
 mod sync_posts;
 
 pub use crawl_website::CrawlWebsiteJob;
 pub use extract_posts::ExtractPostsJob;
 pub use job_info::JobInfo;
 pub use regenerate_posts::RegeneratePostsJob;
+pub use regenerate_single_post::RegenerateSinglePostJob;
 pub use sync_posts::SyncPostsJob;
