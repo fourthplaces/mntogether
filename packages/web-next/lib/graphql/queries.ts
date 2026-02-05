@@ -31,18 +31,65 @@ export const GET_PUBLISHED_POSTS = `
 // ============================================================================
 
 export const GET_PENDING_POSTS = `
-  query GetPendingPosts($first: Int, $after: String) {
-    listings(status: PENDING_APPROVAL, first: $first, after: $after) {
+  query GetPendingPosts($first: Int, $after: String, $postType: String, $submissionType: SubmissionTypeData) {
+    listings(
+      status: PENDING_APPROVAL
+      first: $first
+      after: $after
+      postType: $postType
+      submissionType: $submissionType
+    ) {
       nodes {
         id
+        postType
         organizationName
         title
         tldr
         description
         urgency
         location
+        category
+        sourceUrl
         submissionType
         createdAt
+
+        ... on ServiceListing {
+          requiresIdentification
+          requiresAppointment
+          walkInsAccepted
+          remoteAvailable
+          inPersonAvailable
+          homeVisitsAvailable
+          wheelchairAccessible
+          interpretationAvailable
+          freeService
+          slidingScaleFees
+          acceptsInsurance
+          eveningHours
+          weekendHours
+        }
+
+        ... on OpportunityListing {
+          opportunityType
+          timeCommitment
+          requiresBackgroundCheck
+          minimumAge
+          skillsNeeded
+          remoteOk
+        }
+
+        ... on BusinessListing {
+          businessInfo {
+            proceedsPercentage
+            proceedsBeneficiary {
+              id
+              name
+            }
+            donationLink
+            giftCardLink
+            onlineStoreUrl
+          }
+        }
       }
       pageInfo {
         hasNextPage
@@ -318,6 +365,29 @@ export const GET_SCRAPED_POSTS_STATS = `
       postType: "business"
       limit: 1
     ) {
+      totalCount
+    }
+  }
+`;
+
+export const GET_PENDING_POSTS_STATS = `
+  query GetPendingPostsStats {
+    allPending: listings(status: PENDING_APPROVAL, limit: 1) {
+      totalCount
+    }
+    pendingServices: listings(status: PENDING_APPROVAL, postType: "service", limit: 1) {
+      totalCount
+    }
+    pendingOpportunities: listings(status: PENDING_APPROVAL, postType: "opportunity", limit: 1) {
+      totalCount
+    }
+    pendingBusinesses: listings(status: PENDING_APPROVAL, postType: "business", limit: 1) {
+      totalCount
+    }
+    pendingUserSubmitted: listings(status: PENDING_APPROVAL, submissionType: USER_SUBMITTED, limit: 1) {
+      totalCount
+    }
+    pendingScraped: listings(status: PENDING_APPROVAL, submissionType: SCRAPED, limit: 1) {
       totalCount
     }
   }
