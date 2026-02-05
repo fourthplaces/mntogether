@@ -1,12 +1,13 @@
 //! Application state for the seesaw engine.
 
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Application state passed to engine.activate().
 ///
 /// This is the same for all domains - just tracks request-scoped data
 /// like visitor ID. Domain-specific results come from action return values.
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize)]
 pub struct AppState {
     /// The authenticated user's member ID, if any.
     pub visitor_id: Option<Uuid>,

@@ -3,6 +3,7 @@ pub mod auth;
 pub mod chatrooms;
 pub mod contacts;
 pub mod crawling;
+pub mod discovery;
 pub mod extraction;
 pub mod member;
 pub mod organization;

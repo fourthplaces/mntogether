@@ -1,5 +1,7 @@
 // Import common types (shared across layers)
 pub use crate::common::{ContactInfo, ExtractedPost};
+use serde::{Deserialize, Serialize};
+
 use crate::common::{JobId, PostId, WebsiteId};
 use crate::domains::posts::models::post_report::PostReportId;
 
@@ -13,7 +15,7 @@ use crate::domains::posts::models::post_report::PostReportId;
 ///
 /// NOTE: Crawling events have been moved to the `crawling` domain.
 /// See `crate::domains::crawling::events::CrawlEvent`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PostEvent {
     // =========================================================================
     // Fact Events (what actually happened)

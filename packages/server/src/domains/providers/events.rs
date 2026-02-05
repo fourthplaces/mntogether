@@ -3,10 +3,12 @@
 //! Events are immutable facts about what happened. Effects watch these
 //! and call handlers directly for cascade workflows (no *Requested events).
 
+use serde::{Deserialize, Serialize};
+
 use crate::common::{MemberId, ProviderId};
 
 /// Provider domain events - FACT EVENTS ONLY
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ProviderEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)

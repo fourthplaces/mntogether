@@ -64,7 +64,7 @@ async fn main() -> Result<()> {
     }
 
     // Build application
-    let (app, _engine, server_deps) = build_app(
+    let (app, server_deps) = build_app(
         pool.clone(),
         config.openai_api_key.clone(),
         config.tavily_api_key,

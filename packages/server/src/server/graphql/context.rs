@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
-use seesaw_core::Engine;
+use seesaw_core::QueueEngine;
+use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 use twilio::TwilioService;
 
@@ -9,22 +10,22 @@ use crate::domains::auth::JwtService;
 use crate::kernel::{OpenAIClient, ServerDeps};
 use crate::server::middleware::AuthUser;
 
-/// The seesaw Engine type used by this application
+/// The seesaw QueueEngine type used by this application.
 ///
-/// In seesaw 0.6.0:
-/// - State type (AppState) comes first
-/// - Deps type (ServerDeps) comes second
-/// - Engine is immutable after construction
-/// - Use engine.activate(initial_state) per request
-pub type AppEngine = Engine<AppState, ServerDeps>;
+/// All events (sync + async) go through the queue-backed engine.
+/// EventWorkers process events, run reducers, and dispatch to effects.
+/// EffectWorkers execute queued effects with retry/timeout.
+pub type AppQueueEngine = QueueEngine<AppState, ServerDeps, PostgresStore>;
 
 /// GraphQL request context
 ///
-/// Contains shared resources available to all resolvers
+/// Contains shared resources available to all resolvers.
+/// Mutations call actions directly with `ctx.deps()`, then publish
+/// fact events via `ctx.queue_engine.process(event)` for cascading effects.
 #[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
-    pub engine: Arc<AppEngine>,
+    pub queue_engine: Arc<AppQueueEngine>,
     pub server_deps: Arc<ServerDeps>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
@@ -37,7 +38,7 @@ impl juniper::Context for GraphQLContext {}
 impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
-        engine: Arc<AppEngine>,
+        queue_engine: Arc<AppQueueEngine>,
         server_deps: Arc<ServerDeps>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
@@ -46,7 +47,7 @@ impl GraphQLContext {
     ) -> Self {
         Self {
             db_pool,
-            engine,
+            queue_engine,
             server_deps,
             auth_user,
             twilio,
@@ -93,13 +94,9 @@ impl GraphQLContext {
     }
 
     /// Create AppState with visitor info from the current request.
-    ///
-    /// This state is passed to `engine.activate(state)` and is available
-    /// in actions via `ctx.next_state()`. Actions use it for authorization.
     pub fn app_state(&self) -> AppState {
         match &self.auth_user {
             Some(user) => {
-                // Parse user_id as UUID, default to anonymous if parsing fails
                 match uuid::Uuid::parse_str(&user.user_id) {
                     Ok(uuid) => AppState::authenticated(uuid, user.is_admin),
                     Err(_) => AppState::anonymous(),
@@ -110,9 +107,6 @@ impl GraphQLContext {
     }
 
     /// Get server dependencies for direct access
-    ///
-    /// Use this for services that don't need the seesaw effect context,
-    /// like extraction queries.
     pub fn deps(&self) -> &ServerDeps {
         &self.server_deps
     }

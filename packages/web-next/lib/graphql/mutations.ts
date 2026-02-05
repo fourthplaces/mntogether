@@ -442,3 +442,84 @@ export const INGEST_SITE = `
     }
   }
 `;
+
+// ============================================================================
+// DISCOVERY MUTATIONS
+// ============================================================================
+
+export const RUN_DISCOVERY_SEARCH = `
+  mutation RunDiscoverySearch {
+    runDiscoverySearch {
+      queriesRun
+      totalResults
+      websitesCreated
+      websitesFiltered
+      runId
+    }
+  }
+`;
+
+export const CREATE_DISCOVERY_QUERY = `
+  mutation CreateDiscoveryQuery($queryText: String!, $category: String) {
+    createDiscoveryQuery(queryText: $queryText, category: $category) {
+      id
+      queryText
+      category
+      isActive
+      createdAt
+    }
+  }
+`;
+
+export const UPDATE_DISCOVERY_QUERY = `
+  mutation UpdateDiscoveryQuery($id: Uuid!, $queryText: String!, $category: String) {
+    updateDiscoveryQuery(id: $id, queryText: $queryText, category: $category) {
+      id
+      queryText
+      category
+      isActive
+    }
+  }
+`;
+
+export const TOGGLE_DISCOVERY_QUERY = `
+  mutation ToggleDiscoveryQuery($id: Uuid!, $isActive: Boolean!) {
+    toggleDiscoveryQuery(id: $id, isActive: $isActive) {
+      id
+      isActive
+    }
+  }
+`;
+
+export const DELETE_DISCOVERY_QUERY = `
+  mutation DeleteDiscoveryQuery($id: Uuid!) {
+    deleteDiscoveryQuery(id: $id)
+  }
+`;
+
+export const CREATE_DISCOVERY_FILTER_RULE = `
+  mutation CreateDiscoveryFilterRule($queryId: Uuid, $ruleText: String!) {
+    createDiscoveryFilterRule(queryId: $queryId, ruleText: $ruleText) {
+      id
+      queryId
+      ruleText
+      sortOrder
+      isActive
+    }
+  }
+`;
+
+export const UPDATE_DISCOVERY_FILTER_RULE = `
+  mutation UpdateDiscoveryFilterRule($id: Uuid!, $ruleText: String!) {
+    updateDiscoveryFilterRule(id: $id, ruleText: $ruleText) {
+      id
+      ruleText
+    }
+  }
+`;
+
+export const DELETE_DISCOVERY_FILTER_RULE = `
+  mutation DeleteDiscoveryFilterRule($id: Uuid!) {
+    deleteDiscoveryFilterRule(id: $id)
+  }
+`;

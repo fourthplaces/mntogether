@@ -1,10 +1,11 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Auth events - facts about authentication state changes
 ///
 /// NOTE: Failed/error events have been removed (OTPFailed, PhoneNotRegistered).
 /// Errors go in Result::Err, not in events. Events are for successful state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum AuthEvent {
     /// OTP was sent successfully
     OTPSent { phone_number: String },

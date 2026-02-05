@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 /// Member domain events - FACT EVENTS ONLY
@@ -7,7 +8,7 @@ use uuid::Uuid;
 ///
 /// NOTE: Failed/error events have been removed (MemberNotFound, EmbeddingFailed).
 /// Errors go in Result::Err, not in events. Events are for successful state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum MemberEvent {
     /// Member was successfully registered
     MemberRegistered {

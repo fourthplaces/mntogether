@@ -24,7 +24,6 @@
 pub mod actions;
 pub mod effects;
 pub mod events;
-pub mod jobs;
 pub mod models;
 
 // Re-export events
@@ -33,11 +32,6 @@ pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
 // Re-export models
 pub use models::ExtractionPage;
 
-// Re-export effects (job chaining now handled by JobRunner + job_handlers)
+// Re-export effects
 pub use effects::mark_no_listings_effect;
-
-// Re-export job types and helpers
-pub use jobs::{
-    CrawlWebsiteJob, ExtractPostsJob, JobInfo, RegeneratePostsJob, RegenerateSinglePostJob,
-    SyncPostsJob,
-};
+pub use effects::crawling_pipeline_effect;

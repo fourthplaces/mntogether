@@ -12,11 +12,13 @@
 //!   WebsiteResearchCreated → handle_conduct_searches → ResearchSearchesCompleted
 //!   ResearchSearchesCompleted → handle_generate_assessment → WebsiteAssessmentCompleted
 
-use crate::common::{JobId, MemberId, WebsiteId};
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::common::{JobId, MemberId, WebsiteId};
+
 /// Website approval events - FACT EVENTS ONLY
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WebsiteApprovalEvent {
     // ========================================================================
     // Research Phase Events
