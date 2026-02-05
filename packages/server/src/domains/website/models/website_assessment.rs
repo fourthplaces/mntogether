@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use pgvector::Vector;
 use sqlx::FromRow;
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, FromRow)]
@@ -36,6 +37,26 @@ pub struct WebsiteSearchResult {
     pub similarity: f64,
 }
 
+/// Builder for creating a new WebsiteAssessment
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateWebsiteAssessment {
+    pub website_id: Uuid,
+    pub assessment_markdown: String,
+    pub recommendation: String,
+    pub model_used: String,
+    #[builder(default)]
+    pub website_research_id: Option<Uuid>,
+    #[builder(default)]
+    pub confidence_score: Option<f64>,
+    #[builder(default)]
+    pub organization_name: Option<String>,
+    #[builder(default)]
+    pub founded_year: Option<i32>,
+    #[builder(default)]
+    pub generated_by: Option<Uuid>,
+}
+
 impl WebsiteAssessment {
     pub async fn find_latest_by_website_id(
         website_id: Uuid,
@@ -50,34 +71,22 @@ impl WebsiteAssessment {
         .map_err(Into::into)
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create(
-        website_id: Uuid,
-        website_research_id: Option<Uuid>,
-        assessment_markdown: String,
-        recommendation: String,
-        confidence_score: Option<f64>,
-        organization_name: Option<String>,
-        founded_year: Option<i32>,
-        generated_by: Option<Uuid>,
-        model_used: String,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(input: CreateWebsiteAssessment, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "INSERT INTO website_assessments (
                 website_id, website_research_id, assessment_markdown, recommendation,
                 confidence_score, organization_name, founded_year, generated_by, model_used
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *",
         )
-        .bind(website_id)
-        .bind(website_research_id)
-        .bind(assessment_markdown)
-        .bind(recommendation)
-        .bind(confidence_score)
-        .bind(organization_name)
-        .bind(founded_year)
-        .bind(generated_by)
-        .bind(model_used)
+        .bind(input.website_id)
+        .bind(input.website_research_id)
+        .bind(input.assessment_markdown)
+        .bind(input.recommendation)
+        .bind(input.confidence_score)
+        .bind(input.organization_name)
+        .bind(input.founded_year)
+        .bind(input.generated_by)
+        .bind(input.model_used)
         .fetch_one(pool)
         .await
         .map_err(Into::into)

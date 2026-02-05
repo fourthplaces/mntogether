@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use sqlx::FromRow;
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, FromRow)]
@@ -100,6 +101,20 @@ impl WebsiteResearchHomepage {
     }
 }
 
+/// Builder for creating a TavilySearchQuery
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateTavilySearchQuery {
+    pub website_research_id: Uuid,
+    pub query: String,
+    #[builder(default)]
+    pub search_depth: Option<String>,
+    #[builder(default)]
+    pub max_results: Option<i32>,
+    #[builder(default)]
+    pub days_filter: Option<i32>,
+}
+
 #[derive(Debug, Clone, FromRow)]
 pub struct TavilySearchQuery {
     pub id: Uuid,
@@ -112,23 +127,16 @@ pub struct TavilySearchQuery {
 }
 
 impl TavilySearchQuery {
-    pub async fn create(
-        website_research_id: Uuid,
-        query: String,
-        search_depth: Option<String>,
-        max_results: Option<i32>,
-        days_filter: Option<i32>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(input: CreateTavilySearchQuery, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "INSERT INTO tavily_search_queries (website_research_id, query, search_depth, max_results, days_filter)
              VALUES ($1, $2, $3, $4, $5) RETURNING *"
         )
-        .bind(website_research_id)
-        .bind(query)
-        .bind(search_depth)
-        .bind(max_results)
-        .bind(days_filter)
+        .bind(input.website_research_id)
+        .bind(input.query)
+        .bind(input.search_depth)
+        .bind(input.max_results)
+        .bind(input.days_filter)
         .fetch_one(pool)
         .await
         .map_err(Into::into)

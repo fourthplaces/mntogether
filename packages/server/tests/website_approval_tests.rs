@@ -10,7 +10,7 @@ mod common;
 use crate::common::{GraphQLClient, TestHarness};
 use juniper::Variables;
 use server_core::common::{MemberId, WebsiteId};
-use server_core::domains::website::models::Website;
+use server_core::domains::website::models::{CreateWebsite, Website};
 use test_context::test_context;
 use uuid::Uuid;
 
@@ -40,11 +40,12 @@ async fn create_admin_user(ctx: &TestHarness) -> Uuid {
 async fn approve_website_changes_status_to_approved(ctx: &TestHarness) {
     // Arrange: Create pending website
     let website = Website::create(
-        "https://test-approve.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-approve.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -103,11 +104,12 @@ async fn approve_website_changes_status_to_approved(ctx: &TestHarness) {
 async fn approve_website_requires_admin_auth(ctx: &TestHarness) {
     // Arrange: Create pending website
     let website = Website::create(
-        "https://test-approve-auth.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-approve-auth.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -185,11 +187,12 @@ async fn approve_nonexistent_website_returns_error(ctx: &TestHarness) {
 async fn reject_website_changes_status_to_rejected(ctx: &TestHarness) {
     // Arrange: Create pending website
     let website = Website::create(
-        "https://test-reject.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-reject.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -247,11 +250,12 @@ async fn reject_website_changes_status_to_rejected(ctx: &TestHarness) {
 async fn reject_website_requires_admin_auth(ctx: &TestHarness) {
     // Arrange: Create pending website
     let website = Website::create(
-        "https://test-reject-auth.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-reject-auth.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -299,11 +303,12 @@ async fn reject_website_requires_admin_auth(ctx: &TestHarness) {
 async fn suspend_website_changes_status_to_suspended(ctx: &TestHarness) {
     // Arrange: Create and approve a website first
     let website = Website::create(
-        "https://test-suspend.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-suspend.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await
@@ -368,11 +373,12 @@ async fn suspend_website_changes_status_to_suspended(ctx: &TestHarness) {
 async fn suspend_website_requires_admin_auth(ctx: &TestHarness) {
     // Arrange: Create pending website
     let website = Website::create(
-        "https://test-suspend-auth.org".to_string(),
-        None,
-        "public_user".to_string(),
-        Some("test@example.com".to_string()),
-        3,
+        CreateWebsite::builder()
+            .url_or_domain("https://test-suspend-auth.org")
+            .submitter_type("public_user")
+            .submission_context(Some("test@example.com".to_string()))
+            .max_crawl_depth(3)
+            .build(),
         &ctx.db_pool,
     )
     .await

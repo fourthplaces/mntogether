@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{PostId, WebsiteId};
-use crate::domains::posts::models::Post;
+use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::kernel::LlmRequestExt;
 
 /// Post data formatted for deduplication analysis
@@ -172,14 +172,11 @@ pub async fn apply_dedup_results(
         // Update canonical post with merged content if provided
         if group.merged_title.is_some() || group.merged_description.is_some() {
             if let Err(e) = Post::update_content(
-                canonical_id,
-                group.merged_title,
-                group.merged_description,
-                None, // description_markdown
-                None, // tldr
-                None, // category
-                None, // urgency
-                None, // location
+                UpdatePostContent::builder()
+                    .id(canonical_id)
+                    .title(group.merged_title)
+                    .description(group.merged_description)
+                    .build(),
                 pool,
             )
             .await

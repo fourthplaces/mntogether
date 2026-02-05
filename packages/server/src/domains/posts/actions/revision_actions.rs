@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use tracing::info;
 
 use crate::common::{PostId, WebsiteId};
-use crate::domains::posts::models::Post;
+use crate::domains::posts::models::{Post, UpdatePostContent};
 
 /// Approve revision: copy revision fields to original, delete revision
 ///
@@ -31,14 +31,16 @@ pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Post
 
     // Copy revision fields to original
     let updated = Post::update_content(
-        original_id,
-        Some(revision.title),
-        Some(revision.description),
-        revision.description_markdown,
-        revision.tldr,
-        Some(revision.category),
-        revision.urgency,
-        revision.location,
+        UpdatePostContent::builder()
+            .id(original_id)
+            .title(Some(revision.title))
+            .description(Some(revision.description))
+            .description_markdown(revision.description_markdown)
+            .tldr(revision.tldr)
+            .category(Some(revision.category))
+            .urgency(revision.urgency)
+            .location(revision.location)
+            .build(),
         pool,
     )
     .await?;

@@ -2,28 +2,26 @@
 //!
 //! These are called directly from GraphQL mutations via `process()`.
 //! Actions are self-contained: they take raw input, handle ID parsing,
-//! auth checks, and return final models.
+//! auth checks, and return events directly.
 
-use anyhow::{Context, Result};
-use seesaw_core::EffectContext;
+use anyhow::Result;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{AppState, MemberId, PostId};
+use crate::common::{MemberId, PostId};
 use crate::domains::posts::data::{EditPostInput, SubmitPostInput};
-use crate::domains::posts::effects::post_operations;
+use crate::domains::posts::effects::post_operations::{self, UpdateAndApprovePost};
 use crate::domains::posts::events::PostEvent;
-use crate::domains::posts::models::Post;
 use crate::kernel::ServerDeps;
 
 /// Submit a post from user input (public, goes to pending_approval)
-/// Returns the created Post directly.
+/// Returns the PostEntryCreated event.
 pub async fn submit_post(
     input: SubmitPostInput,
     member_id: Option<Uuid>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<Post> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     info!(org = %input.organization_name, title = %input.title, member_id = ?member_id, "Submitting user post");
 
     let contact_json = input
@@ -34,7 +32,7 @@ pub async fn submit_post(
     let post = post_operations::create_post(
         member_id_typed,
         input.organization_name.clone(),
-        input.title,
+        input.title.clone(),
         input.description,
         contact_json,
         input.urgency,
@@ -42,29 +40,27 @@ pub async fn submit_post(
         None, // ip_address
         "user_submitted".to_string(),
         None, // domain_id
-        ctx.deps().ai.as_ref(),
-        &ctx.deps().db_pool,
+        deps.ai.as_ref(),
+        &deps.db_pool,
     )
     .await?;
 
-    ctx.emit(PostEvent::PostEntryCreated {
+    Ok(PostEvent::PostEntryCreated {
         post_id: post.id,
-        organization_name: post.organization_name.clone(),
-        title: post.title.clone(),
+        organization_name: post.organization_name,
+        title: post.title,
         submission_type: "user_submitted".to_string(),
-    });
-
-    Ok(post)
+    })
 }
 
 /// Approve a post (make it active)
-/// Returns the updated Post directly.
+/// Returns the PostApproved event.
 pub async fn approve_post(
     post_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<Post> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -72,28 +68,24 @@ pub async fn approve_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::update_post_status(post_id, "active".to_string(), &ctx.deps().db_pool).await?;
+    post_operations::update_post_status(post_id, "active".to_string(), &deps.db_pool).await?;
 
-    ctx.emit(PostEvent::PostApproved { post_id });
-
-    Post::find_by_id(post_id, &ctx.deps().db_pool)
-        .await?
-        .context("Post not found after approval")
+    Ok(PostEvent::PostApproved { post_id })
 }
 
 /// Reject a post (hide forever)
-/// Returns true on success.
+/// Returns the PostRejected event.
 pub async fn reject_post(
     post_id: Uuid,
     reason: String,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<bool> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -101,30 +93,25 @@ pub async fn reject_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::update_post_status(post_id, "rejected".to_string(), &ctx.deps().db_pool)
+    post_operations::update_post_status(post_id, "rejected".to_string(), &deps.db_pool)
         .await?;
 
-    ctx.emit(PostEvent::PostRejected {
-        post_id,
-        reason: reason.clone(),
-    });
-
-    Ok(true)
+    Ok(PostEvent::PostRejected { post_id, reason })
 }
 
 /// Edit and approve a post (fix AI mistakes or improve user content)
-/// Returns the updated Post directly.
+/// Returns the PostApproved event.
 pub async fn edit_and_approve_post(
     post_id: Uuid,
     input: EditPostInput,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<Post> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -132,38 +119,35 @@ pub async fn edit_and_approve_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManageNeeds)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
     post_operations::update_and_approve_post(
-        post_id,
-        input.title,
-        input.description,
-        input.description_markdown,
-        input.tldr,
-        None, // contact_info
-        input.urgency,
-        input.location,
-        &ctx.deps().db_pool,
+        UpdateAndApprovePost::builder()
+            .post_id(post_id)
+            .title(input.title)
+            .description(input.description)
+            .description_markdown(input.description_markdown)
+            .tldr(input.tldr)
+            .urgency(input.urgency)
+            .location(input.location)
+            .build(),
+        &deps.db_pool,
     )
     .await?;
 
-    ctx.emit(PostEvent::PostApproved { post_id });
-
-    Post::find_by_id(post_id, &ctx.deps().db_pool)
-        .await?
-        .context("Post not found after edit")
+    Ok(PostEvent::PostApproved { post_id })
 }
 
 /// Delete a post
-/// Returns true on success.
+/// Returns the PostDeleted event.
 pub async fn delete_post(
     post_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<bool> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -171,23 +155,22 @@ pub async fn delete_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::FullAdmin)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::delete_post(post_id, &ctx.deps().db_pool).await?;
-    ctx.emit(PostEvent::PostDeleted { post_id });
-    Ok(true)
+    post_operations::delete_post(post_id, &deps.db_pool).await?;
+    Ok(PostEvent::PostDeleted { post_id })
 }
 
 /// Expire a post
-/// Returns the updated Post directly.
+/// Returns the PostExpired event.
 pub async fn expire_post(
     post_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<Post> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -195,26 +178,22 @@ pub async fn expire_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManagePosts)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::expire_post(post_id, &ctx.deps().db_pool).await?;
-    ctx.emit(PostEvent::PostExpired { post_id });
-
-    Post::find_by_id(post_id, &ctx.deps().db_pool)
-        .await?
-        .context("Post not found after expiring")
+    post_operations::expire_post(post_id, &deps.db_pool).await?;
+    Ok(PostEvent::PostExpired { post_id })
 }
 
 /// Archive a post
-/// Returns the updated Post directly.
+/// Returns the PostArchived event.
 pub async fn archive_post(
     post_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<Post> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
     let requested_by = MemberId::from_uuid(member_id);
 
@@ -222,42 +201,36 @@ pub async fn archive_post(
 
     Actor::new(requested_by, is_admin)
         .can(AdminCapability::ManagePosts)
-        .check(ctx.deps())
+        .check(deps)
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::archive_post(post_id, &ctx.deps().db_pool).await?;
-    ctx.emit(PostEvent::PostArchived { post_id });
-
-    Post::find_by_id(post_id, &ctx.deps().db_pool)
-        .await?
-        .context("Post not found after archiving")
+    post_operations::archive_post(post_id, &deps.db_pool).await?;
+    Ok(PostEvent::PostArchived { post_id })
 }
 
 /// Track post view (analytics - public, no auth)
-/// Returns true on success.
+/// Returns the PostViewed event.
 pub async fn track_post_view(
     post_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<bool> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
 
-    post_operations::increment_post_view(post_id, &ctx.deps().db_pool).await?;
-    ctx.emit(PostEvent::PostViewed { post_id });
-    Ok(true)
+    post_operations::increment_post_view(post_id, &deps.db_pool).await?;
+    Ok(PostEvent::PostViewed { post_id })
 }
 
 /// Track post click (analytics - public, no auth)
-/// Returns true on success.
+/// Returns the PostClicked event.
 pub async fn track_post_click(
     post_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<bool> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
 
-    post_operations::increment_post_click(post_id, &ctx.deps().db_pool).await?;
-    ctx.emit(PostEvent::PostClicked { post_id });
-    Ok(true)
+    post_operations::increment_post_click(post_id, &deps.db_pool).await?;
+    Ok(PostEvent::PostClicked { post_id })
 }
 
 // ============================================================================
@@ -266,6 +239,7 @@ pub async fn track_post_click(
 
 use crate::common::{build_page_info, Cursor, ValidatedPaginationArgs};
 use crate::domains::posts::data::{PostConnection, PostEdge, PostType};
+use crate::domains::posts::models::Post;
 
 /// Get paginated posts with cursor-based pagination (Relay spec)
 ///
@@ -274,9 +248,9 @@ use crate::domains::posts::data::{PostConnection, PostEdge, PostType};
 pub async fn get_posts_paginated(
     status: &str,
     args: &ValidatedPaginationArgs,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<PostConnection> {
-    let pool = &ctx.deps().db_pool;
+    let pool = &deps.db_pool;
 
     // Fetch posts with cursor pagination
     let (posts, has_more) = Post::find_paginated(status, args, pool).await?;

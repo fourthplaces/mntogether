@@ -7,10 +7,32 @@ use anyhow::{Context, Result};
 use openai_client::OpenAIClient;
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 
 use crate::common::{MemberId, PostId, WebsiteId};
 use crate::domains::organization::utils::generate_tldr;
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
+use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+
+/// Input for updating and approving a post
+#[derive(Debug, Clone, TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct UpdateAndApprovePost {
+    pub post_id: PostId,
+    #[builder(default)]
+    pub title: Option<String>,
+    #[builder(default)]
+    pub description: Option<String>,
+    #[builder(default)]
+    pub description_markdown: Option<String>,
+    #[builder(default)]
+    pub tldr: Option<String>,
+    #[builder(default)]
+    pub contact_info: Option<JsonValue>,
+    #[builder(default)]
+    pub urgency: Option<String>,
+    #[builder(default)]
+    pub location: Option<String>,
+}
 
 /// Create a new listing with generated content hash and TLDR
 pub async fn create_post(
@@ -42,23 +64,17 @@ pub async fn create_post(
 
     // Create listing using model method
     let post = Post::create(
-        organization_name,
-        title,
-        description,
-        Some(tldr),
-        "opportunity".to_string(),     // Default type
-        "general".to_string(),         // Default category
-        Some("accepting".to_string()), // Default capacity status
-        urgency,
-        location,
-        PostStatus::PendingApproval.to_string(),
-        "en".to_string(), // Default language
-        Some(submission_type),
-        None, // submitted_by_admin_id
-        website_id,
-        None, // source_url - not applicable for user-submitted listings
-        None, // organization_id
-        None, // revision_of_post_id
+        CreatePost::builder()
+            .organization_name(organization_name)
+            .title(title)
+            .description(description)
+            .tldr(Some(tldr))
+            .capacity_status(Some("accepting".to_string()))
+            .urgency(urgency)
+            .location(location)
+            .submission_type(Some(submission_type))
+            .website_id(website_id)
+            .build(),
         pool,
     )
     .await
@@ -88,40 +104,31 @@ pub async fn update_post_status(post_id: PostId, status: String, pool: &PgPool) 
 }
 
 /// Update listing content and approve it
-pub async fn update_and_approve_post(
-    post_id: PostId,
-    title: Option<String>,
-    description: Option<String>,
-    description_markdown: Option<String>,
-    tldr: Option<String>,
-    contact_info: Option<JsonValue>,
-    urgency: Option<String>,
-    location: Option<String>,
-    pool: &PgPool,
-) -> Result<()> {
+pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool) -> Result<()> {
     // Update listing content
     Post::update_content(
-        post_id,
-        title,
-        description,
-        description_markdown,
-        tldr,
-        None, // category
-        urgency,
-        location,
+        UpdatePostContent::builder()
+            .id(input.post_id)
+            .title(input.title)
+            .description(input.description)
+            .description_markdown(input.description_markdown)
+            .tldr(input.tldr)
+            .urgency(input.urgency)
+            .location(input.location)
+            .build(),
         pool,
     )
     .await
     .context("Failed to update listing content")?;
 
     // Update contact info if provided (replace existing)
-    if let Some(ref contact) = contact_info {
+    if let Some(ref contact) = input.contact_info {
         // Delete existing contacts first
-        PostContact::delete_all_for_post(post_id, pool).await?;
+        PostContact::delete_all_for_post(input.post_id, pool).await?;
         // Create new contacts
-        if let Err(e) = PostContact::create_from_json(post_id, contact, pool).await {
+        if let Err(e) = PostContact::create_from_json(input.post_id, contact, pool).await {
             tracing::warn!(
-                post_id = %post_id,
+                post_id = %input.post_id,
                 error = %e,
                 "Failed to update contact info"
             );
@@ -129,7 +136,7 @@ pub async fn update_and_approve_post(
     }
 
     // Set status to active
-    Post::update_status(post_id, "active", pool)
+    Post::update_status(input.post_id, "active", pool)
         .await
         .context("Failed to approve listing")?;
 

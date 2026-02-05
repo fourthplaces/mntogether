@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::{ContactId, OrganizationId, PostId, ProviderId};
@@ -94,14 +95,33 @@ pub struct Contact {
 }
 
 /// Input for creating a new contact
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
 pub struct CreateContact {
     pub contactable_type: String,
     pub contactable_id: Uuid,
     pub contact_type: String,
     pub contact_value: String,
+    #[builder(default)]
     pub contact_label: Option<String>,
+    #[builder(default = true)]
     pub is_public: bool,
+    #[builder(default = 0)]
+    pub display_order: i32,
+}
+
+/// Input for creating a contact for a provider
+#[derive(Debug, Clone, TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateContactForProvider {
+    pub provider_id: ProviderId,
+    pub contact_type: String,
+    pub contact_value: String,
+    #[builder(default)]
+    pub contact_label: Option<String>,
+    #[builder(default = true)]
+    pub is_public: bool,
+    #[builder(default = 0)]
     pub display_order: i32,
 }
 
@@ -187,24 +207,19 @@ impl Contact {
 
     /// Create a new contact for a provider
     pub async fn create_for_provider(
-        provider_id: ProviderId,
-        contact_type: &str,
-        contact_value: &str,
-        contact_label: Option<String>,
-        is_public: bool,
-        display_order: i32,
+        input: CreateContactForProvider,
         pool: &PgPool,
     ) -> Result<Self> {
         Self::create(
-            CreateContact {
-                contactable_type: "provider".to_string(),
-                contactable_id: *provider_id.as_uuid(),
-                contact_type: contact_type.to_string(),
-                contact_value: contact_value.to_string(),
-                contact_label,
-                is_public,
-                display_order,
-            },
+            CreateContact::builder()
+                .contactable_type("provider")
+                .contactable_id(*input.provider_id.as_uuid())
+                .contact_type(input.contact_type)
+                .contact_value(input.contact_value)
+                .contact_label(input.contact_label)
+                .is_public(input.is_public)
+                .display_order(input.display_order)
+                .build(),
             pool,
         )
         .await

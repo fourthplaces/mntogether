@@ -7,7 +7,7 @@ use anyhow::Result;
 use sqlx::PgPool;
 use tracing::info;
 
-use crate::domains::website::models::Website;
+use crate::domains::website::models::{CreateWebsite, Website};
 use extraction::WebSearcher;
 
 /// Search queries for discovering community resources.
@@ -110,11 +110,12 @@ pub async fn run_discovery_searches(
 
             // Create pending website
             match Website::create(
-                domain.clone(),
-                None,
-                "system".to_string(), // Valid values: 'admin', 'public_user', 'system'
-                Some(format!("Discovery: {}", query)),
-                3, // Default max_crawl_depth
+                CreateWebsite::builder()
+                    .url_or_domain(domain.clone())
+                    .submitter_type("system")
+                    .submission_context(Some(format!("Discovery: {}", query)))
+                    .max_crawl_depth(3)
+                    .build(),
                 pool,
             )
             .await

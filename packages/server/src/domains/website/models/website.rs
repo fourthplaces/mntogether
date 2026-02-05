@@ -3,8 +3,24 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 
 use crate::common::{MemberId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId};
+
+/// Builder for creating a new Website
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateWebsite {
+    pub url_or_domain: String,
+    #[builder(default = "admin".to_string())]
+    pub submitter_type: String,
+    #[builder(default = 2)]
+    pub max_crawl_depth: i32,
+    #[builder(default)]
+    pub submitted_by: Option<MemberId>,
+    #[builder(default)]
+    pub submission_context: Option<String>,
+}
 
 /// Website - a website we scrape for listings (requires approval before crawling)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -191,25 +207,10 @@ impl Website {
     /// This method uses INSERT ... ON CONFLICT to atomically handle concurrent
     /// requests. If the website already exists, it returns the existing website.
     /// This prevents duplicate key errors in high-concurrency scenarios.
-    pub async fn find_or_create(
-        url: String,
-        submitted_by: Option<MemberId>,
-        submitter_type: String,
-        submission_context: Option<String>,
-        max_crawl_depth: i32,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn find_or_create(input: CreateWebsite, pool: &PgPool) -> Result<Self> {
         // The create method now uses INSERT ... ON CONFLICT,
         // so it handles both creation and finding existing websites atomically
-        Self::create(
-            url,
-            submitted_by,
-            submitter_type,
-            submission_context,
-            max_crawl_depth,
-            pool,
-        )
-        .await
+        Self::create(input, pool).await
     }
 
     /// Create a new website submission (starts as pending_review)
@@ -217,16 +218,9 @@ impl Website {
     /// Uses INSERT ... ON CONFLICT to handle concurrent requests gracefully.
     /// If the website already exists, returns the existing website.
     /// Input is normalized to just the domain (lowercase, no www prefix).
-    pub async fn create(
-        url_or_domain: String,
-        submitted_by: Option<MemberId>,
-        submitter_type: String,
-        submission_context: Option<String>,
-        max_crawl_depth: i32,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(input: CreateWebsite, pool: &PgPool) -> Result<Self> {
         // Normalize to just the domain
-        let normalized = Self::normalize_domain(&url_or_domain)?;
+        let normalized = Self::normalize_domain(&input.url_or_domain)?;
 
         let website = sqlx::query_as::<_, Website>(
             r#"
@@ -245,10 +239,10 @@ impl Website {
             "#,
         )
         .bind(normalized)
-        .bind(submitted_by)
-        .bind(submitter_type)
-        .bind(submission_context)
-        .bind(max_crawl_depth)
+        .bind(input.submitted_by)
+        .bind(input.submitter_type)
+        .bind(input.submission_context)
+        .bind(input.max_crawl_depth)
         .fetch_one(pool)
         .await?;
         Ok(website)

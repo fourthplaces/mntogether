@@ -3,4 +3,4 @@ pub mod models;
 
 // Re-export commonly used types
 pub use data::ContactData;
-pub use models::{Contact, ContactType, ContactableType, CreateContact};
+pub use models::{Contact, ContactType, ContactableType, CreateContact, CreateContactForProvider};
