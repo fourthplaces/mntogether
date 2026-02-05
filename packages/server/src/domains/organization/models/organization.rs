@@ -8,6 +8,7 @@ use crate::common::{OrganizationId, PaginationDirection, ValidatedPaginationArgs
 
 // Builder for creating organizations
 #[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
 pub struct CreateOrganization {
     pub name: String,
     #[builder(default)]
@@ -16,6 +17,27 @@ pub struct CreateOrganization {
     pub summary: Option<String>,
     #[builder(default)]
     pub website_id: Option<WebsiteId>,
+    #[builder(default)]
+    pub website: Option<String>,
+    #[builder(default)]
+    pub phone: Option<String>,
+    #[builder(default)]
+    pub email: Option<String>,
+    #[builder(default)]
+    pub primary_address: Option<String>,
+    #[builder(default)]
+    pub organization_type: Option<String>,
+}
+
+// Builder for updating organizations
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct UpdateOrganization {
+    pub id: OrganizationId,
+    #[builder(default)]
+    pub name: Option<String>,
+    #[builder(default)]
+    pub description: Option<String>,
     #[builder(default)]
     pub website: Option<String>,
     #[builder(default)]
@@ -273,17 +295,7 @@ impl Organization {
     }
 
     /// Update organization
-    pub async fn update(
-        id: OrganizationId,
-        name: Option<String>,
-        description: Option<String>,
-        website: Option<String>,
-        phone: Option<String>,
-        email: Option<String>,
-        primary_address: Option<String>,
-        organization_type: Option<String>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn update(input: UpdateOrganization, pool: &PgPool) -> Result<Self> {
         let org = sqlx::query_as::<_, Organization>(
             r#"
             UPDATE organizations
@@ -300,14 +312,14 @@ impl Organization {
             RETURNING *
             "#,
         )
-        .bind(id)
-        .bind(name)
-        .bind(description)
-        .bind(website)
-        .bind(phone)
-        .bind(email)
-        .bind(primary_address)
-        .bind(organization_type)
+        .bind(input.id)
+        .bind(input.name)
+        .bind(input.description)
+        .bind(input.website)
+        .bind(input.phone)
+        .bind(input.email)
+        .bind(input.primary_address)
+        .bind(input.organization_type)
         .fetch_one(pool)
         .await?;
         Ok(org)

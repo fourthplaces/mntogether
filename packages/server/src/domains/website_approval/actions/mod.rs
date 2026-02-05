@@ -10,19 +10,18 @@
 //! - If fresh research exists → generate assessment directly (synchronous)
 //! - If research is stale/missing → create research, trigger search cascade (async)
 
-use crate::common::{AppState, JobId, MemberId, WebsiteId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::website::models::{
-    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearch,
-    WebsiteResearchHomepage,
+    CreateTavilySearchQuery, CreateWebsiteAssessment, TavilySearchQuery, TavilySearchResult,
+    Website, WebsiteAssessment, WebsiteResearch, WebsiteResearchHomepage,
 };
 use crate::domains::website_approval::events::WebsiteApprovalEvent;
 use crate::kernel::{CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
 use anyhow::{Context, Result};
-use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
 
-/// Result of a website assessment operation
+/// Result of a website assessment operation (for GraphQL return)
 #[derive(Debug, Clone)]
 pub struct AssessmentResult {
     pub job_id: Uuid,
@@ -30,6 +29,44 @@ pub struct AssessmentResult {
     pub assessment_id: Option<Uuid>,
     pub status: String,
     pub message: Option<String>,
+}
+
+impl AssessmentResult {
+    /// Create from a WebsiteApprovalEvent
+    pub fn from_event(event: &WebsiteApprovalEvent) -> Self {
+        match event {
+            WebsiteApprovalEvent::WebsiteResearchCreated {
+                job_id,
+                website_id,
+                ..
+            } => Self {
+                job_id: job_id.into_uuid(),
+                website_id: website_id.into_uuid(),
+                assessment_id: None,
+                status: "processing".to_string(),
+                message: Some("Research created, running web searches...".to_string()),
+            },
+            WebsiteApprovalEvent::WebsiteAssessmentCompleted {
+                job_id,
+                website_id,
+                assessment_id,
+                ..
+            } => Self {
+                job_id: job_id.into_uuid(),
+                website_id: website_id.into_uuid(),
+                assessment_id: Some(*assessment_id),
+                status: "completed".to_string(),
+                message: Some("Assessment completed".to_string()),
+            },
+            _ => Self {
+                job_id: Uuid::nil(),
+                website_id: Uuid::nil(),
+                assessment_id: None,
+                status: "unknown".to_string(),
+                message: None,
+            },
+        }
+    }
 }
 
 /// Result of conducting searches
@@ -45,13 +82,14 @@ pub struct SearchResult {
 
 /// Assess a website by fetching/creating research and generating an assessment.
 ///
-/// If fresh research exists (< 7 days old), generates assessment synchronously.
-/// If research needs to be created, starts async workflow (searches then assessment).
+/// Returns an event:
+/// - `WebsiteAssessmentCompleted` if fresh research exists (sync completion)
+/// - `WebsiteResearchCreated` if new research created (triggers async cascade)
 pub async fn assess_website(
     website_id: Uuid,
     member_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<AssessmentResult> {
+    deps: &ServerDeps,
+) -> Result<WebsiteApprovalEvent> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
@@ -63,7 +101,7 @@ pub async fn assess_website(
     );
 
     // Step 1: Fetch website to ensure it exists
-    let website = Website::find_by_id(website_id_typed.into(), &ctx.deps().db_pool)
+    let website = Website::find_by_id(website_id_typed.into(), &deps.db_pool)
         .await
         .context(format!("Website not found: {}", website_id))?;
 
@@ -75,7 +113,7 @@ pub async fn assess_website(
 
     // Step 2: Check for existing fresh research (<7 days old)
     let existing =
-        WebsiteResearch::find_latest_by_website_id(website_id_typed.into(), &ctx.deps().db_pool)
+        WebsiteResearch::find_latest_by_website_id(website_id_typed.into(), &deps.db_pool)
             .await?;
 
     if let Some(research) = existing {
@@ -95,18 +133,16 @@ pub async fn assess_website(
             );
 
             let assessment =
-                generate_assessment(research.id, website_id_typed, job_id, requested_by, ctx)
+                generate_assessment(research.id, website_id_typed, job_id, requested_by, deps)
                     .await?;
 
-            return Ok(AssessmentResult {
-                job_id: job_id.into_uuid(),
-                website_id,
-                assessment_id: Some(assessment.id),
-                status: "completed".to_string(),
-                message: Some(format!(
-                    "Assessment generated using existing research ({} days old)",
-                    age_days
-                )),
+            return Ok(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
+                website_id: website_id_typed,
+                job_id,
+                assessment_id: assessment.id,
+                recommendation: assessment.recommendation.clone(),
+                confidence_score: assessment.confidence_score,
+                organization_name: assessment.organization_name.clone(),
             });
         }
 
@@ -120,8 +156,7 @@ pub async fn assess_website(
     let urls = vec![homepage_url.clone()];
 
     // Get extraction service (required for homepage fetching)
-    let extraction = ctx
-        .deps()
+    let extraction = deps
         .extraction
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
@@ -177,7 +212,7 @@ pub async fn assess_website(
         website_id_typed.into(),
         website.domain.clone(),
         Some(requested_by.into()),
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await
     .context("Failed to create research record")?;
@@ -190,7 +225,7 @@ pub async fn assess_website(
             research.id,
             Some(content.clone()),
             Some(content),
-            &ctx.deps().db_pool,
+            &deps.db_pool,
         )
         .await
         .context("Failed to store homepage content")?;
@@ -198,22 +233,14 @@ pub async fn assess_website(
         info!(research_id = %research.id, "Homepage content stored");
     }
 
-    // Step 6: Emit event to trigger async search cascade
-    // Flow: WebsiteResearchCreated → conduct_searches → ResearchSearchesCompleted → generate_assessment
-    ctx.emit(WebsiteApprovalEvent::WebsiteResearchCreated {
+    // Step 6: Return event to trigger async search cascade
+    // Flow: WebsiteResearchCreated → conduct_searches → generate_assessment → WebsiteAssessmentCompleted
+    Ok(WebsiteApprovalEvent::WebsiteResearchCreated {
         research_id: research.id,
         website_id: website_id_typed,
         job_id,
-        homepage_url: website.domain,
+        homepage_url: website.domain.clone(),
         requested_by,
-    });
-
-    Ok(AssessmentResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        assessment_id: None, // Will be created by search cascade
-        status: "processing".to_string(),
-        message: Some("Research created, running web searches...".to_string()),
     })
 }
 
@@ -230,7 +257,7 @@ pub async fn generate_assessment(
     website_id: WebsiteId,
     job_id: JobId,
     requested_by: MemberId,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<WebsiteAssessment> {
     info!(
         research_id = %research_id,
@@ -240,22 +267,22 @@ pub async fn generate_assessment(
     );
 
     // Step 1: Load website
-    let website = Website::find_by_id(website_id.into(), &ctx.deps().db_pool)
+    let website = Website::find_by_id(website_id.into(), &deps.db_pool)
         .await
         .context(format!("Website not found: {}", website_id))?;
 
     // Step 2: Load research data
-    let homepage = WebsiteResearchHomepage::find_by_research_id(research_id, &ctx.deps().db_pool)
+    let homepage = WebsiteResearchHomepage::find_by_research_id(research_id, &deps.db_pool)
         .await
         .context("Failed to load homepage")?;
 
-    let queries = TavilySearchQuery::find_by_research_id(research_id, &ctx.deps().db_pool)
+    let queries = TavilySearchQuery::find_by_research_id(research_id, &deps.db_pool)
         .await
         .context("Failed to load search queries")?;
 
     let mut all_results = Vec::new();
     for query in &queries {
-        let results = TavilySearchResult::find_by_query_id(query.id, &ctx.deps().db_pool)
+        let results = TavilySearchResult::find_by_query_id(query.id, &deps.db_pool)
             .await
             .context("Failed to load search results")?;
         all_results.push((query.clone(), results));
@@ -278,8 +305,7 @@ pub async fn generate_assessment(
     );
 
     // Step 4: Generate AI assessment
-    let assessment_markdown = ctx
-        .deps()
+    let assessment_markdown = deps
         .ai
         .complete(&prompt)
         .await
@@ -305,16 +331,18 @@ pub async fn generate_assessment(
 
     // Step 6: Store assessment
     let assessment = WebsiteAssessment::create(
-        website_id.into(),
-        Some(research_id),
-        assessment_markdown.clone(),
-        recommendation,
-        confidence,
-        org_name,
-        founded_year,
-        Some(requested_by.into()),
-        "claude-sonnet-4-5".to_string(),
-        &ctx.deps().db_pool,
+        CreateWebsiteAssessment::builder()
+            .website_id(website_id.into_uuid())
+            .assessment_markdown(assessment_markdown.clone())
+            .recommendation(recommendation)
+            .model_used("claude-sonnet-4-5")
+            .website_research_id(Some(research_id))
+            .confidence_score(confidence)
+            .organization_name(org_name)
+            .founded_year(founded_year)
+            .generated_by(Some(requested_by.into_uuid()))
+            .build(),
+        &deps.db_pool,
     )
     .await
     .context("Failed to store assessment")?;
@@ -326,15 +354,14 @@ pub async fn generate_assessment(
     );
 
     // Step 7: Generate and store embedding for semantic search (non-fatal)
-    match ctx
-        .deps()
+    match deps
         .embedding_service
         .generate(&assessment_markdown)
         .await
     {
         Ok(embedding) => {
             if let Err(e) =
-                WebsiteAssessment::update_embedding(assessment.id, &embedding, &ctx.deps().db_pool)
+                WebsiteAssessment::update_embedding(assessment.id, &embedding, &deps.db_pool)
                     .await
             {
                 tracing::warn!(
@@ -368,7 +395,7 @@ pub async fn generate_assessment(
 pub async fn conduct_searches(
     research_id: Uuid,
     website_id: WebsiteId,
-    ctx: &EffectContext<AppState, ServerDeps>,
+    deps: &ServerDeps,
 ) -> Result<SearchResult> {
     info!(
         research_id = %research_id,
@@ -378,7 +405,7 @@ pub async fn conduct_searches(
 
     // Step 1: Load research to get website URL
     let research =
-        WebsiteResearch::find_latest_by_website_id(website_id.into(), &ctx.deps().db_pool)
+        WebsiteResearch::find_latest_by_website_id(website_id.into(), &deps.db_pool)
             .await?
             .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
 
@@ -405,8 +432,7 @@ pub async fn conduct_searches(
         info!(query = %query_text, "Executing Tavily search");
 
         // Execute search
-        let results = ctx
-            .deps()
+        let results = deps
             .web_searcher
             .search_with_limit(query_text, 5)
             .await
@@ -420,12 +446,13 @@ pub async fn conduct_searches(
 
         // Store query record
         let query_record = TavilySearchQuery::create(
-            research.id,
-            query_text.clone(),
-            Some("basic".to_string()),
-            Some(5),
-            None,
-            &ctx.deps().db_pool,
+            CreateTavilySearchQuery::builder()
+                .website_research_id(research.id)
+                .query(query_text.clone())
+                .search_depth(Some("basic".to_string()))
+                .max_results(Some(5))
+                .build(),
+            &deps.db_pool,
         )
         .await
         .context("Failed to store query record")?;
@@ -447,7 +474,7 @@ pub async fn conduct_searches(
 
             total_results += result_tuples.len();
 
-            TavilySearchResult::create_batch(query_record.id, result_tuples, &ctx.deps().db_pool)
+            TavilySearchResult::create_batch(query_record.id, result_tuples, &deps.db_pool)
                 .await
                 .context("Failed to store search results")?;
 
@@ -461,7 +488,7 @@ pub async fn conduct_searches(
 
     // Step 5: Mark research as complete
     research
-        .mark_tavily_complete(&ctx.deps().db_pool)
+        .mark_tavily_complete(&deps.db_pool)
         .await
         .context("Failed to mark research complete")?;
 

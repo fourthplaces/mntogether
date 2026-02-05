@@ -19,7 +19,7 @@ use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, WebsiteId};
 use crate::domains::posts::actions::create_extracted_post;
-use crate::domains::posts::models::{Post, PostContact};
+use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
 use crate::domains::website::models::Website;
 use crate::kernel::LlmRequestExt;
 
@@ -529,14 +529,11 @@ async fn apply_sync_operations(
                             "Updating canonical post with merged content"
                         );
                         let _ = Post::update_content(
-                            post_id,
-                            merged_title,
-                            merged_description,
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
+                            UpdatePostContent::builder()
+                                .id(post_id)
+                                .title(merged_title)
+                                .description(merged_description)
+                                .build(),
                             pool,
                         )
                         .await;
@@ -656,14 +653,13 @@ async fn update_post(
             "Replacing existing revision with new data"
         );
         Post::update_content(
-            existing_revision.id,
-            Some(fresh.title.clone()),
-            Some(fresh.description.clone()),
-            None, // description_markdown
-            Some(fresh.tldr.clone()),
-            None, // category
-            None, // urgency
-            fresh.location.clone(),
+            UpdatePostContent::builder()
+                .id(existing_revision.id)
+                .title(Some(fresh.title.clone()))
+                .description(Some(fresh.description.clone()))
+                .tldr(Some(fresh.tldr.clone()))
+                .location(fresh.location.clone())
+                .build(),
             pool,
         )
         .await?;
@@ -695,23 +691,22 @@ async fn update_post(
     );
 
     let revision = Post::create(
-        original.organization_name.clone(),
-        fresh.title.clone(),
-        fresh.description.clone(),
-        Some(fresh.tldr.clone()),
-        original.post_type.clone(),
-        original.category.clone(),
-        original.capacity_status.clone(),
-        None, // urgency
-        fresh.location.clone(),
-        "pending_approval".to_string(),
-        original.source_language.clone(),
-        Some("revision".to_string()), // submission_type
-        None, // submitted_by_admin_id
-        original.website_id,
-        original.source_url.clone(),
-        original.organization_id,
-        Some(post_id), // revision_of_post_id
+        CreatePost::builder()
+            .organization_name(original.organization_name.clone())
+            .title(fresh.title.clone())
+            .description(fresh.description.clone())
+            .tldr(Some(fresh.tldr.clone()))
+            .post_type(original.post_type.clone())
+            .category(original.category.clone())
+            .capacity_status(original.capacity_status.clone())
+            .location(fresh.location.clone())
+            .source_language(original.source_language.clone())
+            .submission_type(Some("revision".to_string()))
+            .website_id(original.website_id)
+            .source_url(original.source_url.clone())
+            .organization_id(original.organization_id)
+            .revision_of_post_id(Some(post_id))
+            .build(),
         pool,
     )
     .await?;

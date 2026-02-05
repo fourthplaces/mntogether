@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::{
@@ -218,6 +219,71 @@ impl std::str::FromStr for PostStatus {
 }
 
 // =============================================================================
+// Builder Structs
+// =============================================================================
+
+/// Builder for creating a new Post
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreatePost {
+    // Required fields - no default
+    pub organization_name: String,
+    pub title: String,
+    pub description: String,
+
+    // Optional fields - have defaults
+    #[builder(default)]
+    pub tldr: Option<String>,
+    #[builder(default = "opportunity".to_string())]
+    pub post_type: String,
+    #[builder(default = "general".to_string())]
+    pub category: String,
+    #[builder(default)]
+    pub capacity_status: Option<String>,
+    #[builder(default)]
+    pub urgency: Option<String>,
+    #[builder(default)]
+    pub location: Option<String>,
+    #[builder(default = "pending_approval".to_string())]
+    pub status: String,
+    #[builder(default = "en".to_string())]
+    pub source_language: String,
+    #[builder(default)]
+    pub submission_type: Option<String>,
+    #[builder(default)]
+    pub submitted_by_admin_id: Option<Uuid>,
+    #[builder(default)]
+    pub website_id: Option<WebsiteId>,
+    #[builder(default)]
+    pub source_url: Option<String>,
+    #[builder(default)]
+    pub organization_id: Option<OrganizationId>,
+    #[builder(default)]
+    pub revision_of_post_id: Option<PostId>,
+}
+
+/// Builder for updating Post content
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct UpdatePostContent {
+    pub id: PostId,
+    #[builder(default)]
+    pub title: Option<String>,
+    #[builder(default)]
+    pub description: Option<String>,
+    #[builder(default)]
+    pub description_markdown: Option<String>,
+    #[builder(default)]
+    pub tldr: Option<String>,
+    #[builder(default)]
+    pub category: Option<String>,
+    #[builder(default)]
+    pub urgency: Option<String>,
+    #[builder(default)]
+    pub location: Option<String>,
+}
+
+// =============================================================================
 // SQL Queries - ALL queries must be in models/
 // =============================================================================
 
@@ -395,26 +461,7 @@ impl Post {
     }
 
     /// Create a new listing (returns inserted record with defaults applied)
-    pub async fn create(
-        organization_name: String,
-        title: String,
-        description: String,
-        tldr: Option<String>,
-        post_type: String,
-        category: String,
-        capacity_status: Option<String>,
-        urgency: Option<String>,
-        location: Option<String>,
-        status: String,
-        source_language: String,
-        submission_type: Option<String>,
-        submitted_by_admin_id: Option<Uuid>,
-        website_id: Option<WebsiteId>,
-        source_url: Option<String>,
-        organization_id: Option<OrganizationId>,
-        revision_of_post_id: Option<PostId>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(input: CreatePost, pool: &PgPool) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
             r#"
             INSERT INTO posts (
@@ -439,23 +486,23 @@ impl Post {
             RETURNING *
             "#,
         )
-        .bind(organization_name)
-        .bind(title)
-        .bind(description)
-        .bind(tldr)
-        .bind(post_type)
-        .bind(category)
-        .bind(capacity_status)
-        .bind(urgency)
-        .bind(location)
-        .bind(status)
-        .bind(source_language)
-        .bind(submission_type)
-        .bind(submitted_by_admin_id)
-        .bind(website_id)
-        .bind(source_url)
-        .bind(organization_id)
-        .bind(revision_of_post_id)
+        .bind(input.organization_name)
+        .bind(input.title)
+        .bind(input.description)
+        .bind(input.tldr)
+        .bind(input.post_type)
+        .bind(input.category)
+        .bind(input.capacity_status)
+        .bind(input.urgency)
+        .bind(input.location)
+        .bind(input.status)
+        .bind(input.source_language)
+        .bind(input.submission_type)
+        .bind(input.submitted_by_admin_id)
+        .bind(input.website_id)
+        .bind(input.source_url)
+        .bind(input.organization_id)
+        .bind(input.revision_of_post_id)
         .fetch_one(pool)
         .await?;
 
@@ -501,17 +548,7 @@ impl Post {
     }
 
     /// Update listing content (for edit + approve)
-    pub async fn update_content(
-        id: PostId,
-        title: Option<String>,
-        description: Option<String>,
-        description_markdown: Option<String>,
-        tldr: Option<String>,
-        category: Option<String>,
-        urgency: Option<String>,
-        location: Option<String>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn update_content(input: UpdatePostContent, pool: &PgPool) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
             r#"
             UPDATE posts
@@ -528,14 +565,14 @@ impl Post {
             RETURNING *
             "#,
         )
-        .bind(id)
-        .bind(title)
-        .bind(description)
-        .bind(description_markdown)
-        .bind(tldr)
-        .bind(category)
-        .bind(urgency)
-        .bind(location)
+        .bind(input.id)
+        .bind(input.title)
+        .bind(input.description)
+        .bind(input.description_markdown)
+        .bind(input.tldr)
+        .bind(input.category)
+        .bind(input.urgency)
+        .bind(input.location)
         .fetch_one(pool)
         .await?;
         Ok(post)
@@ -911,14 +948,16 @@ impl Post {
 
         // Copy revision fields to original
         let updated = Self::update_content(
-            original_id,
-            Some(revision.title),
-            Some(revision.description),
-            revision.description_markdown,
-            revision.tldr,
-            Some(revision.category),
-            revision.urgency,
-            revision.location,
+            UpdatePostContent::builder()
+                .id(original_id)
+                .title(Some(revision.title))
+                .description(Some(revision.description))
+                .description_markdown(revision.description_markdown)
+                .tldr(revision.tldr)
+                .category(Some(revision.category))
+                .urgency(revision.urgency)
+                .location(revision.location)
+                .build(),
             pool,
         )
         .await?;

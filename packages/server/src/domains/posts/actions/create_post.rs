@@ -9,7 +9,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::common::{ContactInfo, ExtractedPost, PostId, WebsiteId};
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
+use crate::domains::posts::models::{CreatePost, Post, PostContact};
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -49,23 +49,18 @@ pub async fn create_extracted_post(
 
     // Create the post
     let created = Post::create(
-        organization_name.to_string(),
-        post.title.clone(),
-        post.description.clone(),
-        Some(post.tldr.clone()),
-        "opportunity".to_string(),
-        "general".to_string(),
-        Some("accepting".to_string()),
-        urgency,
-        post.location.clone(),
-        PostStatus::PendingApproval.to_string(),
-        "en".to_string(),
-        Some("scraped".to_string()),
-        None, // submitted_by_admin_id
-        website_id,
-        source_url,
-        None, // organization_id
-        None, // revision_of_post_id
+        CreatePost::builder()
+            .organization_name(organization_name)
+            .title(post.title.clone())
+            .description(post.description.clone())
+            .tldr(Some(post.tldr.clone()))
+            .capacity_status(Some("accepting".to_string()))
+            .urgency(urgency)
+            .location(post.location.clone())
+            .submission_type(Some("scraped".to_string()))
+            .website_id(website_id)
+            .source_url(source_url)
+            .build(),
         pool,
     )
     .await?;

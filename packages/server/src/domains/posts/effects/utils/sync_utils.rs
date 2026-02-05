@@ -1,7 +1,7 @@
 use crate::common::{PostId, WebsiteId};
 use crate::domains::organization::utils::generate_tldr;
 use crate::domains::posts::actions::tag_with_audience_roles;
-use crate::domains::posts::models::{Post, PostContact, PostStatus};
+use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
 use anyhow::Result;
 use sqlx::PgPool;
 
@@ -89,14 +89,12 @@ pub async fn sync_posts(
             if content_changed {
                 // Update existing post
                 Post::update_content(
-                    existing_post.id,
-                    None, // title - don't change
-                    Some(post_input.description.clone()),
-                    None, // description_markdown
-                    post_input.tldr.clone(),
-                    None, // category
-                    None, // urgency
-                    post_input.location.clone(),
+                    UpdatePostContent::builder()
+                        .id(existing_post.id)
+                        .description(Some(post_input.description.clone()))
+                        .tldr(post_input.tldr.clone())
+                        .location(post_input.location.clone())
+                        .build(),
                     pool,
                 )
                 .await?;
@@ -126,23 +124,18 @@ pub async fn sync_posts(
             let urgency = normalize_urgency(post_input.urgency.clone());
 
             match Post::create(
-                post_input.organization_name.clone(),
-                post_input.title.clone(),
-                post_input.description.clone(),
-                tldr,
-                "opportunity".to_string(),
-                "general".to_string(),
-                Some("accepting".to_string()),
-                urgency,
-                post_input.location.clone(),
-                PostStatus::PendingApproval.to_string(),
-                "en".to_string(),
-                Some("scraped".to_string()),
-                None, // submitted_by_admin_id
-                Some(website_id),
-                post_input.source_url.clone(),
-                None, // organization_id
-                None, // revision_of_post_id
+                CreatePost::builder()
+                    .organization_name(post_input.organization_name.clone())
+                    .title(post_input.title.clone())
+                    .description(post_input.description.clone())
+                    .tldr(tldr)
+                    .capacity_status(Some("accepting".to_string()))
+                    .urgency(urgency)
+                    .location(post_input.location.clone())
+                    .submission_type(Some("scraped".to_string()))
+                    .website_id(Some(website_id))
+                    .source_url(post_input.source_url.clone())
+                    .build(),
                 pool,
             )
             .await
