@@ -13,7 +13,7 @@ const nextConfig: NextConfig = {
   // Environment variables
   env: {
     NEXT_PUBLIC_API_URL:
-      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/graphql",
+      process.env.NEXT_PUBLIC_API_URL || "http://100.110.4.74:8080/graphql",
   },
 
   // Strict mode

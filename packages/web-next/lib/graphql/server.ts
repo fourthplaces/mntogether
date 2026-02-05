@@ -2,7 +2,7 @@
 import { cookies } from "next/headers";
 
 // Server-side: Use API_URL (internal Docker network) if available, otherwise NEXT_PUBLIC_API_URL
-const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/graphql";
+const API_URL = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "http://100.110.4.74:8080/graphql";
 
 export interface GraphQLResponse<T> {
   data?: T;

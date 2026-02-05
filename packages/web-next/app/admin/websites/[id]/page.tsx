@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
 import { GET_WEBSITE_WITH_SNAPSHOTS, GET_WEBSITE_ASSESSMENT, GET_ALL_WEBSITES } from "@/lib/graphql/queries";
-import { APPROVE_WEBSITE, REJECT_WEBSITE, CRAWL_WEBSITE, GENERATE_WEBSITE_ASSESSMENT } from "@/lib/graphql/mutations";
+import { APPROVE_WEBSITE, REJECT_WEBSITE, CRAWL_WEBSITE, GENERATE_WEBSITE_ASSESSMENT, REGENERATE_POSTS } from "@/lib/graphql/mutations";
 
 interface Tag {
   id: string;
@@ -81,6 +82,19 @@ export default function WebsiteDetailPage() {
   const websiteId = params.id as string;
   const [activeTab, setActiveTab] = useState<TabType>("snapshots");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const {
     data: websiteData,
@@ -146,12 +160,28 @@ export default function WebsiteDetailPage() {
 
   const handleGenerateAssessment = async () => {
     setActionInProgress("assessment");
+    setMenuOpen(false);
     try {
       await graphqlMutateClient(GENERATE_WEBSITE_ASSESSMENT, { websiteId });
       refetchAssessment();
     } catch (err) {
       console.error("Failed to generate assessment:", err);
       alert("Failed to generate assessment");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleRegeneratePosts = async () => {
+    setActionInProgress("regenerate");
+    setMenuOpen(false);
+    try {
+      await graphqlMutateClient(REGENERATE_POSTS, { websiteId });
+      alert("Post regeneration started");
+      refetchWebsite();
+    } catch (err) {
+      console.error("Failed to regenerate posts:", err);
+      alert("Failed to regenerate posts");
     } finally {
       setActionInProgress(null);
     }
@@ -256,15 +286,41 @@ export default function WebsiteDetailPage() {
                   </button>
                 </>
               )}
-              {website.status === "approved" && (
+              {/* More Actions Dropdown */}
+              <div className="relative" ref={menuRef}>
                 <button
-                  onClick={handleCrawl}
+                  onClick={() => setMenuOpen(!menuOpen)}
                   disabled={actionInProgress !== null}
-                  className="px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 disabled:opacity-50"
+                  className="px-3 py-2 bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50"
                 >
-                  {actionInProgress === "crawl" ? "..." : "Start Crawl"}
+                  {actionInProgress ? "..." : "⋯"}
                 </button>
-              )}
+                {menuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                    <button
+                      onClick={() => { setMenuOpen(false); handleCrawl(); }}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Start Crawl
+                    </button>
+                    <button
+                      onClick={handleRegeneratePosts}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Regenerate Posts
+                    </button>
+                    <button
+                      onClick={handleGenerateAssessment}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Generate AI Assessment
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -352,7 +408,20 @@ export default function WebsiteDetailPage() {
                           {snapshot.listingsCount} posts | {formatDate(snapshot.fetchedAt)}
                         </span>
                       </div>
-                      <p className="text-sm text-stone-600 line-clamp-3">{snapshot.content}</p>
+                      <div className="text-sm text-stone-600 line-clamp-3">
+                        <ReactMarkdown
+                          components={{
+                            p: ({ children }) => <span>{children}</span>,
+                            ul: ({ children }) => <span>{children}</span>,
+                            ol: ({ children }) => <span>{children}</span>,
+                            li: ({ children }) => <span>{children} </span>,
+                            strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                            a: ({ children }) => <span>{children}</span>,
+                          }}
+                        >
+                          {snapshot.content}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   ))
                 )}
@@ -434,7 +503,25 @@ export default function WebsiteDetailPage() {
                       </span>
                     </div>
                     <div className="prose prose-stone max-w-none">
-                      <p className="whitespace-pre-wrap text-stone-700">{assessment.assessmentMarkdown}</p>
+                      <ReactMarkdown
+                        components={{
+                          p: ({ children }) => <p className="mb-4 text-stone-700">{children}</p>,
+                          ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
+                          ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
+                          li: ({ children }) => <li className="text-stone-700">{children}</li>,
+                          strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                          h1: ({ children }) => <h1 className="text-xl font-bold text-stone-900 mt-6 mb-3">{children}</h1>,
+                          h2: ({ children }) => <h2 className="text-lg font-bold text-stone-900 mt-5 mb-2">{children}</h2>,
+                          h3: ({ children }) => <h3 className="text-base font-semibold text-stone-900 mt-4 mb-2">{children}</h3>,
+                          a: ({ href, children }) => (
+                            <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+                              {children}
+                            </a>
+                          ),
+                        }}
+                      >
+                        {assessment.assessmentMarkdown}
+                      </ReactMarkdown>
                     </div>
                   </div>
                 ) : (

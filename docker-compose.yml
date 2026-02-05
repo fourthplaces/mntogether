@@ -151,8 +151,8 @@ services:
       dockerfile: Dockerfile.dev
     container_name: mndigitalaid_web_next
     environment:
-      # Client-side: browser uses localhost to reach API
-      NEXT_PUBLIC_API_URL: http://localhost:8080/graphql
+      # Client-side: browser uses this to reach API (use Tailscale IP for remote access)
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://100.110.4.74:8080/graphql}
       # Server-side: container uses Docker network to reach API
       API_URL: http://api:8080/graphql
       NODE_ENV: development

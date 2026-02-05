@@ -247,26 +247,11 @@ pub async fn build_app(
         openai_client: openai_client.clone(),
     };
 
-    // CORS configuration - whitelist specific origins for security
-    let cors = if allowed_origins.is_empty() {
-        // No origins configured - reject all cross-origin requests
-        CorsLayer::new()
-            .allow_origin([])
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-    } else {
-        // Parse configured origins
-        let origins: Vec<_> = allowed_origins
-            .iter()
-            .filter_map(|origin| origin.parse::<HeaderValue>().ok())
-            .collect();
-
-        CorsLayer::new()
-            .allow_origin(origins)
-            .allow_methods([Method::GET, Method::POST])
-            .allow_headers([AUTHORIZATION, CONTENT_TYPE])
-            .allow_credentials(true)
-    };
+    // CORS configuration - allow any origin for development
+    let cors = CorsLayer::new()
+        .allow_origin(tower_http::cors::Any)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
 
     // Clone jwt_service for middleware closure
     let jwt_service_for_middleware = jwt_service.clone();

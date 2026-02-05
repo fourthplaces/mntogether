@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import ReactMarkdown from "react-markdown";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
 import { GET_POST } from "@/lib/graphql/queries";
 import { ADD_POST_TAG, REMOVE_POST_TAG } from "@/lib/graphql/mutations";
@@ -330,9 +331,22 @@ export default function PostDetailPage() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Description</h2>
           <div className="prose prose-stone max-w-none">
-            <p className="text-stone-700 whitespace-pre-wrap">
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p className="mb-4 text-stone-700">{children}</p>,
+                ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
+                ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
+                li: ({ children }) => <li className="text-stone-700">{children}</li>,
+                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                a: ({ href, children }) => (
+                  <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
+                    {children}
+                  </a>
+                ),
+              }}
+            >
               {post.descriptionMarkdown || post.description}
-            </p>
+            </ReactMarkdown>
           </div>
         </div>
       </div>
