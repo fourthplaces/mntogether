@@ -50,10 +50,10 @@ export async function verifyCode(phoneNumber: string, code: string): Promise<Ver
 
     const token = data.verifyCode;
 
-    // Set HTTP-only cookie with the auth token
+    // Set cookie with the auth token (not httpOnly so client JS can read it)
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE_NAME, token, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: AUTH_COOKIE_MAX_AGE,
