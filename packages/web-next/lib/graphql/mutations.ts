@@ -26,16 +26,6 @@ export const TRACK_POST_CLICK = `
   }
 `;
 
-export const SUBMIT_RESOURCE_LINK = `
-  mutation SubmitResourceLink($input: SubmitResourceLinkInput!) {
-    submitResourceLink(input: $input) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
 // ============================================================================
 // AUTHENTICATION MUTATIONS
 // ============================================================================
@@ -226,28 +216,6 @@ export const REGENERATE_PAGE_SUMMARIES = `
   }
 `;
 
-export const SCRAPE_ORGANIZATION = `
-  mutation ScrapeOrganization($sourceId: Uuid!) {
-    scrapeOrganization(sourceId: $sourceId) {
-      jobId
-      status
-      message
-    }
-  }
-`;
-
-export const ADD_ORGANIZATION_SCRAPE_URL = `
-  mutation AddOrganizationScrapeUrl($sourceId: Uuid!, $url: String!) {
-    addOrganizationScrapeUrl(sourceId: $sourceId, url: $url)
-  }
-`;
-
-export const REMOVE_ORGANIZATION_SCRAPE_URL = `
-  mutation RemoveOrganizationScrapeUrl($sourceId: Uuid!, $url: String!) {
-    removeOrganizationScrapeUrl(sourceId: $sourceId, url: $url)
-  }
-`;
-
 // ============================================================================
 // CHAT MUTATIONS
 // ============================================================================
@@ -280,58 +248,6 @@ export const SEND_MESSAGE = `
 export const SIGNAL_TYPING = `
   mutation SignalTyping($containerId: String!) {
     signalTyping(containerId: $containerId)
-  }
-`;
-
-// ============================================================================
-// RESOURCE MUTATIONS
-// ============================================================================
-
-export const APPROVE_RESOURCE = `
-  mutation ApproveResource($resourceId: String!) {
-    approveResource(resourceId: $resourceId) {
-      id
-      status
-    }
-  }
-`;
-
-export const REJECT_RESOURCE = `
-  mutation RejectResource($resourceId: String!, $reason: String!) {
-    rejectResource(resourceId: $resourceId, reason: $reason) {
-      id
-      status
-    }
-  }
-`;
-
-export const EDIT_RESOURCE = `
-  mutation EditResource($resourceId: String!, $input: EditResourceInput!) {
-    editResource(resourceId: $resourceId, input: $input) {
-      id
-      title
-      content
-      location
-      status
-    }
-  }
-`;
-
-export const EDIT_AND_APPROVE_RESOURCE = `
-  mutation EditAndApproveResource($resourceId: String!, $input: EditResourceInput!) {
-    editAndApproveResource(resourceId: $resourceId, input: $input) {
-      id
-      title
-      content
-      location
-      status
-    }
-  }
-`;
-
-export const DELETE_RESOURCE = `
-  mutation DeleteResource($resourceId: String!) {
-    deleteResource(resourceId: $resourceId)
   }
 `;
 

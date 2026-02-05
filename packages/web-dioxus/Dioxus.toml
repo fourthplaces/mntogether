@@ -1,0 +1,29 @@
+[application]
+name = "mntogether-web"
+default_platform = "web"
+out_dir = "dist"
+asset_dir = "assets"
+
+[web.app]
+title = "MN Together"
+base_path = ""
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "assets"]
+index_on_404 = true
+
+[web.resource]
+style = []
+script = []
+
+[web.resource.dev]
+style = []
+script = []
+
+# Tailwind CSS will be built separately and placed in assets/
+# Run: npx tailwindcss -i ./input.css -o ./assets/tailwind.css --watch
+
+[bundle]
+identifier = "org.mntogether.web"
+publisher = "MN Together"

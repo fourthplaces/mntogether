@@ -69,7 +69,6 @@ export default function WebsitesPage() {
     setActionInProgress(websiteId);
     try {
       await graphqlMutateClient(CRAWL_WEBSITE, { websiteId });
-      alert("Crawl started");
       refetch();
     } catch (err) {
       console.error("Failed to start crawl:", err);

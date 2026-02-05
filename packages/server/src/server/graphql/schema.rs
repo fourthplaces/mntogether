@@ -16,7 +16,6 @@ use crate::domains::chatrooms::actions as chatroom_actions;
 use crate::domains::crawling::actions as crawling_actions;
 use crate::domains::extraction::actions as extraction_actions;
 use crate::domains::member::actions as member_actions;
-use crate::domains::organization::actions as organization_actions;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::providers::actions as provider_actions;
 use crate::domains::website::actions as website_actions;
@@ -31,7 +30,6 @@ use crate::domains::extraction::data::{
 use crate::domains::member::data::{MemberConnection, MemberData};
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::member::events::MemberEvent;
-use crate::domains::organization::data::{OrganizationConnection, OrganizationData};
 use crate::domains::posts::data::post_report::{
     PostReport as PostReportData, PostReportDetail as PostReportDetailData,
 };
@@ -54,7 +52,6 @@ use crate::domains::website_approval::data::{WebsiteAssessmentData, WebsiteSearc
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::contacts::ContactData;
 use crate::domains::member::models::member::Member;
-use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::post_report::PostReportRecord;
 use crate::domains::posts::models::{BusinessPost, Post};
 use crate::domains::tag::{Tag, TagData, Taggable};
@@ -66,12 +63,6 @@ pub struct TagInput {
     pub value: String,
 }
 
-#[derive(juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
-pub struct OrganizationMatchData {
-    pub organization: OrganizationData,
-    pub similarity_score: f64,
-}
 
 /// Result of running discovery search
 #[derive(Debug, Clone, juniper::GraphQLObject)]
@@ -365,68 +356,6 @@ impl Query {
         Ok(connection)
     }
 
-    // =========================================================================
-    // Organization Queries
-    // =========================================================================
-
-    /// Get an organization by ID (admin only)
-    async fn organization(
-        ctx: &GraphQLContext,
-        id: String,
-    ) -> FieldResult<Option<OrganizationData>> {
-        ctx.require_admin()?;
-
-        use crate::common::OrganizationId;
-
-        let org_id = OrganizationId::parse(&id)?;
-        match Organization::find_by_id(org_id, &ctx.db_pool).await {
-            Ok(org) => Ok(Some(OrganizationData::from(org))),
-            Err(_) => Ok(None),
-        }
-    }
-
-    /// Search organizations by name (admin only)
-    async fn search_organizations(
-        ctx: &GraphQLContext,
-        query: String,
-    ) -> FieldResult<Vec<OrganizationData>> {
-        ctx.require_admin()?;
-
-        let orgs = Organization::search_by_name(&query, &ctx.db_pool).await?;
-        Ok(orgs.into_iter().map(OrganizationData::from).collect())
-    }
-
-    /// Search organizations using AI semantic search (admin only)
-    async fn search_organizations_semantic(
-        ctx: &GraphQLContext,
-        query: String,
-        limit: Option<i32>,
-    ) -> FieldResult<Vec<OrganizationMatchData>> {
-        ctx.require_admin()?;
-
-        use crate::kernel::ai_matching::AIMatchingService;
-
-        let ai_matching = AIMatchingService::new((*ctx.openai_client).clone());
-
-        let results = if let Some(lim) = limit {
-            ai_matching
-                .find_relevant_organizations_with_config(query, 0.7, lim, &ctx.db_pool)
-                .await?
-        } else {
-            ai_matching
-                .find_relevant_organizations(query, &ctx.db_pool)
-                .await?
-        };
-
-        Ok(results
-            .into_iter()
-            .map(|(org, similarity)| OrganizationMatchData {
-                organization: OrganizationData::from(org),
-                similarity_score: similarity as f64,
-            })
-            .collect())
-    }
-
     /// Search posts using semantic similarity (public)
     ///
     /// Arguments:
@@ -471,45 +400,6 @@ impl Query {
                 similarity: r.similarity,
             })
             .collect())
-    }
-
-    /// Get paginated organizations with cursor-based pagination (Relay spec)
-    ///
-    /// Arguments:
-    /// - first: Return first N items (forward pagination)
-    /// - after: Return items after this cursor (forward pagination)
-    /// - last: Return last N items (backward pagination)
-    /// - before: Return items before this cursor (backward pagination)
-    /// Get organizations (admin only)
-    async fn organizations(
-        ctx: &GraphQLContext,
-        first: Option<i32>,
-        after: Option<String>,
-        last: Option<i32>,
-        before: Option<String>,
-    ) -> FieldResult<OrganizationConnection> {
-        ctx.require_admin()?;
-        let pagination_args = PaginationArgs {
-            first,
-            after,
-            last,
-            before,
-        };
-        let validated = pagination_args
-            .validate()
-            .map_err(|e| FieldError::new(e, juniper::Value::null()))?;
-
-        let connection = ctx
-            .engine
-            .activate(ctx.app_state())
-            .process(|ectx| organization_actions::get_organizations_paginated(&validated, ectx.deps()))
-            .await
-            .map_err(|e| {
-                error!("Failed to get paginated organizations: {}", e);
-                FieldError::new(e.to_string(), juniper::Value::null())
-            })?;
-
-        Ok(connection)
     }
 
     // =========================================================================
@@ -1676,61 +1566,6 @@ impl Mutation {
             })?;
 
         Ok(MemberData::from(member))
-    }
-
-    // =========================================================================
-    // Organization Mutations
-    // =========================================================================
-
-    /// Create a new organization (admin only)
-    async fn create_organization(
-        ctx: &GraphQLContext,
-        name: String,
-        description: Option<String>,
-        website: Option<String>,
-        phone: Option<String>,
-        city: Option<String>,
-    ) -> FieldResult<OrganizationData> {
-        ctx.require_admin()?;
-
-        use crate::domains::organization::models::CreateOrganization;
-
-        let primary_address = city.map(|c| format!("{}, MN", c));
-
-        let builder = CreateOrganization::builder()
-            .name(name)
-            .description(description)
-            .website(website)
-            .phone(phone)
-            .primary_address(primary_address)
-            .organization_type(Some("nonprofit".to_string()))
-            .build();
-
-        let created = Organization::create(builder, &ctx.db_pool).await?;
-
-        Ok(OrganizationData::from(created))
-    }
-
-    /// Add tags to an organization (admin only)
-    async fn add_organization_tags(
-        ctx: &GraphQLContext,
-        organization_id: String,
-        tags: Vec<TagInput>,
-    ) -> FieldResult<OrganizationData> {
-        ctx.require_admin()?;
-
-        use crate::common::OrganizationId;
-
-        let org_id = OrganizationId::parse(&organization_id)?;
-
-        for tag_input in tags {
-            let tag =
-                Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
-            let _ = Taggable::create_organization_tag(org_id, tag.id, &ctx.db_pool).await;
-        }
-
-        let org = Organization::find_by_id(org_id, &ctx.db_pool).await?;
-        Ok(OrganizationData::from(org))
     }
 
     // =========================================================================

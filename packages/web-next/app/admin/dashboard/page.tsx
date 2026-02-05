@@ -117,13 +117,6 @@ export default function DashboardPage() {
       count: pendingWebsites,
     },
     {
-      title: "Review Resources",
-      description: "Manage community resources",
-      icon: "\u{1F4DA}",
-      link: "/admin/resources",
-      color: "bg-purple-600 hover:bg-purple-700",
-    },
-    {
       title: "Review Scraped Content",
       description: "See what agents have discovered",
       icon: "\u{1F50D}",

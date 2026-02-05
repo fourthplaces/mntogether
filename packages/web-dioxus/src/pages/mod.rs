@@ -1,0 +1,4 @@
+//! Page components
+
+pub mod admin;
+pub mod public;

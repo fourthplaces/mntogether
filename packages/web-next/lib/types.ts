@@ -31,7 +31,7 @@ export interface ContactInfo {
 }
 
 // ============================================================================
-// Organization Types
+// Business Info (used by Post)
 // ============================================================================
 
 export interface BusinessInfo {
@@ -45,28 +45,6 @@ export interface BusinessInfo {
   giftCardLink?: string;
   onlineStoreUrl?: string;
   isCauseDriven?: boolean;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  description?: string;
-  summary?: string;
-  website?: string;
-  phone?: string;
-  primaryAddress?: string;
-  verified?: boolean;
-  contactInfo?: ContactInfo;
-  location?: string;
-  businessInfo?: BusinessInfo;
-  tags?: Tag[];
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface OrganizationMatch {
-  organization: Organization;
-  similarityScore: number;
 }
 
 // ============================================================================
@@ -169,48 +147,6 @@ export interface WebsiteSearchResult {
 }
 
 // ============================================================================
-// Resource Types
-// ============================================================================
-
-export type ResourceStatus = "PENDING" | "APPROVED" | "REJECTED";
-
-export interface ResourceContact {
-  id: string;
-  contactType: string;
-  contactValue: string;
-  contactLabel?: string;
-  isPublic?: boolean;
-}
-
-export interface ResourceVersion {
-  id: string;
-  title: string;
-  content: string;
-  location?: string;
-  changeReason?: string;
-  createdAt: string;
-}
-
-export interface Resource {
-  id: string;
-  websiteId?: string;
-  title: string;
-  content: string;
-  location?: string;
-  status: ResourceStatus;
-  resourceType?: string;
-  organizationName?: string;
-  hasEmbedding?: boolean;
-  sourceUrl?: string;
-  sourceUrls?: string[];
-  contacts?: ResourceContact[];
-  tags?: Tag[];
-  versions?: ResourceVersion[];
-  createdAt: string;
-  updatedAt?: string;
-}
-
-// ============================================================================
 // Chat Types
 // ============================================================================
 
@@ -278,30 +214,6 @@ export interface SearchWebsitesResult {
   searchWebsites: WebsiteSearchResult[];
 }
 
-export interface GetOrganizationsResult {
-  organizations: PaginatedResult<Organization>;
-}
-
-export interface GetOrganizationResult {
-  organization: Organization | null;
-}
-
-export interface SearchOrganizationsResult {
-  searchOrganizationsSemantic: OrganizationMatch[];
-}
-
-export interface GetResourcesResult {
-  resources: PaginatedResult<Resource>;
-}
-
-export interface GetResourceResult {
-  resource: Resource | null;
-}
-
-export interface GetPendingResourcesResult {
-  pendingResources: Resource[];
-}
-
 export interface GetMessagesResult {
   messages: ChatMessage[];
 }
@@ -333,12 +245,6 @@ export interface PendingPostsStatsResult {
 // Mutation Input Types
 // ============================================================================
 
-export interface SubmitResourceLinkInput {
-  url: string;
-  context?: string;
-  submitterContact?: string;
-}
-
 export interface EditListingInput {
   title?: string;
   description?: string;
@@ -346,12 +252,6 @@ export interface EditListingInput {
   location?: string;
   category?: string;
   urgency?: Urgency;
-}
-
-export interface EditResourceInput {
-  title?: string;
-  content?: string;
-  location?: string;
 }
 
 export interface TagInput {
@@ -372,14 +272,6 @@ export interface VerifyCodeResult {
   verifyCode: string;
 }
 
-export interface SubmitResourceLinkResult {
-  submitResourceLink: {
-    jobId: string;
-    status: string;
-    message?: string;
-  };
-}
-
 export interface ApprovePostResult {
   approveListing: Post;
 }
@@ -390,14 +282,6 @@ export interface EditAndApprovePostResult {
 
 export interface ApproveWebsiteResult {
   approveWebsite: Website;
-}
-
-export interface ApproveResourceResult {
-  approveResource: Resource;
-}
-
-export interface EditResourceResult {
-  editResource: Resource;
 }
 
 export interface CrawlWebsiteResult {

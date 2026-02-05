@@ -1,5 +1,4 @@
 use crate::common::{PostId, WebsiteId};
-use crate::domains::organization::utils::generate_tldr;
 use crate::domains::posts::actions::tag_with_audience_roles;
 use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
 use anyhow::Result;
@@ -7,6 +6,21 @@ use sqlx::PgPool;
 
 /// Valid urgency values per database constraint
 const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
+
+/// Generate a TLDR by truncating description to the given max length
+fn generate_tldr(description: &str, max_len: usize) -> String {
+    if description.len() <= max_len {
+        description.to_string()
+    } else {
+        let truncated = &description[..max_len];
+        // Find the last space to avoid cutting words
+        if let Some(last_space) = truncated.rfind(' ') {
+            format!("{}...", &truncated[..last_space])
+        } else {
+            format!("{}...", truncated)
+        }
+    }
+}
 
 /// Normalize urgency value to a valid database value
 /// Returns None if the input is invalid or None

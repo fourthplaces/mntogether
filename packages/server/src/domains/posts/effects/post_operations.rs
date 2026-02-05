@@ -10,8 +10,21 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
 use crate::common::{MemberId, PostId, WebsiteId};
-use crate::domains::organization::utils::generate_tldr;
 use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+
+/// Generate a TLDR by truncating description to the given max length
+fn generate_tldr(description: &str, max_len: usize) -> String {
+    if description.len() <= max_len {
+        description.to_string()
+    } else {
+        let truncated = &description[..max_len];
+        if let Some(last_space) = truncated.rfind(' ') {
+            format!("{}...", &truncated[..last_space])
+        } else {
+            format!("{}...", truncated)
+        }
+    }
+}
 
 /// Input for updating and approving a post
 #[derive(Debug, Clone, TypedBuilder)]

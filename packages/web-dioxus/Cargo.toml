@@ -1,0 +1,61 @@
+[package]
+name = "web-dioxus"
+version = "0.1.0"
+edition = "2021"
+description = "Dioxus fullstack SSR web frontend for MN Together"
+
+[dependencies]
+# Dioxus fullstack with SSR
+dioxus = { version = "0.6", features = ["fullstack", "router"] }
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# GraphQL client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Async runtime
+tokio = { version = "1", features = ["full"], optional = true }
+
+# Session management (server-side)
+tower-sessions = { version = "0.13", optional = true }
+
+# UUID handling
+uuid = { version = "1.0", features = ["serde", "v4"] }
+
+# Time/date handling
+chrono = { version = "0.4", features = ["serde"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Base64 for JWT decoding
+base64 = "0.22"
+
+# Web utilities (client-side)
+gloo-timers = { version = "0.3", optional = true }
+gloo-net = { version = "0.6", optional = true }
+web-sys = { version = "0.3", optional = true, features = ["Window", "Document", "Location"] }
+
+[features]
+default = []
+server = [
+    "dioxus/server",
+    "dep:tokio",
+    "dep:tower-sessions",
+]
+web = [
+    "dioxus/web",
+    "dep:gloo-timers",
+    "dep:gloo-net",
+    "dep:web-sys",
+]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full", "macros"] }

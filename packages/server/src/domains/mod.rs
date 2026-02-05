@@ -5,7 +5,6 @@ pub mod contacts;
 pub mod crawling;
 pub mod extraction;
 pub mod member;
-pub mod organization;
 pub mod posts;
 pub mod providers;
 pub mod tag;
