@@ -320,6 +320,15 @@ export interface ScrapedPostsStatsResult {
   scrapedPendingBusinesses: { totalCount: number };
 }
 
+export interface PendingPostsStatsResult {
+  allPending: { totalCount: number };
+  pendingServices: { totalCount: number };
+  pendingOpportunities: { totalCount: number };
+  pendingBusinesses: { totalCount: number };
+  pendingUserSubmitted: { totalCount: number };
+  pendingScraped: { totalCount: number };
+}
+
 // ============================================================================
 // Mutation Input Types
 // ============================================================================
