@@ -20,7 +20,7 @@ use crate::kernel::ServerDeps;
 ///   ProviderDeleted → cleanup contacts and tags (terminal)
 /// Errors propagate to global on_error() handler.
 pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<ProviderEvent>().then(
+    effect::on::<ProviderEvent>().id("provider_cleanup").then(
         |event, ctx: EffectContext<AppState, ServerDeps>| async move {
             match event.as_ref() {
                 // =================================================================

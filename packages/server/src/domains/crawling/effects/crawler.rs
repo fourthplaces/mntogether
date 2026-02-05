@@ -23,7 +23,7 @@ use crate::kernel::ServerDeps;
 /// Mark no listings effect - handles WebsiteCrawlNoListings.
 /// Terminal handler - logs when a website has no listings.
 pub fn mark_no_listings_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    on! {
+    let mut effect = on! {
         CrawlEvent::WebsiteCrawlNoListings { website_id, job_id, .. } => |ctx: EffectContext<AppState, ServerDeps>| async move {
             let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
 
@@ -36,7 +36,9 @@ pub fn mark_no_listings_effect() -> seesaw_core::effect::Effect<AppState, Server
             );
             Ok(())
         },
-    }
+    };
+    effect.id = "mark_no_listings".to_string();
+    effect
 }
 
 // Note: extract_posts_effect and enqueue_sync_effect are removed.
