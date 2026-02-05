@@ -14,7 +14,6 @@ use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
 use crate::kernel::{
     extraction_service::OpenAIExtractionService,
-    jobs,
     BaseEmbeddingService, BasePiiDetector,
     BasePushNotificationService, BaseTwilioService,
 };
@@ -76,8 +75,6 @@ pub struct ServerDeps {
     pub pii_detector: Arc<dyn BasePiiDetector>,
     /// Extraction service for query-driven content extraction (optional for tests)
     pub extraction: Option<Arc<OpenAIExtractionService>>,
-    /// Job queue for background command execution (seesaw 0.7.2+)
-    pub jobs: Arc<dyn jobs::JobQueue>,
     /// JWT service for token creation
     pub jwt_service: Arc<JwtService>,
     pub test_identifier_enabled: bool,
@@ -97,7 +94,6 @@ impl ServerDeps {
         web_searcher: Arc<dyn WebSearcher>,
         pii_detector: Arc<dyn BasePiiDetector>,
         extraction: Option<Arc<OpenAIExtractionService>>,
-        jobs: Arc<dyn jobs::JobQueue>,
         jwt_service: Arc<JwtService>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
@@ -112,7 +108,6 @@ impl ServerDeps {
             web_searcher,
             pii_detector,
             extraction,
-            jobs,
             jwt_service,
             test_identifier_enabled,
             admin_identifiers,

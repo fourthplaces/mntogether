@@ -23,13 +23,10 @@ use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::MemberId;
-use crate::config::Config;
 use crate::domains::crawling::actions::ingest_website;
+use crate::domains::discovery::actions::run_discovery;
 use crate::domains::member::models::member::Member;
-use crate::domains::posts::effects::run_discovery_searches;
 use crate::domains::website::models::Website;
-
-use extraction::TavilyWebSearcher;
 
 use crate::kernel::ServerDeps;
 
@@ -55,11 +52,11 @@ pub async fn start_scheduler(pool: PgPool, server_deps: Arc<ServerDeps>) -> Resu
     scheduler.add(scrape_job).await?;
 
     // Periodic search task - runs every hour
-    let search_pool = pool.clone();
+    let search_deps = server_deps.clone();
     let search_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
-        let pool = search_pool.clone();
+        let deps = search_deps.clone();
         Box::pin(async move {
-            if let Err(e) = run_periodic_searches(&pool).await {
+            if let Err(e) = run_periodic_searches(&deps).await {
                 tracing::error!("Periodic search task failed: {}", e);
             }
         })
@@ -155,26 +152,29 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
 
 /// Run periodic discovery search task
 ///
-/// Runs static discovery queries via Tavily to find new community resources.
+/// Runs discovery queries from the database via Tavily with AI pre-filtering.
 /// Creates pending websites for admin review.
-async fn run_periodic_searches(pool: &PgPool) -> Result<()> {
+async fn run_periodic_searches(deps: &ServerDeps) -> Result<()> {
     tracing::info!("Running periodic discovery search task");
 
-    // Load config for Tavily API key
-    let config = Config::from_env()?;
+    let event = run_discovery("scheduled", deps).await?;
 
-    // Create Tavily web searcher
-    let web_searcher = TavilyWebSearcher::new(config.tavily_api_key.clone());
-
-    // Run discovery searches with static queries
-    let result = run_discovery_searches(&web_searcher, pool).await?;
-
-    tracing::info!(
-        queries_run = result.queries_run,
-        total_results = result.total_results,
-        websites_created = result.websites_created,
-        "Discovery search completed"
-    );
+    if let crate::domains::discovery::DiscoveryEvent::DiscoveryRunCompleted {
+        queries_executed,
+        total_results,
+        websites_created,
+        websites_filtered,
+        ..
+    } = event
+    {
+        tracing::info!(
+            queries_executed,
+            total_results,
+            websites_created,
+            websites_filtered,
+            "Discovery search completed"
+        );
+    }
 
     Ok(())
 }

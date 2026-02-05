@@ -14,6 +14,7 @@
 //! Errors are returned via Result::Err, not as events.
 
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use crate::common::{ExtractedPost, JobId, WebsiteId};
 
@@ -43,7 +44,7 @@ pub struct PageExtractionResult {
 ///
 /// - `WebsiteIngested | WebsitePostsRegenerated | WebsitePagesDiscovered` → ExtractPostsJob → PostsExtractedFromPages
 /// - `PostsExtractedFromPages` → SyncPostsJob → `PostsSynced`
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CrawlEvent {
     // =========================================================================
     // Ingestion & Discovery Events (trigger post extraction cascade)
@@ -125,4 +126,46 @@ pub enum CrawlEvent {
         total_attempts: i32,
     },
 
+    // =========================================================================
+    // Job Replacement Events (queued effects pick these up)
+    // =========================================================================
+    /// Crawl website work enqueued
+    ///
+    /// Emitted by GraphQL mutation. Picked up by `crawl_website_effect`.
+    CrawlWebsiteEnqueued {
+        website_id: Uuid,
+        visitor_id: Uuid,
+        use_firecrawl: bool,
+    },
+
+    /// Post extraction work enqueued
+    ///
+    /// Emitted after crawl/regeneration completes. Picked up by `extract_posts_effect`.
+    PostsExtractionEnqueued {
+        website_id: Uuid,
+    },
+
+    /// Post sync work enqueued
+    ///
+    /// Emitted after extraction completes with posts. Picked up by `sync_posts_effect`.
+    PostsSyncEnqueued {
+        website_id: WebsiteId,
+        posts: Vec<ExtractedPost>,
+        use_llm_sync: bool,
+    },
+
+    /// Post regeneration work enqueued
+    ///
+    /// Emitted by GraphQL mutation. Picked up by `regenerate_posts_effect`.
+    PostsRegenerationEnqueued {
+        website_id: Uuid,
+        visitor_id: Uuid,
+    },
+
+    /// Single post regeneration work enqueued
+    ///
+    /// Emitted by GraphQL mutation. Picked up by `regenerate_single_post_effect`.
+    SinglePostRegenerationEnqueued {
+        post_id: Uuid,
+    },
 }

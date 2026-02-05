@@ -16,7 +16,7 @@ use crate::domains::chatrooms::models::{Container, Message};
 ///
 /// NOTE: Failed events have been removed (MessageFailed, ReplyGenerationFailed, GreetingGenerationFailed).
 /// Errors go in Result::Err, not in events. Events are for successful state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ChatEvent {
     /// Container was created
     ContainerCreated {
@@ -44,7 +44,7 @@ pub enum ChatEvent {
 ///     → ChatEffect
 ///     → ChatEvent::MessageCreated
 /// ```
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ChatMessagingEvent {
     /// Agent reply text was generated (fact about AI output).
     /// A machine will observe this and emit ChatCommand::CreateMessage.
@@ -56,13 +56,13 @@ pub enum ChatMessagingEvent {
     },
 
     /// Reply generation was skipped (no agent, author is agent, etc.)
-    Skipped { reason: &'static str },
+    Skipped { reason: String },
 }
 
 /// Typing event (ephemeral signal - not persisted).
 ///
 /// Used for real-time typing indicators via NATS.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum TypingEvent {
     /// Someone started typing in a container
     Started {

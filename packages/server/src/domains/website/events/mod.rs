@@ -7,10 +7,12 @@
 //!
 //! Note: *Requested events have been removed - GraphQL calls actions directly.
 
+use serde::{Deserialize, Serialize};
+
 use crate::common::{MemberId, WebsiteId};
 
 /// Website domain events - fact events only (no request events)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum WebsiteEvent {
     // =========================================================================
     // Fact Events (emitted by actions - what actually happened)

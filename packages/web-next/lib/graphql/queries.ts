@@ -758,3 +758,80 @@ export const GET_WEBSITE_WITH_SNAPSHOTS = `
     }
   }
 `;
+
+// ============================================================================
+// DISCOVERY QUERIES
+// ============================================================================
+
+export const GET_DISCOVERY_QUERIES = `
+  query GetDiscoveryQueries($includeInactive: Boolean) {
+    discoveryQueries(includeInactive: $includeInactive) {
+      id
+      queryText
+      category
+      isActive
+      createdAt
+    }
+  }
+`;
+
+export const GET_DISCOVERY_FILTER_RULES = `
+  query GetDiscoveryFilterRules($queryId: Uuid) {
+    discoveryFilterRules(queryId: $queryId) {
+      id
+      queryId
+      ruleText
+      sortOrder
+      isActive
+    }
+  }
+`;
+
+export const GET_DISCOVERY_RUNS = `
+  query GetDiscoveryRuns($limit: Int) {
+    discoveryRuns(limit: $limit) {
+      id
+      queriesExecuted
+      totalResults
+      websitesCreated
+      websitesFiltered
+      startedAt
+      completedAt
+      triggerType
+    }
+  }
+`;
+
+export const GET_DISCOVERY_RUN_RESULTS = `
+  query GetDiscoveryRunResults($runId: Uuid!) {
+    discoveryRunResults(runId: $runId) {
+      id
+      runId
+      queryId
+      domain
+      url
+      title
+      snippet
+      relevanceScore
+      filterResult
+      filterReason
+      websiteId
+      discoveredAt
+    }
+  }
+`;
+
+export const GET_WEBSITE_DISCOVERY_SOURCES = `
+  query GetWebsiteDiscoverySources($websiteId: Uuid!) {
+    websiteDiscoverySources(websiteId: $websiteId) {
+      id
+      queryId
+      domain
+      url
+      relevanceScore
+      filterResult
+      filterReason
+      discoveredAt
+    }
+  }
+`;

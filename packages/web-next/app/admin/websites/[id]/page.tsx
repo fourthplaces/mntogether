@@ -6,7 +6,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
-import { GET_WEBSITE_WITH_SNAPSHOTS, GET_WEBSITE_ASSESSMENT, GET_ALL_WEBSITES } from "@/lib/graphql/queries";
+import { GET_WEBSITE_WITH_SNAPSHOTS, GET_WEBSITE_ASSESSMENT, GET_ALL_WEBSITES, GET_WEBSITE_DISCOVERY_SOURCES } from "@/lib/graphql/queries";
 import { APPROVE_WEBSITE, REJECT_WEBSITE, CRAWL_WEBSITE, GENERATE_WEBSITE_ASSESSMENT, REGENERATE_POSTS } from "@/lib/graphql/mutations";
 
 interface Tag {
@@ -76,7 +76,18 @@ interface GetAssessmentResult {
   websiteAssessment: Assessment | null;
 }
 
-type TabType = "listings" | "snapshots" | "assessment";
+interface DiscoverySource {
+  id: string;
+  queryId: string;
+  domain: string;
+  url: string;
+  relevanceScore: number | null;
+  filterResult: string;
+  filterReason: string | null;
+  discoveredAt: string;
+}
+
+type TabType = "listings" | "snapshots" | "assessment" | "discovery";
 
 export default function WebsiteDetailPage() {
   const params = useParams();
@@ -109,8 +120,13 @@ export default function WebsiteDetailPage() {
     mutate: refetchAssessment,
   } = useGraphQL<GetAssessmentResult>(GET_WEBSITE_ASSESSMENT, { websiteId }, { revalidateOnFocus: false });
 
+  const { data: discoveryData } = useGraphQL<{
+    websiteDiscoverySources: DiscoverySource[];
+  }>(GET_WEBSITE_DISCOVERY_SOURCES, { websiteId }, { revalidateOnFocus: false });
+
   const website = websiteData?.website;
   const assessment = assessmentData?.websiteAssessment;
+  const discoverySources = discoveryData?.websiteDiscoverySources || [];
 
   const handleApprove = async () => {
     if (!confirm("Approve this website for crawling?")) return;
@@ -362,7 +378,7 @@ export default function WebsiteDetailPage() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
             <nav className="flex">
-              {(["snapshots", "listings", "assessment"] as TabType[]).map((tab) => (
+              {(["snapshots", "listings", "assessment", "discovery"] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -375,6 +391,7 @@ export default function WebsiteDetailPage() {
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   {tab === "snapshots" && ` (${website.snapshots.length})`}
                   {tab === "listings" && ` (${website.listings.length})`}
+                  {tab === "discovery" && ` (${discoverySources.length})`}
                 </button>
               ))}
             </nav>
@@ -469,6 +486,60 @@ export default function WebsiteDetailPage() {
                       </div>
                     </Link>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Discovery Tab */}
+            {activeTab === "discovery" && (
+              <div>
+                {discoverySources.length > 0 ? (
+                  <div className="space-y-3">
+                    <p className="text-sm text-stone-500 mb-4">
+                      This website was discovered by the following search queries:
+                    </p>
+                    {discoverySources.map((source) => (
+                      <div
+                        key={source.id}
+                        className="border border-stone-200 rounded-lg p-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium text-stone-900">
+                            {source.url}
+                          </span>
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              source.filterResult === "passed"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-red-100 text-red-700"
+                            }`}
+                          >
+                            {source.filterResult}
+                          </span>
+                        </div>
+                        {source.filterReason && (
+                          <p className="text-xs text-stone-500 mt-1">
+                            {source.filterReason}
+                          </p>
+                        )}
+                        <div className="flex gap-4 mt-2 text-xs text-stone-400">
+                          {source.relevanceScore != null && (
+                            <span>Score: {source.relevanceScore.toFixed(2)}</span>
+                          )}
+                          <span>
+                            Discovered: {new Date(source.discoveredAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-stone-500">
+                    <p>No discovery sources found for this website.</p>
+                    <p className="text-sm mt-1">
+                      This website may have been submitted manually.
+                    </p>
+                  </div>
                 )}
               </div>
             )}
