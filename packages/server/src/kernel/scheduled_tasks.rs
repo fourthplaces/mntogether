@@ -22,30 +22,31 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
-use crate::common::{AppState, MemberId};
+use crate::common::MemberId;
 use crate::config::Config;
 use crate::domains::crawling::actions::ingest_website;
 use crate::domains::member::models::member::Member;
 use crate::domains::posts::effects::run_discovery_searches;
 use crate::domains::website::models::Website;
-use crate::server::graphql::context::AppEngine;
 
 use extraction::TavilyWebSearcher;
 
+use crate::kernel::ServerDeps;
+
 /// Start all scheduled tasks
 ///
-/// In seesaw 0.6.0, we use engine.activate() to emit events instead of EventBus.
-pub async fn start_scheduler(pool: PgPool, engine: Arc<AppEngine>) -> Result<JobScheduler> {
+/// In seesaw 0.7.2, we call actions directly with ServerDeps.
+pub async fn start_scheduler(pool: PgPool, server_deps: Arc<ServerDeps>) -> Result<JobScheduler> {
     let scheduler = JobScheduler::new().await?;
 
     // Periodic scraping task - runs every hour
     let scrape_pool = pool.clone();
-    let scrape_engine = engine.clone();
+    let scrape_deps = server_deps.clone();
     let scrape_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
         let pool = scrape_pool.clone();
-        let engine = scrape_engine.clone();
+        let deps = scrape_deps.clone();
         Box::pin(async move {
-            if let Err(e) = run_periodic_scrape(&pool, &engine).await {
+            if let Err(e) = run_periodic_scrape(&pool, &deps).await {
                 tracing::error!("Periodic scrape task failed: {}", e);
             }
         })
@@ -88,9 +89,9 @@ pub async fn start_scheduler(pool: PgPool, engine: Arc<AppEngine>) -> Result<Job
 
 /// Run periodic scraping task
 ///
-/// Queries all sources due for scraping and dispatches scrape events.
-/// Each scrape runs asynchronously via the event system.
-async fn run_periodic_scrape(pool: &PgPool, engine: &Arc<AppEngine>) -> Result<()> {
+/// Queries all sources due for scraping and calls the ingest action directly.
+/// In seesaw 0.7.2, we pass ServerDeps directly to actions.
+async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
     tracing::info!("Running periodic scrape task");
 
     // Find sources due for scraping
@@ -105,27 +106,38 @@ async fn run_periodic_scrape(pool: &PgPool, engine: &Arc<AppEngine>) -> Result<(
 
     // Ingest each website using the extraction library
     for website in sources {
-        let result = engine
-            .activate(AppState::default())
-            .process(|ectx| {
-                ingest_website(
-                    website.id.into_uuid(),
-                    MemberId::nil().into_uuid(), // System user
-                    true,                        // Use Firecrawl for better JS rendering
-                    ectx,
-                )
-            })
-            .await;
+        use crate::domains::crawling::events::CrawlEvent;
+
+        let result = ingest_website(
+            website.id.into_uuid(),
+            MemberId::nil().into_uuid(), // System user
+            true,                        // Use Firecrawl for better JS rendering
+            true,                        // is_admin (system task)
+            deps,
+        )
+        .await;
 
         match result {
-            Ok(job_result) => {
-                tracing::info!(
-                    "Ingested website {} ({}) with job {} - status: {}",
-                    website.id,
-                    website.domain,
-                    job_result.job_id,
-                    job_result.status
-                );
+            Ok(event) => {
+                match event {
+                    CrawlEvent::WebsiteIngested { job_id, pages_crawled, pages_summarized, .. } => {
+                        tracing::info!(
+                            "Ingested website {} ({}) with job {} - pages: {}, summarized: {}",
+                            website.id,
+                            website.domain,
+                            job_id,
+                            pages_crawled,
+                            pages_summarized
+                        );
+                    }
+                    _ => {
+                        tracing::info!(
+                            "Ingested website {} ({})",
+                            website.id,
+                            website.domain
+                        );
+                    }
+                }
             }
             Err(e) => {
                 tracing::error!(

@@ -1,16 +1,12 @@
 //! Member domain effect - handles cascading reactions to fact events
 //!
-//! Effects watch FACT events and call handlers directly for cascading.
-//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
+//! Effects use `.then()` and return `Ok(())` for terminal.
 //!
-//! Handlers emit events - they wrap actions which return simple values.
+//! Cascade flow:
+//!   MemberRegistered → generate embedding (terminal)
 
-use anyhow::Result;
-use seesaw_core::effect;
-use seesaw_core::EffectContext;
-use std::sync::Arc;
-use tracing::error;
-use uuid::Uuid;
+use seesaw_core::{effect, EffectContext};
+use tracing::{error, info};
 
 use super::actions;
 use super::events::MemberEvent;
@@ -20,57 +16,47 @@ use crate::kernel::ServerDeps;
 /// Build the member effect handler.
 ///
 /// Cascade flow:
-///   MemberRegistered → handle_generate_embedding → EmbeddingGenerated
+///   MemberRegistered → generate embedding (terminal)
 pub fn member_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<MemberEvent>().run(|event: Arc<MemberEvent>, ctx| async move {
-        match event.as_ref() {
-            // =================================================================
-            // Cascade: MemberRegistered → generate embedding
-            // =================================================================
-            MemberEvent::MemberRegistered { member_id, .. } => {
-                handle_generate_embedding(*member_id, &ctx).await
+    effect::on::<MemberEvent>().then(
+        |event, ctx: EffectContext<AppState, ServerDeps>| async move {
+            match event.as_ref() {
+                // =================================================================
+                // Cascade: MemberRegistered → generate embedding
+                // =================================================================
+                MemberEvent::MemberRegistered { member_id, .. } => {
+                    // Call the action to generate embedding
+                    match actions::generate_embedding(
+                        *member_id,
+                        ctx.deps().embedding_service.as_ref(),
+                        &ctx.deps().db_pool,
+                    )
+                    .await
+                    {
+                        Ok(result) => {
+                            info!(
+                                member_id = %result.member_id,
+                                dimensions = result.dimensions,
+                                "Embedding generated for member"
+                            );
+                        }
+                        Err(e) => {
+                            error!(
+                                member_id = %member_id,
+                                error = %e,
+                                "Embedding generation failed for member (non-fatal)"
+                            );
+                        }
+                    }
+                    Ok(()) // Terminal
+                }
+
+                // =================================================================
+                // Terminal events - no cascade needed
+                // =================================================================
+                MemberEvent::MemberStatusUpdated { .. }
+                | MemberEvent::EmbeddingGenerated { .. } => Ok(()),
             }
-
-            // =================================================================
-            // Terminal events - no cascade needed
-            // =================================================================
-            MemberEvent::MemberStatusUpdated { .. } | MemberEvent::EmbeddingGenerated { .. } => {
-                Ok(())
-            }
-        }
-    })
-}
-
-// ============================================================================
-// Effect Handlers - wrap actions and emit events
-// ============================================================================
-
-/// Handle embedding generation - wraps the action and emits events.
-///
-/// This is a handler (lives in effects) because it emits events.
-/// The actual work is done by `actions::generate_embedding`.
-async fn handle_generate_embedding(
-    member_id: Uuid,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
-    // Call the action
-    let result = actions::generate_embedding(
-        member_id,
-        ctx.deps().embedding_service.as_ref(),
-        &ctx.deps().db_pool,
+        },
     )
-    .await
-    .map_err(|e| {
-        error!(
-            "Embedding generation failed for member {}: {}",
-            member_id, e
-        );
-        anyhow::anyhow!("Embedding generation failed: {}", e)
-    })?;
-
-    ctx.emit(MemberEvent::EmbeddingGenerated {
-        member_id: result.member_id,
-        dimensions: result.dimensions,
-    });
-    Ok(())
 }

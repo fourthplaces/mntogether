@@ -14,5 +14,6 @@ pub enum AuthEvent {
         member_id: Uuid,
         phone_number: String,
         is_admin: bool,
+        token: String,
     },
 }

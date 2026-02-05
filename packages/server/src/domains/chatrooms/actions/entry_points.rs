@@ -1,14 +1,13 @@
 //! Entry-point actions for chatrooms domain
 //!
 //! These actions are called directly from GraphQL mutations via `process()`.
-//! They do the work, emit fact events, and return ReadResult for deferred reads.
+//! They do the work and return fact events for the effect system to dispatch.
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::common::{AppState, ContainerId, MemberId, MessageId, ReadResult};
+use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::{Tag, Taggable};
@@ -20,22 +19,22 @@ use crate::kernel::ServerDeps;
 
 /// Create a new chat container.
 ///
-/// Entry point for GraphQL mutation. Does the actual work, emits fact event.
+/// Entry point for GraphQL mutation. Does the actual work, returns fact event.
 pub async fn create_container(
     container_type: String,
     entity_id: Option<Uuid>,
     language: String,
     _requested_by: Option<MemberId>,
     with_agent: Option<String>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<ReadResult<Container>> {
+    deps: &ServerDeps,
+) -> Result<ChatEvent> {
     info!(container_type = %container_type, ?with_agent, "Creating chat container");
 
     let container = Container::create(
         container_type.clone(),
         entity_id,
         language,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
@@ -43,16 +42,14 @@ pub async fn create_container(
     if let Some(ref agent_config) = with_agent {
         info!(container_id = %container.id, agent_config = %agent_config, "Tagging container with agent");
         let tag =
-            Tag::find_or_create("with_agent", agent_config, None, &ctx.deps().db_pool).await?;
-        Taggable::create_container_tag(container.id, tag.id, &ctx.deps().db_pool).await?;
+            Tag::find_or_create("with_agent", agent_config, None, &deps.db_pool).await?;
+        Taggable::create_container_tag(container.id, tag.id, &deps.db_pool).await?;
     }
 
-    ctx.emit(ChatEvent::ContainerCreated {
-        container: container.clone(),
+    Ok(ChatEvent::ContainerCreated {
+        container,
         with_agent,
-    });
-
-    Ok(ReadResult::new(container.id, ctx.deps().db_pool.clone()))
+    })
 }
 
 // ============================================================================
@@ -61,18 +58,18 @@ pub async fn create_container(
 
 /// Send a user message to a container.
 ///
-/// Entry point for GraphQL mutation. Does the actual work, emits fact event.
+/// Entry point for GraphQL mutation. Does the actual work, returns fact event.
 pub async fn send_message(
     container_id: ContainerId,
     content: String,
     author_id: Option<MemberId>,
     parent_message_id: Option<MessageId>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<ReadResult<Message>> {
+    deps: &ServerDeps,
+) -> Result<ChatEvent> {
     info!(container_id = %container_id, "Creating user message");
 
     // Get next sequence number
-    let sequence_number = Message::next_sequence_number(container_id, &ctx.deps().db_pool).await?;
+    let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     // Create message
     let message = Message::create(
@@ -83,18 +80,14 @@ pub async fn send_message(
         Some("approved".to_string()),
         parent_message_id,
         sequence_number,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
     // Update container activity
-    Container::touch_activity(container_id, &ctx.deps().db_pool).await?;
+    Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    ctx.emit(ChatEvent::MessageCreated {
-        message: message.clone(),
-    });
-
-    Ok(ReadResult::new(message.id, ctx.deps().db_pool.clone()))
+    Ok(ChatEvent::MessageCreated { message })
 }
 
 // ============================================================================
@@ -110,12 +103,12 @@ pub async fn create_message(
     content: String,
     author_id: Option<MemberId>,
     parent_message_id: Option<MessageId>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<ReadResult<Message>> {
+    deps: &ServerDeps,
+) -> Result<ChatEvent> {
     info!(container_id = %container_id, role = %role, "Creating message");
 
     // Get next sequence number
-    let sequence_number = Message::next_sequence_number(container_id, &ctx.deps().db_pool).await?;
+    let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     // Create message
     let message = Message::create(
@@ -126,16 +119,12 @@ pub async fn create_message(
         Some("approved".to_string()),
         parent_message_id,
         sequence_number,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
     // Update container activity
-    Container::touch_activity(container_id, &ctx.deps().db_pool).await?;
+    Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    ctx.emit(ChatEvent::MessageCreated {
-        message: message.clone(),
-    });
-
-    Ok(ReadResult::new(message.id, ctx.deps().db_pool.clone()))
+    Ok(ChatEvent::MessageCreated { message })
 }

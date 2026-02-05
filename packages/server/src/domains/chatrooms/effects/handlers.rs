@@ -8,11 +8,9 @@
 //!   MessageCreated (user role) → handle_generate_reply → MessageCreated
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::{error, info};
 
-use crate::common::{AppState, ContainerId, MemberId, MessageId};
-use crate::domains::chatrooms::events::ChatEvent;
+use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
 use crate::kernel::{CompletionExt, ServerDeps};
@@ -22,18 +20,21 @@ use crate::kernel::{CompletionExt, ServerDeps};
 // ============================================================================
 
 /// Handle generate greeting for new container with agent.
+///
+/// Creates an assistant message with the greeting. Returns the created message.
+/// The effect handles any further cascading internally.
 pub async fn handle_generate_greeting(
     container_id: ContainerId,
     agent_config: String,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+    deps: &ServerDeps,
+) -> Result<Message> {
     info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
 
     // Get greeting prompt based on agent config
     let greeting_prompt = get_greeting_prompt(&agent_config);
 
     // Generate greeting using AI service
-    let greeting_text = match ctx.deps().ai.complete(greeting_prompt).await {
+    let greeting_text = match deps.ai.complete(greeting_prompt).await {
         Ok(text) => text,
         Err(e) => {
             error!("Failed to generate AI greeting: {}", e);
@@ -51,7 +52,7 @@ pub async fn handle_generate_greeting(
     let agent_member_id = MemberId::new();
 
     // Create the greeting message directly
-    let sequence_number = Message::next_sequence_number(container_id, &ctx.deps().db_pool).await?;
+    let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     let message = Message::create(
         container_id,
@@ -61,20 +62,19 @@ pub async fn handle_generate_greeting(
         Some("approved".to_string()),
         None, // No parent for greeting
         sequence_number,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
     // Update container activity
-    Container::touch_activity(container_id, &ctx.deps().db_pool).await?;
+    Container::touch_activity(container_id, &deps.db_pool).await?;
 
     info!(
         message_id = %message.id,
         "Greeting message created"
     );
 
-    ctx.emit(ChatEvent::MessageCreated { message });
-    Ok(())
+    Ok(message)
 }
 
 // ============================================================================
@@ -82,15 +82,18 @@ pub async fn handle_generate_greeting(
 // ============================================================================
 
 /// Handle generate reply for user message in container with agent.
+///
+/// Creates an assistant reply message. Returns the created message.
+/// The effect handles any further cascading internally.
 pub async fn handle_generate_reply(
     message_id: MessageId,
     container_id: ContainerId,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+    deps: &ServerDeps,
+) -> Result<Message> {
     info!(message_id = %message_id, container_id = %container_id, "Generating agent reply");
 
     // Load the original message
-    let original_message = match Message::find_by_id(message_id, &ctx.deps().db_pool).await {
+    let original_message = match Message::find_by_id(message_id, &deps.db_pool).await {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to load message: {}", e);
@@ -101,11 +104,11 @@ pub async fn handle_generate_reply(
     // Skip if the author is already an assistant (prevent loops)
     if original_message.role == "assistant" {
         info!("Skipping reply - original message is from assistant");
-        return Ok(());
+        return Err(anyhow::anyhow!("Skipping reply - original message is from assistant"));
     }
 
     // Load conversation context (all messages in container)
-    let messages = match Message::find_by_container(container_id, &ctx.deps().db_pool).await {
+    let messages = match Message::find_by_container(container_id, &deps.db_pool).await {
         Ok(m) => m,
         Err(e) => {
             error!("Failed to load conversation: {}", e);
@@ -122,7 +125,7 @@ pub async fn handle_generate_reply(
     let full_prompt = build_chat_prompt(system_prompt, &conversation);
 
     // Generate reply using AI service
-    let reply_text = match ctx.deps().ai.complete(&full_prompt).await {
+    let reply_text = match deps.ai.complete(&full_prompt).await {
         Ok(text) => text,
         Err(e) => {
             error!("Failed to generate AI reply: {}", e);
@@ -140,7 +143,7 @@ pub async fn handle_generate_reply(
     let agent_member_id = MemberId::new();
 
     // Create the assistant message directly
-    let sequence_number = Message::next_sequence_number(container_id, &ctx.deps().db_pool).await?;
+    let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 
     let new_message = Message::create(
         container_id,
@@ -150,22 +153,19 @@ pub async fn handle_generate_reply(
         Some("approved".to_string()),
         Some(message_id), // Parent is the message we're replying to
         sequence_number,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
     // Update container activity
-    Container::touch_activity(container_id, &ctx.deps().db_pool).await?;
+    Container::touch_activity(container_id, &deps.db_pool).await?;
 
     info!(
         new_message_id = %new_message.id,
         "Assistant message created"
     );
 
-    ctx.emit(ChatEvent::MessageCreated {
-        message: new_message,
-    });
-    Ok(())
+    Ok(new_message)
 }
 
 // ============================================================================

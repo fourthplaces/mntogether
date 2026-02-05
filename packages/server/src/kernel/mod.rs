@@ -48,7 +48,7 @@ pub use llm_request::{CompletionExt, LlmRequestExt};
 pub use nats::{NatsClientPublisher, NatsPublisher, PublishedMessage, TestNats};
 pub use pii::{create_pii_detector, HybridPiiDetector, NoopPiiDetector, RegexPiiDetector};
 pub use server_kernel::ServerKernel;
-pub use test_dependencies::{SpyJobQueue, TestDependencies};
+pub use test_dependencies::TestDependencies;
 pub use traits::*;
 
 // AI Tools for agentic workflows

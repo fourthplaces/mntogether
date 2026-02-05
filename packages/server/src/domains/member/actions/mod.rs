@@ -1,9 +1,7 @@
 //! Member domain actions - business logic functions
 //!
-//! Actions are async functions called directly from GraphQL mutations via `process()`.
-//! They do the work, emit fact events, and return `ReadResult<T>` for deferred reads.
-//!
-//! Handlers (which emit events) live in effects, not here.
+//! Actions return events directly. GraphQL mutations call actions via `process()`
+//! and the returned event is dispatched through the engine.
 
 mod generate_embedding;
 mod queries;

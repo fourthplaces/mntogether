@@ -1,44 +1,39 @@
 //! Register member action - handles member registration with geocoding
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::common::utils::geocoding::geocode_city;
-use crate::common::{AppState, ReadResult};
 use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
 use crate::kernel::ServerDeps;
 
 /// Register a new member with geocoding.
 ///
-/// Called directly from GraphQL mutation via `process()`.
-/// Emits `MemberRegistered` fact event to trigger cascading effects (embedding generation).
-/// Returns `ReadResult<Member>` for deferred read after effects settle.
+/// Returns MemberRegistered event to trigger cascading effects (embedding generation).
 pub async fn register_member(
     expo_push_token: String,
     searchable_text: String,
     city: String,
     state: String,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<ReadResult<Member>> {
+    deps: &ServerDeps,
+) -> Result<MemberEvent> {
     info!(
         "Registering member with token: {} in {}, {}",
         expo_push_token, city, state
     );
 
     // Check if member already exists (idempotency)
-    if let Some(existing) = Member::find_by_token(&expo_push_token, &ctx.deps().db_pool).await? {
+    if let Some(existing) = Member::find_by_token(&expo_push_token, &deps.db_pool).await? {
         debug!("Member already exists, returning existing: {}", existing.id);
-        ctx.emit(MemberEvent::MemberRegistered {
+        return Ok(MemberEvent::MemberRegistered {
             member_id: existing.id,
             expo_push_token: existing.expo_push_token.clone(),
             latitude: existing.latitude,
             longitude: existing.longitude,
             location_name: existing.location_name.clone(),
         });
-        return Ok(ReadResult::new(existing.id, ctx.deps().db_pool.clone()));
     }
 
     // Geocode city to lat/lng
@@ -74,21 +69,18 @@ pub async fn register_member(
     };
 
     // Insert into database
-    let created = member.insert(&ctx.deps().db_pool).await.map_err(|e| {
+    let created = member.insert(&deps.db_pool).await.map_err(|e| {
         error!("Failed to insert member: {}", e);
         anyhow::anyhow!("Database error: {}", e)
     })?;
 
     info!("Member registered successfully: {}", created.id);
 
-    // Emit fact event - triggers cascading effects (embedding generation)
-    ctx.emit(MemberEvent::MemberRegistered {
+    Ok(MemberEvent::MemberRegistered {
         member_id: created.id,
         expo_push_token: created.expo_push_token.clone(),
         latitude: created.latitude,
         longitude: created.longitude,
         location_name: created.location_name.clone(),
-    });
-
-    Ok(ReadResult::new(created.id, ctx.deps().db_pool.clone()))
+    })
 }

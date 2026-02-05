@@ -1,14 +1,11 @@
 //! Provider effects - handle cascading reactions to fact events
 //!
-//! Effects watch FACT events and call handlers directly for cascading.
-//! NO *Requested events - GraphQL calls actions, effects call handlers on facts.
+//! Effects use `.then()` and return `Ok(Event)` to chain or `Ok(())` for terminal.
 //!
 //! Cascade flow:
-//!   ProviderDeleted → cleanup contacts and tags
+//!   ProviderDeleted → cleanup contacts and tags (terminal)
 
-use seesaw_core::effect;
-use seesaw_core::EffectContext;
-use std::sync::Arc;
+use seesaw_core::{effect, EffectContext};
 use tracing::info;
 
 use crate::common::AppState;
@@ -20,9 +17,10 @@ use crate::kernel::ServerDeps;
 /// Build the provider effect handler.
 ///
 /// Cascade flow:
-///   ProviderDeleted → cleanup contacts and tags
+///   ProviderDeleted → cleanup contacts and tags (terminal)
 pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<ProviderEvent>().run(|event: Arc<ProviderEvent>, ctx: EffectContext<AppState, ServerDeps>| async move {
+    effect::on::<ProviderEvent>().then(
+        |event, ctx: EffectContext<AppState, ServerDeps>| async move {
         match event.as_ref() {
             // =================================================================
             // Cascade: ProviderDeleted → cleanup contacts and tags
@@ -53,7 +51,7 @@ pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 }
 
                 info!(provider_id = %provider_id, "Provider cascade cleanup completed");
-                Ok(())
+                Ok(()) // Terminal - no further events
             }
 
             // =================================================================
@@ -62,7 +60,7 @@ pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
             ProviderEvent::ProviderCreated { .. }
             | ProviderEvent::ProviderApproved { .. }
             | ProviderEvent::ProviderRejected { .. }
-            | ProviderEvent::ProviderSuspended { .. } => Ok(()),
+            | ProviderEvent::ProviderSuspended { .. } => Ok(()), // Terminal
         }
     })
 }

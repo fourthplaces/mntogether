@@ -6,23 +6,21 @@
 //! This module now uses the extraction library for scraping.
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 
-use crate::common::AppState;
 use crate::common::JobId;
 use crate::domains::posts::events::PostEvent;
 use crate::kernel::{FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
 
 /// Cascade handler: WebsiteCreatedFromLink → scrape resource link
 ///
-/// Uses the extraction library to ingest the URL, then emits ResourceLinkScraped.
+/// Uses the extraction library to ingest the URL, returns ResourceLinkScraped event.
 pub async fn handle_scrape_resource_link(
     job_id: JobId,
     url: String,
     context: Option<String>,
     submitter_contact: Option<String>,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<()> {
+    deps: &ServerDeps,
+) -> Result<PostEvent> {
     tracing::info!(
         job_id = %job_id,
         url = %url,
@@ -31,8 +29,7 @@ pub async fn handle_scrape_resource_link(
     );
 
     // Get extraction service (required)
-    let extraction = ctx
-        .deps()
+    let extraction = deps
         .extraction
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
@@ -60,20 +57,18 @@ pub async fn handle_scrape_resource_link(
                 "Resource link ingested via extraction library"
             );
 
-            ctx.emit(PostEvent::ResourceLinkScraped {
+            Ok(PostEvent::ResourceLinkScraped {
                 job_id,
                 url,
                 content: String::new(), // Content is now in extraction_pages
                 context,
                 submitter_contact,
                 page_snapshot_id: None, // No longer using page_snapshots
-            });
+            })
         }
         Err(e) => {
             tracing::error!(job_id = %job_id, url = %url, error = %e, "Scraping failed");
-            return Err(anyhow::anyhow!("Web scraping failed: {}", e));
+            Err(anyhow::anyhow!("Web scraping failed: {}", e))
         }
     }
-
-    Ok(())
 }

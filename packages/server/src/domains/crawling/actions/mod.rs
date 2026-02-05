@@ -2,7 +2,7 @@
 //!
 //! All crawling operations go through these actions via `engine.activate().process()`.
 //! Actions are self-contained: they take raw Uuid types, handle conversions,
-//! and return results directly.
+//! and return events directly.
 //!
 //! Use `ingest_website()` for crawling websites - it uses the extraction library's
 //! Ingestor pattern with SSRF protection and integrated summarization.
@@ -14,11 +14,10 @@ pub mod sync_posts;
 pub mod website_context;
 
 use anyhow::Result;
-use seesaw_core::EffectContext;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::common::{AppState, JobId, MemberId, WebsiteId};
+use crate::common::{JobId, MemberId, WebsiteId};
 use crate::domains::crawling::effects::discovery::discover_pages;
 use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo};
 use crate::domains::website::models::Website;
@@ -27,43 +26,34 @@ use extraction::types::page::CachedPage;
 
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
-pub use ingest_website::{ingest_urls, ingest_website};
+pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
 pub use sync_posts::{sync_and_deduplicate_posts, SyncAndDedupResult};
 pub use website_context::fetch_approved_website;
 
-/// Result of a crawl/regenerate operation
-#[derive(Debug, Clone)]
-pub struct CrawlJobResult {
-    pub job_id: Uuid,
-    pub website_id: Uuid,
-    pub status: String,
-    pub message: Option<String>,
-}
-
 /// Regenerate posts from existing pages in extraction library.
-/// Returns job result directly.
+/// Returns the fact event directly.
 pub async fn regenerate_posts(
     website_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
+    deps: &ServerDeps,
+) -> Result<CrawlEvent> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
 
     // Auth check - returns error, not event
-    check_crawl_authorization(requested_by, is_admin, "RegeneratePosts", ctx.deps()).await?;
+    check_crawl_authorization(requested_by, is_admin, "RegeneratePosts", deps).await?;
 
     // Fetch approved website
-    let _website = fetch_approved_website(website_id_typed, &ctx.deps().db_pool)
+    let _website = fetch_approved_website(website_id_typed, &deps.db_pool)
         .await
         .ok_or_else(|| anyhow::anyhow!("Website not found or not approved"))?;
 
     // Count pages in extraction library to verify we have something to process
     let page_count = crate::domains::crawling::models::ExtractionPage::count_by_domain(
         &_website.domain,
-        &ctx.deps().db_pool,
+        &deps.db_pool,
     )
     .await?;
 
@@ -75,29 +65,21 @@ pub async fn regenerate_posts(
 
     info!(website_id = %website_id_typed, pages_count = page_count, "Triggering post regeneration");
 
-    // Emit fact event - posts are being regenerated from existing pages
-    ctx.emit(CrawlEvent::WebsitePostsRegenerated {
+    Ok(CrawlEvent::WebsitePostsRegenerated {
         website_id: website_id_typed,
         job_id,
         pages_processed: page_count,
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        status: "completed".to_string(),
-        message: Some(format!("Regeneration triggered for {} pages", page_count)),
     })
 }
 
 /// Discover pages using Tavily search instead of traditional crawling
-/// Returns job result directly.
+/// Returns the fact event directly.
 pub async fn discover_website(
     website_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
-    ctx: &EffectContext<AppState, ServerDeps>,
-) -> Result<CrawlJobResult> {
+    deps: &ServerDeps,
+) -> Result<CrawlEvent> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
@@ -105,15 +87,15 @@ pub async fn discover_website(
     info!(website_id = %website_id_typed, job_id = %job_id, "Starting Tavily-based discovery");
 
     // Auth check
-    check_crawl_authorization(requested_by, is_admin, "DiscoverWebsite", ctx.deps()).await?;
+    check_crawl_authorization(requested_by, is_admin, "DiscoverWebsite", deps).await?;
 
     // Fetch website
-    let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
+    let website = Website::find_by_id(website_id_typed, &deps.db_pool).await?;
 
     // Run Tavily discovery
     let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
     let discovered =
-        match discover_pages(&website.domain, ctx.deps().web_searcher.as_ref(), max_pages).await {
+        match discover_pages(&website.domain, deps.web_searcher.as_ref(), max_pages).await {
             Ok(pages) => pages,
             Err(e) => {
                 return Err(anyhow::anyhow!("Discovery failed: {}", e));
@@ -131,8 +113,7 @@ pub async fn discover_website(
     );
 
     // Get extraction service
-    let extraction_service = ctx
-        .deps()
+    let extraction_service = deps
         .extraction
         .as_ref()
         .ok_or_else(|| anyhow::anyhow!("Extraction service not configured"))?;
@@ -167,21 +148,12 @@ pub async fn discover_website(
         })
         .collect();
 
-    let pages_count = crawled_pages.len();
-    info!(website_id = %website_id_typed, pages_stored = pages_count, "Emitting WebsitePagesDiscovered");
+    info!(website_id = %website_id_typed, pages_stored = crawled_pages.len(), "Returning WebsitePagesDiscovered");
 
-    // Emit fact event - pages were discovered via search
-    ctx.emit(CrawlEvent::WebsitePagesDiscovered {
+    Ok(CrawlEvent::WebsitePagesDiscovered {
         website_id: website_id_typed,
         job_id,
         pages: crawled_pages,
         discovery_method: "tavily".to_string(),
-    });
-
-    Ok(CrawlJobResult {
-        job_id: job_id.into_uuid(),
-        website_id,
-        status: "completed".to_string(),
-        message: Some(format!("Discovered {} pages via search", pages_count)),
     })
 }

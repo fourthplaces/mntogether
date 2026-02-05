@@ -308,15 +308,73 @@ async fn handle_extract_posts(ctx: &EffectContext<...>) -> Result<()> {
 
 ---
 
-## Seesaw Architecture Rules (v0.4.0+)
+## Seesaw Architecture Rules (v0.7.3)
 
 ### Overview
 
-Seesaw uses an event-driven architecture with three main components:
+Seesaw uses an event-driven architecture with these main components:
 
-1. **Effects** - Thin dispatchers that route commands to handlers
-2. **Actions** - Reusable business logic in `domains/*/actions/` modules
-3. **Edges** - Event-to-command transitions that can run business logic
+1. **Actions** - Reusable business logic in `domains/*/actions/` modules
+2. **Effects** - Event handlers that run in response to domain events
+3. **GraphQL Integration** - Thin mutations that call actions via `process()`
+
+### CRITICAL: GraphQL Mutations Must Be Thin
+
+**All GraphQL mutations and queries that invoke actions MUST use the `process()` pattern.**
+
+The `process()` method is the synchronous gateway to call actions:
+- Activates the engine with app state
+- Executes the closure and returns its result
+- Ensures events are emitted to the engine
+
+#### ✅ Correct GraphQL Pattern (v0.7.3):
+
+```rust
+async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
+    use crate::domains::posts::events::PostEvent;
+
+    // 1. Auth check at GraphQL layer
+    let user = ctx.auth_user.as_ref()
+        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+    // 2. Call action via process() - returns the event
+    let event = ctx.engine
+        .activate(ctx.app_state())
+        .process(|ectx| {
+            post_actions::approve_post(post_id, user.member_id.into_uuid(), user.is_admin, ectx.deps())
+        })
+        .await
+        .map_err(to_field_error)?;
+
+    // 3. Extract data from event and return
+    let PostEvent::PostApproved { post_id } = event else {
+        return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+    };
+
+    let post = Post::find_by_id(post_id, &ctx.db_pool).await.map_err(to_field_error)?;
+    Ok(PostType::from(post))
+}
+```
+
+#### ❌ Incorrect Pattern (Never Do This):
+
+```rust
+// BAD: Calling action directly without process()
+async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
+    // Wrong: No event emitted to engine!
+    post_actions::approve_post(post_id, user_id, is_admin, &ctx.deps()).await?;
+    // ...
+}
+```
+
+### Key Patterns for v0.7.3:
+
+1. **`process()` returns the closure's return value** - Actions return events, `process()` returns them to the caller
+2. **Actions take `&ServerDeps`** - NOT `&EffectContext`
+3. **All business logic inside actions** - GraphQL mutations are thin wrappers
+4. **Events contain the data you need** - e.g., `AuthEvent::OTPVerified { token, member_id, ... }`
+
+---
 
 ### PLATINUM RULE: Events Are Facts Only
 

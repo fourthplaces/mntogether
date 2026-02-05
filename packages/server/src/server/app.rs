@@ -21,6 +21,7 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
+use crate::kernel::jobs::NoopJobQueue;
 use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, TwilioAdapter};
 use crate::server::graphql::context::AppEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
@@ -79,8 +80,9 @@ async fn create_graphql_context(
 
 /// Build the seesaw engine with all domain effects
 ///
-/// In seesaw 0.6.0, effects are registered using the builder pattern:
-/// `effect::on::<E>().run(|event, ctx| async { ... })`
+/// In seesaw 0.7.2, effects are registered using:
+/// - `effect::on::<E>().extract().then()` for single variant handling
+/// - `on!` macro for multi-variant matching with explicit event returns
 fn build_engine(server_deps: ServerDeps) -> AppEngine {
     Engine::with_deps(server_deps)
         // Auth domain
@@ -103,10 +105,10 @@ fn build_engine(server_deps: ServerDeps) -> AppEngine {
 
 /// Build the Axum application router
 ///
-/// The Engine is created with effects for the seesaw 0.6.0 architecture.
-/// GraphQL mutations use engine.activate(initial_state) to execute workflows.
+/// The Engine is created with effects for the seesaw 0.7.2 architecture.
+/// GraphQL mutations use engine.activate(state).process() to execute workflows.
 ///
-/// Returns (Router, Arc<AppEngine>) - engine is needed for scheduled tasks.
+/// Returns (Router, Arc<AppEngine>, Arc<ServerDeps>) - engine and deps are needed for scheduled tasks.
 pub async fn build_app(
     pool: PgPool,
     openai_api_key: String,
@@ -123,7 +125,7 @@ pub async fn build_app(
     admin_identifiers: Vec<String>,
     pii_scrubbing_enabled: bool,
     pii_use_gpt_detection: bool,
-) -> (Router, Arc<AppEngine>) {
+) -> (Router, Arc<AppEngine>, Arc<ServerDeps>) {
     // Create GraphQL schema (singleton)
     let schema = Arc::new(create_schema());
 
@@ -178,6 +180,13 @@ pub async fn build_app(
         .await
         .expect("Failed to create extraction service - this is required for server operation");
 
+    // Create job queue (NoopJobQueue for now - jobs are processed inline)
+    // TODO: Replace with PostgresJobQueue when job worker is running
+    let job_queue: Arc<dyn crate::kernel::jobs::JobQueue> = Arc::new(NoopJobQueue::new());
+
+    // Create JWT service
+    let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer.clone()));
+
     let server_deps = ServerDeps::new(
         pool.clone(),
         ingestor,
@@ -190,6 +199,8 @@ pub async fn build_app(
         web_searcher,
         pii_detector,
         Some(extraction_service),
+        job_queue,
+        jwt_service.clone(),
         test_identifier_enabled,
         admin_identifiers,
     );
@@ -197,17 +208,14 @@ pub async fn build_app(
     // Clone server_deps before moving into engine
     let server_deps_arc = Arc::new(server_deps.clone());
 
-    // Build seesaw engine with effects (0.6.0 builder pattern)
+    // Build seesaw engine with effects (0.7.2 pattern)
     let engine = Arc::new(build_engine(server_deps));
-
-    // Create JWT service
-    let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));
 
     // Create shared app state
     let app_state = AxumAppState {
         db_pool: pool.clone(),
         engine: engine.clone(),
-        server_deps: server_deps_arc,
+        server_deps: server_deps_arc.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),
@@ -282,5 +290,5 @@ pub async fn build_app(
         // State (schema for GraphQL handlers)
         .with_state(schema);
 
-    (app, engine)
+    (app, engine, server_deps_arc)
 }
