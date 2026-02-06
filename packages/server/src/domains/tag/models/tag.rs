@@ -26,7 +26,7 @@ pub struct Tag {
 pub struct Taggable {
     pub id: TaggableId,
     pub tag_id: TagId,
-    pub taggable_type: String, // 'listing', 'organization', 'referral_document', 'domain', 'provider'
+    pub taggable_type: String, // 'post', 'organization', 'referral_document', 'domain', 'provider'
     pub taggable_id: Uuid,
     pub added_at: DateTime<Utc>,
 }
@@ -113,7 +113,7 @@ impl std::str::FromStr for TagKind {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TaggableType {
-    Listing,
+    Post,
     Organization,
     ReferralDocument,
     Domain,
@@ -124,7 +124,7 @@ pub enum TaggableType {
 impl std::fmt::Display for TaggableType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            TaggableType::Listing => write!(f, "listing"),
+            TaggableType::Post => write!(f, "post"),
             TaggableType::Organization => write!(f, "organization"),
             TaggableType::ReferralDocument => write!(f, "referral_document"),
             TaggableType::Domain => write!(f, "domain"),
@@ -139,7 +139,7 @@ impl std::str::FromStr for TaggableType {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "listing" => Ok(TaggableType::Listing),
+            "post" => Ok(TaggableType::Post),
             "organization" => Ok(TaggableType::Organization),
             "referral_document" => Ok(TaggableType::ReferralDocument),
             "domain" => Ok(TaggableType::Domain),
@@ -150,11 +150,37 @@ impl std::str::FromStr for TaggableType {
     }
 }
 
+/// Helper struct for batch-loading tags with their associated post ID.
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct TagWithPostId {
+    pub taggable_id: Uuid,
+    #[sqlx(flatten)]
+    pub tag: Tag,
+}
+
 // =============================================================================
 // Tag Queries
 // =============================================================================
 
 impl Tag {
+    /// Batch-load tags for multiple posts (for DataLoader).
+    /// Returns (post_id, Tag) pairs grouped by the caller.
+    pub async fn find_for_post_ids(post_ids: &[Uuid], pool: &PgPool) -> Result<Vec<TagWithPostId>> {
+        sqlx::query_as::<_, TagWithPostId>(
+            r#"
+            SELECT tg.taggable_id, t.*
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            WHERE tg.taggable_type = 'post' AND tg.taggable_id = ANY($1)
+            ORDER BY t.kind, t.value
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find tag by ID
     pub async fn find_by_id(id: TagId, pool: &PgPool) -> Result<Self> {
         let tag = sqlx::query_as::<_, Tag>("SELECT * FROM tags WHERE id = $1")
@@ -250,7 +276,7 @@ impl Tag {
             SELECT t.*
             FROM tags t
             INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'listing' AND tg.taggable_id = $1
+            WHERE tg.taggable_type = 'post' AND tg.taggable_id = $1
             ORDER BY t.kind, t.value
             "#,
         )
@@ -463,9 +489,9 @@ impl Tag {
 // =============================================================================
 
 impl Taggable {
-    /// Associate a tag with a listing
+    /// Associate a tag with a post
     pub async fn create_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<Self> {
-        Self::create(tag_id, "listing", post_id.as_uuid(), pool).await
+        Self::create(tag_id, "post", post_id.as_uuid(), pool).await
     }
 
     /// Associate a tag with an organization
@@ -537,9 +563,9 @@ impl Taggable {
         Ok(taggable)
     }
 
-    /// Remove a tag from a listing
+    /// Remove a tag from a post
     pub async fn delete_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<()> {
-        Self::delete(tag_id, "listing", post_id.as_uuid(), pool).await
+        Self::delete(tag_id, "post", post_id.as_uuid(), pool).await
     }
 
     /// Remove a tag from an organization
@@ -614,9 +640,9 @@ impl Taggable {
         Ok(())
     }
 
-    /// Remove all tags from a listing
+    /// Remove all tags from a post
     pub async fn delete_all_for_post(post_id: PostId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM taggables WHERE taggable_type = 'listing' AND taggable_id = $1")
+        sqlx::query("DELETE FROM taggables WHERE taggable_type = 'post' AND taggable_id = $1")
             .bind(post_id.as_uuid())
             .execute(pool)
             .await?;
@@ -646,10 +672,10 @@ impl Taggable {
         Ok(())
     }
 
-    /// Find all listings with a specific tag
+    /// Find all posts with a specific tag
     pub async fn find_posts_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
         let ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'listing'",
+            "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'post'",
         )
         .bind(tag_id)
         .fetch_all(pool)

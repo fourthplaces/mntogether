@@ -88,6 +88,60 @@ impl Location {
             .await?;
         Ok(())
     }
+
+    /// Find or create a location from AI-extracted structured data.
+    ///
+    /// Looks up the zip code to get lat/lng, then upserts by postal_code.
+    pub async fn find_or_create_from_extraction(
+        city: Option<&str>,
+        state: Option<&str>,
+        zip: Option<&str>,
+        address: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let postal_code = zip.unwrap_or_default();
+
+        // Try to find existing location by postal_code
+        if !postal_code.is_empty() {
+            let existing = sqlx::query_as::<_, Self>(
+                "SELECT * FROM locations WHERE postal_code = $1 LIMIT 1",
+            )
+            .bind(postal_code)
+            .fetch_optional(pool)
+            .await?;
+
+            if let Some(loc) = existing {
+                return Ok(loc);
+            }
+        }
+
+        // Look up lat/lng from zip_codes reference table
+        let (lat, lng) = if !postal_code.is_empty() {
+            let coords: Option<(f64, f64)> = sqlx::query_as(
+                "SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1",
+            )
+            .bind(postal_code)
+            .fetch_optional(pool)
+            .await?;
+            coords.map(|(la, lo)| (Some(la), Some(lo))).unwrap_or((None, None))
+        } else {
+            (None, None)
+        };
+
+        Self::create(
+            None,
+            None,
+            address,
+            city,
+            state,
+            zip,
+            lat,
+            lng,
+            "physical",
+            pool,
+        )
+        .await
+    }
 }
 
 /// Links posts to locations (HSDS service_at_location equivalent)

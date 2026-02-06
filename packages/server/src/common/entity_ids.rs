@@ -71,11 +71,8 @@ pub struct Location;
 /// Marker type for PostLocation entities (post-location join).
 pub struct PostLocation;
 
-/// Marker type for Schedule entities (operating hours).
+/// Marker type for Schedule entities (operating hours and calendar events).
 pub struct Schedule;
-
-/// Marker type for ServiceArea entities (geographic coverage).
-pub struct ServiceArea;
 
 /// Marker type for TaxonomyCrosswalk entities (external taxonomy mapping).
 pub struct TaxonomyCrosswalk;
@@ -140,9 +137,6 @@ pub type PostLocationId = Id<PostLocation>;
 
 /// Typed ID for Schedule entities.
 pub type ScheduleId = Id<Schedule>;
-
-/// Typed ID for ServiceArea entities.
-pub type ServiceAreaId = Id<ServiceArea>;
 
 /// Typed ID for TaxonomyCrosswalk entities.
 pub type TaxonomyCrosswalkId = Id<TaxonomyCrosswalk>;

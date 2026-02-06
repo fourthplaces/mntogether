@@ -307,6 +307,9 @@ const EXTRACTION_PROMPT: &str = r#"Extract structured information from the inves
 For each field:
 - **contact**: Phone, email, website, intake_form_url, contact_name (leave null if not found)
 - **location**: Physical address if this is an in-person service (null if virtual/not mentioned)
+- **zip_code**: 5-digit zip code for in-person services (null if virtual/unknown)
+- **city**: City name (e.g., "Minneapolis")
+- **state**: 2-letter state abbreviation (e.g., "MN")
 - **urgency**: "low", "medium", "high", or "urgent" based on time-sensitivity
 - **confidence**: "low", "medium", or "high" based on information completeness
 - **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"
@@ -470,13 +473,7 @@ pub async fn extract_posts_from_content(
                     error = %e,
                     "Investigation failed, using defaults"
                 );
-                ExtractedPostInformation {
-                    contact: ContactInfo::default(),
-                    location: None,
-                    urgency: "medium".to_string(),
-                    confidence: "low".to_string(),
-                    audience_roles: vec!["recipient".to_string()],
-                }
+                ExtractedPostInformation::default()
             }
         };
 
@@ -491,6 +488,9 @@ pub async fn extract_posts_from_content(
             audience_roles: info.audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
+            zip_code: info.zip_code,
+            city: info.city,
+            state: info.state,
         });
     }
 
@@ -756,13 +756,7 @@ pub async fn extract_posts_from_pages(
                     error = %e,
                     "Investigation failed, using defaults"
                 );
-                ExtractedPostInformation {
-                    contact: ContactInfo::default(),
-                    location: None,
-                    urgency: "medium".to_string(),
-                    confidence: "low".to_string(),
-                    audience_roles: vec!["recipient".to_string()],
-                }
+                ExtractedPostInformation::default()
             }
         };
 
@@ -777,6 +771,9 @@ pub async fn extract_posts_from_pages(
             audience_roles: info.audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
+            zip_code: info.zip_code,
+            city: info.city,
+            state: info.state,
         });
     }
 

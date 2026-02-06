@@ -5,8 +5,46 @@ use uuid::Uuid;
 
 use crate::common::PostId;
 
-// Re-export ContactType from the contacts domain (canonical source)
-pub use crate::domains::contacts::ContactType;
+/// Contact type enum for type-safe querying
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ContactType {
+    Phone,
+    Email,
+    Website,
+    Address,
+    BookingUrl,
+    Social,
+}
+
+impl std::fmt::Display for ContactType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ContactType::Phone => write!(f, "phone"),
+            ContactType::Email => write!(f, "email"),
+            ContactType::Website => write!(f, "website"),
+            ContactType::Address => write!(f, "address"),
+            ContactType::BookingUrl => write!(f, "booking_url"),
+            ContactType::Social => write!(f, "social"),
+        }
+    }
+}
+
+impl std::str::FromStr for ContactType {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "phone" => Ok(ContactType::Phone),
+            "email" => Ok(ContactType::Email),
+            "website" => Ok(ContactType::Website),
+            "address" => Ok(ContactType::Address),
+            "booking_url" => Ok(ContactType::BookingUrl),
+            "social" => Ok(ContactType::Social),
+            _ => Err(anyhow::anyhow!("Invalid contact type: {}", s)),
+        }
+    }
+}
 
 /// PostContact - contact information for a listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

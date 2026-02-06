@@ -495,6 +495,9 @@ async fn stage_sync_operations(
                             urgency: None,
                             confidence: None,
                             source_page_snapshot_id: None,
+                            zip_code: None,
+                            city: None,
+                            state: None,
                         };
                         match update_post(canonical.id, &fake_fresh, false, pool).await {
                             Ok(()) => Post::find_revision_for_post(canonical.id, pool)

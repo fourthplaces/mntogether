@@ -1,3 +1,4 @@
 pub mod contact;
 
-pub use contact::{Contact, ContactType, ContactableType, CreateContact, CreateContactForProvider};
+// ContactType moved to domains::posts::models::post_contact
+pub use crate::domains::posts::models::post_contact::ContactType;

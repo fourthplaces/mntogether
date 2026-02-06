@@ -60,7 +60,6 @@ pub enum ChatEventPayload {
     /// Container was created
     ContainerCreated {
         container_id: String,
-        container_type: String,
         with_agent: Option<String>,
     },
 }
@@ -92,7 +91,6 @@ impl IntoNatsPayload for ChatEvent {
                 with_agent,
             } => serde_json::to_value(ChatEventPayload::ContainerCreated {
                 container_id: container.id.to_string(),
-                container_type: container.container_type.clone(),
                 with_agent: with_agent.clone(),
             })
             .unwrap_or_default(),

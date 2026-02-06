@@ -1,4 +1,5 @@
 pub mod data;
+pub mod loader;
 pub mod models;
 
 // Re-export commonly used types

@@ -5,7 +5,6 @@
 
 use anyhow::Result;
 use tracing::info;
-use uuid::Uuid;
 
 use crate::common::{ContainerId, MemberId, MessageId};
 use crate::domains::chatrooms::events::ChatEvent;
@@ -21,17 +20,15 @@ use crate::kernel::ServerDeps;
 ///
 /// Entry point for GraphQL mutation. Does the actual work, returns fact event.
 pub async fn create_container(
-    container_type: String,
-    entity_id: Option<Uuid>,
     language: String,
     _requested_by: Option<MemberId>,
     with_agent: Option<String>,
     deps: &ServerDeps,
 ) -> Result<ChatEvent> {
-    info!(container_type = %container_type, ?with_agent, "Creating chat container");
+    info!(?with_agent, "Creating chat container");
 
     let container =
-        Container::create(container_type.clone(), entity_id, language, &deps.db_pool).await?;
+        Container::create(language, &deps.db_pool).await?;
 
     // Tag container with agent config if provided
     if let Some(ref agent_config) = with_agent {

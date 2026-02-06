@@ -31,6 +31,13 @@ pub struct ExtractedPost {
     /// Source URL(s) where this post was extracted from (may be comma-separated after dedup)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_url: Option<String>,
+    /// Structured location fields for proximity search
+    #[serde(default)]
+    pub zip_code: Option<String>,
+    #[serde(default)]
+    pub city: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
 }
 
 impl ExtractedPost {
@@ -50,6 +57,9 @@ impl ExtractedPost {
             audience_roles: info.audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
+            zip_code: info.zip_code,
+            city: info.city,
+            state: info.state,
         }
     }
 }
@@ -85,6 +95,9 @@ impl ExtractedPostWithSource {
             audience_roles: self.audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(self.source_url),
+            zip_code: None,
+            city: None,
+            state: None,
         }
     }
 }
@@ -100,6 +113,12 @@ pub struct ExtractedPostInformation {
     pub urgency: String,
     pub confidence: String,
     pub audience_roles: Vec<String>,
+    #[serde(default)]
+    pub zip_code: Option<String>,
+    #[serde(default)]
+    pub city: Option<String>,
+    #[serde(default)]
+    pub state: Option<String>,
 }
 
 impl Default for ExtractedPostInformation {
@@ -110,6 +129,9 @@ impl Default for ExtractedPostInformation {
             urgency: "medium".to_string(),
             confidence: "low".to_string(),
             audience_roles: vec!["recipient".to_string()],
+            zip_code: None,
+            city: None,
+            state: None,
         }
     }
 }
