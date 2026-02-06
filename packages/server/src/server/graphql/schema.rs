@@ -1321,35 +1321,49 @@ impl Mutation {
 
     /// Crawl a website (multi-page) to discover and extract listings (admin only)
     ///
-    /// Emits a CrawlWebsiteEnqueued event and returns immediately.
-    /// The queued crawl_website_effect picks it up in the background.
+    /// Starts a durable Restate workflow that orchestrates the full crawl pipeline.
     async fn crawl_website(ctx: &GraphQLContext, website_id: Uuid) -> FieldResult<ScrapeJobResult> {
-        use crate::domains::crawling::events::CrawlEvent;
+        use crate::domains::crawling::workflows::CrawlWebsiteRequest;
 
-        info!(website_id = %website_id, "Emitting crawl website event");
+        info!(website_id = %website_id, "Starting crawl website workflow");
 
         let user = ctx
             .auth_user
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
+        // Authorization check (workflow assumes this is done)
+        use crate::common::auth::{Actor, AdminCapability};
+        use crate::common::MemberId;
+
+        Actor::new(MemberId::from_uuid(user.member_id.into_uuid()), user.is_admin)
+            .can(AdminCapability::TriggerScraping)
+            .check(ctx.deps())
+            .await
+            .map_err(to_field_error)?;
+
         let visitor_id = user.member_id.into_uuid();
 
-        let handle = ctx
-            .queue_engine
-            .process(CrawlEvent::CrawlWebsiteEnqueued {
-                website_id,
-                visitor_id,
-                use_firecrawl: true,
-            })
+        // Start workflow (async - doesn't wait for completion)
+        let workflow_id = ctx
+            .workflow_client
+            .start_workflow(
+                "CrawlWebsite",
+                "run",
+                CrawlWebsiteRequest {
+                    website_id,
+                    visitor_id,
+                    use_firecrawl: true,
+                },
+            )
             .await
             .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
-            job_id: handle.correlation_id,
+            job_id: workflow_id.parse().unwrap_or(uuid::Uuid::new_v4()),
             source_id: website_id,
-            status: "enqueued".to_string(),
-            message: Some("Crawl enqueued for background processing".to_string()),
+            status: "started".to_string(),
+            message: Some("Crawl workflow started".to_string()),
         })
     }
 
