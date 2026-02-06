@@ -1,14 +1,17 @@
 // Business domains
+pub mod agents;
 pub mod auth;
 pub mod chatrooms;
 pub mod contacts;
 pub mod crawling;
 pub mod discovery;
 pub mod extraction;
+pub mod locations;
 pub mod member;
 pub mod organization;
 pub mod posts;
 pub mod providers;
+pub mod sync;
 pub mod tag;
 pub mod website;
 pub mod website_approval;

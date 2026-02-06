@@ -11,7 +11,6 @@ pub mod authorization;
 pub mod ingest_website;
 pub mod post_extraction;
 pub mod regenerate_single_post;
-pub mod sync_posts;
 pub mod website_context;
 
 use anyhow::Result;
@@ -29,7 +28,6 @@ use extraction::types::page::CachedPage;
 pub use authorization::check_crawl_authorization;
 pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
 pub use regenerate_single_post::regenerate_single_post;
-pub use sync_posts::{sync_and_deduplicate_posts, SyncAndDedupResult};
 pub use website_context::fetch_approved_website;
 
 /// Regenerate posts from existing pages in extraction library.

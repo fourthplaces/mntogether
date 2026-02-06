@@ -15,9 +15,11 @@ use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::info;
+use uuid::Uuid;
 
-use crate::common::{ExtractedPost, PostId, WebsiteId};
+use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
 use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+use crate::domains::sync::actions::{stage_proposals, ProposedOperation};
 use crate::kernel::LlmRequestExt;
 
 /// A fresh post from extraction, with a temporary ID for matching
@@ -115,13 +117,14 @@ impl SyncAnalysisResponse {
     }
 }
 
-/// Result of applying LLM-based sync operations
-#[derive(Debug, Default)]
+/// Result of LLM-based sync - proposals are staged for review
+#[derive(Debug)]
 pub struct LlmSyncResult {
-    pub inserted: usize,
-    pub updated: usize,
-    pub deleted: usize,
-    pub merged: usize,
+    pub batch_id: SyncBatchId,
+    pub staged_inserts: usize,
+    pub staged_updates: usize,
+    pub staged_deletes: usize,
+    pub staged_merges: usize,
     pub errors: Vec<String>,
 }
 
@@ -211,9 +214,11 @@ fn build_sync_prompt(fresh: &[FreshPost], existing: &[ExistingPost]) -> Result<S
     ))
 }
 
-/// Analyze and sync fresh posts against existing DB posts using LLM
+/// Analyze and sync fresh posts against existing DB posts using LLM.
 ///
-/// Thin orchestrator that delegates to helper functions.
+/// Instead of applying changes immediately, stages all operations as proposals
+/// for human review. INSERTs create draft posts, UPDATEs create revisions,
+/// DELETEs and MERGEs are recorded as proposals only.
 pub async fn llm_sync_posts(
     website_id: WebsiteId,
     fresh_posts: Vec<ExtractedPost>,
@@ -225,7 +230,23 @@ pub async fn llm_sync_posts(
     info!(website_id = %website_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
 
     if fresh_posts.is_empty() && existing_db_posts.is_empty() {
-        return Ok(LlmSyncResult::default());
+        // Create an empty batch so callers always get a batch_id
+        let stage_result = stage_proposals(
+            "post",
+            website_id.into_uuid(),
+            Some("No posts to sync"),
+            vec![],
+            pool,
+        )
+        .await?;
+        return Ok(LlmSyncResult {
+            batch_id: stage_result.batch_id,
+            staged_inserts: 0,
+            staged_updates: 0,
+            staged_deletes: 0,
+            staged_merges: 0,
+            errors: vec![],
+        });
     }
 
     log_sync_diagnostics(&fresh_posts, &existing_db_posts);
@@ -249,22 +270,32 @@ pub async fn llm_sync_posts(
 
     log_sync_operations(&operations, &fresh, &existing);
 
-    apply_sync_operations(website_id, &fresh_posts, &existing_db_posts, operations, pool).await
+    stage_sync_operations(website_id, &fresh_posts, &existing_db_posts, operations, &summary, pool).await
 }
 
-/// Apply the sync operations to the database
+/// Stage sync operations as proposals for human review.
 ///
-/// Thin dispatcher that delegates to individual operation functions.
-async fn apply_sync_operations(
+/// INSERTs: creates the draft post (pending_approval), records proposal
+/// UPDATEs: creates a revision post, records proposal
+/// DELETEs: only records proposal (no post changes)
+/// MERGEs: creates revision for canonical if merged content provided, records proposal + merge sources
+async fn stage_sync_operations(
     website_id: WebsiteId,
     fresh_posts: &[ExtractedPost],
     existing_posts: &[Post],
     operations: Vec<SyncOperation>,
+    summary: &str,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    use super::sync_operations::{self, SyncOpResult};
+    use crate::domains::posts::actions::create_post::create_extracted_post;
+    use crate::domains::website::models::Website;
 
-    let mut result = LlmSyncResult::default();
+    let mut proposed_ops: Vec<ProposedOperation> = Vec::new();
+    let mut errors: Vec<String> = Vec::new();
+    let mut staged_inserts = 0;
+    let mut staged_updates = 0;
+    let mut staged_deletes = 0;
+    let mut staged_merges = 0;
 
     // Build lookup maps
     let fresh_by_id: std::collections::HashMap<String, &ExtractedPost> = fresh_posts
@@ -281,17 +312,44 @@ async fn apply_sync_operations(
     info!(
         website_id = %website_id,
         operations_count = operations.len(),
-        "Applying sync operations"
+        "Staging sync operations as proposals"
     );
 
     for op in operations {
         match op {
             SyncOperation::Insert { fresh_id } => {
                 if let Some(fresh) = fresh_by_id.get(&fresh_id) {
-                    match sync_operations::apply_insert(&fresh_id, fresh, website_id, pool).await {
-                        SyncOpResult::Inserted(_) => result.inserted += 1,
-                        SyncOpResult::Error(e) => result.errors.push(e),
-                        _ => {}
+                    let website = match Website::find_by_id(website_id, pool).await {
+                        Ok(w) => w,
+                        Err(e) => {
+                            errors.push(format!("Failed to load website: {}", e));
+                            continue;
+                        }
+                    };
+
+                    match create_extracted_post(
+                        &website.domain,
+                        fresh,
+                        Some(website_id),
+                        fresh.source_url.clone().or_else(|| Some(format!("https://{}", website.domain))),
+                        pool,
+                    )
+                    .await
+                    {
+                        Ok(post) => {
+                            proposed_ops.push(ProposedOperation {
+                                operation: "insert".to_string(),
+                                entity_type: "post".to_string(),
+                                draft_entity_id: Some(post.id.into_uuid()),
+                                target_entity_id: None,
+                                reason: Some(format!("New post: {}", fresh.title)),
+                                merge_source_ids: vec![],
+                            });
+                            staged_inserts += 1;
+                        }
+                        Err(e) => {
+                            errors.push(format!("Insert {}: {}", fresh_id, e));
+                        }
                     }
                 } else {
                     tracing::warn!(fresh_id = %fresh_id, "Insert operation references unknown fresh_id");
@@ -302,10 +360,28 @@ async fn apply_sync_operations(
                 if let (Some(fresh), Some(existing)) =
                     (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
                 {
-                    match sync_operations::apply_update(&fresh_id, &existing_id, existing, fresh, merge_description, pool).await {
-                        SyncOpResult::Updated(_) => result.updated += 1,
-                        SyncOpResult::Error(e) => result.errors.push(e),
-                        _ => {}
+                    match update_post(existing.id, fresh, merge_description, pool).await {
+                        Ok(()) => {
+                            // Find the revision that was just created
+                            let revision = Post::find_revision_for_post(existing.id, pool).await;
+                            let revision_id = revision
+                                .ok()
+                                .flatten()
+                                .map(|r| r.id.into_uuid());
+
+                            proposed_ops.push(ProposedOperation {
+                                operation: "update".to_string(),
+                                entity_type: "post".to_string(),
+                                draft_entity_id: revision_id,
+                                target_entity_id: Some(existing.id.into_uuid()),
+                                reason: Some(format!("Updated content for: {}", fresh.title)),
+                                merge_source_ids: vec![],
+                            });
+                            staged_updates += 1;
+                        }
+                        Err(e) => {
+                            errors.push(format!("Update {}: {}", existing_id, e));
+                        }
                     }
                 } else {
                     tracing::warn!(fresh_id = %fresh_id, existing_id = %existing_id, "Update operation references unknown IDs");
@@ -313,53 +389,124 @@ async fn apply_sync_operations(
             }
 
             SyncOperation::Delete { existing_id, reason } => {
-                if let Some(existing) = existing_by_id.get(&existing_id) {
-                    match sync_operations::apply_delete(&existing_id, existing, &reason, pool).await {
-                        SyncOpResult::Deleted(_) => result.deleted += 1,
-                        SyncOpResult::Error(e) => result.errors.push(e),
-                        _ => {}
+                if existing_by_id.contains_key(&existing_id) {
+                    let target_uuid = Uuid::parse_str(&existing_id);
+                    match target_uuid {
+                        Ok(uuid) => {
+                            proposed_ops.push(ProposedOperation {
+                                operation: "delete".to_string(),
+                                entity_type: "post".to_string(),
+                                draft_entity_id: None,
+                                target_entity_id: Some(uuid),
+                                reason: Some(reason),
+                                merge_source_ids: vec![],
+                            });
+                            staged_deletes += 1;
+                        }
+                        Err(e) => {
+                            errors.push(format!("Invalid UUID {}: {}", existing_id, e));
+                        }
                     }
                 }
             }
 
             SyncOperation::Merge { canonical_id, duplicate_ids, merged_title, merged_description, reason } => {
                 if let Some(canonical) = existing_by_id.get(&canonical_id) {
-                    let merge_results = sync_operations::apply_merge(
-                        sync_operations::MergeArgs::builder()
-                            .canonical_id(&canonical_id)
-                            .canonical(canonical)
-                            .duplicate_ids(&duplicate_ids)
-                            .existing_by_id(&existing_by_id)
-                            .merged_title(merged_title.as_deref())
-                            .merged_description(merged_description.as_deref())
-                            .reason(&reason)
-                            .pool(pool)
-                            .build()
-                    ).await;
-
-                    for res in merge_results {
-                        match res {
-                            SyncOpResult::Merged { .. } => result.merged += 1,
-                            SyncOpResult::Error(e) => result.errors.push(e),
-                            _ => {}
+                    let canonical_uuid = match Uuid::parse_str(&canonical_id) {
+                        Ok(u) => u,
+                        Err(e) => {
+                            errors.push(format!("Invalid canonical UUID {}: {}", canonical_id, e));
+                            continue;
                         }
+                    };
+
+                    // If merged content is provided, create a revision for the canonical post
+                    let draft_id = if merged_title.is_some() || merged_description.is_some() {
+                        let fake_fresh = ExtractedPost {
+                            title: merged_title.unwrap_or_else(|| canonical.title.clone()),
+                            tldr: canonical.tldr.clone().unwrap_or_default(),
+                            description: merged_description.unwrap_or_else(|| canonical.description.clone()),
+                            audience_roles: vec![],
+                            location: canonical.location.clone(),
+                            contact: None,
+                            source_url: canonical.source_url.clone(),
+                            urgency: None,
+                            confidence: None,
+                            source_page_snapshot_id: None,
+                        };
+                        match update_post(canonical.id, &fake_fresh, false, pool).await {
+                            Ok(()) => {
+                                Post::find_revision_for_post(canonical.id, pool)
+                                    .await
+                                    .ok()
+                                    .flatten()
+                                    .map(|r| r.id.into_uuid())
+                            }
+                            Err(e) => {
+                                errors.push(format!("Merge revision for {}: {}", canonical_id, e));
+                                None
+                            }
+                        }
+                    } else {
+                        None
+                    };
+
+                    // Parse duplicate IDs
+                    let mut merge_source_ids = Vec::new();
+                    for dup_id in &duplicate_ids {
+                        match Uuid::parse_str(dup_id) {
+                            Ok(uuid) => merge_source_ids.push(uuid),
+                            Err(e) => {
+                                errors.push(format!("Invalid duplicate UUID {}: {}", dup_id, e));
+                            }
+                        }
+                    }
+
+                    if !merge_source_ids.is_empty() {
+                        proposed_ops.push(ProposedOperation {
+                            operation: "merge".to_string(),
+                            entity_type: "post".to_string(),
+                            draft_entity_id: draft_id,
+                            target_entity_id: Some(canonical_uuid),
+                            reason: Some(reason),
+                            merge_source_ids,
+                        });
+                        staged_merges += 1;
                     }
                 }
             }
         }
     }
 
+    let stage_result = stage_proposals(
+        "post",
+        website_id.into_uuid(),
+        Some(summary),
+        proposed_ops,
+        pool,
+    )
+    .await?;
+
     info!(
         website_id = %website_id,
-        inserted = result.inserted,
-        updated = result.updated,
-        deleted = result.deleted,
-        merged = result.merged,
-        errors = result.errors.len(),
-        "Sync operations complete"
+        batch_id = %stage_result.batch_id,
+        staged_inserts,
+        staged_updates,
+        staged_deletes,
+        staged_merges,
+        errors = errors.len(),
+        expired_batches = stage_result.expired_batches,
+        "Sync operations staged as proposals"
     );
 
-    Ok(result)
+    Ok(LlmSyncResult {
+        batch_id: stage_result.batch_id,
+        staged_inserts,
+        staged_updates,
+        staged_deletes,
+        staged_merges,
+        errors,
+    })
 }
 
 /// Update an existing post by creating a revision for review

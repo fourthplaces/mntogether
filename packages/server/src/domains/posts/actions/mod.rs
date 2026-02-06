@@ -8,6 +8,7 @@ pub mod core;
 pub mod create_post;
 pub mod deduplication;
 pub mod llm_sync;
+pub mod post_sync_handler;
 pub mod reports;
 pub mod revision_actions;
 pub mod scraping;
@@ -21,6 +22,7 @@ pub use core::*;
 pub use create_post::{create_extracted_post, tag_with_audience_roles};
 pub use deduplication::deduplicate_posts;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
+pub use post_sync_handler::PostProposalHandler;
 pub use sync_operations::{
     apply_delete, apply_insert, apply_merge, apply_update, MergeArgs, SyncOpResult,
 };

@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::common::{ContainerId, IntoNatsPayload, MemberId, MessageId};
+use crate::common::{ContainerId, IntoNatsPayload, MemberId};
 use crate::domains::chatrooms::models::{Container, Message};
 
 /// Chat domain events - FACT EVENTS ONLY
@@ -27,36 +27,6 @@ pub enum ChatEvent {
 
     /// Message was created
     MessageCreated { message: Message },
-}
-
-/// Agent messaging events (pure effect pattern).
-///
-/// These events represent facts about AI-generated content.
-/// A machine observes these and emits ChatCommand::CreateMessage.
-///
-/// Causality chain:
-/// ```text
-/// GenerateChatReplyCommand
-///     → GenerateChatReplyEffect
-///     → ChatMessagingEvent::ReplyGenerated
-///     → AgentMessagingMachine
-///     → ChatCommand::CreateMessage
-///     → ChatEffect
-///     → ChatEvent::MessageCreated
-/// ```
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum ChatMessagingEvent {
-    /// Agent reply text was generated (fact about AI output).
-    /// A machine will observe this and emit ChatCommand::CreateMessage.
-    ReplyGenerated {
-        container_id: ContainerId,
-        response_to_id: MessageId,
-        author_id: MemberId, // Agent's member ID
-        text: String,
-    },
-
-    /// Reply generation was skipped (no agent, author is agent, etc.)
-    Skipped { reason: String },
 }
 
 /// Typing event (ephemeral signal - not persisted).
@@ -126,9 +96,6 @@ impl IntoNatsPayload for ChatEvent {
                 with_agent: with_agent.clone(),
             })
             .unwrap_or_default(),
-
-            // Other events don't have payload representations
-            _ => serde_json::Value::Null,
         }
     }
 

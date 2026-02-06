@@ -15,6 +15,9 @@ pub struct Tag {
     pub kind: String,  // 'community_served', 'service_area', 'population', etc.
     pub value: String, // 'somali', 'minneapolis', 'seniors', etc.
     pub display_name: Option<String>, // 'Somali', 'Minneapolis', 'Seniors', etc.
+    pub parent_tag_id: Option<TagId>, // Self-referential FK for hierarchy
+    pub external_code: Option<String>, // Code in external taxonomy (e.g., 'BD-1800.2000')
+    pub taxonomy_source: Option<String>, // 'custom', 'open_eligibility', '211hsis'
     pub created_at: DateTime<Utc>,
 }
 
@@ -53,6 +56,9 @@ pub enum TagKind {
     ProviderSpecialty, // 'grief', 'anxiety', etc.
     ProviderLanguage,  // 'en', 'es', 'hmn'
 
+    // Service-specific
+    ServiceLanguage, // Languages offered by a service (e.g., 'somali', 'spanish')
+
     // Other
     VerificationSource, // verification source for organizations
     WithAgent,          // 'default', 'admin', etc. - enables AI agent for container
@@ -72,6 +78,7 @@ impl std::fmt::Display for TagKind {
             TagKind::ProviderCategory => write!(f, "provider_category"),
             TagKind::ProviderSpecialty => write!(f, "provider_specialty"),
             TagKind::ProviderLanguage => write!(f, "provider_language"),
+            TagKind::ServiceLanguage => write!(f, "service_language"),
             TagKind::VerificationSource => write!(f, "verification_source"),
             TagKind::WithAgent => write!(f, "with_agent"),
         }
@@ -94,6 +101,7 @@ impl std::str::FromStr for TagKind {
             "provider_category" => Ok(TagKind::ProviderCategory),
             "provider_specialty" => Ok(TagKind::ProviderSpecialty),
             "provider_language" => Ok(TagKind::ProviderLanguage),
+            "service_language" => Ok(TagKind::ServiceLanguage),
             "verification_source" => Ok(TagKind::VerificationSource),
             "with_agent" => Ok(TagKind::WithAgent),
             _ => Err(anyhow::anyhow!("Invalid tag kind: {}", s)),
@@ -174,6 +182,39 @@ impl Tag {
         .bind(kind)
         .bind(value)
         .bind(display_name)
+        .fetch_one(pool)
+        .await?;
+        Ok(tag)
+    }
+
+    /// Find or create tag with hierarchy and external mapping
+    pub async fn find_or_create_with_hierarchy(
+        kind: &str,
+        value: &str,
+        display_name: Option<String>,
+        parent_tag_id: Option<TagId>,
+        external_code: Option<&str>,
+        taxonomy_source: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let tag = sqlx::query_as::<_, Tag>(
+            r#"
+            INSERT INTO tags (kind, value, display_name, parent_tag_id, external_code, taxonomy_source)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (kind, value) DO UPDATE SET
+                display_name = COALESCE(EXCLUDED.display_name, tags.display_name),
+                parent_tag_id = COALESCE(EXCLUDED.parent_tag_id, tags.parent_tag_id),
+                external_code = COALESCE(EXCLUDED.external_code, tags.external_code),
+                taxonomy_source = COALESCE(EXCLUDED.taxonomy_source, tags.taxonomy_source)
+            RETURNING *
+            "#,
+        )
+        .bind(kind)
+        .bind(value)
+        .bind(display_name)
+        .bind(parent_tag_id)
+        .bind(external_code)
+        .bind(taxonomy_source)
         .fetch_one(pool)
         .await?;
         Ok(tag)
@@ -372,6 +413,48 @@ impl Tag {
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    // =========================================================================
+    // Hierarchy Queries
+    // =========================================================================
+
+    /// Find all child tags of a parent
+    pub async fn find_children(parent_id: TagId, pool: &PgPool) -> Result<Vec<Self>> {
+        let tags = sqlx::query_as::<_, Tag>(
+            "SELECT * FROM tags WHERE parent_tag_id = $1 ORDER BY kind, value",
+        )
+        .bind(parent_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(tags)
+    }
+
+    /// Find top-level tags (no parent) of a specific kind
+    pub async fn find_roots_by_kind(kind: &str, pool: &PgPool) -> Result<Vec<Self>> {
+        let tags = sqlx::query_as::<_, Tag>(
+            "SELECT * FROM tags WHERE kind = $1 AND parent_tag_id IS NULL ORDER BY value",
+        )
+        .bind(kind)
+        .fetch_all(pool)
+        .await?;
+        Ok(tags)
+    }
+
+    /// Find tag by external taxonomy code
+    pub async fn find_by_external_code(
+        taxonomy_source: &str,
+        external_code: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        let tag = sqlx::query_as::<_, Tag>(
+            "SELECT * FROM tags WHERE taxonomy_source = $1 AND external_code = $2",
+        )
+        .bind(taxonomy_source)
+        .bind(external_code)
+        .fetch_optional(pool)
+        .await?;
+        Ok(tag)
     }
 }
 

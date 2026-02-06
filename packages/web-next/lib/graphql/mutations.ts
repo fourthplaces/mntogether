@@ -523,3 +523,51 @@ export const DELETE_DISCOVERY_FILTER_RULE = `
     deleteDiscoveryFilterRule(id: $id)
   }
 `;
+
+// ============================================================================
+// SYNC PROPOSAL MUTATIONS
+// ============================================================================
+
+export const APPROVE_SYNC_PROPOSAL = `
+  mutation ApproveSyncProposal($proposalId: Uuid!) {
+    approveSyncProposal(proposalId: $proposalId) {
+      id
+      status
+      reviewedAt
+    }
+  }
+`;
+
+export const REJECT_SYNC_PROPOSAL = `
+  mutation RejectSyncProposal($proposalId: Uuid!) {
+    rejectSyncProposal(proposalId: $proposalId) {
+      id
+      status
+      reviewedAt
+    }
+  }
+`;
+
+export const APPROVE_SYNC_BATCH = `
+  mutation ApproveSyncBatch($batchId: Uuid!) {
+    approveSyncBatch(batchId: $batchId) {
+      id
+      status
+      approvedCount
+      rejectedCount
+      reviewedAt
+    }
+  }
+`;
+
+export const REJECT_SYNC_BATCH = `
+  mutation RejectSyncBatch($batchId: Uuid!) {
+    rejectSyncBatch(batchId: $batchId) {
+      id
+      status
+      approvedCount
+      rejectedCount
+      reviewedAt
+    }
+  }
+`;

@@ -65,6 +65,27 @@ pub struct Provider;
 /// Marker type for Contact entities (polymorphic contact information).
 pub struct Contact;
 
+/// Marker type for Location entities (physical/virtual service delivery points).
+pub struct Location;
+
+/// Marker type for PostLocation entities (post-location join).
+pub struct PostLocation;
+
+/// Marker type for Schedule entities (operating hours).
+pub struct Schedule;
+
+/// Marker type for ServiceArea entities (geographic coverage).
+pub struct ServiceArea;
+
+/// Marker type for TaxonomyCrosswalk entities (external taxonomy mapping).
+pub struct TaxonomyCrosswalk;
+
+/// Marker type for SyncBatch entities (groups of AI-proposed changes).
+pub struct SyncBatch;
+
+/// Marker type for SyncProposal entities (individual AI-proposed operations).
+pub struct SyncProposal;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -110,3 +131,24 @@ pub type ProviderId = Id<Provider>;
 
 /// Typed ID for Contact entities.
 pub type ContactId = Id<Contact>;
+
+/// Typed ID for Location entities.
+pub type LocationId = Id<Location>;
+
+/// Typed ID for PostLocation entities.
+pub type PostLocationId = Id<PostLocation>;
+
+/// Typed ID for Schedule entities.
+pub type ScheduleId = Id<Schedule>;
+
+/// Typed ID for ServiceArea entities.
+pub type ServiceAreaId = Id<ServiceArea>;
+
+/// Typed ID for TaxonomyCrosswalk entities.
+pub type TaxonomyCrosswalkId = Id<TaxonomyCrosswalk>;
+
+/// Typed ID for SyncBatch entities.
+pub type SyncBatchId = Id<SyncBatch>;
+
+/// Typed ID for SyncProposal entities.
+pub type SyncProposalId = Id<SyncProposal>;

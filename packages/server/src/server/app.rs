@@ -13,7 +13,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw_core::{QueueEngine, Runtime, RuntimeConfig};
+use seesaw_core::{Engine, Runtime, RuntimeConfig};
 use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 #[cfg(not(debug_assertions))]
@@ -23,17 +23,18 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
-use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, TwilioAdapter};
+use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter};
 use crate::server::graphql::context::AppQueueEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
+    stream::stream_handler,
 };
 
 // Import effect builder functions from each domain
+use crate::domains::agents::effects::agent_effect;
 use crate::domains::auth::effects::auth_effect;
-use crate::domains::chatrooms::effects::chat_effect;
 use crate::domains::crawling::effects::{crawling_pipeline_effect, mark_no_listings_effect};
 use crate::domains::member::effects::member_effect;
 use crate::domains::posts::effects::post_composite_effect;
@@ -54,6 +55,7 @@ pub struct AxumAppState {
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
+    pub stream_hub: StreamHub,
 }
 
 /// Middleware to create GraphQLContext per-request
@@ -164,6 +166,9 @@ pub async fn build_app(
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer.clone()));
 
+    // Create StreamHub for real-time SSE streaming
+    let stream_hub = StreamHub::new();
+
     let server_deps = ServerDeps::new(
         pool.clone(),
         ingestor,
@@ -177,6 +182,7 @@ pub async fn build_app(
         pii_detector,
         Some(extraction_service),
         jwt_service.clone(),
+        stream_hub.clone(),
         test_identifier_enabled,
         admin_identifiers,
     );
@@ -185,13 +191,13 @@ pub async fn build_app(
 
     // Build queue-backed engine with ALL domain effects
     let seesaw_store = PostgresStore::new(pool.clone());
-    let queue_engine = QueueEngine::new(server_deps, seesaw_store)
+    let queue_engine = Engine::new(server_deps, seesaw_store)
         // Auth domain
         .with_effect(auth_effect())
         // Member domain
         .with_effect(member_effect())
-        // Chat domain
-        .with_effect(chat_effect())
+        // Agents domain (AI responses for chat)
+        .with_effect(agent_effect())
         // Website domain
         .with_effect(website_effect())
         // Crawling domain (inline mark_no_listings + queued pipeline)
@@ -218,6 +224,7 @@ pub async fn build_app(
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),
+        stream_hub,
     };
 
     // CORS configuration - allow any origin for development
@@ -245,23 +252,25 @@ pub async fn build_app(
         }
     };
 
-    // Build router
-    let mut router = Router::new()
+    // SSE routes — separate router, no GraphQL middleware
+    // Has its own auth via query param / Authorization header
+    let sse_routes = Router::new()
+        .route("/api/streams/:topic", get(stream_handler));
+
+    // GraphQL routes — get JWT + GraphQL context middleware
+    let mut graphql_routes = Router::new()
         .route("/graphql", post(graphql_handler))
         .route("/graphql/batch", post(graphql_batch_handler));
 
     // GraphQL playground only in debug builds (development)
     #[cfg(debug_assertions)]
     {
-        router = router.route("/graphql", get(graphql_playground));
+        graphql_routes = graphql_routes.route("/graphql", get(graphql_playground));
     }
 
-    let router = router
-        .route("/health", get(health_handler));
-
-    // Middleware layers (applied in reverse order - last added runs first)
+    // Apply GraphQL-specific middleware
     #[cfg(not(debug_assertions))]
-    let router = router
+    let graphql_routes = graphql_routes
         .layer(middleware::from_fn(create_graphql_context))
         .layer(middleware::from_fn(move |req, next| {
             jwt_auth_middleware(jwt_service_for_middleware.clone(), req, next)
@@ -270,14 +279,17 @@ pub async fn build_app(
         .layer(middleware::from_fn(extract_client_ip));
 
     #[cfg(debug_assertions)]
-    let router = router
+    let graphql_routes = graphql_routes
         .layer(middleware::from_fn(create_graphql_context))
         .layer(middleware::from_fn(move |req, next| {
             jwt_auth_middleware(jwt_service_for_middleware.clone(), req, next)
         }))
         .layer(middleware::from_fn(extract_client_ip));
 
-    let app = router
+    // Merge all routes — shared layers applied to everything
+    let app = graphql_routes
+        .merge(sse_routes)
+        .route("/health", get(health_handler))
         .layer(Extension(app_state))
         .layer(cors)
         .layer(TraceLayer::new_for_http())

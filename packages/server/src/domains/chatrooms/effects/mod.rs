@@ -1,7 +1,6 @@
 //! Chat domain effects.
 //!
-//! Effects watch FACT events and call actions directly for cascade workflows.
+//! Agent response cascades have moved to the agents domain.
+//! This module is kept for future chatroom-specific effects.
 
 pub mod chat;
-
-pub use chat::chat_effect;
