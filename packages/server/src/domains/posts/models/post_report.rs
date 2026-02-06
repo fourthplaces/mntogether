@@ -36,7 +36,6 @@ pub struct PostReportWithDetails {
     pub resolution_notes: Option<String>,
     pub action_taken: Option<String>,
     pub post_title: String,
-    pub organization_name: String,
     pub post_type: String,
     pub post_status: String,
     pub report_count_for_post: i64,
@@ -76,7 +75,7 @@ impl PostReportRecord {
         sqlx::query_as::<_, PostReportWithDetails>(
             "SELECT id, post_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
-                    post_title, organization_name, post_type, post_status,
+                    post_title, post_type, post_status,
                     report_count_for_post
              FROM post_reports_with_details
              WHERE status = 'pending'
@@ -98,7 +97,7 @@ impl PostReportRecord {
         sqlx::query_as::<_, PostReportWithDetails>(
             "SELECT id, post_id, reason, category, status, created_at,
                     resolved_at, resolution_notes, action_taken,
-                    post_title, organization_name, post_type, post_status,
+                    post_title, post_type, post_status,
                     report_count_for_post
              FROM post_reports_with_details
              ORDER BY created_at DESC

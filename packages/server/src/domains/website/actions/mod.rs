@@ -3,6 +3,8 @@
 //! Actions return events directly. GraphQL mutations call actions via `process()`
 //! and the returned event is dispatched through the engine.
 
+pub mod approval;
+
 use anyhow::Result;
 use tracing::info;
 

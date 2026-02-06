@@ -16,8 +16,8 @@ use uuid::Uuid;
 
 use crate::common::{AppState, JobId, MemberId, WebsiteId};
 use crate::domains::website::models::WebsiteResearch;
-use crate::domains::website_approval::actions;
-use crate::domains::website_approval::events::WebsiteApprovalEvent;
+use crate::domains::website::actions::approval as actions;
+use crate::domains::website::events::approval::WebsiteApprovalEvent;
 use crate::kernel::ServerDeps;
 
 #[effects]

@@ -12,7 +12,6 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct PostType {
     pub id: Uuid,
-    pub organization_name: String,
     pub title: String,
     pub tldr: Option<String>,
     pub description: String,
@@ -33,9 +32,6 @@ pub struct PostType {
 impl PostType {
     fn id(&self) -> Uuid {
         self.id
-    }
-    fn organization_name(&self) -> &str {
-        &self.organization_name
     }
     fn title(&self) -> &str {
         &self.title
@@ -151,7 +147,6 @@ impl From<Post> for PostType {
     fn from(post: Post) -> Self {
         Self {
             id: post.id.into_uuid(),
-            organization_name: post.organization_name,
             title: post.title,
             tldr: post.tldr,
             description: post.description,
@@ -245,7 +240,6 @@ pub struct EditPostInput {
 /// Input for user-submitted listings
 #[derive(Debug, Clone, GraphQLInputObject)]
 pub struct SubmitPostInput {
-    pub organization_name: String,
     pub title: String,
     pub description: String,
     pub contact_info: Option<ContactInfoInput>,

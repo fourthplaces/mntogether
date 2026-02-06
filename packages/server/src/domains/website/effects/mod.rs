@@ -3,6 +3,8 @@
 //! Cascade flow:
 //!   WebsiteApproved → auto-trigger crawl (queued)
 
+pub mod approval;
+
 use anyhow::Result;
 use seesaw_core::{effect, effects, EffectContext};
 use tracing::info;

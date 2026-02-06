@@ -42,7 +42,6 @@ pub enum PostEvent {
     /// A listing was created (from scraping or user submission)
     PostEntryCreated {
         post_id: PostId,
-        organization_name: String,
         title: String,
         submission_type: String, // 'scraped' or 'user_submitted'
     },
@@ -89,13 +88,12 @@ pub enum PostEvent {
     // =========================================================================
     // Transition Events (workflow state changes, not entry points)
     // =========================================================================
-    /// Organization source created from user-submitted link
+    /// Website source created from user-submitted link
     /// Triggers: handle_scrape_resource_link cascade
     WebsiteCreatedFromLink {
         source_id: WebsiteId,
         job_id: JobId,
         url: String,
-        organization_name: String,
         submitter_contact: Option<String>,
     },
 

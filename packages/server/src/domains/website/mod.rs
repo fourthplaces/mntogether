@@ -21,6 +21,7 @@ pub mod models;
 // Explicit re-exports to avoid ambiguous glob re-exports
 pub use data::{WebsiteAssessmentData, WebsiteData, WebsiteSearchResultData};
 pub use events::WebsiteEvent;
+pub use events::approval::WebsiteApprovalEvent;
 pub use models::{
     CrawlStatus, TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment,
     WebsiteResearch, WebsiteResearchHomepage, WebsiteSearchResult, WebsiteStatus,

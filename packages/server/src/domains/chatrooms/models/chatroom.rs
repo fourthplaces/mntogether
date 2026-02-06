@@ -183,7 +183,6 @@ pub struct DocumentReference {
 #[serde(rename_all = "snake_case")]
 pub enum ReferenceKind {
     Post,
-    Organization,
     Contact,
 }
 
@@ -191,7 +190,6 @@ impl std::fmt::Display for ReferenceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ReferenceKind::Post => write!(f, "post"),
-            ReferenceKind::Organization => write!(f, "organization"),
             ReferenceKind::Contact => write!(f, "contact"),
         }
     }
@@ -203,7 +201,6 @@ impl std::str::FromStr for ReferenceKind {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "post" => Ok(ReferenceKind::Post),
-            "organization" => Ok(ReferenceKind::Organization),
             "contact" => Ok(ReferenceKind::Contact),
             _ => Err(anyhow::anyhow!("Invalid reference kind: {}", s)),
         }

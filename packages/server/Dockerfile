@@ -20,7 +20,6 @@ RUN mkdir -p packages/server/src && \
     mkdir -p packages/server/src/server && \
     echo "fn main() {}" > packages/server/src/server/main.rs && \
     mkdir -p packages/server/src/bin && \
-    echo "fn main() {}" > packages/server/src/bin/seed_organizations.rs && \
     echo "fn main() {}" > packages/server/src/bin/generate_embeddings.rs && \
     echo "fn main() {}" > packages/server/src/bin/migrate_cli.rs && \
     mkdir -p packages/twilio-rs/src && \

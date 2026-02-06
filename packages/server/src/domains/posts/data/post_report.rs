@@ -67,7 +67,6 @@ pub struct PostReportDetail {
     pub resolution_notes: Option<String>,
     pub action_taken: Option<String>,
     pub post_title: String,
-    pub organization_name: String,
     pub post_type: String,
     pub post_status: String,
     pub report_count_for_post: i64,
@@ -115,10 +114,6 @@ impl PostReportDetail {
         &self.post_title
     }
 
-    fn organization_name(&self) -> &str {
-        &self.organization_name
-    }
-
     fn post_type(&self) -> &str {
         &self.post_type
     }
@@ -161,7 +156,6 @@ impl From<PostReportWithDetails> for PostReportDetail {
             resolution_notes: record.resolution_notes,
             action_taken: record.action_taken,
             post_title: record.post_title,
-            organization_name: record.organization_name,
             post_type: record.post_type,
             post_status: record.post_status,
             report_count_for_post: record.report_count_for_post,

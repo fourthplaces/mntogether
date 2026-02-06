@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostData {
     pub id: String,
-    pub organization_name: String,
     pub title: String,
     pub description: String,
     pub tldr: Option<String>,
@@ -71,7 +70,6 @@ impl From<Post> for PostData {
     fn from(post: Post) -> Self {
         Self {
             id: post.id.to_string(),
-            organization_name: post.organization_name,
             title: post.title,
             description: post.description,
             tldr: post.tldr,
@@ -96,10 +94,6 @@ impl From<Post> for PostData {
 impl PostData {
     fn id(&self) -> String {
         self.id.clone()
-    }
-
-    fn organization_name(&self) -> String {
-        self.organization_name.clone()
     }
 
     fn title(&self) -> String {

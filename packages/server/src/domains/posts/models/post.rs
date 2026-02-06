@@ -6,16 +6,14 @@ use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::{
-    ContainerId, OrganizationId, PaginationDirection, PostId, ValidatedPaginationArgs, WebsiteId,
+    ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs, WebsiteId,
 };
-use crate::domains::locations::models::Schedule;
+use crate::domains::schedules::models::Schedule;
 
 /// Listing - a service, opportunity, or business listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
     pub id: PostId,
-    pub organization_id: Option<OrganizationId>,
-    pub organization_name: String,
 
     // Content
     pub title: String,
@@ -62,6 +60,9 @@ pub struct Post {
     // Revision tracking (for draft mode)
     pub revision_of_post_id: Option<PostId>,
 
+    // Translation tracking
+    pub translation_of_id: Option<PostId>,
+
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
 }
@@ -72,7 +73,6 @@ pub struct PostSearchResult {
     pub post_id: PostId,
     pub title: String,
     pub description: String,
-    pub organization_name: String,
     pub category: String,
     pub post_type: String,
     pub similarity: f64,
@@ -82,7 +82,6 @@ pub struct PostSearchResult {
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PostWithDistance {
     pub id: PostId,
-    pub organization_name: String,
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
@@ -108,7 +107,6 @@ pub struct PostSearchResultWithLocation {
     pub title: String,
     pub description: String,
     pub tldr: Option<String>,
-    pub organization_name: String,
     pub category: String,
     pub post_type: String,
     pub location: Option<String>,
@@ -269,7 +267,6 @@ impl std::str::FromStr for PostStatus {
 #[builder(field_defaults(setter(into)))]
 pub struct CreatePost {
     // Required fields - no default
-    pub organization_name: String,
     pub title: String,
     pub description: String,
 
@@ -299,9 +296,9 @@ pub struct CreatePost {
     #[builder(default)]
     pub source_url: Option<String>,
     #[builder(default)]
-    pub organization_id: Option<OrganizationId>,
-    #[builder(default)]
     pub revision_of_post_id: Option<PostId>,
+    #[builder(default)]
+    pub translation_of_id: Option<PostId>,
 }
 
 /// Builder for updating Post content
@@ -359,7 +356,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL
+             WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -390,6 +387,7 @@ impl Post {
                     WHERE status = $1
                       AND deleted_at IS NULL
                       AND revision_of_post_id IS NULL
+                      AND translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR id > $2)
                     ORDER BY id ASC
                     LIMIT $3
@@ -409,6 +407,7 @@ impl Post {
                     WHERE status = $1
                       AND deleted_at IS NULL
                       AND revision_of_post_id IS NULL
+                      AND translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR id < $2)
                     ORDER BY id DESC
                     LIMIT $3
@@ -448,7 +447,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
+             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -469,7 +468,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
+             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -490,7 +489,7 @@ impl Post {
     ) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts
-             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL
+             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
              ORDER BY created_at DESC
              LIMIT $2 OFFSET $3",
         )
@@ -505,7 +504,7 @@ impl Post {
     /// Find listings by domain ID (excludes soft-deleted and revisions)
     pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
         let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL",
+            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL",
         )
         .bind(website_id)
         .fetch_all(pool)
@@ -518,7 +517,6 @@ impl Post {
         let post = sqlx::query_as::<_, Post>(
             r#"
             INSERT INTO posts (
-                organization_name,
                 title,
                 description,
                 tldr,
@@ -533,13 +531,12 @@ impl Post {
                 submitted_by_admin_id,
                 website_id,
                 source_url,
-                organization_id,
-                revision_of_post_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                revision_of_post_id,
+                translation_of_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
             "#,
         )
-        .bind(input.organization_name)
         .bind(input.title)
         .bind(input.description)
         .bind(input.tldr)
@@ -554,8 +551,8 @@ impl Post {
         .bind(input.submitted_by_admin_id)
         .bind(input.website_id)
         .bind(input.source_url)
-        .bind(input.organization_id)
         .bind(input.revision_of_post_id)
+        .bind(input.translation_of_id)
         .fetch_one(pool)
         .await?;
 
@@ -726,7 +723,7 @@ impl Post {
             r#"
             SELECT COUNT(*)
             FROM posts
-            WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL
+            WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
             "#,
         )
         .bind(status)
@@ -860,7 +857,6 @@ impl Post {
                 p.id as post_id,
                 p.title,
                 p.description,
-                p.organization_name,
                 p.category,
                 p.post_type,
                 (1 - (p.embedding <=> $1))::float8 as similarity
@@ -869,6 +865,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.status = 'active'
               AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
             ORDER BY p.embedding <=> $1
             LIMIT $3
@@ -901,7 +898,6 @@ impl Post {
                 p.title,
                 p.description,
                 p.tldr,
-                p.organization_name,
                 p.category,
                 p.post_type,
                 p.location,
@@ -912,6 +908,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.status = 'active'
               AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
             ORDER BY p.embedding <=> $1
             LIMIT $3
@@ -935,6 +932,7 @@ impl Post {
               AND deleted_at IS NULL
               AND status = 'active'
               AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
             ORDER BY created_at DESC
             LIMIT $1
             "#,
@@ -963,8 +961,6 @@ impl Post {
         if let Some(ref location) = self.location {
             parts.push(format!("Location: {}", location));
         }
-
-        parts.push(format!("Organization: {}", self.organization_name));
 
         parts.join(" | ")
     }
@@ -1001,7 +997,7 @@ impl Post {
             WITH center AS (
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
-            SELECT p.id, p.organization_name, p.title, p.description,
+            SELECT p.id, p.title, p.description,
                    p.description_markdown, p.tldr,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
@@ -1116,6 +1112,37 @@ impl Post {
             "#,
         )
         .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    // =========================================================================
+    // Translation Methods
+    // =========================================================================
+
+    /// Find all translations of a given post
+    pub async fn find_translations_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM posts WHERE translation_of_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(post_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find a translation of a post in a specific language
+    pub async fn find_translation(
+        post_id: PostId,
+        language: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM posts WHERE translation_of_id = $1 AND source_language = $2 AND deleted_at IS NULL LIMIT 1",
+        )
+        .bind(post_id)
+        .bind(language)
+        .fetch_optional(pool)
         .await
         .map_err(Into::into)
     }

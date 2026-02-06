@@ -32,10 +32,6 @@ pub async fn handle_create_posts_from_resource_link(
     use crate::domains::posts::models::{CreatePost, Post};
     use crate::domains::website::models::Website;
 
-    let organization_name = context
-        .clone()
-        .unwrap_or_else(|| "Submitted Resource".to_string());
-
     let source = Website::find_by_domain(&url, &deps.db_pool)
         .await?
         .ok_or_else(|| anyhow::anyhow!("Website source not found for URL: {}", url))?;
@@ -53,7 +49,6 @@ pub async fn handle_create_posts_from_resource_link(
 
         match Post::create(
             CreatePost::builder()
-                .organization_name(organization_name.clone())
                 .title(extracted_post.title.clone())
                 .description(extracted_post.description.clone())
                 .tldr(Some(extracted_post.tldr))
@@ -71,7 +66,6 @@ pub async fn handle_create_posts_from_resource_link(
                 created_count += 1;
                 info!(
                     post_id = %new_post.id,
-                    org = %new_post.organization_name,
                     title = %new_post.title,
                     "Created listing from resource link"
                 );
@@ -90,7 +84,6 @@ pub async fn handle_create_posts_from_resource_link(
 
     Ok(PostEvent::PostEntryCreated {
         post_id: crate::common::PostId::new(),
-        organization_name: "Resource Link".to_string(),
         title: format!("{} listings created", created_count),
         submission_type: "user_submitted".to_string(),
     })

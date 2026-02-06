@@ -29,9 +29,6 @@ pub struct Member;
 /// Marker type for Post entities (services, opportunities, businesses).
 pub struct Post;
 
-/// Marker type for Organization entities.
-pub struct Organization;
-
 /// Marker type for Website entities (websites we scrape).
 pub struct Website;
 
@@ -92,9 +89,6 @@ pub type MemberId = Id<Member>;
 
 /// Typed ID for Post entities (services, opportunities, businesses).
 pub type PostId = Id<Post>;
-
-/// Typed ID for Organization entities.
-pub type OrganizationId = Id<Organization>;
 
 /// Typed ID for Website entities (websites we scrape).
 pub type WebsiteId = Id<Website>;

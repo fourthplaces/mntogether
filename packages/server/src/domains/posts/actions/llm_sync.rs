@@ -377,7 +377,6 @@ async fn stage_sync_operations(
                     };
 
                     match create_extracted_post(
-                        &website.domain,
                         fresh,
                         Some(website_id),
                         fresh
@@ -653,7 +652,6 @@ pub async fn update_post(
 
     let revision = Post::create(
         CreatePost::builder()
-            .organization_name(original.organization_name.clone())
             .title(fresh.title.clone())
             .description(fresh.description.clone())
             .tldr(Some(fresh.tldr.clone()))
@@ -665,7 +663,6 @@ pub async fn update_post(
             .submission_type(Some("revision".to_string()))
             .website_id(original.website_id)
             .source_url(original.source_url.clone())
-            .organization_id(original.organization_id)
             .revision_of_post_id(Some(post_id))
             .build(),
         pool,

@@ -12,10 +12,6 @@ name = "server"
 path = "src/server/main.rs"
 
 [[bin]]
-name = "seed_organizations"
-path = "src/bin/seed_organizations.rs"
-
-[[bin]]
 name = "generate_embeddings"
 path = "src/bin/generate_embeddings.rs"
 

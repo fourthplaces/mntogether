@@ -24,17 +24,8 @@ pub async fn submit_resource_link(
 
     let job_id = JobId::new();
 
-    // Extract organization name from URL domain
-    let organization_name = url
-        .split("//")
-        .nth(1)
-        .and_then(|s| s.split('/').next())
-        .unwrap_or("Unknown Organization")
-        .to_string();
-
     info!(
         url = %url,
-        organization_name = %organization_name,
         job_id = %job_id,
         "Processing submitted resource link"
     );
@@ -72,7 +63,6 @@ pub async fn submit_resource_link(
             source_id: source.id,
             job_id,
             url,
-            organization_name,
             submitter_contact,
         })
     }

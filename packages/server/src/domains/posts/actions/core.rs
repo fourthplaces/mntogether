@@ -22,7 +22,7 @@ pub async fn submit_post(
     member_id: Option<Uuid>,
     deps: &ServerDeps,
 ) -> Result<PostEvent> {
-    info!(org = %input.organization_name, title = %input.title, member_id = ?member_id, "Submitting user post");
+    info!(title = %input.title, member_id = ?member_id, "Submitting user post");
 
     let contact_json = input
         .contact_info
@@ -31,7 +31,6 @@ pub async fn submit_post(
 
     let post = post_operations::create_post(
         member_id_typed,
-        input.organization_name.clone(),
         input.title.clone(),
         input.description,
         contact_json,
@@ -47,7 +46,6 @@ pub async fn submit_post(
 
     Ok(PostEvent::PostEntryCreated {
         post_id: post.id,
-        organization_name: post.organization_name,
         title: post.title,
         submission_type: "user_submitted".to_string(),
     })

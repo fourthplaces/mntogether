@@ -3,8 +3,8 @@ use sqlx::PgPool;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domains::locations::loader::PostSchedulesLoader;
-use crate::domains::locations::models::Schedule;
+use crate::domains::schedules::loader::PostSchedulesLoader;
+use crate::domains::schedules::models::Schedule;
 use crate::domains::posts::loader::{PostBusinessInfoLoader, PostLoader};
 use crate::domains::posts::models::{BusinessPost, Post};
 use crate::domains::tag::loader::PostTagsLoader;

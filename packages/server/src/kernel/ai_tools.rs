@@ -168,7 +168,6 @@ pub struct SearchPostsArgs {
 pub struct SearchPostOutput {
     pub post_id: String,
     pub title: String,
-    pub organization_name: String,
     pub description: String,
     pub tldr: Option<String>,
     pub category: String,
@@ -220,7 +219,6 @@ impl Tool for SearchPostsTool {
             .map(|r| SearchPostOutput {
                 post_id: r.post_id.to_string(),
                 title: r.title,
-                organization_name: r.organization_name,
                 description: r.description,
                 tldr: r.tldr,
                 category: r.category,

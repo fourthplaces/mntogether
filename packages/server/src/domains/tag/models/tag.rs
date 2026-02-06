@@ -5,7 +5,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::{
-    ContainerId, OrganizationId, PostId, ProviderId, TagId, TaggableId, WebsiteId,
+    ContainerId, PostId, ProviderId, TagId, TaggableId, WebsiteId,
 };
 
 /// Universal tag - can be associated with any entity via taggables
@@ -114,7 +114,6 @@ impl std::str::FromStr for TagKind {
 #[serde(rename_all = "snake_case")]
 pub enum TaggableType {
     Post,
-    Organization,
     ReferralDocument,
     Domain,
     Provider,
@@ -125,7 +124,6 @@ impl std::fmt::Display for TaggableType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             TaggableType::Post => write!(f, "post"),
-            TaggableType::Organization => write!(f, "organization"),
             TaggableType::ReferralDocument => write!(f, "referral_document"),
             TaggableType::Domain => write!(f, "domain"),
             TaggableType::Provider => write!(f, "provider"),
@@ -140,7 +138,6 @@ impl std::str::FromStr for TaggableType {
     fn from_str(s: &str) -> Result<Self> {
         match s {
             "post" => Ok(TaggableType::Post),
-            "organization" => Ok(TaggableType::Organization),
             "referral_document" => Ok(TaggableType::ReferralDocument),
             "domain" => Ok(TaggableType::Domain),
             "provider" => Ok(TaggableType::Provider),
@@ -281,26 +278,6 @@ impl Tag {
             "#,
         )
         .bind(post_id.as_uuid())
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
-
-    /// Find all tags for an organization
-    pub async fn find_for_organization(
-        organization_id: OrganizationId,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            r#"
-            SELECT t.*
-            FROM tags t
-            INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'organization' AND tg.taggable_id = $1
-            ORDER BY t.kind, t.value
-            "#,
-        )
-        .bind(organization_id.as_uuid())
         .fetch_all(pool)
         .await?;
         Ok(tags)
@@ -494,15 +471,6 @@ impl Taggable {
         Self::create(tag_id, "post", post_id.as_uuid(), pool).await
     }
 
-    /// Associate a tag with an organization
-    pub async fn create_organization_tag(
-        organization_id: OrganizationId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        Self::create(tag_id, "organization", organization_id.as_uuid(), pool).await
-    }
-
     /// Associate a tag with a website
     pub async fn create_website_tag(
         website_id: WebsiteId,
@@ -566,15 +534,6 @@ impl Taggable {
     /// Remove a tag from a post
     pub async fn delete_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<()> {
         Self::delete(tag_id, "post", post_id.as_uuid(), pool).await
-    }
-
-    /// Remove a tag from an organization
-    pub async fn delete_organization_tag(
-        organization_id: OrganizationId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<()> {
-        Self::delete(tag_id, "organization", organization_id.as_uuid(), pool).await
     }
 
     /// Remove a tag from a website
@@ -649,20 +608,6 @@ impl Taggable {
         Ok(())
     }
 
-    /// Remove all tags from an organization
-    pub async fn delete_all_for_organization(
-        organization_id: OrganizationId,
-        pool: &PgPool,
-    ) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM taggables WHERE taggable_type = 'organization' AND taggable_id = $1",
-        )
-        .bind(organization_id.as_uuid())
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
     /// Remove all tags from a provider
     pub async fn delete_all_for_provider(provider_id: ProviderId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM taggables WHERE taggable_type = 'provider' AND taggable_id = $1")
@@ -676,17 +621,6 @@ impl Taggable {
     pub async fn find_posts_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
         let ids: Vec<(Uuid,)> = sqlx::query_as(
             "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'post'",
-        )
-        .bind(tag_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(ids.into_iter().map(|(id,)| id).collect())
-    }
-
-    /// Find all organizations with a specific tag
-    pub async fn find_organizations_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
-        let ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'organization'",
         )
         .bind(tag_id)
         .fetch_all(pool)

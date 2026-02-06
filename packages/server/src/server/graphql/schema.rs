@@ -19,11 +19,10 @@ use crate::domains::discovery::models::{
 };
 use crate::domains::extraction::actions as extraction_actions;
 use crate::domains::member::actions as member_actions;
-use crate::domains::organization::actions as organization_actions;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::providers::actions as provider_actions;
 use crate::domains::website::actions as website_actions;
-use crate::domains::website_approval::actions as website_approval_actions;
+use crate::domains::website::actions::approval as website_approval_actions;
 
 // Domain data types (GraphQL types)
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
@@ -34,7 +33,6 @@ use crate::domains::extraction::data::{
 };
 use crate::domains::member::data::{MemberConnection, MemberData};
 use crate::domains::member::events::MemberEvent;
-use crate::domains::organization::data::{OrganizationConnection, OrganizationData};
 use crate::domains::posts::data::post_report::{
     PostReport as PostReportData, PostReportDetail as PostReportDetailData,
 };
@@ -51,7 +49,7 @@ use crate::domains::providers::events::ProviderEvent;
 use crate::domains::providers::models::Provider;
 use crate::domains::website::data::{WebsiteConnection, WebsiteData};
 use crate::domains::website::events::WebsiteEvent;
-use crate::domains::website_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
+use crate::domains::website::data::{WebsiteAssessmentData, WebsiteSearchResultData};
 
 // Sync proposal types
 use crate::common::{MemberId, SyncBatchId, SyncProposalId};
@@ -62,24 +60,17 @@ use crate::domains::sync::{SyncBatch, SyncProposal};
 // Domain models (for queries)
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::member::models::member::Member;
-use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::post_report::PostReportRecord;
 use crate::domains::posts::models::{BusinessPost, Post};
-use crate::domains::locations::models::{Schedule, ZipCode};
-use crate::domains::tag::{Tag, TagData, Taggable};
+use crate::domains::locations::models::ZipCode;
+use crate::domains::schedules::models::Schedule;
+use crate::domains::tag::TagData;
 use crate::domains::website::models::{Website, WebsiteAssessment};
 
 #[derive(juniper::GraphQLInputObject)]
 pub struct TagInput {
     pub kind: String,
     pub value: String,
-}
-
-#[derive(juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
-pub struct OrganizationMatchData {
-    pub organization: OrganizationData,
-    pub similarity_score: f64,
 }
 
 /// Result of running discovery search
@@ -165,7 +156,6 @@ pub struct PostSearchResultData {
     pub post_id: Uuid,
     pub title: String,
     pub description: String,
-    pub organization_name: String,
     pub category: String,
     pub post_type: String,
     pub similarity: f64,
@@ -210,7 +200,7 @@ async fn post_to_post_type(post: Post, pool: &PgPool) -> PostType {
                 online_ordering_link: business.online_ordering_link,
                 delivery_available: business.delivery_available,
                 proceeds_percentage: business.proceeds_percentage,
-                proceeds_beneficiary_id: business.proceeds_beneficiary_id.map(|id| id.into_uuid()),
+                proceeds_beneficiary_id: business.proceeds_beneficiary_id,
                 proceeds_description: business.proceeds_description,
                 impact_statement: business.impact_statement,
             });
@@ -494,7 +484,6 @@ impl Query {
             .map(|pwd| {
                 let post_type = PostType {
                     id: pwd.id.into_uuid(),
-                    organization_name: pwd.organization_name,
                     title: pwd.title,
                     tldr: pwd.tldr,
                     description: pwd.description,
@@ -579,68 +568,6 @@ impl Query {
         Ok(connection)
     }
 
-    // =========================================================================
-    // Organization Queries
-    // =========================================================================
-
-    /// Get an organization by ID (admin only)
-    async fn organization(
-        ctx: &GraphQLContext,
-        id: String,
-    ) -> FieldResult<Option<OrganizationData>> {
-        ctx.require_admin()?;
-
-        use crate::common::OrganizationId;
-
-        let org_id = OrganizationId::parse(&id)?;
-        match Organization::find_by_id(org_id, &ctx.db_pool).await {
-            Ok(org) => Ok(Some(OrganizationData::from(org))),
-            Err(_) => Ok(None),
-        }
-    }
-
-    /// Search organizations by name (admin only)
-    async fn search_organizations(
-        ctx: &GraphQLContext,
-        query: String,
-    ) -> FieldResult<Vec<OrganizationData>> {
-        ctx.require_admin()?;
-
-        let orgs = Organization::search_by_name(&query, &ctx.db_pool).await?;
-        Ok(orgs.into_iter().map(OrganizationData::from).collect())
-    }
-
-    /// Search organizations using AI semantic search (admin only)
-    async fn search_organizations_semantic(
-        ctx: &GraphQLContext,
-        query: String,
-        limit: Option<i32>,
-    ) -> FieldResult<Vec<OrganizationMatchData>> {
-        ctx.require_admin()?;
-
-        use crate::kernel::ai_matching::AIMatchingService;
-
-        let ai_matching = AIMatchingService::new((*ctx.openai_client).clone());
-
-        let results = if let Some(lim) = limit {
-            ai_matching
-                .find_relevant_organizations_with_config(query, 0.7, lim, &ctx.db_pool)
-                .await?
-        } else {
-            ai_matching
-                .find_relevant_organizations(query, &ctx.db_pool)
-                .await?
-        };
-
-        Ok(results
-            .into_iter()
-            .map(|(org, similarity)| OrganizationMatchData {
-                organization: OrganizationData::from(org),
-                similarity_score: similarity as f64,
-            })
-            .collect())
-    }
-
     /// Search posts using semantic similarity (public)
     ///
     /// Arguments:
@@ -681,48 +608,11 @@ impl Query {
                 post_id: r.post_id.into_uuid(),
                 title: r.title,
                 description: r.description,
-                organization_name: r.organization_name,
                 category: r.category,
                 post_type: r.post_type,
                 similarity: r.similarity,
             })
             .collect())
-    }
-
-    /// Get paginated organizations with cursor-based pagination (Relay spec)
-    ///
-    /// Arguments:
-    /// - first: Return first N items (forward pagination)
-    /// - after: Return items after this cursor (forward pagination)
-    /// - last: Return last N items (backward pagination)
-    /// - before: Return items before this cursor (backward pagination)
-    /// Get organizations (admin only)
-    async fn organizations(
-        ctx: &GraphQLContext,
-        first: Option<i32>,
-        after: Option<String>,
-        last: Option<i32>,
-        before: Option<String>,
-    ) -> FieldResult<OrganizationConnection> {
-        ctx.require_admin()?;
-        let pagination_args = PaginationArgs {
-            first,
-            after,
-            last,
-            before,
-        };
-        let validated = pagination_args
-            .validate()
-            .map_err(|e| FieldError::new(e, juniper::Value::null()))?;
-
-        let connection = organization_actions::get_organizations_paginated(&validated, ctx.deps())
-            .await
-            .map_err(|e| {
-                error!("Failed to get paginated organizations: {}", e);
-                FieldError::new(e.to_string(), juniper::Value::null())
-            })?;
-
-        Ok(connection)
     }
 
     // =========================================================================
@@ -1277,7 +1167,7 @@ impl Query {
                             online_ordering_link: business.online_ordering_link.clone(),
                             delivery_available: business.delivery_available,
                             proceeds_percentage: business.proceeds_percentage,
-                            proceeds_beneficiary_id: business.proceeds_beneficiary_id.map(|id| id.into_uuid()),
+                            proceeds_beneficiary_id: business.proceeds_beneficiary_id,
                             proceeds_description: business.proceeds_description.clone(),
                             impact_statement: business.impact_statement.clone(),
                         });
@@ -1350,7 +1240,7 @@ async fn lookup_post_title(id: Uuid, pool: &PgPool) -> Option<String> {
         .flatten()
         .map(|p| {
             if p.title.is_empty() {
-                format!("{} ({})", p.organization_name, p.post_type)
+                format!("Untitled ({})", p.post_type)
             } else {
                 p.title
             }
@@ -2268,7 +2158,8 @@ impl Mutation {
         ctx: &GraphQLContext,
         batch_size: Option<i32>,
     ) -> FieldResult<BackfillPostLocationsResult> {
-        use crate::domains::locations::models::{Location, PostLocation};
+        use crate::domains::locations::models::Location;
+        use crate::domains::posts::models::PostLocation;
 
         let user = ctx
             .auth_user
@@ -2571,61 +2462,6 @@ impl Mutation {
             })?;
 
         Ok(MemberData::from(member))
-    }
-
-    // =========================================================================
-    // Organization Mutations
-    // =========================================================================
-
-    /// Create a new organization (admin only)
-    async fn create_organization(
-        ctx: &GraphQLContext,
-        name: String,
-        description: Option<String>,
-        website: Option<String>,
-        phone: Option<String>,
-        city: Option<String>,
-    ) -> FieldResult<OrganizationData> {
-        ctx.require_admin()?;
-
-        use crate::domains::organization::models::CreateOrganization;
-
-        let primary_address = city.map(|c| format!("{}, MN", c));
-
-        let builder = CreateOrganization::builder()
-            .name(name)
-            .description(description)
-            .website(website)
-            .phone(phone)
-            .primary_address(primary_address)
-            .organization_type(Some("nonprofit".to_string()))
-            .build();
-
-        let created = Organization::create(builder, &ctx.db_pool).await?;
-
-        Ok(OrganizationData::from(created))
-    }
-
-    /// Add tags to an organization (admin only)
-    async fn add_organization_tags(
-        ctx: &GraphQLContext,
-        organization_id: String,
-        tags: Vec<TagInput>,
-    ) -> FieldResult<OrganizationData> {
-        ctx.require_admin()?;
-
-        use crate::common::OrganizationId;
-
-        let org_id = OrganizationId::parse(&organization_id)?;
-
-        for tag_input in tags {
-            let tag =
-                Tag::find_or_create(&tag_input.kind, &tag_input.value, None, &ctx.db_pool).await?;
-            let _ = Taggable::create_organization_tag(org_id, tag.id, &ctx.db_pool).await;
-        }
-
-        let org = Organization::find_by_id(org_id, &ctx.db_pool).await?;
-        Ok(OrganizationData::from(org))
     }
 
     // =========================================================================
@@ -2972,7 +2808,7 @@ impl Mutation {
             FieldError::new(format!("Invalid website ID: {}", e), juniper::Value::null())
         })?;
 
-        use crate::domains::website_approval::events::WebsiteApprovalEvent;
+        use crate::domains::website::events::approval::WebsiteApprovalEvent;
 
         let event = website_approval_actions::assess_website(
             website_uuid,

@@ -28,19 +28,13 @@ pub async fn handle_extract_posts_from_resource_link(
         "Starting AI listing extraction from resource link"
     );
 
-    // Try to extract organization name from URL (domain)
-    let organization_name = url
+    // Extract domain from URL for context
+    let domain = url
         .split("//")
         .nth(1)
         .and_then(|s| s.split('/').next())
-        .unwrap_or("Unknown Organization")
+        .unwrap_or("unknown")
         .to_string();
-
-    tracing::info!(
-        job_id = %job_id,
-        organization_name = %organization_name,
-        "Extracted organization name from URL"
-    );
 
     // Add context to the content if provided
     let content_with_context = if let Some(ref ctx_text) = context {
@@ -56,7 +50,7 @@ pub async fn handle_extract_posts_from_resource_link(
     let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
         deps.ai.as_ref(),
         deps.pii_detector.as_ref(),
-        &organization_name,
+        &domain,
         &content_with_context,
         &url,
     )

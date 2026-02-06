@@ -7,6 +7,8 @@
 //!
 //! Note: *Requested events have been removed - GraphQL calls actions directly.
 
+pub mod approval;
+
 use serde::{Deserialize, Serialize};
 
 use crate::common::{MemberId, WebsiteId};

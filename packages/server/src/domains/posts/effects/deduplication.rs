@@ -26,7 +26,6 @@ pub struct PostForDedup {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub org_name: String,
     pub primary_audience: Option<String>,
     pub status: String,
 }
@@ -96,7 +95,6 @@ pub async fn deduplicate_posts_llm(
                 id: p.id.as_uuid().to_string(),
                 title: p.title.clone(),
                 description: p.description.clone(),
-                org_name: p.organization_name.clone(),
                 primary_audience: None, // Will be inferred by LLM
                 status: p.status.clone(),
             }
@@ -371,7 +369,6 @@ mod tests {
             id: "123e4567-e89b-12d3-a456-426614174000".to_string(),
             title: "Food Shelf".to_string(),
             description: "Free groceries for families".to_string(),
-            org_name: "Valley Outreach".to_string(),
             primary_audience: Some("recipient".to_string()),
             status: "pending_approval".to_string(),
         };
