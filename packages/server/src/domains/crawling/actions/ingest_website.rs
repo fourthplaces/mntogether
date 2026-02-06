@@ -77,7 +77,7 @@ pub async fn ingest_website(
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // 5. Configure discovery
-    let max_pages = website.max_pages_per_crawl.unwrap_or(20) as usize;
+    let max_pages = website.max_pages_per_crawl.unwrap_or(40) as usize;
     let max_depth = website.max_crawl_depth as usize;
 
     debug!(
@@ -145,6 +145,13 @@ pub async fn ingest_website(
         pages_skipped = result.pages_skipped,
         "Extraction library ingestion completed"
     );
+
+    // Update website with crawl results
+    Website::record_crawl_completed(
+        website_id_typed,
+        result.pages_crawled as i32,
+        &deps.db_pool,
+    ).await?;
 
     Ok(CrawlEvent::WebsiteIngested {
         website_id: website_id_typed,

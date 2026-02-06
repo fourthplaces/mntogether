@@ -61,7 +61,7 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[status] || "bg-stone-100 text-stone-600"}`}
     >
-      {status.replace("_", " ")}
+      {status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
     </span>
   );
 }

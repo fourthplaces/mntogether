@@ -70,11 +70,11 @@ export interface OrganizationMatch {
 }
 
 // ============================================================================
-// Post/Listing Types
+// Post Types
 // ============================================================================
 
 export type PostType = "service" | "opportunity" | "business" | "professional";
-export type ListingStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
+export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
 export type CapacityStatus = "accepting" | "paused" | "at_capacity";
 export type SubmissionType = "SCRAPED" | "MANUAL" | "USER_SUBMITTED";
 export type Urgency = "urgent" | "high" | "medium" | "low";
@@ -90,7 +90,7 @@ export interface Post {
   category?: string;
   capacityStatus?: CapacityStatus;
   urgency?: Urgency;
-  status: ListingStatus;
+  status: PostStatus;
   location?: string;
   sourceUrl?: string;
   submissionType?: SubmissionType;
@@ -254,7 +254,7 @@ export interface GetPublishedPostsResult {
   publishedPosts: Post[];
 }
 
-export interface GetListingsResult {
+export interface GetPostsResult {
   listings: PaginatedResult<Post>;
 }
 
@@ -339,7 +339,7 @@ export interface SubmitResourceLinkInput {
   submitterContact?: string;
 }
 
-export interface EditListingInput {
+export interface EditPostInput {
   title?: string;
   description?: string;
   tldr?: string;

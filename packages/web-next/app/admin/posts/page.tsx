@@ -9,7 +9,7 @@ import { useCursorPagination } from "@/lib/hooks/useCursorPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { PostReviewCard } from "@/components/admin/PostReviewCard";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { Post, GetListingsResult, PendingPostsStatsResult } from "@/lib/types";
+import type { Post, GetPostsResult, PendingPostsStatsResult } from "@/lib/types";
 
 type PostTypeFilter = "all" | "service" | "opportunity" | "business";
 type SourceFilter = "all" | "USER_SUBMITTED" | "SCRAPED";
@@ -40,7 +40,7 @@ export default function PostsPage() {
     isLoading,
     error,
     mutate: refetch,
-  } = useGraphQL<GetListingsResult>(
+  } = useGraphQL<GetPostsResult>(
     GET_PENDING_POSTS,
     {
       postType: selectedType === "all" ? null : selectedType,
