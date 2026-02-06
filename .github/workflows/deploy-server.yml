@@ -2,141 +2,31 @@ name: Deploy Server
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     paths:
       - "packages/server/**"
-      - "infra/packages/server/**"
-      - "infra/packages/core/**"
-      - "infra/packages/common/**"
+      - "packages/openai-client/**"
+      - "packages/extraction/**"
+      - "packages/twilio-rs/**"
+      - "Cargo.toml"
       - ".github/workflows/deploy-server.yml"
   workflow_dispatch:
-    inputs:
-      env:
-        description: "Environment"
-        required: true
-        type: choice
-        options:
-          - dev
-          - prod
-      ref:
-        description: "Git ref to deploy (tag or commit)"
-        required: true
 
 concurrency:
-  group: deploy-server-${{ github.ref }}
+  group: deploy-server
   cancel-in-progress: false
-
-permissions:
-  contents: read
-  id-token: write
 
 jobs:
   deploy:
     name: Deploy Server
     runs-on: ubuntu-latest
-    env:
-      PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
     steps:
-      - name: Determine environment
-        id: env
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "env=${{ inputs.env }}" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ inputs.ref }}" >> "$GITHUB_OUTPUT"
-          elif [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            echo "env=prod" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "env=dev" >> "$GITHUB_OUTPUT"
-            echo "ref=${{ github.sha }}" >> "$GITHUB_OUTPUT"
-          fi
-
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ steps.env.outputs.ref }}
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
 
-      - name: Setup Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Set image tag
-        id: image
-        run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          echo "tag=${{ steps.env.outputs.env }}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "repo=${{ secrets.ECR_REPOSITORY }}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push Docker image
-        working-directory: packages/server
+      - name: Deploy to Railway
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ steps.image.outputs.repo }}
-          IMAGE_TAG: ${{ steps.image.outputs.tag }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Setup yarn
-        run: corepack enable && corepack prepare yarn@4.1.0 --activate
-
-      - name: Install infra dependencies
-        working-directory: infra
-        run: yarn install
-
-      - name: Build infra
-        working-directory: infra
-        run: yarn build
-
-      - uses: pulumi/actions@v4
-
-      - name: Deploy core stack (if needed)
-        working-directory: infra/packages/core
-        run: |
-          pulumi stack select ${{ steps.env.outputs.env }} --create || pulumi stack select ${{ steps.env.outputs.env }}
-          pulumi up --yes --skip-preview
-
-      - name: Deploy server stack
-        working-directory: infra/packages/server
-        env:
-          PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
-        run: |
-          pulumi stack select ${{ steps.env.outputs.env }} --create || pulumi stack select ${{ steps.env.outputs.env }}
-          pulumi config set apiImageTag ${{ steps.image.outputs.tag }}
-          pulumi config set ecrRepoName ${{ steps.image.outputs.repo }}
-          pulumi up --yes --skip-preview
-
-      - name: Get deployment URL
-        id: url
-        working-directory: infra/packages/server
-        run: |
-          URL=$(pulumi stack output targetUrl)
-          echo "url=$URL" >> "$GITHUB_OUTPUT"
-
-      - name: Notify success
-        if: success()
-        run: |
-          echo "✅ Server deployed successfully!"
-          echo "Environment: ${{ steps.env.outputs.env }}"
-          echo "Image: ${{ steps.image.outputs.tag }}"
-          echo "URL: ${{ steps.url.outputs.url }}"
-
-      - name: Notify failure
-        if: failure()
-        run: |
-          echo "❌ Server deployment failed"
-          exit 1
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway up --service 1a606582-0549-4af6-8001-b065e24a68eb --environment production --detach
