@@ -8,9 +8,7 @@ use crate::domains::auth::JwtService;
 use crate::kernel::{OpenAIClient, ServerDeps};
 use crate::server::graphql::loaders::DataLoaders;
 use crate::server::middleware::AuthUser;
-
-// TODO: Add Restate workflow client type
-// pub type WorkflowClient = restate_sdk::RestateClient;
+use crate::WorkflowClient;
 
 /// GraphQL request context
 ///
@@ -19,8 +17,7 @@ use crate::server::middleware::AuthUser;
 #[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
-    // TODO: Add workflow client
-    // pub workflow_client: Arc<WorkflowClient>,
+    pub workflow_client: Arc<WorkflowClient>,
     pub server_deps: Arc<ServerDeps>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
@@ -40,9 +37,11 @@ impl GraphQLContext {
         jwt_service: Arc<JwtService>,
         openai_client: Arc<OpenAIClient>,
         loaders: Arc<DataLoaders>,
+        workflow_client: Arc<WorkflowClient>,
     ) -> Self {
         Self {
             db_pool,
+            workflow_client,
             server_deps,
             auth_user,
             twilio,
