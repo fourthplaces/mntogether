@@ -204,8 +204,7 @@ pub async fn approve_batch(
     let pending = SyncProposal::find_pending_by_batch(batch_id, pool).await?;
 
     for proposal in &pending {
-        let merge_sources =
-            SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
+        let merge_sources = SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
         handler.approve(proposal, &merge_sources, pool).await?;
         SyncProposal::approve(proposal.id, reviewed_by, pool).await?;
         SyncBatch::increment_approved(batch_id, pool).await?;
@@ -232,8 +231,7 @@ pub async fn reject_batch(
     let pending = SyncProposal::find_pending_by_batch(batch_id, pool).await?;
 
     for proposal in &pending {
-        let merge_sources =
-            SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
+        let merge_sources = SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
         handler.reject(proposal, &merge_sources, pool).await?;
         SyncProposal::reject(proposal.id, reviewed_by, pool).await?;
         SyncBatch::increment_rejected(batch_id, pool).await?;

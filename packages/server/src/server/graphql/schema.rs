@@ -13,26 +13,26 @@ use crate::common::{ContainerId, PaginationArgs, PostId, WebsiteId};
 use crate::domains::auth::actions as auth_actions;
 use crate::domains::chatrooms::actions as chatroom_actions;
 use crate::domains::crawling::actions as crawling_actions;
+use crate::domains::discovery::actions as discovery_actions;
+use crate::domains::discovery::models::{
+    DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,
+};
 use crate::domains::extraction::actions as extraction_actions;
 use crate::domains::member::actions as member_actions;
 use crate::domains::organization::actions as organization_actions;
 use crate::domains::posts::actions as post_actions;
 use crate::domains::providers::actions as provider_actions;
-use crate::domains::discovery::actions as discovery_actions;
-use crate::domains::discovery::models::{
-    DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,
-};
 use crate::domains::website::actions as website_actions;
 use crate::domains::website_approval::actions as website_approval_actions;
 
 // Domain data types (GraphQL types)
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
+use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::extraction::data::{
     ExtractionData, ExtractionPageData, SubmitUrlInput, SubmitUrlResult, TriggerExtractionInput,
     TriggerExtractionResult,
 };
 use crate::domains::member::data::{MemberConnection, MemberData};
-use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::member::events::MemberEvent;
 use crate::domains::organization::data::{OrganizationConnection, OrganizationData};
 use crate::domains::posts::data::post_report::{
@@ -512,7 +512,9 @@ impl Query {
         // Search posts by embedding similarity
         let results = Post::search_by_similarity(&query_embedding, threshold, limit, &ctx.db_pool)
             .await
-            .map_err(|e| FieldError::new(format!("Search failed: {}", e), juniper::Value::null()))?;
+            .map_err(|e| {
+                FieldError::new(format!("Search failed: {}", e), juniper::Value::null())
+            })?;
 
         Ok(results
             .into_iter()
@@ -599,12 +601,13 @@ impl Query {
 
         let status_ref = status.as_deref();
 
-        let connection = website_actions::get_websites_paginated(status_ref, &validated, ctx.deps())
-            .await
-            .map_err(|e| {
-                error!("Failed to get paginated websites: {}", e);
-                FieldError::new(e.to_string(), juniper::Value::null())
-            })?;
+        let connection =
+            website_actions::get_websites_paginated(status_ref, &validated, ctx.deps())
+                .await
+                .map_err(|e| {
+                    error!("Failed to get paginated websites: {}", e);
+                    FieldError::new(e.to_string(), juniper::Value::null())
+                })?;
 
         Ok(connection)
     }
@@ -773,10 +776,7 @@ impl Query {
     }
 
     /// Count extraction pages for a domain
-    async fn extraction_pages_count(
-        ctx: &GraphQLContext,
-        domain: String,
-    ) -> FieldResult<i32> {
+    async fn extraction_pages_count(ctx: &GraphQLContext, domain: String) -> FieldResult<i32> {
         let count = ExtractionPageData::count_by_domain(&domain, &ctx.db_pool)
             .await
             .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
@@ -855,9 +855,10 @@ impl Query {
 
         let status_ref = status.as_deref();
 
-        let connection = provider_actions::get_providers_paginated(status_ref, &validated, ctx.deps())
-            .await
-            .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
+        let connection =
+            provider_actions::get_providers_paginated(status_ref, &validated, ctx.deps())
+                .await
+                .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
 
         Ok(connection)
     }
@@ -885,9 +886,13 @@ impl Query {
         ctx.require_admin()?;
 
         let queries = if include_inactive.unwrap_or(false) {
-            DiscoveryQuery::find_all(&ctx.db_pool).await.map_err(to_field_error)?
+            DiscoveryQuery::find_all(&ctx.db_pool)
+                .await
+                .map_err(to_field_error)?
         } else {
-            DiscoveryQuery::find_active(&ctx.db_pool).await.map_err(to_field_error)?
+            DiscoveryQuery::find_active(&ctx.db_pool)
+                .await
+                .map_err(to_field_error)?
         };
 
         Ok(queries
@@ -992,8 +997,12 @@ impl Query {
         ctx.require_admin()?;
 
         let batches = match status.as_deref() {
-            Some("pending") => SyncBatch::find_pending(&ctx.db_pool).await.map_err(to_field_error)?,
-            _ => SyncBatch::find_recent(limit.unwrap_or(50), &ctx.db_pool).await.map_err(to_field_error)?,
+            Some("pending") => SyncBatch::find_pending(&ctx.db_pool)
+                .await
+                .map_err(to_field_error)?,
+            _ => SyncBatch::find_recent(limit.unwrap_or(50), &ctx.db_pool)
+                .await
+                .map_err(to_field_error)?,
         };
 
         Ok(batches.into_iter().map(sync_batch_to_data).collect())
@@ -1023,7 +1032,11 @@ impl Query {
             .await
             .map_err(to_field_error)?;
 
-        Ok(proposals.into_iter().map(sync_proposal_to_data).collect())
+        let mut result = Vec::with_capacity(proposals.len());
+        for p in proposals {
+            result.push(enrich_proposal(p, &ctx.db_pool).await);
+        }
+        Ok(result)
     }
 }
 
@@ -1043,7 +1056,7 @@ fn sync_batch_to_data(b: SyncBatch) -> SyncBatchData {
     }
 }
 
-/// Convert a SyncProposal model to GraphQL data type
+/// Convert a SyncProposal to GraphQL data (without enrichment, for mutation returns)
 fn sync_proposal_to_data(p: SyncProposal) -> SyncProposalData {
     SyncProposalData {
         id: p.id.into_uuid(),
@@ -1057,6 +1070,72 @@ fn sync_proposal_to_data(p: SyncProposal) -> SyncProposalData {
         reviewed_by: p.reviewed_by,
         reviewed_at: p.reviewed_at.map(|t| t.to_rfc3339()),
         created_at: p.created_at.to_rfc3339(),
+        draft_title: None,
+        target_title: None,
+        merge_source_ids: vec![],
+        merge_source_titles: vec![],
+    }
+}
+
+/// Look up a post title by UUID, returning None on any failure
+async fn lookup_post_title(id: Uuid, pool: &PgPool) -> Option<String> {
+    let post_id = PostId::from_uuid(id);
+    Post::find_by_id(post_id, pool)
+        .await
+        .ok()
+        .flatten()
+        .map(|p| {
+            if p.title.is_empty() {
+                format!("{} ({})", p.organization_name, p.post_type)
+            } else {
+                p.title
+            }
+        })
+}
+
+/// Enrich a SyncProposal with human-readable titles and merge sources
+async fn enrich_proposal(p: SyncProposal, pool: &PgPool) -> SyncProposalData {
+    use crate::domains::sync::SyncProposalMergeSource;
+
+    let draft_title = match p.draft_entity_id {
+        Some(id) => lookup_post_title(id, pool).await,
+        None => None,
+    };
+
+    let target_title = match p.target_entity_id {
+        Some(id) => lookup_post_title(id, pool).await,
+        None => None,
+    };
+
+    let merge_sources = SyncProposalMergeSource::find_by_proposal(p.id, pool)
+        .await
+        .unwrap_or_default();
+
+    let merge_source_ids: Vec<Uuid> = merge_sources.iter().map(|s| s.source_entity_id).collect();
+
+    let mut merge_source_titles = Vec::new();
+    for id in &merge_source_ids {
+        if let Some(title) = lookup_post_title(*id, pool).await {
+            merge_source_titles.push(title);
+        }
+    }
+
+    SyncProposalData {
+        id: p.id.into_uuid(),
+        batch_id: p.batch_id.into_uuid(),
+        operation: p.operation,
+        status: p.status,
+        entity_type: p.entity_type,
+        draft_entity_id: p.draft_entity_id,
+        target_entity_id: p.target_entity_id,
+        reason: p.reason,
+        reviewed_by: p.reviewed_by,
+        reviewed_at: p.reviewed_at.map(|t| t.to_rfc3339()),
+        created_at: p.created_at.to_rfc3339(),
+        draft_title,
+        target_title,
+        merge_source_ids,
+        merge_source_titles,
     }
 }
 
@@ -1102,7 +1181,8 @@ impl Mutation {
 
         let visitor_id = user.member_id.into_uuid();
 
-        let handle = ctx.queue_engine
+        let handle = ctx
+            .queue_engine
             .process(CrawlEvent::CrawlWebsiteEnqueued {
                 website_id,
                 visitor_id,
@@ -1141,7 +1221,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(ScrapeJobResult {
             job_id: Uuid::new_v4(),
@@ -1163,12 +1246,20 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract post_id from event and find the post
         let post_id = match event {
             PostEvent::PostEntryCreated { post_id, .. } => post_id,
-            _ => return Err(FieldError::new("Unexpected event type", juniper::Value::null())),
+            _ => {
+                return Err(FieldError::new(
+                    "Unexpected event type",
+                    juniper::Value::null(),
+                ))
+            }
         };
 
         let post = Post::find_by_id(post_id, &ctx.db_pool)
@@ -1188,11 +1279,15 @@ impl Mutation {
 
         let url = input.url.clone();
 
-        let event = post_actions::submit_resource_link(input.url, input.submitter_contact, ctx.deps())
+        let event =
+            post_actions::submit_resource_link(input.url, input.submitter_contact, ctx.deps())
+                .await
+                .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
-
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
 
         // Map event to appropriate response based on website status
         match event {
@@ -1204,9 +1299,15 @@ impl Mutation {
             PostEvent::WebsiteCreatedFromLink { job_id, .. } => Ok(SubmitResourceLinkResult {
                 job_id: job_id.into(),
                 status: "processing".to_string(),
-                message: format!("Your submission has been received. We'll process it shortly: {}", url),
+                message: format!(
+                    "Your submission has been received. We'll process it shortly: {}",
+                    url
+                ),
             }),
-            _ => Err(FieldError::new("Unexpected event type", juniper::Value::null())),
+            _ => Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            )),
         }
     }
 
@@ -1219,14 +1320,25 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::approve_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
+        let event = post_actions::approve_post(
+            post_id,
+            user.member_id.into_uuid(),
+            user.is_admin,
+            ctx.deps(),
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
-
         let PostEvent::PostApproved { post_id } = event else {
-            return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+            return Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            ));
         };
 
         let post = Post::find_by_id(post_id, &ctx.db_pool)
@@ -1260,10 +1372,16 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         let PostEvent::PostApproved { post_id } = event else {
-            return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+            return Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            ));
         };
 
         let post = Post::find_by_id(post_id, &ctx.db_pool)
@@ -1291,7 +1409,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1303,11 +1424,19 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::delete_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
+        let event = post_actions::delete_post(
+            post_id,
+            user.member_id.into_uuid(),
+            user.is_admin,
+            ctx.deps(),
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event)
             .await
             .map_err(to_field_error)?;
-
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1329,14 +1458,25 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::expire_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
+        let event = post_actions::expire_post(
+            post_id,
+            user.member_id.into_uuid(),
+            user.is_admin,
+            ctx.deps(),
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
-
         let PostEvent::PostExpired { post_id } = event else {
-            return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+            return Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            ));
         };
 
         let post = Post::find_by_id(post_id, &ctx.db_pool)
@@ -1356,14 +1496,25 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::archive_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
+        let event = post_actions::archive_post(
+            post_id,
+            user.member_id.into_uuid(),
+            user.is_admin,
+            ctx.deps(),
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
-
         let PostEvent::PostArchived { post_id } = event else {
-            return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+            return Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            ));
         };
 
         let post = Post::find_by_id(post_id, &ctx.db_pool)
@@ -1380,7 +1531,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1391,7 +1545,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1419,10 +1576,20 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
-        let PostEvent::PostReported { report_id, post_id: returned_post_id } = event else {
-            return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
+        let PostEvent::PostReported {
+            report_id,
+            post_id: returned_post_id,
+        } = event
+        else {
+            return Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            ));
         };
 
         // Fetch the report from DB
@@ -1430,7 +1597,9 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        let report = reports.into_iter().find(|r| r.id == report_id)
+        let report = reports
+            .into_iter()
+            .find(|r| r.id == report_id)
             .ok_or_else(|| FieldError::new("Report not found", juniper::Value::null()))?;
 
         Ok(report.into())
@@ -1459,7 +1628,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1485,7 +1657,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1538,7 +1713,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         let crate::domains::discovery::DiscoveryEvent::DiscoveryRunCompleted {
             run_id,
@@ -1630,7 +1808,9 @@ impl Mutation {
     /// Delete a discovery query (admin only)
     async fn delete_discovery_query(ctx: &GraphQLContext, id: Uuid) -> FieldResult<bool> {
         ctx.require_admin()?;
-        DiscoveryQuery::delete(id, &ctx.db_pool).await.map_err(to_field_error)?;
+        DiscoveryQuery::delete(id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
         Ok(true)
     }
 
@@ -1685,7 +1865,9 @@ impl Mutation {
     /// Delete a filter rule (admin only)
     async fn delete_discovery_filter_rule(ctx: &GraphQLContext, id: Uuid) -> FieldResult<bool> {
         ctx.require_admin()?;
-        DiscoveryFilterRule::delete(id, &ctx.db_pool).await.map_err(to_field_error)?;
+        DiscoveryFilterRule::delete(id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
         Ok(true)
     }
 
@@ -1708,14 +1890,18 @@ impl Mutation {
         info!(post_id = %post_id, "Generating post embedding");
 
         let post_id = PostId::from_uuid(post_id);
-        post_operations::generate_post_embedding(post_id, ctx.server_deps.embedding_service.as_ref(), &ctx.db_pool)
-            .await
-            .map_err(|e| {
-                FieldError::new(
-                    format!("Failed to generate embedding: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
+        post_operations::generate_post_embedding(
+            post_id,
+            ctx.server_deps.embedding_service.as_ref(),
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(|e| {
+            FieldError::new(
+                format!("Failed to generate embedding: {}", e),
+                juniper::Value::null(),
+            )
+        })?;
 
         Ok(true)
     }
@@ -1796,7 +1982,12 @@ impl Mutation {
             .unwrap_or(0) as i32
         };
 
-        info!(processed = processed, failed = failed, remaining = remaining, "Backfill completed");
+        info!(
+            processed = processed,
+            failed = failed,
+            remaining = remaining,
+            "Backfill completed"
+        );
 
         Ok(BackfillPostEmbeddingsResult {
             processed,
@@ -1815,15 +2006,15 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::deduplicate_posts(
-            user.member_id.into_uuid(),
-            user.is_admin,
-            ctx.deps(),
-        )
-        .await
-        .map_err(to_field_error)?;
+        let event =
+            post_actions::deduplicate_posts(user.member_id.into_uuid(), user.is_admin, ctx.deps())
+                .await
+                .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         // Deduplication is fire-and-forget, return placeholder result
         Ok(DeduplicationResult {
@@ -1859,14 +2050,19 @@ impl Mutation {
             .await
             .map_err(|e| {
                 // Check for NotAuthorizedError specifically
-                if e.downcast_ref::<auth_actions::NotAuthorizedError>().is_some() {
+                if e.downcast_ref::<auth_actions::NotAuthorizedError>()
+                    .is_some()
+                {
                     return FieldError::new("Not authorized", juniper::Value::null());
                 }
                 error!(error = %e, "Failed to send OTP");
                 FieldError::new(e.to_string(), juniper::Value::null())
             })?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -1883,11 +2079,17 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         match event {
             AuthEvent::OTPVerified { token, .. } => Ok(token),
-            _ => Err(FieldError::new("Unexpected event type", juniper::Value::null())),
+            _ => Err(FieldError::new(
+                "Unexpected event type",
+                juniper::Value::null(),
+            )),
         }
     }
 
@@ -1924,12 +2126,15 @@ impl Mutation {
             ctx.deps(),
         )
         .await
-            .map_err(|e| {
-                error!(error = %e, "Failed to register member");
-                FieldError::new(e.to_string(), juniper::Value::null())
-            })?;
+        .map_err(|e| {
+            error!(error = %e, "Failed to register member");
+            FieldError::new(e.to_string(), juniper::Value::null())
+        })?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         // After process(), find member by expo_push_token
         let member = Member::find_by_token(&token_for_lookup, &ctx.db_pool)
@@ -1938,7 +2143,12 @@ impl Mutation {
                 error!(error = %e, "Failed to read member after registration");
                 FieldError::new(e.to_string(), juniper::Value::null())
             })?
-            .ok_or_else(|| FieldError::new("Member not found after registration", juniper::Value::null()))?;
+            .ok_or_else(|| {
+                FieldError::new(
+                    "Member not found after registration",
+                    juniper::Value::null(),
+                )
+            })?;
 
         Ok(MemberData::from(member))
     }
@@ -1965,10 +2175,17 @@ impl Mutation {
                 FieldError::new(e.to_string(), juniper::Value::null())
             })?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract member_id from event and fetch member data
-        let MemberEvent::MemberStatusUpdated { member_id: returned_member_id, .. } = event else {
+        let MemberEvent::MemberStatusUpdated {
+            member_id: returned_member_id,
+            ..
+        } = event
+        else {
             return Err(FieldError::new(
                 "Unexpected event type",
                 juniper::Value::null(),
@@ -2074,10 +2291,17 @@ impl Mutation {
                 )
             })?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract website_id from event and fetch updated website
-        let WebsiteEvent::WebsiteApproved { website_id: returned_website_id, .. } = event else {
+        let WebsiteEvent::WebsiteApproved {
+            website_id: returned_website_id,
+            ..
+        } = event
+        else {
             return Err(FieldError::new(
                 "Unexpected event type",
                 juniper::Value::null(),
@@ -2131,10 +2355,17 @@ impl Mutation {
                 )
             })?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract website_id from event and fetch updated website
-        let WebsiteEvent::WebsiteRejected { website_id: returned_website_id, .. } = event else {
+        let WebsiteEvent::WebsiteRejected {
+            website_id: returned_website_id,
+            ..
+        } = event
+        else {
             return Err(FieldError::new(
                 "Unexpected event type",
                 juniper::Value::null(),
@@ -2188,10 +2419,17 @@ impl Mutation {
                 )
             })?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract website_id from event and fetch updated website
-        let WebsiteEvent::WebsiteSuspended { website_id: returned_website_id, .. } = event else {
+        let WebsiteEvent::WebsiteSuspended {
+            website_id: returned_website_id,
+            ..
+        } = event
+        else {
             return Err(FieldError::new(
                 "Unexpected event type",
                 juniper::Value::null(),
@@ -2251,10 +2489,17 @@ impl Mutation {
                 )
             })?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract website_id from event and fetch updated website
-        let WebsiteEvent::CrawlSettingsUpdated { website_id: returned_website_id, .. } = event else {
+        let WebsiteEvent::CrawlSettingsUpdated {
+            website_id: returned_website_id,
+            ..
+        } = event
+        else {
             return Err(FieldError::new(
                 "Unexpected event type",
                 juniper::Value::null(),
@@ -2293,7 +2538,8 @@ impl Mutation {
 
         let visitor_id = user.member_id.into_uuid();
 
-        let handle = ctx.queue_engine
+        let handle = ctx
+            .queue_engine
             .process(CrawlEvent::PostsRegenerationEnqueued {
                 website_id,
                 visitor_id,
@@ -2313,10 +2559,7 @@ impl Mutation {
     ///
     /// Emits a SinglePostRegenerationEnqueued event and returns immediately.
     /// The queued regenerate_single_post_effect picks it up in the background.
-    async fn regenerate_post(
-        ctx: &GraphQLContext,
-        post_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
+    async fn regenerate_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<ScrapeJobResult> {
         use crate::domains::crawling::events::CrawlEvent;
 
         info!(post_id = %post_id, "Emitting regenerate single post event");
@@ -2326,7 +2569,8 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let handle = ctx.queue_engine
+        let handle = ctx
+            .queue_engine
             .process(CrawlEvent::SinglePostRegenerationEnqueued { post_id })
             .await
             .map_err(to_field_error)?;
@@ -2367,7 +2611,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         match event {
             WebsiteApprovalEvent::WebsiteAssessmentCompleted { assessment_id, .. } => {
@@ -2408,7 +2655,10 @@ impl Mutation {
         .await
         .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         let ChatEvent::ContainerCreated { container, .. } = event else {
             return Err(FieldError::new(
@@ -2429,11 +2679,15 @@ impl Mutation {
         let member_id = ctx.auth_user.as_ref().map(|u| u.member_id);
         let container_id = ContainerId::parse(&container_id)?;
 
-        let event = chatroom_actions::send_message(container_id, content, member_id, None, ctx.deps())
+        let event =
+            chatroom_actions::send_message(container_id, content, member_id, None, ctx.deps())
+                .await
+                .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
-
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
 
         let ChatEvent::MessageCreated { message } = event else {
             return Err(FieldError::new(
@@ -2484,7 +2738,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract provider_id from event and fetch full provider data
         let ProviderEvent::ProviderCreated { provider_id, .. } = event else {
@@ -2531,7 +2788,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event.clone())
+            .await
+            .map_err(to_field_error)?;
 
         // Extract provider_id from event and fetch full provider data
         let ProviderEvent::ProviderApproved { provider_id, .. } = event else {
@@ -2558,11 +2818,15 @@ impl Mutation {
         ctx.require_admin()?;
         info!("reject_provider mutation called: {}", provider_id);
 
-        let event = provider_actions::reject_provider(provider_id, reason, reviewed_by_id, ctx.deps())
+        let event =
+            provider_actions::reject_provider(provider_id, reason, reviewed_by_id, ctx.deps())
+                .await
+                .map_err(to_field_error)?;
+
+        ctx.queue_engine
+            .process(event.clone())
             .await
             .map_err(to_field_error)?;
-
-        ctx.queue_engine.process(event.clone()).await.map_err(to_field_error)?;
 
         // Extract provider_id from event and fetch full provider data
         let ProviderEvent::ProviderRejected { provider_id, .. } = event else {
@@ -2680,7 +2944,10 @@ impl Mutation {
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine.process(event).await.map_err(to_field_error)?;
+        ctx.queue_engine
+            .process(event)
+            .await
+            .map_err(to_field_error)?;
 
         Ok(true)
     }
@@ -2766,9 +3033,7 @@ impl Mutation {
         let url = input.url.clone();
         let query = input.query.clone();
 
-        match extraction_actions::submit_url(&url, query.as_deref(), ctx.deps())
-            .await
-        {
+        match extraction_actions::submit_url(&url, query.as_deref(), ctx.deps()).await {
             Ok(extractions) => {
                 let extraction = extractions.into_iter().next().map(ExtractionData::from);
 
@@ -2816,9 +3081,7 @@ impl Mutation {
         let query = input.query.clone();
         let site = input.site.clone();
 
-        match extraction_actions::trigger_extraction(&query, site.as_deref(), ctx.deps())
-            .await
-        {
+        match extraction_actions::trigger_extraction(&query, site.as_deref(), ctx.deps()).await {
             Ok(extractions) => Ok(TriggerExtractionResult {
                 success: true,
                 query: input.query,
@@ -2948,10 +3211,7 @@ impl Mutation {
     }
 
     /// Reject all pending proposals in a batch (admin only)
-    async fn reject_sync_batch(
-        ctx: &GraphQLContext,
-        batch_id: Uuid,
-    ) -> FieldResult<SyncBatchData> {
+    async fn reject_sync_batch(ctx: &GraphQLContext, batch_id: Uuid) -> FieldResult<SyncBatchData> {
         ctx.require_admin()?;
 
         let user = ctx.auth_user.as_ref().unwrap();
@@ -3009,6 +3269,14 @@ pub struct SyncProposalData {
     pub reviewed_by: Option<Uuid>,
     pub reviewed_at: Option<String>,
     pub created_at: String,
+    /// Human-readable title of the draft entity (e.g. post title)
+    pub draft_title: Option<String>,
+    /// Human-readable title of the target entity
+    pub target_title: Option<String>,
+    /// For merge operations: IDs of entities being absorbed
+    pub merge_source_ids: Vec<Uuid>,
+    /// For merge operations: titles of entities being absorbed
+    pub merge_source_titles: Vec<String>,
 }
 
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;

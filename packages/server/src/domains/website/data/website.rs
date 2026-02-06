@@ -182,7 +182,6 @@ impl WebsiteData {
             .map_err(|e| juniper::FieldError::new(e.to_string(), juniper::Value::null()))?;
         Ok(pages)
     }
-
 }
 
 // ============================================================================

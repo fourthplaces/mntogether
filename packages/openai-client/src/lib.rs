@@ -169,9 +169,8 @@ impl OpenAIClient {
         let request = StructuredRequest::new(model, system_prompt, user_prompt, schema);
         let json_str = self.structured_output(request).await?;
 
-        serde_json::from_str(&json_str).map_err(|e| {
-            OpenAIError::Parse(format!("Failed to deserialize response: {}", e))
-        })
+        serde_json::from_str(&json_str)
+            .map_err(|e| OpenAIError::Parse(format!("Failed to deserialize response: {}", e)))
     }
 
     /// Streaming chat completion.
@@ -212,7 +211,9 @@ impl OpenAIClient {
             )));
         }
 
-        Ok(streaming::ChatCompletionStream::new(response.bytes_stream()))
+        Ok(streaming::ChatCompletionStream::new(
+            response.bytes_stream(),
+        ))
     }
 
     /// Chat completion.
@@ -238,7 +239,10 @@ impl OpenAIClient {
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_default();
             warn!(status = %status, error = %error_text, "OpenAI API error");
-            return Err(OpenAIError::Api(format!("OpenAI API error: {}", error_text)));
+            return Err(OpenAIError::Api(format!(
+                "OpenAI API error: {}",
+                error_text
+            )));
         }
 
         let chat_response: types::ChatResponseRaw = response
@@ -281,7 +285,10 @@ impl OpenAIClient {
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(OpenAIError::Api(format!("OpenAI structured output error: {}", error_text)));
+            return Err(OpenAIError::Api(format!(
+                "OpenAI structured output error: {}",
+                error_text
+            )));
         }
 
         let chat_response: types::ChatResponseRaw = response
@@ -313,7 +320,10 @@ impl OpenAIClient {
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(OpenAIError::Api(format!("OpenAI tools API error: {}", error_text)));
+            return Err(OpenAIError::Api(format!(
+                "OpenAI tools API error: {}",
+                error_text
+            )));
         }
 
         let response_json: serde_json::Value = response
@@ -351,7 +361,10 @@ impl OpenAIClient {
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
             warn!(error = %error_text, "OpenAI embedding error");
-            return Err(OpenAIError::Api(format!("OpenAI embedding error: {}", error_text)));
+            return Err(OpenAIError::Api(format!(
+                "OpenAI embedding error: {}",
+                error_text
+            )));
         }
 
         let embed_response: types::EmbeddingResponse = response
@@ -368,7 +381,11 @@ impl OpenAIClient {
     }
 
     /// Create embeddings for multiple texts (batch operation).
-    pub async fn create_embeddings_batch(&self, texts: &[&str], model: &str) -> Result<Vec<Vec<f32>>> {
+    pub async fn create_embeddings_batch(
+        &self,
+        texts: &[&str],
+        model: &str,
+    ) -> Result<Vec<Vec<f32>>> {
         let mut results = Vec::with_capacity(texts.len());
         for text in texts {
             results.push(self.create_embedding(text, model).await?);
@@ -383,8 +400,7 @@ mod tests {
 
     #[test]
     fn test_client_builder() {
-        let client = OpenAIClient::new("sk-test")
-            .with_base_url("https://custom.api.com");
+        let client = OpenAIClient::new("sk-test").with_base_url("https://custom.api.com");
 
         assert_eq!(client.api_key, "sk-test");
         assert_eq!(client.base_url, "https://custom.api.com");

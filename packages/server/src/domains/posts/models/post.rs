@@ -74,6 +74,19 @@ pub struct PostSearchResult {
     pub similarity: f64,
 }
 
+/// Search result with location info (for chat agent tool)
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostSearchResultWithLocation {
+    pub post_id: PostId,
+    pub title: String,
+    pub description: String,
+    pub organization_name: String,
+    pub category: String,
+    pub post_type: String,
+    pub location: Option<String>,
+    pub similarity: f64,
+}
+
 // =============================================================================
 // Enums for type-safe edges
 // =============================================================================
@@ -838,6 +851,47 @@ impl Post {
         Ok(results)
     }
 
+    /// Search posts by semantic similarity (with location in results)
+    pub async fn search_by_similarity_with_location(
+        query_embedding: &[f32],
+        threshold: f32,
+        limit: i32,
+        pool: &PgPool,
+    ) -> Result<Vec<PostSearchResultWithLocation>> {
+        use pgvector::Vector;
+
+        let vector = Vector::from(query_embedding.to_vec());
+
+        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(
+            r#"
+            SELECT
+                p.id as post_id,
+                p.title,
+                p.description,
+                p.organization_name,
+                p.category,
+                p.post_type,
+                p.location,
+                (1 - (p.embedding <=> $1))::float8 as similarity
+            FROM posts p
+            WHERE p.embedding IS NOT NULL
+              AND p.deleted_at IS NULL
+              AND p.status = 'active'
+              AND p.revision_of_post_id IS NULL
+              AND (1 - (p.embedding <=> $1)) > $2
+            ORDER BY p.embedding <=> $1
+            LIMIT $3
+            "#,
+        )
+        .bind(&vector)
+        .bind(threshold)
+        .bind(limit)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(results)
+    }
+
     /// Find posts without embeddings (for backfill)
     pub async fn find_without_embeddings(limit: i32, pool: &PgPool) -> Result<Vec<Self>> {
         let posts = sqlx::query_as::<_, Post>(
@@ -918,7 +972,10 @@ impl Post {
     }
 
     /// Find revisions by website (for bulk operations)
-    pub async fn find_revisions_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_revisions_by_website(
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
         let revisions = sqlx::query_as::<_, Post>(
             r#"
             SELECT * FROM posts

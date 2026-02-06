@@ -40,9 +40,7 @@ pub async fn stream_handler(
     headers: HeaderMap,
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
     // 1. Authenticate: query param first, then Authorization header fallback
-    let token = query
-        .token
-        .or_else(|| extract_bearer_token(&headers));
+    let token = query.token.or_else(|| extract_bearer_token(&headers));
     let token = token.ok_or(StatusCode::UNAUTHORIZED)?;
 
     let claims = state
@@ -57,9 +55,8 @@ pub async fn stream_handler(
     let rx = state.stream_hub.subscribe(&topic).await;
 
     // 4. Stream with connected event and lag handling
-    let connected = stream::once(async {
-        Ok::<_, Infallible>(Event::default().event("connected").data("ok"))
-    });
+    let connected =
+        stream::once(async { Ok::<_, Infallible>(Event::default().event("connected").data("ok")) });
 
     let events = BroadcastStream::new(rx).filter_map(|result| async {
         match result {

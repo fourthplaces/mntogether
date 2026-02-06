@@ -213,7 +213,11 @@ impl TestHarness {
 
     /// Get a GraphQL client for this harness.
     pub fn graphql(&self) -> GraphQLClient {
-        GraphQLClient::new(self.db_pool.clone(), self.server_deps.clone(), self.queue_engine.clone())
+        GraphQLClient::new(
+            self.db_pool.clone(),
+            self.server_deps.clone(),
+            self.queue_engine.clone(),
+        )
     }
 
     /// Get a GraphQL client with an authenticated user.
@@ -228,7 +232,12 @@ impl TestHarness {
     }
 
     /// Emit an event through the queue engine.
-    pub async fn emit<E: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static>(&self, event: E) {
+    pub async fn emit<
+        E: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static,
+    >(
+        &self,
+        event: E,
+    ) {
         let _ = self.queue_engine.process(event).await;
     }
 

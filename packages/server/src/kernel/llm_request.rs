@@ -100,8 +100,7 @@ impl<'a> LlmRequest<'a> {
                 "LLM request attempt"
             );
 
-            let request = ChatRequest::new(model)
-                .message(Message::user(prompt));
+            let request = ChatRequest::new(model).message(Message::user(prompt));
 
             let response = self
                 .client
@@ -152,8 +151,7 @@ impl<'a> LlmRequest<'a> {
         let model = self.model.as_deref().unwrap_or("gpt-4o");
         let prompt = self.build_initial_prompt(&system, &user);
 
-        let request = ChatRequest::new(model)
-            .message(Message::user(prompt));
+        let request = ChatRequest::new(model).message(Message::user(prompt));
 
         let response = self
             .client
@@ -267,8 +265,7 @@ pub trait CompletionExt {
 #[async_trait::async_trait]
 impl CompletionExt for OpenAIClient {
     async fn complete(&self, prompt: &str) -> Result<String> {
-        let request = ChatRequest::new("gpt-4o")
-            .message(Message::user(prompt));
+        let request = ChatRequest::new("gpt-4o").message(Message::user(prompt));
 
         let response = self
             .chat_completion(request)
@@ -284,8 +281,7 @@ impl CompletionExt for OpenAIClient {
 
     async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
         let model = model.unwrap_or("gpt-4o");
-        let request = ChatRequest::new(model)
-            .message(Message::user(prompt));
+        let request = ChatRequest::new(model).message(Message::user(prompt));
 
         let response = self
             .chat_completion(request)

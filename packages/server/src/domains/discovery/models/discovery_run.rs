@@ -69,12 +69,10 @@ impl DiscoveryRun {
 
     /// Find recent runs (for admin UI)
     pub async fn find_recent(limit: i32, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM discovery_runs ORDER BY started_at DESC LIMIT $1",
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM discovery_runs ORDER BY started_at DESC LIMIT $1")
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 }

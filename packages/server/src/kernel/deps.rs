@@ -13,10 +13,8 @@ use twilio::TwilioService;
 use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
 use crate::kernel::{
-    extraction_service::OpenAIExtractionService,
-    stream_hub::StreamHub,
-    BaseEmbeddingService, BasePiiDetector,
-    BasePushNotificationService, BaseTwilioService,
+    extraction_service::OpenAIExtractionService, stream_hub::StreamHub, BaseEmbeddingService,
+    BasePiiDetector, BasePushNotificationService, BaseTwilioService,
 };
 
 // Import from extraction library

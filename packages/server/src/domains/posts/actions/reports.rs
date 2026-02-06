@@ -96,14 +96,9 @@ pub async fn dismiss_report(
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    PostReportRecord::dismiss(
-        report_id,
-        resolved_by,
-        resolution_notes,
-        &deps.db_pool,
-    )
-    .await
-    .context("Failed to dismiss report")?;
+    PostReportRecord::dismiss(report_id, resolved_by, resolution_notes, &deps.db_pool)
+        .await
+        .context("Failed to dismiss report")?;
 
     Ok(PostEvent::ReportDismissed { report_id })
 }

@@ -123,10 +123,7 @@ impl PostLocation {
     }
 
     /// Find locations for a post with full location details
-    pub async fn find_locations_for_post(
-        post_id: PostId,
-        pool: &PgPool,
-    ) -> Result<Vec<Location>> {
+    pub async fn find_locations_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Location>> {
         let locations = sqlx::query_as::<_, Location>(
             r#"
             SELECT l.*

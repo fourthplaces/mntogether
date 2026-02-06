@@ -13,10 +13,7 @@ use crate::kernel::ServerDeps;
 
 /// Get a single provider by ID
 /// Note: Admin auth is checked at the GraphQL layer
-pub async fn get_provider(
-    provider_id: String,
-    deps: &ServerDeps,
-) -> Result<Option<Provider>> {
+pub async fn get_provider(provider_id: String, deps: &ServerDeps) -> Result<Option<Provider>> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, "Getting provider");
@@ -51,18 +48,14 @@ pub async fn get_providers(
 
 /// Get all pending providers (for admin approval queue)
 /// Note: Admin auth is checked at the GraphQL layer
-pub async fn get_pending_providers(
-    deps: &ServerDeps,
-) -> Result<Vec<Provider>> {
+pub async fn get_pending_providers(deps: &ServerDeps) -> Result<Vec<Provider>> {
     info!("Getting pending providers");
 
     Provider::find_pending(&deps.db_pool).await
 }
 
 /// Get all approved providers
-pub async fn get_approved_providers(
-    deps: &ServerDeps,
-) -> Result<Vec<Provider>> {
+pub async fn get_approved_providers(deps: &ServerDeps) -> Result<Vec<Provider>> {
     info!("Getting approved providers");
 
     Provider::find_approved(&deps.db_pool).await

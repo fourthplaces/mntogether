@@ -23,7 +23,9 @@ use tower_http::trace::TraceLayer;
 use twilio::{TwilioOptions, TwilioService};
 
 use crate::domains::auth::JwtService;
-use crate::kernel::{create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter};
+use crate::kernel::{
+    create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
+};
 use crate::server::graphql::context::AppQueueEngine;
 use crate::server::graphql::{create_schema, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
@@ -254,8 +256,7 @@ pub async fn build_app(
 
     // SSE routes — separate router, no GraphQL middleware
     // Has its own auth via query param / Authorization header
-    let sse_routes = Router::new()
-        .route("/api/streams/:topic", get(stream_handler));
+    let sse_routes = Router::new().route("/api/streams/:topic", get(stream_handler));
 
     // GraphQL routes — get JWT + GraphQL context middleware
     let mut graphql_routes = Router::new()

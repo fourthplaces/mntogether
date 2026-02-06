@@ -7,7 +7,6 @@
 //! Agent identity and preamble come from the `agents` table.
 
 use anyhow::Result;
-use futures::StreamExt;
 use tracing::{error, info};
 
 use crate::common::{ContainerId, MessageId};
@@ -15,8 +14,7 @@ use crate::domains::agents::events::ChatStreamEvent;
 use crate::domains::agents::models::Agent;
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
-use crate::kernel::{CompletionExt, ServerDeps};
-use openai_client::{ChatRequest, Message as OaiMessage};
+use crate::kernel::{CompletionExt, SearchPostsTool, ServerDeps};
 
 // ============================================================================
 // Action: Generate Greeting
@@ -74,6 +72,7 @@ pub async fn generate_greeting(
 
 /// Generate a reply to a user message in a container with an agent.
 ///
+/// Uses the agent tool-calling loop so the model can search posts if needed.
 /// Creates an assistant reply message. Returns the created message.
 pub async fn generate_reply(
     message_id: MessageId,
@@ -106,17 +105,30 @@ pub async fn generate_reply(
             anyhow::anyhow!("Failed to load conversation: {}", e)
         })?;
 
-    let conversation = build_conversation_messages(&messages);
-    let full_prompt = build_chat_prompt(&agent.preamble, &conversation);
+    let oai_messages = build_oai_messages(&agent.preamble, &messages);
 
-    let reply_text = deps.ai.complete(&full_prompt).await.map_err(|e| {
-        error!("Failed to generate AI reply: {}", e);
-        anyhow::anyhow!("AI reply generation failed: {}", e)
-    })?;
+    let response = deps
+        .ai
+        .agent("gpt-4o")
+        .tool(SearchPostsTool::new(
+            deps.db_pool.clone(),
+            deps.embedding_service.clone(),
+        ))
+        .max_iterations(3)
+        .build()
+        .chat_with_history(oai_messages)
+        .await
+        .map_err(|e| {
+            error!("Agent reply failed: {}", e);
+            anyhow::anyhow!("AI reply generation failed: {}", e)
+        })?;
+
+    let reply_text = response.content;
 
     info!(
         message_id = %message_id,
         reply_length = reply_text.len(),
+        tool_calls = ?response.tool_calls_made,
         "Agent reply generated, creating message"
     );
 
@@ -147,8 +159,9 @@ pub async fn generate_reply(
 
 /// Generate a streaming reply to a user message.
 ///
-/// Publishes token deltas to StreamHub as they arrive from OpenAI,
-/// then saves the complete message to DB.
+/// Phase 1: Runs a non-streaming agent loop with tools (model can call search_posts).
+/// Phase 2: Simulates streaming by chunking the final response into token deltas.
+/// Then saves the complete message to DB.
 pub async fn generate_reply_streaming(
     message_id: MessageId,
     container_id: ContainerId,
@@ -169,9 +182,6 @@ pub async fn generate_reply_streaming(
     let messages = Message::find_by_container(container_id, &deps.db_pool).await?;
     let topic = ChatStreamEvent::topic(&container_id.to_string());
 
-    // Build proper OpenAI message array
-    let request = build_streaming_chat_request(&agent.preamble, &messages);
-
     // Signal generation started
     deps.stream_hub
         .publish(
@@ -183,12 +193,23 @@ pub async fn generate_reply_streaming(
         )
         .await;
 
-    // Stream tokens from OpenAI
-    let mut accumulated = String::new();
-    let stream_result = deps.ai.chat_completion_stream(request).await;
+    // Phase 1: Agent with tools (non-streaming)
+    let oai_messages = build_oai_messages(&agent.preamble, &messages);
 
-    let mut stream = match stream_result {
-        Ok(s) => s,
+    let agent_result = deps
+        .ai
+        .agent("gpt-4o")
+        .tool(SearchPostsTool::new(
+            deps.db_pool.clone(),
+            deps.embedding_service.clone(),
+        ))
+        .max_iterations(3)
+        .build()
+        .chat_with_history(oai_messages)
+        .await;
+
+    let response = match agent_result {
+        Ok(r) => r,
         Err(e) => {
             deps.stream_hub
                 .publish(
@@ -199,40 +220,44 @@ pub async fn generate_reply_streaming(
                     })?,
                 )
                 .await;
-            return Err(anyhow::anyhow!("Failed to start streaming: {}", e));
+            return Err(anyhow::anyhow!("Agent reply failed: {}", e));
         }
     };
 
-    while let Some(chunk) = stream.next().await {
-        match chunk {
-            Ok(chunk) if !chunk.delta.is_empty() => {
-                accumulated.push_str(&chunk.delta);
+    info!(
+        tool_calls = ?response.tool_calls_made,
+        iterations = response.iterations,
+        "Agent phase complete, simulating stream"
+    );
 
-                deps.stream_hub
-                    .publish(
-                        &topic,
-                        serde_json::to_value(ChatStreamEvent::TokenDelta {
-                            container_id: container_id.to_string(),
-                            delta: chunk.delta,
-                        })?,
-                    )
-                    .await;
-            }
-            Err(e) => {
-                error!(error = %e, "Stream chunk error");
-                deps.stream_hub
-                    .publish(
-                        &topic,
-                        serde_json::to_value(ChatStreamEvent::GenerationError {
-                            container_id: container_id.to_string(),
-                            error: e.to_string(),
-                        })?,
-                    )
-                    .await;
-                return Err(e.into());
-            }
-            _ => {} // empty delta or done signal
+    // Phase 2: Simulate streaming by chunking the response
+    let content = &response.content;
+    let chunk_size = 4;
+    let mut pos = 0;
+
+    while pos < content.len() {
+        // Respect char boundaries
+        let end = content
+            .char_indices()
+            .map(|(i, _)| i)
+            .find(|&i| i >= pos + chunk_size)
+            .unwrap_or(content.len());
+
+        let delta = &content[pos..end];
+        if !delta.is_empty() {
+            deps.stream_hub
+                .publish(
+                    &topic,
+                    serde_json::to_value(ChatStreamEvent::TokenDelta {
+                        container_id: container_id.to_string(),
+                        delta: delta.to_string(),
+                    })?,
+                )
+                .await;
+
+            tokio::time::sleep(std::time::Duration::from_millis(15)).await;
         }
+        pos = end;
     }
 
     // Save complete message to DB
@@ -241,7 +266,7 @@ pub async fn generate_reply_streaming(
     let new_message = Message::create(
         container_id,
         "assistant".to_string(),
-        accumulated.clone(),
+        response.content.clone(),
         Some(agent.member_id()),
         Some("approved".to_string()),
         Some(message_id),
@@ -257,7 +282,7 @@ pub async fn generate_reply_streaming(
             serde_json::to_value(ChatStreamEvent::MessageComplete {
                 container_id: container_id.to_string(),
                 message_id: new_message.id.to_string(),
-                content: accumulated,
+                content: response.content,
                 role: "assistant".to_string(),
                 created_at: new_message.created_at.to_rfc3339(),
             })?,
@@ -290,31 +315,6 @@ pub async fn get_container_agent_config(
 // Private Helpers
 // ============================================================================
 
-fn build_conversation_messages(messages: &[Message]) -> String {
-    messages
-        .iter()
-        .map(|m| format!("{}: {}", m.role, m.content))
-        .collect::<Vec<_>>()
-        .join("\n\n")
-}
-
-fn build_chat_prompt(preamble: &str, conversation: &str) -> String {
-    format!(
-        r#"{preamble}
-
-## Conversation History
-
-{conversation}
-
-## Instructions
-
-Respond to the user's most recent message. Be helpful, concise, and friendly.
-Do not include any role prefixes like "assistant:" in your response.
-
-Your response:"#
-    )
-}
-
 fn build_greeting_prompt(preamble: &str) -> String {
     format!(
         r#"{preamble}
@@ -327,19 +327,24 @@ Your greeting:"#
     )
 }
 
-/// Build a proper OpenAI ChatRequest with separate messages for streaming.
-fn build_streaming_chat_request(preamble: &str, messages: &[Message]) -> ChatRequest {
-    let mut request = ChatRequest::new("gpt-4o");
-    request.messages.push(OaiMessage::system(preamble));
+/// Build OpenAI message array from preamble + conversation history.
+fn build_oai_messages(preamble: &str, messages: &[Message]) -> Vec<serde_json::Value> {
+    let mut oai_messages = vec![serde_json::json!({
+        "role": "system",
+        "content": preamble
+    })];
 
     for msg in messages {
-        let oai_msg = match msg.role.as_str() {
-            "user" => OaiMessage::user(&msg.content),
-            "assistant" => OaiMessage::assistant(&msg.content),
+        let role = match msg.role.as_str() {
+            "user" => "user",
+            "assistant" => "assistant",
             _ => continue,
         };
-        request.messages.push(oai_msg);
+        oai_messages.push(serde_json::json!({
+            "role": role,
+            "content": msg.content
+        }));
     }
 
-    request
+    oai_messages
 }

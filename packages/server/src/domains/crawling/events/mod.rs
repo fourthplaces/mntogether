@@ -141,9 +141,7 @@ pub enum CrawlEvent {
     /// Post extraction work enqueued
     ///
     /// Emitted after crawl/regeneration completes. Picked up by `extract_posts_effect`.
-    PostsExtractionEnqueued {
-        website_id: Uuid,
-    },
+    PostsExtractionEnqueued { website_id: Uuid },
 
     /// Post sync work enqueued
     ///
@@ -157,15 +155,10 @@ pub enum CrawlEvent {
     /// Post regeneration work enqueued
     ///
     /// Emitted by GraphQL mutation. Picked up by `regenerate_posts_effect`.
-    PostsRegenerationEnqueued {
-        website_id: Uuid,
-        visitor_id: Uuid,
-    },
+    PostsRegenerationEnqueued { website_id: Uuid, visitor_id: Uuid },
 
     /// Single post regeneration work enqueued
     ///
     /// Emitted by GraphQL mutation. Picked up by `regenerate_single_post_effect`.
-    SinglePostRegenerationEnqueued {
-        post_id: Uuid,
-    },
+    SinglePostRegenerationEnqueued { post_id: Uuid },
 }

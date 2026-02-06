@@ -19,10 +19,8 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{AppState, ExtractedPost, WebsiteId};
-use crate::domains::crawling::actions::{
-    ingest_website, regenerate_posts, regenerate_single_post,
-};
 use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
+use crate::domains::crawling::actions::{ingest_website, regenerate_posts, regenerate_single_post};
 use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::website::models::Website;
@@ -77,8 +75,7 @@ pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDep
         .retry(2)
         .timeout(Duration::from_secs(120))
         .then(
-            |website_id: Uuid,
-             ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
+            |website_id: Uuid, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
                 info!(website_id = %website_id, "Extracting posts (queued effect)");
 
                 let website_id_typed = WebsiteId::from_uuid(website_id);
@@ -116,10 +113,9 @@ pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDep
 pub fn sync_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<CrawlEvent>()
         .extract(|event| match event {
-            CrawlEvent::PostsSyncEnqueued {
-                website_id,
-                posts,
-            } => Some((*website_id, posts.clone())),
+            CrawlEvent::PostsSyncEnqueued { website_id, posts } => {
+                Some((*website_id, posts.clone()))
+            }
             _ => None,
         })
         .id("sync_posts")
@@ -209,8 +205,7 @@ pub fn regenerate_single_post_effect() -> seesaw_core::effect::Effect<AppState, 
         .retry(2)
         .timeout(Duration::from_secs(60))
         .then(
-            |post_id: Uuid,
-             ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
+            |post_id: Uuid, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
                 info!(post_id = %post_id, "Regenerating single post (queued effect)");
 
                 regenerate_single_post(post_id, ctx.deps()).await?;

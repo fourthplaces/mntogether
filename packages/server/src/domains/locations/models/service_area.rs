@@ -10,8 +10,8 @@ use crate::common::{PostId, ServiceAreaId};
 pub struct ServiceArea {
     pub id: ServiceAreaId,
     pub post_id: PostId,
-    pub area_type: String, // 'county', 'city', 'state', 'zip', 'custom'
-    pub area_name: String, // 'Hennepin County', 'Minneapolis', 'MN'
+    pub area_type: String,         // 'county', 'city', 'state', 'zip', 'custom'
+    pub area_name: String,         // 'Hennepin County', 'Minneapolis', 'MN'
     pub area_code: Option<String>, // FIPS code, ZIP code, state abbreviation
     pub created_at: DateTime<Utc>,
 }

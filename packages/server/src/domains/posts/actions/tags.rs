@@ -22,11 +22,7 @@ pub struct TagInput {
 
 /// Update listing tags (replaces all existing tags with new ones)
 /// Returns the updated Post.
-pub async fn update_post_tags(
-    post_id: Uuid,
-    tags: Vec<TagInput>,
-    pool: &PgPool,
-) -> Result<Post> {
+pub async fn update_post_tags(post_id: Uuid, tags: Vec<TagInput>, pool: &PgPool) -> Result<Post> {
     let post_id = PostId::from_uuid(post_id);
 
     info!(post_id = %post_id, tag_count = tags.len(), "Updating post tags");
@@ -36,8 +32,7 @@ pub async fn update_post_tags(
 
     // Add new tags
     for tag_input in tags {
-        let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, pool)
-            .await?;
+        let tag = Tag::find_or_create(&tag_input.kind, &tag_input.value, None, pool).await?;
         Taggable::create_post_tag(post_id, tag.id, pool).await?;
     }
 
@@ -67,11 +62,7 @@ pub async fn add_post_tag(
 
 /// Remove a tag from a post
 /// Returns true on success.
-pub async fn remove_post_tag(
-    post_id: Uuid,
-    tag_id: String,
-    pool: &PgPool,
-) -> Result<bool> {
+pub async fn remove_post_tag(post_id: Uuid, tag_id: String, pool: &PgPool) -> Result<bool> {
     let post_id = PostId::from_uuid(post_id);
     let tag_id = TagId::parse(&tag_id).context("Invalid tag ID")?;
 

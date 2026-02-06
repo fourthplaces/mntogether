@@ -63,27 +63,23 @@ impl DiscoveryFilterRule {
     /// Find all rules (for admin UI, includes inactive)
     pub async fn find_all_for_query(query_id: Option<Uuid>, pool: &PgPool) -> Result<Vec<Self>> {
         match query_id {
-            Some(qid) => {
-                sqlx::query_as::<_, Self>(
-                    "SELECT * FROM discovery_filter_rules
+            Some(qid) => sqlx::query_as::<_, Self>(
+                "SELECT * FROM discovery_filter_rules
                      WHERE query_id = $1
                      ORDER BY sort_order",
-                )
-                .bind(qid)
-                .fetch_all(pool)
-                .await
-                .map_err(Into::into)
-            }
-            None => {
-                sqlx::query_as::<_, Self>(
-                    "SELECT * FROM discovery_filter_rules
+            )
+            .bind(qid)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into),
+            None => sqlx::query_as::<_, Self>(
+                "SELECT * FROM discovery_filter_rules
                      WHERE query_id IS NULL
                      ORDER BY sort_order",
-                )
-                .fetch_all(pool)
-                .await
-                .map_err(Into::into)
-            }
+            )
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into),
         }
     }
 

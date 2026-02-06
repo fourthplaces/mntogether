@@ -33,12 +33,10 @@ impl DiscoveryQuery {
 
     /// Find all queries (including inactive, for admin UI)
     pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM discovery_queries ORDER BY category, created_at",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM discovery_queries ORDER BY category, created_at")
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find a query by ID

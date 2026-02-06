@@ -141,9 +141,15 @@ pub async fn regenerate_single_post(post_id: Uuid, deps: &ServerDeps) -> Result<
 /// Simple word-overlap similarity between two titles.
 /// Returns count of shared lowercase words.
 fn title_similarity(a: &str, b: &str) -> usize {
-    let a_words: std::collections::HashSet<String> =
-        a.to_lowercase().split_whitespace().map(String::from).collect();
-    let b_words: std::collections::HashSet<String> =
-        b.to_lowercase().split_whitespace().map(String::from).collect();
+    let a_words: std::collections::HashSet<String> = a
+        .to_lowercase()
+        .split_whitespace()
+        .map(String::from)
+        .collect();
+    let b_words: std::collections::HashSet<String> = b
+        .to_lowercase()
+        .split_whitespace()
+        .map(String::from)
+        .collect();
     a_words.intersection(&b_words).count()
 }

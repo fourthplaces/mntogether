@@ -158,11 +158,7 @@ impl SyncBatch {
 
     /// Expire stale pending batches for the same resource_type + source_id.
     /// Called before creating a new batch to avoid reviewing outdated proposals.
-    pub async fn expire_stale(
-        resource_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<u64> {
+    pub async fn expire_stale(resource_type: &str, source_id: Uuid, pool: &PgPool) -> Result<u64> {
         let result = sqlx::query(
             r#"
             UPDATE sync_batches

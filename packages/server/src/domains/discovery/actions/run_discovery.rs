@@ -62,9 +62,7 @@ pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<Disc
     let queries_executed = queries.len() as i32;
 
     for query in &queries {
-        let search_query = query
-            .query_text
-            .replace("{location}", DEFAULT_LOCATION);
+        let search_query = query.query_text.replace("{location}", DEFAULT_LOCATION);
 
         info!(query_id = %query.id, query = %search_query, "Running discovery search");
 
@@ -123,9 +121,13 @@ pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<Disc
         // AI pre-filter evaluation
         let candidate_refs: Vec<WebsiteCandidate> =
             candidates.iter().map(|(c, _)| c.clone()).collect();
-        let evaluations =
-            evaluate_websites_against_filters(&candidate_refs, &global_rules, &query_rules, &deps.ai)
-                .await?;
+        let evaluations = evaluate_websites_against_filters(
+            &candidate_refs,
+            &global_rules,
+            &query_rules,
+            &deps.ai,
+        )
+        .await?;
 
         // Process results
         for ((candidate, score), evaluation) in candidates.iter().zip(evaluations.iter()) {
@@ -143,10 +145,7 @@ pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<Disc
                     CreateWebsite::builder()
                         .url_or_domain(candidate.domain.clone())
                         .submitter_type("system")
-                        .submission_context(Some(format!(
-                            "Discovery: {}",
-                            search_query
-                        )))
+                        .submission_context(Some(format!("Discovery: {}", search_query)))
                         .max_crawl_depth(3)
                         .build(),
                     pool,

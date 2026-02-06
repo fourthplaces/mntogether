@@ -26,19 +26,21 @@ pub fn member_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
         .queued()
         .retry(3)
         .timeout(Duration::from_secs(30))
-        .then(|member_id, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-            let result = actions::generate_embedding(
-                member_id,
-                ctx.deps().embedding_service.as_ref(),
-                &ctx.deps().db_pool,
-            )
-            .await?;
+        .then(
+            |member_id, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
+                let result = actions::generate_embedding(
+                    member_id,
+                    ctx.deps().embedding_service.as_ref(),
+                    &ctx.deps().db_pool,
+                )
+                .await?;
 
-            info!(
-                member_id = %result.member_id,
-                dimensions = result.dimensions,
-                "Embedding generated for member"
-            );
-            Ok(())
-        })
+                info!(
+                    member_id = %result.member_id,
+                    dimensions = result.dimensions,
+                    "Embedding generated for member"
+                );
+                Ok(())
+            },
+        )
 }

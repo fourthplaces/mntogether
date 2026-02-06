@@ -231,10 +231,7 @@ impl StructuredRequest {
     ) -> Self {
         Self {
             model: model.into(),
-            messages: vec![
-                Message::system(system),
-                Message::user(user),
-            ],
+            messages: vec![Message::system(system), Message::user(user)],
             temperature: Some(0.0),
             response_format: ResponseFormat {
                 format_type: "json_schema".to_string(),

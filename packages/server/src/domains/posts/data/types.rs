@@ -89,7 +89,10 @@ impl PostType {
     }
 
     /// Get extraction pages this post was sourced from
-    async fn source_pages(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ExtractionPageData>> {
+    async fn source_pages(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Vec<ExtractionPageData>> {
         let Some(source_url) = &self.source_url else {
             return Ok(vec![]);
         };

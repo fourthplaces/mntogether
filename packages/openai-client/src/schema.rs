@@ -236,14 +236,8 @@ mod tests {
             .unwrap();
         let required_strs: Vec<&str> = required.iter().filter_map(|v| v.as_str()).collect();
 
-        assert!(
-            required_strs.contains(&"phone"),
-            "phone should be required"
-        );
-        assert!(
-            required_strs.contains(&"email"),
-            "email should be required"
-        );
+        assert!(required_strs.contains(&"phone"), "phone should be required");
+        assert!(required_strs.contains(&"email"), "email should be required");
         assert!(required_strs.contains(&"name"), "name should be required");
     }
 
@@ -325,10 +319,7 @@ mod tests {
             .expect("contact should have required array")
             .as_array()
             .unwrap();
-        let required_strs: Vec<&str> = contact_required
-            .iter()
-            .filter_map(|v| v.as_str())
-            .collect();
+        let required_strs: Vec<&str> = contact_required.iter().filter_map(|v| v.as_str()).collect();
 
         // All ContactInfo fields should be present
         assert!(

@@ -121,7 +121,11 @@ impl ToolCall {
         Some(Self {
             id: value.get("id")?.as_str()?.to_string(),
             name: value.get("function")?.get("name")?.as_str()?.to_string(),
-            arguments: value.get("function")?.get("arguments")?.as_str()?.to_string(),
+            arguments: value
+                .get("function")?
+                .get("arguments")?
+                .as_str()?
+                .to_string(),
         })
     }
 
@@ -175,8 +179,8 @@ impl<T: Tool> ErasedTool for T {
 
     async fn call_erased(&self, arguments: &str) -> Result<String, ToolError> {
         // Parse arguments
-        let args: T::Args = serde_json::from_str(arguments)
-            .map_err(|e| ToolError::ArgumentParse(e.to_string()))?;
+        let args: T::Args =
+            serde_json::from_str(arguments).map_err(|e| ToolError::ArgumentParse(e.to_string()))?;
 
         // Execute tool
         let output = self

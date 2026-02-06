@@ -16,7 +16,9 @@ use crate::domains::website::models::{
     Website, WebsiteAssessment, WebsiteResearch, WebsiteResearchHomepage,
 };
 use crate::domains::website_approval::events::WebsiteApprovalEvent;
-use crate::kernel::{CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
+use crate::kernel::{
+    CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor,
+};
 use anyhow::{Context, Result};
 use tracing::info;
 use uuid::Uuid;
@@ -36,9 +38,7 @@ impl AssessmentResult {
     pub fn from_event(event: &WebsiteApprovalEvent) -> Self {
         match event {
             WebsiteApprovalEvent::WebsiteResearchCreated {
-                job_id,
-                website_id,
-                ..
+                job_id, website_id, ..
             } => Self {
                 job_id: job_id.into_uuid(),
                 website_id: website_id.into_uuid(),
@@ -103,7 +103,8 @@ pub async fn assess_website(
     // Check for fresh research (< 7 days old)
     if let Some(research) = find_fresh_research(website_id_typed, 7, &deps.db_pool).await? {
         info!(research_id = %research.id, "Research is fresh, generating assessment directly");
-        let assessment = generate_assessment(research.id, website_id_typed, job_id, requested_by, deps).await?;
+        let assessment =
+            generate_assessment(research.id, website_id_typed, job_id, requested_by, deps).await?;
         return Ok(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
             website_id: website_id_typed,
             job_id,
@@ -130,9 +131,14 @@ pub async fn assess_website(
     info!(research_id = %research.id, "Research record created");
 
     if let Some(content) = homepage_content {
-        WebsiteResearchHomepage::create(research.id, Some(content.clone()), Some(content), &deps.db_pool)
-            .await
-            .context("Failed to store homepage content")?;
+        WebsiteResearchHomepage::create(
+            research.id,
+            Some(content.clone()),
+            Some(content),
+            &deps.db_pool,
+        )
+        .await
+        .context("Failed to store homepage content")?;
         info!(research_id = %research.id, "Homepage content stored");
     }
 
@@ -169,13 +175,22 @@ pub async fn generate_assessment(
     let research_data = load_research_data(research_id, &deps.db_pool).await?;
     info!(research_id = %research_id, query_count = research_data.search_results.len(), "Research data loaded");
 
-    let prompt = build_assessment_prompt(&website, research_data.homepage.as_ref(), &research_data.search_results);
+    let prompt = build_assessment_prompt(
+        &website,
+        research_data.homepage.as_ref(),
+        &research_data.search_results,
+    );
     info!(website_id = %website_id, prompt_length = prompt.len(), "Generating AI assessment");
 
-    let assessment_markdown = deps.ai.complete(&prompt).await.context("Failed to generate AI assessment")?;
+    let assessment_markdown = deps
+        .ai
+        .complete(&prompt)
+        .await
+        .context("Failed to generate AI assessment")?;
     info!(website_id = %website_id, assessment_length = assessment_markdown.len(), "AI assessment generated");
 
-    let (recommendation, confidence, org_name, founded_year) = parse_assessment_metadata(&assessment_markdown);
+    let (recommendation, confidence, org_name, founded_year) =
+        parse_assessment_metadata(&assessment_markdown);
     info!(website_id = %website_id, recommendation = %recommendation, confidence = ?confidence, "Assessment metadata parsed");
 
     let assessment = WebsiteAssessment::create(
@@ -230,10 +245,16 @@ pub async fn conduct_searches(
         total_results += execute_and_store_search(research.id, query_text, deps).await?;
     }
 
-    research.mark_tavily_complete(&deps.db_pool).await.context("Failed to mark research complete")?;
+    research
+        .mark_tavily_complete(&deps.db_pool)
+        .await
+        .context("Failed to mark research complete")?;
     info!(research_id = %research_id, total_queries = queries.len(), total_results = total_results, "All research searches completed");
 
-    Ok(SearchResult { total_queries: queries.len(), total_results })
+    Ok(SearchResult {
+        total_queries: queries.len(),
+        total_results,
+    })
 }
 
 // ============================================================================
@@ -262,10 +283,7 @@ async fn find_fresh_research(
 }
 
 /// Fetch homepage content using extraction service with fallback
-async fn fetch_homepage_content(
-    domain: &str,
-    deps: &ServerDeps,
-) -> Option<String> {
+async fn fetch_homepage_content(domain: &str, deps: &ServerDeps) -> Option<String> {
     let extraction = deps.extraction.as_ref()?;
 
     let homepage_url = format!("https://{}", domain);
@@ -286,7 +304,11 @@ async fn fetch_homepage_content(
     match ingest_result {
         Ok(result) if result.pages_summarized > 0 => {
             info!(website_domain = %domain, pages_summarized = result.pages_summarized, "Homepage fetched successfully");
-            extraction.extract_one("homepage content", Some(&homepage_url)).await.ok().map(|e| e.content)
+            extraction
+                .extract_one("homepage content", Some(&homepage_url))
+                .await
+                .ok()
+                .map(|e| e.content)
         }
         Ok(_) => {
             tracing::warn!(website_domain = %domain, "Homepage ingested but no content summarized");
@@ -323,18 +345,19 @@ async fn load_research_data(research_id: Uuid, pool: &sqlx::PgPool) -> Result<Re
         search_results.push((query, results));
     }
 
-    Ok(ResearchData { homepage, search_results })
+    Ok(ResearchData {
+        homepage,
+        search_results,
+    })
 }
 
 /// Store assessment embedding (non-fatal on failure)
-async fn store_assessment_embedding(
-    assessment_id: Uuid,
-    markdown: &str,
-    deps: &ServerDeps,
-) {
+async fn store_assessment_embedding(assessment_id: Uuid, markdown: &str, deps: &ServerDeps) {
     match deps.embedding_service.generate(markdown).await {
         Ok(embedding) => {
-            if let Err(e) = WebsiteAssessment::update_embedding(assessment_id, &embedding, &deps.db_pool).await {
+            if let Err(e) =
+                WebsiteAssessment::update_embedding(assessment_id, &embedding, &deps.db_pool).await
+            {
                 tracing::warn!(assessment_id = %assessment_id, error = %e, "Failed to store assessment embedding (non-fatal)");
             } else {
                 info!(assessment_id = %assessment_id, embedding_dim = embedding.len(), "Assessment embedding stored");
@@ -354,7 +377,8 @@ async fn execute_and_store_search(
 ) -> Result<usize> {
     info!(query = %query_text, "Executing Tavily search");
 
-    let results = deps.web_searcher
+    let results = deps
+        .web_searcher
         .search_with_limit(query_text, 5)
         .await
         .context(format!("Failed to execute search: {}", query_text))?;
@@ -379,13 +403,15 @@ async fn execute_and_store_search(
 
     let result_tuples: Vec<_> = results
         .into_iter()
-        .map(|r| (
-            r.title.unwrap_or_default(),
-            r.url.to_string(),
-            r.snippet.unwrap_or_default(),
-            r.score.unwrap_or(0.0) as f64,
-            None::<String>,
-        ))
+        .map(|r| {
+            (
+                r.title.unwrap_or_default(),
+                r.url.to_string(),
+                r.snippet.unwrap_or_default(),
+                r.score.unwrap_or(0.0) as f64,
+                None::<String>,
+            )
+        })
         .collect();
 
     let count = result_tuples.len();
