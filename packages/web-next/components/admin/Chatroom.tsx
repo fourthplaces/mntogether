@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { graphqlMutateClient, useGraphQL } from "@/lib/graphql/client";
 import { CREATE_CHAT, SEND_MESSAGE } from "@/lib/graphql/mutations";
 import { GET_MESSAGES, GET_RECENT_CHATS } from "@/lib/graphql/queries";
+import { useChatStream } from "@/lib/hooks/useChatStream";
 import type { ChatMessage, ChatContainer, GetMessagesResult, GetRecentChatsResult, CreateChatResult, SendMessageResult } from "@/lib/types";
 
 interface ChatroomProps {
@@ -15,7 +16,6 @@ interface ChatroomProps {
 export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps) {
   const [containerId, setContainerId] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [autoStarted, setAutoStarted] = useState(false);
@@ -28,15 +28,18 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
     { revalidateOnFocus: false }
   );
 
-  // Fetch messages when container is selected
+  // Fetch messages when container is selected (no polling — streaming replaces it)
   const { data: messagesData, mutate: refetchMessages } = useGraphQL<GetMessagesResult>(
     containerId ? GET_MESSAGES : "",
     containerId ? { containerId } : undefined,
-    {
-      revalidateOnFocus: false,
-      refreshInterval: containerId ? 2000 : 0, // Poll for new messages
-    }
+    { revalidateOnFocus: false }
   );
+
+  // SSE streaming connection
+  const { streamingMessage } = useChatStream(containerId, {
+    onComplete: () => refetchMessages(),
+    onLagged: () => refetchMessages(),
+  });
 
   // Start new chat with agent
   const handleStartNewChat = useCallback(async () => {
@@ -48,20 +51,13 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
       });
       if (data?.createChat?.id) {
         setContainerId(data.createChat.id);
-        if (withAgent) {
-          setIsTyping(true);
-          setTimeout(() => {
-            refetchMessages();
-            setIsTyping(false);
-          }, 2000);
-        }
       }
     } catch (error) {
       console.error("Failed to create chat:", error);
     } finally {
       setIsCreating(false);
     }
-  }, [withAgent, refetchMessages]);
+  }, [withAgent]);
 
   // Restore last chat session or auto-start new one when panel opens
   useEffect(() => {
@@ -83,10 +79,10 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
     }
   }, [isOpen]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages or streaming content
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messagesData?.messages]);
+  }, [messagesData?.messages, streamingMessage?.content]);
 
   // Send message
   const handleSendMessage = async (e: React.FormEvent) => {
@@ -95,7 +91,6 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
 
     const messageContent = input.trim();
     setInput("");
-    setIsTyping(true);
     setIsSending(true);
 
     try {
@@ -103,13 +98,10 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
         containerId,
         content: messageContent,
       });
-      setTimeout(() => {
-        refetchMessages();
-        setIsTyping(false);
-      }, 500);
+      // Refetch immediately to show user's own message
+      refetchMessages();
     } catch (error) {
       console.error("Failed to send message:", error);
-      setIsTyping(false);
     } finally {
       setIsSending(false);
     }
@@ -198,20 +190,34 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
               </div>
             ))}
 
-            {isTyping && (
+            {/* Streaming message — shows tokens as they arrive */}
+            {streamingMessage?.isStreaming && (
               <div className="flex justify-start">
-                <div className="bg-stone-100 text-stone-900 rounded-lg px-4 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" />
-                    <div
-                      className="w-2 h-2 bg-stone-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.1s" }}
-                    />
-                    <div
-                      className="w-2 h-2 bg-stone-400 rounded-full animate-bounce"
-                      style={{ animationDelay: "0.2s" }}
-                    />
-                  </div>
+                <div className="bg-stone-100 text-stone-900 rounded-lg px-4 py-2 max-w-[80%]">
+                  {streamingMessage.content ? (
+                    <p className="text-sm whitespace-pre-wrap">{streamingMessage.content}</p>
+                  ) : (
+                    <div className="flex space-x-1">
+                      <div className="w-2 h-2 bg-stone-400 rounded-full animate-bounce" />
+                      <div
+                        className="w-2 h-2 bg-stone-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.1s" }}
+                      />
+                      <div
+                        className="w-2 h-2 bg-stone-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0.2s" }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Streaming error */}
+            {streamingMessage?.error && (
+              <div className="flex justify-start">
+                <div className="bg-red-50 text-red-700 rounded-lg px-4 py-2 max-w-[80%]">
+                  <p className="text-sm">Failed to generate response</p>
                 </div>
               </div>
             )}

@@ -4,12 +4,14 @@
 
 use juniper::Variables;
 use serde_json::Value;
-use server_core::domains::auth::JwtService;
-use server_core::kernel::test_dependencies::{MockEmbeddingService, MockPiiDetector, MockPushNotificationService};
-use server_core::kernel::{OpenAIClient, ServerDeps, ServerKernel, TwilioAdapter};
-use server_core::server::graphql::context::AppEngine;
+use server_core::kernel::ServerDeps;
+use server_core::server::graphql::context::AppQueueEngine;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
+use sqlx::PgPool;
 use std::sync::Arc;
+
+use server_core::domains::auth::JwtService;
+use server_core::kernel::OpenAIClient;
 use twilio::{TwilioOptions, TwilioService};
 
 /// GraphQL client for executing queries and mutations in tests.
@@ -56,9 +58,12 @@ impl GraphQLResult {
 }
 
 impl GraphQLClient {
-    /// Creates a new GraphQL client with the given kernel and engine.
-    pub fn new(kernel: Arc<ServerKernel>, engine: Arc<AppEngine>) -> Self {
-        // Create test instances of services needed by GraphQLContext
+    /// Creates a new GraphQL client with the given dependencies and queue engine.
+    pub fn new(
+        db_pool: PgPool,
+        server_deps: Arc<ServerDeps>,
+        queue_engine: Arc<AppQueueEngine>,
+    ) -> Self {
         let twilio = Arc::new(TwilioService::new(TwilioOptions {
             account_sid: "test_account_sid".to_string(),
             auth_token: "test_auth_token".to_string(),
@@ -70,12 +75,9 @@ impl GraphQLClient {
         ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
 
-        // Create minimal server_deps for testing (extraction is None)
-        let server_deps = Arc::new(create_test_server_deps(kernel.clone()));
-
         let context = GraphQLContext::new(
-            kernel.db_pool.clone(),
-            engine,
+            db_pool,
+            queue_engine,
             server_deps,
             None, // No auth user by default
             twilio,
@@ -91,8 +93,9 @@ impl GraphQLClient {
 
     /// Creates a new GraphQL client with an authenticated user.
     pub fn with_auth_user(
-        kernel: Arc<ServerKernel>,
-        engine: Arc<AppEngine>,
+        db_pool: PgPool,
+        server_deps: Arc<ServerDeps>,
+        queue_engine: Arc<AppQueueEngine>,
         user_id: uuid::Uuid,
         is_admin: bool,
     ) -> Self {
@@ -116,12 +119,9 @@ impl GraphQLClient {
             is_admin,
         };
 
-        // Create minimal server_deps for testing (extraction is None)
-        let server_deps = Arc::new(create_test_server_deps(kernel.clone()));
-
         let context = GraphQLContext::new(
-            kernel.db_pool.clone(),
-            engine,
+            db_pool,
+            queue_engine,
             server_deps,
             Some(auth_user),
             twilio,
@@ -178,40 +178,4 @@ impl GraphQLClient {
     pub async fn query_with_vars(&self, query: &str, variables: Variables) -> Value {
         self.execute_with_vars(query, variables).await.unwrap()
     }
-}
-
-/// Create test server deps with mock services
-fn create_test_server_deps(kernel: Arc<ServerKernel>) -> ServerDeps {
-    use extraction::{MockIngestor, MockWebSearcher};
-
-    // Create mock services for testing
-    let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
-    let twilio = Arc::new(TwilioService::new(TwilioOptions {
-        account_sid: "test".to_string(),
-        auth_token: "test".to_string(),
-        service_id: "test".to_string(),
-    }));
-
-    use server_core::kernel::jobs::NoopJobQueue;
-    use server_core::domains::auth::JwtService;
-
-    // Create job queue and JWT service for tests
-    let job_queue: Arc<dyn server_core::kernel::jobs::JobQueue> = Arc::new(NoopJobQueue::new());
-    let jwt_service = Arc::new(JwtService::new("test_secret", "test_issuer".to_string()));
-
-    ServerDeps::new(
-        kernel.db_pool.clone(),
-        Arc::new(MockIngestor::new()),
-        openai_client.clone(),
-        Arc::new(MockEmbeddingService::new()),
-        Arc::new(MockPushNotificationService::new()),
-        Arc::new(TwilioAdapter::new(twilio)),
-        Arc::new(MockWebSearcher::new()),
-        Arc::new(MockPiiDetector::new()),
-        None, // No extraction service in tests
-        job_queue,
-        jwt_service,
-        false,
-        vec![],
-    )
 }

@@ -54,12 +54,14 @@
 pub mod agent;
 pub mod error;
 pub mod schema;
+pub mod streaming;
 pub mod tool;
 pub mod types;
 
 pub use agent::{Agent, AgentBuilder, AgentResponse};
 pub use error::{OpenAIError, Result};
 pub use schema::StructuredOutput;
+pub use streaming::ChatCompletionStream;
 pub use tool::{ErasedTool, Tool, ToolCall, ToolDefinition, ToolError};
 pub use types::*;
 
@@ -170,6 +172,47 @@ impl OpenAIClient {
         serde_json::from_str(&json_str).map_err(|e| {
             OpenAIError::Parse(format!("Failed to deserialize response: {}", e))
         })
+    }
+
+    /// Streaming chat completion.
+    ///
+    /// Send messages and get a stream of token chunks back.
+    /// Uses SSE (server-sent events) from the OpenAI API.
+    pub async fn chat_completion_stream(
+        &self,
+        request: ChatRequest,
+    ) -> Result<streaming::ChatCompletionStream> {
+        use reqwest::header;
+
+        // Build JSON body with stream: true
+        let mut body = serde_json::to_value(&request)
+            .map_err(|e| OpenAIError::Parse(format!("Failed to serialize request: {}", e)))?;
+        body["stream"] = serde_json::Value::Bool(true);
+
+        let response = self
+            .http_client
+            .post(format!("{}/chat/completions", self.base_url))
+            .header(header::AUTHORIZATION, format!("Bearer {}", self.api_key))
+            .header(header::CONTENT_TYPE, "application/json")
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| {
+                warn!(error = %e, "OpenAI streaming request failed");
+                OpenAIError::Network(e.to_string())
+            })?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_text = response.text().await.unwrap_or_default();
+            warn!(status = %status, error = %error_text, "OpenAI streaming API error");
+            return Err(OpenAIError::Api(format!(
+                "OpenAI streaming API error: {}",
+                error_text
+            )));
+        }
+
+        Ok(streaming::ChatCompletionStream::new(response.bytes_stream()))
     }
 
     /// Chat completion.

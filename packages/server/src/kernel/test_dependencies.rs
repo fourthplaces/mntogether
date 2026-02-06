@@ -1,6 +1,6 @@
 // TestDependencies - mock implementations for testing
 //
-// Provides mock services that can be injected into ServerKernel for tests.
+// Provides mock services that can be injected into ServerDeps for tests.
 
 use anyhow::Result;
 use async_trait::async_trait;
@@ -8,11 +8,10 @@ use openai_client::OpenAIClient;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
-use super::{
-    jobs::SpyJobQueue, BaseEmbeddingService, BasePiiDetector, BasePushNotificationService,
-    PiiScrubResult, ServerKernel,
-};
+use super::{BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, PiiScrubResult};
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
+use crate::domains::auth::JwtService;
+use crate::kernel::{ServerDeps, StreamHub, TwilioAdapter};
 
 // Import from extraction library
 use extraction::{MockIngestor, MockWebSearcher};
@@ -283,7 +282,6 @@ pub struct TestDependencies {
     pub push_service: Arc<MockPushNotificationService>,
     pub web_searcher: Arc<MockWebSearcher>,
     pub pii_detector: Arc<MockPiiDetector>,
-    pub job_queue: Arc<SpyJobQueue>,
 }
 
 impl TestDependencies {
@@ -295,7 +293,6 @@ impl TestDependencies {
             push_service: Arc::new(MockPushNotificationService::new()),
             web_searcher: Arc::new(MockWebSearcher::new()),
             pii_detector: Arc::new(MockPiiDetector::new()),
-            job_queue: Arc::new(SpyJobQueue::new()),
         }
     }
 
@@ -318,8 +315,6 @@ impl TestDependencies {
     #[allow(unused_variables)]
     pub fn mock_ai(self, mock_ai: MockAI) -> Self {
         // MockAI is now a no-op - the OpenAI client is used directly
-        // Tests relying on canned AI responses need to be updated to use
-        // HTTP mocking (mockito/wiremock) for the OpenAI API
         self
     }
 
@@ -347,21 +342,30 @@ impl TestDependencies {
         self
     }
 
-    /// Convert into a ServerKernel for testing
-    ///
-    /// NOTE: In seesaw 0.6.0, EventBus is removed. Tests should create
-    /// an Engine and use engine.activate() to emit events.
-    pub fn into_kernel(self, db_pool: PgPool) -> Arc<ServerKernel> {
-        Arc::new(ServerKernel::new(
+    /// Convert into ServerDeps for testing
+    pub fn into_server_deps(self, db_pool: PgPool) -> ServerDeps {
+        let twilio = Arc::new(twilio::TwilioService::new(twilio::TwilioOptions {
+            account_sid: "test_account_sid".to_string(),
+            auth_token: "test_auth_token".to_string(),
+            service_id: "test_service_id".to_string(),
+        }));
+        let jwt_service = Arc::new(JwtService::new("test_secret", "test_issuer".to_string()));
+
+        ServerDeps::new(
             db_pool,
             self.ingestor,
             self.ai,
             self.embedding_service,
             self.push_service,
+            Arc::new(TwilioAdapter::new(twilio)),
             self.web_searcher,
             self.pii_detector,
-            self.job_queue,
-        ))
+            None, // No extraction service in tests
+            jwt_service,
+            StreamHub::new(),
+            true,  // test_identifier_enabled
+            vec![], // admin_identifiers
+        )
     }
 }
 

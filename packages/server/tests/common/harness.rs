@@ -4,15 +4,18 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
-use seesaw_core::Engine;
-use server_core::common::AppState;
-use server_core::domains::crawling::effects::crawler_effect;
+use seesaw_core::{Engine, Runtime, RuntimeConfig};
+use seesaw_postgres::PostgresStore;
+use server_core::domains::agents::effects::agent_effect;
+use server_core::domains::auth::effects::auth_effect;
+use server_core::domains::crawling::effects::{crawling_pipeline_effect, mark_no_listings_effect};
 use server_core::domains::member::effects::member_effect;
 use server_core::domains::posts::effects::post_composite_effect;
-use server_core::kernel::jobs::SpyJobQueue;
-use server_core::kernel::{ServerDeps, TwilioAdapter};
-use server_core::kernel::{ServerKernel, TestDependencies};
-use server_core::server::graphql::context::AppEngine;
+use server_core::domains::providers::effects::provider_effect;
+use server_core::domains::website::effects::website_effect;
+use server_core::domains::website_approval::effects::website_approval_effect;
+use server_core::kernel::{ServerDeps, TestDependencies};
+use server_core::server::graphql::context::AppQueueEngine;
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
@@ -22,8 +25,6 @@ use testcontainers_modules::redis::Redis;
 use tokio::sync::OnceCell;
 
 use super::GraphQLClient;
-use server_core::domains::auth::JwtService;
-use twilio::{TwilioOptions, TwilioService};
 
 // =============================================================================
 // Shared Test Infrastructure
@@ -115,24 +116,10 @@ impl SharedTestInfra {
     }
 }
 
-/// Build the seesaw engine with all domain effects (seesaw 0.6.0).
-///
-/// In 0.6.0, effects are registered using the builder pattern:
-/// `effect::on::<E>().run(|event, ctx| async { ... })`
-fn build_engine(deps: ServerDeps) -> AppEngine {
-    Engine::with_deps(deps)
-        // Crawling domain
-        .with_effect(crawler_effect())
-        // Posts domain
-        .with_effect(post_composite_effect())
-        // Member domain
-        .with_effect(member_effect())
-}
-
 /// Test harness that manages test infrastructure.
 ///
 /// Uses shared containers across all tests for fast test execution.
-/// Each test gets a fresh kernel and service instance, but reuses
+/// Each test gets fresh ServerDeps and a QueueEngine instance, but reuses
 /// the same database and Redis containers.
 ///
 /// # Example using test-context
@@ -148,14 +135,14 @@ fn build_engine(deps: ServerDeps) -> AppEngine {
 /// }
 /// ```
 pub struct TestHarness {
-    pub kernel: Arc<ServerKernel>,
+    /// Server dependencies for direct access
+    pub server_deps: Arc<ServerDeps>,
     /// Database pool - use this for test fixtures.
-    /// This is the same pool used by the kernel.
     pub db_pool: PgPool,
     /// Test dependencies for accessing mocks
     pub deps: TestDependencies,
-    /// Engine for emitting events in tests
-    pub engine: Arc<AppEngine>,
+    /// Queue engine for processing events
+    pub queue_engine: Arc<AppQueueEngine>,
 }
 
 impl TestHarness {
@@ -164,8 +151,8 @@ impl TestHarness {
     /// This will:
     /// 1. Get or initialize shared PostgreSQL and Redis containers
     /// 2. Run database migrations (only on first call)
-    /// 3. Initialize a fresh ServerKernel with test dependencies
-    /// 4. Register all domain effects
+    /// 3. Initialize ServerDeps with test dependencies
+    /// 4. Build QueueEngine with all domain effects
     pub async fn new() -> Result<Self> {
         Self::with_deps(TestDependencies::new()).await
     }
@@ -177,13 +164,10 @@ impl TestHarness {
     /// # Example
     ///
     /// ```ignore
-    /// use server_core::kernel::{MockNeedExtractor, TestDependencies};
+    /// use server_core::kernel::TestDependencies;
     ///
     /// let deps = TestDependencies::new()
-    ///     .mock_extractor(
-    ///         MockNeedExtractor::new()
-    ///             .with_single_need("Volunteers Needed", "Help us!")
-    ///     );
+    ///     .mock_ingestor(MockIngestor::new());
     /// let harness = TestHarness::with_deps(deps).await?;
     /// ```
     pub async fn with_deps(deps: TestDependencies) -> Result<Self> {
@@ -195,92 +179,67 @@ impl TestHarness {
             .await
             .context("Failed to connect to test database")?;
 
-        // Create kernel with test dependencies
-        let kernel = deps.clone().into_kernel(db_pool.clone());
+        // Build ServerDeps from test dependencies
+        let server_deps = deps.clone().into_server_deps(db_pool.clone());
+        let server_deps_arc = Arc::new(server_deps.clone());
 
-        // Create ServerDeps for engine (from kernel dependencies)
-        // Use dummy Twilio credentials for testing (won't make real API calls in tests)
-        let twilio = Arc::new(TwilioService::new(TwilioOptions {
-            account_sid: "test_account_sid".to_string(),
-            auth_token: "test_auth_token".to_string(),
-            service_id: "test_service_id".to_string(),
-        }));
+        // Build QueueEngine with all domain effects (seesaw 0.8.2)
+        let seesaw_store = PostgresStore::new(db_pool.clone());
+        let queue_engine = Engine::new(server_deps, seesaw_store)
+            .with_effect(auth_effect())
+            .with_effect(member_effect())
+            .with_effect(agent_effect())
+            .with_effect(website_effect())
+            .with_effect(mark_no_listings_effect())
+            .with_effect(crawling_pipeline_effect())
+            .with_effect(post_composite_effect())
+            .with_effect(website_approval_effect())
+            .with_effect(provider_effect());
+        let queue_engine = Arc::new(queue_engine);
 
-        // Create spy job queue for testing
-        let spy_job_queue = Arc::new(SpyJobQueue::new());
-
-        // Create JWT service for testing
-        let jwt_service = Arc::new(JwtService::new("test_secret", "test_issuer".to_string()));
-
-        let server_deps = ServerDeps::new(
-            kernel.db_pool.clone(),
-            kernel.ingestor.clone(),
-            kernel.ai.clone(),
-            kernel.embedding_service.clone(),
-            kernel.push_service.clone(),
-            Arc::new(TwilioAdapter::new(twilio)),
-            kernel.web_searcher.clone(),
-            kernel.pii_detector.clone(),
-            None,   // No extraction service in tests
-            spy_job_queue.clone(),
-            jwt_service,
-            true,   // test_identifier_enabled
-            vec![], // admin_identifiers
-        );
-
-        // Build engine with all domain effects (seesaw 0.6.0)
-        let engine = Arc::new(build_engine(server_deps));
-
-        // Create kernel without bus (bus is removed in 0.6.0)
-        let kernel = Arc::new(ServerKernel {
-            db_pool: kernel.db_pool.clone(),
-            ingestor: kernel.ingestor.clone(),
-            ai: kernel.ai.clone(),
-            embedding_service: kernel.embedding_service.clone(),
-            push_service: kernel.push_service.clone(),
-            web_searcher: kernel.web_searcher.clone(),
-            pii_detector: kernel.pii_detector.clone(),
-            job_queue: Arc::new(SpyJobQueue::new()),
-        });
+        // Start seesaw runtime workers
+        let _runtime = Runtime::start(&queue_engine, RuntimeConfig::default());
 
         // Give engine time to initialize
         tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
         Ok(Self {
-            kernel,
+            server_deps: server_deps_arc,
             db_pool,
             deps,
-            engine,
+            queue_engine,
         })
     }
 
     /// Get a GraphQL client for this harness.
     pub fn graphql(&self) -> GraphQLClient {
-        GraphQLClient::new(self.kernel.clone(), self.engine.clone())
+        GraphQLClient::new(self.db_pool.clone(), self.server_deps.clone(), self.queue_engine.clone())
     }
 
     /// Get a GraphQL client with an authenticated user.
     pub fn graphql_with_auth(&self, user_id: uuid::Uuid, is_admin: bool) -> GraphQLClient {
-        GraphQLClient::with_auth_user(self.kernel.clone(), self.engine.clone(), user_id, is_admin)
+        GraphQLClient::with_auth_user(
+            self.db_pool.clone(),
+            self.server_deps.clone(),
+            self.queue_engine.clone(),
+            user_id,
+            is_admin,
+        )
     }
 
-    /// Emit an event and wait for effects to settle.
-    ///
-    /// In seesaw 0.7.3, use handle.run() to emit events (emit is private).
-    pub async fn emit<E: Clone + Send + Sync + 'static>(&self, event: E) {
-        let handle = self.engine.activate(AppState::default());
-        let _ = handle.run(|_ctx| Ok(event));
-        let _ = handle.settled().await;
+    /// Emit an event through the queue engine.
+    pub async fn emit<E: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static>(&self, event: E) {
+        let _ = self.queue_engine.process(event).await;
     }
 
     /// Wait for effects to settle after an action.
     ///
-    /// Effects are executed by the seesaw engine when events are emitted.
+    /// Effects are executed by the seesaw QueueEngine workers.
     /// This method yields to allow the event-driven pipeline to complete.
     pub async fn settle(&self) {
         // Allow time for the seesaw event pipeline to process:
-        // 1. Engine processes events through effects
-        // 2. Effects execute and may emit new events
+        // 1. EventWorkers poll and process events
+        // 2. EffectWorkers execute queued effects
         for _ in 0..10 {
             tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
             tokio::task::yield_now().await;

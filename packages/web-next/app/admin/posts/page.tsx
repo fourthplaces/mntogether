@@ -173,30 +173,30 @@ export default function PostsPage() {
         {/* Source Filter */}
         <div className="flex gap-2 mb-6">
           <button
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               selectedSource === "all"
-                ? "bg-stone-900 text-white"
-                : "bg-white border border-stone-200 text-stone-700 hover:border-stone-300"
+                ? "bg-amber-600 text-white"
+                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
             }`}
             onClick={() => setSelectedSource("all")}
           >
             All Sources ({stats.total})
           </button>
           <button
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               selectedSource === "USER_SUBMITTED"
-                ? "bg-stone-900 text-white"
-                : "bg-white border border-stone-200 text-stone-700 hover:border-stone-300"
+                ? "bg-amber-600 text-white"
+                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
             }`}
             onClick={() => setSelectedSource("USER_SUBMITTED")}
           >
             User Submitted ({stats.userSubmitted})
           </button>
           <button
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               selectedSource === "SCRAPED"
-                ? "bg-stone-900 text-white"
-                : "bg-white border border-stone-200 text-stone-700 hover:border-stone-300"
+                ? "bg-amber-600 text-white"
+                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
             }`}
             onClick={() => setSelectedSource("SCRAPED")}
           >

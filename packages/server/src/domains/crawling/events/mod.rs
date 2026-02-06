@@ -148,10 +148,10 @@ pub enum CrawlEvent {
     /// Post sync work enqueued
     ///
     /// Emitted after extraction completes with posts. Picked up by `sync_posts_effect`.
+    /// Always uses LLM sync to stage proposals for human review.
     PostsSyncEnqueued {
         website_id: WebsiteId,
         posts: Vec<ExtractedPost>,
-        use_llm_sync: bool,
     },
 
     /// Post regeneration work enqueued

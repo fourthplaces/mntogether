@@ -75,8 +75,11 @@ export default function ExtractionPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-8">Extraction Tools</h1>
+    <div className="min-h-screen bg-stone-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-stone-900">Extraction Tools</h1>
+        </div>
 
       <div className="grid gap-8 md:grid-cols-2">
         {/* Site Ingest */}
@@ -161,6 +164,7 @@ export default function ExtractionPage() {
 
       {/* Results */}
       <ResultDisplay error={error} result={result} />
+      </div>
     </div>
   );
 }

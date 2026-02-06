@@ -835,3 +835,59 @@ export const GET_WEBSITE_DISCOVERY_SOURCES = `
     }
   }
 `;
+
+// ============================================================================
+// SYNC PROPOSAL QUERIES
+// ============================================================================
+
+export const GET_SYNC_BATCHES = `
+  query GetSyncBatches($status: String, $limit: Int) {
+    syncBatches(status: $status, limit: $limit) {
+      id
+      resourceType
+      sourceId
+      status
+      summary
+      proposalCount
+      approvedCount
+      rejectedCount
+      createdAt
+      reviewedAt
+    }
+  }
+`;
+
+export const GET_SYNC_BATCH = `
+  query GetSyncBatch($id: Uuid!) {
+    syncBatch(id: $id) {
+      id
+      resourceType
+      sourceId
+      status
+      summary
+      proposalCount
+      approvedCount
+      rejectedCount
+      createdAt
+      reviewedAt
+    }
+  }
+`;
+
+export const GET_SYNC_PROPOSALS = `
+  query GetSyncProposals($batchId: Uuid!) {
+    syncProposals(batchId: $batchId) {
+      id
+      batchId
+      operation
+      status
+      entityType
+      draftEntityId
+      targetEntityId
+      reason
+      reviewedBy
+      reviewedAt
+      createdAt
+    }
+  }
+`;

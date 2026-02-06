@@ -53,38 +53,39 @@ export default function WebsitesPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Websites</h1>
-        <div className="flex gap-2">
-          {["all", "pending_review", "approved", "rejected"].map((status) => (
-            <button
-              key={status}
-              onClick={() => {
-                setStatusFilter(status === "all" ? null : status);
-                pagination.reset();
-              }}
-              className={`px-3 py-1 rounded text-sm ${
-                (status === "all" && !statusFilter) || statusFilter === status
-                  ? "bg-amber-600 text-white"
-                  : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-              }`}
-            >
-              {status === "all" ? "All" : status.replace("_", " ")}
-            </button>
-          ))}
+    <div className="min-h-screen bg-stone-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-stone-900">Websites</h1>
+          <div className="flex gap-2">
+            {["all", "pending_review", "approved", "rejected"].map((status) => (
+              <button
+                key={status}
+                onClick={() => {
+                  setStatusFilter(status === "all" ? null : status);
+                  pagination.reset();
+                }}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  (status === "all" && !statusFilter) || statusFilter === status
+                    ? "bg-amber-600 text-white"
+                    : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                }`}
+              >
+                {status === "all" ? "All" : status.replace("_", " ")}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
-          Error: {error.message}
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+            Error: {error.message}
+          </div>
+        )}
 
-      {websites.length === 0 ? (
-        <div className="text-stone-500 text-center py-12">No websites found</div>
-      ) : (
+        {websites.length === 0 ? (
+          <div className="text-stone-500 text-center py-12">No websites found</div>
+        ) : (
         <>
           <div className="bg-white rounded-lg shadow overflow-hidden mb-6">
             <table className="min-w-full divide-y divide-stone-200">
@@ -144,6 +145,7 @@ export default function WebsitesPage() {
           />
         </>
       )}
+      </div>
     </div>
   );
 }

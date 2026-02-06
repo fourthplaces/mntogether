@@ -14,6 +14,7 @@ use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
 use crate::kernel::{
     extraction_service::OpenAIExtractionService,
+    stream_hub::StreamHub,
     BaseEmbeddingService, BasePiiDetector,
     BasePushNotificationService, BaseTwilioService,
 };
@@ -77,6 +78,8 @@ pub struct ServerDeps {
     pub extraction: Option<Arc<OpenAIExtractionService>>,
     /// JWT service for token creation
     pub jwt_service: Arc<JwtService>,
+    /// In-process pub/sub hub for real-time streaming to SSE endpoints
+    pub stream_hub: StreamHub,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -95,6 +98,7 @@ impl ServerDeps {
         pii_detector: Arc<dyn BasePiiDetector>,
         extraction: Option<Arc<OpenAIExtractionService>>,
         jwt_service: Arc<JwtService>,
+        stream_hub: StreamHub,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
@@ -109,6 +113,7 @@ impl ServerDeps {
             pii_detector,
             extraction,
             jwt_service,
+            stream_hub,
             test_identifier_enabled,
             admin_identifiers,
         }

@@ -382,19 +382,19 @@ erDiagram
 ## Acceptance Criteria
 
 ### Phase 1 (Immediate)
-- [ ] Tags support hierarchy via `parent_tag_id`
-- [ ] Tags have `external_code` and `taxonomy_source` for future crosswalking
+- [x] Tags support hierarchy via `parent_tag_id`
+- [x] Tags have `external_code` and `taxonomy_source` for future crosswalking
 - [ ] Service language tags populated for major MN immigrant languages
 
 ### Phase 2 (Next Sprint)
-- [ ] `locations` table exists as first-class entity
-- [ ] `post_locations` join table enables multi-site services
-- [ ] `schedules` table supports day-of-week operating hours
-- [ ] `service_areas` table supports county/city/state/zip coverage
+- [x] `locations` table exists as first-class entity
+- [x] `post_locations` join table enables multi-site services
+- [x] `schedules` table supports day-of-week operating hours
+- [x] `service_areas` table supports county/city/state/zip coverage
 - [ ] Existing post location data migrated to new `locations` table
 
 ### Phase 3 (Future)
-- [ ] `taxonomy_crosswalks` table maps MN Together tags to Open Eligibility codes
+- [x] `taxonomy_crosswalks` table maps MN Together tags to Open Eligibility codes
 - [ ] HSDS 3.0 export endpoint/view for 211 data sharing
 - [ ] Open Eligibility top-level categories seeded as parent tags
 

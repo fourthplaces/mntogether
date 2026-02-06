@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use seesaw_core::QueueEngine;
+use seesaw_core::Engine;
 use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 use twilio::TwilioService;
@@ -15,7 +15,7 @@ use crate::server::middleware::AuthUser;
 /// All events (sync + async) go through the queue-backed engine.
 /// EventWorkers process events, run reducers, and dispatch to effects.
 /// EffectWorkers execute queued effects with retry/timeout.
-pub type AppQueueEngine = QueueEngine<AppState, ServerDeps, PostgresStore>;
+pub type AppQueueEngine = Engine<AppState, ServerDeps, PostgresStore>;
 
 /// GraphQL request context
 ///

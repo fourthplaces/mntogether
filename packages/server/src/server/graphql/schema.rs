@@ -53,6 +53,12 @@ use crate::domains::website::data::{WebsiteConnection, WebsiteData};
 use crate::domains::website::events::WebsiteEvent;
 use crate::domains::website_approval::data::{WebsiteAssessmentData, WebsiteSearchResultData};
 
+// Sync proposal types
+use crate::common::{MemberId, SyncBatchId, SyncProposalId};
+use crate::domains::posts::actions::post_sync_handler::PostProposalHandler;
+use crate::domains::sync::actions::proposal_actions;
+use crate::domains::sync::{SyncBatch, SyncProposal};
+
 // Domain models (for queries)
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::contacts::ContactData;
@@ -971,6 +977,86 @@ impl Query {
             .map_err(to_field_error)?;
 
         Ok(results.into_iter().map(run_result_to_data).collect())
+    }
+
+    // =========================================================================
+    // Sync Proposal Queries
+    // =========================================================================
+
+    /// Get sync batches (admin only). Filter by status or get all recent.
+    async fn sync_batches(
+        ctx: &GraphQLContext,
+        status: Option<String>,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<SyncBatchData>> {
+        ctx.require_admin()?;
+
+        let batches = match status.as_deref() {
+            Some("pending") => SyncBatch::find_pending(&ctx.db_pool).await.map_err(to_field_error)?,
+            _ => SyncBatch::find_recent(limit.unwrap_or(50), &ctx.db_pool).await.map_err(to_field_error)?,
+        };
+
+        Ok(batches.into_iter().map(sync_batch_to_data).collect())
+    }
+
+    /// Get a single sync batch by ID (admin only)
+    async fn sync_batch(ctx: &GraphQLContext, id: Uuid) -> FieldResult<Option<SyncBatchData>> {
+        ctx.require_admin()?;
+
+        let batch_id = SyncBatchId::from(id);
+        let batch = SyncBatch::find_by_id(batch_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(batch.map(sync_batch_to_data))
+    }
+
+    /// Get all proposals for a batch (admin only)
+    async fn sync_proposals(
+        ctx: &GraphQLContext,
+        batch_id: Uuid,
+    ) -> FieldResult<Vec<SyncProposalData>> {
+        ctx.require_admin()?;
+
+        let batch_id = SyncBatchId::from(batch_id);
+        let proposals = SyncProposal::find_by_batch(batch_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(proposals.into_iter().map(sync_proposal_to_data).collect())
+    }
+}
+
+/// Convert a SyncBatch model to GraphQL data type
+fn sync_batch_to_data(b: SyncBatch) -> SyncBatchData {
+    SyncBatchData {
+        id: b.id.into_uuid(),
+        resource_type: b.resource_type,
+        source_id: b.source_id,
+        status: b.status,
+        summary: b.summary,
+        proposal_count: b.proposal_count,
+        approved_count: b.approved_count,
+        rejected_count: b.rejected_count,
+        created_at: b.created_at.to_rfc3339(),
+        reviewed_at: b.reviewed_at.map(|t| t.to_rfc3339()),
+    }
+}
+
+/// Convert a SyncProposal model to GraphQL data type
+fn sync_proposal_to_data(p: SyncProposal) -> SyncProposalData {
+    SyncProposalData {
+        id: p.id.into_uuid(),
+        batch_id: p.batch_id.into_uuid(),
+        operation: p.operation,
+        status: p.status,
+        entity_type: p.entity_type,
+        draft_entity_id: p.draft_entity_id,
+        target_entity_id: p.target_entity_id,
+        reason: p.reason,
+        reviewed_by: p.reviewed_by,
+        reviewed_at: p.reviewed_at.map(|t| t.to_rfc3339()),
+        created_at: p.created_at.to_rfc3339(),
     }
 }
 
@@ -2787,6 +2873,102 @@ impl Mutation {
             pages_skipped: result.pages_skipped,
         })
     }
+
+    // =========================================================================
+    // Sync Proposal Mutations
+    // =========================================================================
+
+    /// Approve a single sync proposal (admin only)
+    async fn approve_sync_proposal(
+        ctx: &GraphQLContext,
+        proposal_id: Uuid,
+    ) -> FieldResult<SyncProposalData> {
+        ctx.require_admin()?;
+
+        let user = ctx.auth_user.as_ref().unwrap();
+        let reviewer = MemberId::from(user.member_id.into_uuid());
+        let handler = PostProposalHandler;
+
+        let proposal = proposal_actions::approve_proposal(
+            SyncProposalId::from(proposal_id),
+            reviewer,
+            &handler,
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        Ok(sync_proposal_to_data(proposal))
+    }
+
+    /// Reject a single sync proposal (admin only)
+    async fn reject_sync_proposal(
+        ctx: &GraphQLContext,
+        proposal_id: Uuid,
+    ) -> FieldResult<SyncProposalData> {
+        ctx.require_admin()?;
+
+        let user = ctx.auth_user.as_ref().unwrap();
+        let reviewer = MemberId::from(user.member_id.into_uuid());
+        let handler = PostProposalHandler;
+
+        let proposal = proposal_actions::reject_proposal(
+            SyncProposalId::from(proposal_id),
+            reviewer,
+            &handler,
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        Ok(sync_proposal_to_data(proposal))
+    }
+
+    /// Approve all pending proposals in a batch (admin only)
+    async fn approve_sync_batch(
+        ctx: &GraphQLContext,
+        batch_id: Uuid,
+    ) -> FieldResult<SyncBatchData> {
+        ctx.require_admin()?;
+
+        let user = ctx.auth_user.as_ref().unwrap();
+        let reviewer = MemberId::from(user.member_id.into_uuid());
+        let handler = PostProposalHandler;
+
+        let batch = proposal_actions::approve_batch(
+            SyncBatchId::from(batch_id),
+            reviewer,
+            &handler,
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        Ok(sync_batch_to_data(batch))
+    }
+
+    /// Reject all pending proposals in a batch (admin only)
+    async fn reject_sync_batch(
+        ctx: &GraphQLContext,
+        batch_id: Uuid,
+    ) -> FieldResult<SyncBatchData> {
+        ctx.require_admin()?;
+
+        let user = ctx.auth_user.as_ref().unwrap();
+        let reviewer = MemberId::from(user.member_id.into_uuid());
+        let handler = PostProposalHandler;
+
+        let batch = proposal_actions::reject_batch(
+            SyncBatchId::from(batch_id),
+            reviewer,
+            &handler,
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        Ok(sync_batch_to_data(batch))
+    }
 }
 
 /// Result of site ingestion
@@ -2796,6 +2978,37 @@ pub struct IngestSiteResult {
     pub pages_crawled: i32,
     pub pages_summarized: i32,
     pub pages_skipped: i32,
+}
+
+/// A sync batch (group of AI-proposed changes)
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct SyncBatchData {
+    pub id: Uuid,
+    pub resource_type: String,
+    pub source_id: Option<Uuid>,
+    pub status: String,
+    pub summary: Option<String>,
+    pub proposal_count: i32,
+    pub approved_count: i32,
+    pub rejected_count: i32,
+    pub created_at: String,
+    pub reviewed_at: Option<String>,
+}
+
+/// A single sync proposal (AI-proposed operation)
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct SyncProposalData {
+    pub id: Uuid,
+    pub batch_id: Uuid,
+    pub operation: String,
+    pub status: String,
+    pub entity_type: String,
+    pub draft_entity_id: Option<Uuid>,
+    pub target_entity_id: Option<Uuid>,
+    pub reason: Option<String>,
+    pub reviewed_by: Option<Uuid>,
+    pub reviewed_at: Option<String>,
+    pub created_at: String,
 }
 
 pub type Schema = RootNode<'static, Query, Mutation, EmptySubscription<GraphQLContext>>;

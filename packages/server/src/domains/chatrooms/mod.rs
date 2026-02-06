@@ -5,9 +5,11 @@
 //!
 //! Components:
 //! - actions: Entry-point business logic called directly from GraphQL via process()
-//! - effects: Event handlers that respond to fact events
+//! - effects: Reserved for future chatroom-specific effects
 //! - models: Database models (Container, Message)
 //! - data: GraphQL data types
+//!
+//! AI agent responses have moved to the agents domain.
 
 pub mod actions;
 pub mod data;
@@ -17,6 +19,5 @@ pub mod models;
 
 // Re-export commonly used types
 pub use data::*;
-pub use effects::chat_effect;
 pub use events::ChatEvent;
 pub use models::*;

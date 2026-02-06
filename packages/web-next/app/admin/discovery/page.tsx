@@ -117,17 +117,18 @@ export default function DiscoveryPage() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto p-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold">Discovery</h1>
-        <button
-          onClick={handleRunDiscovery}
-          disabled={isRunning}
-          className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {isRunning ? "Running..." : "Run Discovery Now"}
-        </button>
-      </div>
+    <div className="min-h-screen bg-stone-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold text-stone-900">Discovery</h1>
+          <button
+            onClick={handleRunDiscovery}
+            disabled={isRunning}
+            className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {isRunning ? "Running..." : "Run Discovery Now"}
+          </button>
+        </div>
 
       {runMessage && (
         <div
@@ -165,6 +166,7 @@ export default function DiscoveryPage() {
       {activeTab === "queries" && <QueriesTab queries={queries} />}
       {activeTab === "filters" && <FiltersTab rules={globalRules} queryId={null} />}
       {activeTab === "runs" && <RunsTab runs={runs} />}
+      </div>
     </div>
   );
 }
@@ -276,24 +278,24 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
         <table className="min-w-full divide-y divide-stone-200">
           <thead className="bg-stone-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Query
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Category
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Status
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Actions
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-200">
+          <tbody className="bg-white divide-y divide-stone-200">
             {queries.map((query) => (
               <tr key={query.id} className={!query.isActive ? "opacity-50" : ""}>
-                <td className="px-4 py-3">
+                <td className="px-6 py-4">
                   {editingId === query.id ? (
                     <input
                       type="text"
@@ -306,7 +308,7 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
                     <span className="text-sm text-stone-900 font-mono">{query.queryText}</span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-6 py-4">
                   {editingId === query.id ? (
                     <input
                       type="text"
@@ -320,7 +322,7 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
                     </span>
                   )}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-6 py-4">
                   <button
                     onClick={() => handleToggle(query.id, query.isActive)}
                     className={`text-xs px-2 py-1 rounded-full ${
@@ -332,18 +334,18 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
                     {query.isActive ? "active" : "inactive"}
                   </button>
                 </td>
-                <td className="px-4 py-3 text-right">
+                <td className="px-6 py-4 text-right">
                   {editingId === query.id ? (
                     <div className="flex gap-2 justify-end">
                       <button
                         onClick={() => handleUpdate(query.id)}
-                        className="text-xs text-green-600 hover:text-green-800"
+                        className="text-xs font-medium text-green-600 hover:text-green-800"
                       >
                         Save
                       </button>
                       <button
                         onClick={() => setEditingId(null)}
-                        className="text-xs text-stone-500 hover:text-stone-700"
+                        className="text-xs font-medium text-stone-500 hover:text-stone-700"
                       >
                         Cancel
                       </button>
@@ -356,13 +358,13 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
                           setEditText(query.queryText);
                           setEditCategory(query.category || "");
                         }}
-                        className="text-xs text-stone-500 hover:text-stone-700"
+                        className="text-xs font-medium text-stone-500 hover:text-stone-700"
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDelete(query.id)}
-                        className="text-xs text-red-500 hover:text-red-700"
+                        className="text-xs font-medium text-red-500 hover:text-red-700"
                       >
                         Delete
                       </button>
@@ -478,13 +480,13 @@ function FiltersTab({
                 />
                 <button
                   onClick={() => handleUpdate(rule.id)}
-                  className="text-xs text-green-600 hover:text-green-800"
+                  className="text-xs font-medium text-green-600 hover:text-green-800"
                 >
                   Save
                 </button>
                 <button
                   onClick={() => setEditingId(null)}
-                  className="text-xs text-stone-500 hover:text-stone-700"
+                  className="text-xs font-medium text-stone-500 hover:text-stone-700"
                 >
                   Cancel
                 </button>
@@ -497,13 +499,13 @@ function FiltersTab({
                     setEditingId(rule.id);
                     setEditText(rule.ruleText);
                   }}
-                  className="text-xs text-stone-500 hover:text-stone-700"
+                  className="text-xs font-medium text-stone-500 hover:text-stone-700"
                 >
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(rule.id)}
-                  className="text-xs text-red-500 hover:text-red-700"
+                  className="text-xs font-medium text-red-500 hover:text-red-700"
                 >
                   Delete
                 </button>
@@ -534,27 +536,27 @@ function RunsTab({ runs }: { runs: DiscoveryRun[] }) {
         <table className="min-w-full divide-y divide-stone-200">
           <thead className="bg-stone-50">
             <tr>
-              <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Date
               </th>
-              <th className="px-4 py-3 text-left text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Trigger
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Queries
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Results
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Created
               </th>
-              <th className="px-4 py-3 text-right text-xs font-medium text-stone-500 uppercase">
+              <th className="px-6 py-3 text-right text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Filtered
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-stone-200">
+          <tbody className="bg-white divide-y divide-stone-200">
             {runs.map((run) => (
               <tr
                 key={run.id}
@@ -565,10 +567,10 @@ function RunsTab({ runs }: { runs: DiscoveryRun[] }) {
                   selectedRunId === run.id ? "bg-amber-50" : ""
                 }`}
               >
-                <td className="px-4 py-3 text-sm text-stone-900">
+                <td className="px-6 py-4 text-sm text-stone-900 whitespace-nowrap">
                   {new Date(run.startedAt).toLocaleString()}
                 </td>
-                <td className="px-4 py-3">
+                <td className="px-6 py-4 whitespace-nowrap">
                   <span
                     className={`text-xs px-2 py-1 rounded-full ${
                       run.triggerType === "manual"
@@ -579,16 +581,16 @@ function RunsTab({ runs }: { runs: DiscoveryRun[] }) {
                     {run.triggerType}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-sm text-stone-600 text-right">
+                <td className="px-6 py-4 text-sm text-stone-600 text-right whitespace-nowrap">
                   {run.queriesExecuted}
                 </td>
-                <td className="px-4 py-3 text-sm text-stone-600 text-right">
+                <td className="px-6 py-4 text-sm text-stone-600 text-right whitespace-nowrap">
                   {run.totalResults}
                 </td>
-                <td className="px-4 py-3 text-sm text-green-600 font-medium text-right">
+                <td className="px-6 py-4 text-sm text-green-600 font-medium text-right whitespace-nowrap">
                   {run.websitesCreated}
                 </td>
-                <td className="px-4 py-3 text-sm text-red-600 font-medium text-right">
+                <td className="px-6 py-4 text-sm text-red-600 font-medium text-right whitespace-nowrap">
                   {run.websitesFiltered}
                 </td>
               </tr>

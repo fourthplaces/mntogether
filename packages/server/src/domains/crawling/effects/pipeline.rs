@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 use crate::common::{AppState, ExtractedPost, WebsiteId};
 use crate::domains::crawling::actions::{
-    ingest_website, regenerate_posts, regenerate_single_post, sync_and_deduplicate_posts,
+    ingest_website, regenerate_posts, regenerate_single_post,
 };
 use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
 use crate::domains::crawling::events::CrawlEvent;
@@ -105,23 +105,21 @@ pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDep
                 Ok(CrawlEvent::PostsSyncEnqueued {
                     website_id: website_id_typed,
                     posts: result.posts,
-                    use_llm_sync: false,
                 })
             },
         )
 }
 
-/// Sync posts effect - replaces SyncPostsJob
+/// Sync posts effect - stages proposals for human review
 ///
-/// PostsSyncEnqueued → sync_and_deduplicate_posts() (terminal)
+/// PostsSyncEnqueued → llm_sync_posts() (stages proposals, terminal)
 pub fn sync_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
     effect::on::<CrawlEvent>()
         .extract(|event| match event {
             CrawlEvent::PostsSyncEnqueued {
                 website_id,
                 posts,
-                use_llm_sync,
-            } => Some((*website_id, posts.clone(), *use_llm_sync)),
+            } => Some((*website_id, posts.clone())),
             _ => None,
         })
         .id("sync_posts")
@@ -129,7 +127,7 @@ pub fn sync_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> 
         .retry(2)
         .timeout(Duration::from_secs(120))
         .then(
-            |(website_id, posts, use_llm_sync): (WebsiteId, Vec<ExtractedPost>, bool),
+            |(website_id, posts): (WebsiteId, Vec<ExtractedPost>),
              ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
                 let posts_count = posts.len();
 
@@ -141,40 +139,26 @@ pub fn sync_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> 
                 info!(
                     website_id = %website_id,
                     posts_count = posts_count,
-                    use_llm_sync = use_llm_sync,
-                    "Syncing posts (queued effect)"
+                    "Syncing posts via LLM (queued effect)"
                 );
 
-                if use_llm_sync {
-                    let result = llm_sync_posts(
-                        website_id,
-                        posts,
-                        ctx.deps().ai.as_ref(),
-                        &ctx.deps().db_pool,
-                    )
-                    .await?;
+                let result = llm_sync_posts(
+                    website_id,
+                    posts,
+                    ctx.deps().ai.as_ref(),
+                    &ctx.deps().db_pool,
+                )
+                .await?;
 
-                    info!(
-                        website_id = %website_id,
-                        inserted = result.inserted,
-                        updated = result.updated,
-                        deleted = result.deleted,
-                        merged = result.merged,
-                        "LLM sync completed"
-                    );
-                } else {
-                    let result =
-                        sync_and_deduplicate_posts(website_id, posts, ctx.deps()).await?;
-
-                    info!(
-                        website_id = %website_id,
-                        inserted = result.sync_result.inserted,
-                        updated = result.sync_result.updated,
-                        deleted = result.sync_result.deleted,
-                        merged = result.sync_result.merged,
-                        "Simple sync completed"
-                    );
-                }
+                info!(
+                    website_id = %website_id,
+                    batch_id = %result.batch_id,
+                    staged_inserts = result.staged_inserts,
+                    staged_updates = result.staged_updates,
+                    staged_deletes = result.staged_deletes,
+                    staged_merges = result.staged_merges,
+                    "LLM sync completed - proposals staged for review"
+                );
 
                 Ok(())
             },
