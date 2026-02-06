@@ -1,32 +1,37 @@
 //! Crawling domain - system-level orchestration for website discovery and extraction
 //!
-//! # Architecture Overview
+//! # Architecture Overview (Restate Migration in Progress)
 //!
 //! The server has two related domains that work with the extraction library:
 //!
 //! | Domain | Purpose | Entry Point |
 //! |--------|---------|-------------|
 //! | **Extraction** | User-facing API | `extraction::actions::submit_url()` |
-//! | **Crawling** | System orchestration | `crawling::actions::ingest_website()` |
+//! | **Crawling** | System orchestration | `crawling::workflows::CrawlWebsiteWorkflow` |
 //!
 //! **Extraction domain** handles explicit user requests (submit URL, run query).
-//! **Crawling domain** handles system-level orchestration (background crawls, event cascade).
+//! **Crawling domain** handles system-level orchestration via durable workflows.
 //!
 //! Both use `ExtractionService` from the kernel as the underlying engine.
 //!
 //! # Components
 //!
-//! - `actions/` - Business logic (ingest_website)
-//! - `effects/` - Event handlers for the crawl cascade
+//! - `workflows/` - Durable workflows (CrawlWebsiteWorkflow)
+//! - `actions/` - Business logic activities called by workflows
 //! - `models/` - Data models (ExtractionPage)
-//! - `events/` - Crawl events (WebsiteIngested)
+//! - `effects/` - DEPRECATED: Being replaced by workflows
+//! - `events/` - DEPRECATED: Being replaced by workflow state
 
 pub mod actions;
-pub mod effects;
-pub mod events;
+pub mod effects; // TODO: Remove after migration
+pub mod events;  // TODO: Remove after migration
 pub mod models;
+pub mod workflows;
 
-// Re-export events
+// Re-export workflows
+pub use workflows::*;
+
+// Re-export events (temporary during migration)
 pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
 
 // Re-export models

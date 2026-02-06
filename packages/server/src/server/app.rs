@@ -13,8 +13,6 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw_core::{Engine, Runtime, RuntimeConfig};
-use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 #[cfg(not(debug_assertions))]
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -26,7 +24,6 @@ use crate::domains::auth::JwtService;
 use crate::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
-use crate::server::graphql::context::AppQueueEngine;
 use crate::server::graphql::{create_schema, DataLoaders, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
@@ -34,15 +31,7 @@ use crate::server::routes::{
     stream::stream_handler,
 };
 
-// Import #[effects] module handlers from each domain
-use crate::domains::agents::effects::handlers as agent_handlers;
-use crate::domains::auth::effects::handlers as auth_handlers;
-use crate::domains::crawling::effects::handlers as crawling_handlers;
-use crate::domains::member::effects::handlers as member_handlers;
-use crate::domains::posts::effects::handlers as post_handlers;
-use crate::domains::providers::effects::handlers as provider_handlers;
-use crate::domains::website::effects::handlers as website_handlers;
-use crate::domains::website::effects::approval::handlers as approval_handlers;
+// NOTE: Effects system removed - migrating to Restate workflows
 
 // =============================================================================
 // Application State & Middleware
@@ -52,12 +41,12 @@ use crate::domains::website::effects::approval::handlers as approval_handlers;
 #[derive(Clone)]
 pub struct AxumAppState {
     pub db_pool: PgPool,
-    pub queue_engine: Arc<AppQueueEngine>,
     pub server_deps: Arc<ServerDeps>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
     pub stream_hub: StreamHub,
+    // TODO: Add Restate workflow client here
 }
 
 /// Middleware to create GraphQLContext per-request
@@ -75,7 +64,6 @@ async fn create_graphql_context(
     // Create GraphQL context with shared state + per-request auth
     let context = GraphQLContext::new(
         state.db_pool.clone(),
-        state.queue_engine.clone(),
         state.server_deps.clone(),
         auth_user,
         state.twilio.clone(),
@@ -92,10 +80,8 @@ async fn create_graphql_context(
 
 /// Build the Axum application router
 ///
-/// All events go through the QueueEngine (queue-backed seesaw 0.8.1).
-/// Mutations call actions directly, then publish fact events for cascading effects.
-/// EventWorkers process events and dispatch to inline effects.
-/// EffectWorkers execute queued effects (crawling pipeline) with retry/timeout.
+/// GraphQL mutations trigger Restate workflows for durable execution.
+/// Workflows orchestrate multi-step processes with automatic retry and state persistence.
 ///
 /// Returns (Router, Arc<ServerDeps>) - deps needed for scheduled tasks.
 pub async fn build_app(
@@ -195,28 +181,12 @@ pub async fn build_app(
 
     let server_deps_arc = Arc::new(server_deps.clone());
 
-    // Build queue-backed engine with ALL domain effects (via #[effects] modules)
-    let seesaw_store = PostgresStore::new(pool.clone());
-    let queue_engine = Engine::new(server_deps, seesaw_store)
-        .with_effect(seesaw_core::effect::group(auth_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(member_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(agent_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(website_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(crawling_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(post_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(approval_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(provider_handlers::effects()));
-    let queue_engine = Arc::new(queue_engine);
-
-    // Start seesaw runtime workers (event + effect pollers)
-    let _runtime = Runtime::start(&queue_engine, RuntimeConfig::default());
-    // Runtime handle is leaked intentionally - workers run for the lifetime of the process.
-    // Graceful shutdown is handled by the axum server shutdown signal.
+    // TODO: Create Restate workflow client here
+    // let workflow_client = RestateClient::new("http://localhost:9070")?;
 
     // Create shared app state
     let app_state = AxumAppState {
         db_pool: pool.clone(),
-        queue_engine: queue_engine.clone(),
         server_deps: server_deps_arc.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),
