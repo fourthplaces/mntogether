@@ -17,12 +17,12 @@
 //! # Components
 //!
 //! - `workflows/` - Durable workflows (CrawlWebsiteWorkflow)
-//! - `actions/` - Business logic activities called by workflows
+//! - `activities/` - Business logic activities called by workflows (renamed from actions)
 //! - `models/` - Data models (ExtractionPage)
 //! - `effects/` - DEPRECATED: Being replaced by workflows
 //! - `events/` - DEPRECATED: Being replaced by workflow state
 
-pub mod actions;
+pub mod activities;
 pub mod effects; // TODO: Remove after migration
 pub mod events;  // TODO: Remove after migration
 pub mod models;

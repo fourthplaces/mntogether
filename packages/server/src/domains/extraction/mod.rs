@@ -7,7 +7,7 @@
 //! | Domain | Purpose | Entry Point |
 //! |--------|---------|-------------|
 //! | **Extraction** | User-facing API | `extraction::actions::submit_url()` |
-//! | **Crawling** | System orchestration | `crawling::actions::ingest_website()` |
+//! | **Crawling** | System orchestration | `crawling::activities::ingest_website()` |
 //!
 //! This domain handles **explicit user requests** (submit URL, run query).
 //! The crawling domain handles **system-level orchestration** (background crawls, event cascade).

@@ -18,8 +18,8 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{AppState, ExtractedPost, WebsiteId};
-use crate::domains::crawling::actions::post_extraction;
-use crate::domains::crawling::actions::{ingest_website, regenerate_posts, regenerate_single_post};
+use crate::domains::crawling::activities::post_extraction;
+use crate::domains::crawling::activities::{ingest_website, regenerate_posts, regenerate_single_post};
 use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::website::models::Website;
