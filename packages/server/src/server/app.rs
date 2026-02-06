@@ -25,6 +25,7 @@ use crate::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
 use crate::server::graphql::{create_schema, DataLoaders, GraphQLContext};
+use crate::WorkflowClient;
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
@@ -46,7 +47,7 @@ pub struct AxumAppState {
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
     pub stream_hub: StreamHub,
-    // TODO: Add Restate workflow client here
+    pub workflow_client: Arc<WorkflowClient>,
 }
 
 /// Middleware to create GraphQLContext per-request
@@ -70,6 +71,7 @@ async fn create_graphql_context(
         state.jwt_service.clone(),
         state.openai_client.clone(),
         loaders,
+        state.workflow_client.clone(),
     );
 
     // Add context to request extensions
@@ -181,8 +183,10 @@ pub async fn build_app(
 
     let server_deps_arc = Arc::new(server_deps.clone());
 
-    // TODO: Create Restate workflow client here
-    // let workflow_client = RestateClient::new("http://localhost:9070")?;
+    // Create Restate workflow client
+    let workflow_url = std::env::var("RESTATE_URL")
+        .unwrap_or_else(|_| "http://localhost:9070".to_string());
+    let workflow_client = Arc::new(WorkflowClient::new(workflow_url));
 
     // Create shared app state
     let app_state = AxumAppState {
@@ -192,6 +196,7 @@ pub async fn build_app(
         jwt_service: jwt_service.clone(),
         openai_client: openai_client.clone(),
         stream_hub,
+        workflow_client,
     };
 
     // CORS configuration - allow any origin for development

@@ -11,5 +11,7 @@ pub mod data_migrations;
 pub mod domains;
 pub mod kernel;
 pub mod server;
+pub mod workflows_client;
 
 pub use config::*;
+pub use workflows_client::WorkflowClient;
