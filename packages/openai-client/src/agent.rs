@@ -18,9 +18,14 @@
 //!     .await?;
 //! ```
 
+use std::sync::Arc;
+
 use crate::tool::{ErasedTool, Tool, ToolCall};
 use crate::{OpenAIClient, OpenAIError, Result};
 use tracing::{debug, info, warn};
+
+/// Callback invoked after each tool execution with (tool_name, call_id, result_json).
+pub type OnToolResult = Arc<dyn Fn(&str, &str, &str) + Send + Sync>;
 
 /// Builder for creating an Agent.
 pub struct AgentBuilder<'a> {
@@ -30,6 +35,7 @@ pub struct AgentBuilder<'a> {
     tools: Vec<Box<dyn ErasedTool>>,
     max_iterations: usize,
     temperature: Option<f32>,
+    on_tool_result: Option<OnToolResult>,
 }
 
 impl<'a> AgentBuilder<'a> {
@@ -42,6 +48,7 @@ impl<'a> AgentBuilder<'a> {
             tools: Vec::new(),
             max_iterations: 10,
             temperature: None,
+            on_tool_result: None,
         }
     }
 
@@ -72,6 +79,17 @@ impl<'a> AgentBuilder<'a> {
         self
     }
 
+    /// Set a callback invoked after each tool execution.
+    ///
+    /// The callback receives `(tool_name, call_id, result_json)`.
+    pub fn on_tool_result(
+        mut self,
+        callback: impl Fn(&str, &str, &str) + Send + Sync + 'static,
+    ) -> Self {
+        self.on_tool_result = Some(Arc::new(callback));
+        self
+    }
+
     /// Build the agent.
     pub fn build(self) -> Agent<'a> {
         Agent {
@@ -81,6 +99,7 @@ impl<'a> AgentBuilder<'a> {
             tools: self.tools,
             max_iterations: self.max_iterations,
             temperature: self.temperature,
+            on_tool_result: self.on_tool_result,
         }
     }
 }
@@ -93,6 +112,7 @@ pub struct Agent<'a> {
     tools: Vec<Box<dyn ErasedTool>>,
     max_iterations: usize,
     temperature: Option<f32>,
+    on_tool_result: Option<OnToolResult>,
 }
 
 /// Response from an agent chat.
@@ -290,6 +310,11 @@ impl<'a> Agent<'a> {
                     result_preview = %truncate_for_log(&result, 200),
                     "Tool execution complete"
                 );
+
+                // Invoke on_tool_result callback if set
+                if let Some(ref callback) = self.on_tool_result {
+                    callback(&tc.name, &tc.id, &result);
+                }
 
                 // Add tool result to messages
                 messages.push(serde_json::json!({

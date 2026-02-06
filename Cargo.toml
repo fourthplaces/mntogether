@@ -4,6 +4,7 @@ members = [
     "packages/server",
     "packages/twilio-rs",
     "packages/extraction",
+    "packages/openai-client",
 ]
 
 [workspace.package]

@@ -516,9 +516,21 @@ impl Message {
         Ok(())
     }
 
-    // =============================================================================
-    // DEPRECATED - for backward compatibility with chatroom terminology
-    // =============================================================================
+    /// Count messages in a container since a given timestamp (for rate limiting)
+    pub async fn count_since(
+        container_id: ContainerId,
+        since: chrono::DateTime<chrono::Utc>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        let count = sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM messages WHERE container_id = $1 AND created_at >= $2",
+        )
+        .bind(container_id)
+        .bind(since)
+        .fetch_one(pool)
+        .await?;
+        Ok(count)
+    }
 }
 
 // =============================================================================

@@ -62,6 +62,16 @@ pub async fn send_message(
 ) -> Result<ChatEvent> {
     info!(container_id = %container_id, "Creating user message");
 
+    // Rate limit anonymous senders: max 10 messages per minute
+    if author_id.is_none() {
+        let one_minute_ago = chrono::Utc::now() - chrono::Duration::minutes(1);
+        let recent_count =
+            Message::count_since(container_id, one_minute_ago, &deps.db_pool).await?;
+        if recent_count >= 10 {
+            anyhow::bail!("Rate limit exceeded: too many messages. Please wait a moment.");
+        }
+    }
+
     // Get next sequence number
     let sequence_number = Message::next_sequence_number(container_id, &deps.db_pool).await?;
 

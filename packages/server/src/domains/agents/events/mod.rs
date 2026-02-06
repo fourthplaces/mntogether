@@ -15,6 +15,14 @@ pub enum ChatStreamEvent {
         in_reply_to: String,
     },
 
+    /// A tool produced results (e.g., search_posts returned resources)
+    ToolResult {
+        container_id: String,
+        tool_name: String,
+        call_id: String,
+        results: serde_json::Value,
+    },
+
     /// A token chunk from the streaming response
     TokenDelta { container_id: String, delta: String },
 

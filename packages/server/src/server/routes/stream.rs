@@ -33,28 +33,39 @@ pub struct StreamQuery {
 ///
 /// Auth: Reads JWT from `?token=` query param, falls back to Authorization header.
 /// Topic authorization: Extracts domain from topic prefix, verifies access.
+///
+/// Special case: `public_chat:{container_id}` topics skip JWT auth entirely.
+/// The container UUID serves as an unguessable access credential.
 pub async fn stream_handler(
     Extension(state): Extension<AxumAppState>,
     Path(topic): Path<String>,
     Query(query): Query<StreamQuery>,
     headers: HeaderMap,
 ) -> Result<Sse<impl futures::Stream<Item = Result<Event, Infallible>>>, StatusCode> {
-    // 1. Authenticate: query param first, then Authorization header fallback
-    let token = query.token.or_else(|| extract_bearer_token(&headers));
-    let token = token.ok_or(StatusCode::UNAUTHORIZED)?;
+    // Determine the internal StreamHub topic to subscribe to
+    let subscribe_topic = if let Some(container_id) = topic.strip_prefix("public_chat:") {
+        // Public chat: no auth required, subscribe to the internal chat topic
+        // Validate that it looks like a UUID to prevent abuse
+        uuid::Uuid::parse_str(container_id).map_err(|_| StatusCode::BAD_REQUEST)?;
+        format!("chat:{}", container_id)
+    } else {
+        // All other topics require JWT auth
+        let token = query.token.or_else(|| extract_bearer_token(&headers));
+        let token = token.ok_or(StatusCode::UNAUTHORIZED)?;
 
-    let claims = state
-        .jwt_service
-        .verify_token(&token)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+        let claims = state
+            .jwt_service
+            .verify_token(&token)
+            .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
-    // 2. Authorize: topic-level access check
-    authorize_topic(&topic, &claims).map_err(|_| StatusCode::FORBIDDEN)?;
+        authorize_topic(&topic, &claims).map_err(|_| StatusCode::FORBIDDEN)?;
+        topic.clone()
+    };
 
-    // 3. Subscribe to StreamHub
-    let rx = state.stream_hub.subscribe(&topic).await;
+    // Subscribe to StreamHub
+    let rx = state.stream_hub.subscribe(&subscribe_topic).await;
 
-    // 4. Stream with connected event and lag handling
+    // Stream with connected event and lag handling
     let connected =
         stream::once(async { Ok::<_, Infallible>(Event::default().event("connected").data("ok")) });
 

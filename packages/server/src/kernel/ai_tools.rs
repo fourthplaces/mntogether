@@ -166,12 +166,15 @@ pub struct SearchPostsArgs {
 /// A single post search result.
 #[derive(Debug, Serialize)]
 pub struct SearchPostOutput {
+    pub post_id: String,
     pub title: String,
     pub organization_name: String,
     pub description: String,
+    pub tldr: Option<String>,
     pub category: String,
     pub post_type: String,
     pub location: Option<String>,
+    pub source_url: Option<String>,
     pub similarity: f64,
 }
 
@@ -215,12 +218,15 @@ impl Tool for SearchPostsTool {
         Ok(results
             .into_iter()
             .map(|r| SearchPostOutput {
+                post_id: r.post_id.to_string(),
                 title: r.title,
                 organization_name: r.organization_name,
                 description: r.description,
+                tldr: r.tldr,
                 category: r.category,
                 post_type: r.post_type,
                 location: r.location,
+                source_url: r.source_url,
                 similarity: r.similarity,
             })
             .collect())

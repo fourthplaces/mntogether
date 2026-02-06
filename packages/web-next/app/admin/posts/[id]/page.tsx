@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useGraphQL, graphqlMutateClient, invalidateAllMatchingQuery } from "@/lib/graphql/client";
 import { GET_POST } from "@/lib/graphql/queries";
-import { ADD_POST_TAG, REMOVE_POST_TAG, REGENERATE_POST, DELETE_POST } from "@/lib/graphql/mutations";
+import { ADD_POST_TAG, REMOVE_POST_TAG, REGENERATE_POST, DELETE_POST, APPROVE_POST, REJECT_POST } from "@/lib/graphql/mutations";
 import { useState, useRef, useEffect } from "react";
 
 interface Tag {
@@ -63,6 +63,8 @@ export default function PostDetailPage() {
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -175,6 +177,32 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleApprove = async () => {
+    setActionInProgress("approve");
+    try {
+      await graphqlMutateClient(APPROVE_POST, { listingId: postId });
+      refetch();
+    } catch (err) {
+      console.error("Failed to approve post:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleReject = async () => {
+    setActionInProgress("reject");
+    setShowRejectModal(false);
+    try {
+      await graphqlMutateClient(REJECT_POST, { listingId: postId, reason: rejectReason || "Rejected by admin" });
+      setRejectReason("");
+      refetch();
+    } catch (err) {
+      console.error("Failed to reject post:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   if (isLoading) {
     return <AdminLoader label="Loading post..." />;
   }
@@ -235,6 +263,24 @@ export default function PostDetailPage() {
               <p className="text-lg text-stone-600">{post.organizationName}</p>
             </div>
             <div className="flex items-center gap-2">
+              {post.status === "pending_approval" && (
+                <>
+                  <button
+                    onClick={handleApprove}
+                    disabled={actionInProgress !== null}
+                    className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-full font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    {actionInProgress === "approve" ? "..." : "Approve"}
+                  </button>
+                  <button
+                    onClick={() => setShowRejectModal(true)}
+                    disabled={actionInProgress !== null}
+                    className="px-4 py-1.5 bg-red-600 text-white text-sm rounded-full font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                  >
+                    {actionInProgress === "reject" ? "..." : "Reject"}
+                  </button>
+                </>
+              )}
               <span
                 className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusBadgeClass(post.status)}`}
               >
@@ -506,6 +552,42 @@ export default function PostDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-stone-900 mb-4">Reject Post</h3>
+            <p className="text-sm text-stone-600 mb-4">
+              Are you sure you want to reject &quot;{post.title}&quot;? You can optionally provide a reason.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Reason for rejection (optional)"
+              className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4"
+              rows={3}
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleReject}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+              >
+                Reject
+              </button>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                }}
+                className="flex-1 px-4 py-2 bg-stone-200 text-stone-700 rounded hover:bg-stone-300"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -522,7 +522,12 @@ async fn stage_sync_operations(
                         }
                     }
 
-                    if !merge_source_ids.is_empty() {
+                    if merge_source_ids.is_empty() {
+                        tracing::warn!(
+                            canonical_id = %canonical_id,
+                            "LLM returned merge with no duplicate_ids, skipping"
+                        );
+                    } else {
                         proposed_ops.push(ProposedOperation {
                             operation: "merge".to_string(),
                             entity_type: "post".to_string(),
@@ -538,10 +543,17 @@ async fn stage_sync_operations(
         }
     }
 
+    // Build a summary that reflects what we actually staged
+    let actual_summary = if proposed_ops.is_empty() {
+        format!("No actionable operations (LLM suggested: {})", summary)
+    } else {
+        summary.to_string()
+    };
+
     let stage_result = stage_proposals(
         "post",
         website_id.into_uuid(),
-        Some(summary),
+        Some(&actual_summary),
         proposed_ops,
         pool,
     )
