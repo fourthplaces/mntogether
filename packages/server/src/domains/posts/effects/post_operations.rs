@@ -10,8 +10,9 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
 use crate::common::{MemberId, PostId, WebsiteId};
-use crate::domains::organization::utils::generate_tldr;
-use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+use crate::common::utils::generate_tldr;
+use crate::domains::contacts::Contact;
+use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 
 /// Input for updating and approving a post
 #[derive(Debug, Clone, TypedBuilder)]
@@ -82,7 +83,7 @@ pub async fn create_post(
 
     // Save contact info if provided
     if let Some(ref contact) = contact_info {
-        if let Err(e) = PostContact::create_from_json(post.id, contact, pool).await {
+        if let Err(e) = Contact::create_from_json_for_post(post.id, contact, pool).await {
             tracing::warn!(
                 post_id = %post.id,
                 error = %e,
@@ -124,9 +125,9 @@ pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool)
     // Update contact info if provided (replace existing)
     if let Some(ref contact) = input.contact_info {
         // Delete existing contacts first
-        PostContact::delete_all_for_post(input.post_id, pool).await?;
+        Contact::delete_all_for_post(input.post_id, pool).await?;
         // Create new contacts
-        if let Err(e) = PostContact::create_from_json(input.post_id, contact, pool).await {
+        if let Err(e) = Contact::create_from_json_for_post(input.post_id, contact, pool).await {
             tracing::warn!(
                 post_id = %input.post_id,
                 error = %e,
