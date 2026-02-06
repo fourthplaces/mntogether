@@ -3,7 +3,6 @@ use juniper::{GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
 
 use crate::common::ProviderId;
-use crate::domains::contacts::ContactData;
 use crate::domains::providers::models::Provider;
 use crate::domains::tag::TagData;
 use crate::server::graphql::context::GraphQLContext;
@@ -165,14 +164,8 @@ impl ProviderData {
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 
-    /// Get contacts for this provider
-    async fn contacts(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ContactData>> {
-        use crate::domains::contacts::Contact;
-
-        let provider_id = ProviderId::parse(&self.id)?;
-        let contacts = Contact::find_public_for_provider(provider_id, &context.db_pool).await?;
-        Ok(contacts.into_iter().map(ContactData::from).collect())
-    }
+    // Provider contacts were stored in the polymorphic contacts table which has been dropped.
+    // Provider contact functionality can be re-added with a dedicated provider_contacts table if needed.
 }
 
 /// Input for submitting a new provider

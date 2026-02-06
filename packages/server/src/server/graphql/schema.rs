@@ -7,7 +7,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 // Common types
-use crate::common::{ContainerId, PaginationArgs, PostId, WebsiteId};
+use crate::common::{ContainerId, PaginationArgs, PostId, ScheduleId, WebsiteId};
 
 // Domain actions
 use crate::domains::auth::actions as auth_actions;
@@ -41,8 +41,8 @@ use crate::domains::posts::data::post_report::{
 use crate::domains::posts::data::types::RepostResult;
 use crate::domains::posts::data::PostData;
 use crate::domains::posts::data::{
-    BusinessInfo, EditPostInput, PostConnection, PostStatusData, PostType, ScrapeJobResult,
-    SubmitPostInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
+    BusinessInfo, EditPostInput, NearbyPostType, PostConnection, PostStatusData, PostType,
+    ScrapeJobResult, SubmitPostInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 use crate::domains::providers::data::{
     ProviderConnection, ProviderData, SubmitProviderInput, UpdateProviderInput,
@@ -61,11 +61,11 @@ use crate::domains::sync::{SyncBatch, SyncProposal};
 
 // Domain models (for queries)
 use crate::domains::chatrooms::models::{Container, Message};
-use crate::domains::contacts::ContactData;
 use crate::domains::member::models::member::Member;
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::post_report::PostReportRecord;
 use crate::domains::posts::models::{BusinessPost, Post};
+use crate::domains::locations::models::{Schedule, ZipCode};
 use crate::domains::tag::{Tag, TagData, Taggable};
 use crate::domains::website::models::{Website, WebsiteAssessment};
 
@@ -179,6 +179,14 @@ pub struct BackfillPostEmbeddingsResult {
     pub remaining: i32,
 }
 
+/// Result of backfilling post locations
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+pub struct BackfillPostLocationsResult {
+    pub processed: i32,
+    pub failed: i32,
+    pub remaining: i32,
+}
+
 // =============================================================================
 // Helper functions
 // =============================================================================
@@ -210,6 +218,85 @@ async fn post_to_post_type(post: Post, pool: &PgPool) -> PostType {
     }
 
     post_type
+}
+
+// =============================================================================
+// Schedule GraphQL types
+// =============================================================================
+
+/// GraphQL type for a schedule entry
+#[derive(Debug, Clone, juniper::GraphQLObject)]
+#[graphql(context = GraphQLContext)]
+pub struct ScheduleData {
+    pub id: Uuid,
+    pub schedulable_type: String,
+    pub schedulable_id: Uuid,
+    pub dtstart: Option<String>,
+    pub dtend: Option<String>,
+    pub rrule: Option<String>,
+    pub exdates: Option<String>,
+    pub is_all_day: bool,
+    pub duration_minutes: Option<i32>,
+    pub day_of_week: Option<i32>,
+    pub opens_at: Option<String>,
+    pub closes_at: Option<String>,
+    pub timezone: String,
+    pub notes: Option<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl From<Schedule> for ScheduleData {
+    fn from(s: Schedule) -> Self {
+        Self {
+            id: s.id.into_uuid(),
+            schedulable_type: s.schedulable_type,
+            schedulable_id: s.schedulable_id,
+            dtstart: s.dtstart.map(|d| d.to_rfc3339()),
+            dtend: s.dtend.map(|d| d.to_rfc3339()),
+            rrule: s.rrule,
+            exdates: s.exdates,
+            is_all_day: s.is_all_day,
+            duration_minutes: s.duration_minutes,
+            day_of_week: s.day_of_week,
+            opens_at: s.opens_at.map(|t| t.format("%H:%M").to_string()),
+            closes_at: s.closes_at.map(|t| t.format("%H:%M").to_string()),
+            timezone: s.timezone,
+            notes: s.notes,
+            created_at: s.created_at.to_rfc3339(),
+            updated_at: s.updated_at.to_rfc3339(),
+        }
+    }
+}
+
+/// Input for creating or updating a schedule
+#[derive(Debug, Clone, juniper::GraphQLInputObject)]
+pub struct ScheduleInput {
+    pub dtstart: Option<String>,
+    pub dtend: Option<String>,
+    pub rrule: Option<String>,
+    pub exdates: Option<String>,
+    pub opens_at: Option<String>,
+    pub closes_at: Option<String>,
+    pub day_of_week: Option<i32>,
+    pub timezone: Option<String>,
+    pub is_all_day: Option<bool>,
+    pub duration_minutes: Option<i32>,
+    pub notes: Option<String>,
+}
+
+/// Extract a 5-digit zip code from location text
+fn extract_zip_from_text(text: &str) -> Option<String> {
+    let re = regex::Regex::new(r"\b(\d{5})\b").ok()?;
+    re.find(text).map(|m| m.as_str().to_string())
+}
+
+/// Extract a city name from location text (assumes "City, ST" or "City, State" pattern)
+fn extract_city_from_text(text: &str) -> Option<String> {
+    // Try "City, MN" or "City, Minnesota" pattern
+    let re = regex::Regex::new(r"(?i)^([A-Za-z\s]+),\s*(?:MN|Minnesota)").ok()?;
+    re.captures(text)
+        .map(|c| c.get(1).unwrap().as_str().trim().to_string())
 }
 
 pub struct Query;
@@ -368,6 +455,78 @@ impl Query {
             })?;
 
         Ok(reports.into_iter().map(|r| r.into()).collect())
+    }
+
+    /// Search for posts near a zip code (proximity search)
+    ///
+    /// Arguments:
+    /// - zip_code: Center zip code to search from (must be in reference table)
+    /// - radius_miles: Search radius in miles (default: 25, max: 100)
+    /// - limit: Maximum results to return (default: 50, max: 200)
+    async fn search_posts_nearby(
+        ctx: &GraphQLContext,
+        zip_code: String,
+        radius_miles: Option<f64>,
+        limit: Option<i32>,
+    ) -> FieldResult<Vec<NearbyPostType>> {
+        let radius = radius_miles.unwrap_or(25.0).min(100.0);
+        let limit = limit.unwrap_or(50).min(200);
+
+        // Validate zip exists in reference table
+        let center = ZipCode::find_by_code(&zip_code, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?
+            .ok_or_else(|| {
+                FieldError::new(
+                    format!("Zip code '{}' not found in reference table", zip_code),
+                    juniper::Value::null(),
+                )
+            })?;
+
+        let _ = center; // validated existence
+
+        let results = Post::find_near_zip(&zip_code, radius, limit, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        let nearby_posts: Vec<NearbyPostType> = results
+            .into_iter()
+            .map(|pwd| {
+                let post_type = PostType {
+                    id: pwd.id.into_uuid(),
+                    organization_name: pwd.organization_name,
+                    title: pwd.title,
+                    tldr: pwd.tldr,
+                    description: pwd.description,
+                    description_markdown: pwd.description_markdown,
+                    post_type: pwd.post_type,
+                    category: pwd.category,
+                    status: match pwd.status.as_str() {
+                        "pending_approval" => PostStatusData::PendingApproval,
+                        "active" => PostStatusData::Active,
+                        "rejected" => PostStatusData::Rejected,
+                        "expired" => PostStatusData::Expired,
+                        "filled" => PostStatusData::Filled,
+                        _ => PostStatusData::PendingApproval,
+                    },
+                    urgency: pwd.urgency,
+                    location: pwd.location,
+                    submission_type: pwd.submission_type,
+                    source_url: pwd.source_url,
+                    website_id: pwd.website_id.map(|id| id.into_uuid()),
+                    created_at: pwd.created_at,
+                    business_info: None,
+                };
+                NearbyPostType {
+                    post: post_type,
+                    distance_miles: pwd.distance_miles,
+                    zip_code: pwd.zip_code,
+                    city: pwd.location_city,
+                }
+            })
+            .collect();
+
+        Ok(nearby_posts)
     }
 
     // =========================================================================
@@ -810,7 +969,7 @@ impl Query {
         limit: Option<i32>,
     ) -> FieldResult<Vec<ContainerData>> {
         let limit = limit.unwrap_or(20) as i64;
-        let containers = Container::find_recent_by_type("ai_chat", limit, &ctx.db_pool).await?;
+        let containers = Container::find_recent(limit, &ctx.db_pool).await?;
         Ok(containers.into_iter().map(ContainerData::from).collect())
     }
 
@@ -1037,6 +1196,111 @@ impl Query {
             result.push(enrich_proposal(p, &ctx.db_pool).await);
         }
         Ok(result)
+    }
+
+    // =========================================================================
+    // Schedule / Event Queries
+    // =========================================================================
+
+    /// Get upcoming events: posts tagged `post_type: event` with schedules,
+    /// ordered by next occurrence (computed from rrule).
+    async fn upcoming_events(
+        ctx: &GraphQLContext,
+        first: Option<i32>,
+    ) -> FieldResult<Vec<PostType>> {
+        let limit = first.unwrap_or(20).min(100) as usize;
+
+        // Load all schedules attached to event-tagged posts
+        let schedules = Post::find_event_schedules(&ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        // Group by post, find earliest next occurrence per post
+        let mut post_next: std::collections::HashMap<Uuid, chrono::DateTime<chrono::Utc>> =
+            std::collections::HashMap::new();
+
+        for schedule in &schedules {
+            if let Some(next) = schedule.next_occurrences(1).into_iter().next() {
+                let entry = post_next.entry(schedule.schedulable_id).or_insert(next);
+                if next < *entry {
+                    *entry = next;
+                }
+            }
+        }
+
+        // Sort by next occurrence
+        let mut sorted: Vec<_> = post_next.into_iter().collect();
+        sorted.sort_by_key(|(_, next)| *next);
+        sorted.truncate(limit);
+
+        // Batch-load all posts in one query
+        let post_ids: Vec<Uuid> = sorted.iter().map(|(id, _)| *id).collect();
+        let loaded = Post::find_by_ids(&post_ids, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        // Index by ID to preserve sort order
+        let post_map: std::collections::HashMap<Uuid, Post> = loaded
+            .into_iter()
+            .map(|p| (p.id.into_uuid(), p))
+            .collect();
+
+        // Batch-load business info for business-type posts
+        let business_post_ids: Vec<Uuid> = post_map
+            .values()
+            .filter(|p| p.post_type == "business")
+            .map(|p| p.id.into_uuid())
+            .collect();
+        let business_map: std::collections::HashMap<Uuid, BusinessPost> = if business_post_ids.is_empty() {
+            std::collections::HashMap::new()
+        } else {
+            BusinessPost::find_by_post_ids(&business_post_ids, &ctx.db_pool)
+                .await
+                .unwrap_or_default()
+                .into_iter()
+                .map(|b| (b.post_id.into_uuid(), b))
+                .collect()
+        };
+
+        // Build PostType vec in sorted order
+        let posts: Vec<PostType> = sorted
+            .iter()
+            .filter_map(|(id, _)| {
+                post_map.get(id).map(|post| {
+                    let mut pt = PostType::from(post.clone());
+                    if let Some(business) = business_map.get(id) {
+                        pt.business_info = Some(BusinessInfo {
+                            accepts_donations: business.accepts_donations,
+                            donation_link: business.donation_link.clone(),
+                            gift_cards_available: business.gift_cards_available,
+                            gift_card_link: business.gift_card_link.clone(),
+                            online_ordering_link: business.online_ordering_link.clone(),
+                            delivery_available: business.delivery_available,
+                            proceeds_percentage: business.proceeds_percentage,
+                            proceeds_beneficiary_id: business.proceeds_beneficiary_id.map(|id| id.into_uuid()),
+                            proceeds_description: business.proceeds_description.clone(),
+                            impact_statement: business.impact_statement.clone(),
+                        });
+                    }
+                    pt
+                })
+            })
+            .collect();
+
+        Ok(posts)
+    }
+
+    /// Get schedules for a specific entity
+    async fn schedules_for_entity(
+        ctx: &GraphQLContext,
+        schedulable_type: String,
+        schedulable_id: Uuid,
+    ) -> FieldResult<Vec<ScheduleData>> {
+        let schedules = Schedule::find_for_entity(&schedulable_type, schedulable_id, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(schedules.into_iter().map(ScheduleData::from).collect())
     }
 }
 
@@ -1996,6 +2260,113 @@ impl Mutation {
         })
     }
 
+    /// Backfill location records for existing posts that have location text but no post_locations (admin only)
+    ///
+    /// Parses existing `location` text field to extract city/state/zip and creates
+    /// Location + PostLocation records.
+    async fn backfill_post_locations(
+        ctx: &GraphQLContext,
+        batch_size: Option<i32>,
+    ) -> FieldResult<BackfillPostLocationsResult> {
+        use crate::domains::locations::models::{Location, PostLocation};
+
+        let user = ctx
+            .auth_user
+            .as_ref()
+            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+
+        if !user.is_admin {
+            return Err(FieldError::new(
+                "Admin authorization required",
+                juniper::Value::null(),
+            ));
+        }
+
+        let batch_size = batch_size.unwrap_or(100).min(500) as i64;
+        info!(batch_size = %batch_size, "Backfilling post locations");
+
+        // Find active posts with location text but no post_locations record
+        let posts = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT p.* FROM posts p
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.location IS NOT NULL
+              AND p.location != ''
+              AND NOT EXISTS (
+                  SELECT 1 FROM post_locations pl WHERE pl.post_id = p.id
+              )
+            ORDER BY p.created_at DESC
+            LIMIT $1
+            "#,
+        )
+        .bind(batch_size)
+        .fetch_all(&ctx.db_pool)
+        .await
+        .map_err(|e| FieldError::new(format!("Failed to find posts: {}", e), juniper::Value::null()))?;
+
+        let mut processed = 0;
+        let mut failed = 0;
+
+        for post in &posts {
+            let location_text = post.location.as_deref().unwrap_or_default();
+
+            // Try to parse zip code from location text (look for 5-digit pattern)
+            let zip = extract_zip_from_text(location_text);
+            let city = extract_city_from_text(location_text);
+
+            if zip.is_none() && city.is_none() {
+                failed += 1;
+                continue;
+            }
+
+            match Location::find_or_create_from_extraction(
+                city.as_deref(),
+                Some("MN"),
+                zip.as_deref(),
+                None,
+                &ctx.db_pool,
+            )
+            .await
+            {
+                Ok(loc) => {
+                    if PostLocation::create(post.id, loc.id, true, None, &ctx.db_pool)
+                        .await
+                        .is_ok()
+                    {
+                        processed += 1;
+                    } else {
+                        failed += 1;
+                    }
+                }
+                Err(_) => {
+                    failed += 1;
+                }
+            }
+        }
+
+        let remaining = sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*) FROM posts p
+            WHERE p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL
+              AND p.location IS NOT NULL AND p.location != ''
+              AND NOT EXISTS (SELECT 1 FROM post_locations pl WHERE pl.post_id = p.id)
+            "#,
+        )
+        .fetch_one(&ctx.db_pool)
+        .await
+        .unwrap_or(0) as i32;
+
+        info!(processed, failed, remaining, "Post location backfill completed");
+
+        Ok(BackfillPostLocationsResult {
+            processed,
+            failed,
+            remaining,
+        })
+    }
+
     /// Deduplicate posts using embedding similarity (admin only)
     async fn deduplicate_posts(
         ctx: &GraphQLContext,
@@ -2645,8 +3016,6 @@ impl Mutation {
         let language = language.unwrap_or_else(|| "en".to_string());
 
         let event = chatroom_actions::create_container(
-            "ai_chat".to_string(),
-            None,
             language,
             member_id,
             with_agent,
@@ -2883,52 +3252,6 @@ impl Mutation {
         );
 
         provider_actions::remove_provider_tag(provider_id, tag_id, ctx.deps())
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(true)
-    }
-
-    /// Add a contact to a provider (admin only)
-    async fn add_provider_contact(
-        ctx: &GraphQLContext,
-        provider_id: String,
-        contact_type: String,
-        contact_value: String,
-        contact_label: Option<String>,
-        is_public: Option<bool>,
-        display_order: Option<i32>,
-    ) -> FieldResult<ContactData> {
-        ctx.require_admin()?;
-        info!(
-            "add_provider_contact mutation called: {} - {}:{}",
-            provider_id, contact_type, contact_value
-        );
-
-        let contact = provider_actions::add_provider_contact(
-            provider_id,
-            contact_type,
-            contact_value,
-            contact_label,
-            is_public,
-            display_order,
-            ctx.deps(),
-        )
-        .await
-        .map_err(to_field_error)?;
-
-        Ok(ContactData::from(contact))
-    }
-
-    /// Remove a contact (admin only)
-    async fn remove_provider_contact(
-        ctx: &GraphQLContext,
-        contact_id: String,
-    ) -> FieldResult<bool> {
-        ctx.require_admin()?;
-        info!("remove_provider_contact mutation called: {}", contact_id);
-
-        provider_actions::remove_provider_contact(contact_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -3228,6 +3551,184 @@ impl Mutation {
         .map_err(to_field_error)?;
 
         Ok(sync_batch_to_data(batch))
+    }
+
+    // =========================================================================
+    // Schedule Mutations (admin only)
+    // =========================================================================
+
+    /// Add a schedule to a post (admin only)
+    async fn add_post_schedule(
+        ctx: &GraphQLContext,
+        post_id: Uuid,
+        input: ScheduleInput,
+    ) -> FieldResult<ScheduleData> {
+        ctx.require_admin()?;
+
+        let timezone = input.timezone.as_deref().unwrap_or("America/Chicago");
+
+        let schedule = if let Some(ref rrule) = input.rrule {
+            // Recurring schedule
+            let dtstart = input.dtstart
+                .as_ref()
+                .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+                .transpose()
+                .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
+
+            let opens_at = input.opens_at
+                .as_ref()
+                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+                .transpose()
+                .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
+
+            let closes_at = input.closes_at
+                .as_ref()
+                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+                .transpose()
+                .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
+
+            Schedule::create_recurring(
+                "post",
+                post_id,
+                dtstart.unwrap_or_else(chrono::Utc::now),
+                rrule,
+                input.duration_minutes,
+                opens_at,
+                closes_at,
+                input.day_of_week,
+                timezone,
+                input.notes.as_deref(),
+                &ctx.db_pool,
+            )
+            .await
+            .map_err(to_field_error)?
+        } else if input.day_of_week.is_some() && input.dtstart.is_none() {
+            // Operating hours
+            let opens_at = input.opens_at
+                .as_ref()
+                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+                .transpose()
+                .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
+
+            let closes_at = input.closes_at
+                .as_ref()
+                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+                .transpose()
+                .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
+
+            Schedule::create_operating_hours(
+                "post",
+                post_id,
+                input.day_of_week.unwrap(),
+                opens_at,
+                closes_at,
+                timezone,
+                input.notes.as_deref(),
+                &ctx.db_pool,
+            )
+            .await
+            .map_err(to_field_error)?
+        } else {
+            // One-off event
+            let dtstart = input.dtstart
+                .as_ref()
+                .ok_or_else(|| FieldError::new("dtstart is required for one-off events", juniper::Value::null()))?
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
+
+            let dtend = input.dtend
+                .as_ref()
+                .ok_or_else(|| FieldError::new("dtend is required for one-off events", juniper::Value::null()))?
+                .parse::<chrono::DateTime<chrono::Utc>>()
+                .map_err(|e| FieldError::new(format!("Invalid dtend: {}", e), juniper::Value::null()))?;
+
+            let is_all_day = input.is_all_day.unwrap_or(false);
+
+            Schedule::create_one_off(
+                "post",
+                post_id,
+                dtstart,
+                dtend,
+                is_all_day,
+                timezone,
+                input.notes.as_deref(),
+                &ctx.db_pool,
+            )
+            .await
+            .map_err(to_field_error)?
+        };
+
+        Ok(ScheduleData::from(schedule))
+    }
+
+    /// Update a schedule (admin only)
+    async fn update_schedule(
+        ctx: &GraphQLContext,
+        schedule_id: Uuid,
+        input: ScheduleInput,
+    ) -> FieldResult<ScheduleData> {
+        ctx.require_admin()?;
+
+        let sid = ScheduleId::from(schedule_id);
+
+        let dtstart = input.dtstart
+            .as_ref()
+            .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+            .transpose()
+            .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
+
+        let dtend = input.dtend
+            .as_ref()
+            .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
+            .transpose()
+            .map_err(|e| FieldError::new(format!("Invalid dtend: {}", e), juniper::Value::null()))?;
+
+        let opens_at = input.opens_at
+            .as_ref()
+            .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+            .transpose()
+            .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
+
+        let closes_at = input.closes_at
+            .as_ref()
+            .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
+            .transpose()
+            .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
+
+        let schedule = Schedule::update(
+            sid,
+            dtstart,
+            dtend,
+            input.rrule.as_deref(),
+            input.exdates.as_deref(),
+            opens_at,
+            closes_at,
+            input.day_of_week,
+            input.is_all_day,
+            input.duration_minutes,
+            input.timezone.as_deref(),
+            input.notes.as_deref(),
+            &ctx.db_pool,
+        )
+        .await
+        .map_err(to_field_error)?;
+
+        Ok(ScheduleData::from(schedule))
+    }
+
+    /// Delete a schedule (admin only)
+    async fn delete_schedule(
+        ctx: &GraphQLContext,
+        schedule_id: Uuid,
+    ) -> FieldResult<bool> {
+        ctx.require_admin()?;
+
+        let sid = ScheduleId::from(schedule_id);
+        Schedule::delete(sid, &ctx.db_pool)
+            .await
+            .map_err(to_field_error)?;
+
+        Ok(true)
     }
 }
 

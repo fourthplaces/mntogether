@@ -1,9 +1,8 @@
-use crate::common::PostId;
 use crate::domains::extraction::data::ExtractionPageData;
 use crate::domains::posts::models::Post;
-use crate::domains::tag::models::Tag;
 use crate::domains::tag::TagData;
 use crate::server::graphql::context::GraphQLContext;
+use crate::server::graphql::schema::ScheduleData;
 use chrono::{DateTime, Utc};
 use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
@@ -81,10 +80,9 @@ impl PostType {
         self.business_info.as_ref()
     }
 
-    /// Get all tags for this listing
+    /// Get all tags for this listing (batched via DataLoader)
     async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
-        let post_id = PostId::from_uuid(self.id);
-        let tags = Tag::find_for_post(post_id, &context.db_pool).await?;
+        let tags = context.loaders.post_tags.load(self.id).await;
         Ok(tags.into_iter().map(TagData::from).collect())
     }
 
@@ -105,6 +103,29 @@ impl PostType {
             }
         }
         Ok(pages)
+    }
+
+    /// Get all schedules attached to this post (batched via DataLoader)
+    async fn schedules(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ScheduleData>> {
+        let schedules = context.loaders.post_schedules.load(self.id).await;
+        Ok(schedules.into_iter().map(ScheduleData::from).collect())
+    }
+
+    /// Next occurrence datetimes for this post (computed from rrule, not stored)
+    async fn next_occurrences(
+        &self,
+        context: &GraphQLContext,
+        limit: Option<i32>,
+    ) -> juniper::FieldResult<Vec<String>> {
+        let limit = limit.unwrap_or(10).min(100) as usize;
+        let schedules = context.loaders.post_schedules.load(self.id).await;
+        let mut dates: Vec<DateTime<Utc>> = schedules
+            .iter()
+            .flat_map(|s| s.next_occurrences(limit))
+            .collect();
+        dates.sort();
+        dates.truncate(limit);
+        Ok(dates.into_iter().map(|d| d.to_rfc3339()).collect())
     }
 }
 
@@ -153,6 +174,31 @@ impl From<Post> for PostType {
             created_at: post.created_at,
             business_info: None, // Populated by query layer when post_type = 'business'
         }
+    }
+}
+
+/// A post with distance info from proximity search
+#[derive(Debug, Clone)]
+pub struct NearbyPostType {
+    pub post: PostType,
+    pub distance_miles: f64,
+    pub zip_code: Option<String>,
+    pub city: Option<String>,
+}
+
+#[juniper::graphql_object(Context = GraphQLContext)]
+impl NearbyPostType {
+    fn post(&self) -> &PostType {
+        &self.post
+    }
+    fn distance_miles(&self) -> f64 {
+        self.distance_miles
+    }
+    fn zip_code(&self) -> Option<&str> {
+        self.zip_code.as_deref()
+    }
+    fn city(&self) -> Option<&str> {
+        self.city.as_deref()
     }
 }
 

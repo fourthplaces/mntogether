@@ -7,13 +7,11 @@ use crate::common::{
     ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId, MemberId, MessageId,
 };
 
-/// Container - generic message container for AI chat, listing comments, org discussions, etc.
+/// Container - generic message container for AI chat, post comments, etc.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Container {
     pub id: ContainerId,
-    pub container_type: String, // 'ai_chat', 'post_comments', 'org_discussion'
-    pub entity_id: Option<uuid::Uuid>, // post_id, organization_id, etc. (null for standalone chats)
-    pub language: String,       // language_code from active_languages
+    pub language: String, // language_code from active_languages
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
@@ -32,38 +30,6 @@ pub struct Message {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub edited_at: Option<DateTime<Utc>>,
-}
-
-/// Container type enum
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum ContainerType {
-    AiChat,
-    ListingComments,
-    OrgDiscussion,
-}
-
-impl std::fmt::Display for ContainerType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ContainerType::AiChat => write!(f, "ai_chat"),
-            ContainerType::ListingComments => write!(f, "post_comments"),
-            ContainerType::OrgDiscussion => write!(f, "org_discussion"),
-        }
-    }
-}
-
-impl std::str::FromStr for ContainerType {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "ai_chat" => Ok(ContainerType::AiChat),
-            "post_comments" => Ok(ContainerType::ListingComments),
-            "org_discussion" => Ok(ContainerType::OrgDiscussion),
-            _ => Err(anyhow::anyhow!("Invalid container type: {}", s)),
-        }
-    }
 }
 
 /// Message role enum
@@ -206,7 +172,7 @@ pub struct ReferralDocumentTranslation {
 pub struct DocumentReference {
     pub id: DocumentReferenceId,
     pub document_id: DocumentId,
-    pub reference_kind: String, // 'listing', 'organization', 'contact'
+    pub reference_kind: String, // 'post', 'organization', 'contact'
     pub reference_id: String,   // UUID as string
     pub referenced_at: DateTime<Utc>,
     pub display_order: i32,
@@ -216,7 +182,7 @@ pub struct DocumentReference {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum ReferenceKind {
-    Listing,
+    Post,
     Organization,
     Contact,
 }
@@ -224,7 +190,7 @@ pub enum ReferenceKind {
 impl std::fmt::Display for ReferenceKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ReferenceKind::Listing => write!(f, "listing"),
+            ReferenceKind::Post => write!(f, "post"),
             ReferenceKind::Organization => write!(f, "organization"),
             ReferenceKind::Contact => write!(f, "contact"),
         }
@@ -236,7 +202,7 @@ impl std::str::FromStr for ReferenceKind {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "listing" => Ok(ReferenceKind::Listing),
+            "post" => Ok(ReferenceKind::Post),
             "organization" => Ok(ReferenceKind::Organization),
             "contact" => Ok(ReferenceKind::Contact),
             _ => Err(anyhow::anyhow!("Invalid reference kind: {}", s)),
@@ -258,56 +224,18 @@ impl Container {
         Ok(container)
     }
 
-    /// Find container by type and entity
-    pub async fn find_by_entity(
-        container_type: &str,
-        entity_id: uuid::Uuid,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
-        let container = sqlx::query_as::<_, Container>(
-            "SELECT * FROM containers WHERE container_type = $1 AND entity_id = $2",
-        )
-        .bind(container_type)
-        .bind(entity_id)
-        .fetch_optional(pool)
-        .await?;
-        Ok(container)
-    }
-
-    /// Find or create container for an entity (e.g., listing comments)
-    pub async fn find_or_create(
-        container_type: String,
-        entity_id: Option<uuid::Uuid>,
-        language: String,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        // Try to find existing container
-        if let Some(eid) = entity_id {
-            if let Some(container) = Self::find_by_entity(&container_type, eid, pool).await? {
-                return Ok(container);
-            }
-        }
-
-        // Create new container
-        Self::create(container_type, entity_id, language, pool).await
-    }
-
     /// Create a new container
     pub async fn create(
-        container_type: String,
-        entity_id: Option<uuid::Uuid>,
         language: String,
         pool: &PgPool,
     ) -> Result<Self> {
         let container = sqlx::query_as::<_, Container>(
             r#"
-            INSERT INTO containers (container_type, entity_id, language)
-            VALUES ($1, $2, $3)
+            INSERT INTO containers (language)
+            VALUES ($1)
             RETURNING *
             "#,
         )
-        .bind(container_type)
-        .bind(entity_id)
         .bind(language)
         .fetch_one(pool)
         .await?;
@@ -330,23 +258,7 @@ impl Container {
         Ok(container)
     }
 
-    /// Find recent containers by type
-    pub async fn find_recent_by_type(
-        container_type: &str,
-        limit: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let containers = sqlx::query_as::<_, Container>(
-            "SELECT * FROM containers WHERE container_type = $1 ORDER BY last_activity_at DESC LIMIT $2",
-        )
-        .bind(container_type)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
-        Ok(containers)
-    }
-
-    /// Find all containers
+    /// Find recent containers
     pub async fn find_recent(limit: i64, pool: &PgPool) -> Result<Vec<Self>> {
         let containers = sqlx::query_as::<_, Container>(
             "SELECT * FROM containers ORDER BY last_activity_at DESC LIMIT $1",

@@ -2,6 +2,7 @@ pub mod actions;
 pub mod data;
 pub mod effects;
 pub mod events;
+pub mod loader;
 pub mod models;
 
 // Re-export data types (GraphQL types)

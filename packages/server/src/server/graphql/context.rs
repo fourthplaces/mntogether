@@ -8,6 +8,7 @@ use twilio::TwilioService;
 use crate::common::AppState;
 use crate::domains::auth::JwtService;
 use crate::kernel::{OpenAIClient, ServerDeps};
+use crate::server::graphql::loaders::DataLoaders;
 use crate::server::middleware::AuthUser;
 
 /// The seesaw QueueEngine type used by this application.
@@ -31,6 +32,7 @@ pub struct GraphQLContext {
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
     pub openai_client: Arc<OpenAIClient>,
+    pub loaders: Arc<DataLoaders>,
 }
 
 impl juniper::Context for GraphQLContext {}
@@ -44,6 +46,7 @@ impl GraphQLContext {
         twilio: Arc<TwilioService>,
         jwt_service: Arc<JwtService>,
         openai_client: Arc<OpenAIClient>,
+        loaders: Arc<DataLoaders>,
     ) -> Self {
         Self {
             db_pool,
@@ -53,6 +56,7 @@ impl GraphQLContext {
             twilio,
             jwt_service,
             openai_client,
+            loaders,
         }
     }
 

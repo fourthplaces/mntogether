@@ -27,7 +27,7 @@ use crate::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
 use crate::server::graphql::context::AppQueueEngine;
-use crate::server::graphql::{create_schema, GraphQLContext};
+use crate::server::graphql::{create_schema, DataLoaders, GraphQLContext};
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
 use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
@@ -69,6 +69,9 @@ async fn create_graphql_context(
     // Extract auth user from request extensions (populated by jwt_auth_middleware)
     let auth_user = request.extensions().get::<AuthUser>().cloned();
 
+    // Create per-request DataLoaders for batching N+1 queries
+    let loaders = Arc::new(DataLoaders::new(Arc::new(state.db_pool.clone())));
+
     // Create GraphQL context with shared state + per-request auth
     let context = GraphQLContext::new(
         state.db_pool.clone(),
@@ -78,6 +81,7 @@ async fn create_graphql_context(
         state.twilio.clone(),
         state.jwt_service.clone(),
         state.openai_client.clone(),
+        loaders,
     );
 
     // Add context to request extensions

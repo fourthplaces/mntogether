@@ -7,8 +7,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 use uuid::Uuid;
 
-use crate::common::{ContactId, MemberId, ProviderId, TagId};
-use crate::domains::contacts::{Contact, CreateContactForProvider};
+use crate::common::{MemberId, ProviderId, TagId};
 use crate::domains::providers::data::{SubmitProviderInput, UpdateProviderInput};
 use crate::domains::providers::events::ProviderEvent;
 use crate::domains::providers::models::{CreateProvider, Provider, UpdateProvider};
@@ -186,52 +185,9 @@ pub async fn remove_provider_tag(
     Ok(true)
 }
 
-/// Add a contact to a provider (admin only)
-/// No event - direct CRUD operation.
-pub async fn add_provider_contact(
-    provider_id: String,
-    contact_type: String,
-    contact_value: String,
-    contact_label: Option<String>,
-    is_public: Option<bool>,
-    display_order: Option<i32>,
-    deps: &ServerDeps,
-) -> Result<Contact> {
-    let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
-
-    info!(provider_id = %id, contact_type = %contact_type, "Adding provider contact");
-
-    let contact = Contact::create_for_provider(
-        CreateContactForProvider::builder()
-            .provider_id(id)
-            .contact_type(contact_type)
-            .contact_value(contact_value)
-            .contact_label(contact_label)
-            .is_public(is_public.unwrap_or(true))
-            .display_order(display_order.unwrap_or(0))
-            .build(),
-        &deps.db_pool,
-    )
-    .await?;
-
-    Ok(contact)
-}
-
-/// Remove a contact from a provider (admin only)
-/// No event - direct CRUD operation.
-pub async fn remove_provider_contact(contact_id: String, deps: &ServerDeps) -> Result<bool> {
-    let id = ContactId::parse(&contact_id).context("Invalid contact ID")?;
-
-    info!(contact_id = %id, "Removing provider contact");
-
-    Contact::delete(id, &deps.db_pool).await?;
-
-    Ok(true)
-}
-
 /// Delete a provider (admin only)
 ///
-/// Returns ProviderDeleted event which triggers cascade cleanup of contacts and tags
+/// Returns ProviderDeleted event which triggers cascade cleanup of tags
 /// via the provider effect handler.
 pub async fn delete_provider(provider_id: String, deps: &ServerDeps) -> Result<ProviderEvent> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;

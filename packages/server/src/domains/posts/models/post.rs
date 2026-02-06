@@ -8,6 +8,7 @@ use uuid::Uuid;
 use crate::common::{
     ContainerId, OrganizationId, PaginationDirection, PostId, ValidatedPaginationArgs, WebsiteId,
 };
+use crate::domains::locations::models::Schedule;
 
 /// Listing - a service, opportunity, or business listing
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -60,6 +61,9 @@ pub struct Post {
 
     // Revision tracking (for draft mode)
     pub revision_of_post_id: Option<PostId>,
+
+    // Comments container (inverted FK from containers table)
+    pub comments_container_id: Option<ContainerId>,
 }
 
 /// Search result from semantic similarity search
@@ -72,6 +76,29 @@ pub struct PostSearchResult {
     pub category: String,
     pub post_type: String,
     pub similarity: f64,
+}
+
+/// Post with distance info for proximity search
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostWithDistance {
+    pub id: PostId,
+    pub organization_name: String,
+    pub title: String,
+    pub description: String,
+    pub description_markdown: Option<String>,
+    pub tldr: Option<String>,
+    pub post_type: String,
+    pub category: String,
+    pub status: String,
+    pub urgency: Option<String>,
+    pub location: Option<String>,
+    pub submission_type: Option<String>,
+    pub source_url: Option<String>,
+    pub website_id: Option<WebsiteId>,
+    pub created_at: DateTime<Utc>,
+    pub zip_code: Option<String>,
+    pub location_city: Option<String>,
+    pub distance_miles: f64,
 }
 
 /// Search result with location info (for chat agent tool)
@@ -303,6 +330,17 @@ pub struct UpdatePostContent {
 // =============================================================================
 
 impl Post {
+    /// Batch-load posts by IDs (for DataLoader)
+    pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL",
+        )
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find listing by ID
     pub async fn find_by_id(id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = $1")
@@ -752,46 +790,38 @@ impl Post {
         Ok(post)
     }
 
-    /// Get or create a comments container for this listing
+    /// Get or create a comments container for this post
     pub async fn get_or_create_comments_container(&self, pool: &PgPool) -> Result<ContainerId> {
-        // Check if container already exists
-        let existing: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT id FROM containers WHERE container_type = 'post_comments' AND entity_id = $1",
-        )
-        .bind(self.id.as_uuid())
-        .fetch_optional(pool)
-        .await?;
-
-        if let Some(container_id) = existing {
-            return Ok(ContainerId::from(container_id));
+        // Return existing container if set
+        if let Some(container_id) = self.comments_container_id {
+            return Ok(container_id);
         }
 
-        // Create new container
+        // Create new container and set the FK on this post
         let container_id: uuid::Uuid = sqlx::query_scalar(
             r#"
-            INSERT INTO containers (container_type, entity_id, language)
-            VALUES ('post_comments', $1, $2)
+            INSERT INTO containers (language)
+            VALUES ($1)
             RETURNING id
             "#,
         )
-        .bind(self.id.as_uuid())
         .bind(&self.source_language)
         .fetch_one(pool)
         .await?;
+
+        // Update the post with the new container ID
+        sqlx::query("UPDATE posts SET comments_container_id = $1 WHERE id = $2")
+            .bind(container_id)
+            .bind(self.id)
+            .execute(pool)
+            .await?;
 
         Ok(ContainerId::from(container_id))
     }
 
     /// Get comments container ID if it exists
-    pub async fn get_comments_container_id(&self, pool: &PgPool) -> Result<Option<ContainerId>> {
-        let container_id: Option<uuid::Uuid> = sqlx::query_scalar(
-            "SELECT id FROM containers WHERE container_type = 'post_comments' AND entity_id = $1",
-        )
-        .bind(self.id.as_uuid())
-        .fetch_optional(pool)
-        .await?;
-
-        Ok(container_id.map(ContainerId::from))
+    pub fn get_comments_container_id(&self) -> Option<ContainerId> {
+        self.comments_container_id
     }
 
     // =========================================================================
@@ -959,6 +989,46 @@ impl Post {
         Ok(revisions)
     }
 
+    /// Find active posts near a zip code, ordered by distance
+    pub async fn find_near_zip(
+        center_zip: &str,
+        radius_miles: f64,
+        limit: i32,
+        pool: &PgPool,
+    ) -> Result<Vec<PostWithDistance>> {
+        sqlx::query_as::<_, PostWithDistance>(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT p.id, p.organization_name, p.title, p.description,
+                   p.description_markdown, p.tldr,
+                   p.post_type, p.category, p.status, p.urgency,
+                   p.location, p.submission_type, p.source_url,
+                   p.website_id, p.created_at,
+                   l.postal_code as zip_code, l.city as location_city,
+                   haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
+            FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            CROSS JOIN center c
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+            ORDER BY distance_miles ASC
+            LIMIT $3
+            "#,
+        )
+        .bind(center_zip)
+        .bind(radius_miles)
+        .bind(limit)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find revision for a specific post (if any)
     pub async fn find_revision_for_post(post_id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let revision = sqlx::query_as::<_, Post>(
@@ -1027,5 +1097,26 @@ impl Post {
         Self::delete(revision_id, pool).await?;
 
         Ok(updated)
+    }
+
+    // =========================================================================
+    // Event Schedule Queries (joins against tags)
+    // =========================================================================
+
+    /// Find schedules for posts that have the `post_type: event` tag.
+    /// Used by the upcoming_events query.
+    pub async fn find_event_schedules(pool: &PgPool) -> Result<Vec<Schedule>> {
+        sqlx::query_as::<_, Schedule>(
+            r#"
+            SELECT s.* FROM schedules s
+            INNER JOIN taggables tg ON tg.taggable_type = 'post' AND tg.taggable_id = s.schedulable_id
+            INNER JOIN tags t ON t.id = tg.tag_id
+            WHERE s.schedulable_type = 'post'
+              AND t.kind = 'post_type' AND t.value = 'event'
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 }

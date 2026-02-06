@@ -101,7 +101,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
               AND NOT EXISTS (
                 SELECT 1 FROM taggables tg
                 JOIN tags t ON t.id = tg.tag_id
-                WHERE tg.taggable_type = 'listing'
+                WHERE tg.taggable_type = 'post'
                   AND tg.taggable_id = l.id
                   AND t.kind = 'audience_role'
               )
@@ -125,7 +125,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
                       AND NOT EXISTS (
                         SELECT 1 FROM taggables tg
                         JOIN tags t ON t.id = tg.tag_id
-                        WHERE tg.taggable_type = 'listing'
+                        WHERE tg.taggable_type = 'post'
                           AND tg.taggable_id = l.id
                           AND t.kind = 'audience_role'
                       )
@@ -147,7 +147,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
                       AND NOT EXISTS (
                         SELECT 1 FROM taggables tg
                         JOIN tags t ON t.id = tg.tag_id
-                        WHERE tg.taggable_type = 'listing'
+                        WHERE tg.taggable_type = 'post'
                           AND tg.taggable_id = l.id
                           AND t.kind = 'audience_role'
                       )
@@ -188,7 +188,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
             SELECT COUNT(*)
             FROM taggables tg
             JOIN tags t ON t.id = tg.tag_id
-            WHERE tg.taggable_type = 'listing'
+            WHERE tg.taggable_type = 'post'
               AND tg.taggable_id = $1
               AND t.kind = 'audience_role'
             "#,
@@ -250,7 +250,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
             sqlx::query(
                 r#"
                 INSERT INTO taggables (tag_id, taggable_type, taggable_id)
-                VALUES ($1, 'listing', $2)
+                VALUES ($1, 'post', $2)
                 ON CONFLICT (tag_id, taggable_type, taggable_id) DO NOTHING
                 "#,
             )
@@ -280,7 +280,7 @@ impl DataMigration for BackfillAudienceRolesMigration {
               AND NOT EXISTS (
                 SELECT 1 FROM taggables tg
                 JOIN tags t ON t.id = tg.tag_id
-                WHERE tg.taggable_type = 'listing'
+                WHERE tg.taggable_type = 'post'
                   AND tg.taggable_id = l.id
                   AND t.kind = 'audience_role'
               )

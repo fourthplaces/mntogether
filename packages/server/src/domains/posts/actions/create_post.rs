@@ -9,6 +9,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::common::{ContactInfo, ExtractedPost, PostId, WebsiteId};
+use crate::domains::locations::models::{Location, PostLocation};
 use crate::domains::posts::models::{CreatePost, Post, PostContact};
 use crate::domains::tag::models::{Tag, Taggable};
 
@@ -73,6 +74,11 @@ pub async fn create_extracted_post(
     // Tag post with audience roles
     tag_with_audience_roles(created.id, &post.audience_roles, pool).await;
 
+    // Create structured location if zip/city/state available
+    if post.zip_code.is_some() || post.city.is_some() {
+        create_post_location(&created, post, pool).await;
+    }
+
     // Link post to source page snapshot
     if let Some(page_snapshot_id) = post.source_page_snapshot_id {
         link_to_page_source(created.id, page_snapshot_id, pool).await;
@@ -125,6 +131,38 @@ pub async fn tag_with_audience_roles(post_id: PostId, audience_roles: &[String],
                     "Failed to look up audience role tag"
                 );
             }
+        }
+    }
+}
+
+/// Create a Location and link it to the post.
+async fn create_post_location(post: &Post, extracted: &ExtractedPost, pool: &PgPool) {
+    let location = Location::find_or_create_from_extraction(
+        extracted.city.as_deref(),
+        extracted.state.as_deref(),
+        extracted.zip_code.as_deref(),
+        None,
+        pool,
+    )
+    .await;
+
+    match location {
+        Ok(loc) => {
+            if let Err(e) = PostLocation::create(post.id, loc.id, true, None, pool).await {
+                warn!(
+                    post_id = %post.id,
+                    location_id = %loc.id,
+                    error = %e,
+                    "Failed to link post to location"
+                );
+            }
+        }
+        Err(e) => {
+            warn!(
+                post_id = %post.id,
+                error = %e,
+                "Failed to create location from extraction"
+            );
         }
     }
 }

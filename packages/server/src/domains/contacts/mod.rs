@@ -1,6 +1,5 @@
 pub mod data;
 pub mod models;
 
-// Re-export commonly used types
-pub use data::ContactData;
-pub use models::{Contact, ContactType, ContactableType, CreateContact, CreateContactForProvider};
+// ContactType moved to posts::models::post_contact
+pub use models::ContactType;

@@ -67,6 +67,7 @@ md5 = "0.7"
 
 # Database
 sqlx = { workspace = true, features = ["migrate"] }
+dataloader = "0.18"
 pgvector = { version = "0.4", features = ["sqlx", "serde"] }
 
 # AI / LLM - via extraction library
@@ -99,6 +100,9 @@ htmd = "0.1"            # HTML to Markdown conversion
 
 # Cron jobs
 tokio-cron-scheduler = "0.10"
+
+# RFC 5545 recurrence rules (calendar events)
+rrule = "0.14"
 
 # Static file embedding
 rust-embed = "8.0"
