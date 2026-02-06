@@ -33,8 +33,9 @@ RUN mkdir -p packages/server/src && \
 # Build dependencies (cached layer)
 RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin server
 
-# Remove dummy src files
-RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src
+# Remove dummy src files and compiled artifacts so cargo detects source changes
+RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src && \
+    rm -f target/release/server target/release/deps/server_core-* target/release/deps/libserver_core-*
 
 # Copy real source code for packages we actually build
 COPY packages/server/src ./packages/server/src
@@ -43,8 +44,9 @@ COPY packages/twilio-rs/src ./packages/twilio-rs/src
 COPY packages/extraction/src ./packages/extraction/src
 COPY packages/openai-client/src ./packages/openai-client/src
 
-# Build the actual application
-RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin server
+# Build the actual application (touch lib.rs to force recompilation)
+RUN touch packages/server/src/lib.rs packages/twilio-rs/src/lib.rs packages/extraction/src/lib.rs packages/openai-client/src/lib.rs && \
+    cargo build --release --manifest-path packages/server/Cargo.toml --bin server
 
 # Runtime stage
 FROM debian:bookworm-slim
