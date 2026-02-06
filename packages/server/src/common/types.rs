@@ -43,7 +43,7 @@ pub struct ExtractedPost {
 impl ExtractedPost {
     /// Combine a NarrativePost with investigation info into a complete ExtractedPost.
     pub fn from_narrative_and_info(
-        narrative: crate::domains::crawling::actions::post_extraction::NarrativePost,
+        narrative: crate::domains::crawling::activities::post_extraction::NarrativePost,
         info: ExtractedPostInformation,
     ) -> Self {
         Self {

@@ -23,7 +23,7 @@ use std::sync::Arc;
 use tokio_cron_scheduler::{Job, JobScheduler};
 
 use crate::common::MemberId;
-use crate::domains::crawling::actions::ingest_website;
+use crate::domains::crawling::activities::ingest_website;
 use crate::domains::discovery::actions::run_discovery;
 use crate::domains::member::models::member::Member;
 use crate::domains::website::models::Website;

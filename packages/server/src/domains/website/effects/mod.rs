@@ -10,7 +10,7 @@ use seesaw_core::{effect, effects, EffectContext};
 use tracing::info;
 
 use crate::common::{AppState, MemberId, WebsiteId};
-use crate::domains::crawling::actions as crawling_actions;
+use crate::domains::crawling::activities as crawling_actions;
 use crate::domains::website::events::WebsiteEvent;
 use crate::kernel::ServerDeps;
 

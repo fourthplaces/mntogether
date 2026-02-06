@@ -12,7 +12,7 @@ use crate::common::{ContainerId, PaginationArgs, PostId, ScheduleId, WebsiteId};
 // Domain actions
 use crate::domains::auth::actions as auth_actions;
 use crate::domains::chatrooms::actions as chatroom_actions;
-use crate::domains::crawling::actions as crawling_actions;
+use crate::domains::crawling::activities as crawling_actions;
 use crate::domains::discovery::actions as discovery_actions;
 use crate::domains::discovery::models::{
     DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,

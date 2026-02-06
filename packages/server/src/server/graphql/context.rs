@@ -1,7 +1,5 @@
 use std::sync::Arc;
 
-use seesaw_core::Engine;
-use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 use twilio::TwilioService;
 
@@ -11,22 +9,18 @@ use crate::kernel::{OpenAIClient, ServerDeps};
 use crate::server::graphql::loaders::DataLoaders;
 use crate::server::middleware::AuthUser;
 
-/// The seesaw QueueEngine type used by this application.
-///
-/// All events (sync + async) go through the queue-backed engine.
-/// EventWorkers process events, run reducers, and dispatch to effects.
-/// EffectWorkers execute queued effects with retry/timeout.
-pub type AppQueueEngine = Engine<AppState, ServerDeps, PostgresStore>;
+// TODO: Add Restate workflow client type
+// pub type WorkflowClient = restate_sdk::RestateClient;
 
 /// GraphQL request context
 ///
 /// Contains shared resources available to all resolvers.
-/// Mutations call actions directly with `ctx.deps()`, then publish
-/// fact events via `ctx.queue_engine.process(event)` for cascading effects.
+/// Mutations trigger Restate workflows for durable, multi-step processes.
 #[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
-    pub queue_engine: Arc<AppQueueEngine>,
+    // TODO: Add workflow client
+    // pub workflow_client: Arc<WorkflowClient>,
     pub server_deps: Arc<ServerDeps>,
     pub auth_user: Option<AuthUser>,
     pub twilio: Arc<TwilioService>,
@@ -40,7 +34,6 @@ impl juniper::Context for GraphQLContext {}
 impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
-        queue_engine: Arc<AppQueueEngine>,
         server_deps: Arc<ServerDeps>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
@@ -50,7 +43,6 @@ impl GraphQLContext {
     ) -> Self {
         Self {
             db_pool,
-            queue_engine,
             server_deps,
             auth_user,
             twilio,
