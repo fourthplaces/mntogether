@@ -38,7 +38,7 @@ use crate::server::routes::{
 // Import #[effects] module handlers from unmigrated domains
 // TODO: Remove these as domains are migrated to Restate workflows
 use crate::domains::agents::effects::handlers as agent_handlers;
-use crate::domains::auth::effects::handlers as auth_handlers;
+// auth domain migrated to workflows - no longer using effects
 // crawling domain migrated to workflows - no longer using effects
 use crate::domains::member::effects::handlers as member_handlers;
 use crate::domains::posts::effects::handlers as post_handlers;
@@ -204,10 +204,10 @@ pub async fn build_app(
     // TODO: Remove this once all domains migrated to Restate
     let seesaw_store = PostgresStore::new(pool.clone());
     let queue_engine = Engine::new(server_deps, seesaw_store)
-        .with_effect(seesaw_core::effect::group(auth_handlers::effects()))
         .with_effect(seesaw_core::effect::group(member_handlers::effects()))
         .with_effect(seesaw_core::effect::group(agent_handlers::effects()))
         .with_effect(seesaw_core::effect::group(website_handlers::effects()))
+        // auth domain migrated - no longer using effects
         // crawling domain migrated - no longer using effects
         .with_effect(seesaw_core::effect::group(post_handlers::effects()))
         .with_effect(seesaw_core::effect::group(approval_handlers::effects()))

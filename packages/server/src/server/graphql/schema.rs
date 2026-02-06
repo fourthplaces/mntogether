@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::common::{ContainerId, PaginationArgs, PostId, ScheduleId, WebsiteId};
 
 // Domain actions
-use crate::domains::auth::actions as auth_actions;
+use crate::domains::auth::activities as auth_activities;
 use crate::domains::chatrooms::actions as chatroom_actions;
 use crate::domains::crawling::activities as crawling_actions;
 use crate::domains::discovery::actions as discovery_actions;
@@ -1340,7 +1340,7 @@ impl Mutation {
             .can(AdminCapability::TriggerScraping)
             .check(ctx.deps())
             .await
-            .map_err(to_field_error)?;
+            .map_err(|e| to_field_error(e.into()))?;
 
         let visitor_id = user.member_id.into_uuid();
 
@@ -2310,6 +2310,8 @@ impl Mutation {
         ctx: &GraphQLContext,
         phone_number: String,
     ) -> FieldResult<bool> {
+        use crate::domains::auth::workflows::{SendOtpRequest, SendOtpResult};
+
         let is_phone = phone_number.starts_with('+');
         let is_email = phone_number.contains('@');
 
@@ -2320,27 +2322,19 @@ impl Mutation {
             ));
         }
 
-        let phone = phone_number.clone();
-
-        let event = auth_actions::send_otp(phone, ctx.deps())
+        // Invoke Restate workflow
+        let result: SendOtpResult = ctx
+            .workflow_client
+            .invoke("SendOtp", "run", SendOtpRequest {
+                phone_number: phone_number.clone(),
+            })
             .await
             .map_err(|e| {
-                // Check for NotAuthorizedError specifically
-                if e.downcast_ref::<auth_actions::NotAuthorizedError>()
-                    .is_some()
-                {
-                    return FieldError::new("Not authorized", juniper::Value::null());
-                }
                 error!(error = %e, "Failed to send OTP");
                 FieldError::new(e.to_string(), juniper::Value::null())
             })?;
 
-        ctx.queue_engine
-            .process(event)
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(true)
+        Ok(result.success)
     }
 
     /// Verify OTP code and create session
@@ -2349,24 +2343,19 @@ impl Mutation {
         phone_number: String,
         code: String,
     ) -> FieldResult<String> {
-        use crate::domains::auth::events::AuthEvent;
+        use crate::domains::auth::workflows::{VerifyOtpRequest, VerifyOtpResult};
 
-        let event = auth_actions::verify_otp(phone_number, code, ctx.deps())
+        // Invoke Restate workflow
+        let result: VerifyOtpResult = ctx
+            .workflow_client
+            .invoke("VerifyOtp", "run", VerifyOtpRequest {
+                phone_number,
+                code,
+            })
             .await
             .map_err(to_field_error)?;
 
-        ctx.queue_engine
-            .process(event.clone())
-            .await
-            .map_err(to_field_error)?;
-
-        match event {
-            AuthEvent::OTPVerified { token, .. } => Ok(token),
-            _ => Err(FieldError::new(
-                "Unexpected event type",
-                juniper::Value::null(),
-            )),
-        }
+        Ok(result.token)
     }
 
     /// Logout (delete session)
