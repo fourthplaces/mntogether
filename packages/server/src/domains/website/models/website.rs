@@ -481,6 +481,32 @@ impl Website {
         Ok(website)
     }
 
+    /// Record crawl completion with page count
+    pub async fn record_crawl_completed(
+        id: WebsiteId,
+        pages_crawled: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET
+                pages_crawled_count = $2,
+                crawl_status = 'completed',
+                last_crawl_completed_at = NOW(),
+                last_scraped_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(pages_crawled)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
     /// Reset crawl status to pending for retry
     pub async fn reset_for_retry(id: WebsiteId, pool: &PgPool) -> Result<()> {
         sqlx::query(

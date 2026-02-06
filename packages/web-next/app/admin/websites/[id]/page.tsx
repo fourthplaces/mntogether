@@ -16,7 +16,7 @@ interface Tag {
   displayName: string | null;
 }
 
-interface Listing {
+interface PostSummary {
   id: string;
   title: string;
   status: string;
@@ -52,7 +52,7 @@ interface WebsiteDetail {
   pagesCrawledCount: number | null;
   maxPagesPerCrawl: number | null;
   snapshots: Snapshot[];
-  listings: Listing[];
+  listings: PostSummary[];
 }
 
 interface Assessment {
@@ -87,12 +87,12 @@ interface DiscoverySource {
   discoveredAt: string;
 }
 
-type TabType = "listings" | "snapshots" | "assessment" | "discovery";
+type TabType = "posts" | "snapshots" | "assessment" | "discovery";
 
 export default function WebsiteDetailPage() {
   const params = useParams();
   const websiteId = params.id as string;
-  const [activeTab, setActiveTab] = useState<TabType>("snapshots");
+  const [activeTab, setActiveTab] = useState<TabType>("posts");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -129,8 +129,6 @@ export default function WebsiteDetailPage() {
   const discoverySources = discoveryData?.websiteDiscoverySources || [];
 
   const handleApprove = async () => {
-    if (!confirm("Approve this website for crawling?")) return;
-
     setActionInProgress("approve");
     try {
       await graphqlMutateClient(APPROVE_WEBSITE, { websiteId });
@@ -145,12 +143,9 @@ export default function WebsiteDetailPage() {
   };
 
   const handleReject = async () => {
-    const reason = prompt("Reason for rejection:");
-    if (reason === null) return;
-
     setActionInProgress("reject");
     try {
-      await graphqlMutateClient(REJECT_WEBSITE, { websiteId, reason: reason || "Rejected" });
+      await graphqlMutateClient(REJECT_WEBSITE, { websiteId, reason: "Rejected" });
       invalidateAllMatchingQuery(GET_ALL_WEBSITES);
       refetchWebsite();
     } catch (err) {
@@ -275,7 +270,17 @@ export default function WebsiteDetailPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h1 className="text-2xl font-bold text-stone-900 mb-2">{website.domain}</h1>
+              <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-2xl font-bold text-stone-900">{website.domain}</h1>
+                <a
+                  href={`https://${website.domain}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-blue-600 hover:text-blue-800"
+                >
+                  Visit site {"\u2197"}
+                </a>
+              </div>
               <span className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusColor(website.status)}`}>
                 {website.status}
               </span>
@@ -342,7 +347,7 @@ export default function WebsiteDetailPage() {
             <div>
               <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
               <p className="text-lg font-semibold text-stone-900">
-                {website.pagesCrawledCount || 0} / {website.maxPagesPerCrawl || 20}
+                {website.pagesCrawledCount || 0} / {website.maxPagesPerCrawl || 40}
               </p>
             </div>
             <div>
@@ -378,7 +383,7 @@ export default function WebsiteDetailPage() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
             <nav className="flex">
-              {(["snapshots", "listings", "assessment", "discovery"] as TabType[]).map((tab) => (
+              {(["posts", "snapshots", "assessment", "discovery"] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -390,7 +395,7 @@ export default function WebsiteDetailPage() {
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   {tab === "snapshots" && ` (${website.snapshots.length})`}
-                  {tab === "listings" && ` (${website.listings.length})`}
+                  {tab === "posts" && ` (${website.listings.length})`}
                   {tab === "discovery" && ` (${discoverySources.length})`}
                 </button>
               ))}
@@ -443,34 +448,34 @@ export default function WebsiteDetailPage() {
               </div>
             )}
 
-            {/* Listings Tab */}
-            {activeTab === "listings" && (
+            {/* Posts Tab */}
+            {activeTab === "posts" && (
               <div className="space-y-4">
                 {website.listings.length === 0 ? (
                   <div className="text-center py-8 text-stone-500">No posts yet</div>
                 ) : (
-                  website.listings.map((listing) => (
+                  website.listings.map((post) => (
                     <Link
-                      key={listing.id}
-                      href={`/admin/posts/${listing.id}`}
+                      key={post.id}
+                      href={`/admin/posts/${post.id}`}
                       className="block border border-stone-200 rounded-lg p-4 hover:bg-stone-50"
                     >
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-medium text-stone-900">{listing.title}</h3>
+                          <h3 className="font-medium text-stone-900">{post.title}</h3>
                           <div className="flex gap-2 mt-2">
                             <span
                               className={`text-xs px-2 py-1 rounded ${
-                                listing.status === "active"
+                                post.status === "active"
                                   ? "bg-green-100 text-green-800"
-                                  : listing.status === "pending_approval"
+                                  : post.status === "pending_approval"
                                     ? "bg-amber-100 text-amber-800"
                                     : "bg-stone-100 text-stone-800"
                               }`}
                             >
-                              {listing.status}
+                              {post.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
                             </span>
-                            {listing.tags
+                            {post.tags
                               .filter((t) => t.kind === "audience_role")
                               .map((tag) => (
                                 <span
@@ -482,7 +487,7 @@ export default function WebsiteDetailPage() {
                               ))}
                           </div>
                         </div>
-                        <span className="text-xs text-stone-500">{formatDate(listing.createdAt)}</span>
+                        <span className="text-xs text-stone-500">{formatDate(post.createdAt)}</span>
                       </div>
                     </Link>
                   ))

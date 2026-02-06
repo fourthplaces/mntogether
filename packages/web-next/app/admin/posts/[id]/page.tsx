@@ -43,7 +43,7 @@ interface PostDetail {
 }
 
 interface GetPostResult {
-  listing: PostDetail | null;
+  listing: PostDetail | null; // GraphQL field name
 }
 
 const AUDIENCE_ROLES = [
@@ -284,7 +284,7 @@ export default function PostDetailPage() {
               <span
                 className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusBadgeClass(post.status)}`}
               >
-                {post.status.replace("_", " ")}
+                {post.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
               </span>
 
               {post.sourceUrl && (
@@ -370,6 +370,21 @@ export default function PostDetailPage() {
               <span className="text-xs text-stone-500 uppercase">Created</span>
               <p className="text-sm font-medium text-stone-900">{formatDate(post.createdAt)}</p>
             </div>
+            {post.sourceUrl && (
+              <div className="col-span-2">
+                <span className="text-xs text-stone-500 uppercase">Source URL</span>
+                <p className="text-sm font-medium truncate">
+                  <a
+                    href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:text-blue-800"
+                  >
+                    {post.sourceUrl}
+                  </a>
+                </p>
+              </div>
+            )}
             {post.websiteId && (
               <div>
                 <span className="text-xs text-stone-500 uppercase">Website</span>

@@ -12,7 +12,7 @@ interface Website {
   createdAt: string;
 }
 
-interface Listing {
+interface PostSummary {
   id: string;
   status: string;
   createdAt: string;
@@ -20,7 +20,7 @@ interface Listing {
 
 interface AdminStatsResult {
   websites: Website[];
-  listings: Listing[];
+  listings: PostSummary[];
 }
 
 export default function DashboardPage() {
@@ -37,11 +37,11 @@ export default function DashboardPage() {
   const approvedWebsites = data?.websites?.filter((d) => d.status === "approved").length || 0;
   const pendingWebsites =
     data?.websites?.filter((d) => d.status === "pending_review").length || 0;
-  const totalListings = data?.listings?.length || 0;
-  const pendingListings =
+  const totalPosts = data?.listings?.length || 0;
+  const pendingPosts =
     data?.listings?.filter((l) => l.status === "pending_approval").length || 0;
-  const approvedListings = data?.listings?.filter((l) => l.status === "approved").length || 0;
-  const totalListingsFromWebsites =
+  const approvedPosts = data?.listings?.filter((l) => l.status === "approved").length || 0;
+  const totalPostsFromWebsites =
     data?.websites?.reduce((sum, d) => sum + d.listingsCount, 0) || 0;
 
   // Recent activity (last 7 days)
@@ -49,7 +49,7 @@ export default function DashboardPage() {
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentWebsites =
     data?.websites?.filter((d) => new Date(d.createdAt) > sevenDaysAgo).length || 0;
-  const recentListings =
+  const recentPosts =
     data?.listings?.filter((l) => new Date(l.createdAt) > sevenDaysAgo).length || 0;
 
   const stats = [
@@ -62,21 +62,21 @@ export default function DashboardPage() {
     },
     {
       title: "Total Posts",
-      value: totalListings,
-      subtitle: `${approvedListings} approved, ${pendingListings} pending`,
+      value: totalPosts,
+      subtitle: `${approvedPosts} approved, ${pendingPosts} pending`,
       color: "bg-green-500",
       link: "/admin/posts",
     },
     {
       title: "Pending Approvals",
-      value: pendingWebsites + pendingListings,
-      subtitle: `${pendingWebsites} websites, ${pendingListings} posts`,
+      value: pendingWebsites + pendingPosts,
+      subtitle: `${pendingWebsites} websites, ${pendingPosts} posts`,
       color: "bg-amber-500",
       link: "/admin/posts",
     },
     {
       title: "Scraped Posts",
-      value: totalListingsFromWebsites,
+      value: totalPostsFromWebsites,
       subtitle: `From ${approvedWebsites} approved websites`,
       color: "bg-purple-500",
       link: "/admin/scraped",
@@ -91,7 +91,7 @@ export default function DashboardPage() {
     },
     {
       title: "New Posts (7 days)",
-      value: recentListings,
+      value: recentPosts,
       icon: "\u{1F4C4}",
     },
   ];
@@ -103,7 +103,7 @@ export default function DashboardPage() {
       icon: "\u{2705}",
       link: "/admin/posts",
       color: "bg-green-600 hover:bg-green-700",
-      count: pendingListings,
+      count: pendingPosts,
     },
     {
       title: "Approve Websites",
