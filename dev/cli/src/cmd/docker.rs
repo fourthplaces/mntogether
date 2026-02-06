@@ -13,7 +13,6 @@ const SERVICES: &[(&str, &str)] = &[
     ("redis", "Redis cache and pub/sub"),
     ("nats", "NATS messaging server"),
     ("api", "Rust API server"),
-    ("web-app", "React web app (Vite)"),
     ("web-next", "Next.js web app (SSR)"),
 ];
 

@@ -19,5 +19,3 @@ pub use events::PostEvent;
 // Re-export models (domain models)
 pub use models::post::Post;
 
-// Re-export effects
-pub use effects::post_composite_effect;

@@ -15,6 +15,5 @@ pub mod models;
 
 // Re-export commonly used types
 pub use data::MemberData;
-pub use effects::member_effect;
 pub use events::MemberEvent;
 pub use models::member::Member;

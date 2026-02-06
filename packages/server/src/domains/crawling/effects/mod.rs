@@ -2,14 +2,14 @@
 //!
 //! Effects are thin orchestrators that watch events and execute work.
 //!
-//! - `crawler` - Mark no listings effect
-//! - `pipeline` - Queued effects replacing the custom job system
+//! - `pipeline` - All crawling effects (crawl, extract, investigate, join, sync, regenerate)
 //! - `discovery` - Page discovery via search
 
-pub mod crawler;
 pub mod discovery;
 pub mod pipeline;
 
-pub use crawler::mark_no_listings_effect;
+// Deprecated: crawler.rs merged into pipeline.rs
+pub mod crawler;
+
 pub use discovery::{discover_pages, DiscoveredPage};
-pub use pipeline::crawling_pipeline_effect;
+pub use pipeline::handlers;

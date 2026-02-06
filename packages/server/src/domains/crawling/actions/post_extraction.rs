@@ -316,7 +316,7 @@ Be conservative - only include information explicitly mentioned."#;
 /// Investigate a single post to find missing information.
 ///
 /// Uses AI agent with tools to research, then structured extraction for the result.
-async fn investigate_post(
+pub async fn investigate_post(
     narrative: &NarrativePost,
     deps: &ServerDeps,
 ) -> Result<ExtractedPostInformation> {
@@ -510,6 +510,93 @@ pub struct DomainExtractionResult {
     pub posts: Vec<ExtractedPost>,
     /// URLs of pages that were searched
     pub page_urls: Vec<String>,
+}
+
+/// Extract and deduplicate narratives for a domain (Pass 1 + 2 only).
+///
+/// Returns deduplicated narratives and page URLs, stopping before investigation (Pass 3).
+/// Use this when investigation will be done as a separate fan-out step.
+pub async fn extract_narratives_for_domain(
+    domain: &str,
+    extraction: &OpenAIExtractionService,
+) -> Result<(Vec<NarrativePost>, Vec<String>)> {
+    // Search for relevant pages
+    let pages = extraction
+        .search_and_get_pages(POST_SEARCH_QUERY, Some(domain), 50)
+        .await?;
+
+    info!(
+        domain = %domain,
+        pages_found = pages.len(),
+        "Search results for narrative extraction"
+    );
+
+    if pages.is_empty() {
+        return Ok((vec![], vec![]));
+    }
+
+    let page_urls: Vec<String> = pages.iter().map(|p| p.url.clone()).collect();
+
+    let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
+
+    // Step 1: Batch pages by content size
+    let batches = batch_pages_by_size(&pages, MAX_CONTENT_CHARS_PER_BATCH);
+
+    info!(
+        pages_count = pages.len(),
+        batch_count = batches.len(),
+        domain = %domain,
+        "Processing pages in batches (narratives only)"
+    );
+
+    // Step 2: Extract narratives from each batch (in parallel)
+    let batch_futures: Vec<_> = batches
+        .iter()
+        .enumerate()
+        .map(|(batch_idx, batch)| {
+            let combined_content: String = batch
+                .iter()
+                .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
+                .collect::<Vec<_>>()
+                .join("\n\n---\n\n");
+
+            let context = context.clone();
+
+            async move {
+                info!(batch = batch_idx + 1, "Extracting narratives from batch");
+                extract_narrative_posts(&combined_content, Some(&context)).await
+            }
+        })
+        .collect();
+
+    let batch_results = join_all(batch_futures).await;
+
+    let all_narratives: Vec<NarrativePost> = batch_results
+        .into_iter()
+        .filter_map(|r| r.ok())
+        .flatten()
+        .collect();
+
+    if all_narratives.is_empty() {
+        return Ok((vec![], page_urls));
+    }
+
+    info!(
+        total_narratives = all_narratives.len(),
+        domain = %domain,
+        "Pass 1 complete: all batches extracted"
+    );
+
+    // Step 3: Deduplicate and merge posts
+    let deduplicated = dedupe_and_merge_posts(all_narratives, domain).await?;
+
+    info!(
+        deduplicated_count = deduplicated.len(),
+        domain = %domain,
+        "Pass 2 complete: deduplication finished"
+    );
+
+    Ok((deduplicated, page_urls))
 }
 
 /// Search for pages and extract posts for a domain.

@@ -33,6 +33,27 @@ pub struct ExtractedPost {
     pub source_url: Option<String>,
 }
 
+impl ExtractedPost {
+    /// Combine a NarrativePost with investigation info into a complete ExtractedPost.
+    pub fn from_narrative_and_info(
+        narrative: crate::domains::crawling::actions::post_extraction::NarrativePost,
+        info: ExtractedPostInformation,
+    ) -> Self {
+        Self {
+            title: narrative.title,
+            tldr: narrative.tldr,
+            description: narrative.description,
+            contact: info.contact_or_none(),
+            location: info.location,
+            urgency: Some(info.urgency),
+            confidence: Some(info.confidence),
+            audience_roles: info.audience_roles,
+            source_page_snapshot_id: None,
+            source_url: Some(narrative.source_url),
+        }
+    }
+}
+
 /// A listing extracted with its source URL (for batch extraction)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedPostWithSource {
@@ -79,6 +100,18 @@ pub struct ExtractedPostInformation {
     pub urgency: String,
     pub confidence: String,
     pub audience_roles: Vec<String>,
+}
+
+impl Default for ExtractedPostInformation {
+    fn default() -> Self {
+        Self {
+            contact: ContactInfo::default(),
+            location: None,
+            urgency: "medium".to_string(),
+            confidence: "low".to_string(),
+            audience_roles: vec!["recipient".to_string()],
+        }
+    }
 }
 
 impl ExtractedPostInformation {

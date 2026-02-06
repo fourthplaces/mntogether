@@ -34,15 +34,15 @@ use crate::server::routes::{
     stream::stream_handler,
 };
 
-// Import effect builder functions from each domain
-use crate::domains::agents::effects::agent_effect;
-use crate::domains::auth::effects::auth_effect;
-use crate::domains::crawling::effects::{crawling_pipeline_effect, mark_no_listings_effect};
-use crate::domains::member::effects::member_effect;
-use crate::domains::posts::effects::post_composite_effect;
-use crate::domains::providers::effects::provider_effect;
-use crate::domains::website::effects::website_effect;
-use crate::domains::website_approval::effects::website_approval_effect;
+// Import #[effects] module handlers from each domain
+use crate::domains::agents::effects::handlers as agent_handlers;
+use crate::domains::auth::effects::handlers as auth_handlers;
+use crate::domains::crawling::effects::handlers as crawling_handlers;
+use crate::domains::member::effects::handlers as member_handlers;
+use crate::domains::posts::effects::handlers as post_handlers;
+use crate::domains::providers::effects::handlers as provider_handlers;
+use crate::domains::website::effects::handlers as website_handlers;
+use crate::domains::website_approval::effects::handlers as approval_handlers;
 
 // =============================================================================
 // Application State & Middleware
@@ -191,26 +191,17 @@ pub async fn build_app(
 
     let server_deps_arc = Arc::new(server_deps.clone());
 
-    // Build queue-backed engine with ALL domain effects
+    // Build queue-backed engine with ALL domain effects (via #[effects] modules)
     let seesaw_store = PostgresStore::new(pool.clone());
     let queue_engine = Engine::new(server_deps, seesaw_store)
-        // Auth domain
-        .with_effect(auth_effect())
-        // Member domain
-        .with_effect(member_effect())
-        // Agents domain (AI responses for chat)
-        .with_effect(agent_effect())
-        // Website domain
-        .with_effect(website_effect())
-        // Crawling domain (inline mark_no_listings + queued pipeline)
-        .with_effect(mark_no_listings_effect())
-        .with_effect(crawling_pipeline_effect())
-        // Posts domain (composite effect)
-        .with_effect(post_composite_effect())
-        // Website approval domain
-        .with_effect(website_approval_effect())
-        // Providers domain
-        .with_effect(provider_effect());
+        .with_effect(seesaw_core::effect::group(auth_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(member_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(agent_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(website_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(crawling_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(post_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(approval_handlers::effects()))
+        .with_effect(seesaw_core::effect::group(provider_handlers::effects()));
     let queue_engine = Arc::new(queue_engine);
 
     // Start seesaw runtime workers (event + effect pollers)

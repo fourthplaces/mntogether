@@ -11,5 +11,4 @@ pub mod effects;
 pub mod events;
 pub mod models;
 
-pub use effects::agent_effect;
 pub use events::ChatStreamEvent;

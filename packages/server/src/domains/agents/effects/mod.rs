@@ -4,4 +4,4 @@
 
 pub mod agent;
 
-pub use agent::agent_effect;
+pub use agent::handlers;

@@ -163,9 +163,8 @@ fn cmd_up(ctx: &AppContext, all: bool, full: bool) -> Result<()> {
     ctx.print_info("Services:");
     ctx.print_info("  • API:     http://localhost:8080");
     ctx.print_info("  • GraphQL: http://localhost:8080/graphql");
-    ctx.print_info("  • Web App: http://localhost:3001");
     if full {
-        ctx.print_info("  • Next.js: http://localhost:3000");
+        ctx.print_info("  • Web:     http://localhost:3000");
     }
 
     Ok(())
