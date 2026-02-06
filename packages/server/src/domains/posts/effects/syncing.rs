@@ -9,7 +9,6 @@
 use anyhow::{Context, Result};
 use sqlx::PgPool;
 
-use super::post::extract_domain;
 use super::utils::sync_utils::{sync_posts, ExtractedPostInput};
 use crate::common::WebsiteId;
 use crate::domains::posts::events::ExtractedPost;
@@ -25,7 +24,7 @@ pub struct PostSyncResult {
 /// Sync extracted listings with the database for a given source
 ///
 /// This function:
-/// 1. Fetches the source to get organization_name
+/// 1. Fetches the source website
 /// 2. Converts extracted listings to sync input format
 /// 3. Performs sync operation with database (title-match only)
 /// 4. Returns summary of changes
@@ -37,7 +36,6 @@ pub async fn sync_extracted_posts(
     posts: Vec<ExtractedPost>,
     pool: &PgPool,
 ) -> Result<PostSyncResult> {
-    // Get source to fetch organization_name
     let source = Website::find_by_id(source_id, pool)
         .await
         .context("Failed to find source")?;
@@ -46,8 +44,6 @@ pub async fn sync_extracted_posts(
     let sync_input: Vec<ExtractedPostInput> = posts
         .into_iter()
         .map(|listing| ExtractedPostInput {
-            organization_name: extract_domain(&source.domain)
-                .unwrap_or_else(|| source.domain.clone()),
             title: listing.title,
             description: listing.description,
             description_markdown: None,

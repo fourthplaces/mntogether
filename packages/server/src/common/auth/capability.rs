@@ -4,9 +4,6 @@
 /// is primarily admin-managed with automated matching for volunteers.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AdminCapability {
-    /// Manage organizations (create, update, verify)
-    ManageOrganizations,
-
     /// Approve or reject needs
     ManageNeeds,
 

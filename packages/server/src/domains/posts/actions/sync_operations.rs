@@ -68,7 +68,6 @@ pub async fn apply_insert(
     };
 
     match create_extracted_post(
-        &website.domain,
         fresh,
         Some(website_id),
         fresh

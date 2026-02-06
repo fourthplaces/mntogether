@@ -38,7 +38,6 @@ pub struct UpdateAndApprovePost {
 /// Create a new listing with generated content hash and TLDR
 pub async fn create_post(
     _member_id: Option<MemberId>, // TODO: Store submitted_by_member_id for tracking
-    organization_name: String,
     title: String,
     description: String,
     contact_info: Option<JsonValue>,
@@ -66,7 +65,6 @@ pub async fn create_post(
     // Create listing using model method
     let post = Post::create(
         CreatePost::builder()
-            .organization_name(organization_name)
             .title(title)
             .description(description)
             .tldr(Some(tldr))

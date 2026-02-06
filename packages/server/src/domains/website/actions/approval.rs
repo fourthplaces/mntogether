@@ -15,7 +15,7 @@ use crate::domains::website::models::{
     CreateTavilySearchQuery, CreateWebsiteAssessment, TavilySearchQuery, TavilySearchResult,
     Website, WebsiteAssessment, WebsiteResearch, WebsiteResearchHomepage,
 };
-use crate::domains::website_approval::events::WebsiteApprovalEvent;
+use crate::domains::website::events::approval::WebsiteApprovalEvent;
 use crate::kernel::{
     CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor,
 };

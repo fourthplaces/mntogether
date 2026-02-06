@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{OrganizationId, PostId};
+use crate::common::PostId;
 
 /// Business-specific listing properties
 ///
@@ -32,7 +32,7 @@ pub struct BusinessPost {
 
     // Cause-driven commerce (NEW)
     pub proceeds_percentage: Option<f64>,
-    pub proceeds_beneficiary_id: Option<OrganizationId>,
+    pub proceeds_beneficiary_id: Option<Uuid>,
     pub proceeds_description: Option<String>,
     pub impact_statement: Option<String>,
 
@@ -94,7 +94,7 @@ impl BusinessPost {
     pub async fn update_proceeds(
         &mut self,
         proceeds_percentage: Option<f64>,
-        beneficiary_id: Option<OrganizationId>,
+        beneficiary_id: Option<Uuid>,
         description: Option<String>,
         impact_statement: Option<String>,
         pool: &PgPool,

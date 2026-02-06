@@ -1,6 +1,5 @@
 //! Kernel module - server infrastructure and dependencies.
 
-pub mod ai_matching;
 pub mod ai_tools;
 pub mod deps;
 pub mod extraction_service;

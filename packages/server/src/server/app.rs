@@ -42,7 +42,7 @@ use crate::domains::member::effects::handlers as member_handlers;
 use crate::domains::posts::effects::handlers as post_handlers;
 use crate::domains::providers::effects::handlers as provider_handlers;
 use crate::domains::website::effects::handlers as website_handlers;
-use crate::domains::website_approval::effects::handlers as approval_handlers;
+use crate::domains::website::effects::approval::handlers as approval_handlers;
 
 // =============================================================================
 // Application State & Middleware

@@ -6,10 +6,10 @@ use sqlx::PgPool;
 /// Trait for entities that support semantic embedding and similarity search
 #[async_trait]
 pub trait Embeddable: Sized {
-    /// The ID type for this entity (e.g., Uuid, OrganizationId)
+    /// The ID type for this entity (e.g., Uuid, PostId)
     type Id: Send + Sync + for<'q> sqlx::Encode<'q, sqlx::Postgres> + sqlx::Type<sqlx::Postgres>;
 
-    /// The table name in the database (e.g., "members", "organizations")
+    /// The table name in the database (e.g., "members", "posts")
     fn table_name() -> &'static str;
 
     /// Update the embedding vector for this entity
@@ -40,7 +40,6 @@ pub trait Embeddable: Sized {
     /// - `limit`: Maximum number of results to return
     ///
     /// Note: This is optional. Implement this if you need similarity search.
-    /// The Organization model has a custom implementation with specific field handling.
     async fn search_by_similarity(
         _query_embedding: &[f32],
         _match_threshold: f32,

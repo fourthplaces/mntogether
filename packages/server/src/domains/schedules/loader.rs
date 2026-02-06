@@ -4,7 +4,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use uuid::Uuid;
 
-use crate::domains::locations::models::Schedule;
+use crate::domains::schedules::models::Schedule;
 
 /// Batches schedule lookups by post ID.
 pub struct PostSchedulesLoader {

@@ -37,7 +37,6 @@ pub struct TitleMatchSyncResult {
 /// Extracted listing input (from AI)
 #[derive(Debug, Clone)]
 pub struct ExtractedPostInput {
-    pub organization_name: String,
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
@@ -126,7 +125,6 @@ pub async fn sync_posts(
 
             match Post::create(
                 CreatePost::builder()
-                    .organization_name(post_input.organization_name.clone())
                     .title(post_input.title.clone())
                     .description(post_input.description.clone())
                     .tldr(tldr)
@@ -270,7 +268,6 @@ mod tests {
     #[test]
     fn test_extracted_post_input_default_fields() {
         let input = ExtractedPostInput {
-            organization_name: "Test Org".to_string(),
             title: "Test Title".to_string(),
             description: "Test Description".to_string(),
             description_markdown: None,
@@ -283,7 +280,6 @@ mod tests {
             audience_roles: vec![],
         };
 
-        assert_eq!(input.organization_name, "Test Org");
         assert_eq!(input.title, "Test Title");
         assert!(input.audience_roles.is_empty());
     }
@@ -291,7 +287,6 @@ mod tests {
     #[test]
     fn test_extracted_post_input_with_audience_roles() {
         let input = ExtractedPostInput {
-            organization_name: "Test Org".to_string(),
             title: "Volunteer Opportunity".to_string(),
             description: "Help needed".to_string(),
             description_markdown: None,

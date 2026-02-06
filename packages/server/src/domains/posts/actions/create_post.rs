@@ -9,7 +9,8 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::common::{ContactInfo, ExtractedPost, PostId, WebsiteId};
-use crate::domains::locations::models::{Location, PostLocation};
+use crate::domains::locations::models::Location;
+use crate::domains::posts::models::PostLocation;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post};
 use crate::domains::tag::models::{Tag, Taggable};
@@ -41,7 +42,6 @@ fn normalize_urgency(urgency: Option<&str>) -> Option<String> {
 ///
 /// All sync functions should use this instead of calling Post::create directly.
 pub async fn create_extracted_post(
-    organization_name: &str,
     post: &ExtractedPost,
     website_id: Option<WebsiteId>,
     source_url: Option<String>,
@@ -52,7 +52,6 @@ pub async fn create_extracted_post(
     // Create the post
     let created = Post::create(
         CreatePost::builder()
-            .organization_name(organization_name)
             .title(post.title.clone())
             .description(post.description.clone())
             .tldr(Some(post.tldr.clone()))
