@@ -32,29 +32,22 @@ pub struct CrawlWebsiteResult {
 }
 
 /// Crawl website workflow service
-#[restate_sdk::service]
-#[name = "CrawlWebsite"]
-pub trait CrawlWebsiteWorkflow {
-    async fn run(request: CrawlWebsiteRequest) -> Result<CrawlWebsiteResult, HandlerError>;
-}
-
-pub struct CrawlWebsiteWorkflowImpl {
+pub struct CrawlWebsiteWorkflow {
     pub deps: ServerDeps,
 }
 
-impl CrawlWebsiteWorkflowImpl {
+#[restate_sdk::service(name = "CrawlWebsite")]
+impl CrawlWebsiteWorkflow {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
     }
-}
 
-#[restate_sdk::service]
-impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
     async fn run(
         &self,
         ctx: Context,
-        request: CrawlWebsiteRequest,
-    ) -> Result<CrawlWebsiteResult, HandlerError> {
+        request: Json<CrawlWebsiteRequest>,
+    ) -> Result<Json<CrawlWebsiteResult>, HandlerError> {
+        let request = request.into_inner();
         tracing::info!(
             website_id = %request.website_id,
             visitor_id = %request.visitor_id,
@@ -186,10 +179,10 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
             "Crawl workflow completed successfully"
         );
 
-        Ok(CrawlWebsiteResult {
+        Ok(Json(CrawlWebsiteResult {
             website_id: request.website_id,
             posts_synced: synced_count,
             status: "completed".to_string(),
-        })
+        }))
     }
 }
