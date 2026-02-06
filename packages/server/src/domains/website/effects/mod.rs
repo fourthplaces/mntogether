@@ -43,8 +43,8 @@ pub fn website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
                 crawling_actions::ingest_website(
                     website_id.into_uuid(),
                     reviewed_by.into_uuid(),
-                    true,  // use_firecrawl
-                    true,  // is_admin
+                    true, // use_firecrawl
+                    true, // is_admin
                     ctx.deps(),
                 )
                 .await?;

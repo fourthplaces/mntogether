@@ -153,7 +153,10 @@ Also create separate posts for:
 - Different programs (e.g., Senior Services vs Youth Services)"#;
 
 /// Pass 1: Extract narrative posts (title + tldr + comprehensive description)
-async fn extract_narrative_posts(content: &str, context: Option<&str>) -> Result<Vec<NarrativePost>> {
+async fn extract_narrative_posts(
+    content: &str,
+    context: Option<&str>,
+) -> Result<Vec<NarrativePost>> {
     if content.trim().is_empty() {
         return Ok(vec![]);
     }
@@ -216,7 +219,10 @@ Do NOT strip formatting or convert to plain text. The output descriptions should
 Be aggressive about merging duplicates, but never merge posts that serve different audiences (recipient vs volunteer vs donor) or different services."#;
 
 /// Deduplicate and merge posts using LLM.
-async fn dedupe_and_merge_posts(posts: Vec<NarrativePost>, domain: &str) -> Result<Vec<NarrativePost>> {
+async fn dedupe_and_merge_posts(
+    posts: Vec<NarrativePost>,
+    domain: &str,
+) -> Result<Vec<NarrativePost>> {
     if posts.len() <= 1 {
         return Ok(posts);
     }

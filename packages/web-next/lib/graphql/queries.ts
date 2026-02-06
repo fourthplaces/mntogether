@@ -888,6 +888,10 @@ export const GET_SYNC_PROPOSALS = `
       reviewedBy
       reviewedAt
       createdAt
+      draftTitle
+      targetTitle
+      mergeSourceIds
+      mergeSourceTitles
     }
   }
 `;

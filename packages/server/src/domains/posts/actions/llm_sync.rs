@@ -150,9 +150,17 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
 async fn convert_existing_posts(existing_posts: &[Post], pool: &PgPool) -> Vec<ExistingPost> {
     let mut existing = Vec::with_capacity(existing_posts.len());
     for p in existing_posts {
-        let contacts = PostContact::find_by_post(p.id, pool).await.unwrap_or_default();
-        let contact_phone = contacts.iter().find(|c| c.contact_type == "phone").map(|c| c.contact_value.clone());
-        let contact_email = contacts.iter().find(|c| c.contact_type == "email").map(|c| c.contact_value.clone());
+        let contacts = PostContact::find_by_post(p.id, pool)
+            .await
+            .unwrap_or_default();
+        let contact_phone = contacts
+            .iter()
+            .find(|c| c.contact_type == "phone")
+            .map(|c| c.contact_value.clone());
+        let contact_email = contacts
+            .iter()
+            .find(|c| c.contact_type == "email")
+            .map(|c| c.contact_value.clone());
 
         existing.push(ExistingPost {
             id: p.id.as_uuid().to_string(),
@@ -179,7 +187,11 @@ fn log_sync_diagnostics(fresh_posts: &[ExtractedPost], existing_posts: &[Post]) 
 }
 
 /// Log each sync operation decision from the LLM
-fn log_sync_operations(operations: &[SyncOperation], fresh: &[FreshPost], existing: &[ExistingPost]) {
+fn log_sync_operations(
+    operations: &[SyncOperation],
+    fresh: &[FreshPost],
+    existing: &[ExistingPost],
+) {
     for op in operations {
         match op {
             SyncOperation::Insert { fresh_id } => {
@@ -187,17 +199,45 @@ fn log_sync_operations(operations: &[SyncOperation], fresh: &[FreshPost], existi
                     info!(op = "INSERT", fresh_id = %fresh_id, title = %f.title, "LLM decision: insert new post");
                 }
             }
-            SyncOperation::Update { fresh_id, existing_id, merge_description } => {
-                let fresh_title = fresh.iter().find(|f| &f.temp_id == fresh_id).map(|f| f.title.as_str()).unwrap_or("?");
-                let existing_title = existing.iter().find(|e| &e.id == existing_id).map(|e| e.title.as_str()).unwrap_or("?");
+            SyncOperation::Update {
+                fresh_id,
+                existing_id,
+                merge_description,
+            } => {
+                let fresh_title = fresh
+                    .iter()
+                    .find(|f| &f.temp_id == fresh_id)
+                    .map(|f| f.title.as_str())
+                    .unwrap_or("?");
+                let existing_title = existing
+                    .iter()
+                    .find(|e| &e.id == existing_id)
+                    .map(|e| e.title.as_str())
+                    .unwrap_or("?");
                 info!(op = "UPDATE", fresh_id = %fresh_id, existing_id = %existing_id, fresh_title = %fresh_title, existing_title = %existing_title, merge_description = %merge_description, "LLM decision: update existing post");
             }
-            SyncOperation::Delete { existing_id, reason } => {
-                let existing_title = existing.iter().find(|e| &e.id == existing_id).map(|e| e.title.as_str()).unwrap_or("?");
+            SyncOperation::Delete {
+                existing_id,
+                reason,
+            } => {
+                let existing_title = existing
+                    .iter()
+                    .find(|e| &e.id == existing_id)
+                    .map(|e| e.title.as_str())
+                    .unwrap_or("?");
                 info!(op = "DELETE", existing_id = %existing_id, existing_title = %existing_title, reason = %reason, "LLM decision: delete stale post");
             }
-            SyncOperation::Merge { canonical_id, duplicate_ids, reason, .. } => {
-                let canonical_title = existing.iter().find(|e| &e.id == canonical_id).map(|e| e.title.as_str()).unwrap_or("?");
+            SyncOperation::Merge {
+                canonical_id,
+                duplicate_ids,
+                reason,
+                ..
+            } => {
+                let canonical_title = existing
+                    .iter()
+                    .find(|e| &e.id == canonical_id)
+                    .map(|e| e.title.as_str())
+                    .unwrap_or("?");
                 info!(op = "MERGE", canonical_id = %canonical_id, canonical_title = %canonical_title, duplicate_count = duplicate_ids.len(), reason = %reason, "LLM decision: merge duplicates");
             }
         }
@@ -270,7 +310,15 @@ pub async fn llm_sync_posts(
 
     log_sync_operations(&operations, &fresh, &existing);
 
-    stage_sync_operations(website_id, &fresh_posts, &existing_db_posts, operations, &summary, pool).await
+    stage_sync_operations(
+        website_id,
+        &fresh_posts,
+        &existing_db_posts,
+        operations,
+        &summary,
+        pool,
+    )
+    .await
 }
 
 /// Stage sync operations as proposals for human review.
@@ -331,7 +379,10 @@ async fn stage_sync_operations(
                         &website.domain,
                         fresh,
                         Some(website_id),
-                        fresh.source_url.clone().or_else(|| Some(format!("https://{}", website.domain))),
+                        fresh
+                            .source_url
+                            .clone()
+                            .or_else(|| Some(format!("https://{}", website.domain))),
                         pool,
                     )
                     .await
@@ -356,7 +407,11 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Update { fresh_id, existing_id, merge_description } => {
+            SyncOperation::Update {
+                fresh_id,
+                existing_id,
+                merge_description,
+            } => {
                 if let (Some(fresh), Some(existing)) =
                     (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
                 {
@@ -364,10 +419,7 @@ async fn stage_sync_operations(
                         Ok(()) => {
                             // Find the revision that was just created
                             let revision = Post::find_revision_for_post(existing.id, pool).await;
-                            let revision_id = revision
-                                .ok()
-                                .flatten()
-                                .map(|r| r.id.into_uuid());
+                            let revision_id = revision.ok().flatten().map(|r| r.id.into_uuid());
 
                             proposed_ops.push(ProposedOperation {
                                 operation: "update".to_string(),
@@ -388,7 +440,10 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Delete { existing_id, reason } => {
+            SyncOperation::Delete {
+                existing_id,
+                reason,
+            } => {
                 if existing_by_id.contains_key(&existing_id) {
                     let target_uuid = Uuid::parse_str(&existing_id);
                     match target_uuid {
@@ -410,7 +465,13 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Merge { canonical_id, duplicate_ids, merged_title, merged_description, reason } => {
+            SyncOperation::Merge {
+                canonical_id,
+                duplicate_ids,
+                merged_title,
+                merged_description,
+                reason,
+            } => {
                 if let Some(canonical) = existing_by_id.get(&canonical_id) {
                     let canonical_uuid = match Uuid::parse_str(&canonical_id) {
                         Ok(u) => u,
@@ -425,7 +486,8 @@ async fn stage_sync_operations(
                         let fake_fresh = ExtractedPost {
                             title: merged_title.unwrap_or_else(|| canonical.title.clone()),
                             tldr: canonical.tldr.clone().unwrap_or_default(),
-                            description: merged_description.unwrap_or_else(|| canonical.description.clone()),
+                            description: merged_description
+                                .unwrap_or_else(|| canonical.description.clone()),
                             audience_roles: vec![],
                             location: canonical.location.clone(),
                             contact: None,
@@ -435,13 +497,11 @@ async fn stage_sync_operations(
                             source_page_snapshot_id: None,
                         };
                         match update_post(canonical.id, &fake_fresh, false, pool).await {
-                            Ok(()) => {
-                                Post::find_revision_for_post(canonical.id, pool)
-                                    .await
-                                    .ok()
-                                    .flatten()
-                                    .map(|r| r.id.into_uuid())
-                            }
+                            Ok(()) => Post::find_revision_for_post(canonical.id, pool)
+                                .await
+                                .ok()
+                                .flatten()
+                                .map(|r| r.id.into_uuid()),
                             Err(e) => {
                                 errors.push(format!("Merge revision for {}: {}", canonical_id, e));
                                 None
@@ -555,7 +615,9 @@ pub async fn update_post(
                 "email": contact.email,
                 "website": contact.website
             });
-            if let Err(e) = PostContact::create_from_json(existing_revision.id, &contact_json, pool).await {
+            if let Err(e) =
+                PostContact::create_from_json(existing_revision.id, &contact_json, pool).await
+            {
                 tracing::warn!(
                     revision_id = %existing_revision.id,
                     error = %e,

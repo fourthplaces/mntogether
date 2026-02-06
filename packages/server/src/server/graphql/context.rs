@@ -96,12 +96,10 @@ impl GraphQLContext {
     /// Create AppState with visitor info from the current request.
     pub fn app_state(&self) -> AppState {
         match &self.auth_user {
-            Some(user) => {
-                match uuid::Uuid::parse_str(&user.user_id) {
-                    Ok(uuid) => AppState::authenticated(uuid, user.is_admin),
-                    Err(_) => AppState::anonymous(),
-                }
-            }
+            Some(user) => match uuid::Uuid::parse_str(&user.user_id) {
+                Ok(uuid) => AppState::authenticated(uuid, user.is_admin),
+                Err(_) => AppState::anonymous(),
+            },
             None => AppState::anonymous(),
         }
     }

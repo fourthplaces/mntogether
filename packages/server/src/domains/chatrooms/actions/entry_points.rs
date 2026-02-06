@@ -30,19 +30,13 @@ pub async fn create_container(
 ) -> Result<ChatEvent> {
     info!(container_type = %container_type, ?with_agent, "Creating chat container");
 
-    let container = Container::create(
-        container_type.clone(),
-        entity_id,
-        language,
-        &deps.db_pool,
-    )
-    .await?;
+    let container =
+        Container::create(container_type.clone(), entity_id, language, &deps.db_pool).await?;
 
     // Tag container with agent config if provided
     if let Some(ref agent_config) = with_agent {
         info!(container_id = %container.id, agent_config = %agent_config, "Tagging container with agent");
-        let tag =
-            Tag::find_or_create("with_agent", agent_config, None, &deps.db_pool).await?;
+        let tag = Tag::find_or_create("with_agent", agent_config, None, &deps.db_pool).await?;
         Taggable::create_container_tag(container.id, tag.id, &deps.db_pool).await?;
     }
 

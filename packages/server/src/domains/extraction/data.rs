@@ -341,7 +341,10 @@ impl ExtractionPageData {
     }
 
     /// Get all posts extracted from this page
-    async fn listings(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<crate::domains::posts::data::PostData>> {
+    async fn listings(
+        &self,
+        context: &GraphQLContext,
+    ) -> juniper::FieldResult<Vec<crate::domains::posts::data::PostData>> {
         use crate::domains::posts::models::Post;
         let posts = sqlx::query_as::<_, Post>(
             "SELECT * FROM posts WHERE source_url = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
@@ -349,13 +352,16 @@ impl ExtractionPageData {
         .bind(&self.url)
         .fetch_all(&context.db_pool)
         .await?;
-        Ok(posts.into_iter().map(crate::domains::posts::data::PostData::from).collect())
+        Ok(posts
+            .into_iter()
+            .map(crate::domains::posts::data::PostData::from)
+            .collect())
     }
 
     /// Count of posts extracted from this page
     async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM posts WHERE source_url = $1 AND deleted_at IS NULL"
+            "SELECT COUNT(*) FROM posts WHERE source_url = $1 AND deleted_at IS NULL",
         )
         .bind(&self.url)
         .fetch_one(&context.db_pool)
@@ -377,7 +383,11 @@ impl ExtractionPageData {
     }
 
     /// Find pages by domain/site_url
-    pub async fn find_by_domain(domain: &str, limit: i32, pool: &sqlx::PgPool) -> anyhow::Result<Vec<Self>> {
+    pub async fn find_by_domain(
+        domain: &str,
+        limit: i32,
+        pool: &sqlx::PgPool,
+    ) -> anyhow::Result<Vec<Self>> {
         let normalized = domain
             .trim_start_matches("https://")
             .trim_start_matches("http://");
@@ -392,7 +402,7 @@ impl ExtractionPageData {
             WHERE site_url = $1 OR site_url = $2
             ORDER BY fetched_at DESC
             LIMIT $3
-            "#
+            "#,
         )
         .bind(&https_prefix)
         .bind(&http_prefix)
@@ -413,7 +423,7 @@ impl ExtractionPageData {
         let http_prefix = format!("http://{}", normalized);
 
         let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM extraction_pages WHERE site_url = $1 OR site_url = $2"
+            "SELECT COUNT(*) FROM extraction_pages WHERE site_url = $1 OR site_url = $2",
         )
         .bind(&https_prefix)
         .bind(&http_prefix)

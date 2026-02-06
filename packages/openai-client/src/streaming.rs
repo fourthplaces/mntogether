@@ -43,7 +43,9 @@ pub struct ChatCompletionStream {
 }
 
 impl ChatCompletionStream {
-    pub(crate) fn new(byte_stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static) -> Self {
+    pub(crate) fn new(
+        byte_stream: impl Stream<Item = Result<Bytes, reqwest::Error>> + Send + 'static,
+    ) -> Self {
         Self {
             inner: Box::pin(byte_stream),
             buffer: String::new(),
@@ -69,9 +71,10 @@ impl Stream for ChatCompletionStream {
                     match std::str::from_utf8(&bytes) {
                         Ok(text) => this.buffer.push_str(text),
                         Err(e) => {
-                            return Poll::Ready(Some(Err(OpenAIError::Parse(
-                                format!("Invalid UTF-8 in stream: {}", e),
-                            ))));
+                            return Poll::Ready(Some(Err(OpenAIError::Parse(format!(
+                                "Invalid UTF-8 in stream: {}",
+                                e
+                            )))));
                         }
                     }
                     // Loop to try parsing again
@@ -131,10 +134,7 @@ fn try_parse_line(buffer: &mut String) -> Option<Result<ChatCompletionChunk, Ope
                         .and_then(|c| c.delta.content)
                         .unwrap_or_default();
 
-                    return Some(Ok(ChatCompletionChunk {
-                        delta,
-                        done: false,
-                    }));
+                    return Some(Ok(ChatCompletionChunk { delta, done: false }));
                 }
                 Err(e) => {
                     return Some(Err(OpenAIError::Parse(format!(
@@ -206,11 +206,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_empty_delta() {
-        let data = make_sse_bytes(&[
-            r#"data: {"choices":[{"delta":{}}]}"#,
-            "",
-            "data: [DONE]",
-        ]);
+        let data = make_sse_bytes(&[r#"data: {"choices":[{"delta":{}}]}"#, "", "data: [DONE]"]);
 
         let byte_stream = futures::stream::iter(data);
         let mut stream = ChatCompletionStream::new(byte_stream);

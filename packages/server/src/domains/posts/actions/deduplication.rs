@@ -51,9 +51,7 @@ pub async fn deduplicate_posts(
 
     for website in &websites {
         let dedup_result =
-            match deduplicate_posts_llm(website.id, deps.ai.as_ref(), &deps.db_pool)
-                .await
-            {
+            match deduplicate_posts_llm(website.id, deps.ai.as_ref(), &deps.db_pool).await {
                 Ok(r) => r,
                 Err(e) => {
                     warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
@@ -63,16 +61,14 @@ pub async fn deduplicate_posts(
 
         total_groups += dedup_result.duplicate_groups.len();
 
-        let deleted =
-            match apply_dedup_results(dedup_result, deps.ai.as_ref(), &deps.db_pool)
-                .await
-            {
-                Ok(d) => d,
-                Err(e) => {
-                    warn!(website_id = %website.id, error = %e, "Failed to apply deduplication");
-                    continue;
-                }
-            };
+        let deleted = match apply_dedup_results(dedup_result, deps.ai.as_ref(), &deps.db_pool).await
+        {
+            Ok(d) => d,
+            Err(e) => {
+                warn!(website_id = %website.id, error = %e, "Failed to apply deduplication");
+                continue;
+            }
+        };
 
         total_deleted += deleted;
 

@@ -33,10 +33,7 @@ impl SyncProposalMergeSource {
         .map_err(Into::into)
     }
 
-    pub async fn find_by_proposal(
-        proposal_id: SyncProposalId,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_by_proposal(proposal_id: SyncProposalId, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM sync_proposal_merge_sources WHERE proposal_id = $1",
         )

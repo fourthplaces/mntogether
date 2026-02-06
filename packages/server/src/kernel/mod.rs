@@ -49,4 +49,4 @@ pub use test_dependencies::TestDependencies;
 pub use traits::*;
 
 // AI Tools for agentic workflows
-pub use ai_tools::{FetchPageTool, WebSearchTool};
+pub use ai_tools::{FetchPageTool, SearchPostsTool, WebSearchTool};

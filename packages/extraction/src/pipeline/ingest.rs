@@ -36,10 +36,7 @@ fn normalize_url(url: &str) -> String {
     };
 
     // Get host, removing www. prefix
-    let host = parsed
-        .host_str()
-        .unwrap_or("")
-        .trim_start_matches("www.");
+    let host = parsed.host_str().unwrap_or("").trim_start_matches("www.");
 
     // Get path, removing trailing slash (but keep "/" for root)
     let path = parsed.path().trim_end_matches('/');
@@ -56,10 +53,7 @@ fn normalize_site_url(url: &str) -> String {
         Err(_) => return url.to_string(),
     };
 
-    let host = parsed
-        .host_str()
-        .unwrap_or("")
-        .trim_start_matches("www.");
+    let host = parsed.host_str().unwrap_or("").trim_start_matches("www.");
 
     format!("https://{}", host)
 }
@@ -138,8 +132,8 @@ fn raw_to_cached(raw: &RawPage, fallback_site_url: &str) -> CachedPage {
     let normalized_url = normalize_url(&raw.url);
     let normalized_site_url = normalize_site_url(&site_url);
 
-    let cached =
-        CachedPage::new(&normalized_url, &normalized_site_url, &raw.content).with_fetched_at(raw.fetched_at);
+    let cached = CachedPage::new(&normalized_url, &normalized_site_url, &raw.content)
+        .with_fetched_at(raw.fetched_at);
     if let Some(ref title) = raw.title {
         cached.with_title(title.clone())
     } else {
@@ -474,7 +468,10 @@ mod tests {
         );
 
         // Root path keeps slash
-        assert_eq!(normalize_url("https://example.com/"), "https://example.com/");
+        assert_eq!(
+            normalize_url("https://example.com/"),
+            "https://example.com/"
+        );
         assert_eq!(normalize_url("https://example.com"), "https://example.com/");
 
         // Query params removed

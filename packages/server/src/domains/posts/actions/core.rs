@@ -97,8 +97,7 @@ pub async fn reject_post(
         .await
         .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
 
-    post_operations::update_post_status(post_id, "rejected".to_string(), &deps.db_pool)
-        .await?;
+    post_operations::update_post_status(post_id, "rejected".to_string(), &deps.db_pool).await?;
 
     Ok(PostEvent::PostRejected { post_id, reason })
 }
@@ -211,10 +210,7 @@ pub async fn archive_post(
 
 /// Track post view (analytics - public, no auth)
 /// Returns the PostViewed event.
-pub async fn track_post_view(
-    post_id: Uuid,
-    deps: &ServerDeps,
-) -> Result<PostEvent> {
+pub async fn track_post_view(post_id: Uuid, deps: &ServerDeps) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
 
     post_operations::increment_post_view(post_id, &deps.db_pool).await?;
@@ -223,10 +219,7 @@ pub async fn track_post_view(
 
 /// Track post click (analytics - public, no auth)
 /// Returns the PostClicked event.
-pub async fn track_post_click(
-    post_id: Uuid,
-    deps: &ServerDeps,
-) -> Result<PostEvent> {
+pub async fn track_post_click(post_id: Uuid, deps: &ServerDeps) -> Result<PostEvent> {
     let post_id = PostId::from_uuid(post_id);
 
     post_operations::increment_post_click(post_id, &deps.db_pool).await?;

@@ -119,8 +119,6 @@ impl<'a> Agent<'a> {
     pub async fn chat(&self, user_message: impl Into<String>) -> Result<AgentResponse> {
         let user_message = user_message.into();
         let mut messages: Vec<serde_json::Value> = Vec::new();
-        let mut tool_calls_made = Vec::new();
-        let mut iterations = 0;
 
         // Add system message if present
         if let Some(ref system) = self.system_prompt {
@@ -135,6 +133,44 @@ impl<'a> Agent<'a> {
             "role": "user",
             "content": user_message
         }));
+
+        self.run_tool_loop(messages).await
+    }
+
+    /// Same as `chat()` but accepts pre-built message history.
+    ///
+    /// If a system prompt was set on the builder and the first message in
+    /// `messages` is not already a system message, it will be prepended.
+    pub async fn chat_with_history(
+        &self,
+        mut messages: Vec<serde_json::Value>,
+    ) -> Result<AgentResponse> {
+        // Prepend system prompt if set and not already present
+        if let Some(ref system) = self.system_prompt {
+            let has_system = messages
+                .first()
+                .and_then(|m| m.get("role"))
+                .and_then(|r| r.as_str())
+                == Some("system");
+
+            if !has_system {
+                messages.insert(
+                    0,
+                    serde_json::json!({
+                        "role": "system",
+                        "content": system
+                    }),
+                );
+            }
+        }
+
+        self.run_tool_loop(messages).await
+    }
+
+    /// Core tool-calling loop shared by `chat()` and `chat_with_history()`.
+    async fn run_tool_loop(&self, mut messages: Vec<serde_json::Value>) -> Result<AgentResponse> {
+        let mut tool_calls_made = Vec::new();
+        let mut iterations = 0;
 
         // Build tool definitions
         let tool_defs: Vec<serde_json::Value> = self
@@ -302,7 +338,10 @@ impl<'a> Agent<'a> {
 
         if !response.status().is_success() {
             let error_text = response.text().await.unwrap_or_default();
-            return Err(OpenAIError::Api(format!("OpenAI API error: {}", error_text)));
+            return Err(OpenAIError::Api(format!(
+                "OpenAI API error: {}",
+                error_text
+            )));
         }
 
         response
@@ -317,7 +356,11 @@ fn truncate_for_log(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else {
-        format!("{}...[truncated {} chars]", &s[..max_len], s.len() - max_len)
+        format!(
+            "{}...[truncated {} chars]",
+            &s[..max_len],
+            s.len() - max_len
+        )
     }
 }
 
@@ -354,7 +397,9 @@ mod tests {
         }
 
         async fn call(&self, args: Self::Args) -> std::result::Result<Self::Output, Self::Error> {
-            Ok(AddResult { sum: args.a + args.b })
+            Ok(AddResult {
+                sum: args.a + args.b,
+            })
         }
     }
 

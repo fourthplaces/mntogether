@@ -115,27 +115,26 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
         .await;
 
         match result {
-            Ok(event) => {
-                match event {
-                    CrawlEvent::WebsiteIngested { job_id, pages_crawled, pages_summarized, .. } => {
-                        tracing::info!(
-                            "Ingested website {} ({}) with job {} - pages: {}, summarized: {}",
-                            website.id,
-                            website.domain,
-                            job_id,
-                            pages_crawled,
-                            pages_summarized
-                        );
-                    }
-                    _ => {
-                        tracing::info!(
-                            "Ingested website {} ({})",
-                            website.id,
-                            website.domain
-                        );
-                    }
+            Ok(event) => match event {
+                CrawlEvent::WebsiteIngested {
+                    job_id,
+                    pages_crawled,
+                    pages_summarized,
+                    ..
+                } => {
+                    tracing::info!(
+                        "Ingested website {} ({}) with job {} - pages: {}, summarized: {}",
+                        website.id,
+                        website.domain,
+                        job_id,
+                        pages_crawled,
+                        pages_summarized
+                    );
                 }
-            }
+                _ => {
+                    tracing::info!("Ingested website {} ({})", website.id, website.domain);
+                }
+            },
             Err(e) => {
                 tracing::error!(
                     "Failed to ingest website {} ({}): {}",

@@ -32,12 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let user = "John Smith is a 35 year old software engineer.";
 
     let response = client
-        .structured_output(StructuredRequest::new(
-            "gpt-4o",
-            system,
-            user,
-            schema,
-        ))
+        .structured_output(StructuredRequest::new("gpt-4o", system, user, schema))
         .await?;
 
     println!("Structured output: {}", response);

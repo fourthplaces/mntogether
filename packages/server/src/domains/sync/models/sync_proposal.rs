@@ -74,10 +74,7 @@ impl SyncProposal {
         .map_err(Into::into)
     }
 
-    pub async fn find_pending_by_batch(
-        batch_id: SyncBatchId,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
+    pub async fn find_pending_by_batch(batch_id: SyncBatchId, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
             SELECT * FROM sync_proposals
@@ -91,11 +88,7 @@ impl SyncProposal {
         .map_err(Into::into)
     }
 
-    pub async fn approve(
-        id: SyncProposalId,
-        reviewed_by: MemberId,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn approve(id: SyncProposalId, reviewed_by: MemberId, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
             UPDATE sync_proposals
@@ -111,11 +104,7 @@ impl SyncProposal {
         .map_err(Into::into)
     }
 
-    pub async fn reject(
-        id: SyncProposalId,
-        reviewed_by: MemberId,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn reject(id: SyncProposalId, reviewed_by: MemberId, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
             UPDATE sync_proposals

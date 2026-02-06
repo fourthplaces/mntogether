@@ -363,7 +363,7 @@ impl TestDependencies {
             None, // No extraction service in tests
             jwt_service,
             StreamHub::new(),
-            true,  // test_identifier_enabled
+            true,   // test_identifier_enabled
             vec![], // admin_identifiers
         )
     }

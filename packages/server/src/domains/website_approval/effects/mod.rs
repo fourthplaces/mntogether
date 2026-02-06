@@ -36,7 +36,12 @@ pub fn website_research_effect() -> seesaw_core::effect::Effect<AppState, Server
         .retry(2)
         .timeout(Duration::from_secs(120))
         .then(
-            |(research_id, website_id, job_id, requested_by): (Uuid, WebsiteId, JobId, MemberId),
+            |(research_id, website_id, job_id, requested_by): (
+                Uuid,
+                WebsiteId,
+                JobId,
+                MemberId,
+            ),
              ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
                 info!(
                     research_id = %research_id,
@@ -44,8 +49,7 @@ pub fn website_research_effect() -> seesaw_core::effect::Effect<AppState, Server
                     "Conducting searches for research (queued)"
                 );
 
-                let result =
-                    actions::conduct_searches(research_id, website_id, ctx.deps()).await?;
+                let result = actions::conduct_searches(research_id, website_id, ctx.deps()).await?;
 
                 info!(
                     research_id = %research_id,
@@ -91,7 +95,12 @@ pub fn website_research_retry_effect() -> seesaw_core::effect::Effect<AppState, 
         .retry(2)
         .timeout(Duration::from_secs(60))
         .then(
-            |(research_id, website_id, job_id, requested_by): (Uuid, WebsiteId, JobId, MemberId),
+            |(research_id, website_id, job_id, requested_by): (
+                Uuid,
+                WebsiteId,
+                JobId,
+                MemberId,
+            ),
              ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
                 info!(
                     research_id = %research_id,
@@ -120,8 +129,5 @@ pub fn website_research_retry_effect() -> seesaw_core::effect::Effect<AppState, 
 
 /// Composite approval effect combining both research paths.
 pub fn website_approval_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    seesaw_core::effect::group([
-        website_research_effect(),
-        website_research_retry_effect(),
-    ])
+    seesaw_core::effect::group([website_research_effect(), website_research_retry_effect()])
 }

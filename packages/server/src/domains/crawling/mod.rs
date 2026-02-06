@@ -33,5 +33,5 @@ pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
 pub use models::ExtractionPage;
 
 // Re-export effects
-pub use effects::mark_no_listings_effect;
 pub use effects::crawling_pipeline_effect;
+pub use effects::mark_no_listings_effect;

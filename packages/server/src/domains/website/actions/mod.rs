@@ -6,9 +6,7 @@
 use anyhow::Result;
 use tracing::info;
 
-use crate::common::{
-    build_page_info, Cursor, MemberId, ValidatedPaginationArgs, WebsiteId,
-};
+use crate::common::{build_page_info, Cursor, MemberId, ValidatedPaginationArgs, WebsiteId};
 use crate::domains::website::data::{WebsiteConnection, WebsiteData, WebsiteEdge};
 use crate::domains::website::events::WebsiteEvent;
 use crate::domains::website::models::Website;
@@ -16,9 +14,7 @@ use crate::kernel::ServerDeps;
 
 /// Get all websites pending review
 /// Note: Admin auth is checked at the GraphQL layer
-pub async fn get_pending_websites(
-    deps: &ServerDeps,
-) -> Result<Vec<Website>> {
+pub async fn get_pending_websites(deps: &ServerDeps) -> Result<Vec<Website>> {
     info!("Getting pending websites");
 
     Website::find_pending_review(&deps.db_pool).await

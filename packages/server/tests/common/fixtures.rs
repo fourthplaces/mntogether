@@ -61,11 +61,8 @@ pub async fn create_test_post_active(
 
 /// Create a test website (for scraping tests)
 pub async fn create_test_website(pool: &PgPool, url: &str) -> Result<WebsiteId> {
-    let website = Website::create(
-        CreateWebsite::builder().url_or_domain(url).build(),
-        pool,
-    )
-    .await?;
+    let website =
+        Website::create(CreateWebsite::builder().url_or_domain(url).build(), pool).await?;
 
     Ok(website.id)
 }
@@ -76,11 +73,8 @@ pub async fn create_test_website_approved(
     url: &str,
     admin_member_id: MemberId,
 ) -> Result<WebsiteId> {
-    let website = Website::create(
-        CreateWebsite::builder().url_or_domain(url).build(),
-        pool,
-    )
-    .await?;
+    let website =
+        Website::create(CreateWebsite::builder().url_or_domain(url).build(), pool).await?;
 
     // Approve the website
     Website::approve(website.id, admin_member_id, pool).await?;

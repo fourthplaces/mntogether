@@ -71,7 +71,10 @@ pub async fn apply_insert(
         &website.domain,
         fresh,
         Some(website_id),
-        fresh.source_url.clone().or_else(|| Some(format!("https://{}", website.domain))),
+        fresh
+            .source_url
+            .clone()
+            .or_else(|| Some(format!("https://{}", website.domain))),
         pool,
     )
     .await
@@ -237,7 +240,10 @@ async fn delete_duplicate(
     };
     let post_id = PostId::from(id);
 
-    let dup_title = existing_by_id.get(dup_id).map(|e| e.title.as_str()).unwrap_or("?");
+    let dup_title = existing_by_id
+        .get(dup_id)
+        .map(|e| e.title.as_str())
+        .unwrap_or("?");
 
     // Don't delete active posts
     if let Some(existing) = existing_by_id.get(dup_id) {
@@ -252,7 +258,10 @@ async fn delete_duplicate(
     match Post::soft_delete(post_id, reason, pool).await {
         Ok(_) => {
             info!(action = "MERGE_DELETED", dup_id = %dup_id, dup_title = %dup_title, "Successfully merged (deleted) duplicate");
-            SyncOpResult::Merged { canonical: canonical_post_id, deleted: post_id }
+            SyncOpResult::Merged {
+                canonical: canonical_post_id,
+                deleted: post_id,
+            }
         }
         Err(e) => {
             tracing::error!(action = "MERGE_DELETE_FAILED", dup_id = %dup_id, error = %e, "Failed to delete duplicate");

@@ -40,6 +40,10 @@ interface SyncProposal {
   reviewedBy: string | null;
   reviewedAt: string | null;
   createdAt: string;
+  draftTitle: string | null;
+  targetTitle: string | null;
+  mergeSourceIds: string[];
+  mergeSourceTitles: string[];
 }
 
 type StatusFilter = "pending" | "all";
@@ -76,6 +80,59 @@ function OperationBadge({ operation }: { operation: string }) {
       {operation}
     </span>
   );
+}
+
+function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
+  switch (p.operation) {
+    case "insert":
+      return (
+        <p className="text-sm text-stone-800 mt-1">
+          <span className="font-medium">New post:</span>{" "}
+          {p.draftTitle || p.draftEntityId?.slice(0, 8) || "unknown"}
+        </p>
+      );
+    case "update":
+      return (
+        <p className="text-sm text-stone-800 mt-1">
+          <span className="font-medium">Update:</span>{" "}
+          {p.targetTitle || p.targetEntityId?.slice(0, 8) || "unknown"}
+          {p.draftTitle && p.draftTitle !== p.targetTitle && (
+            <span className="text-stone-500">
+              {" "}
+              (revision: {p.draftTitle})
+            </span>
+          )}
+        </p>
+      );
+    case "delete":
+      return (
+        <p className="text-sm text-stone-800 mt-1">
+          <span className="font-medium">Delete:</span>{" "}
+          {p.targetTitle || p.targetEntityId?.slice(0, 8) || "unknown"}
+        </p>
+      );
+    case "merge":
+      return (
+        <div className="text-sm text-stone-800 mt-1">
+          <p>
+            <span className="font-medium">Merge into:</span>{" "}
+            {p.targetTitle || p.targetEntityId?.slice(0, 8) || "unknown"}
+          </p>
+          {p.mergeSourceTitles.length > 0 && (
+            <p className="text-stone-600 mt-0.5">
+              Absorbing:{" "}
+              {p.mergeSourceTitles.join(", ")}
+            </p>
+          )}
+        </div>
+      );
+    default:
+      return (
+        <p className="text-sm text-stone-800 mt-1">
+          {p.draftTitle || p.targetTitle || p.operation}
+        </p>
+      );
+  }
 }
 
 function timeAgo(dateStr: string): string {
@@ -146,17 +203,10 @@ function BatchProposals({
               <StatusBadge status={p.status} />
               <span className="text-xs text-stone-500">{p.entityType}</span>
             </div>
+            <ProposalDescription proposal={p} />
             {p.reason && (
-              <p className="text-sm text-stone-700 mt-1">{p.reason}</p>
+              <p className="text-sm text-stone-600 mt-1 italic">{p.reason}</p>
             )}
-            <div className="text-xs text-stone-400 mt-1 space-x-3">
-              {p.draftEntityId && (
-                <span>Draft: {p.draftEntityId.slice(0, 8)}...</span>
-              )}
-              {p.targetEntityId && (
-                <span>Target: {p.targetEntityId.slice(0, 8)}...</span>
-              )}
-            </div>
           </div>
           {p.status === "pending" && batchStatus !== "expired" && (
             <div className="flex gap-1 shrink-0">

@@ -47,8 +47,8 @@ impl OpenAI {
 
     /// Create from environment variable `OPENAI_API_KEY`.
     pub fn from_env() -> Result<Self> {
-        let client = OpenAIClient::from_env()
-            .map_err(|e| ExtractionError::Config(e.to_string().into()))?;
+        let client =
+            OpenAIClient::from_env().map_err(|e| ExtractionError::Config(e.to_string().into()))?;
         Ok(Self {
             client,
             model: "gpt-4o".to_string(),
@@ -94,7 +94,10 @@ impl OpenAI {
             .message(Message::system("You are a helpful assistant."))
             .message(Message::user(prompt));
 
-        let response = self.client.chat_completion(request).await
+        let response = self
+            .client
+            .chat_completion(request)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
         Ok(response.content)
@@ -108,7 +111,10 @@ impl OpenAI {
             .message(Message::system("You are a helpful assistant."))
             .message(Message::user(prompt));
 
-        let response = self.client.chat_completion(request).await
+        let response = self
+            .client
+            .chat_completion(request)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
         Ok(response.content)
@@ -123,7 +129,9 @@ impl OpenAI {
     ) -> Result<String> {
         let request = openai_client::StructuredRequest::new(&self.model, system, user, schema);
 
-        self.client.structured_output(request).await
+        self.client
+            .structured_output(request)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
@@ -133,9 +141,13 @@ impl OpenAI {
         messages: &[serde_json::Value],
         tools: &serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let request = openai_client::FunctionRequest::new(&self.model, messages.to_vec(), tools.clone());
+        let request =
+            openai_client::FunctionRequest::new(&self.model, messages.to_vec(), tools.clone());
 
-        let response = self.client.function_calling(request).await
+        let response = self
+            .client
+            .function_calling(request)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
         Ok(response.message)
@@ -158,7 +170,10 @@ impl OpenAI {
             request = request.max_tokens(4096).temperature(0.0);
         }
 
-        let response = self.client.chat_completion(request).await
+        let response = self
+            .client
+            .chat_completion(request)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
 
         Ok(response.content)
@@ -189,7 +204,9 @@ impl OpenAI {
                     cleaned
                 );
 
-                let fixed_response = self.chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt).await?;
+                let fixed_response = self
+                    .chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt)
+                    .await?;
                 let fixed_cleaned = openai_client::strip_code_blocks(&fixed_response);
 
                 serde_json::from_str::<T>(fixed_cleaned).map_err(|e| {
@@ -457,12 +474,16 @@ Include all relevant details found in the sources. Be thorough - extract everyth
     }
 
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
-        self.client.create_embedding(text, &self.embedding_model).await
+        self.client
+            .create_embedding(text, &self.embedding_model)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
-        self.client.create_embeddings_batch(texts, &self.embedding_model).await
+        self.client
+            .create_embeddings_batch(texts, &self.embedding_model)
+            .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 }

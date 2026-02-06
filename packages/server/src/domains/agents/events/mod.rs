@@ -16,10 +16,7 @@ pub enum ChatStreamEvent {
     },
 
     /// A token chunk from the streaming response
-    TokenDelta {
-        container_id: String,
-        delta: String,
-    },
+    TokenDelta { container_id: String, delta: String },
 
     /// Generation complete — message has been persisted to DB
     MessageComplete {
@@ -31,10 +28,7 @@ pub enum ChatStreamEvent {
     },
 
     /// Generation failed
-    GenerationError {
-        container_id: String,
-        error: String,
-    },
+    GenerationError { container_id: String, error: String },
 }
 
 impl ChatStreamEvent {
