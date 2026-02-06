@@ -80,10 +80,12 @@ pub struct PostSearchResultWithLocation {
     pub post_id: PostId,
     pub title: String,
     pub description: String,
+    pub tldr: Option<String>,
     pub organization_name: String,
     pub category: String,
     pub post_type: String,
     pub location: Option<String>,
+    pub source_url: Option<String>,
     pub similarity: f64,
 }
 
@@ -868,10 +870,12 @@ impl Post {
                 p.id as post_id,
                 p.title,
                 p.description,
+                p.tldr,
                 p.organization_name,
                 p.category,
                 p.post_type,
                 p.location,
+                p.source_url,
                 (1 - (p.embedding <=> $1))::float8 as similarity
             FROM posts p
             WHERE p.embedding IS NOT NULL

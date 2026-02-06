@@ -16,6 +16,11 @@ COPY . .
 
 # Build Next.js app (standalone mode)
 ENV NEXT_TELEMETRY_DISABLED=1
+
+# API URL must be set at build time (baked into client JS bundle)
+ARG NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+
 RUN yarn build
 
 # Runtime stage

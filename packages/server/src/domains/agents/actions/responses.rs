@@ -25,12 +25,12 @@ use crate::kernel::{CompletionExt, SearchPostsTool, ServerDeps};
 /// Creates an assistant message with the greeting. Returns the created message.
 pub async fn generate_greeting(
     container_id: ContainerId,
-    _agent_config: &str,
+    agent_config: &str,
     deps: &ServerDeps,
 ) -> Result<Message> {
-    info!(container_id = %container_id, "Generating agent greeting");
+    info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
 
-    let agent = Agent::get_or_create_default(&deps.db_pool).await?;
+    let agent = Agent::get_or_create_by_config(agent_config, &deps.db_pool).await?;
 
     let greeting_prompt = build_greeting_prompt(&agent.preamble);
 
@@ -96,7 +96,10 @@ pub async fn generate_reply(
         ));
     }
 
-    let agent = Agent::get_or_create_default(&deps.db_pool).await?;
+    let agent_config = get_container_agent_config(container_id, &deps.db_pool)
+        .await
+        .unwrap_or_else(|| "admin".to_string());
+    let agent = Agent::get_or_create_by_config(&agent_config, &deps.db_pool).await?;
 
     let messages = Message::find_by_container(container_id, &deps.db_pool)
         .await
@@ -177,7 +180,11 @@ pub async fn generate_reply_streaming(
         ));
     }
 
-    let agent = Agent::get_or_create_default(&deps.db_pool).await?;
+    // Resolve agent config from container tags
+    let agent_config = get_container_agent_config(container_id, &deps.db_pool)
+        .await
+        .unwrap_or_else(|| "admin".to_string());
+    let agent = Agent::get_or_create_by_config(&agent_config, &deps.db_pool).await?;
 
     let messages = Message::find_by_container(container_id, &deps.db_pool).await?;
     let topic = ChatStreamEvent::topic(&container_id.to_string());
@@ -196,6 +203,11 @@ pub async fn generate_reply_streaming(
     // Phase 1: Agent with tools (non-streaming)
     let oai_messages = build_oai_messages(&agent.preamble, &messages);
 
+    // Wire on_tool_result callback to publish ToolResult events to StreamHub
+    let hub = deps.stream_hub.clone();
+    let topic_clone = topic.clone();
+    let cid = container_id.to_string();
+
     let agent_result = deps
         .ai
         .agent("gpt-4o")
@@ -203,6 +215,27 @@ pub async fn generate_reply_streaming(
             deps.db_pool.clone(),
             deps.embedding_service.clone(),
         ))
+        .on_tool_result(move |tool_name, call_id, result_json| {
+            let hub = hub.clone();
+            let topic = topic_clone.clone();
+            let cid = cid.clone();
+            let tn = tool_name.to_string();
+            let ci = call_id.to_string();
+            let rj = result_json.to_string();
+            tokio::spawn(async move {
+                let results = serde_json::from_str::<serde_json::Value>(&rj)
+                    .unwrap_or(serde_json::Value::Null);
+                let event = ChatStreamEvent::ToolResult {
+                    container_id: cid,
+                    tool_name: tn,
+                    call_id: ci,
+                    results,
+                };
+                if let Ok(val) = serde_json::to_value(event) {
+                    hub.publish(&topic, val).await;
+                }
+            });
+        })
         .max_iterations(3)
         .build()
         .chat_with_history(oai_messages)

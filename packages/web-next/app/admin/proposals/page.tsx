@@ -281,19 +281,29 @@ function BatchCard({ batch }: { batch: SyncBatch }) {
               <p className="text-sm text-stone-700 mt-1">{batch.summary}</p>
             )}
             <div className="flex items-center gap-3 mt-2 text-xs text-stone-500">
-              <span>{batch.proposalCount} proposals</span>
-              {batch.approvedCount > 0 && (
-                <span className="text-green-600">
-                  {batch.approvedCount} approved
+              {batch.proposalCount === 0 ? (
+                <span className="text-stone-400 italic">
+                  No actionable proposals (LLM output could not be staged)
                 </span>
-              )}
-              {batch.rejectedCount > 0 && (
-                <span className="text-red-600">
-                  {batch.rejectedCount} rejected
-                </span>
-              )}
-              {pendingCount > 0 && (
-                <span className="text-yellow-600">{pendingCount} pending</span>
+              ) : (
+                <>
+                  <span>{batch.proposalCount} proposals</span>
+                  {batch.approvedCount > 0 && (
+                    <span className="text-green-600">
+                      {batch.approvedCount} approved
+                    </span>
+                  )}
+                  {batch.rejectedCount > 0 && (
+                    <span className="text-red-600">
+                      {batch.rejectedCount} rejected
+                    </span>
+                  )}
+                  {pendingCount > 0 && (
+                    <span className="text-yellow-600">
+                      {pendingCount} pending
+                    </span>
+                  )}
+                </>
               )}
             </div>
           </div>

@@ -10,9 +10,9 @@ COPY Cargo.toml ./
 
 # Copy all package Cargo.toml files for dependency resolution
 COPY packages/server/Cargo.toml ./packages/server/
-COPY packages/seesaw-rs/Cargo.toml ./packages/seesaw-rs/
 COPY packages/twilio-rs/Cargo.toml ./packages/twilio-rs/
-COPY packages/dev-cli/Cargo.toml ./packages/dev-cli/
+COPY packages/extraction/Cargo.toml ./packages/extraction/
+COPY packages/openai-client/Cargo.toml ./packages/openai-client/
 
 # Create dummy src files for all packages to cache dependencies
 RUN mkdir -p packages/server/src && \
@@ -21,24 +21,27 @@ RUN mkdir -p packages/server/src && \
     echo "fn main() {}" > packages/server/src/server/main.rs && \
     mkdir -p packages/server/src/bin && \
     echo "fn main() {}" > packages/server/src/bin/seed_organizations.rs && \
-    mkdir -p packages/seesaw-rs/src && \
-    echo "fn main() {}" > packages/seesaw-rs/src/lib.rs && \
+    echo "fn main() {}" > packages/server/src/bin/generate_embeddings.rs && \
+    echo "fn main() {}" > packages/server/src/bin/migrate_cli.rs && \
     mkdir -p packages/twilio-rs/src && \
     echo "fn main() {}" > packages/twilio-rs/src/lib.rs && \
-    mkdir -p packages/dev-cli/src && \
-    echo "fn main() {}" > packages/dev-cli/src/main.rs
+    mkdir -p packages/extraction/src && \
+    echo "fn main() {}" > packages/extraction/src/lib.rs && \
+    mkdir -p packages/openai-client/src && \
+    echo "fn main() {}" > packages/openai-client/src/lib.rs
 
 # Build dependencies (cached layer)
 RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin server
 
-# Remove dummy src files (keep dev-cli dummy since we don't build it)
-RUN rm -rf packages/server/src packages/seesaw-rs/src packages/twilio-rs/src
+# Remove dummy src files
+RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src
 
 # Copy real source code for packages we actually build
 COPY packages/server/src ./packages/server/src
 COPY packages/server/migrations ./packages/server/migrations
-COPY packages/seesaw-rs/src ./packages/seesaw-rs/src
 COPY packages/twilio-rs/src ./packages/twilio-rs/src
+COPY packages/extraction/src ./packages/extraction/src
+COPY packages/openai-client/src ./packages/openai-client/src
 
 # Build the actual application
 RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin server

@@ -12,6 +12,7 @@ pub struct Agent {
     pub member_id: Uuid,
     pub display_name: String,
     pub preamble: String,
+    pub config_name: String,
     pub is_active: bool,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -20,10 +21,15 @@ pub struct Agent {
 impl Agent {
     /// Get the default active agent, creating one if none exists.
     pub async fn get_or_create_default(pool: &PgPool) -> Result<Self> {
-        if let Some(agent) = Self::find_first_active(pool).await? {
+        Self::get_or_create_by_config("admin", pool).await
+    }
+
+    /// Get or create an agent by config name.
+    pub async fn get_or_create_by_config(config: &str, pool: &PgPool) -> Result<Self> {
+        if let Some(agent) = Self::find_by_config(config, pool).await? {
             return Ok(agent);
         }
-        Self::create_default(pool).await
+        Self::create_for_config(config, pool).await
     }
 
     /// Typed member ID for use as message author.
@@ -31,29 +37,65 @@ impl Agent {
         MemberId::from(self.member_id)
     }
 
-    async fn find_first_active(pool: &PgPool) -> Result<Option<Self>> {
+    async fn find_by_config(config: &str, pool: &PgPool) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM agents WHERE is_active = true ORDER BY created_at ASC LIMIT 1",
+            "SELECT * FROM agents WHERE config_name = $1 AND is_active = true LIMIT 1",
         )
+        .bind(config)
         .fetch_optional(pool)
         .await
         .map_err(Into::into)
     }
 
-    async fn create_default(pool: &PgPool) -> Result<Self> {
+    async fn create_for_config(config: &str, pool: &PgPool) -> Result<Self> {
+        let (push_token, searchable, display_name, preamble) = match config {
+            "public" => (
+                "agent:public",
+                "MN Together Guide",
+                "MN Together Guide",
+                PUBLIC_AGENT_PREAMBLE,
+            ),
+            _ => (
+                "agent:default",
+                "AI Admin Assistant",
+                "MN Together Assistant",
+                ADMIN_AGENT_PREAMBLE,
+            ),
+        };
+
         // Create a synthetic member for the agent
         let member_id: Uuid = sqlx::query_scalar(
             r#"
             INSERT INTO members (expo_push_token, searchable_text, active, notification_count_this_week)
-            VALUES ('agent:default', 'AI Admin Assistant', true, 0)
+            VALUES ($1, $2, true, 0)
             ON CONFLICT (expo_push_token) DO UPDATE SET searchable_text = EXCLUDED.searchable_text
             RETURNING id
             "#,
         )
+        .bind(push_token)
+        .bind(searchable)
         .fetch_one(pool)
         .await?;
 
-        let preamble = r#"You are an admin assistant for MN Together, a resource-sharing platform.
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO agents (member_id, display_name, preamble, config_name)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (member_id) DO UPDATE SET is_active = true, config_name = EXCLUDED.config_name
+            RETURNING *
+            "#,
+        )
+        .bind(member_id)
+        .bind(display_name)
+        .bind(preamble)
+        .bind(config)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+}
+
+const ADMIN_AGENT_PREAMBLE: &str = r#"You are an admin assistant for MN Together, a resource-sharing platform.
 You can help administrators:
 - Approve or reject listings
 - Scrape websites for new resources
@@ -63,18 +105,19 @@ You can help administrators:
 
 Be helpful and proactive. If an admin asks to do something, use the appropriate tool."#;
 
-        sqlx::query_as::<_, Self>(
-            r#"
-            INSERT INTO agents (member_id, display_name, preamble)
-            VALUES ($1, 'MN Together Assistant', $2)
-            ON CONFLICT (member_id) DO UPDATE SET is_active = true
-            RETURNING *
-            "#,
-        )
-        .bind(member_id)
-        .bind(preamble)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-}
+const PUBLIC_AGENT_PREAMBLE: &str = r#"You are MN Together Guide, a friendly community resource navigator for Minnesota.
+
+Help people find:
+- Social services (food, housing, healthcare, legal aid)
+- Volunteer and civic engagement opportunities
+- Local businesses that give back to the community
+- Support for specific populations (seniors, refugees, youth, etc.)
+
+Rules:
+- Always use your search_posts tool before answering. Do not guess.
+- Present results as a brief summary: what you found and why it's relevant.
+- Keep responses concise (2-4 sentences). The structured results are shown separately in the UI.
+- If no results found: acknowledge it, suggest broadening the search, recommend calling 211.
+- Be warm, respectful, and concise. Many users may be in difficult situations.
+- Never ask for personal information.
+- For emergencies, remind them to call 911."#;
