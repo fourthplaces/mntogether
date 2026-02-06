@@ -161,4 +161,28 @@ pub enum CrawlEvent {
     ///
     /// Emitted by GraphQL mutation. Picked up by `regenerate_single_post_effect`.
     SinglePostRegenerationEnqueued { post_id: Uuid },
+
+    // =========================================================================
+    // Fan-out Investigation Events (batch/join pipeline)
+    // =========================================================================
+    /// Single post investigation enqueued (one per deduplicated narrative)
+    ///
+    /// Emitted as a batch by `extract_narratives` effect.
+    /// Picked up by `investigate_post` effect (parallel per post).
+    PostInvestigationEnqueued {
+        website_id: WebsiteId,
+        title: String,
+        tldr: String,
+        description: String,
+        source_url: String,
+    },
+
+    /// Single post investigation completed
+    ///
+    /// Emitted by `investigate_post` effect after AI investigation.
+    /// Joined by `join_investigations` effect.
+    PostInvestigated {
+        website_id: WebsiteId,
+        post: ExtractedPost,
+    },
 }

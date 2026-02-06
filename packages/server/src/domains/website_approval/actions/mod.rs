@@ -257,6 +257,27 @@ pub async fn conduct_searches(
     })
 }
 
+/// Build search queries for a research record.
+///
+/// Returns the list of query strings to execute. Used by fan-out search pipeline.
+pub async fn build_search_queries(
+    research_id: Uuid,
+    website_id: WebsiteId,
+    deps: &ServerDeps,
+) -> Result<Vec<String>> {
+    let research = WebsiteResearch::find_latest_by_website_id(website_id.into(), &deps.db_pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("Research not found: {}", research_id))?;
+
+    let domain_name = extract_domain_name(&research.homepage_url);
+
+    Ok(vec![
+        format!("{} organization background mission", domain_name),
+        format!("{} reviews complaints problems", domain_name),
+        format!("{} founded history about", domain_name),
+    ])
+}
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -370,7 +391,7 @@ async fn store_assessment_embedding(assessment_id: Uuid, markdown: &str, deps: &
 }
 
 /// Execute a single search query and store results
-async fn execute_and_store_search(
+pub async fn execute_and_store_search(
     research_id: Uuid,
     query_text: &str,
     deps: &ServerDeps,

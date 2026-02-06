@@ -17,7 +17,7 @@ pub mod utils;
 
 // llm_sync moved to actions/llm_sync.rs - it's business logic, not an effect
 
-pub use composite::post_composite_effect;
+pub use composite::handlers;
 // NOTE: Discovery queries have moved to domains/discovery/ (database-driven).
 // The old hardcoded DISCOVERY_QUERIES in discovery.rs are kept for reference but no longer used.
 pub use post::extract_domain;

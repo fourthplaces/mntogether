@@ -1,228 +1,308 @@
-//! Crawling pipeline effects - queued event-driven workers
+//! Crawling pipeline effects - queued event-driven workers with fan-out/join
 //!
-//! Replaces the custom job system (CrawlWebsiteJob, ExtractPostsJob, etc.)
-//! with seesaw queued effects:
-//!
+//! Pipeline:
 //! ```text
-//! CrawlWebsiteEnqueued        → crawl_website_effect (queued) → RETURNS PostsExtractionEnqueued
-//! PostsExtractionEnqueued     → extract_posts_effect (queued) → RETURNS PostsSyncEnqueued
-//! PostsSyncEnqueued           → sync_posts_effect (queued)    → terminal
-//! PostsRegenerationEnqueued   → regenerate_posts_effect (queued) → RETURNS PostsExtractionEnqueued
-//! SinglePostRegenerationEnqueued → regenerate_single_post_effect (queued) → terminal
+//! CrawlWebsiteEnqueued        → crawl_website (queued)        → PostsExtractionEnqueued
+//! PostsExtractionEnqueued     → extract_narratives (queued)    → Batch([PostInvestigationEnqueued...])
+//! PostInvestigationEnqueued   → investigate_post (queued)      → PostInvestigated [parallel per post]
+//! PostInvestigated            → join_investigations (join)     → PostsSyncEnqueued
+//! PostsSyncEnqueued           → sync_posts (queued)            → terminal
+//! PostsRegenerationEnqueued   → regenerate_posts (queued)      → PostsExtractionEnqueued
+//! SinglePostRegenerationEnqueued → regenerate_single_post      → terminal
+//! WebsiteCrawlNoListings      → mark_no_listings              → terminal
 //! ```
 
-use std::time::Duration;
-
-use anyhow::anyhow;
-use seesaw_core::effect;
-use tracing::info;
+use anyhow::{anyhow, Result};
+use seesaw_core::{effect, effects, EffectContext, Emit};
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{AppState, ExtractedPost, WebsiteId};
-use crate::domains::crawling::actions::post_extraction::extract_posts_for_domain;
+use crate::domains::crawling::actions::post_extraction;
 use crate::domains::crawling::actions::{ingest_website, regenerate_posts, regenerate_single_post};
 use crate::domains::crawling::events::CrawlEvent;
 use crate::domains::posts::actions::llm_sync::llm_sync_posts;
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
-/// Crawl website effect - replaces CrawlWebsiteJob
-///
-/// CrawlWebsiteEnqueued → ingest_website() → RETURNS PostsExtractionEnqueued
-pub fn crawl_website_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<CrawlEvent>()
-        .extract(|event| match event {
-            CrawlEvent::CrawlWebsiteEnqueued {
-                website_id,
-                visitor_id,
-                use_firecrawl,
-            } => Some((*website_id, *visitor_id, *use_firecrawl)),
-            _ => None,
-        })
-        .id("crawl_website")
-        .queued()
-        .retry(3)
-        .timeout(Duration::from_secs(600))
-        .then(
-            |(website_id, visitor_id, use_firecrawl): (Uuid, Uuid, bool),
-             ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-                info!(
-                    website_id = %website_id,
-                    use_firecrawl = use_firecrawl,
-                    "Crawling website (queued effect)"
-                );
+#[effects]
+pub mod handlers {
+    use super::*;
 
-                ingest_website(website_id, visitor_id, use_firecrawl, true, ctx.deps()).await?;
+    // =========================================================================
+    // Step 1: Crawl website
+    // =========================================================================
 
-                info!(website_id = %website_id, "Crawl complete, returning extraction enqueue");
+    #[effect(
+        on = [CrawlEvent::CrawlWebsiteEnqueued],
+        extract(website_id, visitor_id, use_firecrawl),
+        id = "crawl_website",
+        retry = 3,
+        timeout_secs = 600
+    )]
+    async fn crawl_website(
+        website_id: Uuid,
+        visitor_id: Uuid,
+        use_firecrawl: bool,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<CrawlEvent> {
+        info!(
+            website_id = %website_id,
+            use_firecrawl = use_firecrawl,
+            "Crawling website (queued effect)"
+        );
 
-                Ok(CrawlEvent::PostsExtractionEnqueued { website_id })
-            },
-        )
-}
+        ingest_website(website_id, visitor_id, use_firecrawl, true, ctx.deps()).await?;
 
-/// Extract posts effect - replaces ExtractPostsJob
-///
-/// PostsExtractionEnqueued → extract_posts_for_domain() → RETURNS PostsSyncEnqueued
-pub fn extract_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<CrawlEvent>()
-        .extract(|event| match event {
-            CrawlEvent::PostsExtractionEnqueued { website_id } => Some(*website_id),
-            _ => None,
-        })
-        .id("extract_posts")
-        .queued()
-        .retry(2)
-        .timeout(Duration::from_secs(120))
-        .then(
-            |website_id: Uuid, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-                info!(website_id = %website_id, "Extracting posts (queued effect)");
+        info!(website_id = %website_id, "Crawl complete, returning extraction enqueue");
 
-                let website_id_typed = WebsiteId::from_uuid(website_id);
-                let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
+        Ok(CrawlEvent::PostsExtractionEnqueued { website_id })
+    }
 
-                let extraction = ctx
-                    .deps()
-                    .extraction
-                    .as_ref()
-                    .ok_or_else(|| anyhow!("Extraction service not available"))?;
+    // =========================================================================
+    // Step 2: Extract narratives → fan-out to investigations
+    // =========================================================================
 
-                let result =
-                    extract_posts_for_domain(&website.domain, extraction.as_ref(), ctx.deps())
-                        .await?;
+    #[effect(
+        on = [CrawlEvent::PostsExtractionEnqueued],
+        extract(website_id),
+        id = "extract_narratives",
+        retry = 2,
+        timeout_secs = 120
+    )]
+    async fn extract_narratives(
+        website_id: Uuid,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<Emit<CrawlEvent>> {
+        info!(website_id = %website_id, "Extracting narratives (queued effect)");
 
-                let posts_count = result.posts.len();
-                info!(
-                    website_id = %website_id,
-                    posts_count = posts_count,
-                    "Extraction complete, returning sync enqueue"
-                );
+        let website_id_typed = WebsiteId::from_uuid(website_id);
+        let website = Website::find_by_id(website_id_typed, &ctx.deps().db_pool).await?;
+        let extraction = ctx
+            .deps()
+            .extraction
+            .as_ref()
+            .ok_or_else(|| anyhow!("Extraction service not available"))?;
 
-                // Always return the sync event; sync effect handles empty posts gracefully
-                Ok(CrawlEvent::PostsSyncEnqueued {
-                    website_id: website_id_typed,
-                    posts: result.posts,
-                })
-            },
-        )
-}
-
-/// Sync posts effect - stages proposals for human review
-///
-/// PostsSyncEnqueued → llm_sync_posts() (stages proposals, terminal)
-pub fn sync_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<CrawlEvent>()
-        .extract(|event| match event {
-            CrawlEvent::PostsSyncEnqueued { website_id, posts } => {
-                Some((*website_id, posts.clone()))
-            }
-            _ => None,
-        })
-        .id("sync_posts")
-        .queued()
-        .retry(2)
-        .timeout(Duration::from_secs(120))
-        .then(
-            |(website_id, posts): (WebsiteId, Vec<ExtractedPost>),
-             ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-                let posts_count = posts.len();
-
-                if posts_count == 0 {
-                    info!(website_id = %website_id, "No posts to sync, skipping");
-                    return Ok(());
-                }
-
-                info!(
-                    website_id = %website_id,
-                    posts_count = posts_count,
-                    "Syncing posts via LLM (queued effect)"
-                );
-
-                let result = llm_sync_posts(
-                    website_id,
-                    posts,
-                    ctx.deps().ai.as_ref(),
-                    &ctx.deps().db_pool,
-                )
+        let (narratives, _page_urls) =
+            post_extraction::extract_narratives_for_domain(&website.domain, extraction.as_ref())
                 .await?;
 
-                info!(
-                    website_id = %website_id,
-                    batch_id = %result.batch_id,
-                    staged_inserts = result.staged_inserts,
-                    staged_updates = result.staged_updates,
-                    staged_deletes = result.staged_deletes,
-                    staged_merges = result.staged_merges,
-                    "LLM sync completed - proposals staged for review"
-                );
+        if narratives.is_empty() {
+            info!(website_id = %website_id, "No narratives found, syncing empty");
+            return Ok(Emit::One(CrawlEvent::PostsSyncEnqueued {
+                website_id: website_id_typed,
+                posts: vec![],
+            }));
+        }
 
-                Ok(())
-            },
+        info!(
+            website_id = %website_id,
+            narratives_count = narratives.len(),
+            "Narratives extracted, fanning out to investigations"
+        );
+
+        Ok(Emit::Batch(
+            narratives
+                .into_iter()
+                .map(|n| CrawlEvent::PostInvestigationEnqueued {
+                    website_id: website_id_typed,
+                    title: n.title,
+                    tldr: n.tldr,
+                    description: n.description,
+                    source_url: n.source_url,
+                })
+                .collect(),
+        ))
+    }
+
+    // =========================================================================
+    // Step 3: Investigate individual post (parallel per narrative)
+    // =========================================================================
+
+    #[effect(
+        on = [CrawlEvent::PostInvestigationEnqueued],
+        extract(website_id, title, tldr, description, source_url),
+        id = "investigate_post",
+        retry = 2,
+        timeout_secs = 120
+    )]
+    async fn do_investigate_post(
+        website_id: WebsiteId,
+        title: String,
+        tldr: String,
+        description: String,
+        source_url: String,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<CrawlEvent> {
+        info!(title = %title, source_url = %source_url, "Investigating post");
+
+        let narrative = post_extraction::NarrativePost {
+            title,
+            tldr,
+            description,
+            source_url,
+        };
+        let info = post_extraction::investigate_post(&narrative, ctx.deps())
+            .await
+            .unwrap_or_else(|e| {
+                warn!(error = %e, "Investigation failed, using defaults");
+                crate::common::ExtractedPostInformation::default()
+            });
+
+        let post = ExtractedPost::from_narrative_and_info(narrative, info);
+        Ok(CrawlEvent::PostInvestigated { website_id, post })
+    }
+
+    // =========================================================================
+    // Step 4: Join all investigations → sync
+    // =========================================================================
+
+    #[effect(on = CrawlEvent, join, id = "join_investigations")]
+    async fn join_investigations(
+        events: Vec<CrawlEvent>,
+        _ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<CrawlEvent> {
+        let mut posts = Vec::new();
+        let mut website_id = None;
+
+        for event in events {
+            if let CrawlEvent::PostInvestigated {
+                website_id: wid,
+                post,
+            } = event
+            {
+                website_id = Some(wid);
+                posts.push(post);
+            }
+        }
+
+        let website_id = website_id.expect("batch must have items");
+        info!(
+            website_id = %website_id,
+            posts_count = posts.len(),
+            "All investigations joined, syncing posts"
+        );
+
+        Ok(CrawlEvent::PostsSyncEnqueued { website_id, posts })
+    }
+
+    // =========================================================================
+    // Step 5: Sync posts to database
+    // =========================================================================
+
+    #[effect(
+        on = [CrawlEvent::PostsSyncEnqueued],
+        extract(website_id, posts),
+        id = "sync_posts",
+        retry = 2,
+        timeout_secs = 120
+    )]
+    async fn sync_posts(
+        website_id: WebsiteId,
+        posts: Vec<ExtractedPost>,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<()> {
+        let posts_count = posts.len();
+
+        if posts_count == 0 {
+            info!(website_id = %website_id, "No posts to sync, skipping");
+            return Ok(());
+        }
+
+        info!(
+            website_id = %website_id,
+            posts_count = posts_count,
+            "Syncing posts via LLM (queued effect)"
+        );
+
+        let result = llm_sync_posts(
+            website_id,
+            posts,
+            ctx.deps().ai.as_ref(),
+            &ctx.deps().db_pool,
         )
-}
+        .await?;
 
-/// Regenerate posts effect - replaces RegeneratePostsJob
-///
-/// PostsRegenerationEnqueued → regenerate_posts() → RETURNS PostsExtractionEnqueued
-pub fn regenerate_posts_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<CrawlEvent>()
-        .extract(|event| match event {
-            CrawlEvent::PostsRegenerationEnqueued {
-                website_id,
-                visitor_id,
-            } => Some((*website_id, *visitor_id)),
-            _ => None,
-        })
-        .id("regenerate_posts")
-        .queued()
-        .retry(2)
-        .timeout(Duration::from_secs(300))
-        .then(
-            |(website_id, visitor_id): (Uuid, Uuid),
-             ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-                info!(website_id = %website_id, "Regenerating posts (queued effect)");
+        info!(
+            website_id = %website_id,
+            batch_id = %result.batch_id,
+            staged_inserts = result.staged_inserts,
+            staged_updates = result.staged_updates,
+            staged_deletes = result.staged_deletes,
+            staged_merges = result.staged_merges,
+            "LLM sync completed - proposals staged for review"
+        );
 
-                regenerate_posts(website_id, visitor_id, true, ctx.deps()).await?;
+        Ok(())
+    }
 
-                info!(website_id = %website_id, "Regeneration complete, returning extraction enqueue");
+    // =========================================================================
+    // Regeneration paths
+    // =========================================================================
 
-                Ok(CrawlEvent::PostsExtractionEnqueued { website_id })
-            },
-        )
-}
+    #[effect(
+        on = [CrawlEvent::PostsRegenerationEnqueued],
+        extract(website_id, visitor_id),
+        id = "regenerate_posts",
+        retry = 2,
+        timeout_secs = 300
+    )]
+    async fn regenerate_posts_effect(
+        website_id: Uuid,
+        visitor_id: Uuid,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<CrawlEvent> {
+        info!(website_id = %website_id, "Regenerating posts (queued effect)");
 
-/// Regenerate single post effect - replaces RegenerateSinglePostJob
-///
-/// SinglePostRegenerationEnqueued → regenerate_single_post() (terminal)
-pub fn regenerate_single_post_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<CrawlEvent>()
-        .extract(|event| match event {
-            CrawlEvent::SinglePostRegenerationEnqueued { post_id } => Some(*post_id),
-            _ => None,
-        })
-        .id("regenerate_single_post")
-        .queued()
-        .retry(2)
-        .timeout(Duration::from_secs(60))
-        .then(
-            |post_id: Uuid, ctx: seesaw_core::EffectContext<AppState, ServerDeps>| async move {
-                info!(post_id = %post_id, "Regenerating single post (queued effect)");
+        regenerate_posts(website_id, visitor_id, true, ctx.deps()).await?;
 
-                regenerate_single_post(post_id, ctx.deps()).await?;
+        info!(website_id = %website_id, "Regeneration complete, returning extraction enqueue");
 
-                info!(post_id = %post_id, "Single post regeneration complete");
-                Ok(())
-            },
-        )
-}
+        Ok(CrawlEvent::PostsExtractionEnqueued { website_id })
+    }
 
-/// Composite effect grouping all crawling pipeline effects.
-pub fn crawling_pipeline_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    seesaw_core::effect::group([
-        crawl_website_effect(),
-        extract_posts_effect(),
-        sync_posts_effect(),
-        regenerate_posts_effect(),
-        regenerate_single_post_effect(),
-    ])
+    #[effect(
+        on = [CrawlEvent::SinglePostRegenerationEnqueued],
+        extract(post_id),
+        id = "regenerate_single_post",
+        retry = 2,
+        timeout_secs = 60
+    )]
+    async fn regenerate_single_post_effect(
+        post_id: Uuid,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<()> {
+        info!(post_id = %post_id, "Regenerating single post (queued effect)");
+
+        regenerate_single_post(post_id, ctx.deps()).await?;
+
+        info!(post_id = %post_id, "Single post regeneration complete");
+        Ok(())
+    }
+
+    // =========================================================================
+    // No-listings handler (moved from crawler.rs)
+    // =========================================================================
+
+    #[effect(
+        on = [CrawlEvent::WebsiteCrawlNoListings],
+        extract(website_id, job_id),
+        id = "mark_no_listings"
+    )]
+    async fn mark_no_listings(
+        website_id: WebsiteId,
+        job_id: crate::common::JobId,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<()> {
+        let website = Website::find_by_id(website_id, &ctx.deps().db_pool).await?;
+        let total_attempts = website.crawl_attempt_count.unwrap_or(0);
+        info!(
+            website_id = %website_id,
+            job_id = %job_id,
+            total_attempts = total_attempts,
+            "Website marked as having no listings"
+        );
+        Ok(())
+    }
 }

@@ -14,6 +14,5 @@ pub mod events;
 pub mod jwt;
 pub mod models;
 
-pub use effects::auth_effect;
 pub use events::AuthEvent;
 pub use jwt::{Claims, JwtService};

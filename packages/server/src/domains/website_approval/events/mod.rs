@@ -80,4 +80,42 @@ pub enum WebsiteApprovalEvent {
         job_id: JobId,
         reason: String,
     },
+
+    // ========================================================================
+    // Fan-out Search Events (batch/join pipeline)
+    // ========================================================================
+    /// Single search query enqueued
+    ///
+    /// Emitted as a batch by `prepare_searches` effect.
+    /// Picked up by `execute_search` effect (parallel per query).
+    ResearchSearchEnqueued {
+        research_id: Uuid,
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        query: String,
+    },
+
+    /// Single search query completed
+    ///
+    /// Emitted by `execute_search` effect after Tavily search.
+    /// Joined by `join_searches` effect.
+    ResearchSearchCompleted {
+        research_id: Uuid,
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+        query: String,
+        result_count: usize,
+    },
+
+    /// Assessment generation enqueued (after all searches joined)
+    ///
+    /// Emitted by `join_searches` effect. Picked up by `generate_assessment` effect.
+    AssessmentGenerationEnqueued {
+        research_id: Uuid,
+        website_id: WebsiteId,
+        job_id: JobId,
+        requested_by: MemberId,
+    },
 }

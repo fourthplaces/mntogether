@@ -5,7 +5,8 @@
 //! Cascade flow:
 //!   ProviderDeleted → cleanup contacts and tags (terminal)
 
-use seesaw_core::{effect, EffectContext};
+use anyhow::Result;
+use seesaw_core::{effect, effects, EffectContext};
 use tracing::info;
 
 use crate::common::AppState;
@@ -14,36 +15,23 @@ use crate::domains::providers::events::ProviderEvent;
 use crate::domains::tag::Taggable;
 use crate::kernel::ServerDeps;
 
-/// Build the provider effect handler.
-///
-/// Cascade flow:
-///   ProviderDeleted → cleanup contacts and tags (terminal)
-/// Errors propagate to global on_error() handler.
-pub fn provider_effect() -> seesaw_core::effect::Effect<AppState, ServerDeps> {
-    effect::on::<ProviderEvent>().id("provider_cleanup").then(
-        |event, ctx: EffectContext<AppState, ServerDeps>| async move {
-            match event.as_ref() {
-                // =================================================================
-                // Cascade: ProviderDeleted → cleanup contacts and tags
-                // =================================================================
-                ProviderEvent::ProviderDeleted { provider_id } => {
-                    info!(provider_id = %provider_id, "Cascading provider delete - cleaning up contacts and tags");
+#[effects]
+pub mod handlers {
+    use super::*;
 
-                    Contact::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
-                    Taggable::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
+    #[effect(on = ProviderEvent, id = "provider_cleanup")]
+    async fn provider_cleanup(
+        event: ProviderEvent,
+        ctx: EffectContext<AppState, ServerDeps>,
+    ) -> Result<()> {
+        if let ProviderEvent::ProviderDeleted { provider_id } = &event {
+            info!(provider_id = %provider_id, "Cascading provider delete - cleaning up contacts and tags");
 
-                    info!(provider_id = %provider_id, "Provider cascade cleanup completed");
-                    Ok(())
-                }
+            Contact::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
+            Taggable::delete_all_for_provider(*provider_id, &ctx.deps().db_pool).await?;
 
-                // =================================================================
-                // Terminal events - no cascade needed
-                // =================================================================
-                ProviderEvent::ProviderCreated { .. }
-                | ProviderEvent::ProviderApproved { .. }
-                | ProviderEvent::ProviderRejected { .. }
-                | ProviderEvent::ProviderSuspended { .. } => Ok(()),
-            }
-        },
-    )
+            info!(provider_id = %provider_id, "Provider cascade cleanup completed");
+        }
+        Ok(())
+    }
 }
