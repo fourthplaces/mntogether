@@ -18,7 +18,8 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
-use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+use crate::domains::contacts::Contact;
+use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::sync::actions::{stage_proposals, ProposedOperation};
 use crate::kernel::LlmRequestExt;
 
@@ -150,7 +151,7 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
 async fn convert_existing_posts(existing_posts: &[Post], pool: &PgPool) -> Vec<ExistingPost> {
     let mut existing = Vec::with_capacity(existing_posts.len());
     for p in existing_posts {
-        let contacts = PostContact::find_by_post(p.id, pool)
+        let contacts = Contact::find_by_post(p.id, pool)
             .await
             .unwrap_or_default();
         let contact_phone = contacts
@@ -624,14 +625,14 @@ pub async fn update_post(
 
         // Update contact info on the revision if available
         if let Some(ref contact) = fresh.contact {
-            let _ = PostContact::delete_all_for_post(existing_revision.id, pool).await;
+            let _ = Contact::delete_all_for_post(existing_revision.id, pool).await;
             let contact_json = serde_json::json!({
                 "phone": contact.phone,
                 "email": contact.email,
                 "website": contact.website
             });
             if let Err(e) =
-                PostContact::create_from_json(existing_revision.id, &contact_json, pool).await
+                Contact::create_from_json_for_post(existing_revision.id, &contact_json, pool).await
             {
                 tracing::warn!(
                     revision_id = %existing_revision.id,
@@ -678,7 +679,7 @@ pub async fn update_post(
             "email": contact.email,
             "website": contact.website
         });
-        if let Err(e) = PostContact::create_from_json(revision.id, &contact_json, pool).await {
+        if let Err(e) = Contact::create_from_json_for_post(revision.id, &contact_json, pool).await {
             tracing::warn!(
                 revision_id = %revision.id,
                 error = %e,

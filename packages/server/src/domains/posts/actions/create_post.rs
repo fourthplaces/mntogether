@@ -10,7 +10,8 @@ use uuid::Uuid;
 
 use crate::common::{ContactInfo, ExtractedPost, PostId, WebsiteId};
 use crate::domains::locations::models::{Location, PostLocation};
-use crate::domains::posts::models::{CreatePost, Post, PostContact};
+use crate::domains::contacts::Contact;
+use crate::domains::posts::models::{CreatePost, Post};
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -97,7 +98,7 @@ pub async fn save_contact_info(post_id: PostId, contact: &ContactInfo, pool: &Pg
         "contact_name": contact.contact_name,
     });
 
-    if let Err(e) = PostContact::create_from_json(post_id, &contact_json, pool).await {
+    if let Err(e) = Contact::create_from_json_for_post(post_id, &contact_json, pool).await {
         warn!(
             post_id = %post_id,
             error = %e,

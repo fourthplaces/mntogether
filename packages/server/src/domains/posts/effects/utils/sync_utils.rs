@@ -1,7 +1,8 @@
 use crate::common::{PostId, WebsiteId};
-use crate::domains::organization::utils::generate_tldr;
+use crate::common::utils::generate_tldr;
 use crate::domains::posts::actions::tag_with_audience_roles;
-use crate::domains::posts::models::{CreatePost, Post, PostContact, UpdatePostContent};
+use crate::domains::contacts::Contact;
+use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use anyhow::Result;
 use sqlx::PgPool;
 
@@ -150,7 +151,7 @@ pub async fn sync_posts(
                     // Save contact info if present
                     if let Some(ref contact_info) = post_input.contact {
                         if let Err(e) =
-                            PostContact::create_from_json(created.id, contact_info, pool).await
+                            Contact::create_from_json_for_post(created.id, contact_info, pool).await
                         {
                             tracing::warn!(
                                 post_id = %created.id,

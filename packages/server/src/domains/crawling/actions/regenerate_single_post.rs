@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::common::PostId;
 use crate::domains::extraction::data::ExtractionPageData;
 use crate::domains::posts::actions::create_post::{save_contact_info, tag_with_audience_roles};
-use crate::domains::posts::models::{Post, PostContact, UpdatePostContent};
+use crate::domains::contacts::Contact;
+use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::tag::models::{Tag, Taggable};
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
@@ -121,7 +122,7 @@ pub async fn regenerate_single_post(post_id: Uuid, deps: &ServerDeps) -> Result<
     .await?;
 
     // 7. Update contacts: delete existing, create new
-    PostContact::delete_all_for_post(post_id_typed, &deps.db_pool).await?;
+    Contact::delete_all_for_post(post_id_typed, &deps.db_pool).await?;
     if let Some(ref contact) = best_match.contact {
         save_contact_info(post_id_typed, contact, &deps.db_pool).await;
     }
