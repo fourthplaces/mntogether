@@ -31,21 +31,27 @@ pub struct CrawlWebsiteResult {
     pub status: String,
 }
 
-/// Crawl website workflow service
-pub struct CrawlWebsiteWorkflow {
+/// Crawl website workflow trait
+#[restate_sdk::workflow]
+pub trait CrawlWebsiteWorkflow {
+    async fn run(request: Json<CrawlWebsiteRequest>) -> Result<Json<CrawlWebsiteResult>, HandlerError>;
+}
+
+/// Crawl website workflow implementation
+pub struct CrawlWebsiteWorkflowImpl {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service]
-#[name = "CrawlWebsite"]
-impl CrawlWebsiteWorkflow {
+impl CrawlWebsiteWorkflowImpl {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
     }
+}
 
+impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
     async fn run(
         &self,
-        ctx: Context<'_>,
+        ctx: WorkflowContext<'_>,
         request: Json<CrawlWebsiteRequest>,
     ) -> Result<Json<CrawlWebsiteResult>, HandlerError> {
         let request = request.into_inner();
@@ -60,7 +66,7 @@ impl CrawlWebsiteWorkflow {
         // Step 1: Ingest website pages (10 min timeout for crawling)
         tracing::info!(website_id = %request.website_id, "Step 1: Ingesting website");
         let ingest_event = ctx
-            .run("ingest_website", || async {
+            .run(|| async {
                 activities::ingest_website(
                     request.website_id,
                     request.visitor_id,
@@ -69,6 +75,7 @@ impl CrawlWebsiteWorkflow {
                     &self.deps,
                 )
                 .await
+                .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!(format!("Ingest failed: {}", e)))?;
@@ -83,8 +90,10 @@ impl CrawlWebsiteWorkflow {
         tracing::info!(website_id = %request.website_id, "Step 2: Extracting narratives");
 
         let website = ctx
-            .run("fetch_website", || async {
-                Website::find_by_id(website_id_typed, &self.deps.db_pool).await
+            .run(|| async {
+                Website::find_by_id(website_id_typed, &self.deps.db_pool)
+                    .await
+                    .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!(format!("Failed to fetch website: {}", e)))?;
@@ -96,9 +105,10 @@ impl CrawlWebsiteWorkflow {
             .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
         let (narratives, _page_urls) = ctx
-            .run("extract_narratives", || async {
+            .run(|| async {
                 activities::extract_narratives_for_domain(&website.domain, extraction_service.as_ref())
                     .await
+                    .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!(format!("Narrative extraction failed: {}", e)))?;
@@ -108,11 +118,11 @@ impl CrawlWebsiteWorkflow {
                 website_id = %request.website_id,
                 "No narratives found, workflow complete"
             );
-            return Ok(CrawlWebsiteResult {
+            return Ok(Json(CrawlWebsiteResult {
                 website_id: request.website_id,
                 posts_synced: 0,
                 status: "no_narratives_found".to_string(),
-            });
+            }));
         }
 
         tracing::info!(
@@ -123,7 +133,7 @@ impl CrawlWebsiteWorkflow {
 
         // Step 3: Investigate posts in parallel (fan-out pattern)
         let investigated_posts = ctx
-            .run("investigate_all_posts", || async {
+            .run(|| async {
                 let mut posts = Vec::new();
                 for narrative in narratives {
                     match activities::investigate_post(&narrative, &self.deps).await {
@@ -152,7 +162,7 @@ impl CrawlWebsiteWorkflow {
                         }
                     }
                 }
-                Ok::<Vec<crate::common::ExtractedPost>, anyhow::Error>(posts)
+                Ok::<Vec<crate::common::ExtractedPost>, HandlerError>(posts)
             })
             .await
             .map_err(|e| anyhow::anyhow!(format!("Investigation failed: {}", e)))?;
@@ -165,11 +175,12 @@ impl CrawlWebsiteWorkflow {
 
         // Step 4: Sync and deduplicate posts
         let synced_count = ctx
-            .run("sync_posts", || async {
+            .run(|| async {
                 use crate::domains::posts::activities::llm_sync::llm_sync_posts;
                 llm_sync_posts(website_id_typed, investigated_posts, &self.deps)
                     .await
-                    .map(|_| 0) // llm_sync_posts doesn't return count, estimate 0 for now
+                    .map(|_| 0)
+                    .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!(format!("Post sync failed: {}", e)))?;
