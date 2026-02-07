@@ -27,6 +27,7 @@ use extraction::types::page::CachedPage;
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
 pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
+pub use post_extraction::{extract_narratives_for_domain, investigate_post};
 pub use regenerate_single_post::regenerate_single_post;
 pub use website_context::fetch_approved_website;
 

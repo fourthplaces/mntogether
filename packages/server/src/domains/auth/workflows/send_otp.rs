@@ -17,28 +17,35 @@ pub struct SendOtpResult {
     pub phone_number: String,
 }
 
-pub struct SendOtpWorkflow {
+#[restate_sdk::workflow]
+pub trait SendOtpWorkflow {
+    async fn run(request: Json<SendOtpRequest>) -> Result<Json<SendOtpResult>, HandlerError>;
+}
+
+pub struct SendOtpWorkflowImpl {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service]
-#[name = "SendOtp"]
-impl SendOtpWorkflow {
+impl SendOtpWorkflowImpl {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
     }
+}
 
+impl SendOtpWorkflow for SendOtpWorkflowImpl {
     async fn run(
         &self,
-        ctx: Context<'_>,
+        ctx: WorkflowContext<'_>,
         request: Json<SendOtpRequest>,
     ) -> Result<Json<SendOtpResult>, HandlerError> {
         let request = request.into_inner();
         tracing::info!(phone_number = %request.phone_number, "Sending OTP");
 
         let _event = ctx
-            .run("send_otp", || async {
-                activities::send_otp(request.phone_number.clone(), &self.deps).await
+            .run(|| async {
+                activities::send_otp(request.phone_number.clone(), &self.deps)
+                    .await
+                    .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!("Send OTP failed: {}", e))?;

@@ -21,28 +21,35 @@ pub struct VerifyOtpResult {
     pub token: String,
 }
 
-pub struct VerifyOtpWorkflow {
+#[restate_sdk::workflow]
+pub trait VerifyOtpWorkflow {
+    async fn run(request: Json<VerifyOtpRequest>) -> Result<Json<VerifyOtpResult>, HandlerError>;
+}
+
+pub struct VerifyOtpWorkflowImpl {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service]
-#[name = "VerifyOtp"]
-impl VerifyOtpWorkflow {
+impl VerifyOtpWorkflowImpl {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
     }
+}
 
+impl VerifyOtpWorkflow for VerifyOtpWorkflowImpl {
     async fn run(
         &self,
-        ctx: Context<'_>,
+        ctx: WorkflowContext<'_>,
         request: Json<VerifyOtpRequest>,
     ) -> Result<Json<VerifyOtpResult>, HandlerError> {
         let request = request.into_inner();
         tracing::info!(phone_number = %request.phone_number, "Verifying OTP");
 
         let event = ctx
-            .run("verify_otp", || async {
-                activities::verify_otp(request.phone_number.clone(), request.code.clone(), &self.deps).await
+            .run(|| async {
+                activities::verify_otp(request.phone_number.clone(), request.code.clone(), &self.deps)
+                    .await
+                    .map_err(Into::into)
             })
             .await
             .map_err(|e| anyhow::anyhow!("Verify OTP failed: {}", e))?;
