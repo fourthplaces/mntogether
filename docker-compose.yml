@@ -61,6 +61,27 @@ services:
       - mndigitalaid
 
   # ========================================
+  # Restate Runtime for Durable Workflows
+  # ========================================
+  restate:
+    image: docker.io/restatedev/restate:latest
+    container_name: mndigitalaid_restate
+    ports:
+      - "9070:9070"  # Ingress endpoint (for workflow invocations)
+      - "9071:9071"  # Admin API
+      - "8080:8080"  # Meta endpoint
+    environment:
+      RESTATE_OBSERVABILITY__LOG__FORMAT: compact
+      RESTATE_OBSERVABILITY__LOG__FILTER: info,restate=debug
+    networks:
+      - mndigitalaid
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9070/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # ========================================
   # API Server (Rust + GraphQL)
   # ========================================
   api:
@@ -77,6 +98,9 @@ services:
       # Server Config
       PORT: ${PORT:-8080}
       RUST_LOG: ${RUST_LOG:-info,server_core=debug,extraction=debug}
+
+      # Restate Workflow URL
+      RESTATE_URL: http://restate:9070
 
       # AI Services
       OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -120,6 +144,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      restate:
+        condition: service_healthy
     volumes:
       # Mount source code for hot-reload in development
       - ./Cargo.lock:/app/Cargo.lock
@@ -135,6 +161,53 @@ services:
     networks:
       - mndigitalaid
     restart: unless-stopped
+
+  # ========================================
+  # Workflow Server (Restate Workflows)
+  # ========================================
+  workflow-server:
+    build:
+      context: .
+      dockerfile: packages/server/Dockerfile.dev
+    container_name: mndigitalaid_workflow_server
+    environment:
+      # Database, Cache & Messaging
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
+
+      # Server Config
+      WORKFLOW_SERVER_PORT: 9080
+      RUST_LOG: ${RUST_LOG:-info,server_core=debug}
+
+      # API Keys (same as main API)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      TAVILY_API_KEY: ${TAVILY_API_KEY}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+
+      # Auth & Security
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
+      JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
+
+      # Feature Flags
+      TEST_IDENTIFIER_ENABLED: ${TEST_IDENTIFIER_ENABLED:-false}
+      ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS:-}
+      PII_SCRUBBING_ENABLED: ${PII_SCRUBBING_ENABLED:-false}
+      PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-false}
+    ports:
+      - "9080:9080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      restate:
+        condition: service_healthy
+    volumes:
+      - ./packages/server:/app/packages/server
+      - rust_target:/app/target
+    command: cargo run --bin workflow_server
+    networks:
+      - mndigitalaid
 
   # ========================================
   # Web App (DEPRECATED - use web-next instead)
