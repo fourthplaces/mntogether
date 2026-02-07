@@ -84,6 +84,30 @@ pub async fn update_crawl_settings(
 }
 
 // ============================================================================
+// Semantic Search
+// ============================================================================
+
+/// Search websites semantically using natural language queries.
+///
+/// Generates an embedding for the query then searches assessments by cosine similarity.
+pub async fn search_websites_semantic(
+    query: &str,
+    threshold: f32,
+    limit: i32,
+    deps: &ServerDeps,
+) -> Result<Vec<crate::domains::website::models::WebsiteSearchResult>> {
+    let query_embedding = deps.ai.create_embedding(query, "text-embedding-3-small").await?;
+
+    crate::domains::website::models::WebsiteAssessment::search_by_similarity(
+        &query_embedding,
+        threshold,
+        limit,
+        &deps.db_pool,
+    )
+    .await
+}
+
+// ============================================================================
 // Query Actions (Relay pagination)
 // ============================================================================
 

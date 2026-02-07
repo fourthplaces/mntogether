@@ -266,7 +266,6 @@ export const CREATE_CHAT = `
   mutation CreateChat($language: String, $withAgent: String) {
     createChat(language: $language, withAgent: $withAgent) {
       id
-      containerType
       language
       createdAt
       lastActivityAt

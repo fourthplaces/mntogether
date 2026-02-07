@@ -23,7 +23,6 @@ function toolResultsToPosts(toolResults: ToolResult[]): Post[] {
       posts.push({
         id: (r.post_id as string) || "",
         title: (r.title as string) || "",
-        organizationName: (r.organization_name as string) || "",
         description: (r.description as string) || "",
         tldr: r.tldr as string | undefined,
         category: r.category as string | undefined,
@@ -131,9 +130,6 @@ export function ContentPanel({
           <h2 className="text-2xl font-bold text-gray-900 mb-2">
             {selectedPost.title}
           </h2>
-          <p className="text-sm font-medium text-gray-600 mb-4">
-            {selectedPost.organizationName}
-          </p>
           {selectedPost.location && (
             <p className="text-sm text-gray-500 mb-4 flex items-center gap-1">
               <svg

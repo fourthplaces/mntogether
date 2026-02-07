@@ -216,7 +216,6 @@ export function PostReviewCard({
               )}
             </div>
             <h3 className="text-lg font-semibold text-stone-900">{post.title}</h3>
-            <p className="text-sm text-stone-600">{post.organizationName}</p>
           </div>
         </div>
 

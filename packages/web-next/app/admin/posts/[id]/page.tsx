@@ -25,7 +25,6 @@ interface SourcePage {
 
 interface PostDetail {
   id: string;
-  organizationName: string;
   title: string;
   tldr: string | null;
   description: string;
@@ -260,7 +259,6 @@ export default function PostDetailPage() {
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
               <h1 className="text-2xl font-bold text-stone-900 mb-2">{post.title}</h1>
-              <p className="text-lg text-stone-600">{post.organizationName}</p>
             </div>
             <div className="flex items-center gap-2">
               {post.status === "pending_approval" && (

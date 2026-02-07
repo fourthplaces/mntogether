@@ -269,18 +269,23 @@ pub struct ScheduleInput {
     pub notes: Option<String>,
 }
 
-/// Extract a 5-digit zip code from location text
-fn extract_zip_from_text(text: &str) -> Option<String> {
-    let re = regex::Regex::new(r"\b(\d{5})\b").ok()?;
-    re.find(text).map(|m| m.as_str().to_string())
-}
-
-/// Extract a city name from location text (assumes "City, ST" or "City, State" pattern)
-fn extract_city_from_text(text: &str) -> Option<String> {
-    // Try "City, MN" or "City, Minnesota" pattern
-    let re = regex::Regex::new(r"(?i)^([A-Za-z\s]+),\s*(?:MN|Minnesota)").ok()?;
-    re.captures(text)
-        .map(|c| c.get(1).unwrap().as_str().trim().to_string())
+/// Convert GraphQL ScheduleInput to activity ScheduleParams
+fn schedule_input_to_params(
+    input: ScheduleInput,
+) -> crate::domains::posts::activities::schedule::ScheduleParams {
+    crate::domains::posts::activities::schedule::ScheduleParams {
+        dtstart: input.dtstart,
+        dtend: input.dtend,
+        rrule: input.rrule,
+        exdates: input.exdates,
+        opens_at: input.opens_at,
+        closes_at: input.closes_at,
+        day_of_week: input.day_of_week,
+        timezone: input.timezone,
+        is_all_day: input.is_all_day,
+        duration_minutes: input.duration_minutes,
+        notes: input.notes,
+    }
 }
 
 pub struct Query;
@@ -563,11 +568,6 @@ impl Query {
     }
 
     /// Search posts using semantic similarity (public)
-    ///
-    /// Arguments:
-    /// - query: Natural language search query
-    /// - threshold: Minimum similarity score (0-1, default: 0.6)
-    /// - limit: Maximum results to return (default: 20)
     async fn search_posts_semantic(
         ctx: &GraphQLContext,
         query: String,
@@ -577,24 +577,9 @@ impl Query {
         let threshold = threshold.unwrap_or(0.6) as f32;
         let limit = limit.unwrap_or(20);
 
-        // Generate embedding for the query
-        let query_embedding = ctx
-            .openai_client
-            .create_embedding(&query, "text-embedding-3-small")
+        let results = post_activities::search::search_posts_semantic(&query, threshold, limit, ctx.deps())
             .await
-            .map_err(|e| {
-                FieldError::new(
-                    format!("Failed to create embedding: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        // Search posts by embedding similarity
-        let results = Post::search_by_similarity(&query_embedding, threshold, limit, &ctx.db_pool)
-            .await
-            .map_err(|e| {
-                FieldError::new(format!("Search failed: {}", e), juniper::Value::null())
-            })?;
+            .map_err(to_field_error)?;
 
         Ok(results
             .into_iter()
@@ -716,27 +701,9 @@ impl Query {
         let limit = limit.unwrap_or(10) as i32;
         let threshold = threshold.unwrap_or(0.7) as f32;
 
-        // Generate embedding for the query
-        let query_embedding = ctx
-            .openai_client
-            .create_embedding(&query, "text-embedding-3-small")
+        let results = website_activities::search_websites_semantic(&query, threshold, limit, ctx.deps())
             .await
-            .map_err(|e| {
-                FieldError::new(
-                    format!("Failed to create embedding: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        // Search websites by embedding similarity
-        let results = WebsiteAssessment::search_by_similarity(
-            &query_embedding,
-            threshold,
-            limit,
-            &ctx.db_pool,
-        )
-        .await
-        .map_err(|e| FieldError::new(format!("Search failed: {}", e), juniper::Value::null()))?;
+            .map_err(to_field_error)?;
 
         Ok(results
             .into_iter()
@@ -1094,84 +1061,9 @@ impl Query {
     ) -> FieldResult<Vec<PostType>> {
         let limit = first.unwrap_or(20).min(100) as usize;
 
-        // Load all schedules attached to event-tagged posts
-        let schedules = Post::find_event_schedules(&ctx.db_pool)
+        post_activities::upcoming_events::get_upcoming_events(limit, ctx.deps())
             .await
-            .map_err(to_field_error)?;
-
-        // Group by post, find earliest next occurrence per post
-        let mut post_next: std::collections::HashMap<Uuid, chrono::DateTime<chrono::Utc>> =
-            std::collections::HashMap::new();
-
-        for schedule in &schedules {
-            if let Some(next) = schedule.next_occurrences(1).into_iter().next() {
-                let entry = post_next.entry(schedule.schedulable_id).or_insert(next);
-                if next < *entry {
-                    *entry = next;
-                }
-            }
-        }
-
-        // Sort by next occurrence
-        let mut sorted: Vec<_> = post_next.into_iter().collect();
-        sorted.sort_by_key(|(_, next)| *next);
-        sorted.truncate(limit);
-
-        // Batch-load all posts in one query
-        let post_ids: Vec<Uuid> = sorted.iter().map(|(id, _)| *id).collect();
-        let loaded = Post::find_by_ids(&post_ids, &ctx.db_pool)
-            .await
-            .map_err(to_field_error)?;
-
-        // Index by ID to preserve sort order
-        let post_map: std::collections::HashMap<Uuid, Post> = loaded
-            .into_iter()
-            .map(|p| (p.id.into_uuid(), p))
-            .collect();
-
-        // Batch-load business info for business-type posts
-        let business_post_ids: Vec<Uuid> = post_map
-            .values()
-            .filter(|p| p.post_type == "business")
-            .map(|p| p.id.into_uuid())
-            .collect();
-        let business_map: std::collections::HashMap<Uuid, BusinessPost> = if business_post_ids.is_empty() {
-            std::collections::HashMap::new()
-        } else {
-            BusinessPost::find_by_post_ids(&business_post_ids, &ctx.db_pool)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .map(|b| (b.post_id.into_uuid(), b))
-                .collect()
-        };
-
-        // Build PostType vec in sorted order
-        let posts: Vec<PostType> = sorted
-            .iter()
-            .filter_map(|(id, _)| {
-                post_map.get(id).map(|post| {
-                    let mut pt = PostType::from(post.clone());
-                    if let Some(business) = business_map.get(id) {
-                        pt.business_info = Some(BusinessInfo {
-                            accepts_donations: business.accepts_donations,
-                            donation_link: business.donation_link.clone(),
-                            gift_cards_available: business.gift_cards_available,
-                            gift_card_link: business.gift_card_link.clone(),
-                            online_ordering_link: business.online_ordering_link.clone(),
-                            delivery_available: business.delivery_available,
-                            proceeds_percentage: business.proceeds_percentage,
-                            proceeds_beneficiary_id: business.proceeds_beneficiary_id,
-                            proceeds_description: business.proceeds_description.clone(),
-                            impact_statement: business.impact_statement.clone(),
-                        });
-                    }
-                    pt
-                })
-            })
-            .collect();
-
-        Ok(posts)
+            .map_err(to_field_error)
     }
 
     /// Get schedules for a specific entity
@@ -1874,234 +1766,57 @@ impl Mutation {
 
     /// Generate embedding for a single post (admin only)
     async fn generate_post_embedding(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        use crate::domains::posts::activities::post_operations;
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        if !user.is_admin {
-            return Err(FieldError::new(
-                "Admin authorization required",
-                juniper::Value::null(),
-            ));
-        }
-
-        info!(post_id = %post_id, "Generating post embedding");
+        ctx.require_admin()?;
 
         let post_id = PostId::from_uuid(post_id);
-        post_operations::generate_post_embedding(
+        post_activities::post_operations::generate_post_embedding(
             post_id,
             ctx.server_deps.embedding_service.as_ref(),
             &ctx.db_pool,
         )
         .await
-        .map_err(|e| {
-            FieldError::new(
-                format!("Failed to generate embedding: {}", e),
-                juniper::Value::null(),
-            )
-        })?;
+        .map_err(to_field_error)?;
 
         Ok(true)
     }
 
     /// Backfill embeddings for posts that don't have them (admin only)
-    ///
-    /// Arguments:
-    /// - limit: Maximum number of posts to process (default: 100)
     async fn backfill_post_embeddings(
         ctx: &GraphQLContext,
         limit: Option<i32>,
     ) -> FieldResult<BackfillPostEmbeddingsResult> {
-        use crate::domains::posts::activities::post_operations;
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        if !user.is_admin {
-            return Err(FieldError::new(
-                "Admin authorization required",
-                juniper::Value::null(),
-            ));
-        }
+        ctx.require_admin()?;
 
         let limit = limit.unwrap_or(100);
-        info!(limit = %limit, "Backfilling post embeddings");
 
-        // Find posts without embeddings
-        let posts = Post::find_without_embeddings(limit, &ctx.db_pool)
+        let result = post_activities::backfill::backfill_post_embeddings(limit, ctx.deps())
             .await
-            .map_err(|e| {
-                FieldError::new(
-                    format!("Failed to find posts: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        let mut processed = 0;
-        let mut failed = 0;
-
-        for post in posts {
-            match post_operations::generate_post_embedding(
-                post.id,
-                ctx.server_deps.embedding_service.as_ref(),
-                &ctx.db_pool,
-            )
-            .await
-            {
-                Ok(_) => processed += 1,
-                Err(e) => {
-                    error!(post_id = %post.id, error = %e, "Failed to generate embedding");
-                    failed += 1;
-                }
-            }
-        }
-
-        // Count remaining posts without embeddings
-        let remaining_posts = Post::find_without_embeddings(1, &ctx.db_pool)
-            .await
-            .map_err(|e| {
-                FieldError::new(
-                    format!("Failed to count remaining: {}", e),
-                    juniper::Value::null(),
-                )
-            })?;
-
-        // Get actual count
-        let remaining = if remaining_posts.is_empty() {
-            0
-        } else {
-            sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND deleted_at IS NULL AND status = 'active'"
-            )
-            .fetch_one(&ctx.db_pool)
-            .await
-            .unwrap_or(0) as i32
-        };
-
-        info!(
-            processed = processed,
-            failed = failed,
-            remaining = remaining,
-            "Backfill completed"
-        );
+            .map_err(to_field_error)?;
 
         Ok(BackfillPostEmbeddingsResult {
-            processed,
-            failed,
-            remaining,
+            processed: result.processed,
+            failed: result.failed,
+            remaining: result.remaining,
         })
     }
 
     /// Backfill location records for existing posts that have location text but no post_locations (admin only)
-    ///
-    /// Parses existing `location` text field to extract city/state/zip and creates
-    /// Location + PostLocation records.
     async fn backfill_post_locations(
         ctx: &GraphQLContext,
         batch_size: Option<i32>,
     ) -> FieldResult<BackfillPostLocationsResult> {
-        use crate::domains::locations::models::Location;
-        use crate::domains::posts::models::PostLocation;
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        if !user.is_admin {
-            return Err(FieldError::new(
-                "Admin authorization required",
-                juniper::Value::null(),
-            ));
-        }
+        ctx.require_admin()?;
 
         let batch_size = batch_size.unwrap_or(100).min(500) as i64;
-        info!(batch_size = %batch_size, "Backfilling post locations");
 
-        // Find active posts with location text but no post_locations record
-        let posts = sqlx::query_as::<_, Post>(
-            r#"
-            SELECT p.* FROM posts p
-            WHERE p.status = 'active'
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-              AND p.location IS NOT NULL
-              AND p.location != ''
-              AND NOT EXISTS (
-                  SELECT 1 FROM post_locations pl WHERE pl.post_id = p.id
-              )
-            ORDER BY p.created_at DESC
-            LIMIT $1
-            "#,
-        )
-        .bind(batch_size)
-        .fetch_all(&ctx.db_pool)
-        .await
-        .map_err(|e| FieldError::new(format!("Failed to find posts: {}", e), juniper::Value::null()))?;
-
-        let mut processed = 0;
-        let mut failed = 0;
-
-        for post in &posts {
-            let location_text = post.location.as_deref().unwrap_or_default();
-
-            // Try to parse zip code from location text (look for 5-digit pattern)
-            let zip = extract_zip_from_text(location_text);
-            let city = extract_city_from_text(location_text);
-
-            if zip.is_none() && city.is_none() {
-                failed += 1;
-                continue;
-            }
-
-            match Location::find_or_create_from_extraction(
-                city.as_deref(),
-                Some("MN"),
-                zip.as_deref(),
-                None,
-                &ctx.db_pool,
-            )
+        let result = post_activities::backfill::backfill_post_locations(batch_size, ctx.deps())
             .await
-            {
-                Ok(loc) => {
-                    if PostLocation::create(post.id, loc.id, true, None, &ctx.db_pool)
-                        .await
-                        .is_ok()
-                    {
-                        processed += 1;
-                    } else {
-                        failed += 1;
-                    }
-                }
-                Err(_) => {
-                    failed += 1;
-                }
-            }
-        }
-
-        let remaining = sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COUNT(*) FROM posts p
-            WHERE p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL
-              AND p.location IS NOT NULL AND p.location != ''
-              AND NOT EXISTS (SELECT 1 FROM post_locations pl WHERE pl.post_id = p.id)
-            "#,
-        )
-        .fetch_one(&ctx.db_pool)
-        .await
-        .unwrap_or(0) as i32;
-
-        info!(processed, failed, remaining, "Post location backfill completed");
+            .map_err(to_field_error)?;
 
         Ok(BackfillPostLocationsResult {
-            processed,
-            failed,
-            remaining,
+            processed: result.processed,
+            failed: result.failed,
+            remaining: result.remaining,
         })
     }
 
@@ -3058,98 +2773,10 @@ impl Mutation {
     ) -> FieldResult<ScheduleData> {
         ctx.require_admin()?;
 
-        let timezone = input.timezone.as_deref().unwrap_or("America/Chicago");
-
-        let schedule = if let Some(ref rrule) = input.rrule {
-            // Recurring schedule
-            let dtstart = input.dtstart
-                .as_ref()
-                .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
-                .transpose()
-                .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
-
-            let opens_at = input.opens_at
-                .as_ref()
-                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-                .transpose()
-                .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
-
-            let closes_at = input.closes_at
-                .as_ref()
-                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-                .transpose()
-                .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
-
-            Schedule::create_recurring(
-                "post",
-                post_id,
-                dtstart.unwrap_or_else(chrono::Utc::now),
-                rrule,
-                input.duration_minutes,
-                opens_at,
-                closes_at,
-                input.day_of_week,
-                timezone,
-                input.notes.as_deref(),
-                &ctx.db_pool,
-            )
+        let params = schedule_input_to_params(input);
+        let schedule = post_activities::schedule::add_post_schedule(post_id, params, ctx.deps())
             .await
-            .map_err(to_field_error)?
-        } else if input.day_of_week.is_some() && input.dtstart.is_none() {
-            // Operating hours
-            let opens_at = input.opens_at
-                .as_ref()
-                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-                .transpose()
-                .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
-
-            let closes_at = input.closes_at
-                .as_ref()
-                .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-                .transpose()
-                .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
-
-            Schedule::create_operating_hours(
-                "post",
-                post_id,
-                input.day_of_week.unwrap(),
-                opens_at,
-                closes_at,
-                timezone,
-                input.notes.as_deref(),
-                &ctx.db_pool,
-            )
-            .await
-            .map_err(to_field_error)?
-        } else {
-            // One-off event
-            let dtstart = input.dtstart
-                .as_ref()
-                .ok_or_else(|| FieldError::new("dtstart is required for one-off events", juniper::Value::null()))?
-                .parse::<chrono::DateTime<chrono::Utc>>()
-                .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
-
-            let dtend = input.dtend
-                .as_ref()
-                .ok_or_else(|| FieldError::new("dtend is required for one-off events", juniper::Value::null()))?
-                .parse::<chrono::DateTime<chrono::Utc>>()
-                .map_err(|e| FieldError::new(format!("Invalid dtend: {}", e), juniper::Value::null()))?;
-
-            let is_all_day = input.is_all_day.unwrap_or(false);
-
-            Schedule::create_one_off(
-                "post",
-                post_id,
-                dtstart,
-                dtend,
-                is_all_day,
-                timezone,
-                input.notes.as_deref(),
-                &ctx.db_pool,
-            )
-            .await
-            .map_err(to_field_error)?
-        };
+            .map_err(to_field_error)?;
 
         Ok(ScheduleData::from(schedule))
     }
@@ -3163,48 +2790,10 @@ impl Mutation {
         ctx.require_admin()?;
 
         let sid = ScheduleId::from(schedule_id);
-
-        let dtstart = input.dtstart
-            .as_ref()
-            .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
-            .transpose()
-            .map_err(|e| FieldError::new(format!("Invalid dtstart: {}", e), juniper::Value::null()))?;
-
-        let dtend = input.dtend
-            .as_ref()
-            .map(|s| s.parse::<chrono::DateTime<chrono::Utc>>())
-            .transpose()
-            .map_err(|e| FieldError::new(format!("Invalid dtend: {}", e), juniper::Value::null()))?;
-
-        let opens_at = input.opens_at
-            .as_ref()
-            .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-            .transpose()
-            .map_err(|e| FieldError::new(format!("Invalid opens_at: {}", e), juniper::Value::null()))?;
-
-        let closes_at = input.closes_at
-            .as_ref()
-            .map(|s| chrono::NaiveTime::parse_from_str(s, "%H:%M"))
-            .transpose()
-            .map_err(|e| FieldError::new(format!("Invalid closes_at: {}", e), juniper::Value::null()))?;
-
-        let schedule = Schedule::update(
-            sid,
-            dtstart,
-            dtend,
-            input.rrule.as_deref(),
-            input.exdates.as_deref(),
-            opens_at,
-            closes_at,
-            input.day_of_week,
-            input.is_all_day,
-            input.duration_minutes,
-            input.timezone.as_deref(),
-            input.notes.as_deref(),
-            &ctx.db_pool,
-        )
-        .await
-        .map_err(to_field_error)?;
+        let params = schedule_input_to_params(input);
+        let schedule = post_activities::schedule::update_schedule(sid, params, ctx.deps())
+            .await
+            .map_err(to_field_error)?;
 
         Ok(ScheduleData::from(schedule))
     }
@@ -3217,7 +2806,7 @@ impl Mutation {
         ctx.require_admin()?;
 
         let sid = ScheduleId::from(schedule_id);
-        Schedule::delete(sid, &ctx.db_pool)
+        post_activities::schedule::delete_schedule(sid, ctx.deps())
             .await
             .map_err(to_field_error)?;
 

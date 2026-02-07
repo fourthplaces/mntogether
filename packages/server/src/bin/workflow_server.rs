@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use restate_sdk::prelude::*;
 use server_core::common::utils::{EmbeddingService, ExpoClient};
 use server_core::domains::auth::workflows::{
-    SendOtpWorkflow, SendOtpWorkflowImpl, VerifyOtpWorkflow, VerifyOtpWorkflowImpl,
+    SendOtpService, SendOtpServiceImpl, VerifyOtpService, VerifyOtpServiceImpl,
 };
 use server_core::domains::auth::JwtService;
 use server_core::domains::crawling::workflows::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
@@ -169,9 +169,9 @@ async fn main() -> Result<()> {
 
     // Build Restate endpoint with all domain workflows
     let endpoint = Endpoint::builder()
-        // Auth domain workflows
-        .bind(SendOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
-        .bind(VerifyOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Auth domain services
+        .bind(SendOtpServiceImpl::with_deps(server_deps.clone()).serve())
+        .bind(VerifyOtpServiceImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain workflows
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Member domain workflows

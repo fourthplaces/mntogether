@@ -1,4 +1,4 @@
-//! Auth domain workflows
+//! Auth domain services (single-step durable execution)
 
 pub mod send_otp;
 pub mod verify_otp;

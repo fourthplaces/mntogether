@@ -4,6 +4,7 @@
 //! Activities are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return final models/results.
 
+pub mod backfill;
 pub mod core;
 pub mod create_post;
 pub mod deduplication;
@@ -17,11 +18,14 @@ pub mod resource_link_creation;
 pub mod resource_link_extraction;
 pub mod resource_link_scraping;
 pub mod revision_actions;
+pub mod schedule;
 pub mod scraping;
+pub mod search;
 pub mod sync_operations;
 pub mod sync_utils;
 pub mod syncing;
 pub mod tags;
+pub mod upcoming_events;
 
 // Re-export for convenience
 pub use core::*;

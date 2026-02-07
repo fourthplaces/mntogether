@@ -3,6 +3,9 @@
 //! Durable workflow that orchestrates member registration:
 //! 1. Register member in DB (with geocoding)
 //! 2. Generate embedding (non-fatal if fails)
+//!
+//! Each step is a separate ctx.run() block so Restate journals intermediate
+//! results and won't re-execute completed steps on retry.
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -11,6 +14,14 @@ use uuid::Uuid;
 use crate::domains::member::activities;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
+
+/// Wrapper for journaling a member ID between ctx.run() blocks
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MemberRegistered {
+    member_id: Uuid,
+}
+
+impl_restate_serde!(MemberRegistered);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegisterMemberRequest {
@@ -58,10 +69,9 @@ impl RegisterMemberWorkflow for RegisterMemberWorkflowImpl {
             "Starting register member workflow"
         );
 
-        // Single durable block: register + generate embedding
-        let result = ctx
+        // Step 1: Register member in DB — journaled, won't re-run on replay
+        let registered = ctx
             .run(|| async {
-                // Step 1: Register member in DB
                 let member_id = activities::register_member(
                     request.expo_push_token.clone(),
                     request.searchable_text.clone(),
@@ -70,9 +80,16 @@ impl RegisterMemberWorkflow for RegisterMemberWorkflowImpl {
                     &self.deps,
                 )
                 .await?;
+                Ok(MemberRegistered { member_id })
+            })
+            .await?;
 
-                // Step 2: Generate embedding (non-fatal)
-                let embedding_generated = match activities::generate_embedding(
+        let member_id = registered.member_id;
+
+        // Step 2: Generate embedding (non-fatal) — separate journal entry
+        let embedding_generated: bool = ctx
+            .run(|| async {
+                match activities::generate_embedding(
                     member_id,
                     self.deps.embedding_service.as_ref(),
                     &self.deps.db_pool,
@@ -85,7 +102,7 @@ impl RegisterMemberWorkflow for RegisterMemberWorkflowImpl {
                             dimensions = result.dimensions,
                             "Embedding generated for member"
                         );
-                        true
+                        Ok(true)
                     }
                     Err(e) => {
                         tracing::warn!(
@@ -93,17 +110,15 @@ impl RegisterMemberWorkflow for RegisterMemberWorkflowImpl {
                             error = %e,
                             "Failed to generate embedding (non-fatal)"
                         );
-                        false
+                        Ok(false)
                     }
-                };
-
-                Ok(RegisterMemberResult {
-                    member_id,
-                    embedding_generated,
-                })
+                }
             })
             .await?;
 
-        Ok(result)
+        Ok(RegisterMemberResult {
+            member_id,
+            embedding_generated,
+        })
     }
 }

@@ -32,12 +32,14 @@ pub struct AssessmentResult {
     pub message: Option<String>,
 }
 
-/// Result of conducting searches
-#[derive(Debug, Clone)]
+/// Result of conducting searches (journaled by Restate between workflow steps)
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct SearchResult {
     pub total_queries: usize,
     pub total_results: usize,
 }
+
+crate::impl_restate_serde!(SearchResult);
 
 // ============================================================================
 // Entry Point: Assess Website
