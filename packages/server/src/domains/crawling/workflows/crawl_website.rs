@@ -36,7 +36,8 @@ pub struct CrawlWebsiteWorkflow {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service(name = "CrawlWebsite")]
+#[restate_sdk::service]
+#[name = "CrawlWebsite"]
 impl CrawlWebsiteWorkflow {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }

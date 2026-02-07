@@ -21,7 +21,8 @@ pub struct SendOtpWorkflow {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service(name = "SendOtp")]
+#[restate_sdk::service]
+#[name = "SendOtp"]
 impl SendOtpWorkflow {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
