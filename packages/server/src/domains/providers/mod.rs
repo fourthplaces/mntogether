@@ -13,7 +13,7 @@
 //! Cascade flow:
 //!   ProviderDeleted → cleanup contacts and tags
 
-pub mod actions;
+pub mod activities;
 pub mod data;
 pub mod effects;
 pub mod events;

@@ -6,7 +6,7 @@
 //! Dependency direction: agents → chatrooms (reads/creates messages)
 //! Chatrooms has no knowledge of agents.
 
-pub mod actions;
+pub mod activities;
 pub mod effects;
 pub mod events;
 pub mod models;

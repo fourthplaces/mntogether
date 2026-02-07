@@ -10,7 +10,7 @@ use seesaw_core::{effect, effects, EffectContext};
 use tracing::{info, warn};
 
 use crate::common::AppState;
-use crate::domains::agents::actions;
+use crate::domains::agents::activities;
 use crate::domains::chatrooms::events::ChatEvent;
 use crate::kernel::ServerDeps;
 
@@ -33,7 +33,7 @@ pub mod handlers {
             } => {
                 if let Some(agent_config) = with_agent {
                     let message =
-                        actions::generate_greeting(container.id, agent_config, ctx.deps()).await?;
+                        activities::generate_greeting(container.id, agent_config, ctx.deps()).await?;
                     info!(message_id = %message.id, "Agent greeting generated");
                 }
                 Ok(())
@@ -47,12 +47,12 @@ pub mod handlers {
                     return Ok(());
                 }
 
-                if actions::get_container_agent_config(message.container_id, &ctx.deps().db_pool)
+                if activities::get_container_agent_config(message.container_id, &ctx.deps().db_pool)
                     .await
                     .is_some()
                 {
                     // Try streaming first, fall back to blocking
-                    match actions::generate_reply_streaming(
+                    match activities::generate_reply_streaming(
                         message.id,
                         message.container_id,
                         ctx.deps(),
@@ -64,7 +64,7 @@ pub mod handlers {
                         }
                         Err(e) => {
                             warn!(error = %e, "Streaming reply failed, falling back to blocking");
-                            let reply = actions::generate_reply(
+                            let reply = activities::generate_reply(
                                 message.id,
                                 message.container_id,
                                 ctx.deps(),

@@ -10,7 +10,7 @@ use seesaw_core::{effect, effects, EffectContext};
 use tracing::info;
 
 use crate::common::{AppState, MemberId, WebsiteId};
-use crate::domains::crawling::activities as crawling_actions;
+use crate::domains::crawling::activities as crawling_activities;
 use crate::domains::website::events::WebsiteEvent;
 use crate::kernel::ServerDeps;
 
@@ -36,7 +36,7 @@ pub mod handlers {
             "Website approved, triggering auto-crawl (queued)"
         );
 
-        crawling_actions::ingest_website(
+        crawling_activities::ingest_website(
             website_id.into_uuid(),
             reviewed_by.into_uuid(),
             true, // use_firecrawl

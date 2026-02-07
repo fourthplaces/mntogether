@@ -8,7 +8,7 @@ use seesaw_core::{effect, effects, EffectContext};
 use tracing::info;
 use uuid::Uuid;
 
-use super::actions;
+use super::activities;
 use super::events::MemberEvent;
 use crate::common::AppState;
 use crate::kernel::ServerDeps;
@@ -28,7 +28,7 @@ pub mod handlers {
         member_id: Uuid,
         ctx: EffectContext<AppState, ServerDeps>,
     ) -> Result<()> {
-        let result = actions::generate_embedding(
+        let result = activities::generate_embedding(
             member_id,
             ctx.deps().embedding_service.as_ref(),
             &ctx.deps().db_pool,

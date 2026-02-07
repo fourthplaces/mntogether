@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
-use crate::domains::sync::actions::{stage_proposals, ProposedOperation};
+use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::kernel::LlmRequestExt;
 
 /// A fresh post from extraction, with a temporary ID for matching
@@ -336,7 +336,7 @@ async fn stage_sync_operations(
     summary: &str,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    use crate::domains::posts::actions::create_post::create_extracted_post;
+    use crate::domains::posts::activities::create_post::create_extracted_post;
     use crate::domains::website::models::Website;
 
     let mut proposed_ops: Vec<ProposedOperation> = Vec::new();

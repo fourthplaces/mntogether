@@ -13,13 +13,13 @@
 //! - models: DiscoveryQuery, DiscoveryFilterRule, DiscoveryRun, DiscoveryRunResult
 //! - events: DiscoveryRunCompleted (terminal fact event)
 
-pub mod actions;
+pub mod activities;
 pub mod effects;
 pub mod events;
 pub mod models;
 
 // Re-export actions
-pub use actions::{evaluate_websites_against_filters, run_discovery};
+pub use activities::{evaluate_websites_against_filters, run_discovery};
 
 // Re-export events
 pub use events::DiscoveryEvent;

@@ -1,6 +1,6 @@
 use crate::common::{PostId, WebsiteId};
 use crate::common::utils::generate_tldr;
-use crate::domains::posts::actions::tag_with_audience_roles;
+use crate::domains::posts::activities::tag_with_audience_roles;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use anyhow::Result;

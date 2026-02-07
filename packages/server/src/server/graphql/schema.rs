@@ -11,18 +11,18 @@ use crate::common::{ContainerId, PaginationArgs, PostId, ScheduleId, WebsiteId};
 
 // Domain actions
 use crate::domains::auth::activities as auth_activities;
-use crate::domains::chatrooms::actions as chatroom_actions;
-use crate::domains::crawling::activities as crawling_actions;
-use crate::domains::discovery::actions as discovery_actions;
+use crate::domains::chatrooms::activities as chatroom_activities;
+use crate::domains::crawling::activities as crawling_activities;
+use crate::domains::discovery::activities as discovery_activities;
 use crate::domains::discovery::models::{
     DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,
 };
-use crate::domains::extraction::actions as extraction_actions;
-use crate::domains::member::actions as member_actions;
-use crate::domains::posts::actions as post_actions;
-use crate::domains::providers::actions as provider_actions;
-use crate::domains::website::actions as website_actions;
-use crate::domains::website::actions::approval as website_approval_actions;
+use crate::domains::extraction::activities as extraction_activities;
+use crate::domains::member::activities as member_activities;
+use crate::domains::posts::activities as post_activities;
+use crate::domains::providers::activities as provider_activities;
+use crate::domains::website::activities as website_activities;
+use crate::domains::website::activities::approval as website_approval_activities;
 
 // Domain data types (GraphQL types)
 use crate::domains::chatrooms::data::{ContainerData, MessageData};
@@ -53,8 +53,8 @@ use crate::domains::website::data::{WebsiteAssessmentData, WebsiteSearchResultDa
 
 // Sync proposal types
 use crate::common::{MemberId, SyncBatchId, SyncProposalId};
-use crate::domains::posts::actions::post_sync_handler::PostProposalHandler;
-use crate::domains::sync::actions::proposal_actions;
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
+use crate::domains::sync::activities::proposal_actions;
 use crate::domains::sync::{SyncBatch, SyncProposal};
 
 // Domain models (for queries)
@@ -332,7 +332,7 @@ impl Query {
             .validate()
             .map_err(|e| FieldError::new(e, juniper::Value::null()))?;
 
-        let connection = post_actions::get_posts_paginated(status_filter, &validated, ctx.deps())
+        let connection = post_activities::get_posts_paginated(status_filter, &validated, ctx.deps())
             .await
             .map_err(|e| {
                 error!("Failed to get paginated posts: {}", e);
@@ -558,7 +558,7 @@ impl Query {
             .validate()
             .map_err(|e| FieldError::new(e, juniper::Value::null()))?;
 
-        let connection = member_actions::get_members_paginated(&validated, ctx.deps())
+        let connection = member_activities::get_members_paginated(&validated, ctx.deps())
             .await
             .map_err(|e| {
                 error!("Failed to get paginated members: {}", e);
@@ -651,7 +651,7 @@ impl Query {
         let status_ref = status.as_deref();
 
         let connection =
-            website_actions::get_websites_paginated(status_ref, &validated, ctx.deps())
+            website_activities::get_websites_paginated(status_ref, &validated, ctx.deps())
                 .await
                 .map_err(|e| {
                     error!("Failed to get paginated websites: {}", e);
@@ -677,7 +677,7 @@ impl Query {
     async fn pending_websites(ctx: &GraphQLContext) -> FieldResult<Vec<WebsiteData>> {
         ctx.require_admin()?;
 
-        let websites = website_actions::get_pending_websites(ctx.deps())
+        let websites = website_activities::get_pending_websites(ctx.deps())
             .await
             .map_err(|e| {
                 FieldError::new(
@@ -765,7 +765,7 @@ impl Query {
         ctx.require_admin()?;
 
         let website_id = website_id.map(WebsiteId::from_uuid);
-        let revisions = post_actions::get_pending_revisions(website_id, &ctx.db_pool)
+        let revisions = post_activities::get_pending_revisions(website_id, &ctx.db_pool)
             .await
             .map_err(to_field_error)?;
 
@@ -784,7 +784,7 @@ impl Query {
         ctx.require_admin()?;
 
         let post_id = PostId::from_uuid(post_id);
-        let revision = post_actions::get_revision_for_post(post_id, &ctx.db_pool)
+        let revision = post_activities::get_revision_for_post(post_id, &ctx.db_pool)
             .await
             .map_err(to_field_error)?;
 
@@ -873,7 +873,7 @@ impl Query {
 
         info!("get_provider query called: {}", id);
 
-        let provider = provider_actions::get_provider(id, ctx.deps())
+        let provider = provider_activities::get_provider(id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -905,7 +905,7 @@ impl Query {
         let status_ref = status.as_deref();
 
         let connection =
-            provider_actions::get_providers_paginated(status_ref, &validated, ctx.deps())
+            provider_activities::get_providers_paginated(status_ref, &validated, ctx.deps())
                 .await
                 .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
 
@@ -916,7 +916,7 @@ impl Query {
     async fn pending_providers(ctx: &GraphQLContext) -> FieldResult<Vec<ProviderData>> {
         ctx.require_admin()?;
 
-        let providers = provider_actions::get_pending_providers(ctx.deps())
+        let providers = provider_activities::get_pending_providers(ctx.deps())
             .await
             .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
 
@@ -1380,7 +1380,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = crawling_actions::discover_website(
+        let event = crawling_activities::discover_website(
             website_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1410,7 +1410,7 @@ impl Mutation {
     ) -> FieldResult<PostType> {
         use crate::domains::posts::events::PostEvent;
 
-        let event = post_actions::submit_post(input.clone(), member_id, ctx.deps())
+        let event = post_activities::submit_post(input.clone(), member_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -1448,7 +1448,7 @@ impl Mutation {
         let url = input.url.clone();
 
         let event =
-            post_actions::submit_resource_link(input.url, input.submitter_contact, ctx.deps())
+            post_activities::submit_resource_link(input.url, input.submitter_contact, ctx.deps())
                 .await
                 .map_err(to_field_error)?;
 
@@ -1488,7 +1488,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::approve_post(
+        let event = post_activities::approve_post(
             post_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1530,7 +1530,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::edit_and_approve_post(
+        let event = post_activities::edit_and_approve_post(
             post_id,
             input,
             user.member_id.into_uuid(),
@@ -1567,7 +1567,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::reject_post(
+        let event = post_activities::reject_post(
             post_id,
             reason,
             user.member_id.into_uuid(),
@@ -1592,7 +1592,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::delete_post(
+        let event = post_activities::delete_post(
             post_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1626,7 +1626,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::expire_post(
+        let event = post_activities::expire_post(
             post_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1664,7 +1664,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::archive_post(
+        let event = post_activities::archive_post(
             post_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1695,7 +1695,7 @@ impl Mutation {
 
     /// Track post view (analytics - public)
     async fn post_viewed(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        let event = post_actions::track_post_view(post_id, ctx.deps())
+        let event = post_activities::track_post_view(post_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -1709,7 +1709,7 @@ impl Mutation {
 
     /// Track post click (analytics - public)
     async fn post_clicked(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<bool> {
-        let event = post_actions::track_post_click(post_id, ctx.deps())
+        let event = post_activities::track_post_click(post_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -1733,7 +1733,7 @@ impl Mutation {
 
         let reported_by = ctx.auth_user.as_ref().map(|u| u.member_id.into_uuid());
 
-        let event = post_actions::report_post(
+        let event = post_activities::report_post(
             post_id,
             reported_by,
             reporter_email,
@@ -1785,7 +1785,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::resolve_report(
+        let event = post_activities::resolve_report(
             report_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1815,7 +1815,7 @@ impl Mutation {
             .as_ref()
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-        let event = post_actions::dismiss_report(
+        let event = post_activities::dismiss_report(
             report_id,
             user.member_id.into_uuid(),
             user.is_admin,
@@ -1845,7 +1845,7 @@ impl Mutation {
         ctx.require_admin()?;
 
         let revision_id = PostId::from_uuid(revision_id);
-        let updated_post = post_actions::approve_revision(revision_id, &ctx.db_pool)
+        let updated_post = post_activities::approve_revision(revision_id, &ctx.db_pool)
             .await
             .map_err(to_field_error)?;
 
@@ -1859,7 +1859,7 @@ impl Mutation {
         ctx.require_admin()?;
 
         let revision_id = PostId::from_uuid(revision_id);
-        post_actions::reject_revision(revision_id, &ctx.db_pool)
+        post_activities::reject_revision(revision_id, &ctx.db_pool)
             .await
             .map_err(to_field_error)?;
 
@@ -1877,7 +1877,7 @@ impl Mutation {
         let user = ctx.auth_user.as_ref().unwrap();
         info!(requested_by = %user.member_id, "Admin triggering manual discovery search");
 
-        let event = discovery_actions::run_discovery("manual", ctx.deps())
+        let event = discovery_activities::run_discovery("manual", ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -2283,7 +2283,7 @@ impl Mutation {
             .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
         let event =
-            post_actions::deduplicate_posts(user.member_id.into_uuid(), user.is_admin, ctx.deps())
+            post_activities::deduplicate_posts(user.member_id.into_uuid(), user.is_admin, ctx.deps())
                 .await
                 .map_err(to_field_error)?;
 
@@ -2383,7 +2383,7 @@ impl Mutation {
 
         let token_for_lookup = expo_push_token.clone();
 
-        let event = member_actions::register_member(
+        let event = member_activities::register_member(
             expo_push_token,
             searchable_text,
             city,
@@ -2433,7 +2433,7 @@ impl Mutation {
             member_id_uuid, active
         );
 
-        let event = member_actions::update_member_status(member_id_uuid, active, ctx.deps())
+        let event = member_activities::update_member_status(member_id_uuid, active, ctx.deps())
             .await
             .map_err(|e| {
                 error!(error = %e, "Failed to update member status");
@@ -2492,7 +2492,7 @@ impl Mutation {
         let id = WebsiteId::from_uuid(uuid);
         let requested_by = user.member_id;
 
-        let event = website_actions::approve_website(id, requested_by, ctx.deps())
+        let event = website_activities::approve_website(id, requested_by, ctx.deps())
             .await
             .map_err(|e| {
                 FieldError::new(
@@ -2556,7 +2556,7 @@ impl Mutation {
         let id = WebsiteId::from_uuid(uuid);
         let requested_by = user.member_id;
 
-        let event = website_actions::reject_website(id, reason, requested_by, ctx.deps())
+        let event = website_activities::reject_website(id, reason, requested_by, ctx.deps())
             .await
             .map_err(|e| {
                 FieldError::new(
@@ -2620,7 +2620,7 @@ impl Mutation {
         let id = WebsiteId::from_uuid(uuid);
         let requested_by = user.member_id;
 
-        let event = website_actions::suspend_website(id, reason, requested_by, ctx.deps())
+        let event = website_activities::suspend_website(id, reason, requested_by, ctx.deps())
             .await
             .map_err(|e| {
                 FieldError::new(
@@ -2690,7 +2690,7 @@ impl Mutation {
             .map_err(|_| FieldError::new("Invalid website ID", juniper::Value::null()))?;
         let id = WebsiteId::from_uuid(uuid);
 
-        let event = website_actions::update_crawl_settings(id, max_pages_per_crawl, ctx.deps())
+        let event = website_activities::update_crawl_settings(id, max_pages_per_crawl, ctx.deps())
             .await
             .map_err(|e| {
                 FieldError::new(
@@ -2813,7 +2813,7 @@ impl Mutation {
 
         use crate::domains::website::events::approval::WebsiteApprovalEvent;
 
-        let event = website_approval_actions::assess_website(
+        let event = website_approval_activities::assess_website(
             website_uuid,
             user.member_id.into_uuid(),
             ctx.deps(),
@@ -2854,7 +2854,7 @@ impl Mutation {
         let member_id = ctx.auth_user.as_ref().map(|u| u.member_id);
         let language = language.unwrap_or_else(|| "en".to_string());
 
-        let event = chatroom_actions::create_container(
+        let event = chatroom_activities::create_container(
             language,
             member_id,
             with_agent,
@@ -2888,7 +2888,7 @@ impl Mutation {
         let container_id = ContainerId::parse(&container_id)?;
 
         let event =
-            chatroom_actions::send_message(container_id, content, member_id, None, ctx.deps())
+            chatroom_activities::send_message(container_id, content, member_id, None, ctx.deps())
                 .await
                 .map_err(to_field_error)?;
 
@@ -2942,7 +2942,7 @@ impl Mutation {
     ) -> FieldResult<ProviderData> {
         info!("submit_provider mutation called: {}", input.name);
 
-        let event = provider_actions::submit_provider(input, member_id, ctx.deps())
+        let event = provider_activities::submit_provider(input, member_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -2976,7 +2976,7 @@ impl Mutation {
         ctx.require_admin()?;
         info!("update_provider mutation called: {}", provider_id);
 
-        let provider = provider_actions::update_provider(provider_id, input, ctx.deps())
+        let provider = provider_activities::update_provider(provider_id, input, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -2992,7 +2992,7 @@ impl Mutation {
         ctx.require_admin()?;
         info!("approve_provider mutation called: {}", provider_id);
 
-        let event = provider_actions::approve_provider(provider_id, reviewed_by_id, ctx.deps())
+        let event = provider_activities::approve_provider(provider_id, reviewed_by_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -3027,7 +3027,7 @@ impl Mutation {
         info!("reject_provider mutation called: {}", provider_id);
 
         let event =
-            provider_actions::reject_provider(provider_id, reason, reviewed_by_id, ctx.deps())
+            provider_activities::reject_provider(provider_id, reason, reviewed_by_id, ctx.deps())
                 .await
                 .map_err(to_field_error)?;
 
@@ -3065,7 +3065,7 @@ impl Mutation {
             provider_id, tag_kind, tag_value
         );
 
-        let tag = provider_actions::add_provider_tag(
+        let tag = provider_activities::add_provider_tag(
             provider_id,
             tag_kind,
             tag_value,
@@ -3090,7 +3090,7 @@ impl Mutation {
             provider_id, tag_id
         );
 
-        provider_actions::remove_provider_tag(provider_id, tag_id, ctx.deps())
+        provider_activities::remove_provider_tag(provider_id, tag_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -3102,7 +3102,7 @@ impl Mutation {
         ctx.require_admin()?;
         info!("delete_provider mutation called: {}", provider_id);
 
-        let event = provider_actions::delete_provider(provider_id, ctx.deps())
+        let event = provider_activities::delete_provider(provider_id, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
@@ -3125,9 +3125,9 @@ impl Mutation {
         tags: Vec<TagInput>,
     ) -> FieldResult<PostType> {
         // Convert GraphQL TagInput to action TagInput
-        let action_tags: Vec<post_actions::tags::TagInput> = tags
+        let action_tags: Vec<post_activities::tags::TagInput> = tags
             .into_iter()
-            .map(|t| post_actions::tags::TagInput {
+            .map(|t| post_activities::tags::TagInput {
                 kind: t.kind,
                 value: t.value,
             })
@@ -3135,7 +3135,7 @@ impl Mutation {
 
         ctx.require_admin()?;
 
-        let post = post_actions::tags::update_post_tags(post_id, action_tags.clone(), &ctx.db_pool)
+        let post = post_activities::tags::update_post_tags(post_id, action_tags.clone(), &ctx.db_pool)
             .await
             .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))?;
 
@@ -3152,7 +3152,7 @@ impl Mutation {
     ) -> FieldResult<TagData> {
         ctx.require_admin()?;
 
-        let tag = post_actions::tags::add_post_tag(
+        let tag = post_activities::tags::add_post_tag(
             post_id,
             tag_kind.clone(),
             tag_value.clone(),
@@ -3173,7 +3173,7 @@ impl Mutation {
     ) -> FieldResult<bool> {
         ctx.require_admin()?;
 
-        post_actions::tags::remove_post_tag(post_id, tag_id.clone(), &ctx.db_pool)
+        post_activities::tags::remove_post_tag(post_id, tag_id.clone(), &ctx.db_pool)
             .await
             .map_err(|e| FieldError::new(e.to_string(), juniper::Value::null()))
     }
@@ -3195,7 +3195,7 @@ impl Mutation {
         let url = input.url.clone();
         let query = input.query.clone();
 
-        match extraction_actions::submit_url(&url, query.as_deref(), ctx.deps()).await {
+        match extraction_activities::submit_url(&url, query.as_deref(), ctx.deps()).await {
             Ok(extractions) => {
                 let extraction = extractions.into_iter().next().map(ExtractionData::from);
 
@@ -3243,7 +3243,7 @@ impl Mutation {
         let query = input.query.clone();
         let site = input.site.clone();
 
-        match extraction_actions::trigger_extraction(&query, site.as_deref(), ctx.deps()).await {
+        match extraction_activities::trigger_extraction(&query, site.as_deref(), ctx.deps()).await {
             Ok(extractions) => Ok(TriggerExtractionResult {
                 success: true,
                 query: input.query,
@@ -3287,7 +3287,7 @@ impl Mutation {
 
         info!(site_url = %site_url, max_pages = ?max_pages, "Ingesting site");
 
-        let result = extraction_actions::ingest_site(&site_url, max_pages, ctx.deps())
+        let result = extraction_activities::ingest_site(&site_url, max_pages, ctx.deps())
             .await
             .map_err(to_field_error)?;
 
