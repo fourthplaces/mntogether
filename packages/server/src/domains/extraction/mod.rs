@@ -6,7 +6,7 @@
 //!
 //! | Domain | Purpose | Entry Point |
 //! |--------|---------|-------------|
-//! | **Extraction** | User-facing API | `extraction::actions::submit_url()` |
+//! | **Extraction** | User-facing API | `extraction::activities::submit_url()` |
 //! | **Crawling** | System orchestration | `crawling::activities::ingest_website()` |
 //!
 //! This domain handles **explicit user requests** (submit URL, run query).
@@ -41,12 +41,12 @@
 //! - `domains::crawling` - System-level orchestration (background crawls, event cascade)
 //! - `kernel::extraction_service` - The underlying ExtractionService wrapper
 
-pub mod actions;
+pub mod activities;
 pub mod data;
 pub mod events;
 
 // Re-exports
-pub use actions::{
+pub use activities::{
     ingest_site, submit_url, submit_url_one, trigger_extraction, trigger_extraction_one,
     IngestSiteResult,
 };

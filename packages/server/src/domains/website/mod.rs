@@ -12,7 +12,7 @@
 //! - WebsiteAssessment model (AI-generated assessments)
 //! - WebsiteResearch model (research data from Tavily searches)
 
-pub mod actions;
+pub mod activities;
 pub mod data;
 pub mod effects;
 pub mod events;

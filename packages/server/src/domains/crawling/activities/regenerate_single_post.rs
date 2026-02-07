@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::common::PostId;
 use crate::domains::extraction::data::ExtractionPageData;
-use crate::domains::posts::actions::create_post::{save_contact_info, tag_with_audience_roles};
+use crate::domains::posts::activities::create_post::{save_contact_info, tag_with_audience_roles};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::tag::models::{Tag, Taggable};

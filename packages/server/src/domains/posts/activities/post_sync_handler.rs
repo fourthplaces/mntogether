@@ -9,7 +9,7 @@ use tracing::info;
 
 use crate::common::PostId;
 use crate::domains::posts::models::Post;
-use crate::domains::sync::actions::ProposalHandler;
+use crate::domains::sync::activities::ProposalHandler;
 use crate::domains::sync::models::{SyncProposal, SyncProposalMergeSource};
 
 use super::revision_actions;

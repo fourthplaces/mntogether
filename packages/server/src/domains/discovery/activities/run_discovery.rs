@@ -14,7 +14,7 @@
 use anyhow::Result;
 use tracing::{info, warn};
 
-use crate::domains::discovery::actions::evaluate_filter::{
+use crate::domains::discovery::activities::evaluate_filter::{
     evaluate_websites_against_filters, WebsiteCandidate,
 };
 use crate::domains::discovery::events::DiscoveryEvent;

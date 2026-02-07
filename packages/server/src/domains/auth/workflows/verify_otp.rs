@@ -33,7 +33,7 @@ impl VerifyOtpWorkflow {
 
     async fn run(
         &self,
-        ctx: Context,
+        ctx: Context<'_>,
         request: Json<VerifyOtpRequest>,
     ) -> Result<Json<VerifyOtpResult>, HandlerError> {
         let request = request.into_inner();
@@ -44,7 +44,7 @@ impl VerifyOtpWorkflow {
                 activities::verify_otp(request.phone_number.clone(), request.code.clone(), &self.deps).await
             })
             .await
-            .map_err(|e| HandlerError::new(format!("Verify OTP failed: {}", e)))?;
+            .map_err(|e| anyhow::anyhow!("Verify OTP failed: {}", e))?;
 
         // Extract data from event
         use crate::domains::auth::events::AuthEvent;
@@ -55,7 +55,7 @@ impl VerifyOtpWorkflow {
             token,
         } = event
         else {
-            return Err(HandlerError::new("Unexpected event type"));
+            return Err(anyhow::anyhow!("Unexpected event type").into());
         };
 
         Ok(Json(VerifyOtpResult {

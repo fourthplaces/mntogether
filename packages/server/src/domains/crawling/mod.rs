@@ -6,7 +6,7 @@
 //!
 //! | Domain | Purpose | Entry Point |
 //! |--------|---------|-------------|
-//! | **Extraction** | User-facing API | `extraction::actions::submit_url()` |
+//! | **Extraction** | User-facing API | `extraction::activities::submit_url()` |
 //! | **Crawling** | System orchestration | `crawling::workflows::CrawlWebsiteWorkflow` |
 //!
 //! **Extraction domain** handles explicit user requests (submit URL, run query).

@@ -11,7 +11,7 @@
 //!
 //! AI agent responses have moved to the agents domain.
 
-pub mod actions;
+pub mod activities;
 pub mod data;
 pub mod effects;
 pub mod events;

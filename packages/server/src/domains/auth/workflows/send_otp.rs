@@ -21,7 +21,7 @@ pub struct SendOtpWorkflow {
     pub deps: ServerDeps,
 }
 
-// #[restate_sdk::service(name = "SendOtp")]
+#[restate_sdk::service(name = "SendOtp")]
 impl SendOtpWorkflow {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
@@ -29,7 +29,7 @@ impl SendOtpWorkflow {
 
     async fn run(
         &self,
-        ctx: Context,
+        ctx: Context<'_>,
         request: Json<SendOtpRequest>,
     ) -> Result<Json<SendOtpResult>, HandlerError> {
         let request = request.into_inner();
@@ -40,7 +40,7 @@ impl SendOtpWorkflow {
                 activities::send_otp(request.phone_number.clone(), &self.deps).await
             })
             .await
-            .map_err(|e| HandlerError::new(format!("Send OTP failed: {}", e)))?;
+            .map_err(|e| anyhow::anyhow!("Send OTP failed: {}", e))?;
 
         Ok(Json(SendOtpResult {
             success: true,
