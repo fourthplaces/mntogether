@@ -103,7 +103,7 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
 
     // Ingest each website using the extraction library
     for website in sources {
-        use crate::domains::crawling::events::CrawlEvent;
+        use crate::domains::crawling::types::WebsiteIngested;
 
         let result = ingest_website(
             website.id.into_uuid(),
@@ -115,25 +115,15 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
         .await;
 
         match result {
-            Ok(event) => match event {
-                CrawlEvent::WebsiteIngested {
-                    job_id,
-                    pages_crawled,
-                    pages_summarized,
-                    ..
-                } => {
-                    tracing::info!(
-                        "Ingested website {} ({}) with job {} - pages: {}, summarized: {}",
-                        website.id,
-                        website.domain,
-                        job_id,
-                        pages_crawled,
-                        pages_summarized
-                    );
-                }
-                _ => {
-                    tracing::info!("Ingested website {} ({})", website.id, website.domain);
-                }
+            Ok(result) => {
+                tracing::info!(
+                    "Ingested website {} ({}) with job {} - pages: {}, summarized: {}",
+                    website.id,
+                    website.domain,
+                    result.job_id,
+                    result.pages_crawled,
+                    result.pages_summarized
+                );
             },
             Err(e) => {
                 tracing::error!(
