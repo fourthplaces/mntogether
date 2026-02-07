@@ -1,20 +1,25 @@
 //! Post report actions - entry-point functions for report operations
 //!
-//! These are called directly from GraphQL mutations via `process()`.
+//! These are called directly from GraphQL mutations.
 //! Actions are self-contained: they take raw input, handle ID parsing,
-//! auth checks, and return events directly.
+//! auth checks, and return plain data.
 
 use anyhow::{Context, Result};
 use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{MemberId, PostId};
-use crate::domains::posts::events::PostEvent;
 use crate::domains::posts::models::post_report::{PostReportId, PostReportRecord};
 use crate::kernel::ServerDeps;
 
+/// Result of reporting a post
+pub struct ReportCreated {
+    pub report_id: PostReportId,
+    pub post_id: PostId,
+}
+
 /// Report a post for moderation (public - no auth required)
-/// Returns the PostReported event.
+/// Returns the report and post IDs.
 pub async fn report_post(
     post_id: Uuid,
     reported_by: Option<Uuid>,
@@ -22,7 +27,7 @@ pub async fn report_post(
     reason: String,
     category: String,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<ReportCreated> {
     let post_id = PostId::from_uuid(post_id);
     let reported_by = reported_by.map(MemberId::from_uuid);
 
@@ -37,14 +42,13 @@ pub async fn report_post(
     .await
     .context("Failed to create listing report")?;
 
-    Ok(PostEvent::PostReported {
+    Ok(ReportCreated {
         report_id: report.id,
         post_id,
     })
 }
 
 /// Resolve a report (admin only)
-/// Returns the ReportResolved event.
 pub async fn resolve_report(
     report_id: Uuid,
     member_id: Uuid,
@@ -52,7 +56,7 @@ pub async fn resolve_report(
     resolution_notes: Option<String>,
     action_taken: String,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<()> {
     let report_id = PostReportId::from_uuid(report_id);
     let resolved_by = MemberId::from_uuid(member_id);
 
@@ -66,27 +70,23 @@ pub async fn resolve_report(
         report_id,
         resolved_by,
         resolution_notes,
-        action_taken.clone(),
+        action_taken,
         &deps.db_pool,
     )
     .await
     .context("Failed to resolve report")?;
 
-    Ok(PostEvent::ReportResolved {
-        report_id,
-        action_taken,
-    })
+    Ok(())
 }
 
 /// Dismiss a report (admin only)
-/// Returns the ReportDismissed event.
 pub async fn dismiss_report(
     report_id: Uuid,
     member_id: Uuid,
     is_admin: bool,
     resolution_notes: Option<String>,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<()> {
     let report_id = PostReportId::from_uuid(report_id);
     let resolved_by = MemberId::from_uuid(member_id);
 
@@ -100,5 +100,5 @@ pub async fn dismiss_report(
         .await
         .context("Failed to dismiss report")?;
 
-    Ok(PostEvent::ReportDismissed { report_id })
+    Ok(())
 }

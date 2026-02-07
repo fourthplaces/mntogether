@@ -1,25 +1,30 @@
-//! AI effect handlers - handle AI extraction request events
+//! Resource link AI extraction activity
 //!
-//! These handlers return events directly and are called from the composite effect.
+//! Extracts posts from a scraped resource link using AI with PII scrubbing.
 
 use anyhow::Result;
 
-use super::{post_extraction, ServerDeps};
-use crate::common::JobId;
-use crate::domains::posts::events::PostEvent;
+use super::post_extraction;
+use crate::common::{ExtractedPost, JobId};
+use crate::kernel::ServerDeps;
 
-// ============================================================================
-// Handler actions - return events directly
-// ============================================================================
+/// Result of AI extraction from a resource link
+#[derive(Debug, Clone)]
+pub struct ExtractionResult {
+    pub posts: Vec<ExtractedPost>,
+    pub context: Option<String>,
+    pub submitter_contact: Option<String>,
+}
 
-pub async fn handle_extract_posts_from_resource_link(
+/// Extract posts from a scraped resource link using AI with PII scrubbing.
+pub async fn extract_posts_from_resource_link(
     job_id: JobId,
     url: String,
     content: String,
     context: Option<String>,
     submitter_contact: Option<String>,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<ExtractionResult> {
     tracing::info!(
         job_id = %job_id,
         url = %url,
@@ -82,12 +87,10 @@ pub async fn handle_extract_posts_from_resource_link(
         job_id = %job_id,
         url = %url,
         listings_count = extracted_posts.len(),
-        "Returning ResourceLinkPostsExtracted event"
+        "Resource link extraction complete"
     );
 
-    Ok(PostEvent::ResourceLinkPostsExtracted {
-        job_id,
-        url,
+    Ok(ExtractionResult {
         posts: extracted_posts,
         context,
         submitter_contact,

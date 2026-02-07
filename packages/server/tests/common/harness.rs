@@ -4,18 +4,7 @@
 //! Containers and migrations are initialized once on first test, then reused.
 
 use anyhow::{Context, Result};
-use seesaw_core::{Engine, Runtime, RuntimeConfig};
-use seesaw_postgres::PostgresStore;
-use server_core::domains::agents::effects::agent_effect;
-use server_core::domains::auth::effects::auth_effect;
-use server_core::domains::crawling::effects::{crawling_pipeline_effect, mark_no_listings_effect};
-use server_core::domains::member::effects::member_effect;
-use server_core::domains::posts::effects::post_composite_effect;
-use server_core::domains::providers::effects::provider_effect;
-use server_core::domains::website::effects::website_effect;
-use server_core::domains::website_approval::effects::website_approval_effect;
 use server_core::kernel::{ServerDeps, TestDependencies};
-use server_core::server::graphql::context::AppQueueEngine;
 use sqlx::PgPool;
 use std::sync::Arc;
 use test_context::AsyncTestContext;
@@ -119,8 +108,8 @@ impl SharedTestInfra {
 /// Test harness that manages test infrastructure.
 ///
 /// Uses shared containers across all tests for fast test execution.
-/// Each test gets fresh ServerDeps and a QueueEngine instance, but reuses
-/// the same database and Redis containers.
+/// Each test gets fresh ServerDeps, but reuses the same database
+/// and Redis containers.
 ///
 /// # Example using test-context
 ///
@@ -141,73 +130,32 @@ pub struct TestHarness {
     pub db_pool: PgPool,
     /// Test dependencies for accessing mocks
     pub deps: TestDependencies,
-    /// Queue engine for processing events
-    pub queue_engine: Arc<AppQueueEngine>,
 }
 
 impl TestHarness {
     /// Creates a new test harness using shared containers.
-    ///
-    /// This will:
-    /// 1. Get or initialize shared PostgreSQL and Redis containers
-    /// 2. Run database migrations (only on first call)
-    /// 3. Initialize ServerDeps with test dependencies
-    /// 4. Build QueueEngine with all domain effects
     pub async fn new() -> Result<Self> {
         Self::with_deps(TestDependencies::new()).await
     }
 
     /// Creates a test harness with custom dependencies.
-    ///
-    /// Use this to inject mock services with pre-configured responses.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use server_core::kernel::TestDependencies;
-    ///
-    /// let deps = TestDependencies::new()
-    ///     .mock_ingestor(MockIngestor::new());
-    /// let harness = TestHarness::with_deps(deps).await?;
-    /// ```
     pub async fn with_deps(deps: TestDependencies) -> Result<Self> {
         // Get shared infrastructure (containers start + migrations run on first call only)
-        let infra = SharedTestInfra::get().await;
+        let _infra = SharedTestInfra::get().await;
 
         // Create a fresh pool for this test
-        let db_pool = PgPool::connect(&infra.db_url)
+        let db_pool = PgPool::connect(&_infra.db_url)
             .await
             .context("Failed to connect to test database")?;
 
         // Build ServerDeps from test dependencies
         let server_deps = deps.clone().into_server_deps(db_pool.clone());
-        let server_deps_arc = Arc::new(server_deps.clone());
-
-        // Build QueueEngine with all domain effects (seesaw 0.8.2)
-        let seesaw_store = PostgresStore::new(db_pool.clone());
-        let queue_engine = Engine::new(server_deps, seesaw_store)
-            .with_effect(auth_effect())
-            .with_effect(member_effect())
-            .with_effect(agent_effect())
-            .with_effect(website_effect())
-            .with_effect(mark_no_listings_effect())
-            .with_effect(crawling_pipeline_effect())
-            .with_effect(post_composite_effect())
-            .with_effect(website_approval_effect())
-            .with_effect(provider_effect());
-        let queue_engine = Arc::new(queue_engine);
-
-        // Start seesaw runtime workers
-        let _runtime = Runtime::start(&queue_engine, RuntimeConfig::default());
-
-        // Give engine time to initialize
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        let server_deps_arc = Arc::new(server_deps);
 
         Ok(Self {
             server_deps: server_deps_arc,
             db_pool,
             deps,
-            queue_engine,
         })
     }
 
@@ -216,7 +164,6 @@ impl TestHarness {
         GraphQLClient::new(
             self.db_pool.clone(),
             self.server_deps.clone(),
-            self.queue_engine.clone(),
         )
     }
 
@@ -225,30 +172,13 @@ impl TestHarness {
         GraphQLClient::with_auth_user(
             self.db_pool.clone(),
             self.server_deps.clone(),
-            self.queue_engine.clone(),
             user_id,
             is_admin,
         )
     }
 
-    /// Emit an event through the queue engine.
-    pub async fn emit<
-        E: Clone + Send + Sync + serde::Serialize + serde::de::DeserializeOwned + 'static,
-    >(
-        &self,
-        event: E,
-    ) {
-        let _ = self.queue_engine.process(event).await;
-    }
-
-    /// Wait for effects to settle after an action.
-    ///
-    /// Effects are executed by the seesaw QueueEngine workers.
-    /// This method yields to allow the event-driven pipeline to complete.
+    /// Wait for async operations to settle.
     pub async fn settle(&self) {
-        // Allow time for the seesaw event pipeline to process:
-        // 1. EventWorkers poll and process events
-        // 2. EffectWorkers execute queued effects
         for _ in 0..10 {
             tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
             tokio::task::yield_now().await;
@@ -256,10 +186,6 @@ impl TestHarness {
     }
 
     /// Wait for a condition to become true, with retries.
-    ///
-    /// This is more robust than `settle()` for cases where you need to wait
-    /// for a specific state change. It polls the condition every 25ms for
-    /// up to 500ms total.
     pub async fn wait_for<F, Fut>(&self, condition: F) -> bool
     where
         F: Fn() -> Fut,

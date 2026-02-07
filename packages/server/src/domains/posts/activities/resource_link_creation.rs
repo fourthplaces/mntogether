@@ -1,34 +1,23 @@
-//! Post effect cascade handlers
+//! Resource link post creation activity
 //!
-//! These handlers respond to fact events and are called from the composite effect.
-//! Entry-point actions live in `actions/`, not here.
+//! Creates post records in the database from extracted posts.
 
 use anyhow::Result;
 use tracing::{info, warn};
 
 use crate::common::{ExtractedPost, JobId, WebsiteId};
-use crate::domains::posts::events::PostEvent;
 use crate::kernel::ServerDeps;
 
-/// Extract domain from URL (e.g., "https://example.org/path" -> "example.org")
-pub fn extract_domain(url: &str) -> Option<String> {
-    url::Url::parse(url).ok().and_then(|parsed| {
-        parsed
-            .host_str()
-            .map(|host| host.strip_prefix("www.").unwrap_or(host).to_lowercase())
-    })
-}
-
-/// Cascade handler: ResourceLinkPostsExtracted → create posts from resource link
-/// Returns the PostEntryCreated event with summary info.
-pub async fn handle_create_posts_from_resource_link(
+/// Create posts from extracted resource link data.
+/// Returns the count of posts created.
+pub async fn create_posts_from_resource_link(
     _job_id: JobId,
     url: String,
     posts: Vec<ExtractedPost>,
-    context: Option<String>,
+    _context: Option<String>,
     _submitter_contact: Option<String>,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<usize> {
     use crate::domains::posts::models::{CreatePost, Post};
     use crate::domains::website::models::Website;
 
@@ -82,9 +71,5 @@ pub async fn handle_create_posts_from_resource_link(
 
     info!(created_count = %created_count, "Created listings from resource link");
 
-    Ok(PostEvent::PostEntryCreated {
-        post_id: crate::common::PostId::new(),
-        title: format!("{} listings created", created_count),
-        submission_type: "user_submitted".to_string(),
-    })
+    Ok(created_count)
 }

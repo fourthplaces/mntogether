@@ -1,7 +1,5 @@
 pub mod activities;
 pub mod data;
-pub mod effects; // TODO: Remove after migration
-pub mod events; // TODO: Remove after migration
 pub mod loader;
 pub mod models;
 pub mod workflows;
@@ -15,12 +13,8 @@ pub use data::types::{
     SubmitResourceLinkResult,
 };
 
-// Re-export events (TODO: Remove after migration)
-pub use events::PostEvent;
-
 // Re-export models (domain models)
 pub use models::post::Post;
 
 // Re-export workflows
 pub use workflows::*;
-

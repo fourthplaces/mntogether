@@ -15,7 +15,6 @@ use crate::domains::website::models::{
     CreateTavilySearchQuery, CreateWebsiteAssessment, TavilySearchQuery, TavilySearchResult,
     Website, WebsiteAssessment, WebsiteResearch, WebsiteResearchHomepage,
 };
-use crate::domains::website::events::approval::WebsiteApprovalEvent;
 use crate::kernel::{
     CompletionExt, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor,
 };
@@ -33,42 +32,6 @@ pub struct AssessmentResult {
     pub message: Option<String>,
 }
 
-impl AssessmentResult {
-    /// Create from a WebsiteApprovalEvent
-    pub fn from_event(event: &WebsiteApprovalEvent) -> Self {
-        match event {
-            WebsiteApprovalEvent::WebsiteResearchCreated {
-                job_id, website_id, ..
-            } => Self {
-                job_id: job_id.into_uuid(),
-                website_id: website_id.into_uuid(),
-                assessment_id: None,
-                status: "processing".to_string(),
-                message: Some("Research created, running web searches...".to_string()),
-            },
-            WebsiteApprovalEvent::WebsiteAssessmentCompleted {
-                job_id,
-                website_id,
-                assessment_id,
-                ..
-            } => Self {
-                job_id: job_id.into_uuid(),
-                website_id: website_id.into_uuid(),
-                assessment_id: Some(*assessment_id),
-                status: "completed".to_string(),
-                message: Some("Assessment completed".to_string()),
-            },
-            _ => Self {
-                job_id: Uuid::nil(),
-                website_id: Uuid::nil(),
-                assessment_id: None,
-                status: "unknown".to_string(),
-                message: None,
-            },
-        }
-    }
-}
-
 /// Result of conducting searches
 #[derive(Debug, Clone)]
 pub struct SearchResult {
@@ -82,14 +45,14 @@ pub struct SearchResult {
 
 /// Assess a website by fetching/creating research and generating an assessment.
 ///
-/// Returns an event:
-/// - `WebsiteAssessmentCompleted` if fresh research exists (sync completion)
-/// - `WebsiteResearchCreated` if new research created (triggers async cascade)
+/// Returns an `AssessmentResult`:
+/// - `status: "completed"` if fresh research exists (sync completion)
+/// - `status: "processing"` if new research created (needs search + assess workflow)
 pub async fn assess_website(
     website_id: Uuid,
     member_id: Uuid,
     deps: &ServerDeps,
-) -> Result<WebsiteApprovalEvent> {
+) -> Result<AssessmentResult> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(member_id);
     let job_id = JobId::new();
@@ -105,13 +68,12 @@ pub async fn assess_website(
         info!(research_id = %research.id, "Research is fresh, generating assessment directly");
         let assessment =
             generate_assessment(research.id, website_id_typed, job_id, requested_by, deps).await?;
-        return Ok(WebsiteApprovalEvent::WebsiteAssessmentCompleted {
-            website_id: website_id_typed,
-            job_id,
-            assessment_id: assessment.id,
-            recommendation: assessment.recommendation.clone(),
-            confidence_score: assessment.confidence_score,
-            organization_name: assessment.organization_name.clone(),
+        return Ok(AssessmentResult {
+            job_id: job_id.into_uuid(),
+            website_id,
+            assessment_id: Some(assessment.id),
+            status: "completed".to_string(),
+            message: Some("Assessment completed".to_string()),
         });
     }
 
@@ -142,12 +104,12 @@ pub async fn assess_website(
         info!(research_id = %research.id, "Homepage content stored");
     }
 
-    Ok(WebsiteApprovalEvent::WebsiteResearchCreated {
-        research_id: research.id,
-        website_id: website_id_typed,
-        job_id,
-        homepage_url: website.domain.clone(),
-        requested_by,
+    Ok(AssessmentResult {
+        job_id: job_id.into_uuid(),
+        website_id,
+        assessment_id: None,
+        status: "processing".to_string(),
+        message: Some(format!("research_id:{}", research.id)),
     })
 }
 

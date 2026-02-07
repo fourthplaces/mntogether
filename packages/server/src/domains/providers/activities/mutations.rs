@@ -1,7 +1,6 @@
 //! Provider mutation actions
 //!
-//! Actions return events directly. GraphQL mutations call actions via `process()`
-//! and the returned event is dispatched through the engine.
+//! Actions return plain data. GraphQL mutations call activities directly.
 
 use anyhow::{Context, Result};
 use tracing::info;
@@ -9,18 +8,17 @@ use uuid::Uuid;
 
 use crate::common::{MemberId, ProviderId, TagId};
 use crate::domains::providers::data::{SubmitProviderInput, UpdateProviderInput};
-use crate::domains::providers::events::ProviderEvent;
 use crate::domains::providers::models::{CreateProvider, Provider, UpdateProvider};
 use crate::domains::tag::{Tag, Taggable};
 use crate::kernel::ServerDeps;
 
 /// Submit a new provider (goes to pending_review)
-/// Returns ProviderCreated event with provider_id.
+/// Returns the created ProviderId.
 pub async fn submit_provider(
     input: SubmitProviderInput,
     member_id: Option<Uuid>,
     deps: &ServerDeps,
-) -> Result<ProviderEvent> {
+) -> Result<ProviderId> {
     info!(name = %input.name, "Submitting new provider");
 
     let member_id_typed = member_id.map(MemberId::from_uuid);
@@ -47,11 +45,7 @@ pub async fn submit_provider(
 
     info!(provider_id = %provider.id, "Provider submitted successfully");
 
-    Ok(ProviderEvent::ProviderCreated {
-        provider_id: provider.id,
-        name: input.name,
-        submitted_by: member_id_typed,
-    })
+    Ok(provider.id)
 }
 
 /// Update a provider (admin only)
@@ -86,12 +80,12 @@ pub async fn update_provider(
 }
 
 /// Approve a provider (admin only)
-/// Returns ProviderApproved event.
+/// Returns the approved ProviderId.
 pub async fn approve_provider(
     provider_id: String,
     reviewed_by_id: Uuid,
     deps: &ServerDeps,
-) -> Result<ProviderEvent> {
+) -> Result<ProviderId> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -99,20 +93,17 @@ pub async fn approve_provider(
 
     Provider::approve(id, reviewed_by, &deps.db_pool).await?;
 
-    Ok(ProviderEvent::ProviderApproved {
-        provider_id: id,
-        reviewed_by,
-    })
+    Ok(id)
 }
 
 /// Reject a provider (admin only)
-/// Returns ProviderRejected event.
+/// Returns the rejected ProviderId.
 pub async fn reject_provider(
     provider_id: String,
     reason: String,
     reviewed_by_id: Uuid,
     deps: &ServerDeps,
-) -> Result<ProviderEvent> {
+) -> Result<ProviderId> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -120,21 +111,17 @@ pub async fn reject_provider(
 
     Provider::reject(id, reviewed_by, &reason, &deps.db_pool).await?;
 
-    Ok(ProviderEvent::ProviderRejected {
-        provider_id: id,
-        reviewed_by,
-        reason,
-    })
+    Ok(id)
 }
 
 /// Suspend a provider (admin only)
-/// Returns ProviderSuspended event.
+/// Returns the suspended ProviderId.
 pub async fn suspend_provider(
     provider_id: String,
     reason: String,
     reviewed_by_id: Uuid,
     deps: &ServerDeps,
-) -> Result<ProviderEvent> {
+) -> Result<ProviderId> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
     let reviewed_by = MemberId::from_uuid(reviewed_by_id);
 
@@ -142,11 +129,7 @@ pub async fn suspend_provider(
 
     Provider::suspend(id, reviewed_by, &reason, &deps.db_pool).await?;
 
-    Ok(ProviderEvent::ProviderSuspended {
-        provider_id: id,
-        reviewed_by,
-        reason,
-    })
+    Ok(id)
 }
 
 /// Add a tag to a provider (admin only)
@@ -187,16 +170,17 @@ pub async fn remove_provider_tag(
 
 /// Delete a provider (admin only)
 ///
-/// Returns ProviderDeleted event which triggers cascade cleanup of tags
-/// via the provider effect handler.
-pub async fn delete_provider(provider_id: String, deps: &ServerDeps) -> Result<ProviderEvent> {
+/// Cleans up associated tags before deleting the provider record.
+pub async fn delete_provider(provider_id: String, deps: &ServerDeps) -> Result<()> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
     info!(provider_id = %id, "Deleting provider");
 
+    // Clean up tags before deletion
+    Taggable::delete_all_for_provider(id, &deps.db_pool).await?;
+
     // Delete the provider record
     Provider::delete(id, &deps.db_pool).await?;
 
-    // Return event - effect will handle cascade cleanup (contacts, tags)
-    Ok(ProviderEvent::ProviderDeleted { provider_id: id })
+    Ok(())
 }

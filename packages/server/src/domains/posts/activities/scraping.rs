@@ -1,25 +1,43 @@
 //! Scraping actions - entry-point functions for scraping operations
-//!
-//! These are called directly from GraphQL mutations via `process()`.
-//! Actions are self-contained: they take raw input, handle ID parsing,
-//! auth checks, and return events directly.
 
 use anyhow::{Context, Result};
 use tracing::info;
 
 use crate::common::JobId;
-use crate::domains::posts::effects::post::extract_domain;
-use crate::domains::posts::events::PostEvent;
 use crate::domains::website::models::{CreateWebsite, Website};
 use crate::kernel::ServerDeps;
 
+/// Extract domain from URL (e.g., "https://example.org/path" -> "example.org")
+pub fn extract_domain(url: &str) -> Option<String> {
+    url::Url::parse(url).ok().and_then(|parsed| {
+        parsed
+            .host_str()
+            .map(|host| host.strip_prefix("www.").unwrap_or(host).to_lowercase())
+    })
+}
+
+/// Result of submitting a resource link
+#[derive(Debug, Clone)]
+pub enum ResourceLinkSubmission {
+    /// Website is pending admin approval (new or unapproved)
+    PendingApproval {
+        url: String,
+    },
+    /// Website is approved, processing can begin
+    Processing {
+        job_id: JobId,
+        url: String,
+        submitter_contact: Option<String>,
+    },
+}
+
 /// Submit a resource link for processing (public - no auth required)
-/// Returns the appropriate event (WebsitePendingApproval or WebsiteCreatedFromLink).
+/// Returns the submission status.
 pub async fn submit_resource_link(
     url: String,
     submitter_contact: Option<String>,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<ResourceLinkSubmission> {
     url::Url::parse(&url).context("Invalid URL format")?;
 
     let job_id = JobId::new();
@@ -30,7 +48,7 @@ pub async fn submit_resource_link(
         "Processing submitted resource link"
     );
 
-    let domain = extract_domain(&url)
+    let _domain = extract_domain(&url)
         .ok_or_else(|| anyhow::anyhow!("Invalid URL: could not extract domain"))?;
 
     let source = Website::find_or_create(
@@ -52,15 +70,9 @@ pub async fn submit_resource_link(
     );
 
     if source.status == "pending_review" {
-        Ok(PostEvent::WebsitePendingApproval {
-            website_id: source.id,
-            url: domain,
-            submitted_url: url,
-            submitter_contact,
-        })
+        Ok(ResourceLinkSubmission::PendingApproval { url })
     } else {
-        Ok(PostEvent::WebsiteCreatedFromLink {
-            source_id: source.id,
+        Ok(ResourceLinkSubmission::Processing {
             job_id,
             url,
             submitter_contact,

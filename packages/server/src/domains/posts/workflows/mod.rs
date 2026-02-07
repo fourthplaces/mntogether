@@ -1,5 +1,5 @@
 //! Posts domain workflows
-//!
-//! TODO: Implement Restate workflows for post operations
 
-// TODO: Create workflow implementations
+pub mod resource_link;
+
+pub use resource_link::*;

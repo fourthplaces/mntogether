@@ -1,26 +1,28 @@
-//! Scraper cascade handlers
+//! Resource link scraping activity
 //!
-//! These handlers respond to fact events and are called from the composite effect.
-//! Entry-point actions live in `actions/`, not here.
-//!
-//! This module now uses the extraction library for scraping.
+//! Scrapes a submitted resource link URL using the extraction library.
 
 use anyhow::Result;
 
 use crate::common::JobId;
-use crate::domains::posts::events::PostEvent;
 use crate::kernel::{FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
 
-/// Cascade handler: WebsiteCreatedFromLink → scrape resource link
-///
-/// Uses the extraction library to ingest the URL, returns ResourceLinkScraped event.
-pub async fn handle_scrape_resource_link(
+/// Result of scraping a resource link
+#[derive(Debug, Clone)]
+pub struct ScrapeResult {
+    pub content: String,
+    pub context: Option<String>,
+    pub submitter_contact: Option<String>,
+}
+
+/// Scrape a resource link URL using the extraction library.
+pub async fn scrape_resource_link(
     job_id: JobId,
     url: String,
     context: Option<String>,
     submitter_contact: Option<String>,
     deps: &ServerDeps,
-) -> Result<PostEvent> {
+) -> Result<ScrapeResult> {
     tracing::info!(
         job_id = %job_id,
         url = %url,
@@ -57,13 +59,10 @@ pub async fn handle_scrape_resource_link(
                 "Resource link ingested via extraction library"
             );
 
-            Ok(PostEvent::ResourceLinkScraped {
-                job_id,
-                url,
+            Ok(ScrapeResult {
                 content: String::new(), // Content is now in extraction_pages
                 context,
                 submitter_contact,
-                page_snapshot_id: None, // No longer using page_snapshots
             })
         }
         Err(e) => {

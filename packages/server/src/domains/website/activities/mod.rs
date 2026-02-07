@@ -10,7 +10,6 @@ use tracing::info;
 
 use crate::common::{build_page_info, Cursor, MemberId, ValidatedPaginationArgs, WebsiteId};
 use crate::domains::website::data::{WebsiteConnection, WebsiteData, WebsiteEdge};
-use crate::domains::website::events::WebsiteEvent;
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
@@ -23,67 +22,56 @@ pub async fn get_pending_websites(deps: &ServerDeps) -> Result<Vec<Website>> {
 }
 
 /// Approve a website for crawling
-/// Returns WebsiteApproved event.
+/// Returns the approved WebsiteId.
 pub async fn approve_website(
     website_id: WebsiteId,
     requested_by: MemberId,
     deps: &ServerDeps,
-) -> Result<WebsiteEvent> {
+) -> Result<WebsiteId> {
     info!(website_id = %website_id, requested_by = %requested_by, "Approving website");
 
     Website::approve(website_id, requested_by, &deps.db_pool).await?;
 
-    Ok(WebsiteEvent::WebsiteApproved {
-        website_id,
-        reviewed_by: requested_by,
-    })
+    Ok(website_id)
 }
 
 /// Reject a website submission
-/// Returns WebsiteRejected event.
+/// Returns the rejected WebsiteId.
 pub async fn reject_website(
     website_id: WebsiteId,
     reason: String,
     requested_by: MemberId,
     deps: &ServerDeps,
-) -> Result<WebsiteEvent> {
+) -> Result<WebsiteId> {
     info!(website_id = %website_id, reason = %reason, requested_by = %requested_by, "Rejecting website");
 
-    Website::reject(website_id, requested_by, reason.clone(), &deps.db_pool).await?;
+    Website::reject(website_id, requested_by, reason, &deps.db_pool).await?;
 
-    Ok(WebsiteEvent::WebsiteRejected {
-        website_id,
-        reason,
-        reviewed_by: requested_by,
-    })
+    Ok(website_id)
 }
 
 /// Suspend an approved website
-/// Returns WebsiteSuspended event.
+/// Returns the suspended WebsiteId.
 pub async fn suspend_website(
     website_id: WebsiteId,
     reason: String,
     requested_by: MemberId,
     deps: &ServerDeps,
-) -> Result<WebsiteEvent> {
+) -> Result<WebsiteId> {
     info!(website_id = %website_id, reason = %reason, requested_by = %requested_by, "Suspending website");
 
-    Website::suspend(website_id, requested_by, reason.clone(), &deps.db_pool).await?;
+    Website::suspend(website_id, requested_by, reason, &deps.db_pool).await?;
 
-    Ok(WebsiteEvent::WebsiteSuspended {
-        website_id,
-        reason,
-        reviewed_by: requested_by,
-    })
+    Ok(website_id)
 }
 
 /// Update website crawl settings
-/// Returns CrawlSettingsUpdated event.
+/// Returns the updated WebsiteId.
 pub async fn update_crawl_settings(
     website_id: WebsiteId,
     max_pages_per_crawl: i32,
     deps: &ServerDeps,
-) -> Result<WebsiteEvent> {
+) -> Result<WebsiteId> {
     info!(
         website_id = %website_id,
         max_pages_per_crawl = max_pages_per_crawl,
@@ -92,10 +80,7 @@ pub async fn update_crawl_settings(
 
     Website::update_max_pages_per_crawl(website_id, max_pages_per_crawl, &deps.db_pool).await?;
 
-    Ok(WebsiteEvent::CrawlSettingsUpdated {
-        website_id,
-        max_pages_per_crawl,
-    })
+    Ok(website_id)
 }
 
 // ============================================================================

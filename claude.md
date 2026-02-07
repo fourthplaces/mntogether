@@ -308,269 +308,51 @@ async fn handle_extract_posts(ctx: &EffectContext<...>) -> Result<()> {
 
 ---
 
-## Seesaw Architecture Rules (v0.7.3)
+## GraphQL Mutation Pattern
 
-### Overview
+### Simple CRUD Mutations Call Activities Directly
 
-Seesaw uses an event-driven architecture with these main components:
-
-1. **Actions** - Reusable business logic in `domains/*/actions/` modules
-2. **Effects** - Event handlers that run in response to domain events
-3. **GraphQL Integration** - Thin mutations that call actions via `process()`
-
-### CRITICAL: GraphQL Mutations Must Be Thin
-
-**All GraphQL mutations and queries that invoke actions MUST use the `process()` pattern.**
-
-The `process()` method is the synchronous gateway to call actions:
-- Activates the engine with app state
-- Executes the closure and returns its result
-- Ensures events are emitted to the engine
-
-#### ✅ Correct GraphQL Pattern (v0.7.3):
+GraphQL mutations call activity functions directly — no framework needed for simple operations:
 
 ```rust
 async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
-    use crate::domains::posts::events::PostEvent;
-
-    // 1. Auth check at GraphQL layer
     let user = ctx.auth_user.as_ref()
         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
 
-    // 2. Call action via process() - returns the event
-    let event = ctx.engine
-        .activate(ctx.app_state())
-        .process(|ectx| {
-            post_actions::approve_post(post_id, user.member_id.into_uuid(), user.is_admin, ectx.deps())
-        })
+    let id = post_activities::approve_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
         .await
         .map_err(to_field_error)?;
 
-    // 3. Extract data from event and return
-    let PostEvent::PostApproved { post_id } = event else {
-        return Err(FieldError::new("Unexpected event type", juniper::Value::null()));
-    };
-
-    let post = Post::find_by_id(post_id, &ctx.db_pool).await.map_err(to_field_error)?;
+    let post = Post::find_by_id(id, &ctx.db_pool).await.map_err(to_field_error)?;
     Ok(PostType::from(post))
 }
 ```
 
-#### ❌ Incorrect Pattern (Never Do This):
+### Multi-Step Operations Use Restate Workflows
+
+For operations that need durability or multi-step orchestration, invoke a Restate workflow:
 
 ```rust
-// BAD: Calling action directly without process()
-async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
-    // Wrong: No event emitted to engine!
-    post_actions::approve_post(post_id, user_id, is_admin, &ctx.deps()).await?;
-    // ...
-}
-```
-
-### Key Patterns for v0.7.3:
-
-1. **`process()` returns the closure's return value** - Actions return events, `process()` returns them to the caller
-2. **Actions take `&ServerDeps`** - NOT `&EffectContext`
-3. **All business logic inside actions** - GraphQL mutations are thin wrappers
-4. **Events contain the data you need** - e.g., `AuthEvent::OTPVerified { token, member_id, ... }`
-
----
-
-### PLATINUM RULE: Events Are Facts Only
-
-**Events must represent facts about what happened. Never emit events for failures, errors, or hypotheticals.**
-
-- ✅ `PostsRegenerated` - fact: posts were regenerated
-- ✅ `WebsiteCrawled` - fact: a website was crawled
-- ✅ `UserCreated` - fact: a user was created
-- ❌ `CrawlFailed` - not a fact, it's an error (use `Result::Err`)
-- ❌ `WebsiteIngested` - misleading if you're regenerating, not ingesting
-- ❌ `ProcessingStarted` - not a fact about what happened, it's a status
-
-**Errors go in `Result::Err`, not in events.** If an operation fails, return an error. Events are for successful state changes that other parts of the system may need to react to.
-
-**Be precise about what happened.** Don't emit `PostsSynced` when posts were regenerated. Don't emit `WebsiteIngested` when you extracted posts from already-ingested pages. The event name must accurately describe the fact.
-
-### HARD RULE: Effects Must Be Ultra-Thin
-
-**Effect handlers should only: (1) check authorization, (2) call an action, (3) return an event.**
-
-Handlers must be <50 lines. All business logic lives in actions modules.
-
-#### ✅ Correct Pattern (Ultra-Thin Handler):
-
-```rust
-// Effect dispatches to thin handler
-async fn handle_regenerate_posts(
-    page_snapshot_id: Uuid,
-    job_id: JobId,
-    requested_by: MemberId,
-    is_admin: bool,
-    ctx: &EffectContext<ServerDeps>,
-) -> Result<()> {
-    // 1. Auth check (using reusable action) - returns Result, not event
-    actions::check_crawl_authorization(
-        requested_by, is_admin, "RegeneratePosts", ctx.deps()
-    ).await?;
-
-    // 2. Delegate to action (all business logic lives there)
-    let posts_count = actions::regenerate_posts_for_page(
-        page_snapshot_id, job_id, ctx.deps()
-    ).await;
-
-    // 3. Emit fact event
-    ctx.emit(CrawlEvent::PagePostsRegenerated { page_snapshot_id, job_id, posts_count });
-    Ok(())
-}
-```
-
-#### ❌ Incorrect Pattern (Thick Handler):
-
-```rust
-// BAD: All this logic should be in an action!
-async fn handle_regenerate_posts(...) -> Result<CrawlEvent> {
-    // Auth check inline (should be reusable action)
-    if let Err(auth_err) = Actor::new(requested_by, is_admin)
-        .can(AdminCapability::TriggerScraping)
-        .check(ctx.deps())
+async fn register_member(ctx: &GraphQLContext, ...) -> FieldResult<MemberType> {
+    let result: RegisterMemberResult = ctx.workflow_client
+        .invoke("RegisterMember", "run", RegisterMemberRequest { ... })
         .await
-    { ... }
+        .map_err(to_field_error)?;
 
-    // Multiple circuit breakers inline (should be in action)
-    let page_snapshot = PageSnapshot::find_by_id(...).await?;
-    let website_snapshot = WebsiteSnapshot::find_by_page_snapshot_id(...).await?;
-    let website = Website::find_by_id(...).await?;
-
-    // ... 100 more lines ...
+    let member = Member::find_by_id(result.member_id, &ctx.db_pool).await?;
+    Ok(MemberType::from(member))
 }
 ```
 
----
+### Activities Are Pure Functions
 
-### HARD RULE: Business Logic Lives in Actions
-
-**Create reusable actions in `domains/*/actions/` modules.**
-
-Actions are pure business logic functions that:
-- Take dependencies explicitly (no EffectContext)
-- Return simple values (count, bool, struct) NOT events
-- Can be composed and reused across handlers
-- Are easy to unit test
-
-#### Actions Module Structure:
-
-```
-domains/crawling/actions/
-├── mod.rs                 # Re-exports
-├── authorization.rs       # check_crawl_authorization()
-├── crawl_website.rs       # crawl_website_pages(), store_crawled_pages()
-├── build_pages.rs         # build_pages_to_summarize(), fetch_single_page_context()
-├── extract_posts.rs       # extract_posts_from_pages()
-├── sync_posts.rs          # sync_and_deduplicate_posts()
-└── website_context.rs     # fetch_approved_website()
-```
-
-#### ✅ Correct Action Pattern:
+Activities take `&ServerDeps` explicitly and return simple values:
 
 ```rust
-// actions/regenerate_page.rs
-
-/// Workflow action that consolidates multiple operations.
-/// Returns simple value (count), NOT an event.
-pub async fn regenerate_posts_for_page(
-    page_snapshot_id: Uuid,
-    job_id: JobId,
-    deps: &ServerDeps,  // Takes deps, not EffectContext
-) -> usize {
-    // Early return on failure - no event needed
-    let Some(ctx) = fetch_single_page_context(page_snapshot_id, &deps.db_pool).await else {
-        return 0;
-    };
-
-    let page = build_page_to_summarize_from_snapshot(&ctx.page_snapshot, ctx.page_snapshot.url.clone());
-
-    let result = match extract_posts_from_pages(&ctx.website, vec![page], job_id, deps.ai.as_ref(), deps).await {
-        Ok(r) if !r.posts.is_empty() => r,
-        _ => return 0,
-    };
-
-    let count = result.posts.len();
-    let _ = sync_and_deduplicate_posts(ctx.website_id, result.posts, deps).await;
-    count
+pub async fn approve_post(post_id: PostId, reviewer: MemberId, is_admin: bool, deps: &ServerDeps) -> Result<PostId> {
+    // Auth check, business logic, return data
 }
 ```
-
-#### ✅ Correct Reusable Auth Action:
-
-```rust
-// actions/authorization.rs
-
-/// Reusable authorization check - replaces 5+ identical blocks.
-/// Returns Result<()>, NOT Result<(), Event> - auth failures are errors, not events.
-pub async fn check_crawl_authorization<D: HasAuthContext>(
-    requested_by: MemberId,
-    is_admin: bool,
-    action_name: &str,
-    deps: &D,
-) -> Result<()> {
-    Actor::new(requested_by, is_admin)
-        .can(AdminCapability::TriggerScraping)
-        .check(deps)
-        .await
-        .map_err(|auth_err| {
-            anyhow::anyhow!("Authorization denied for {}: {}", action_name, auth_err)
-        })
-}
-```
-
----
-
-### Edges Can Run Business Logic
-
-In Seesaw 0.4.0+, edges can execute business logic during event-to-command transitions.
-
-```rust
-// Edge that runs logic before emitting command
-edge!(
-    CrawlEvent::PagesReadyForExtraction { website_id, job_id, pages } =>
-    async |event, deps| {
-        // Can run business logic here
-        let priorities = actions::get_crawl_priorities(website_id, &deps.db_pool).await;
-
-        CrawlCommand::ExtractFromPages {
-            website_id,
-            job_id,
-            pages,
-            priorities,
-        }
-    }
-);
-```
-
----
-
-### Key Principles
-
-| Component | Responsibility | Size Limit |
-|-----------|---------------|------------|
-| Effect `execute()` | Route command to handler | ~5 lines |
-| Handler | Auth check → action → event | <50 lines |
-| Action | All business logic | No limit (but keep focused) |
-| Edge | Event → Command mapping, can run logic | Keep simple |
-
-### Benefits of This Architecture:
-
-- **Testability**: Actions are pure functions, easy to unit test
-- **Reusability**: Actions called from multiple handlers (DRY)
-- **Clarity**: Clear separation of routing vs logic
-- **Maintainability**: Find business logic in actions/, not scattered in effects
-
-### Common Patterns:
-
-1. **Workflow actions** return simple values (`usize`, `bool`, `Option<T>`)
-2. **Context helpers** like `fetch_single_page_context()` consolidate repeated lookups
-3. **Auth actions** like `check_crawl_authorization()` return `Result<()>` and use `?` operator
-4. **Auth failures are errors**, not events - use `anyhow::anyhow!` or custom error types
 
 ## Restate Workflow Architecture (v0.2.0)
 
