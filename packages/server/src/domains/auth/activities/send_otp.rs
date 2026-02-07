@@ -3,7 +3,7 @@
 use anyhow::Result;
 use tracing::{error, info};
 
-use crate::domains::auth::events::AuthEvent;
+use crate::domains::auth::types::OtpSent;
 use crate::domains::auth::models::{
     hash_phone_number, is_admin_identifier, is_test_identifier, Identifier,
 };
@@ -19,8 +19,8 @@ pub struct NotAuthorizedError;
 /// Authorization: identifier must exist, or be an admin/test identifier.
 /// Test identifiers skip actual Twilio send.
 ///
-/// Returns `AuthEvent::OTPSent` on success.
-pub async fn send_otp(phone_number: String, deps: &ServerDeps) -> Result<AuthEvent> {
+/// Returns `OtpSent` on success.
+pub async fn send_otp(phone_number: String, deps: &ServerDeps) -> Result<OtpSent> {
     let phone_hash = hash_phone_number(&phone_number);
     let identifier_exists = Identifier::find_by_phone_hash(&phone_hash, &deps.db_pool)
         .await?
@@ -38,8 +38,9 @@ pub async fn send_otp(phone_number: String, deps: &ServerDeps) -> Result<AuthEve
     // Test identifiers skip actual OTP send
     if is_test {
         info!("Test identifier: skipping OTP send for {}", phone_number);
-        return Ok(AuthEvent::OTPSent {
+        return Ok(OtpSent {
             phone_number: phone_number.clone(),
+            success: true,
         });
     }
 
@@ -50,7 +51,8 @@ pub async fn send_otp(phone_number: String, deps: &ServerDeps) -> Result<AuthEve
     })?;
 
     info!("OTP sent to {}", phone_number);
-    Ok(AuthEvent::OTPSent {
+    Ok(OtpSent {
         phone_number: phone_number.clone(),
+        success: true,
     })
 }

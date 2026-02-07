@@ -8,6 +8,7 @@
 //! Ingestor pattern with SSRF protection and integrated summarization.
 
 pub mod authorization;
+pub mod crawl_full;
 pub mod ingest_website;
 pub mod post_extraction;
 pub mod regenerate_single_post;
@@ -18,14 +19,13 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::crawling::effects::discovery::discover_pages;
-use crate::domains::crawling::events::{CrawlEvent, CrawledPageInfo};
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 use extraction::types::page::CachedPage;
 
 // Re-export helper functions
 pub use authorization::check_crawl_authorization;
+pub use crawl_full::crawl_website_full;
 pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
 pub use post_extraction::{extract_narratives_for_domain, investigate_post};
 pub use regenerate_single_post::regenerate_single_post;

@@ -4,7 +4,7 @@ use anyhow::Result;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::domains::auth::events::AuthEvent;
+use crate::domains::auth::types::OtpVerified;
 use crate::domains::auth::models::{
     hash_phone_number, is_admin_identifier, is_test_identifier, Identifier,
 };
@@ -18,17 +18,17 @@ pub struct VerificationFailedError {
     pub reason: String,
 }
 
-/// Verify OTP code, create member if needed, and return AuthEvent::OTPVerified.
+/// Verify OTP code, create member if needed, and return OtpVerified.
 ///
 /// Test identifiers skip Twilio verification.
 /// Creates member + identifier on first successful verification.
 ///
-/// Returns AuthEvent::OTPVerified with token on success.
+/// Returns OtpVerified with token on success.
 pub async fn verify_otp(
     phone_number: String,
     code: String,
     deps: &ServerDeps,
-) -> Result<AuthEvent> {
+) -> Result<OtpVerified> {
     let is_test = deps.test_identifier_enabled && is_test_identifier(&phone_number);
 
     // Verify with Twilio (unless test identifier)
@@ -68,7 +68,7 @@ pub async fn verify_otp(
         .jwt_service
         .create_token(member_id, phone_number.clone(), is_admin)?;
 
-    Ok(AuthEvent::OTPVerified {
+    Ok(OtpVerified {
         member_id,
         phone_number,
         is_admin,

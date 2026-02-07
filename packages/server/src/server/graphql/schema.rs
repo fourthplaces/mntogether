@@ -2310,7 +2310,7 @@ impl Mutation {
         ctx: &GraphQLContext,
         phone_number: String,
     ) -> FieldResult<bool> {
-        use crate::domains::auth::workflows::{SendOtpRequest, SendOtpResult};
+        use crate::domains::auth::workflows::{SendOtpRequest, OtpSent};
 
         let is_phone = phone_number.starts_with('+');
         let is_email = phone_number.contains('@');
@@ -2323,7 +2323,7 @@ impl Mutation {
         }
 
         // Invoke Restate workflow
-        let result: SendOtpResult = ctx
+        let result: OtpSent = ctx
             .workflow_client
             .invoke("SendOtp", "run", SendOtpRequest {
                 phone_number: phone_number.clone(),
@@ -2343,10 +2343,10 @@ impl Mutation {
         phone_number: String,
         code: String,
     ) -> FieldResult<String> {
-        use crate::domains::auth::workflows::{VerifyOtpRequest, VerifyOtpResult};
+        use crate::domains::auth::workflows::{VerifyOtpRequest, OtpVerified};
 
         // Invoke Restate workflow
-        let result: VerifyOtpResult = ctx
+        let result: OtpVerified = ctx
             .workflow_client
             .invoke("VerifyOtp", "run", VerifyOtpRequest {
                 phone_number,

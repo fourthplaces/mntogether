@@ -9,11 +9,11 @@
 //! - Phone number hashing for privacy
 
 pub mod activities;
-pub mod events; // Still used by activities (TODO: Remove after activities refactored)
 pub mod jwt;
 pub mod models;
+pub mod types;
 pub mod workflows;
 
-pub use events::AuthEvent; // Still exported for compatibility
 pub use jwt::{Claims, JwtService};
+pub use types::{OtpSent, OtpVerified};
 pub use workflows::*;
