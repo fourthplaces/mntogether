@@ -1,4 +1,6 @@
-//! Send OTP workflow
+//! Send OTP service
+//!
+//! Single-step durable service (not a workflow — no multi-step orchestration needed).
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,30 +17,30 @@ pub struct SendOtpRequest {
 
 impl_restate_serde!(SendOtpRequest);
 
-#[restate_sdk::workflow]
-pub trait SendOtpWorkflow {
+#[restate_sdk::service]
+#[name = "SendOtp"]
+pub trait SendOtpService {
     async fn run(request: SendOtpRequest) -> Result<OtpSent, HandlerError>;
 }
 
-pub struct SendOtpWorkflowImpl {
+pub struct SendOtpServiceImpl {
     deps: std::sync::Arc<ServerDeps>,
 }
 
-impl SendOtpWorkflowImpl {
+impl SendOtpServiceImpl {
     pub fn with_deps(deps: std::sync::Arc<ServerDeps>) -> Self {
         Self { deps }
     }
 }
 
-impl SendOtpWorkflow for SendOtpWorkflowImpl {
+impl SendOtpService for SendOtpServiceImpl {
     async fn run(
         &self,
-        ctx: WorkflowContext<'_>,
+        ctx: Context<'_>,
         request: SendOtpRequest,
     ) -> Result<OtpSent, HandlerError> {
         tracing::info!(phone_number = %request.phone_number, "Sending OTP");
 
-        // Durable execution - will not retry on replay
         let result = ctx
             .run(|| async {
                 activities::send_otp(request.phone_number.clone(), &self.deps)

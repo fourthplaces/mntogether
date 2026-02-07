@@ -1,4 +1,6 @@
-//! Verify OTP workflow
+//! Verify OTP service
+//!
+//! Single-step durable service (not a workflow — no multi-step orchestration needed).
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -16,30 +18,30 @@ pub struct VerifyOtpRequest {
 
 impl_restate_serde!(VerifyOtpRequest);
 
-#[restate_sdk::workflow]
-pub trait VerifyOtpWorkflow {
+#[restate_sdk::service]
+#[name = "VerifyOtp"]
+pub trait VerifyOtpService {
     async fn run(request: VerifyOtpRequest) -> Result<OtpVerified, HandlerError>;
 }
 
-pub struct VerifyOtpWorkflowImpl {
+pub struct VerifyOtpServiceImpl {
     deps: std::sync::Arc<ServerDeps>,
 }
 
-impl VerifyOtpWorkflowImpl {
+impl VerifyOtpServiceImpl {
     pub fn with_deps(deps: std::sync::Arc<ServerDeps>) -> Self {
         Self { deps }
     }
 }
 
-impl VerifyOtpWorkflow for VerifyOtpWorkflowImpl {
+impl VerifyOtpService for VerifyOtpServiceImpl {
     async fn run(
         &self,
-        ctx: WorkflowContext<'_>,
+        ctx: Context<'_>,
         request: VerifyOtpRequest,
     ) -> Result<OtpVerified, HandlerError> {
         tracing::info!(phone_number = %request.phone_number, "Verifying OTP");
 
-        // Durable execution - will not retry on replay
         let result = ctx
             .run(|| async {
                 activities::verify_otp(

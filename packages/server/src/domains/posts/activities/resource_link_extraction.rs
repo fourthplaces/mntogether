@@ -3,18 +3,22 @@
 //! Extracts posts from a scraped resource link using AI with PII scrubbing.
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use super::post_extraction;
 use crate::common::{ExtractedPost, JobId};
+use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
-/// Result of AI extraction from a resource link
-#[derive(Debug, Clone)]
+/// Result of AI extraction from a resource link (journaled by Restate between workflow steps)
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractionResult {
     pub posts: Vec<ExtractedPost>,
     pub context: Option<String>,
     pub submitter_contact: Option<String>,
 }
+
+impl_restate_serde!(ExtractionResult);
 
 /// Extract posts from a scraped resource link using AI with PII scrubbing.
 pub async fn extract_posts_from_resource_link(

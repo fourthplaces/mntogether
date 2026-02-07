@@ -81,7 +81,6 @@ export type Urgency = "urgent" | "high" | "medium" | "low";
 
 export interface Post {
   id: string;
-  organizationName: string;
   title: string;
   tldr?: string;
   description: string;
@@ -199,7 +198,6 @@ export interface Resource {
   location?: string;
   status: ResourceStatus;
   resourceType?: string;
-  organizationName?: string;
   hasEmbedding?: boolean;
   sourceUrl?: string;
   sourceUrls?: string[];
@@ -216,7 +214,6 @@ export interface Resource {
 
 export interface ChatContainer {
   id: string;
-  containerType: string;
   language?: string;
   createdAt: string;
   lastActivityAt?: string;

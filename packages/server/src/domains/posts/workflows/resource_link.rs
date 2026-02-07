@@ -4,14 +4,28 @@
 //! 1. Scrape URL (Firecrawl/HTTP)
 //! 2. AI extraction with PII scrubbing
 //! 3. Create post records in DB
+//!
+//! Each step is a separate ctx.run() block so Restate journals intermediate
+//! results and won't re-execute completed steps on retry.
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::common::JobId;
+use crate::domains::posts::activities::resource_link_creation::create_posts_from_resource_link;
+use crate::domains::posts::activities::resource_link_extraction::extract_posts_from_resource_link;
+use crate::domains::posts::activities::resource_link_scraping::scrape_resource_link;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
+
+/// Wrapper for journaling post creation count between ctx.run() blocks
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PostsCreated {
+    count: usize,
+}
+
+impl_restate_serde!(PostsCreated);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceLinkRequest {
@@ -59,25 +73,25 @@ impl ResourceLinkWorkflow for ResourceLinkWorkflowImpl {
             "Starting resource link workflow"
         );
 
-        // Single durable block: scrape → extract → create posts
-        let result = ctx
+        // Step 1: Scrape — journaled, won't re-run on replay
+        let scrape = ctx
             .run(|| async {
-                use crate::domains::posts::activities::resource_link_creation::create_posts_from_resource_link;
-                use crate::domains::posts::activities::resource_link_extraction::extract_posts_from_resource_link;
-                use crate::domains::posts::activities::resource_link_scraping::scrape_resource_link;
-
-                // Step 1: Scrape
-                let scrape = scrape_resource_link(
+                scrape_resource_link(
                     job_id,
                     request.url.clone(),
                     None,
                     request.submitter_contact.clone(),
                     &self.deps,
                 )
-                .await?;
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
 
-                // Step 2: AI extraction
-                let extraction = extract_posts_from_resource_link(
+        // Step 2: AI extraction — if this fails, step 1 is replayed from journal
+        let extraction = ctx
+            .run(|| async {
+                extract_posts_from_resource_link(
                     job_id,
                     request.url.clone(),
                     scrape.content,
@@ -85,11 +99,16 @@ impl ResourceLinkWorkflow for ResourceLinkWorkflowImpl {
                     scrape.submitter_contact,
                     &self.deps,
                 )
-                .await?;
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
 
-                let posts_count = extraction.posts.len();
+        let posts_count = extraction.posts.len();
 
-                // Step 3: Create posts
+        // Step 3: Create posts — if this fails, steps 1+2 are replayed from journal
+        let created = ctx
+            .run(|| async {
                 create_posts_from_resource_link(
                     job_id,
                     request.url.clone(),
@@ -99,14 +118,13 @@ impl ResourceLinkWorkflow for ResourceLinkWorkflowImpl {
                     &self.deps,
                 )
                 .await?;
-
-                Ok(ResourceLinkResult {
-                    posts_created: posts_count,
-                    status: "completed".to_string(),
-                })
+                Ok(PostsCreated { count: posts_count })
             })
             .await?;
 
-        Ok(result)
+        Ok(ResourceLinkResult {
+            posts_created: created.count,
+            status: "completed".to_string(),
+        })
     }
 }

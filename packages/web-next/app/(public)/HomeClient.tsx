@@ -38,7 +38,6 @@ export function HomeClient({ initialPosts, loading = false, error }: HomeClientP
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const title = post.title.toLowerCase();
-        const org = post.organizationName.toLowerCase();
         const tldr = (post.tldr || "").toLowerCase();
         const description = post.description.toLowerCase();
         const location = (post.location || "").toLowerCase();
@@ -46,7 +45,6 @@ export function HomeClient({ initialPosts, loading = false, error }: HomeClientP
 
         return (
           title.includes(query) ||
-          org.includes(query) ||
           tldr.includes(query) ||
           description.includes(query) ||
           location.includes(query) ||

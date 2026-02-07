@@ -3,6 +3,9 @@
 //! Durable workflow that orchestrates website research and assessment:
 //! 1. Conduct searches (build queries + execute + store)
 //! 2. Generate AI assessment
+//!
+//! Each step is a separate ctx.run() block so Restate journals intermediate
+//! results and won't re-execute completed steps on retry.
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -62,22 +65,25 @@ impl WebsiteResearchWorkflow for WebsiteResearchWorkflowImpl {
             "Starting website research workflow"
         );
 
-        // Single durable block: conduct searches → generate assessment
+        // Step 1: Conduct all searches — journaled, won't re-run on replay
+        let search_result = ctx
+            .run(|| async {
+                approval::conduct_searches(request.research_id, website_id, &self.deps)
+                    .await
+                    .map_err(Into::into)
+            })
+            .await?;
+
+        tracing::info!(
+            research_id = %request.research_id,
+            total_queries = search_result.total_queries,
+            total_results = search_result.total_results,
+            "Searches completed, generating assessment"
+        );
+
+        // Step 2: Generate AI assessment — if this fails, step 1 is replayed from journal
         let result = ctx
             .run(|| async {
-                // Step 1: Conduct all searches
-                let search_result =
-                    approval::conduct_searches(request.research_id, website_id, &self.deps)
-                        .await?;
-
-                tracing::info!(
-                    research_id = %request.research_id,
-                    total_queries = search_result.total_queries,
-                    total_results = search_result.total_results,
-                    "Searches completed, generating assessment"
-                );
-
-                // Step 2: Generate AI assessment
                 let assessment = approval::generate_assessment(
                     request.research_id,
                     website_id,

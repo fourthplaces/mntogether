@@ -3,17 +3,21 @@
 //! Scrapes a submitted resource link URL using the extraction library.
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 use crate::common::JobId;
+use crate::impl_restate_serde;
 use crate::kernel::{FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor};
 
-/// Result of scraping a resource link
-#[derive(Debug, Clone)]
+/// Result of scraping a resource link (journaled by Restate between workflow steps)
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResult {
     pub content: String,
     pub context: Option<String>,
     pub submitter_contact: Option<String>,
 }
+
+impl_restate_serde!(ScrapeResult);
 
 /// Scrape a resource link URL using the extraction library.
 pub async fn scrape_resource_link(

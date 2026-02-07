@@ -9,7 +9,6 @@ export const GET_PUBLISHED_POSTS = `
   query GetPublishedPosts($limit: Int) {
     publishedPosts(limit: $limit) {
       id
-      organizationName
       title
       tldr
       description
@@ -42,7 +41,6 @@ export const GET_PENDING_POSTS = `
       nodes {
         id
         postType
-        organizationName
         title
         tldr
         description
@@ -112,7 +110,6 @@ export const GET_SCRAPED_PENDING_POSTS = `
       nodes {
         id
         postType
-        organizationName
         title
         tldr
         description
@@ -175,7 +172,6 @@ export const GET_ACTIVE_POSTS = `
     listings(status: ACTIVE, first: $first, after: $after) {
       nodes {
         id
-        organizationName
         title
         tldr
         location
@@ -195,7 +191,6 @@ export const GET_POST_DETAIL = `
   query GetPostDetail($id: Uuid!) {
     listing(id: $id) {
       id
-      organizationName
       title
       tldr
       description
@@ -232,7 +227,6 @@ export const GET_ORGANIZATION_SOURCE_POSTS = `
     listings(first: $first, after: $after, status: $status) {
       nodes {
         id
-        organizationName
         title
         tldr
         description
@@ -542,7 +536,6 @@ export const GET_CONTAINER = `
   query GetContainer($id: String!) {
     container(id: $id) {
       id
-      containerType
       language
       createdAt
       lastActivityAt
@@ -572,7 +565,6 @@ export const GET_RECENT_CHATS = `
   query GetRecentChats($limit: Int) {
     recentChats(limit: $limit) {
       id
-      containerType
       language
       createdAt
       lastActivityAt
@@ -593,7 +585,6 @@ export const GET_PENDING_RESOURCES = `
       content
       location
       status
-      organizationName
       hasEmbedding
       createdAt
       updatedAt
@@ -618,7 +609,6 @@ export const GET_RESOURCES = `
         content
         location
         status
-        organizationName
         hasEmbedding
         createdAt
         updatedAt
@@ -648,7 +638,6 @@ export const GET_RESOURCE = `
       content
       location
       status
-      organizationName
       hasEmbedding
       createdAt
       updatedAt
@@ -686,7 +675,6 @@ export const GET_POST = `
   query GetPost($id: Uuid!) {
     listing(id: $id) {
       id
-      organizationName
       title
       tldr
       description
