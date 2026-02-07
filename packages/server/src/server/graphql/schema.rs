@@ -1367,40 +1367,41 @@ impl Mutation {
         })
     }
 
-    /// Discover website pages using Tavily search instead of traditional crawling.
-    /// Uses site-scoped search queries to find relevant content pages.
-    async fn discover_website(
-        ctx: &GraphQLContext,
-        website_id: Uuid,
-    ) -> FieldResult<ScrapeJobResult> {
-        info!(website_id = %website_id, "Discovering website via Tavily search");
-
-        let user = ctx
-            .auth_user
-            .as_ref()
-            .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-        let event = crawling_activities::discover_website(
-            website_id,
-            user.member_id.into_uuid(),
-            user.is_admin,
-            ctx.deps(),
-        )
-        .await
-        .map_err(to_field_error)?;
-
-        ctx.queue_engine
-            .process(event)
-            .await
-            .map_err(to_field_error)?;
-
-        Ok(ScrapeJobResult {
-            job_id: Uuid::new_v4(),
-            source_id: website_id,
-            status: "processing".to_string(),
-            message: Some("Discovery started".to_string()),
-        })
-    }
+    // DEPRECATED: discover_website mutation - replaced by workflow-based discovery
+    // /// Discover website pages using Tavily search instead of traditional crawling.
+    // /// Uses site-scoped search queries to find relevant content pages.
+    // async fn discover_website(
+    //     ctx: &GraphQLContext,
+    //     website_id: Uuid,
+    // ) -> FieldResult<ScrapeJobResult> {
+    //     info!(website_id = %website_id, "Discovering website via Tavily search");
+    //
+    //     let user = ctx
+    //         .auth_user
+    //         .as_ref()
+    //         .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
+    //
+    //     let event = crawling_activities::discover_website(
+    //         website_id,
+    //         user.member_id.into_uuid(),
+    //         user.is_admin,
+    //         ctx.deps(),
+    //     )
+    //     .await
+    //     .map_err(to_field_error)?;
+    //
+    //     ctx.queue_engine
+    //         .process(event)
+    //         .await
+    //         .map_err(to_field_error)?;
+    //
+    //     Ok(ScrapeJobResult {
+    //         job_id: Uuid::new_v4(),
+    //         source_id: website_id,
+    //         status: "processing".to_string(),
+    //         message: Some("Discovery started".to_string()),
+    //     })
+    // }
 
     /// Submit a listing from a member (public, goes to pending_approval)
     async fn submit_post(
@@ -2310,7 +2311,8 @@ impl Mutation {
         ctx: &GraphQLContext,
         phone_number: String,
     ) -> FieldResult<bool> {
-        use crate::domains::auth::workflows::{SendOtpRequest, OtpSent};
+        use crate::domains::auth::workflows::SendOtpRequest;
+        use crate::domains::auth::types::OtpSent;
 
         let is_phone = phone_number.starts_with('+');
         let is_email = phone_number.contains('@');
@@ -2343,7 +2345,8 @@ impl Mutation {
         phone_number: String,
         code: String,
     ) -> FieldResult<String> {
-        use crate::domains::auth::workflows::{VerifyOtpRequest, OtpVerified};
+        use crate::domains::auth::workflows::VerifyOtpRequest;
+        use crate::domains::auth::types::OtpVerified;
 
         // Invoke Restate workflow
         let result: OtpVerified = ctx
@@ -2733,6 +2736,7 @@ impl Mutation {
     ///
     /// Emits a PostsRegenerationEnqueued event and returns immediately.
     /// The queued regenerate_posts_effect picks it up in the background.
+    /* DEPRECATED - TODO: Replace with workflow
     async fn regenerate_posts(
         ctx: &GraphQLContext,
         website_id: Uuid,
@@ -2769,6 +2773,9 @@ impl Mutation {
     ///
     /// Emits a SinglePostRegenerationEnqueued event and returns immediately.
     /// The queued regenerate_single_post_effect picks it up in the background.
+    */
+
+    /* DEPRECATED - TODO: Replace with workflow
     async fn regenerate_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<ScrapeJobResult> {
         use crate::domains::crawling::events::CrawlEvent;
 
@@ -2792,6 +2799,7 @@ impl Mutation {
             message: Some("Post regeneration enqueued for background processing".to_string()),
         })
     }
+    */
 
     /// Generate a comprehensive assessment report for a website (admin only)
     async fn generate_website_assessment(

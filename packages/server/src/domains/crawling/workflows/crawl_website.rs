@@ -41,11 +41,11 @@ pub trait CrawlWebsiteWorkflow {
 }
 
 pub struct CrawlWebsiteWorkflowImpl {
-    pub deps: ServerDeps,
+    deps: std::sync::Arc<ServerDeps>,
 }
 
 impl CrawlWebsiteWorkflowImpl {
-    pub fn new(deps: ServerDeps) -> Self {
+    pub fn with_deps(deps: std::sync::Arc<ServerDeps>) -> Self {
         Self { deps }
     }
 }

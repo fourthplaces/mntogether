@@ -572,6 +572,210 @@ edge!(
 3. **Auth actions** like `check_crawl_authorization()` return `Result<()>` and use `?` operator
 4. **Auth failures are errors**, not events - use `anyhow::anyhow!` or custom error types
 
+## Restate Workflow Architecture (v0.2.0)
+
+### Overview
+
+We use Restate for durable workflow execution. Restate provides:
+- Durable async/await - workflows survive process restarts
+- At-least-once execution guarantees
+- Built-in retry and recovery
+- HTTP-based invocation
+
+### Architecture
+
+```
+GraphQL API (port 8080)
+    ↓ HTTP
+WorkflowClient
+    ↓ HTTP (port 9070)
+Restate Runtime (proxy/gateway)
+    ↓ HTTP (port 9080)
+Workflow Server (actual implementations)
+```
+
+### Workflow Pattern
+
+#### 1. Define Workflow Trait with Macro
+
+```rust
+use restate_sdk::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SendOtpRequest {
+    pub phone_number: String,
+}
+
+impl_restate_serde!(SendOtpRequest);
+
+#[restate_sdk::workflow]
+pub trait SendOtpWorkflow {
+    async fn run(request: SendOtpRequest) -> Result<OtpSent, HandlerError>;
+}
+```
+
+**Key points:**
+- Trait signature does NOT include `&self` or `ctx` - those are added in the impl
+- Request/response types must implement Restate's custom serialization via `impl_restate_serde!` macro
+
+#### 2. Implement Workflow with Dependencies
+
+```rust
+pub struct SendOtpWorkflowImpl {
+    deps: Arc<ServerDeps>,
+}
+
+impl SendOtpWorkflowImpl {
+    pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
+        Self { deps }
+    }
+}
+
+impl SendOtpWorkflow for SendOtpWorkflowImpl {
+    async fn run(
+        &self,
+        ctx: WorkflowContext<'_>,
+        request: SendOtpRequest,
+    ) -> Result<OtpSent, HandlerError> {
+        // Durable execution - wrapped in ctx.run()
+        let result = ctx
+            .run(|| async {
+                activities::send_otp(request.phone_number.clone(), &self.deps)
+                    .await
+                    .map_err(Into::into)
+            })
+            .await?;
+
+        Ok(result)
+    }
+}
+```
+
+**Key points:**
+- Impl struct contains `Arc<ServerDeps>` for dependencies
+- Constructor `with_deps()` accepts Arc for efficient cloning
+- Implementation adds `&self` and `ctx: WorkflowContext<'_>` parameters
+- Business logic wrapped in `ctx.run()` for durability
+
+#### 3. Register Workflows in Server
+
+```rust
+// workflow_server.rs
+let server_deps = Arc::new(ServerDeps::new(...));
+
+let endpoint = Endpoint::builder()
+    .bind(SendOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
+    .bind(VerifyOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
+    .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
+    .build();
+
+HttpServer::new(endpoint)
+    .listen_and_serve("0.0.0.0:9080".parse()?)
+    .await;
+```
+
+**Key points:**
+- Create Arc once, clone for each workflow (cheap)
+- Call `.serve()` on workflow instance - macro generates this method
+- Must import both trait and impl for `.serve()` to be in scope
+
+#### 4. Invoke from GraphQL
+
+```rust
+// GraphQL mutation
+async fn send_verification_code(
+    ctx: &GraphQLContext,
+    phone_number: String,
+) -> FieldResult<bool> {
+    use crate::domains::auth::workflows::SendOtpRequest;
+    use crate::domains::auth::types::OtpSent;
+
+    let result: OtpSent = ctx
+        .workflow_client
+        .invoke("SendOtp", "run", SendOtpRequest { phone_number })
+        .await
+        .map_err(to_field_error)?;
+
+    Ok(result.success)
+}
+```
+
+**Key points:**
+- WorkflowClient makes HTTP calls to Restate runtime
+- Service name is PascalCase trait name without "Workflow" suffix
+- Handler name is the method name (usually "run")
+
+### Custom Serialization (impl_restate_serde!)
+
+Restate SDK has its own Serialize/Deserialize traits (NOT serde's). Use the macro:
+
+```rust
+// common/restate_serde.rs
+#[macro_export]
+macro_rules! impl_restate_serde {
+    ($type:ty) => {
+        impl restate_sdk::serde::Serialize for $type {
+            type Error = serde_json::Error;
+            fn serialize(&self) -> Result<bytes::Bytes, Self::Error> {
+                serde_json::to_vec(self).map(bytes::Bytes::from)
+            }
+        }
+        impl restate_sdk::serde::Deserialize for $type {
+            type Error = serde_json::Error;
+            fn deserialize(bytes: &mut bytes::Bytes) -> Result<Self, Self::Error> {
+                serde_json::from_slice(bytes)
+            }
+        }
+        impl restate_sdk::serde::WithContentType for $type {
+            fn content_type() -> &'static str {
+                "application/json"
+            }
+        }
+    };
+}
+```
+
+Apply to all workflow request/response types:
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtpSent {
+    pub phone_number: String,
+    pub success: bool,
+}
+
+impl_restate_serde!(OtpSent);
+```
+
+### Workflow Best Practices
+
+1. **Keep workflows thin** - Orchestrate activities, don't implement business logic directly
+2. **Activities are pure functions** - Take deps explicitly, return simple data types
+3. **No events** - Workflows return data types directly, not domain events
+4. **Wrap in ctx.run()** - All external calls must be in durable blocks
+5. **Use Arc for deps** - Efficient cloning across workflows
+6. **Import traits for .serve()** - Both trait and impl must be in scope
+
+### Binaries
+
+- **server** (`src/server/main.rs`) - GraphQL API, invokes workflows
+- **workflow_server** (`src/bin/workflow_server.rs`) - Restate workflow implementations
+
+Run both in development:
+```bash
+# Terminal 1: Start Restate runtime
+docker-compose up restate
+
+# Terminal 2: Start workflow server
+cargo run --bin workflow_server
+
+# Terminal 3: Start GraphQL API
+cargo run --bin server
+```
+
+---
+
 ## Coding Permission Rule
 
 ### HARD RULE: Never Code Without Explicit Permission

@@ -154,8 +154,8 @@ pub async fn ingest_website(
     ).await?;
 
     Ok(WebsiteIngested {
-        website_id: website_id_typed,
-        job_id,
+        website_id: website_id_typed.into_uuid(),
+        job_id: job_id.into_uuid(),
         pages_crawled: result.pages_crawled,
         pages_summarized: result.pages_summarized,
     })

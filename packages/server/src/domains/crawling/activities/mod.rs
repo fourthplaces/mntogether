@@ -31,8 +31,11 @@ pub use post_extraction::{extract_narratives_for_domain, investigate_post};
 pub use regenerate_single_post::regenerate_single_post;
 pub use website_context::fetch_approved_website;
 
-/// Regenerate posts from existing pages in extraction library.
-/// Returns the fact event directly.
+// DEPRECATED functions removed - being replaced by workflow-based approach
+// - regenerate_posts() - use workflow instead
+// - discover_website() - use workflow instead
+
+/*
 pub async fn regenerate_posts(
     website_id: Uuid,
     member_id: Uuid,
@@ -72,8 +75,12 @@ pub async fn regenerate_posts(
         pages_processed: page_count,
     })
 }
+*/
 
+/* DEPRECATED: Being replaced by workflow-based approach
 /// Discover pages using Tavily search instead of traditional crawling
+/// TODO: Refactor to return simple data types instead of events
+pub async fn discover_website(
 /// Returns the fact event directly.
 pub async fn discover_website(
     website_id: Uuid,
@@ -158,3 +165,4 @@ pub async fn discover_website(
         discovery_method: "tavily".to_string(),
     })
 }
+*/

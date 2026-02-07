@@ -8,9 +8,11 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use restate_sdk::prelude::*;
 use server_core::common::utils::{EmbeddingService, ExpoClient};
-use server_core::domains::auth::workflows::{SendOtpWorkflow, VerifyOtpWorkflow};
+use server_core::domains::auth::workflows::{
+    SendOtpWorkflow, SendOtpWorkflowImpl, VerifyOtpWorkflow, VerifyOtpWorkflowImpl,
+};
 use server_core::domains::auth::JwtService;
-use server_core::domains::crawling::workflows::CrawlWebsiteWorkflow;
+use server_core::domains::crawling::workflows::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
 use server_core::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
@@ -132,8 +134,8 @@ async fn main() -> Result<()> {
     // Create StreamHub
     let stream_hub = StreamHub::new();
 
-    // Build ServerDeps
-    let server_deps = ServerDeps::new(
+    // Build ServerDeps and wrap in Arc for sharing across workflows
+    let server_deps = Arc::new(ServerDeps::new(
         pool.clone(),
         ingestor,
         openai_client,
@@ -147,7 +149,7 @@ async fn main() -> Result<()> {
         stream_hub,
         test_identifier_enabled,
         admin_identifiers,
-    );
+    ));
 
     // Get port from environment or use default
     let port = std::env::var("WORKFLOW_SERVER_PORT")
@@ -161,10 +163,10 @@ async fn main() -> Result<()> {
     // Build Restate endpoint with all domain workflows
     let endpoint = Endpoint::builder()
         // Auth domain workflows
-        .bind(SendOtpWorkflow::new(server_deps.clone()).serve())
-        .bind(VerifyOtpWorkflow::new(server_deps.clone()).serve())
+        .bind(SendOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(VerifyOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain workflows
-        .bind(CrawlWebsiteWorkflow::new(server_deps.clone()).serve())
+        .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
         .build();
 
     // Start HTTP server
