@@ -1,19 +1,23 @@
 //! Member domain - handles member registration and management
 //!
-//! Architecture (seesaw 0.6.0 direct-call pattern):
-//!   GraphQL → process(action) → emit(FactEvent) → Effect watches facts → calls handlers
+//! Architecture (Restate workflows - TODO: complete migration):
+//!   GraphQL → workflow_client.invoke(Workflow) → workflow orchestrates activities
 //!
 //! Components:
-//! - actions: Entry-point business logic called directly from GraphQL via process()
-//! - effects: Event handlers that respond to fact events
+//! - activities: Business logic operations (renamed from actions)
+//! - workflows: Durable workflow orchestrations (TODO: implement)
+//! - effects: Legacy event handlers (TODO: remove after migration)
+//! - events: Legacy fact events (TODO: remove after migration)
 
-pub mod actions;
+pub mod activities;
 pub mod data;
-pub mod effects;
-pub mod events;
+pub mod effects; // TODO: Remove after migration
+pub mod events; // TODO: Remove after migration
 pub mod models;
+pub mod workflows;
 
 // Re-export commonly used types
 pub use data::MemberData;
-pub use events::MemberEvent;
+pub use events::MemberEvent; // TODO: Remove after migration
 pub use models::member::Member;
+pub use workflows::*;
