@@ -1,9 +1,10 @@
-pub mod actions;
+pub mod activities;
 pub mod data;
-pub mod effects;
-pub mod events;
+pub mod effects; // TODO: Remove after migration
+pub mod events; // TODO: Remove after migration
 pub mod loader;
 pub mod models;
+pub mod workflows;
 
 // Re-export data types (GraphQL types)
 pub use crate::domains::tag::TagData;
@@ -14,9 +15,12 @@ pub use data::types::{
     SubmitResourceLinkResult,
 };
 
-// Re-export events
+// Re-export events (TODO: Remove after migration)
 pub use events::PostEvent;
 
 // Re-export models (domain models)
 pub use models::post::Post;
+
+// Re-export workflows
+pub use workflows::*;
 
