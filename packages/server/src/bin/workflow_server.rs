@@ -13,6 +13,13 @@ use server_core::domains::auth::workflows::{
 };
 use server_core::domains::auth::JwtService;
 use server_core::domains::crawling::workflows::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
+use server_core::domains::member::workflows::{
+    RegisterMemberWorkflow, RegisterMemberWorkflowImpl,
+};
+use server_core::domains::posts::workflows::{ResourceLinkWorkflow, ResourceLinkWorkflowImpl};
+use server_core::domains::website::workflows::{
+    WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl,
+};
 use server_core::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
@@ -167,6 +174,12 @@ async fn main() -> Result<()> {
         .bind(VerifyOtpWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain workflows
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Member domain workflows
+        .bind(RegisterMemberWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Posts domain workflows
+        .bind(ResourceLinkWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Website domain workflows
+        .bind(WebsiteResearchWorkflowImpl::with_deps(server_deps.clone()).serve())
         .build();
 
     // Start HTTP server

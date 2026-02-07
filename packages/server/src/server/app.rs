@@ -13,8 +13,6 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use seesaw_core::{Engine, Runtime, RuntimeConfig};
-use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 #[cfg(not(debug_assertions))]
 use tower_governor::{governor::GovernorConfigBuilder, GovernorLayer};
@@ -26,7 +24,6 @@ use crate::domains::auth::JwtService;
 use crate::kernel::{
     create_extraction_service, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
 };
-use crate::server::graphql::context::AppQueueEngine;
 use crate::server::graphql::{create_schema, DataLoaders, GraphQLContext};
 use crate::WorkflowClient;
 use crate::server::middleware::{extract_client_ip, jwt_auth_middleware, AuthUser};
@@ -34,17 +31,6 @@ use crate::server::routes::{
     graphql_batch_handler, graphql_handler, graphql_playground, health_handler,
     stream::stream_handler,
 };
-
-// Import #[effects] module handlers from unmigrated domains
-// TODO: Remove these as domains are migrated to Restate workflows
-use crate::domains::agents::effects::handlers as agent_handlers;
-// auth domain migrated to workflows - no longer using effects
-// crawling domain migrated to workflows - no longer using effects
-use crate::domains::member::effects::handlers as member_handlers;
-use crate::domains::posts::effects::handlers as post_handlers;
-use crate::domains::providers::effects::handlers as provider_handlers;
-use crate::domains::website::effects::handlers as website_handlers;
-use crate::domains::website::effects::approval::handlers as approval_handlers;
 
 // =============================================================================
 // Application State & Middleware
@@ -54,7 +40,6 @@ use crate::domains::website::effects::approval::handlers as approval_handlers;
 #[derive(Clone)]
 pub struct AxumAppState {
     pub db_pool: PgPool,
-    pub queue_engine: Arc<AppQueueEngine>, // TODO: Remove after all domains migrated
     pub server_deps: Arc<ServerDeps>,
     pub twilio: Arc<TwilioService>,
     pub jwt_service: Arc<JwtService>,
@@ -78,7 +63,6 @@ async fn create_graphql_context(
     // Create GraphQL context with shared state + per-request auth
     let context = GraphQLContext::new(
         state.db_pool.clone(),
-        state.queue_engine.clone(),
         state.server_deps.clone(),
         auth_user,
         state.twilio.clone(),
@@ -96,12 +80,6 @@ async fn create_graphql_context(
 
 /// Build the Axum application router
 ///
-/// MIGRATION IN PROGRESS: Migrating from Seesaw to Restate domain-by-domain.
-/// - Crawling domain: Uses Restate workflows ✅
-/// - Other domains: Still use Seesaw queue_engine (TODO)
-///
-/// Once all domains migrated, remove queue_engine entirely.
-///
 /// Returns (Router, Arc<ServerDeps>) - deps needed for scheduled tasks.
 pub async fn build_app(
     pool: PgPool,
@@ -114,7 +92,7 @@ pub async fn build_app(
     twilio_verify_service_sid: String,
     jwt_secret: String,
     jwt_issuer: String,
-    allowed_origins: Vec<String>,
+    _allowed_origins: Vec<String>,
     test_identifier_enabled: bool,
     admin_identifiers: Vec<String>,
     pii_scrubbing_enabled: bool,
@@ -131,7 +109,7 @@ pub async fn build_app(
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create OpenAI client (shared across effects and GraphQL)
+    // Create OpenAI client (shared across workflows and GraphQL)
     let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
 
     // Clone OpenAI API key for embedding service before it's consumed
@@ -198,27 +176,9 @@ pub async fn build_app(
         admin_identifiers,
     );
 
-    let server_deps_arc = Arc::new(server_deps.clone());
+    let server_deps_arc = Arc::new(server_deps);
 
-    // Build Seesaw queue engine for unmigrated domains
-    // TODO: Remove this once all domains migrated to Restate
-    let seesaw_store = PostgresStore::new(pool.clone());
-    let queue_engine = Engine::new(server_deps, seesaw_store)
-        .with_effect(seesaw_core::effect::group(member_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(agent_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(website_handlers::effects()))
-        // auth domain migrated - no longer using effects
-        // crawling domain migrated - no longer using effects
-        .with_effect(seesaw_core::effect::group(post_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(approval_handlers::effects()))
-        .with_effect(seesaw_core::effect::group(provider_handlers::effects()));
-    let queue_engine = Arc::new(queue_engine);
-
-    // Start Seesaw runtime workers for unmigrated domains
-    // TODO: Remove this once all domains migrated
-    let _runtime = Runtime::start(&queue_engine, RuntimeConfig::default());
-
-    // Create Restate workflow client for migrated domains
+    // Create Restate workflow client
     let workflow_url = std::env::var("RESTATE_URL")
         .unwrap_or_else(|_| "http://localhost:9070".to_string());
     let workflow_client = Arc::new(WorkflowClient::new(workflow_url));
@@ -226,7 +186,6 @@ pub async fn build_app(
     // Create shared app state
     let app_state = AxumAppState {
         db_pool: pool.clone(),
-        queue_engine: queue_engine.clone(),
         server_deps: server_deps_arc.clone(),
         twilio: twilio.clone(),
         jwt_service: jwt_service.clone(),

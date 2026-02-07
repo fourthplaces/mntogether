@@ -1,26 +1,33 @@
-//! Posts domain actions - entry-point business logic
+//! Posts domain activities - entry-point business logic
 //!
 //! Called directly from GraphQL mutations via `process()`.
-//! Actions are self-contained: they take raw input, handle ID parsing,
+//! Activities are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return final models/results.
 
 pub mod core;
 pub mod create_post;
 pub mod deduplication;
 pub mod llm_sync;
+pub mod post_discovery;
+pub mod post_extraction;
+pub mod post_operations;
 pub mod post_sync_handler;
 pub mod reports;
+pub mod resource_link_creation;
+pub mod resource_link_extraction;
+pub mod resource_link_scraping;
 pub mod revision_actions;
 pub mod scraping;
 pub mod sync_operations;
+pub mod sync_utils;
+pub mod syncing;
 pub mod tags;
-// transformer module deprecated - use ai.generate_structured() directly
-// See crawling/effects/handlers.rs for example usage
 
 // Re-export for convenience
 pub use core::*;
 pub use create_post::{create_extracted_post, tag_with_audience_roles};
-pub use deduplication::deduplicate_posts;
+pub use deduplication::{deduplicate_posts, DeduplicationRunResult};
+pub use reports::ReportCreated;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
 pub use post_sync_handler::PostProposalHandler;
 pub use reports::*;
@@ -28,7 +35,7 @@ pub use revision_actions::{
     approve_revision, count_pending_revisions, get_pending_revisions, get_revision_for_post,
     reject_revision,
 };
-pub use scraping::submit_resource_link;
+pub use scraping::{submit_resource_link, ResourceLinkSubmission};
 pub use sync_operations::{
     apply_delete, apply_insert, apply_merge, apply_update, MergeArgs, SyncOpResult,
 };

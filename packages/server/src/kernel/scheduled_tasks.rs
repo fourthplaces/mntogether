@@ -103,8 +103,6 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
 
     // Ingest each website using the extraction library
     for website in sources {
-        use crate::domains::crawling::types::WebsiteIngested;
-
         let result = ingest_website(
             website.id.into_uuid(),
             MemberId::nil().into_uuid(), // System user
@@ -146,24 +144,15 @@ async fn run_periodic_scrape(pool: &PgPool, deps: &ServerDeps) -> Result<()> {
 async fn run_periodic_searches(deps: &ServerDeps) -> Result<()> {
     tracing::info!("Running periodic discovery search task");
 
-    let event = run_discovery("scheduled", deps).await?;
+    let stats = run_discovery("scheduled", deps).await?;
 
-    if let crate::domains::discovery::DiscoveryEvent::DiscoveryRunCompleted {
-        queries_executed,
-        total_results,
-        websites_created,
-        websites_filtered,
-        ..
-    } = event
-    {
-        tracing::info!(
-            queries_executed,
-            total_results,
-            websites_created,
-            websites_filtered,
-            "Discovery search completed"
-        );
-    }
+    tracing::info!(
+        queries_executed = stats.queries_executed,
+        total_results = stats.total_results,
+        websites_created = stats.websites_created,
+        websites_filtered = stats.websites_filtered,
+        "Discovery search completed"
+    );
 
     Ok(())
 }

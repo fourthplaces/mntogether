@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                "info,server_core=debug,extraction=debug,sqlx=warn,seesaw=debug,tower_http=debug".into()
+                "info,server_core=debug,extraction=debug,sqlx=warn,tower_http=debug".into()
             }),
         )
         .with(

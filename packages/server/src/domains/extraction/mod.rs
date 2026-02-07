@@ -34,7 +34,6 @@
 //!
 //! - `actions`: Business logic for URL submission and extraction queries
 //! - `data`: GraphQL data types (Extraction, Gap, Source, etc.)
-//! - `events`: Events for observability and audit logging
 //!
 //! # See Also
 //!
@@ -43,7 +42,6 @@
 
 pub mod activities;
 pub mod data;
-pub mod events;
 
 // Re-exports
 pub use activities::{
@@ -55,4 +53,3 @@ pub use data::{
     ExtractionStatusData, GapData, GroundingGradeData, SourceData, SourceRoleData, SubmitUrlInput,
     SubmitUrlResult, TriggerExtractionInput, TriggerExtractionResult,
 };
-pub use events::ExtractionEvent;

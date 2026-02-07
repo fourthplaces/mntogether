@@ -4,14 +4,14 @@
 // with the database, separated from the thin Effect orchestrator.
 //
 // NOTE: Deduplication is now handled by LLM-based deduplication after sync.
-// See `crate::domains::posts::effects::deduplication`.
+// See `crate::domains::posts::activities::deduplication`.
 
 use anyhow::{Context, Result};
 use sqlx::PgPool;
 
-use super::utils::sync_utils::{sync_posts, ExtractedPostInput};
+use super::sync_utils::{sync_posts, ExtractedPostInput};
+use crate::common::ExtractedPost;
 use crate::common::WebsiteId;
-use crate::domains::posts::events::ExtractedPost;
 use crate::domains::website::models::Website;
 
 /// Result of syncing listings with the database

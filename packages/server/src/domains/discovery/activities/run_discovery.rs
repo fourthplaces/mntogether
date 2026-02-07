@@ -17,7 +17,6 @@ use tracing::{info, warn};
 use crate::domains::discovery::activities::evaluate_filter::{
     evaluate_websites_against_filters, WebsiteCandidate,
 };
-use crate::domains::discovery::events::DiscoveryEvent;
 use crate::domains::discovery::models::{
     DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,
 };
@@ -28,10 +27,19 @@ use extraction::WebSearcher;
 /// Default location for {location} placeholder substitution
 const DEFAULT_LOCATION: &str = "Twin Cities, Minnesota";
 
+/// Result of a discovery run
+pub struct DiscoveryRunStats {
+    pub run_id: uuid::Uuid,
+    pub queries_executed: usize,
+    pub total_results: usize,
+    pub websites_created: usize,
+    pub websites_filtered: usize,
+}
+
 /// Run the full discovery pipeline.
 ///
-/// Returns a DiscoveryEvent with run statistics.
-pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<DiscoveryEvent> {
+/// Returns run statistics.
+pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<DiscoveryRunStats> {
     let pool = &deps.db_pool;
 
     // Create the run record
@@ -44,7 +52,7 @@ pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<Disc
     if queries.is_empty() {
         info!("No active discovery queries, completing run");
         let run = DiscoveryRun::complete(run.id, 0, 0, 0, 0, pool).await?;
-        return Ok(DiscoveryEvent::DiscoveryRunCompleted {
+        return Ok(DiscoveryRunStats {
             run_id: run.id,
             queries_executed: 0,
             total_results: 0,
@@ -208,7 +216,7 @@ pub async fn run_discovery(trigger_type: &str, deps: &ServerDeps) -> Result<Disc
         "Discovery run completed"
     );
 
-    Ok(DiscoveryEvent::DiscoveryRunCompleted {
+    Ok(DiscoveryRunStats {
         run_id: run.id,
         queries_executed: queries_executed as usize,
         total_results: total_results as usize,

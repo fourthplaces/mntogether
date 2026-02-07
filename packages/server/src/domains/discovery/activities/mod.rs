@@ -8,4 +8,4 @@ pub mod evaluate_filter;
 pub mod run_discovery;
 
 pub use evaluate_filter::evaluate_websites_against_filters;
-pub use run_discovery::run_discovery;
+pub use run_discovery::{run_discovery, DiscoveryRunStats};

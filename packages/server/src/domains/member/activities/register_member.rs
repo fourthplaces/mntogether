@@ -5,20 +5,19 @@ use tracing::{debug, error, info};
 use uuid::Uuid;
 
 use crate::common::utils::geocoding::geocode_city;
-use crate::domains::member::events::MemberEvent;
 use crate::domains::member::models::member::Member;
 use crate::kernel::ServerDeps;
 
 /// Register a new member with geocoding.
 ///
-/// Returns MemberRegistered event to trigger cascading effects (embedding generation).
+/// Returns the member ID (new or existing).
 pub async fn register_member(
     expo_push_token: String,
     searchable_text: String,
     city: String,
     state: String,
     deps: &ServerDeps,
-) -> Result<MemberEvent> {
+) -> Result<Uuid> {
     info!(
         "Registering member with token: {} in {}, {}",
         expo_push_token, city, state
@@ -27,13 +26,7 @@ pub async fn register_member(
     // Check if member already exists (idempotency)
     if let Some(existing) = Member::find_by_token(&expo_push_token, &deps.db_pool).await? {
         debug!("Member already exists, returning existing: {}", existing.id);
-        return Ok(MemberEvent::MemberRegistered {
-            member_id: existing.id,
-            expo_push_token: existing.expo_push_token.clone(),
-            latitude: existing.latitude,
-            longitude: existing.longitude,
-            location_name: existing.location_name.clone(),
-        });
+        return Ok(existing.id);
     }
 
     // Geocode city to lat/lng
@@ -76,11 +69,5 @@ pub async fn register_member(
 
     info!("Member registered successfully: {}", created.id);
 
-    Ok(MemberEvent::MemberRegistered {
-        member_id: created.id,
-        expo_push_token: created.expo_push_token.clone(),
-        latitude: created.latitude,
-        longitude: created.longitude,
-        location_name: created.location_name.clone(),
-    })
+    Ok(created.id)
 }

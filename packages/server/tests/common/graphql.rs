@@ -5,8 +5,9 @@
 use juniper::Variables;
 use serde_json::Value;
 use server_core::kernel::ServerDeps;
-use server_core::server::graphql::context::AppQueueEngine;
 use server_core::server::graphql::{create_schema, GraphQLContext, Schema};
+use server_core::server::graphql::loaders::DataLoaders;
+use server_core::WorkflowClient;
 use sqlx::PgPool;
 use std::sync::Arc;
 
@@ -42,11 +43,6 @@ impl GraphQLResult {
     }
 
     /// Gets a value at the given JSON path.
-    ///
-    /// # Example
-    /// ```ignore
-    /// let name = result.get("need.title").as_str();
-    /// ```
     pub fn get(&self, path: &str) -> Value {
         let data = self.data.as_ref().expect("No data returned");
         let mut current = data;
@@ -58,11 +54,10 @@ impl GraphQLResult {
 }
 
 impl GraphQLClient {
-    /// Creates a new GraphQL client with the given dependencies and queue engine.
+    /// Creates a new GraphQL client with the given dependencies.
     pub fn new(
         db_pool: PgPool,
         server_deps: Arc<ServerDeps>,
-        queue_engine: Arc<AppQueueEngine>,
     ) -> Self {
         let twilio = Arc::new(TwilioService::new(TwilioOptions {
             account_sid: "test_account_sid".to_string(),
@@ -74,15 +69,18 @@ impl GraphQLClient {
             "test_issuer".to_string(),
         ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
+        let loaders = Arc::new(DataLoaders::new(Arc::new(db_pool.clone())));
+        let workflow_client = Arc::new(WorkflowClient::new("http://localhost:9070".to_string()));
 
         let context = GraphQLContext::new(
             db_pool,
-            queue_engine,
             server_deps,
             None, // No auth user by default
             twilio,
             jwt_service,
             openai_client,
+            loaders,
+            workflow_client,
         );
 
         Self {
@@ -95,7 +93,6 @@ impl GraphQLClient {
     pub fn with_auth_user(
         db_pool: PgPool,
         server_deps: Arc<ServerDeps>,
-        queue_engine: Arc<AppQueueEngine>,
         user_id: uuid::Uuid,
         is_admin: bool,
     ) -> Self {
@@ -111,6 +108,8 @@ impl GraphQLClient {
             "test_issuer".to_string(),
         ));
         let openai_client = Arc::new(OpenAIClient::new("test_api_key".to_string()));
+        let loaders = Arc::new(DataLoaders::new(Arc::new(db_pool.clone())));
+        let workflow_client = Arc::new(WorkflowClient::new("http://localhost:9070".to_string()));
 
         let auth_user = AuthUser {
             user_id: user_id.to_string(),
@@ -121,12 +120,13 @@ impl GraphQLClient {
 
         let context = GraphQLContext::new(
             db_pool,
-            queue_engine,
             server_deps,
             Some(auth_user),
             twilio,
             jwt_service,
             openai_client,
+            loaders,
+            workflow_client,
         );
 
         Self {

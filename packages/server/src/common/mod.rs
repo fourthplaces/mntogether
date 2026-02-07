@@ -1,6 +1,5 @@
 // Common types and utilities shared across the application
 
-pub mod app_state;
 pub mod auth;
 pub mod embedding;
 pub mod entity_ids;
@@ -16,7 +15,6 @@ pub mod restate_serde;
 pub mod types;
 pub mod utils;
 
-pub use app_state::AppState;
 pub use auth::{Actor, AdminCapability, AuthError, HasAuthContext};
 pub use embedding::Embeddable;
 pub use entity_ids::*;

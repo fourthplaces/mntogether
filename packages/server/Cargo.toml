@@ -28,7 +28,7 @@ path = "src/bin/workflow_server.rs"
 tokio = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
-tokio-stream = "0.1"
+tokio-stream = { version = "0.1", features = ["sync"] }
 
 # Real-time messaging
 async-nats = "0.38"
@@ -53,9 +53,6 @@ tracing-subscriber = { workspace = true }
 # Durable execution with Restate (new)
 restate-sdk = "0.4.0"
 
-# Event-driven architecture (legacy - removing incrementally)
-seesaw_core = "0.10.3"
-seesaw-postgres = "0.10.3"
 
 # NOTE: Scraping done via Firecrawl (see kernel/firecrawl_client.rs)
 

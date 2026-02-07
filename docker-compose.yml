@@ -136,7 +136,7 @@ services:
       # Skip migrations in container (handled by dev.sh before starting)
       SKIP_MIGRATIONS: "true"
     ports:
-      - "8080:8080"
+      - "8081:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -225,7 +225,7 @@ services:
     container_name: mndigitalaid_web_next
     environment:
       # Client-side: browser uses this to reach API (use Tailscale IP for remote access)
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://100.110.4.74:8080/graphql}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://100.110.4.74:8081/graphql}
       # Server-side: container uses Docker network to reach API
       API_URL: http://api:8080/graphql
       NODE_ENV: development

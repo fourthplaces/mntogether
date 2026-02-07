@@ -62,7 +62,6 @@ pub async fn discover_pages(
             "Discovery search returned results"
         );
 
-        // Log each discovered URL
         for result in &results {
             info!(
                 url = %result.url,
@@ -74,7 +73,6 @@ pub async fn discover_pages(
         }
 
         for result in results {
-            // Normalize URL for deduplication
             let normalized_url = normalize_url(result.url.as_str());
 
             if seen_urls.insert(normalized_url.clone()) {
@@ -99,7 +97,6 @@ pub async fn discover_pages(
     // Limit to max pages
     all_results.truncate(max_pages);
 
-    // Log final list of all discovered URLs
     info!(
         domain = %domain,
         total_discovered = all_results.len(),
@@ -122,9 +119,7 @@ pub async fn discover_pages(
 /// Normalize URL for deduplication (remove trailing slash, fragments, etc.)
 fn normalize_url(url: &str) -> String {
     let url = url.trim_end_matches('/');
-    // Remove fragment
     let url = url.split('#').next().unwrap_or(url);
-    // Remove common tracking params
     let url = url.split('?').next().unwrap_or(url);
     url.to_lowercase()
 }

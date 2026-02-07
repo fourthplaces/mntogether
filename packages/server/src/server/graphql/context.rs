@@ -1,31 +1,20 @@
 use std::sync::Arc;
 
-use seesaw_core::Engine;
-use seesaw_postgres::PostgresStore;
 use sqlx::PgPool;
 use twilio::TwilioService;
 
-use crate::common::AppState;
 use crate::domains::auth::JwtService;
 use crate::kernel::{OpenAIClient, ServerDeps};
 use crate::server::graphql::loaders::DataLoaders;
 use crate::server::middleware::AuthUser;
 use crate::WorkflowClient;
 
-/// The Seesaw QueueEngine type (legacy - being removed incrementally)
-pub type AppQueueEngine = Engine<AppState, ServerDeps, PostgresStore>;
-
 /// GraphQL request context
 ///
 /// Contains shared resources available to all resolvers.
-///
-/// MIGRATION IN PROGRESS:
-/// - queue_engine: For unmigrated domains (TODO: remove after all migrated)
-/// - workflow_client: For migrated domains (Restate workflows)
 #[derive(Clone)]
 pub struct GraphQLContext {
     pub db_pool: PgPool,
-    pub queue_engine: Arc<AppQueueEngine>, // TODO: Remove after all domains migrated
     pub workflow_client: Arc<WorkflowClient>,
     pub server_deps: Arc<ServerDeps>,
     pub auth_user: Option<AuthUser>,
@@ -40,7 +29,6 @@ impl juniper::Context for GraphQLContext {}
 impl GraphQLContext {
     pub fn new(
         db_pool: PgPool,
-        queue_engine: Arc<AppQueueEngine>,
         server_deps: Arc<ServerDeps>,
         auth_user: Option<AuthUser>,
         twilio: Arc<TwilioService>,
@@ -51,7 +39,6 @@ impl GraphQLContext {
     ) -> Self {
         Self {
             db_pool,
-            queue_engine,
             workflow_client,
             server_deps,
             auth_user,
@@ -97,17 +84,6 @@ impl GraphQLContext {
                     juniper::Value::null(),
                 )
             })
-    }
-
-    /// Create AppState with visitor info from the current request.
-    pub fn app_state(&self) -> AppState {
-        match &self.auth_user {
-            Some(user) => match uuid::Uuid::parse_str(&user.user_id) {
-                Ok(uuid) => AppState::authenticated(uuid, user.is_admin),
-                Err(_) => AppState::anonymous(),
-            },
-            None => AppState::anonymous(),
-        }
     }
 
     /// Get server dependencies for direct access

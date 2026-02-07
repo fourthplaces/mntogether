@@ -1,13 +1,12 @@
 //! Entry-point actions for chatrooms domain
 //!
-//! These actions are called directly from GraphQL mutations via `process()`.
-//! They do the work and return fact events for the effect system to dispatch.
+//! Actions return plain data (Container, Message). Agent side-effects are
+//! triggered via `tokio::spawn` in the GraphQL layer.
 
 use anyhow::Result;
 use tracing::info;
 
 use crate::common::{ContainerId, MemberId, MessageId};
-use crate::domains::chatrooms::events::ChatEvent;
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::{Tag, Taggable};
 use crate::kernel::ServerDeps;
@@ -18,17 +17,16 @@ use crate::kernel::ServerDeps;
 
 /// Create a new chat container.
 ///
-/// Entry point for GraphQL mutation. Does the actual work, returns fact event.
+/// Returns the created Container and the agent config (if any).
 pub async fn create_container(
     language: String,
     _requested_by: Option<MemberId>,
     with_agent: Option<String>,
     deps: &ServerDeps,
-) -> Result<ChatEvent> {
+) -> Result<(Container, Option<String>)> {
     info!(?with_agent, "Creating chat container");
 
-    let container =
-        Container::create(language, &deps.db_pool).await?;
+    let container = Container::create(language, &deps.db_pool).await?;
 
     // Tag container with agent config if provided
     if let Some(ref agent_config) = with_agent {
@@ -37,10 +35,7 @@ pub async fn create_container(
         Taggable::create_container_tag(container.id, tag.id, &deps.db_pool).await?;
     }
 
-    Ok(ChatEvent::ContainerCreated {
-        container,
-        with_agent,
-    })
+    Ok((container, with_agent))
 }
 
 // ============================================================================
@@ -49,14 +44,14 @@ pub async fn create_container(
 
 /// Send a user message to a container.
 ///
-/// Entry point for GraphQL mutation. Does the actual work, returns fact event.
+/// Returns the created Message.
 pub async fn send_message(
     container_id: ContainerId,
     content: String,
     author_id: Option<MemberId>,
     parent_message_id: Option<MessageId>,
     deps: &ServerDeps,
-) -> Result<ChatEvent> {
+) -> Result<Message> {
     info!(container_id = %container_id, "Creating user message");
 
     // Rate limit anonymous senders: max 10 messages per minute
@@ -88,7 +83,7 @@ pub async fn send_message(
     // Update container activity
     Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    Ok(ChatEvent::MessageCreated { message })
+    Ok(message)
 }
 
 // ============================================================================
@@ -105,7 +100,7 @@ pub async fn create_message(
     author_id: Option<MemberId>,
     parent_message_id: Option<MessageId>,
     deps: &ServerDeps,
-) -> Result<ChatEvent> {
+) -> Result<Message> {
     info!(container_id = %container_id, role = %role, "Creating message");
 
     // Get next sequence number
@@ -127,5 +122,5 @@ pub async fn create_message(
     // Update container activity
     Container::touch_activity(container_id, &deps.db_pool).await?;
 
-    Ok(ChatEvent::MessageCreated { message })
+    Ok(message)
 }
