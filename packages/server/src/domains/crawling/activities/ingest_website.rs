@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{JobId, MemberId, WebsiteId};
-use crate::domains::crawling::events::CrawlEvent;
+use crate::domains::crawling::types::WebsiteIngested;
 use crate::domains::website::models::Website;
 use crate::kernel::{
     DiscoverConfig, FirecrawlIngestor, HttpIngestor, ServerDeps, ValidatedIngestor,
@@ -29,7 +29,7 @@ pub struct IngestUrlsResult {
 /// This is the new preferred method for crawling websites. It:
 /// 1. Uses the extraction library's Ingestor pattern for fetching
 /// 2. Stores pages in extraction_pages (via ExtractionService)
-/// 3. Returns WebsiteIngested event to trigger post extraction cascade
+/// 3. Returns WebsiteIngested data with page counts
 ///
 /// # Arguments
 ///
@@ -44,7 +44,7 @@ pub async fn ingest_website(
     use_firecrawl: bool,
     is_admin: bool,
     deps: &ServerDeps,
-) -> Result<CrawlEvent> {
+) -> Result<WebsiteIngested> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
     let job_id = JobId::new();
@@ -153,7 +153,7 @@ pub async fn ingest_website(
         &deps.db_pool,
     ).await?;
 
-    Ok(CrawlEvent::WebsiteIngested {
+    Ok(WebsiteIngested {
         website_id: website_id_typed,
         job_id,
         pages_crawled: result.pages_crawled,

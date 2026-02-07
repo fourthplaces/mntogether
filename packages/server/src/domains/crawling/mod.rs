@@ -23,16 +23,15 @@
 //! - `events/` - DEPRECATED: Being replaced by workflow state
 
 pub mod activities;
-pub mod effects; // TODO: Remove after migration
-pub mod events;  // TODO: Remove after migration
 pub mod models;
+pub mod types;
 pub mod workflows;
 
 // Re-export workflows
 pub use workflows::*;
 
-// Re-export events (temporary during migration)
-pub use events::{CrawlEvent, CrawledPageInfo, PageExtractionResult};
+// Re-export types
+pub use types::{WebsiteIngested, NarrativesExtracted, PostsSynced};
 
 // Re-export models
 pub use models::ExtractionPage;

@@ -12,6 +12,7 @@ pub mod pagination;
 pub mod pii;
 pub mod read_result;
 pub mod readable;
+pub mod restate_serde;
 pub mod types;
 pub mod utils;
 

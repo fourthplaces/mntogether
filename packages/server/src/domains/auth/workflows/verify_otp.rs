@@ -2,9 +2,10 @@
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
-use uuid::Uuid;
 
 use crate::domains::auth::activities;
+use crate::domains::auth::types::OtpVerified;
+use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -13,17 +14,11 @@ pub struct VerifyOtpRequest {
     pub code: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct VerifyOtpResult {
-    pub member_id: Uuid,
-    pub phone_number: String,
-    pub is_admin: bool,
-    pub token: String,
-}
+impl_restate_serde!(VerifyOtpRequest);
 
 #[restate_sdk::workflow]
 pub trait VerifyOtpWorkflow {
-    async fn run(request: Json<VerifyOtpRequest>) -> Result<Json<VerifyOtpResult>, HandlerError>;
+    async fn run(request: VerifyOtpRequest) -> Result<OtpVerified, HandlerError>;
 }
 
 pub struct VerifyOtpWorkflowImpl {
@@ -40,37 +35,23 @@ impl VerifyOtpWorkflow for VerifyOtpWorkflowImpl {
     async fn run(
         &self,
         ctx: WorkflowContext<'_>,
-        request: Json<VerifyOtpRequest>,
-    ) -> Result<Json<VerifyOtpResult>, HandlerError> {
-        let request = request.into_inner();
+        request: VerifyOtpRequest,
+    ) -> Result<OtpVerified, HandlerError> {
         tracing::info!(phone_number = %request.phone_number, "Verifying OTP");
 
-        let event = ctx
+        // Durable execution - will not retry on replay
+        let result = ctx
             .run(|| async {
-                activities::verify_otp(request.phone_number.clone(), request.code.clone(), &self.deps)
-                    .await
-                    .map_err(Into::into)
+                activities::verify_otp(
+                    request.phone_number.clone(),
+                    request.code.clone(),
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::into)
             })
-            .await
-            .map_err(|e| anyhow::anyhow!("Verify OTP failed: {}", e))?;
+            .await?;
 
-        // Extract data from event
-        use crate::domains::auth::events::AuthEvent;
-        let AuthEvent::OTPVerified {
-            member_id,
-            phone_number,
-            is_admin,
-            token,
-        } = event
-        else {
-            return Err(anyhow::anyhow!("Unexpected event type").into());
-        };
-
-        Ok(Json(VerifyOtpResult {
-            member_id,
-            phone_number,
-            is_admin,
-            token,
-        }))
+        Ok(result)
     }
 }
