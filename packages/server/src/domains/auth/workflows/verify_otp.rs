@@ -25,7 +25,8 @@ pub struct VerifyOtpWorkflow {
     pub deps: ServerDeps,
 }
 
-#[restate_sdk::service(name = "VerifyOtp")]
+#[restate_sdk::service]
+#[name = "VerifyOtp"]
 impl VerifyOtpWorkflow {
     pub fn new(deps: ServerDeps) -> Self {
         Self { deps }
