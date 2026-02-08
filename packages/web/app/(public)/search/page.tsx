@@ -27,8 +27,6 @@ export default async function SearchPage({
     }
   }
   
-
-  
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
@@ -43,7 +41,7 @@ export default async function SearchPage({
             Search Services
           </h1>
           <p className="text-gray-600">
-            Find services that can help you
+            Find organizations and services that can help you
           </p>
         </div>
 
