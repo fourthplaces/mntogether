@@ -172,9 +172,7 @@ function BatchProposals({
       await callService("Sync", `${action}_proposal`, { proposal_id: proposalId });
       invalidateService("Sync");
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : `Failed to ${action} proposal`
-      );
+      console.error(`Failed to ${action} proposal:`, err);
     } finally {
       setActionLoading(null);
     }
@@ -212,14 +210,14 @@ function BatchProposals({
                 <button
                   onClick={() => handleAction(p.id, "approve")}
                   disabled={actionLoading === p.id}
-                  className="px-2.5 py-1 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  className="px-2.5 py-1 text-xs font-medium bg-emerald-400 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
                 >
                   {actionLoading === p.id ? "..." : "Approve"}
                 </button>
                 <button
                   onClick={() => handleAction(p.id, "reject")}
                   disabled={actionLoading === p.id}
-                  className="px-2.5 py-1 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  className="px-2.5 py-1 text-xs font-medium bg-rose-400 text-white rounded hover:bg-rose-500 disabled:opacity-50"
                 >
                   {actionLoading === p.id ? "..." : "Reject"}
                 </button>
@@ -250,9 +248,7 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
       await callService("Sync", `${action}_batch`, { batch_id: batch.id });
       invalidateService("Sync");
     } catch (err) {
-      alert(
-        err instanceof Error ? err.message : `Failed to ${action} batch`
-      );
+      console.error(`Failed to ${action} batch:`, err);
     } finally {
       setBatchActionLoading(false);
     }
@@ -320,7 +316,7 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
                     handleBatchAction("approve");
                   }}
                   disabled={batchActionLoading}
-                  className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-emerald-400 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
                 >
                   {batchActionLoading ? "..." : "Approve All"}
                 </button>
@@ -330,7 +326,7 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
                     handleBatchAction("reject");
                   }}
                   disabled={batchActionLoading}
-                  className="px-3 py-1.5 text-xs font-medium bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                  className="px-3 py-1.5 text-xs font-medium bg-rose-400 text-white rounded hover:bg-rose-500 disabled:opacity-50"
                 >
                   {batchActionLoading ? "..." : "Reject All"}
                 </button>

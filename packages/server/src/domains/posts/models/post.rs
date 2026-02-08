@@ -1256,7 +1256,7 @@ impl Post {
 
     /// Find active posts with optional audience and category tag filters.
     ///
-    /// - `audience`: "need_help" → recipient, "want_to_give" → volunteer/donor, "events" → post_type:event
+    /// - `audience`: "need_help" → recipient, "want_to_give" → volunteer/donor, "bulletin" → any post_type
     /// - `category`: a `service_offered` tag value like "food-assistance", "legal-aid"
     pub async fn find_public_filtered(
         audience: Option<&str>,
@@ -1269,7 +1269,7 @@ impl Post {
         let (audience_kind, audience_values): (Option<&str>, Vec<&str>) = match audience {
             Some("need_help") => (Some("audience_role"), vec!["recipient"]),
             Some("want_to_give") => (Some("audience_role"), vec!["volunteer", "donor"]),
-            Some("events") => (Some("post_type"), vec!["event"]),
+            Some("bulletin") => (Some("post_type"), vec![]),
             _ => (None, vec![]),
         };
 
@@ -1284,7 +1284,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
-              AND ($1::text IS NULL OR (t_aud.kind = $1 AND t_aud.value = ANY($2)))
+              AND ($1::text IS NULL OR (t_aud.kind = $1 AND (array_length($2::text[], 1) IS NULL OR t_aud.value = ANY($2))))
               AND ($3::text IS NULL OR (t_cat.kind = 'service_offered' AND t_cat.value = $3))
             ORDER BY p.created_at DESC
             LIMIT $4 OFFSET $5
@@ -1309,7 +1309,7 @@ impl Post {
         let (audience_kind, audience_values): (Option<&str>, Vec<&str>) = match audience {
             Some("need_help") => (Some("audience_role"), vec!["recipient"]),
             Some("want_to_give") => (Some("audience_role"), vec!["volunteer", "donor"]),
-            Some("events") => (Some("post_type"), vec!["event"]),
+            Some("bulletin") => (Some("post_type"), vec![]),
             _ => (None, vec![]),
         };
 
@@ -1324,7 +1324,7 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
-              AND ($1::text IS NULL OR (t_aud.kind = $1 AND t_aud.value = ANY($2)))
+              AND ($1::text IS NULL OR (t_aud.kind = $1 AND (array_length($2::text[], 1) IS NULL OR t_aud.value = ANY($2))))
               AND ($3::text IS NULL OR (t_cat.kind = 'service_offered' AND t_cat.value = $3))
             "#,
         )

@@ -149,6 +149,16 @@ impl_restate_serde!(DeleteScheduleRequest);
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostTagResult {
+    pub id: Uuid,
+    pub kind: String,
+    pub value: String,
+    pub display_name: Option<String>,
+}
+
+impl_restate_serde!(PostTagResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostResult {
     pub id: Uuid,
     pub title: String,
@@ -165,6 +175,8 @@ pub struct PostResult {
     pub submission_type: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tags: Option<Vec<PostTagResult>>,
 }
 
 impl_restate_serde!(PostResult);
@@ -187,6 +199,7 @@ impl From<Post> for PostResult {
             submission_type: p.submission_type,
             created_at: p.created_at.to_rfc3339(),
             updated_at: p.updated_at.to_rfc3339(),
+            tags: None,
         }
     }
 }
