@@ -52,6 +52,14 @@ impl AgentRun {
         .map_err(Into::into)
     }
 
+    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>("SELECT * FROM agent_runs WHERE id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM agent_runs WHERE agent_id = $1 ORDER BY started_at DESC",
