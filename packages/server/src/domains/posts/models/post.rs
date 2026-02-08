@@ -47,6 +47,9 @@ pub struct Post {
     pub website_id: Option<WebsiteId>,
     pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
 
+    // Agent that created this post (nullable — existing posts predate agents)
+    pub agent_id: Option<Uuid>,
+
     // Soft delete (preserves links)
     pub deleted_at: Option<DateTime<Utc>>,
     pub deleted_reason: Option<String>,

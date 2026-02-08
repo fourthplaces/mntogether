@@ -1,7 +1,8 @@
-//! Agents domain - AI agent responses for chat containers.
+//! Agents domain — autonomous entities with member identities and roles.
 //!
-//! Generates AI replies/greetings and publishes streaming tokens
-//! to StreamHub for real-time SSE delivery.
+//! Roles:
+//! - `assistant`: responds to users in chat (greeting, reply generation)
+//! - `curator`: discovers websites, extracts posts, enriches, monitors
 //!
 //! Dependency direction: agents → chatrooms (reads/creates messages)
 //! Chatrooms has no knowledge of agents.
