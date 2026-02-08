@@ -83,13 +83,13 @@ export default function WebsiteDetailPage() {
 
   const assessment = assessmentData?.assessment ?? null;
 
-  const { data: discoveryData } = useRestate<DiscoverySourceResult[]>(
+  const { data: discoveryData } = useRestate<{ results: DiscoverySourceResult[] }>(
     "Discovery", "get_website_sources", { website_id: websiteId }, { revalidateOnFocus: false }
   );
 
   const posts = postsData?.posts || [];
   const pages = pagesData?.pages || [];
-  const discoverySources = discoveryData || [];
+  const discoverySources = discoveryData?.results || [];
 
   // --- Actions ---
 

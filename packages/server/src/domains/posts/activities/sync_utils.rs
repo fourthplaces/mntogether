@@ -1,10 +1,11 @@
 use crate::common::{PostId, WebsiteId};
 use crate::common::utils::generate_tldr;
-use crate::domains::posts::activities::tag_with_audience_roles;
+use crate::domains::posts::activities::{tag_post_from_extracted, tag_with_audience_roles};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use anyhow::Result;
 use sqlx::PgPool;
+use std::collections::HashMap;
 
 /// Valid urgency values per database constraint
 const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
@@ -49,6 +50,9 @@ pub struct ExtractedPostInput {
     /// Audience roles: who this listing is for
     /// Valid values: "recipient", "donor", "volunteer", "participant"
     pub audience_roles: Vec<String>,
+    /// Dynamic tags from AI extraction, keyed by tag kind slug.
+    #[allow(dead_code)]
+    pub tags: HashMap<String, Vec<String>>,
 }
 
 /// Synchronize extracted posts with database
@@ -161,6 +165,9 @@ pub async fn sync_posts(
 
                     // Tag post with audience roles
                     tag_with_audience_roles(created.id, &post_input.audience_roles, pool).await;
+
+                    // Tag post with dynamic extracted tags
+                    tag_post_from_extracted(created.id, &post_input.tags, pool).await;
 
                     new_posts.push(created.id);
                 }
@@ -278,6 +285,7 @@ mod tests {
             confidence: None,
             source_url: None,
             audience_roles: vec![],
+            tags: HashMap::new(),
         };
 
         assert_eq!(input.title, "Test Title");
@@ -297,6 +305,7 @@ mod tests {
             confidence: Some("high".to_string()),
             source_url: Some("https://example.org/volunteer".to_string()),
             audience_roles: vec!["volunteer".to_string(), "donor".to_string()],
+            tags: HashMap::new(),
         };
 
         assert_eq!(input.audience_roles.len(), 2);

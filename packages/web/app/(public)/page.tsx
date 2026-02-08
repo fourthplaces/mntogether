@@ -1,5 +1,5 @@
-import { PublicChatClient } from "./PublicChatClient";
+import { HomeClient } from "./HomeClient";
 
 export default function HomePage() {
-  return <PublicChatClient />;
+  return <HomeClient />;
 }

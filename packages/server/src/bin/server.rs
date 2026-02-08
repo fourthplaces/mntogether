@@ -15,6 +15,7 @@ use server_core::domains::chatrooms::restate::{
 };
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
 use server_core::domains::discovery::restate::{DiscoveryService, DiscoveryServiceImpl};
+use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
 use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
@@ -28,6 +29,7 @@ use server_core::domains::providers::restate::{
     ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
 };
 use server_core::domains::sync::restate::{SyncService, SyncServiceImpl};
+use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
 use server_core::domains::website::restate::{
     RegeneratePostsWorkflow, RegeneratePostsWorkflowImpl, WebsiteObject, WebsiteObjectImpl,
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
@@ -240,6 +242,8 @@ async fn main() -> Result<()> {
         .bind(DiscoveryServiceImpl::with_deps(server_deps.clone()).serve())
         // Extraction domain
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
+        // Jobs domain
+        .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
         // Member domain
         .bind(MemberObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(MembersServiceImpl::with_deps(server_deps.clone()).serve())
@@ -254,6 +258,8 @@ async fn main() -> Result<()> {
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())
         // Sync domain
         .bind(SyncServiceImpl::with_deps(server_deps.clone()).serve())
+        // Tag domain
+        .bind(TagsServiceImpl::with_deps(server_deps.clone()).serve())
         // Website domain
         .bind(WebsiteObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(WebsitesServiceImpl::with_deps(server_deps.clone()).serve())

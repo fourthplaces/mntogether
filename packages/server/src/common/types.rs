@@ -5,6 +5,7 @@
 
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 // Import unified ContactInfo from extraction_types
@@ -38,6 +39,10 @@ pub struct ExtractedPost {
     pub city: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
+    /// Dynamic tags from AI extraction, keyed by tag kind slug.
+    /// e.g., {"post_type": ["service"], "population": ["refugees", "seniors"]}
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
 }
 
 impl ExtractedPost {
@@ -60,6 +65,7 @@ impl ExtractedPost {
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
+            tags: info.tags,
         }
     }
 }
@@ -79,6 +85,8 @@ pub struct ExtractedPostWithSource {
     pub confidence: Option<String>,
     #[serde(default)]
     pub audience_roles: Vec<String>,
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
 }
 
 impl ExtractedPostWithSource {
@@ -98,6 +106,7 @@ impl ExtractedPostWithSource {
             zip_code: None,
             city: None,
             state: None,
+            tags: self.tags,
         }
     }
 }
@@ -119,6 +128,8 @@ pub struct ExtractedPostInformation {
     pub city: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
 }
 
 impl Default for ExtractedPostInformation {
@@ -132,6 +143,7 @@ impl Default for ExtractedPostInformation {
             zip_code: None,
             city: None,
             state: None,
+            tags: HashMap::new(),
         }
     }
 }

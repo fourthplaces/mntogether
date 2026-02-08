@@ -134,14 +134,17 @@ impl SyncProposal {
         .map_err(Into::into)
     }
 
-    /// Find all pending proposals for a given entity (as target or draft)
+    /// Find all pending proposals for a given entity (as target or draft),
+    /// excluding proposals in expired or completed batches.
     pub async fn find_pending_for_entity(entity_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
-            SELECT * FROM sync_proposals
-            WHERE (target_entity_id = $1 OR draft_entity_id = $1)
-              AND status = 'pending'
-            ORDER BY created_at DESC
+            SELECT sp.* FROM sync_proposals sp
+            INNER JOIN sync_batches sb ON sb.id = sp.batch_id
+            WHERE (sp.target_entity_id = $1 OR sp.draft_entity_id = $1)
+              AND sp.status = 'pending'
+              AND sb.status IN ('pending', 'partially_reviewed')
+            ORDER BY sp.created_at DESC
             "#,
         )
         .bind(entity_id)

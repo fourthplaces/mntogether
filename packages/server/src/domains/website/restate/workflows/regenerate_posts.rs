@@ -14,6 +14,7 @@ use crate::domains::crawling::activities::post_extraction::{
     extract_narratives_for_domain, investigate_post,
 };
 use crate::domains::posts::activities::sync_utils::{sync_posts, ExtractedPostInput};
+use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -104,6 +105,11 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             "Narratives extracted, starting investigation"
         );
 
+        // Build dynamic tag instructions once for all investigations
+        let tag_instructions = build_tag_instructions(&self.deps.db_pool)
+            .await
+            .unwrap_or_default();
+
         // Phase 2: Investigate each post with progress tracking
         let total = narratives.len();
         let mut post_inputs = Vec::new();
@@ -114,7 +120,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                 format!("Investigating post {}/{}...", i + 1, total),
             );
 
-            let info = match investigate_post(narrative, &self.deps).await {
+            let info = match investigate_post(narrative, &tag_instructions, &self.deps).await {
                 Ok(i) => i,
                 Err(e) => {
                     warn!(
@@ -137,6 +143,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                 confidence: Some(info.confidence),
                 source_url: Some(narrative.source_url.clone()),
                 audience_roles: info.audience_roles,
+                tags: info.tags,
             });
         }
 

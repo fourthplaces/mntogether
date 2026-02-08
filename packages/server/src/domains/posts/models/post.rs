@@ -338,6 +338,20 @@ impl Post {
         .map_err(Into::into)
     }
 
+    /// Batch-load post titles by IDs (includes soft-deleted posts, for display purposes)
+    pub async fn find_titles_by_ids(
+        ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<(Uuid, String)>> {
+        sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT id, title FROM posts WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find listing by ID
     pub async fn find_by_id(id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = $1")
@@ -1234,6 +1248,92 @@ impl Post {
             pool,
         )
         .await
+    }
+
+    // =========================================================================
+    // Public Filtered Queries (for home page directory)
+    // =========================================================================
+
+    /// Find active posts with optional audience and category tag filters.
+    ///
+    /// - `audience`: "need_help" → recipient, "want_to_give" → volunteer/donor, "events" → post_type:event
+    /// - `category`: a `service_offered` tag value like "food-assistance", "legal-aid"
+    pub async fn find_public_filtered(
+        audience: Option<&str>,
+        category: Option<&str>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        // Build audience tag filter conditions
+        let (audience_kind, audience_values): (Option<&str>, Vec<&str>) = match audience {
+            Some("need_help") => (Some("audience_role"), vec!["recipient"]),
+            Some("want_to_give") => (Some("audience_role"), vec!["volunteer", "donor"]),
+            Some("events") => (Some("post_type"), vec!["event"]),
+            _ => (None, vec![]),
+        };
+
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            LEFT JOIN taggables tg_aud ON tg_aud.taggable_type = 'post' AND tg_aud.taggable_id = p.id
+            LEFT JOIN tags t_aud ON t_aud.id = tg_aud.tag_id
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND ($1::text IS NULL OR (t_aud.kind = $1 AND t_aud.value = ANY($2)))
+              AND ($3::text IS NULL OR (t_cat.kind = 'service_offered' AND t_cat.value = $3))
+            ORDER BY p.created_at DESC
+            LIMIT $4 OFFSET $5
+            "#,
+        )
+        .bind(audience_kind)
+        .bind(&audience_values)
+        .bind(category)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Count active posts matching the same filters as find_public_filtered
+    pub async fn count_public_filtered(
+        audience: Option<&str>,
+        category: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        let (audience_kind, audience_values): (Option<&str>, Vec<&str>) = match audience {
+            Some("need_help") => (Some("audience_role"), vec!["recipient"]),
+            Some("want_to_give") => (Some("audience_role"), vec!["volunteer", "donor"]),
+            Some("events") => (Some("post_type"), vec!["event"]),
+            _ => (None, vec![]),
+        };
+
+        sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(DISTINCT p.id) FROM posts p
+            LEFT JOIN taggables tg_aud ON tg_aud.taggable_type = 'post' AND tg_aud.taggable_id = p.id
+            LEFT JOIN tags t_aud ON t_aud.id = tg_aud.tag_id
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND ($1::text IS NULL OR (t_aud.kind = $1 AND t_aud.value = ANY($2)))
+              AND ($3::text IS NULL OR (t_cat.kind = 'service_offered' AND t_cat.value = $3))
+            "#,
+        )
+        .bind(audience_kind)
+        .bind(&audience_values)
+        .bind(category)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Find a translation of a post in a specific language

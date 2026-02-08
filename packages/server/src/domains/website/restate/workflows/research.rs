@@ -11,7 +11,7 @@ use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::common::{JobId, MemberId, WebsiteId};
+use crate::common::{EmptyRequest, JobId, MemberId, WebsiteId};
 use crate::domains::website::activities::approval;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -37,6 +37,9 @@ impl_restate_serde!(WebsiteResearchResult);
 #[restate_sdk::workflow]
 pub trait WebsiteResearchWorkflow {
     async fn run(request: WebsiteResearchRequest) -> Result<WebsiteResearchResult, HandlerError>;
+
+    #[shared]
+    async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
 }
 
 pub struct WebsiteResearchWorkflowImpl {
@@ -66,6 +69,8 @@ impl WebsiteResearchWorkflow for WebsiteResearchWorkflowImpl {
         );
 
         // Step 1: Conduct all searches — journaled, won't re-run on replay
+        ctx.set("status", "Researching website...".to_string());
+
         let search_result = ctx
             .run(|| async {
                 approval::conduct_searches(request.research_id, website_id, &self.deps)
@@ -82,6 +87,8 @@ impl WebsiteResearchWorkflow for WebsiteResearchWorkflowImpl {
         );
 
         // Step 2: Generate AI assessment — if this fails, step 1 is replayed from journal
+        ctx.set("status", "Generating assessment...".to_string());
+
         let result = ctx
             .run(|| async {
                 let assessment = approval::generate_assessment(
@@ -107,6 +114,19 @@ impl WebsiteResearchWorkflow for WebsiteResearchWorkflowImpl {
             })
             .await?;
 
+        ctx.set("status", "Completed".to_string());
+
         Ok(result)
+    }
+
+    async fn get_status(
+        &self,
+        ctx: SharedWorkflowContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<String, HandlerError> {
+        Ok(ctx
+            .get::<String>("status")
+            .await?
+            .unwrap_or_else(|| "pending".to_string()))
     }
 }

@@ -15,7 +15,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::common::{ContactInfo, ExtractedPost, ExtractedPostInformation};
+use crate::common::{ExtractedPost, ExtractedPostInformation};
+use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::kernel::{FetchPageTool, OpenAIExtractionService, ServerDeps, WebSearchTool};
 
 //=============================================================================
@@ -301,8 +302,19 @@ A signup form URL IS valid contact information. If the description contains a fo
 
 Respond with your findings including all contact information you found."#;
 
-/// System prompt for extracting structured info from investigation findings.
-const EXTRACTION_PROMPT: &str = r#"Extract structured information from the investigation findings.
+/// Build the structured extraction prompt with dynamic tag instructions.
+fn build_extraction_prompt(tag_instructions: &str) -> String {
+    let tag_section = if tag_instructions.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "\n- **tags**: Object with tag classifications:\n{}",
+            tag_instructions
+        )
+    };
+
+    format!(
+        r#"Extract structured information from the investigation findings.
 
 For each field:
 - **contact**: Phone, email, website, intake_form_url, contact_name (leave null if not found)
@@ -312,15 +324,19 @@ For each field:
 - **state**: 2-letter state abbreviation (e.g., "MN")
 - **urgency**: "low", "medium", "high", or "urgent" based on time-sensitivity
 - **confidence**: "low", "medium", or "high" based on information completeness
-- **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"
+- **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"{}
 
-Be conservative - only include information explicitly mentioned."#;
+Be conservative - only include information explicitly mentioned."#,
+        tag_section
+    )
+}
 
 /// Investigate a single post to find missing information.
 ///
 /// Uses AI agent with tools to research, then structured extraction for the result.
 pub async fn investigate_post(
     narrative: &NarrativePost,
+    tag_instructions: &str,
     deps: &ServerDeps,
 ) -> Result<ExtractedPostInformation> {
     let user_message = format!(
@@ -376,8 +392,9 @@ pub async fn investigate_post(
         "Extracting structured info from findings"
     );
 
+    let extraction_prompt = build_extraction_prompt(tag_instructions);
     let result = client
-        .extract::<ExtractedPostInformation>("gpt-4o", EXTRACTION_PROMPT, &extraction_input)
+        .extract::<ExtractedPostInformation>("gpt-4o", &extraction_prompt, &extraction_input)
         .await
         .map_err(|e| anyhow::anyhow!("Structured extraction failed: {}", e))?;
 
@@ -430,6 +447,11 @@ pub async fn extract_posts_from_content(
         return Ok(vec![]);
     }
 
+    // Build dynamic tag instructions once for all investigations
+    let tag_instructions = build_tag_instructions(&deps.db_pool)
+        .await
+        .unwrap_or_default();
+
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
     // Pass 1: Extract narrative posts (title + tldr + description)
@@ -457,7 +479,7 @@ pub async fn extract_posts_from_content(
     // Pass 3: Investigate each post in parallel
     let investigation_futures: Vec<_> = deduplicated
         .iter()
-        .map(|n| investigate_post(n, deps))
+        .map(|n| investigate_post(n, &tag_instructions, deps))
         .collect();
 
     let investigation_results = join_all(investigation_futures).await;
@@ -491,6 +513,7 @@ pub async fn extract_posts_from_content(
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
+            tags: info.tags,
         });
     }
 
@@ -651,6 +674,11 @@ pub async fn extract_posts_from_pages(
         return Ok(vec![]);
     }
 
+    // Build dynamic tag instructions once for all investigations
+    let tag_instructions = build_tag_instructions(&deps.db_pool)
+        .await
+        .unwrap_or_default();
+
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
     // Step 1: Batch pages by content size
@@ -740,7 +768,7 @@ pub async fn extract_posts_from_pages(
     // Step 4: Enrich each unique post with investigation
     let investigation_futures: Vec<_> = deduplicated
         .iter()
-        .map(|n| investigate_post(n, deps))
+        .map(|n| investigate_post(n, &tag_instructions, deps))
         .collect();
 
     let investigation_results = join_all(investigation_futures).await;
@@ -774,6 +802,7 @@ pub async fn extract_posts_from_pages(
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
+            tags: info.tags,
         });
     }
 

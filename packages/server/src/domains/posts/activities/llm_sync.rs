@@ -14,6 +14,7 @@ use anyhow::Result;
 use openai_client::OpenAIClient;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::collections::HashMap;
 use tracing::info;
 use uuid::Uuid;
 
@@ -33,6 +34,9 @@ pub struct FreshPost {
     pub description: String,
     /// Primary audience roles: "recipient", "volunteer", "donor", etc.
     pub audience_roles: Vec<String>,
+    /// Dynamic tags from AI extraction, keyed by tag kind slug.
+    #[serde(default)]
+    pub tags: HashMap<String, Vec<String>>,
     pub location: Option<String>,
     pub contact_phone: Option<String>,
     pub contact_email: Option<String>,
@@ -140,6 +144,7 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
             tldr: p.tldr.clone(),
             description: p.description.clone(),
             audience_roles: p.audience_roles.clone(),
+            tags: p.tags.clone(),
             location: p.location.clone(),
             contact_phone: p.contact.as_ref().and_then(|c| c.phone.clone()),
             contact_email: p.contact.as_ref().and_then(|c| c.email.clone()),
@@ -498,6 +503,7 @@ async fn stage_sync_operations(
                             zip_code: None,
                             city: None,
                             state: None,
+                            tags: HashMap::new(),
                         };
                         match update_post(canonical.id, &fake_fresh, false, pool).await {
                             Ok(()) => Post::find_revision_for_post(canonical.id, pool)

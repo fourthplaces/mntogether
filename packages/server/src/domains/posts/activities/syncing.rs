@@ -62,6 +62,7 @@ pub async fn sync_extracted_posts(
             confidence: listing.confidence,
             source_url: Some(format!("https://{}", source.domain)), // Use domain as URL
             audience_roles: listing.audience_roles, // Pass through extracted audience roles
+            tags: listing.tags,
         })
         .collect();
 

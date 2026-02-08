@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use super::post_extraction;
 use crate::common::{ExtractedPost, JobId};
+use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -55,6 +56,11 @@ pub async fn extract_posts_from_resource_link(
 
     tracing::info!(job_id = %job_id, "Calling AI service to extract listings from resource link");
 
+    // Build dynamic tag instructions for extraction
+    let tag_instructions = build_tag_instructions(&deps.db_pool)
+        .await
+        .unwrap_or_default();
+
     // Delegate to domain function with PII scrubbing
     let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
         deps.ai.as_ref(),
@@ -62,6 +68,7 @@ pub async fn extract_posts_from_resource_link(
         &domain,
         &content_with_context,
         &url,
+        &tag_instructions,
     )
     .await
     {

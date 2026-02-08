@@ -13,6 +13,7 @@ use crate::common::{EmptyRequest, MemberId, PaginationArgs};
 use crate::domains::crawling::activities::ingest_website;
 use crate::domains::posts::models::post::Post;
 use crate::domains::website::activities;
+use crate::domains::website::models::website::CreateWebsite;
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -42,6 +43,13 @@ pub struct SearchWebsitesRequest {
 }
 
 impl_restate_serde!(SearchWebsitesRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitWebsiteRequest {
+    pub url: String,
+}
+
+impl_restate_serde!(SubmitWebsiteRequest);
 
 // =============================================================================
 // Response types
@@ -106,6 +114,7 @@ pub trait WebsitesService {
     async fn run_scheduled_scrape(
         req: EmptyRequest,
     ) -> Result<ScheduledScrapeResult, HandlerError>;
+    async fn submit(req: SubmitWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
 }
 
 pub struct WebsitesServiceImpl {
@@ -305,5 +314,25 @@ impl WebsitesService for WebsitesServiceImpl {
             websites_scraped: scraped_count,
             status: "completed".to_string(),
         })
+    }
+
+    async fn submit(
+        &self,
+        ctx: Context<'_>,
+        req: SubmitWebsiteRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let input = CreateWebsite::builder()
+            .url_or_domain(req.url)
+            .submitted_by(Some(user.member_id))
+            .submitter_type("admin".to_string())
+            .build();
+
+        let website = Website::create(input, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
     }
 }

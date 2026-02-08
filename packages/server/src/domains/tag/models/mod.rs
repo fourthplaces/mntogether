@@ -1,5 +1,7 @@
 pub mod tag;
+pub mod tag_kind_config;
 pub mod taxonomy_crosswalk;
 
-pub use tag::{Tag, TagKind, Taggable, TaggableType};
+pub use tag::{ActiveCategory, Tag, TagKind, Taggable, TaggableType};
+pub use tag_kind_config::TagKindConfig;
 pub use taxonomy_crosswalk::TaxonomyCrosswalk;

@@ -194,6 +194,118 @@ export function PostCard({ post }: PostCardProps) {
   );
 }
 
+// --- PostListItem: scannable row for public directory ---
+
+import type { PublicPostResult } from "@/lib/restate/types";
+
+interface PostListItemProps {
+  post: PublicPostResult;
+}
+
+function formatCategory(value: string): string {
+  return value
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+export function PostListItem({ post }: PostListItemProps) {
+  const serviceOfferedTags = post.tags.filter((t) => t.kind === "service_offered");
+
+  return (
+    <div className="flex items-start gap-4 py-4 px-4 sm:px-6 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+      <div className="flex-1 min-w-0">
+        {/* Title */}
+        {post.source_url ? (
+          <a
+            href={post.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-base font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-1"
+          >
+            {post.title}
+          </a>
+        ) : (
+          <h3 className="text-base font-medium text-gray-900 line-clamp-1">
+            {post.title}
+          </h3>
+        )}
+
+        {/* TLDR / Description */}
+        <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">
+          {post.tldr || post.description}
+        </p>
+
+        {/* Tags row */}
+        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+          {post.location && (
+            <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+              </svg>
+              {post.location}
+            </span>
+          )}
+          {serviceOfferedTags.map((tag) => (
+            <span
+              key={tag.value}
+              className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full text-xs"
+            >
+              {tag.display_name || formatCategory(tag.value)}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Arrow / link indicator */}
+      {post.source_url && (
+        <a
+          href={post.source_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex-shrink-0 mt-1 text-gray-300 hover:text-blue-500 transition-colors"
+          aria-label="Open source"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
+            />
+          </svg>
+        </a>
+      )}
+    </div>
+  );
+}
+
+export function PostListItemSkeleton() {
+  return (
+    <div className="flex items-start gap-4 py-4 px-4 sm:px-6 border-b border-gray-100 animate-pulse">
+      <div className="flex-1 min-w-0">
+        <div className="h-5 w-3/4 bg-gray-200 rounded" />
+        <div className="h-4 w-1/2 bg-gray-200 rounded mt-1.5" />
+        <div className="flex gap-1.5 mt-2">
+          <div className="h-5 w-16 bg-gray-200 rounded-full" />
+          <div className="h-5 w-20 bg-gray-200 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Skeleton loader for loading state
 export function PostCardSkeleton() {
   return (

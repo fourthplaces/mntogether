@@ -5,6 +5,7 @@
 
 use anyhow::Result;
 use sqlx::PgPool;
+use std::collections::HashMap;
 use tracing::warn;
 use uuid::Uuid;
 
@@ -73,6 +74,9 @@ pub async fn create_extracted_post(
 
     // Tag post with audience roles
     tag_with_audience_roles(created.id, &post.audience_roles, pool).await;
+
+    // Tag post with dynamic extracted tags
+    tag_post_from_extracted(created.id, &post.tags, pool).await;
 
     // Create structured location if zip/city/state available
     if post.zip_code.is_some() || post.city.is_some() {
@@ -163,6 +167,40 @@ async fn create_post_location(post: &Post, extracted: &ExtractedPost, pool: &PgP
                 error = %e,
                 "Failed to create location from extraction"
             );
+        }
+    }
+}
+
+/// Apply all extracted tags to a post.
+///
+/// Looks up each value in the database; warns if not found (admin controls vocabulary).
+pub async fn tag_post_from_extracted(
+    post_id: PostId,
+    tags: &HashMap<String, Vec<String>>,
+    pool: &PgPool,
+) {
+    for (kind, values) in tags {
+        for value in values {
+            let normalized = value.to_lowercase();
+            match Tag::find_by_kind_value(kind, &normalized, pool).await {
+                Ok(Some(tag)) => {
+                    if let Err(e) = Taggable::create_post_tag(post_id, tag.id, pool).await {
+                        warn!(
+                            post_id = %post_id,
+                            kind = %kind,
+                            value = %normalized,
+                            error = %e,
+                            "Failed to tag post with extracted tag"
+                        );
+                    }
+                }
+                Ok(None) => {
+                    warn!(kind = %kind, value = %normalized, "Unknown tag value from AI, skipping");
+                }
+                Err(e) => {
+                    warn!(kind = %kind, value = %normalized, error = %e, "Tag lookup failed");
+                }
+            }
         }
     }
 }

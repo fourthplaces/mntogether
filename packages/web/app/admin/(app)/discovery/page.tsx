@@ -19,21 +19,21 @@ export default function DiscoveryPage() {
   const [runMessage, setRunMessage] = useState<string | null>(null);
 
   // Query data
-  const { data: queries, isLoading: queriesLoading } = useRestate<DiscoveryQuery[]>(
+  const { data: queriesData, isLoading: queriesLoading } = useRestate<{ queries: DiscoveryQuery[] }>(
     "Discovery", "list_queries", { include_inactive: true }, { revalidateOnFocus: false }
   );
 
-  const { data: globalRules } = useRestate<DiscoveryFilterRule[]>(
+  const { data: rulesData } = useRestate<{ rules: DiscoveryFilterRule[] }>(
     "Discovery", "list_filter_rules", { query_id: null }, { revalidateOnFocus: false }
   );
 
-  const { data: runs } = useRestate<DiscoveryRun[]>(
+  const { data: runsData } = useRestate<{ runs: DiscoveryRun[] }>(
     "Discovery", "list_runs", { limit: 10 }, { revalidateOnFocus: false }
   );
 
-  const queryList = queries || [];
-  const ruleList = globalRules || [];
-  const runList = runs || [];
+  const queryList = queriesData?.queries || [];
+  const ruleList = rulesData?.rules || [];
+  const runList = runsData?.runs || [];
 
   const handleRunDiscovery = async () => {
     setIsRunning(true);
@@ -554,11 +554,11 @@ function RunsTab({ runs }: { runs: DiscoveryRun[] }) {
 // ============================================================================
 
 function RunResultsDetail({ runId }: { runId: string }) {
-  const { data, isLoading } = useRestate<DiscoveryRunResult[]>(
+  const { data, isLoading } = useRestate<{ results: DiscoveryRunResult[] }>(
     "Discovery", "run_results", { run_id: runId }, { revalidateOnFocus: false }
   );
 
-  const results = data || [];
+  const results = data?.results || [];
 
   if (isLoading) {
     return (
