@@ -10,5 +10,6 @@
 pub mod activities;
 pub mod events;
 pub mod models;
+pub mod restate;
 
 pub use events::ChatStreamEvent;
