@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const RESTATE_INGRESS_URL =
   process.env.RESTATE_INGRESS_URL || "http://localhost:8180";
+const RESTATE_AUTH_TOKEN = process.env.RESTATE_AUTH_TOKEN || "";
 
 const JWT_SECRET = process.env.JWT_SECRET || "";
 
@@ -98,8 +99,14 @@ export async function POST(
     "Content-Type": "application/json",
   };
 
+  // Restate Cloud requires its own auth token for ingress
+  if (RESTATE_AUTH_TOKEN) {
+    headers["Authorization"] = `Bearer ${RESTATE_AUTH_TOKEN}`;
+  }
+
+  // Pass user's JWT as a separate header for the backend to read
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers["X-User-Token"] = token;
   }
 
   try {
