@@ -2,13 +2,13 @@
 //!
 //! Contains greeting generation, reply generation, and prompt building helpers.
 //!
-//! Agent identity and preamble come from the `agents` table.
+//! Agent identity comes from the `agents` table; preamble from `agent_assistant_configs`.
 
 use anyhow::Result;
 use tracing::{error, info};
 
 use crate::common::{ContainerId, MessageId};
-use crate::domains::agents::models::Agent;
+use crate::domains::agents::models::{Agent, AgentAssistantConfig};
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
 use crate::kernel::{CompletionExt, SearchPostsTool, ServerDeps};
@@ -27,9 +27,9 @@ pub async fn generate_greeting(
 ) -> Result<Message> {
     info!(container_id = %container_id, agent_config = %agent_config, "Generating agent greeting");
 
-    let agent = Agent::get_or_create_by_config(agent_config, &deps.db_pool).await?;
+    let (agent, config) = get_or_create_assistant(agent_config, &deps.db_pool).await?;
 
-    let greeting_prompt = build_greeting_prompt(&agent.preamble);
+    let greeting_prompt = build_greeting_prompt(&config.preamble);
 
     let greeting_text = deps.ai.complete(&greeting_prompt).await.map_err(|e| {
         error!("Failed to generate AI greeting: {}", e);
@@ -96,7 +96,7 @@ pub async fn generate_reply(
     let agent_config = get_container_agent_config(container_id, &deps.db_pool)
         .await
         .unwrap_or_else(|| "admin".to_string());
-    let agent = Agent::get_or_create_by_config(&agent_config, &deps.db_pool).await?;
+    let (agent, config) = get_or_create_assistant(&agent_config, &deps.db_pool).await?;
 
     let messages = Message::find_by_container(container_id, &deps.db_pool)
         .await
@@ -105,7 +105,7 @@ pub async fn generate_reply(
             anyhow::anyhow!("Failed to load conversation: {}", e)
         })?;
 
-    let oai_messages = build_oai_messages(&agent.preamble, &messages);
+    let oai_messages = build_oai_messages(&config.preamble, &messages);
 
     let response = deps
         .ai
@@ -166,6 +166,40 @@ pub async fn get_container_agent_config(
     tags.into_iter()
         .find(|t| t.kind == "with_agent")
         .map(|t| t.value)
+}
+
+// ============================================================================
+// Helper: Get or create assistant agent by config name
+// ============================================================================
+
+use crate::domains::agents::models::{ADMIN_AGENT_PREAMBLE, PUBLIC_AGENT_PREAMBLE};
+
+/// Look up an assistant agent by config_name, creating it if it doesn't exist.
+async fn get_or_create_assistant(
+    config_name: &str,
+    pool: &sqlx::PgPool,
+) -> Result<(Agent, AgentAssistantConfig)> {
+    if let Some(config) = AgentAssistantConfig::find_by_config_name(config_name, pool).await? {
+        let agent = Agent::find_by_id(config.agent_id, pool).await?;
+        return Ok((agent, config));
+    }
+
+    let display_name = match config_name {
+        "admin" => "Admin Assistant",
+        "public" => "MN Together Guide",
+        _ => config_name,
+    };
+    let preamble = match config_name {
+        "admin" => ADMIN_AGENT_PREAMBLE,
+        "public" => PUBLIC_AGENT_PREAMBLE,
+        _ => "You are a helpful assistant.",
+    };
+
+    let agent = Agent::create(display_name, "assistant", pool).await?;
+    Agent::set_status(agent.id, "active", pool).await?;
+    let config = AgentAssistantConfig::create(agent.id, preamble, config_name, pool).await?;
+
+    Ok((agent, config))
 }
 
 // ============================================================================
