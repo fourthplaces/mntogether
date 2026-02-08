@@ -16,7 +16,6 @@ use server_core::domains::chatrooms::restate::{
     ChatObject, ChatObjectImpl, ChatsService, ChatsServiceImpl,
 };
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
-use server_core::domains::discovery::restate::{DiscoveryService, DiscoveryServiceImpl};
 use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
 use server_core::domains::member::restate::{
@@ -242,8 +241,6 @@ async fn main() -> Result<()> {
         .bind(ChatsServiceImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
-        // Discovery domain
-        .bind(DiscoveryServiceImpl::with_deps(server_deps.clone()).serve())
         // Extraction domain
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs domain
