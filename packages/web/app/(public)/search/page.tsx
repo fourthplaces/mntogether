@@ -41,7 +41,7 @@ export default async function SearchPage({
             Search Services
           </h1>
           <p className="text-gray-600">
-            Find organizations and services that can help you
+            Find services that can help you
           </p>
         </div>
 
