@@ -60,6 +60,27 @@ async fn main() -> Result<()> {
     // Load environment variables
     dotenvy::dotenv().ok();
 
+    // Debug: log masked env vars for production troubleshooting
+    fn mask_env(name: &str) {
+        match std::env::var(name) {
+            Ok(val) if val.is_empty() => tracing::info!("  {}: (empty)", name),
+            Ok(val) => {
+                let show = std::cmp::min(4, val.len());
+                tracing::info!("  {}: {}{}  ({} chars)", name, &val[..show], "*".repeat(val.len().saturating_sub(show)), val.len());
+            }
+            Err(_) => tracing::warn!("  {}: NOT SET", name),
+        }
+    }
+    tracing::info!("Environment variables:");
+    for name in &[
+        "DATABASE_URL", "OPENAI_API_KEY", "TAVILY_API_KEY", "FIRECRAWL_API_KEY",
+        "EXPO_ACCESS_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
+        "TWILIO_VERIFY_SERVICE_SID", "JWT_SECRET", "JWT_ISSUER",
+        "SERVER_PORT", "SSE_SERVER_PORT", "ADMIN_IDENTIFIERS",
+    ] {
+        mask_env(name);
+    }
+
     // Database setup
     let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
     let pool = PgPoolOptions::new()
