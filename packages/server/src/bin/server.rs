@@ -219,7 +219,17 @@ async fn main() -> Result<()> {
     });
 
     // Build Restate endpoint with all domain services, objects, and workflows
-    let endpoint = Endpoint::builder()
+    let mut builder = Endpoint::builder();
+
+    // Configure Restate request identity verification
+    if let Ok(identity_key) = std::env::var("RESTATE_IDENTITY_KEY") {
+        tracing::info!("Restate identity key configured");
+        builder = builder
+            .identity_key(&identity_key)
+            .context("Invalid Restate identity key")?;
+    }
+
+    let endpoint = builder
         // Auth domain
         .bind(AuthServiceImpl::with_deps(server_deps.clone()).serve())
         // Chatrooms domain
