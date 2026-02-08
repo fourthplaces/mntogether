@@ -168,7 +168,6 @@ impl ChatObject for ChatObjectImpl {
 
         Ok(ChatResult::from(container))
     }
-    
 
     async fn send_message(
         &self,
