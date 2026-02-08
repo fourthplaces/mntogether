@@ -6,27 +6,23 @@ import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useState, useRef, useEffect } from "react";
-import type { PostDetail, TagResult, EntityProposalListResult, EntityProposal } from "@/lib/restate/types";
-
-const AUDIENCE_ROLES = [
-  { value: "recipient", label: "Recipient", description: "People receiving services/benefits" },
-  { value: "donor", label: "Donor", description: "People giving money/goods" },
-  { value: "volunteer", label: "Volunteer", description: "People giving their time" },
-  { value: "participant", label: "Participant", description: "People attending events/groups" },
-  { value: "customer", label: "Customer", description: "People buying from immigrant-owned businesses" },
-];
+import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal } from "@/lib/restate/types";
 
 export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const postId = params.id as string;
-  const [isEditingTags, setIsEditingTags] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [showTagModal, setShowTagModal] = useState(false);
+  const [selectedKind, setSelectedKind] = useState("");
+  const [tagValue, setTagValue] = useState("");
+  const [tagDisplayName, setTagDisplayName] = useState("");
+  const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -70,47 +66,57 @@ export default function PostDetailPage() {
     }
   };
 
-  const getAudienceRoleBadgeClass = (role: string) => {
-    switch (role) {
-      case "recipient":
-        return "bg-blue-100 text-blue-800";
-      case "donor":
-        return "bg-green-100 text-green-800";
-      case "volunteer":
-        return "bg-purple-100 text-purple-800";
-      case "participant":
-        return "bg-amber-100 text-amber-800";
-      case "customer":
-        return "bg-teal-100 text-teal-800";
-      default:
-        return "bg-stone-100 text-stone-800";
-    }
-  };
-
   const tags = post?.tags || [];
-  const audienceRoleTags = tags.filter((t: TagResult) => t.kind === "audience_role");
-  const otherTags = tags.filter((t: TagResult) => t.kind !== "audience_role");
 
-  const handleToggleAudienceRole = async (role: string) => {
-    if (!postId) return;
+  // Group tags by kind for display
+  const tagsByKind: Record<string, TagResult[]> = {};
+  for (const tag of tags) {
+    if (!tagsByKind[tag.kind]) tagsByKind[tag.kind] = [];
+    tagsByKind[tag.kind].push(tag);
+  }
 
+  // Load tag kinds and tags for the selected kind in the modal
+  const { data: kindsData } = useRestate<TagKindListResult>(
+    showTagModal ? "Tags" : null, "list_kinds", {}
+  );
+  const { data: kindTagsData } = useRestate<TagListResult>(
+    showTagModal && selectedKind ? "Tags" : null,
+    "list_tags",
+    { kind: selectedKind }
+  );
+
+  const availableKinds = kindsData?.kinds || [];
+  const availableTags = kindTagsData?.tags || [];
+
+  const handleAddTag = async () => {
+    if (!postId || !selectedKind || !tagValue) return;
     setIsUpdating(true);
     try {
-      const existingTag = audienceRoleTags.find((t: TagResult) => t.value === role);
-      if (existingTag) {
-        await callObject("Post", postId, "remove_tag", { tag_id: existingTag.id });
-      } else {
-        const roleInfo = AUDIENCE_ROLES.find((r) => r.value === role);
-        await callObject("Post", postId, "add_tag", {
-          tag_kind: "audience_role",
-          tag_value: role,
-          display_name: roleInfo?.label || role,
-        });
-      }
+      await callObject("Post", postId, "add_tag", {
+        tag_kind: selectedKind,
+        tag_value: tagValue,
+        display_name: tagDisplayName || tagValue,
+      });
+      setTagValue("");
+      setTagDisplayName("");
       invalidateObject("Post", postId);
       refetch();
     } catch (err) {
-      console.error("Failed to update tag:", err);
+      console.error("Failed to add tag:", err);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleRemoveTag = async (tagId: string) => {
+    if (!postId) return;
+    setIsUpdating(true);
+    try {
+      await callObject("Post", postId, "remove_tag", { tag_id: tagId });
+      invalidateObject("Post", postId);
+      refetch();
+    } catch (err) {
+      console.error("Failed to remove tag:", err);
     } finally {
       setIsUpdating(false);
     }
@@ -233,7 +239,7 @@ export default function PostDetailPage() {
   if (!post.source_url && post.website_id) missingFields.push("source URL");
   if (!post.tldr) missingFields.push("TLDR");
   if (!post.location) missingFields.push("location");
-  if (audienceRoleTags.length === 0) missingFields.push("audience role");
+  if (tags.length === 0) missingFields.push("tags");
 
   return (
     <div className="min-h-screen bg-stone-50 p-6">
@@ -300,6 +306,15 @@ export default function PostDetailPage() {
                 </button>
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setShowTagModal(true);
+                      }}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                    >
+                      Edit Tags
+                    </button>
                     <button
                       onClick={handleRegenerate}
                       disabled={actionInProgress !== null}
@@ -443,75 +458,40 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Audience Roles */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        {/* Tags */}
+        <div id="tags-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-stone-900">Audience Roles</h2>
+            <h2 className="text-lg font-semibold text-stone-900">Tags</h2>
             <button
-              onClick={() => setIsEditingTags(!isEditingTags)}
+              onClick={() => setShowTagModal(true)}
               className="text-sm text-blue-600 hover:text-blue-800"
             >
-              {isEditingTags ? "Done" : "Edit"}
+              Edit
             </button>
           </div>
 
-          <p className="text-sm text-stone-500 mb-4">Who is this post for? Select all that apply.</p>
-
-          {isEditingTags ? (
-            <div className="grid grid-cols-2 gap-3">
-              {AUDIENCE_ROLES.map((role) => {
-                const isSelected = audienceRoleTags.some((t: TagResult) => t.value === role.value);
-                return (
-                  <button
-                    key={role.value}
-                    onClick={() => handleToggleAudienceRole(role.value)}
-                    disabled={isUpdating}
-                    className={`p-3 rounded-lg border-2 text-left transition-colors ${
-                      isSelected
-                        ? "border-blue-500 bg-blue-50"
-                        : "border-stone-200 hover:border-stone-300"
-                    } ${isUpdating ? "opacity-50 cursor-wait" : ""}`}
-                  >
-                    <div className="font-medium text-stone-900">{role.label}</div>
-                    <div className="text-xs text-stone-500">{role.description}</div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="flex flex-wrap gap-2">
-              {audienceRoleTags.length > 0 ? (
-                audienceRoleTags.map((tag: TagResult) => (
-                  <span
-                    key={tag.id}
-                    className={`px-3 py-1 text-sm rounded-full font-medium ${getAudienceRoleBadgeClass(tag.value)}`}
-                  >
-                    {tag.display_name || tag.value}
-                  </span>
-                ))
-              ) : (
-                <span className="text-stone-400 text-sm">No audience roles set</span>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Other Tags */}
-        {otherTags.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">Other Tags</h2>
-            <div className="flex flex-wrap gap-2">
-              {otherTags.map((tag: TagResult) => (
-                <span
-                  key={tag.id}
-                  className="px-3 py-1 text-sm rounded-full font-medium bg-stone-100 text-stone-800"
-                >
-                  <span className="text-stone-500">{tag.kind}:</span> {tag.display_name || tag.value}
-                </span>
+          {tags.length > 0 ? (
+            <div className="space-y-3">
+              {Object.entries(tagsByKind).map(([kind, kindTags]) => (
+                <div key={kind}>
+                  <span className="text-xs text-stone-500 uppercase">{kind.replace(/_/g, " ")}</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {kindTags.map((tag: TagResult) => (
+                      <span
+                        key={tag.id}
+                        className="px-3 py-1 text-sm rounded-full font-medium bg-stone-100 text-stone-800"
+                      >
+                        {tag.display_name || tag.value}
+                      </span>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
-          </div>
-        )}
+          ) : (
+            <span className="text-stone-400 text-sm">No tags</span>
+          )}
+        </div>
 
         {/* Source Pages */}
         {post.source_pages && post.source_pages.length > 0 && (
@@ -612,6 +592,153 @@ export default function PostDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Tag Editor Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-semibold text-stone-900">Edit Tags</h3>
+              <button
+                onClick={() => setShowTagModal(false)}
+                className="text-stone-400 hover:text-stone-600 text-xl leading-none"
+              >
+                &times;
+              </button>
+            </div>
+
+            {/* Current tags grouped by kind */}
+            {tags.length > 0 ? (
+              <div className="space-y-3 mb-6">
+                {Object.entries(tagsByKind).map(([kind, kindTags]) => (
+                  <div key={kind}>
+                    <span className="text-xs text-stone-500 uppercase font-medium">{kind.replace(/_/g, " ")}</span>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {kindTags.map((tag: TagResult) => (
+                        <span
+                          key={tag.id}
+                          className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium bg-stone-100 text-stone-800"
+                        >
+                          {tag.display_name || tag.value}
+                          <button
+                            onClick={() => handleRemoveTag(tag.id)}
+                            disabled={isUpdating}
+                            className="text-stone-400 hover:text-red-600 ml-1 disabled:opacity-50"
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-stone-400 text-sm mb-6">No tags yet.</p>
+            )}
+
+            {/* Add tag form */}
+            <div className="border-t border-stone-200 pt-4">
+              <h4 className="text-sm font-medium text-stone-700 mb-3">Add a tag</h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs text-stone-500 mb-1">Kind</label>
+                  <select
+                    value={selectedKind}
+                    onChange={(e) => {
+                      setSelectedKind(e.target.value);
+                      setTagValue("");
+                      setTagDisplayName("");
+                      setIsCreatingNewTag(false);
+                    }}
+                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select a kind...</option>
+                    {availableKinds.map((kind) => (
+                      <option key={kind.id} value={kind.slug}>
+                        {kind.display_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {selectedKind && (
+                  <>
+                    <div>
+                      <label className="block text-xs text-stone-500 mb-1">Value</label>
+                      {isCreatingNewTag ? (
+                        <div className="space-y-2">
+                          <input
+                            value={tagValue}
+                            onChange={(e) => setTagValue(e.target.value)}
+                            placeholder="New tag value..."
+                            className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            autoFocus
+                          />
+                          <div>
+                            <label className="block text-xs text-stone-500 mb-1">Display Name</label>
+                            <input
+                              value={tagDisplayName}
+                              onChange={(e) => setTagDisplayName(e.target.value)}
+                              placeholder="Human-readable name..."
+                              className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              setIsCreatingNewTag(false);
+                              setTagValue("");
+                              setTagDisplayName("");
+                            }}
+                            className="text-xs text-stone-500 hover:text-stone-700"
+                          >
+                            Back to list
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <select
+                            value={tagValue}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val === "__new__") {
+                                setIsCreatingNewTag(true);
+                                setTagValue("");
+                                setTagDisplayName("");
+                                return;
+                              }
+                              setTagValue(val);
+                              const match = availableTags.find((t) => t.value === val);
+                              setTagDisplayName(match?.display_name || val);
+                            }}
+                            className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            <option value="">Select a value...</option>
+                            {availableTags.map((tag) => (
+                              <option key={tag.id} value={tag.value}>
+                                {tag.display_name || tag.value}
+                              </option>
+                            ))}
+                            <option value="__new__">+ Create new...</option>
+                          </select>
+                        </div>
+                      )}
+                    </div>
+
+                    <button
+                      onClick={handleAddTag}
+                      disabled={isUpdating || !tagValue}
+                      className="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isUpdating ? "Adding..." : "Add Tag"}
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Reject Modal */}
       {showRejectModal && (
