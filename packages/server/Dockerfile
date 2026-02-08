@@ -17,9 +17,8 @@ COPY packages/openai-client/Cargo.toml ./packages/openai-client/
 # Create dummy src files for all packages to cache dependencies
 RUN mkdir -p packages/server/src && \
     echo "fn main() {}" > packages/server/src/lib.rs && \
-    mkdir -p packages/server/src/server && \
-    echo "fn main() {}" > packages/server/src/server/main.rs && \
     mkdir -p packages/server/src/bin && \
+    echo "fn main() {}" > packages/server/src/bin/server.rs && \
     echo "fn main() {}" > packages/server/src/bin/generate_embeddings.rs && \
     echo "fn main() {}" > packages/server/src/bin/migrate_cli.rs && \
     mkdir -p packages/twilio-rs/src && \
