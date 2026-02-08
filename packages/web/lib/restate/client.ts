@@ -6,15 +6,6 @@
 import useSWR, { SWRConfiguration, mutate as globalMutate } from "swr";
 
 /**
- * Get the auth token from cookies (client-side)
- */
-function getAuthToken(): string | null {
-  if (typeof document === "undefined") return null;
-  const match = document.cookie.match(/(?:^|; )auth_token=([^;]*)/);
-  return match ? decodeURIComponent(match[1]) : null;
-}
-
-/**
  * Build the proxy URL for a Restate service call
  */
 function serviceUrl(service: string, handler: string): string {
@@ -32,18 +23,11 @@ function objectUrl(object: string, key: string, handler: string): string {
  * Low-level fetch to the Restate proxy
  */
 async function restateFetch<T>(path: string, body?: unknown): Promise<T> {
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-  };
-
-  const token = getAuthToken();
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
+  // Auth cookie is httpOnly — sent automatically by the browser.
+  // The proxy reads it server-side and forwards to Restate.
   const response = await fetch(path, {
     method: "POST",
-    headers,
+    headers: { "Content-Type": "application/json" },
     body: body !== undefined ? JSON.stringify(body) : "{}",
   });
 
