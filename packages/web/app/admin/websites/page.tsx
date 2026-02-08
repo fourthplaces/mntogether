@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRestate } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -8,6 +9,14 @@ import { PaginationControls } from "@/components/ui/PaginationControls";
 import type { WebsiteList } from "@/lib/restate/types";
 
 export default function WebsitesPage() {
+  return (
+    <Suspense fallback={<AdminLoader label="Loading websites..." />}>
+      <WebsitesContent />
+    </Suspense>
+  );
+}
+
+function WebsitesContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const statusFilter = searchParams.get("status");
