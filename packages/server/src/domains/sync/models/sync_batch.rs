@@ -2,12 +2,14 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::SyncBatchId;
+use crate::impl_restate_serde;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SyncBatch {
     pub id: SyncBatchId,
     pub resource_type: String,
@@ -21,6 +23,8 @@ pub struct SyncBatch {
     pub reviewed_at: Option<DateTime<Utc>>,
     pub expires_at: Option<DateTime<Utc>>,
 }
+
+impl_restate_serde!(SyncBatch);
 
 impl SyncBatch {
     pub async fn create(

@@ -6,8 +6,8 @@
 
 set -e
 
-RESTATE_ADMIN=${RESTATE_ADMIN_URL:-http://localhost:9071}
-WORKFLOW_SERVER=${WORKFLOW_SERVER_URL:-http://workflow-server:9080}
+RESTATE_ADMIN=${RESTATE_ADMIN_URL:-http://localhost:9070}
+WORKFLOW_SERVER=${WORKFLOW_SERVER_URL:-http://server:9080}
 
 echo "Registering workflow server with Restate..."
 echo "  Restate Admin API: $RESTATE_ADMIN"
@@ -16,7 +16,7 @@ echo "  Workflow Server:   $WORKFLOW_SERVER"
 # Register the workflow server endpoint
 curl -X POST "$RESTATE_ADMIN/deployments" \
   -H "Content-Type: application/json" \
-  -d "{\"uri\": \"$WORKFLOW_SERVER\"}"
+  -d "{\"uri\": \"$WORKFLOW_SERVER\", \"force\": true}"
 
 echo ""
 echo "✅ Workflow server registered successfully!"
@@ -26,4 +26,4 @@ echo "  - SendOtp"
 echo "  - VerifyOtp"
 echo "  - CrawlWebsite"
 echo ""
-echo "Invoke workflows via: http://localhost:9070/<WorkflowName>/run"
+echo "Invoke workflows via: http://localhost:8180/<WorkflowName>/run"

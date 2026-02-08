@@ -1,5 +1,5 @@
 // Build script for server
-// Frontend apps (web-app, web-next) are now built and served separately
+// Frontend apps are now built and served separately
 // via Docker Compose or standalone, not embedded in the server binary
 
 fn main() {

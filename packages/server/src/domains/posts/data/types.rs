@@ -1,15 +1,10 @@
-use crate::domains::extraction::data::ExtractionPageData;
 use crate::domains::posts::models::Post;
-use crate::domains::tag::TagData;
-use crate::server::graphql::context::GraphQLContext;
-use crate::server::graphql::schema::ScheduleData;
 use chrono::{DateTime, Utc};
-use juniper::{GraphQLEnum, GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// GraphQL type for listing
-#[derive(Debug, Clone)]
+/// Post type for API responses
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostType {
     pub id: Uuid,
     pub title: String,
@@ -28,106 +23,8 @@ pub struct PostType {
     pub business_info: Option<BusinessInfo>,
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl PostType {
-    fn id(&self) -> Uuid {
-        self.id
-    }
-    fn title(&self) -> &str {
-        &self.title
-    }
-    fn tldr(&self) -> Option<&str> {
-        self.tldr.as_deref()
-    }
-    fn description(&self) -> &str {
-        &self.description
-    }
-    fn description_markdown(&self) -> Option<&str> {
-        self.description_markdown.as_deref()
-    }
-    fn post_type(&self) -> &str {
-        &self.post_type
-    }
-    fn category(&self) -> &str {
-        &self.category
-    }
-    fn status(&self) -> PostStatusData {
-        self.status
-    }
-    fn urgency(&self) -> Option<&str> {
-        self.urgency.as_deref()
-    }
-    fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
-    fn submission_type(&self) -> Option<&str> {
-        self.submission_type.as_deref()
-    }
-    fn source_url(&self) -> Option<&str> {
-        self.source_url.as_deref()
-    }
-    fn website_id(&self) -> Option<Uuid> {
-        self.website_id
-    }
-    fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-    fn business_info(&self) -> Option<&BusinessInfo> {
-        self.business_info.as_ref()
-    }
-
-    /// Get all tags for this listing (batched via DataLoader)
-    async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
-        let tags = context.loaders.post_tags.load(self.id).await;
-        Ok(tags.into_iter().map(TagData::from).collect())
-    }
-
-    /// Get extraction pages this post was sourced from
-    async fn source_pages(
-        &self,
-        context: &GraphQLContext,
-    ) -> juniper::FieldResult<Vec<ExtractionPageData>> {
-        let Some(source_url) = &self.source_url else {
-            return Ok(vec![]);
-        };
-        // Handle comma-separated URLs from dedup merge
-        let urls: Vec<&str> = source_url.split(',').map(|u| u.trim()).collect();
-        let mut pages = Vec::new();
-        for url in urls {
-            if let Some(page) = ExtractionPageData::find_by_url(url, &context.db_pool).await? {
-                pages.push(page);
-            }
-        }
-        Ok(pages)
-    }
-
-    /// Get all schedules attached to this post (batched via DataLoader)
-    async fn schedules(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<ScheduleData>> {
-        let schedules = context.loaders.post_schedules.load(self.id).await;
-        Ok(schedules.into_iter().map(ScheduleData::from).collect())
-    }
-
-    /// Next occurrence datetimes for this post (computed from rrule, not stored)
-    async fn next_occurrences(
-        &self,
-        context: &GraphQLContext,
-        limit: Option<i32>,
-    ) -> juniper::FieldResult<Vec<String>> {
-        let limit = limit.unwrap_or(10).min(100) as usize;
-        let schedules = context.loaders.post_schedules.load(self.id).await;
-        let mut dates: Vec<DateTime<Utc>> = schedules
-            .iter()
-            .flat_map(|s| s.next_occurrences(limit))
-            .collect();
-        dates.sort();
-        dates.truncate(limit);
-        Ok(dates.into_iter().map(|d| d.to_rfc3339()).collect())
-    }
-}
-
 /// Business-specific information for cause-driven commerce
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "Business listing details including cause-driven commerce")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BusinessInfo {
     pub accepts_donations: bool,
     pub donation_link: Option<String>,
@@ -173,7 +70,7 @@ impl From<Post> for PostType {
 }
 
 /// A post with distance info from proximity search
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NearbyPostType {
     pub post: PostType,
     pub distance_miles: f64,
@@ -181,25 +78,8 @@ pub struct NearbyPostType {
     pub city: Option<String>,
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl NearbyPostType {
-    fn post(&self) -> &PostType {
-        &self.post
-    }
-    fn distance_miles(&self) -> f64 {
-        self.distance_miles
-    }
-    fn zip_code(&self) -> Option<&str> {
-        self.zip_code.as_deref()
-    }
-    fn city(&self) -> Option<&str> {
-        self.city.as_deref()
-    }
-}
-
-/// Contact information for GraphQL output
-/// This is a thin wrapper over common::ContactInfo for GraphQL serialization.
-#[derive(Debug, Clone, GraphQLObject, Serialize, Deserialize)]
+/// Contact information
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactInfoGraphQL {
     pub phone: Option<String>,
     pub email: Option<String>,
@@ -216,8 +96,8 @@ impl From<crate::common::ContactInfo> for ContactInfoGraphQL {
     }
 }
 
-/// Listing status for GraphQL
-#[derive(Debug, Clone, Copy, GraphQLEnum)]
+/// Post status
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PostStatusData {
     PendingApproval,
     Active,
@@ -227,7 +107,7 @@ pub enum PostStatusData {
 }
 
 /// Input for editing a listing before approval
-#[derive(Debug, Clone, GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditPostInput {
     pub title: Option<String>,
     pub description: Option<String>,
@@ -238,7 +118,7 @@ pub struct EditPostInput {
 }
 
 /// Input for user-submitted listings
-#[derive(Debug, Clone, GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitPostInput {
     pub title: String,
     pub description: String,
@@ -247,7 +127,7 @@ pub struct SubmitPostInput {
     pub location: Option<String>,
 }
 
-#[derive(Debug, Clone, GraphQLInputObject, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContactInfoInput {
     pub phone: Option<String>,
     pub email: Option<String>,
@@ -255,7 +135,7 @@ pub struct ContactInfoInput {
 }
 
 /// Result of scraping an organization source
-#[derive(Debug, Clone, GraphQLObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeResult {
     pub source_id: Uuid,
     pub new_posts_count: i32,
@@ -264,7 +144,7 @@ pub struct ScrapeResult {
 }
 
 /// Result of starting an async scrape job
-#[derive(Debug, Clone, GraphQLObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScrapeJobResult {
     pub job_id: Uuid,
     pub source_id: Uuid,
@@ -273,54 +153,22 @@ pub struct ScrapeJobResult {
 }
 
 /// Edge containing a post and its cursor (Relay spec)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostEdge {
     pub node: PostType,
     pub cursor: String,
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl PostEdge {
-    /// The post at the end of the edge
-    fn node(&self) -> &PostType {
-        &self.node
-    }
-    /// A cursor for pagination
-    fn cursor(&self) -> &str {
-        &self.cursor
-    }
-}
-
 /// Connection type for paginated posts (Relay spec)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostConnection {
     pub edges: Vec<PostEdge>,
     pub page_info: crate::common::PageInfo,
     pub total_count: i32,
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl PostConnection {
-    /// A list of edges (post + cursor pairs)
-    fn edges(&self) -> &[PostEdge] {
-        &self.edges
-    }
-    /// Information about pagination
-    fn page_info(&self) -> &crate::common::PageInfo {
-        &self.page_info
-    }
-    /// Total count of posts matching the filter
-    fn total_count(&self) -> i32 {
-        self.total_count
-    }
-    /// Convenience: direct access to nodes (for simpler queries)
-    fn nodes(&self) -> Vec<&PostType> {
-        self.edges.iter().map(|e| &e.node).collect()
-    }
-}
-
 /// Input for submitting a resource link from the public
-#[derive(Debug, Clone, GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitResourceLinkInput {
     pub url: String,
     pub context: Option<String>,
@@ -328,7 +176,7 @@ pub struct SubmitResourceLinkInput {
 }
 
 /// Result of submitting a resource link
-#[derive(Debug, Clone, GraphQLObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitResourceLinkResult {
     pub job_id: Uuid,
     pub status: String,
@@ -336,18 +184,8 @@ pub struct SubmitResourceLinkResult {
 }
 
 /// Result of reposting a listing
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepostResult {
     pub post: super::PostData,
     pub message: String,
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl RepostResult {
-    fn post(&self) -> &super::PostData {
-        &self.post
-    }
-    fn message(&self) -> &str {
-        &self.message
-    }
 }

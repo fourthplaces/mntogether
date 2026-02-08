@@ -5,5 +5,5 @@
 mod responses;
 
 pub use responses::{
-    generate_greeting, generate_reply, generate_reply_streaming, get_container_agent_config,
+    generate_greeting, generate_reply, get_container_agent_config,
 };

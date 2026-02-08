@@ -42,6 +42,7 @@
 
 pub mod activities;
 pub mod data;
+pub mod restate;
 
 // Re-exports
 pub use activities::{

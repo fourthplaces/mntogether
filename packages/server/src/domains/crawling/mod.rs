@@ -7,7 +7,7 @@
 //! | Domain | Purpose | Entry Point |
 //! |--------|---------|-------------|
 //! | **Extraction** | User-facing API | `extraction::activities::submit_url()` |
-//! | **Crawling** | System orchestration | `crawling::workflows::CrawlWebsiteWorkflow` |
+//! | **Crawling** | System orchestration | `crawling::restate::CrawlWebsiteWorkflow` |
 //!
 //! **Extraction domain** handles explicit user requests (submit URL, run query).
 //! **Crawling domain** handles system-level orchestration via durable workflows.
@@ -16,19 +16,19 @@
 //!
 //! # Components
 //!
-//! - `workflows/` - Durable workflows (CrawlWebsiteWorkflow)
+//! - `restate/` - Durable workflows (CrawlWebsiteWorkflow)
 //! - `activities/` - Business logic activities called by workflows (renamed from actions)
 //! - `models/` - Data models (ExtractionPage)
-//! - `effects/` - DEPRECATED: Being replaced by workflows
-//! - `events/` - DEPRECATED: Being replaced by workflow state
+//! - `effects/` - DEPRECATED: Being replaced by restate workflows
+//! - `events/` - DEPRECATED: Being replaced by restate workflow state
 
 pub mod activities;
 pub mod models;
 pub mod types;
-pub mod workflows;
+pub mod restate;
 
-// Re-export workflows
-pub use workflows::*;
+// Re-export restate types
+pub use restate::*;
 
 // Re-export types
 pub use types::{WebsiteIngested, NarrativesExtracted, PostsSynced};

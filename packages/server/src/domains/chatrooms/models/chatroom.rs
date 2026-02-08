@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use crate::common::{
     ContainerId, DocumentId, DocumentReferenceId, DocumentTranslationId, MemberId, MessageId,
 };
+use crate::impl_restate_serde;
 
 /// Container - generic message container for AI chat, post comments, etc.
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -15,6 +16,8 @@ pub struct Container {
     pub created_at: DateTime<Utc>,
     pub last_activity_at: DateTime<Utc>,
 }
+
+impl_restate_serde!(Container);
 
 /// Message - message in a container (AI chat, public comment, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -31,6 +34,8 @@ pub struct Message {
     pub updated_at: DateTime<Utc>,
     pub edited_at: Option<DateTime<Utc>>,
 }
+
+impl_restate_serde!(Message);
 
 /// Message role enum
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

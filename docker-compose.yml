@@ -4,6 +4,8 @@ services:
   # ========================================
   nats:
     image: nats:2.10-alpine
+    labels:
+      dev.description: "NATS messaging server"
     container_name: mndigitalaid_nats
     command: -js -p 4222 -m 8222
     restart: always
@@ -25,6 +27,8 @@ services:
   # ========================================
   postgres:
     image: pgvector/pgvector:pg16
+    labels:
+      dev.description: "PostgreSQL database with pgvector"
     container_name: mndigitalaid_postgres
     environment:
       POSTGRES_DB: mndigitalaid
@@ -47,6 +51,8 @@ services:
   # ========================================
   redis:
     image: redis:7-alpine
+    labels:
+      dev.description: "Redis cache and pub/sub"
     container_name: mndigitalaid_redis
     ports:
       - "6379:6379"
@@ -65,11 +71,12 @@ services:
   # ========================================
   restate:
     image: docker.io/restatedev/restate:latest
+    labels:
+      dev.description: "Restate runtime for durable workflows"
     container_name: mndigitalaid_restate
     ports:
-      - "9070:9070"  # Ingress endpoint (for workflow invocations)
-      - "9071:9071"  # Admin API
-      - "8180:8080"  # Meta endpoint
+      - "8180:8080"  # Ingress endpoint (for service invocations)
+      - "9070:9070"  # Admin API (for registering deployments)
     environment:
       RESTATE_OBSERVABILITY__LOG__FORMAT: compact
       RESTATE_OBSERVABILITY__LOG__FILTER: info,restate=debug
@@ -82,100 +89,22 @@ services:
       retries: 5
 
   # ========================================
-  # API Server (Rust + GraphQL)
+  # Server (Restate Services + SSE)
   # ========================================
-  api:
+  server:
     build:
       context: .
       dockerfile: packages/server/Dockerfile.dev
-    container_name: mndigitalaid_api
-    environment:
-      # Database, Cache & Messaging
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
-      REDIS_URL: redis://redis:6379
-      NATS_CONNECTION_URL: nats://nats:4222
-
-      # Server Config
-      PORT: ${PORT:-8080}
-      RUST_LOG: ${RUST_LOG:-info,server_core=debug,extraction=debug}
-
-      # Restate Workflow URL
-      RESTATE_URL: http://restate:9070
-
-      # AI Services
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
-
-      # Search
-      TAVILY_API_KEY: ${TAVILY_API_KEY}
-
-      # SMS Authentication
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-      TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
-
-      # JWT Authentication
-      JWT_SECRET: ${JWT_SECRET}
-      JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
-
-      # Admin Authorization
-      ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS}
-
-      # Optional
-      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
-      TEST_IDENTIFIER_ENABLED: ${TEST_IDENTIFIER_ENABLED:-false}
-
-      # PII Protection
-      PII_SCRUBBING_ENABLED: ${PII_SCRUBBING_ENABLED:-true}
-      PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-true}
-
-      # Skip frontend builds in container (we serve them separately)
-      SKIP_FRONTEND_BUILD: "true"
-
-      # Skip migrations in container (handled by dev.sh before starting)
-      SKIP_MIGRATIONS: "true"
-    ports:
-      - "8080:8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-      restate:
-        condition: service_healthy
-    volumes:
-      # Mount source code for hot-reload in development
-      - ./Cargo.lock:/app/Cargo.lock
-      - ./Cargo.toml:/app/Cargo.toml
-      - ./packages:/app/packages
-      # Mount cargo config for memory-optimized compilation
-      - ./.cargo:/app/.cargo
-      # Persist build cache to speed up rebuilds
-      - rust_target:/app/target
-    # Memory limit to prevent OOM during Rust compilation
-    mem_limit: 6g
-    memswap_limit: 8g
-    networks:
-      - mndigitalaid
-    restart: unless-stopped
-
-  # ========================================
-  # Workflow Server (Restate Workflows)
-  # ========================================
-  workflow-server:
-    build:
-      context: .
-      dockerfile: packages/server/Dockerfile.dev
-    container_name: mndigitalaid_workflow_server
+    labels:
+      dev.description: "Restate services + SSE"
+      dev.shell: "bash"
+    container_name: mndigitalaid_server
     environment:
       # Database, Cache & Messaging
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
 
       # Server Config
-      WORKFLOW_SERVER_PORT: 9080
+      SERVER_PORT: 9080
       RUST_LOG: ${RUST_LOG:-info,server_core=debug}
 
       # API Keys (same as main API)
@@ -190,6 +119,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
 
+      # SSE Server
+      SSE_SERVER_PORT: 8081
+
       # Feature Flags
       TEST_IDENTIFIER_ENABLED: ${TEST_IDENTIFIER_ENABLED:-false}
       ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS:-}
@@ -197,6 +129,7 @@ services:
       PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-false}
     ports:
       - "9080:9080"
+      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -205,39 +138,37 @@ services:
     volumes:
       - ./packages/server:/app/packages/server
       - rust_target:/app/target
-    command: cargo run --bin workflow_server
+    command: cargo run --bin server
     networks:
       - mndigitalaid
 
   # ========================================
-  # Web App (DEPRECATED - use web-next instead)
-  # ========================================
-  # web-app service removed - migrated to web-next
-  # To restore temporarily, uncomment the web-app section below
-
-  # ========================================
   # Next.js Web (Primary Frontend)
   # ========================================
-  web-next:
+  web:
     build:
-      context: ./packages/web-next
+      context: ./packages/web
       dockerfile: Dockerfile.dev
-    container_name: mndigitalaid_web_next
+    labels:
+      dev.description: "Next.js web app (SSR)"
+    container_name: mndigitalaid_web
     environment:
-      # Client-side: browser uses this to reach API (use Tailscale IP for remote access)
-      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://100.110.4.74:8081/graphql}
-      # Server-side: container uses Docker network to reach API
-      API_URL: http://api:8080/graphql
+      # Server-side: container uses Docker network to reach Restate
+      RESTATE_INGRESS_URL: http://restate:8080
+      # Client-side: browser uses this for SSE streaming
+      NEXT_PUBLIC_SSE_URL: ${NEXT_PUBLIC_SSE_URL:-http://100.110.4.74:8081}
+      # JWT secret for proxy auth validation
+      JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       NODE_ENV: development
       PORT: 3000
       HOSTNAME: "0.0.0.0"
     ports:
       - "3000:3000"
     depends_on:
-      - api
+      - server
     volumes:
       # Mount source for hot-reload
-      - ./packages/web-next:/app
+      - ./packages/web:/app
       # Prevent overwriting generated files
       - /app/node_modules
       - /app/.next
@@ -245,7 +176,6 @@ services:
     networks:
       - mndigitalaid
     restart: unless-stopped
-    # Note: profile removed - web-next is now the primary frontend
 
 # ========================================
 # Volumes for data persistence

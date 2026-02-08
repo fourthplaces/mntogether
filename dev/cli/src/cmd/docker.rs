@@ -7,14 +7,60 @@ use devkit_core::AppContext;
 use dialoguer::{FuzzySelect, MultiSelect};
 use std::process::Command;
 
-/// Available Docker services from docker-compose.yml
-const SERVICES: &[(&str, &str)] = &[
-    ("postgres", "PostgreSQL database with pgvector"),
-    ("redis", "Redis cache and pub/sub"),
-    ("nats", "NATS messaging server"),
-    ("api", "Rust API server"),
-    ("web-next", "Next.js web app (SSR)"),
-];
+#[derive(Debug, Clone)]
+struct ServiceInfo {
+    name: String,
+    description: String,
+    buildable: bool,
+    shell: String,
+}
+
+/// Parse docker-compose.yml via `docker compose config --format json`
+fn discover_services(ctx: &AppContext) -> Result<Vec<ServiceInfo>> {
+    let output = Command::new("docker")
+        .args(["compose", "-f"])
+        .arg(ctx.repo.join("docker-compose.yml"))
+        .args(["config", "--format", "json"])
+        .output()
+        .context("Failed to run docker compose config")?;
+
+    if !output.status.success() {
+        anyhow::bail!(
+            "docker compose config failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    let config: serde_json::Value = serde_json::from_slice(&output.stdout)?;
+    let services_map = config["services"]
+        .as_object()
+        .context("No services in docker-compose.yml")?;
+
+    let mut services: Vec<ServiceInfo> = services_map
+        .iter()
+        .map(|(name, svc)| {
+            let labels = &svc["labels"];
+            let description = labels["dev.description"]
+                .as_str()
+                .unwrap_or_else(|| svc["image"].as_str().unwrap_or(""))
+                .to_string();
+            let buildable = svc.get("build").is_some();
+            let shell = labels["dev.shell"]
+                .as_str()
+                .unwrap_or("sh")
+                .to_string();
+            ServiceInfo {
+                name: name.clone(),
+                description,
+                buildable,
+                shell,
+            }
+        })
+        .collect();
+
+    services.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(services)
+}
 
 #[derive(Subcommand)]
 pub enum DockerCommand {
@@ -28,7 +74,7 @@ pub enum DockerCommand {
         #[arg(short, long)]
         all: bool,
 
-        /// Include optional services (web-next)
+        /// Include optional services (web)
         #[arg(long)]
         full: bool,
 
@@ -133,20 +179,19 @@ pub fn run(ctx: &AppContext, cmd: DockerCommand) -> Result<()> {
     }
 }
 
-fn select_services(ctx: &AppContext, prompt: &str, allow_all: bool) -> Result<Vec<String>> {
+fn select_services(
+    ctx: &AppContext,
+    all_services: &[ServiceInfo],
+    prompt: &str,
+    allow_all: bool,
+) -> Result<Vec<String>> {
     if ctx.quiet {
-        // In quiet mode, default to core services
-        return Ok(vec![
-            "postgres".to_string(),
-            "redis".to_string(),
-            "nats".to_string(),
-            "api".to_string(),
-        ]);
+        return Ok(all_services.iter().map(|s| s.name.clone()).collect());
     }
 
-    let items: Vec<String> = SERVICES
+    let items: Vec<String> = all_services
         .iter()
-        .map(|(name, desc)| format!("{} - {}", name, desc))
+        .map(|s| format!("{} - {}", s.name, s.description))
         .collect();
 
     let mut items_with_all = items.clone();
@@ -163,27 +208,30 @@ fn select_services(ctx: &AppContext, prompt: &str, allow_all: bool) -> Result<Ve
         anyhow::bail!("No services selected");
     }
 
-    // Check if "All services" was selected
     if allow_all && selections.contains(&0) {
-        return Ok(SERVICES.iter().map(|(name, _)| name.to_string()).collect());
+        return Ok(all_services.iter().map(|s| s.name.clone()).collect());
     }
 
     let offset = if allow_all { 1 } else { 0 };
     Ok(selections
         .into_iter()
         .filter(|&i| i >= offset)
-        .map(|i| SERVICES[i - offset].0.to_string())
+        .map(|i| all_services[i - offset].name.clone())
         .collect())
 }
 
-fn select_single_service(ctx: &AppContext, prompt: &str) -> Result<String> {
+fn select_single_service(
+    ctx: &AppContext,
+    all_services: &[ServiceInfo],
+    prompt: &str,
+) -> Result<String> {
     if ctx.quiet {
         anyhow::bail!("Service selection requires interactive mode");
     }
 
-    let items: Vec<String> = SERVICES
+    let items: Vec<String> = all_services
         .iter()
-        .map(|(name, desc)| format!("{} - {}", name, desc))
+        .map(|s| format!("{} - {}", s.name, s.description))
         .collect();
 
     let selection = FuzzySelect::with_theme(&ctx.theme())
@@ -192,7 +240,7 @@ fn select_single_service(ctx: &AppContext, prompt: &str) -> Result<String> {
         .default(0)
         .interact()?;
 
-    Ok(SERVICES[selection].0.to_string())
+    Ok(all_services[selection].name.clone())
 }
 
 fn docker_compose(ctx: &AppContext) -> Command {
@@ -209,14 +257,16 @@ fn run_up(
     full: bool,
     detach: bool,
 ) -> Result<()> {
+    let all_services = discover_services(ctx)?;
+
     let services = if all {
-        SERVICES
+        all_services
             .iter()
-            .filter(|(name, _)| *name != "web-next" || full)
-            .map(|(name, _)| name.to_string())
+            .filter(|s| s.name != "web" || full)
+            .map(|s| s.name.clone())
             .collect()
     } else if services.is_empty() {
-        select_services(ctx, "Select services to start", true)?
+        select_services(ctx, &all_services, "Select services to start", true)?
     } else {
         services
     };
@@ -276,10 +326,12 @@ fn run_down(ctx: &AppContext, services: Vec<String>, volumes: bool) -> Result<()
 }
 
 fn run_restart(ctx: &AppContext, services: Vec<String>, all: bool) -> Result<()> {
+    let all_services = discover_services(ctx)?;
+
     let services = if all {
-        SERVICES.iter().map(|(name, _)| name.to_string()).collect()
+        all_services.iter().map(|s| s.name.clone()).collect()
     } else if services.is_empty() {
-        select_services(ctx, "Select services to restart", true)?
+        select_services(ctx, &all_services, "Select services to restart", true)?
     } else {
         services
     };
@@ -306,26 +358,19 @@ fn run_restart(ctx: &AppContext, services: Vec<String>, all: bool) -> Result<()>
 }
 
 fn run_build(ctx: &AppContext, services: Vec<String>, all: bool, no_cache: bool) -> Result<()> {
-    // Only services with Dockerfiles can be built
-    let buildable = vec!["api", "web-next"];
+    let all_services = discover_services(ctx)?;
+    let buildable: Vec<&ServiceInfo> = all_services.iter().filter(|s| s.buildable).collect();
 
     let services = if all {
-        buildable.iter().map(|s| s.to_string()).collect()
+        buildable.iter().map(|s| s.name.clone()).collect()
     } else if services.is_empty() {
         let items: Vec<String> = buildable
             .iter()
-            .map(|s| {
-                let desc = SERVICES
-                    .iter()
-                    .find(|(n, _)| n == s)
-                    .map(|(_, d)| *d)
-                    .unwrap_or("");
-                format!("{} - {}", s, desc)
-            })
+            .map(|s| format!("{} - {}", s.name, s.description))
             .collect();
 
         if ctx.quiet {
-            buildable.iter().map(|s| s.to_string()).collect()
+            buildable.iter().map(|s| s.name.clone()).collect()
         } else {
             let selections = MultiSelect::with_theme(&ctx.theme())
                 .with_prompt("Select services to build")
@@ -334,7 +379,7 @@ fn run_build(ctx: &AppContext, services: Vec<String>, all: bool, no_cache: bool)
 
             selections
                 .into_iter()
-                .map(|i| buildable[i].to_string())
+                .map(|i| buildable[i].name.clone())
                 .collect()
         }
     } else {
@@ -380,7 +425,8 @@ fn run_logs(
     let services = if all {
         vec![] // Empty means all services for logs
     } else if services.is_empty() {
-        select_services(ctx, "Select services to follow logs", true)?
+        let all_services = discover_services(ctx)?;
+        select_services(ctx, &all_services, "Select services to follow logs", true)?
     } else {
         services
     };
@@ -423,22 +469,23 @@ fn run_status(ctx: &AppContext) -> Result<()> {
 }
 
 fn run_shell(ctx: &AppContext, service: Option<String>) -> Result<()> {
-    let service = match service {
+    let all_services = discover_services(ctx)?;
+
+    let service_name = match service {
         Some(s) => s,
-        None => select_single_service(ctx, "Select service to open shell")?,
+        None => select_single_service(ctx, &all_services, "Select service to open shell")?,
     };
 
-    ctx.print_header(&format!("Opening shell in {}", service));
+    ctx.print_header(&format!("Opening shell in {}", service_name));
+
+    let shell = all_services
+        .iter()
+        .find(|s| s.name == service_name)
+        .map(|s| s.shell.as_str())
+        .unwrap_or("sh");
 
     let mut cmd = docker_compose(ctx);
-    cmd.args(["exec", &service]);
-
-    // Different shells for different containers
-    let shell = match service.as_str() {
-        "api" => "bash",
-        _ => "sh",
-    };
-    cmd.arg(shell);
+    cmd.args(["exec", &service_name, shell]);
 
     let status = cmd.status().context("Failed to open shell")?;
 

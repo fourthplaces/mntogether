@@ -2,12 +2,14 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::{MemberId, SyncBatchId, SyncProposalId};
+use crate::impl_restate_serde;
 
-#[derive(Debug, Clone, sqlx::FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SyncProposal {
     pub id: SyncProposalId,
     pub batch_id: SyncBatchId,
@@ -21,6 +23,8 @@ pub struct SyncProposal {
     pub reviewed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
 }
+
+impl_restate_serde!(SyncProposal);
 
 /// Input for creating a new sync proposal
 pub struct CreateSyncProposal {
@@ -126,6 +130,22 @@ impl SyncProposal {
         )
         .bind(batch_id)
         .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find all pending proposals for a given entity (as target or draft)
+    pub async fn find_pending_for_entity(entity_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM sync_proposals
+            WHERE (target_entity_id = $1 OR draft_entity_id = $1)
+              AND status = 'pending'
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(entity_id)
+        .fetch_all(pool)
         .await
         .map_err(Into::into)
     }

@@ -1,12 +1,10 @@
 use chrono::{DateTime, Utc};
-use juniper::GraphQLObject;
 use serde::{Deserialize, Serialize};
 
 use crate::domains::tag::models::Tag;
 
-/// Tag GraphQL data type
-#[derive(Debug, Clone, Serialize, Deserialize, GraphQLObject)]
-#[graphql(description = "A tag that can be associated with various entities")]
+/// Tag data type
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TagData {
     /// Unique identifier
     pub id: String,

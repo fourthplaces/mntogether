@@ -3,7 +3,7 @@
 pub mod activities;
 pub mod data;
 pub mod models;
-pub mod workflows;
+pub mod restate;
 
 // Explicit re-exports to avoid ambiguous glob re-exports
 pub use data::{WebsiteAssessmentData, WebsiteData, WebsiteSearchResultData};

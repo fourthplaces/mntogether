@@ -1,13 +1,9 @@
 use chrono::{DateTime, Utc};
-use juniper::{GraphQLInputObject, GraphQLObject};
 use serde::{Deserialize, Serialize};
 
-use crate::common::ProviderId;
 use crate::domains::providers::models::Provider;
-use crate::domains::tag::TagData;
-use crate::server::graphql::context::GraphQLContext;
 
-/// Provider GraphQL data type
+/// Provider data type
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderData {
     pub id: String,
@@ -73,103 +69,8 @@ impl From<Provider> for ProviderData {
     }
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl ProviderData {
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn bio(&self) -> Option<&str> {
-        self.bio.as_deref()
-    }
-
-    fn why_statement(&self) -> Option<&str> {
-        self.why_statement.as_deref()
-    }
-
-    fn headline(&self) -> Option<&str> {
-        self.headline.as_deref()
-    }
-
-    fn profile_image_url(&self) -> Option<&str> {
-        self.profile_image_url.as_deref()
-    }
-
-    fn member_id(&self) -> Option<&str> {
-        self.member_id.as_deref()
-    }
-
-    fn website_id(&self) -> Option<&str> {
-        self.website_id.as_deref()
-    }
-
-    fn location(&self) -> Option<&str> {
-        self.location.as_deref()
-    }
-
-    fn latitude(&self) -> Option<f64> {
-        self.latitude
-    }
-
-    fn longitude(&self) -> Option<f64> {
-        self.longitude
-    }
-
-    fn service_radius_km(&self) -> Option<i32> {
-        self.service_radius_km
-    }
-
-    fn offers_in_person(&self) -> bool {
-        self.offers_in_person
-    }
-
-    fn offers_remote(&self) -> bool {
-        self.offers_remote
-    }
-
-    fn accepting_clients(&self) -> bool {
-        self.accepting_clients
-    }
-
-    fn status(&self) -> &str {
-        &self.status
-    }
-
-    fn reviewed_at(&self) -> Option<DateTime<Utc>> {
-        self.reviewed_at
-    }
-
-    fn rejection_reason(&self) -> Option<&str> {
-        self.rejection_reason.as_deref()
-    }
-
-    fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-
-    fn updated_at(&self) -> DateTime<Utc> {
-        self.updated_at
-    }
-
-    /// Get tags for this provider (categories, specialties, languages)
-    async fn tags(&self, context: &GraphQLContext) -> juniper::FieldResult<Vec<TagData>> {
-        use crate::domains::tag::Tag;
-
-        let provider_id = ProviderId::parse(&self.id)?;
-        let tags = Tag::find_for_provider(provider_id, &context.db_pool).await?;
-        Ok(tags.into_iter().map(TagData::from).collect())
-    }
-
-    // Provider contacts were stored in the polymorphic contacts table which has been dropped.
-    // Provider contact functionality can be re-added with a dedicated provider_contacts table if needed.
-}
-
 /// Input for submitting a new provider
-#[derive(Debug, Clone, GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitProviderInput {
     pub name: String,
     pub bio: Option<String>,
@@ -186,7 +87,7 @@ pub struct SubmitProviderInput {
 }
 
 /// Input for updating a provider
-#[derive(Debug, Clone, GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateProviderInput {
     pub name: Option<String>,
     pub bio: Option<String>,
@@ -203,7 +104,7 @@ pub struct UpdateProviderInput {
 }
 
 /// Provider status for filtering
-#[derive(Debug, Clone, GraphQLObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderStatusData {
     pub status: String,
     pub count: i32,
@@ -214,42 +115,16 @@ pub struct ProviderStatusData {
 // ============================================================================
 
 /// Edge containing a provider and its cursor (Relay spec)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderEdge {
     pub node: ProviderData,
     pub cursor: String,
 }
 
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl ProviderEdge {
-    fn node(&self) -> &ProviderData {
-        &self.node
-    }
-    fn cursor(&self) -> &str {
-        &self.cursor
-    }
-}
-
 /// Connection type for paginated providers (Relay spec)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderConnection {
     pub edges: Vec<ProviderEdge>,
     pub page_info: crate::common::PageInfo,
     pub total_count: i32,
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl ProviderConnection {
-    fn edges(&self) -> &[ProviderEdge] {
-        &self.edges
-    }
-    fn page_info(&self) -> &crate::common::PageInfo {
-        &self.page_info
-    }
-    fn total_count(&self) -> i32 {
-        self.total_count
-    }
-    fn nodes(&self) -> Vec<&ProviderData> {
-        self.edges.iter().map(|e| &e.node).collect()
-    }
 }

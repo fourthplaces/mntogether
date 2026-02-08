@@ -20,6 +20,7 @@ use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{MemberId, PostId, WebsiteId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::website::models::Website;
+use crate::impl_restate_serde;
 use crate::kernel::{LlmRequestExt, ServerDeps};
 
 // ============================================================================
@@ -37,7 +38,7 @@ pub struct PostForDedup {
 }
 
 /// A group of duplicate posts identified by the LLM
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DuplicateGroup {
     /// ID of the post to keep (canonical)
     pub canonical_id: String,
@@ -404,6 +405,150 @@ pub async fn deduplicate_posts(
 }
 
 // ============================================================================
+// Per-Website Deduplication (for Restate workflow)
+// ============================================================================
+
+/// A match between a pending post and an active post
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PendingActiveMatch {
+    pub pending_id: Uuid,
+    pub active_id: Uuid,
+    pub reasoning: String,
+}
+
+impl_restate_serde!(PendingActiveMatch);
+
+/// Wrapper for journaling phase 1 results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Phase1Result {
+    pub groups: Vec<DuplicateGroup>,
+}
+
+impl_restate_serde!(Phase1Result);
+
+/// Wrapper for journaling phase 2 results
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Phase2Result {
+    pub matches: Vec<PendingActiveMatch>,
+}
+
+impl_restate_serde!(Phase2Result);
+
+/// Phase 1: Analyze pending posts to find groups of duplicates among themselves.
+///
+/// Returns groups where each group has a canonical post and duplicates to remove.
+/// If < 2 pending posts, returns empty vec.
+pub async fn find_duplicate_pending_posts(
+    pending_posts: &[Post],
+    ai: &OpenAIClient,
+) -> Result<Vec<DuplicateGroup>> {
+    if pending_posts.len() < 2 {
+        return Ok(vec![]);
+    }
+
+    let posts_for_dedup: Vec<PostForDedup> = pending_posts
+        .iter()
+        .map(|p| PostForDedup {
+            id: p.id.as_uuid().to_string(),
+            title: p.title.clone(),
+            description: p.description.clone(),
+            primary_audience: None,
+            status: p.status.clone(),
+        })
+        .collect();
+
+    let posts_json = serde_json::to_string_pretty(&posts_for_dedup)?;
+
+    let result: DuplicateAnalysis = ai
+        .request()
+        .model("gpt-5")
+        .system(DEDUP_PENDING_SYSTEM_PROMPT)
+        .user(&format!(
+            "Analyze these draft posts for duplicates:\n\n{}",
+            posts_json
+        ))
+        .schema_hint(DEDUP_SCHEMA)
+        .max_retries(3)
+        .output()
+        .await?;
+
+    info!(
+        groups = result.duplicate_groups.len(),
+        unique = result.unique_post_ids.len(),
+        "Phase 1 deduplication complete"
+    );
+
+    Ok(result.duplicate_groups)
+}
+
+/// Phase 2: For each pending post, check if it duplicates an existing active post.
+///
+/// Returns pairs of (pending_id, active_id) with reasoning.
+/// If either list is empty, returns empty vec.
+pub async fn match_pending_to_active_posts(
+    pending_posts: &[Post],
+    active_posts: &[Post],
+    ai: &OpenAIClient,
+) -> Result<Vec<PendingActiveMatch>> {
+    if pending_posts.is_empty() || active_posts.is_empty() {
+        return Ok(vec![]);
+    }
+
+    let pending_for_llm: Vec<PostForDedup> = pending_posts
+        .iter()
+        .map(|p| PostForDedup {
+            id: p.id.as_uuid().to_string(),
+            title: p.title.clone(),
+            description: p.description.clone(),
+            primary_audience: None,
+            status: "pending".to_string(),
+        })
+        .collect();
+
+    let active_for_llm: Vec<PostForDedup> = active_posts
+        .iter()
+        .map(|p| PostForDedup {
+            id: p.id.as_uuid().to_string(),
+            title: p.title.clone(),
+            description: p.description.clone(),
+            primary_audience: None,
+            status: "active".to_string(),
+        })
+        .collect();
+
+    let pending_json = serde_json::to_string_pretty(&pending_for_llm)?;
+    let active_json = serde_json::to_string_pretty(&active_for_llm)?;
+
+    let result: PendingActiveAnalysis = ai
+        .request()
+        .model("gpt-5")
+        .system(MATCH_PENDING_ACTIVE_SYSTEM_PROMPT)
+        .user(&format!(
+            "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",
+            pending_json, active_json
+        ))
+        .schema_hint(MATCH_SCHEMA)
+        .max_retries(3)
+        .output()
+        .await?;
+
+    info!(
+        matches = result.matches.len(),
+        unmatched = result.unmatched_pending_ids.len(),
+        "Phase 2 matching complete"
+    );
+
+    Ok(result.matches)
+}
+
+/// Result of matching pending posts against active posts
+#[derive(Debug, Clone, Deserialize)]
+pub struct PendingActiveAnalysis {
+    pub matches: Vec<PendingActiveMatch>,
+    pub unmatched_pending_ids: Vec<String>,
+}
+
+// ============================================================================
 // Constants
 // ============================================================================
 
@@ -457,6 +602,72 @@ const DEDUP_SCHEMA: &str = r#"Return JSON in this format:
     }
   ],
   "unique_post_ids": ["uuid1", "uuid2", "... - posts with no duplicates"]
+}"#;
+
+const DEDUP_PENDING_SYSTEM_PROMPT: &str = r#"You are analyzing DRAFT posts from a single organization's website to identify duplicates among them.
+
+## Core Principle: Post Identity = Organization × Service × Audience
+
+Two posts are DUPLICATES only if they describe:
+1. The SAME service/program
+2. The SAME target audience
+
+## Key Rules
+
+### Different Audience = Different Post (NOT duplicates)
+- "Food Shelf" (for recipients) ≠ "Food Shelf - Volunteer" (for helpers)
+- These serve DIFFERENT user needs and should remain separate
+
+### Same Service + Same Audience = Duplicates (should merge)
+- "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing
+- "Help with Groceries" and "Food Assistance Program" → If same service, merge
+
+## Analysis Instructions
+
+1. Group draft posts that describe the SAME service for the SAME audience
+2. Pick the most complete post as canonical
+3. If merging descriptions would create a better post, provide merged_title/merged_description
+4. Provide clear reasoning for each group
+
+## Output Format
+
+Return JSON with:
+- duplicate_groups: Array of groups, each with canonical_id, duplicate_ids, optional merged content, and reasoning
+- unique_post_ids: Array of post IDs that have no duplicates"#;
+
+const MATCH_PENDING_ACTIVE_SYSTEM_PROMPT: &str = r#"You are comparing DRAFT posts against PUBLISHED posts from the same organization's website.
+
+For each draft post, determine if it describes the same service/program for the same audience as any published post.
+
+## Core Principle: Post Identity = Organization × Service × Audience
+
+A draft MATCHES a published post only if:
+1. Same service/program
+2. Same target audience
+
+## Key Rules
+
+- Different audience = NOT a match (volunteer vs recipient = different posts)
+- Same service described differently = MATCH
+- A draft that adds genuinely new information to a published post IS a match (it's an update)
+- A draft about a completely different service = NOT a match
+
+## Output Format
+
+Return JSON with:
+- matches: Array of {pending_id, active_id, reasoning} for drafts that duplicate published posts
+- unmatched_pending_ids: Array of draft post IDs that are genuinely new (no published equivalent)"#;
+
+const MATCH_SCHEMA: &str = r#"Return JSON in this format:
+{
+  "matches": [
+    {
+      "pending_id": "uuid of the draft post",
+      "active_id": "uuid of the published post it duplicates",
+      "reasoning": "why these describe the same service"
+    }
+  ],
+  "unmatched_pending_ids": ["uuid1", "uuid2"]
 }"#;
 
 // ============================================================================

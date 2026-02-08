@@ -373,7 +373,8 @@ impl Post {
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
     pub async fn find_paginated(
-        status: &str,
+        status: Option<&str>,
+        website_id: Option<WebsiteId>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
@@ -384,11 +385,12 @@ impl Post {
                 sqlx::query_as::<_, Self>(
                     r#"
                     SELECT * FROM posts
-                    WHERE status = $1
+                    WHERE ($1::text IS NULL OR status = $1)
                       AND deleted_at IS NULL
                       AND revision_of_post_id IS NULL
                       AND translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR id > $2)
+                      AND ($4::uuid IS NULL OR website_id = $4)
                     ORDER BY id ASC
                     LIMIT $3
                     "#,
@@ -396,6 +398,7 @@ impl Post {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
+                .bind(website_id)
                 .fetch_all(pool)
                 .await?
             }
@@ -404,11 +407,12 @@ impl Post {
                 let mut rows = sqlx::query_as::<_, Self>(
                     r#"
                     SELECT * FROM posts
-                    WHERE status = $1
+                    WHERE ($1::text IS NULL OR status = $1)
                       AND deleted_at IS NULL
                       AND revision_of_post_id IS NULL
                       AND translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR id < $2)
+                      AND ($4::uuid IS NULL OR website_id = $4)
                     ORDER BY id DESC
                     LIMIT $3
                     "#,
@@ -416,6 +420,7 @@ impl Post {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
+                .bind(website_id)
                 .fetch_all(pool)
                 .await?;
 
@@ -510,6 +515,29 @@ impl Post {
         .fetch_all(pool)
         .await?;
         Ok(listings)
+    }
+
+    /// Count posts grouped by website_id for a set of website IDs
+    pub async fn count_by_website_ids(
+        website_ids: &[uuid::Uuid],
+        pool: &PgPool,
+    ) -> Result<std::collections::HashMap<uuid::Uuid, i64>> {
+        let rows = sqlx::query_as::<_, (uuid::Uuid, i64)>(
+            r#"
+            SELECT website_id, COUNT(*) as count
+            FROM posts
+            WHERE website_id = ANY($1)
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+            GROUP BY website_id
+            "#,
+        )
+        .bind(website_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().collect())
     }
 
     /// Create a new listing (returns inserted record with defaults applied)
@@ -718,15 +746,24 @@ impl Post {
     }
 
     /// Count listings by status (for pagination)
-    pub async fn count_by_status(status: &str, pool: &PgPool) -> Result<i64> {
+    pub async fn count_by_status(
+        status: Option<&str>,
+        website_id: Option<WebsiteId>,
+        pool: &PgPool,
+    ) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
             FROM posts
-            WHERE status = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
+            WHERE ($1::text IS NULL OR status = $1)
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+              AND ($2::uuid IS NULL OR website_id = $2)
             "#,
         )
         .bind(status)
+        .bind(website_id)
         .fetch_one(pool)
         .await?;
         Ok(count)
@@ -1129,6 +1166,74 @@ impl Post {
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+    }
+
+    /// Find pending (non-deleted, non-revision) posts for a website
+    pub async fn find_pending_by_website(
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM posts
+            WHERE website_id = $1
+              AND status = 'pending_approval'
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(website_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find only active (published) posts for a website, excluding pending
+    pub async fn find_active_only_by_website(
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM posts
+            WHERE website_id = $1
+              AND status = 'active'
+              AND deleted_at IS NULL
+              AND revision_of_post_id IS NULL
+            ORDER BY created_at DESC
+            "#,
+        )
+        .bind(website_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Create a revision post by copying content from a source post, pointing at original_id
+    pub async fn create_revision_from(
+        source: &Post,
+        original_id: PostId,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        Post::create(
+            CreatePost::builder()
+                .title(source.title.clone())
+                .description(source.description.clone())
+                .tldr(source.tldr.clone())
+                .post_type(source.post_type.clone())
+                .category(source.category.clone())
+                .urgency(source.urgency.clone())
+                .location(source.location.clone())
+                .source_language(source.source_language.clone())
+                .submission_type(Some("revision".to_string()))
+                .website_id(source.website_id)
+                .source_url(source.source_url.clone())
+                .revision_of_post_id(Some(original_id))
+                .build(),
+            pool,
+        )
+        .await
     }
 
     /// Find a translation of a post in a specific language

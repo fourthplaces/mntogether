@@ -14,19 +14,19 @@ logs: ## Follow logs from all services
 	docker-compose logs -f
 
 migrate: ## Run database migrations
-	docker-compose exec api cargo sqlx migrate run
+	docker-compose exec server cargo sqlx migrate run
 
 test: ## Run tests
-	docker-compose exec api cargo test
+	docker-compose exec server cargo test
 
 build: ## Build Rust project
-	docker-compose exec api cargo build
+	docker-compose exec server cargo build
 
 check: ## Check Rust project (fast compile check)
-	docker-compose exec api cargo check
+	docker-compose exec server cargo check
 
 shell: ## Open shell in API container
-	docker-compose exec api /bin/bash
+	docker-compose exec server /bin/bash
 
 db-shell: ## Open psql shell
 	docker-compose exec postgres psql -U postgres -d mndigitalaid
@@ -34,14 +34,14 @@ db-shell: ## Open psql shell
 redis-cli: ## Open redis-cli
 	docker-compose exec redis redis-cli
 
-web-next-logs: ## Follow Next.js app logs
-	docker-compose logs -f web-next
+web-logs: ## Follow Next.js app logs
+	docker-compose logs -f web
 
-web-next-shell: ## Open shell in Next.js container
-	docker-compose exec web-next /bin/sh
+web-shell: ## Open shell in Next.js container
+	docker-compose exec web /bin/sh
 
-web-next-restart: ## Restart Next.js service
-	docker-compose restart web-next
+web-restart: ## Restart Next.js service
+	docker-compose restart web
 
 web-app-logs: ## Follow web app logs
 	docker-compose logs -f web-app

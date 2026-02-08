@@ -12,8 +12,8 @@ pub mod activities;
 pub mod jwt;
 pub mod models;
 pub mod types;
-pub mod workflows;
+pub mod restate;
 
 pub use jwt::{Claims, JwtService};
 pub use types::{OtpSent, OtpVerified};
-pub use workflows::*;
+pub use restate::*;

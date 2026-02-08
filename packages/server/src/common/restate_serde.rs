@@ -40,3 +40,71 @@ macro_rules! impl_restate_serde {
         }
     };
 }
+
+/// Implement Restate SDK serialization traits for `Vec<T>` where T already has serde derives.
+///
+/// # Example
+/// ```
+/// impl_restate_serde_vec!(MyType);
+/// // Now Vec<MyType> works as a Restate return type
+/// ```
+#[macro_export]
+macro_rules! impl_restate_serde_vec {
+    ($type:ty) => {
+        impl restate_sdk::serde::Serialize for Vec<$type> {
+            type Error = serde_json::Error;
+
+            fn serialize(&self) -> Result<bytes::Bytes, Self::Error> {
+                serde_json::to_vec(self).map(bytes::Bytes::from)
+            }
+        }
+
+        impl restate_sdk::serde::Deserialize for Vec<$type> {
+            type Error = serde_json::Error;
+
+            fn deserialize(bytes: &mut bytes::Bytes) -> Result<Self, Self::Error> {
+                serde_json::from_slice(bytes)
+            }
+        }
+
+        impl restate_sdk::serde::WithContentType for Vec<$type> {
+            fn content_type() -> &'static str {
+                "application/json"
+            }
+        }
+    };
+}
+
+/// Implement Restate SDK serialization traits for `Option<T>` where T already has serde derives.
+///
+/// # Example
+/// ```
+/// impl_restate_serde_option!(MyType);
+/// // Now Option<MyType> works as a Restate return type
+/// ```
+#[macro_export]
+macro_rules! impl_restate_serde_option {
+    ($type:ty) => {
+        impl restate_sdk::serde::Serialize for Option<$type> {
+            type Error = serde_json::Error;
+
+            fn serialize(&self) -> Result<bytes::Bytes, Self::Error> {
+                serde_json::to_vec(self).map(bytes::Bytes::from)
+            }
+        }
+
+        impl restate_sdk::serde::Deserialize for Option<$type> {
+            type Error = serde_json::Error;
+
+            fn deserialize(bytes: &mut bytes::Bytes) -> Result<Self, Self::Error> {
+                serde_json::from_slice(bytes)
+            }
+        }
+
+        impl restate_sdk::serde::WithContentType for Option<$type> {
+            fn content_type() -> &'static str {
+                "application/json"
+            }
+        }
+    };
+}

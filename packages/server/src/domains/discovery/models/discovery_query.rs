@@ -5,11 +5,14 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::impl_restate_serde;
+
 /// A search query used for discovering community resource websites via Tavily
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DiscoveryQuery {
     pub id: Uuid,
     pub query_text: String,
@@ -19,6 +22,8 @@ pub struct DiscoveryQuery {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
+
+impl_restate_serde!(DiscoveryQuery);
 
 impl DiscoveryQuery {
     /// Find all active queries (used by the discovery pipeline)

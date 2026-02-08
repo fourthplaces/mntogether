@@ -8,10 +8,6 @@ name = "server_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "server"
-path = "src/server/main.rs"
-
-[[bin]]
 name = "generate_embeddings"
 path = "src/bin/generate_embeddings.rs"
 
@@ -20,8 +16,8 @@ name = "migrate_cli"
 path = "src/bin/migrate_cli.rs"
 
 [[bin]]
-name = "workflow_server"
-path = "src/bin/workflow_server.rs"
+name = "server"
+path = "src/bin/server.rs"
 
 [dependencies]
 # Async runtime
@@ -50,11 +46,8 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Durable execution with Restate (new)
+# Durable execution with Restate
 restate-sdk = "0.4.0"
-
-
-# NOTE: Scraping done via Firecrawl (see kernel/firecrawl_client.rs)
 
 # Authentication
 twilio = { path = "../twilio-rs" }
@@ -76,21 +69,11 @@ openai-client = { path = "../openai-client" }
 rig-core = "0.9"
 schemars = "0.8"
 
-# GraphQL
-juniper = { workspace = true }
-juniper_axum = { workspace = true }
-
-# HTTP server
-axum = { workspace = true, features = ["multipart"] }
-tower = { workspace = true }
-tower-http = { workspace = true }
-tower_governor = "0.4"
-hyper = { version = "1", features = ["full"] }
-
-# HTTP client (for Expo)
+# HTTP client (for Expo + Restate)
 reqwest = { workspace = true }
 urlencoding = "2.1"
 url = "2.5"
+hyper = { version = "1", features = ["full"] }
 
 # Web scraping (search via extraction library's TavilyWebSearcher)
 scraper = "0.21"        # HTML parsing with CSS selectors
@@ -102,17 +85,13 @@ tokio-cron-scheduler = "0.10"
 # RFC 5545 recurrence rules (calendar events)
 rrule = "0.14"
 
-# Static file embedding
-rust-embed = "8.0"
-mime_guess = "2.0"
-
 # Environment
 dotenvy = { workspace = true }
 
 # Content hashing (duplicate detection)
 sha2 = { workspace = true }
 
-# Markdown rendering (optional - for display_markdown)
+# Markdown rendering
 pulldown-cmark = "0.9"
 hex = "0.4"
 
@@ -129,6 +108,12 @@ rust_decimal = { version = "1.40.0", features = ["db-postgres", "serde", "std"] 
 
 # CLI (for migrate_cli)
 clap = { version = "4.5", features = ["derive"] }
+
+# Restate HTTP server
+http = "1"
+
+# SSE endpoint
+axum = "0.8"
 
 [dev-dependencies]
 # Testing
