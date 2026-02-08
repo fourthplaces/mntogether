@@ -5,6 +5,7 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
@@ -224,6 +225,9 @@ pub trait DiscoveryService {
         req: WebsiteSourcesRequest,
     ) -> Result<RunResultDetailList, HandlerError>;
     async fn run_discovery(req: EmptyRequest) -> Result<DiscoverySearchResult, HandlerError>;
+    async fn run_scheduled_discovery(
+        req: EmptyRequest,
+    ) -> Result<DiscoverySearchResult, HandlerError>;
 }
 
 pub struct DiscoveryServiceImpl {
@@ -530,6 +534,44 @@ impl DiscoveryService for DiscoveryServiceImpl {
                     .map_err(Into::into)
             })
             .await?;
+
+        Ok(DiscoverySearchResult {
+            queries_run: stats.queries_executed as i32,
+            total_results: stats.total_results as i32,
+            websites_created: stats.websites_created as i32,
+            websites_filtered: stats.websites_filtered as i32,
+            run_id: stats.run_id,
+        })
+    }
+
+    async fn run_scheduled_discovery(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<DiscoverySearchResult, HandlerError> {
+        tracing::info!("Running scheduled discovery search");
+
+        let result = ctx
+            .run(|| async {
+                discovery_activities::run_discovery("scheduled", &self.deps)
+                    .await
+                    .map_err(Into::into)
+            })
+            .await;
+
+        // Schedule next run regardless of success/failure
+        ctx.service_client::<DiscoveryServiceClient>()
+            .run_scheduled_discovery(EmptyRequest {})
+            .send_after(Duration::from_secs(3600));
+
+        let stats = result?;
+
+        tracing::info!(
+            queries_executed = stats.queries_executed,
+            total_results = stats.total_results,
+            websites_created = stats.websites_created,
+            "Scheduled discovery search completed"
+        );
 
         Ok(DiscoverySearchResult {
             queries_run: stats.queries_executed as i32,
