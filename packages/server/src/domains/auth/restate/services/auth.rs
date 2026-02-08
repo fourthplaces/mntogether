@@ -65,6 +65,7 @@ impl AuthServiceImpl {
     }
 }
 
+
 impl AuthService for AuthServiceImpl {
     async fn send_otp(
         &self,

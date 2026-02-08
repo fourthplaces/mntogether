@@ -29,4 +29,9 @@ jobs:
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: railway up --service 1a606582-0549-4af6-8001-b065e24a68eb --environment production --detach
+        run: railway up --service 1a606582-0549-4af6-8001-b065e24a68eb --environment production
+
+      - name: Run database migrations
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: railway run --service 1a606582-0549-4af6-8001-b065e24a68eb --environment production run_migrations

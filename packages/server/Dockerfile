@@ -67,5 +67,4 @@ COPY --from=builder /app/target/release/run_migrations /usr/local/bin/run_migrat
 
 EXPOSE 8080
 
-# Run migrations before starting the server
-CMD ["sh", "-c", "run_migrations && server"]
+CMD ["server"]
