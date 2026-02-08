@@ -67,4 +67,4 @@ COPY --from=builder /app/target/release/run_migrations /usr/local/bin/run_migrat
 
 EXPOSE 8080
 
-CMD ["server"]
+CMD ["sh", "-c", "run_migrations && server"]
