@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { logout } from "@/lib/auth/actions";
 
 const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: "\u{1F4CA}" },
@@ -58,6 +59,14 @@ export function AdminNav() {
             >
               View Site
             </Link>
+            <form action={logout}>
+              <button
+                type="submit"
+                className="text-sm text-stone-500 hover:text-stone-700 px-3 py-2"
+              >
+                Sign Out
+              </button>
+            </form>
           </div>
         </div>
       </div>

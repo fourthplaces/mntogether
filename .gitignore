@@ -46,3 +46,6 @@ Thumbs.db
 # devkit
 /.env.*.local
 /dev/cli/target/
+
+# infra CLI
+.infra-env
