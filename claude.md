@@ -443,7 +443,7 @@ impl SendOtpWorkflow for SendOtpWorkflowImpl {
 #### 3. Register Workflows in Server
 
 ```rust
-// workflow_server.rs
+// server.rs
 let server_deps = Arc::new(ServerDeps::new(...));
 
 let endpoint = Endpoint::builder()
@@ -470,7 +470,7 @@ async fn send_verification_code(
     ctx: &GraphQLContext,
     phone_number: String,
 ) -> FieldResult<bool> {
-    use crate::domains::auth::workflows::SendOtpRequest;
+    use crate::domains::auth::restate::SendOtpRequest;
     use crate::domains::auth::types::OtpSent;
 
     let result: OtpSent = ctx
@@ -539,21 +539,20 @@ impl_restate_serde!(OtpSent);
 5. **Use Arc for deps** - Efficient cloning across workflows
 6. **Import traits for .serve()** - Both trait and impl must be in scope
 
-### Binaries
+### Binary
 
-- **server** (`src/server/main.rs`) - GraphQL API, invokes workflows
-- **workflow_server** (`src/bin/workflow_server.rs`) - Restate workflow implementations
+- **server** (`src/bin/server.rs`) - Restate services + SSE streaming
 
-Run both in development:
+Run in development:
 ```bash
-# Terminal 1: Start Restate runtime
-docker-compose up restate
+# Terminal 1: Start Restate runtime + infrastructure
+docker-compose up -d postgres redis nats restate
 
-# Terminal 2: Start workflow server
-cargo run --bin workflow_server
-
-# Terminal 3: Start GraphQL API
+# Terminal 2: Start server
 cargo run --bin server
+
+# Terminal 3: Register with Restate
+./scripts/register-workflows.sh
 ```
 
 ---

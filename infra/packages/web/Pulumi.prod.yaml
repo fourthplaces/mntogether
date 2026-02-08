@@ -1,0 +1,6 @@
+config:
+  aws:region: us-east-1
+  mndigitalaid-web:domain: mndigitalaid.org
+  mndigitalaid-web:imageTag: latest
+  mndigitalaid-web:ecrRepoName: mndigitalaid-web
+  mndigitalaid-web:apiUrl: https://api.mndigitalaid.org/graphql

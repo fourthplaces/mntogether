@@ -7,6 +7,7 @@ pub mod llm_request;
 pub mod nats;
 pub mod pii;
 pub mod scheduled_tasks;
+pub mod sse;
 pub mod stream_hub;
 pub mod tag;
 pub mod test_dependencies;

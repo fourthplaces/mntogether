@@ -1,0 +1,413 @@
+//! Website virtual object
+//!
+//! Keyed by website_id. Per-website serialized writes, concurrent reads.
+
+use restate_sdk::prelude::*;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use uuid::Uuid;
+
+use crate::common::auth::restate_auth::require_admin;
+use crate::common::EmptyRequest;
+use crate::common::WebsiteId;
+use crate::domains::website::activities;
+use crate::domains::website::models::{Website, WebsiteAssessment};
+use crate::domains::website::restate::WebsiteResearchRequest;
+use crate::impl_restate_serde;
+use crate::kernel::ServerDeps;
+
+// =============================================================================
+// Request types
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RejectWebsiteRequest {
+    pub reason: String,
+}
+
+impl_restate_serde!(RejectWebsiteRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuspendWebsiteRequest {
+    pub reason: String,
+}
+
+impl_restate_serde!(SuspendWebsiteRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrawlSettingsRequest {
+    pub max_pages_per_crawl: i32,
+}
+
+impl_restate_serde!(CrawlSettingsRequest);
+
+// =============================================================================
+// Response types
+// =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WebsiteResult {
+    pub id: Uuid,
+    pub domain: String,
+    pub status: String,
+    pub active: bool,
+    pub created_at: Option<String>,
+    pub last_crawled_at: Option<String>,
+    pub post_count: Option<i64>,
+    pub crawl_status: Option<String>,
+}
+
+impl_restate_serde!(WebsiteResult);
+
+impl From<Website> for WebsiteResult {
+    fn from(w: Website) -> Self {
+        Self {
+            id: w.id.into_uuid(),
+            domain: w.domain,
+            status: w.status,
+            active: w.active,
+            created_at: Some(w.created_at.to_rfc3339()),
+            last_crawled_at: w.last_scraped_at.map(|dt| dt.to_rfc3339()),
+            post_count: None,
+            crawl_status: w.crawl_status,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssessmentResult {
+    pub id: Uuid,
+    pub website_id: Uuid,
+    pub assessment_markdown: String,
+    pub confidence_score: Option<f64>,
+}
+
+impl_restate_serde!(AssessmentResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OptionalAssessmentResult {
+    pub assessment: Option<AssessmentResult>,
+}
+
+impl_restate_serde!(OptionalAssessmentResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GenerateAssessmentResult {
+    pub job_id: String,
+    pub status: String,
+    pub assessment_id: Option<String>,
+}
+
+impl_restate_serde!(GenerateAssessmentResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegeneratePostsResult {
+    pub posts_created: i32,
+    pub status: String,
+}
+
+impl_restate_serde!(RegeneratePostsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeduplicatePostsResult {
+    pub status: String,
+}
+
+impl_restate_serde!(DeduplicatePostsResult);
+
+// =============================================================================
+// Virtual object definition
+// =============================================================================
+
+#[restate_sdk::object]
+#[name = "Website"]
+pub trait WebsiteObject {
+    async fn approve(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
+    async fn reject(req: RejectWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
+    async fn suspend(req: SuspendWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
+    async fn update_crawl_settings(
+        req: CrawlSettingsRequest,
+    ) -> Result<WebsiteResult, HandlerError>;
+    async fn generate_assessment(
+        req: EmptyRequest,
+    ) -> Result<GenerateAssessmentResult, HandlerError>;
+    async fn regenerate_posts(
+        req: EmptyRequest,
+    ) -> Result<RegeneratePostsResult, HandlerError>;
+    async fn deduplicate_posts(
+        req: EmptyRequest,
+    ) -> Result<DeduplicatePostsResult, HandlerError>;
+
+    #[shared]
+    async fn get(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
+
+    #[shared]
+    async fn get_assessment(req: EmptyRequest) -> Result<OptionalAssessmentResult, HandlerError>;
+}
+
+pub struct WebsiteObjectImpl {
+    deps: Arc<ServerDeps>,
+}
+
+impl WebsiteObjectImpl {
+    pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
+        Self { deps }
+    }
+
+    fn parse_website_id(key: &str) -> Result<Uuid, HandlerError> {
+        Uuid::parse_str(key)
+            .map_err(|e| TerminalError::new(format!("Invalid website ID: {}", e)).into())
+    }
+}
+
+impl WebsiteObject for WebsiteObjectImpl {
+    async fn approve(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        ctx.run(|| async {
+            activities::approve_website(
+                WebsiteId::from_uuid(website_id),
+                user.member_id,
+                &self.deps,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+        })
+        .await?;
+
+        let website = Website::find_by_id(WebsiteId::from_uuid(website_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn reject(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: RejectWebsiteRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let id = ctx
+            .run(|| async {
+                activities::reject_website(
+                    WebsiteId::from_uuid(website_id),
+                    req.reason.clone(),
+                    user.member_id,
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
+
+        let website = Website::find_by_id(id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn suspend(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: SuspendWebsiteRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let id = ctx
+            .run(|| async {
+                activities::suspend_website(
+                    WebsiteId::from_uuid(website_id),
+                    req.reason.clone(),
+                    user.member_id,
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
+
+        let website = Website::find_by_id(id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn update_crawl_settings(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: CrawlSettingsRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let id = ctx
+            .run(|| async {
+                activities::update_crawl_settings(
+                    WebsiteId::from_uuid(website_id),
+                    req.max_pages_per_crawl,
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
+
+        let website = Website::find_by_id(id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn generate_assessment(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<GenerateAssessmentResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        // assess_website returns a type without Restate serde, so call outside ctx.run()
+        // This is safe since assess_website is internally idempotent (checks for fresh research)
+        let result = activities::approval::assess_website(
+            website_id,
+            user.member_id.into_uuid(),
+            &self.deps,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if result.status == "completed" {
+            Ok(GenerateAssessmentResult {
+                job_id: result.job_id.to_string(),
+                status: "completed".to_string(),
+                assessment_id: result.assessment_id.map(|id| id.to_string()),
+            })
+        } else {
+            // Fire-and-forget the research workflow via Restate workflow client
+            if let Some(ref message) = result.message {
+                if let Some(research_id_str) = message.strip_prefix("research_id:") {
+                    if let Ok(research_id) = Uuid::parse_str(research_id_str) {
+                        let _ = ctx
+                            .workflow_client::<crate::domains::website::restate::workflows::research::WebsiteResearchWorkflowClient>(
+                                research_id.to_string(),
+                            )
+                            .run(WebsiteResearchRequest {
+                                research_id,
+                                website_id,
+                                requested_by: user.member_id.into_uuid(),
+                            })
+                            .call()
+                            .await;
+                    }
+                }
+            }
+            Ok(GenerateAssessmentResult {
+                job_id: result.job_id.to_string(),
+                status: "research_started".to_string(),
+                assessment_id: None,
+            })
+        }
+    }
+
+    async fn get(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Uuid::parse_str(ctx.key())
+            .map_err(|e| TerminalError::new(format!("Invalid website ID: {}", e)))?;
+
+        let website = Website::find_by_id(WebsiteId::from_uuid(website_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn get_assessment(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<OptionalAssessmentResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Uuid::parse_str(ctx.key())
+            .map_err(|e| TerminalError::new(format!("Invalid website ID: {}", e)))?;
+
+        let assessment = WebsiteAssessment::find_latest_by_website_id(
+            website_id,
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(OptionalAssessmentResult {
+            assessment: assessment.map(|a| AssessmentResult {
+                id: a.id,
+                website_id: a.website_id,
+                assessment_markdown: a.assessment_markdown,
+                confidence_score: a.confidence_score,
+            }),
+        })
+    }
+
+    async fn regenerate_posts(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<RegeneratePostsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        // Fire-and-forget: kick off the workflow and return immediately.
+        // The workflow runs asynchronously with progress tracking via get_status.
+        let workflow_id = format!("regen-{}-{}", website_id, chrono::Utc::now().timestamp());
+        let _ = ctx
+            .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
+                workflow_id.clone(),
+            )
+            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id })
+            .send();
+
+        Ok(RegeneratePostsResult {
+            posts_created: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn deduplicate_posts(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<DeduplicatePostsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let workflow_id = format!("dedup-{}-{}", website_id, chrono::Utc::now().timestamp());
+        let _ = ctx
+            .workflow_client::<crate::domains::posts::restate::workflows::deduplicate_posts::DeduplicatePostsWorkflowClient>(
+                workflow_id.clone(),
+            )
+            .run(crate::domains::posts::restate::workflows::deduplicate_posts::DeduplicatePostsRequest {
+                website_id,
+            })
+            .send();
+
+        Ok(DeduplicatePostsResult {
+            status: format!("started:{}", workflow_id),
+        })
+    }
+}

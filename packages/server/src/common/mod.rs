@@ -12,6 +12,7 @@ pub mod pii;
 pub mod read_result;
 pub mod readable;
 pub mod restate_serde;
+pub mod restate_types;
 pub mod types;
 pub mod utils;
 
@@ -26,6 +27,7 @@ pub use pagination::{
 };
 pub use read_result::ReadResult;
 pub use readable::Readable;
+pub use restate_types::EmptyRequest;
 pub use types::*;
 
 // Unified extraction types - use these instead of domain-specific definitions

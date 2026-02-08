@@ -25,7 +25,7 @@ help:
 	@echo ""
 	@echo "📋 Logs & Monitoring:"
 	@echo "  make logs        - View logs from all services"
-	@echo "  make logs-api    - View API server logs only"
+	@echo "  make logs-server - View server logs only"
 	@echo "  make logs-web    - View web app logs only"
 	@echo "  make logs-db     - View PostgreSQL logs only"
 	@echo ""
@@ -82,16 +82,17 @@ logs:
 	docker compose logs -f
 
 # View API server logs
-logs-api:
-	docker compose logs -f api
+logs-server:
+	docker compose logs -f server
 
 # View web (Next.js) logs
 logs-web:
-	docker compose logs -f web-next
+	docker compose logs -f web
 
 # Alias for logs-web
+# Alias for logs-web
 logs-next:
-	docker compose logs -f web-next
+	docker compose logs -f web
 
 # View PostgreSQL logs
 logs-db:
@@ -107,15 +108,15 @@ logs-redis:
 
 # Run database migrations
 migrate:
-	docker compose exec api sqlx migrate run
+	docker compose exec server sqlx migrate run
 
 # Seed database with organizations
 seed:
-	docker compose exec api cargo run --bin seed_organizations
+	docker compose exec server cargo run --bin seed_organizations
 
 # Generate embeddings for existing data
 embeddings:
-	docker compose exec api cargo run --bin generate_embeddings
+	docker compose exec server cargo run --bin generate_embeddings
 
 # Open PostgreSQL shell
 db-shell:
@@ -141,7 +142,7 @@ db-reset:
 
 # Open shell in API container
 shell:
-	docker compose exec api /bin/bash
+	docker compose exec server /bin/bash
 
 # Open Redis CLI
 redis-cli:
@@ -149,19 +150,19 @@ redis-cli:
 
 # Run Rust tests
 test:
-	docker compose exec api cargo test
+	docker compose exec server cargo test
 
 # Fast compile check (no binary output)
 check:
-	docker compose exec api cargo check
+	docker compose exec server cargo check
 
 # Format Rust code
 fmt:
-	docker compose exec api cargo fmt
+	docker compose exec server cargo fmt
 
 # Run Rust linter
 clippy:
-	docker compose exec api cargo clippy
+	docker compose exec server cargo clippy
 
 # ========================================
 # Cleanup
@@ -215,11 +216,11 @@ health:
 
 # Watch Rust changes and rebuild
 watch:
-	docker compose exec api cargo watch -x 'run --bin server'
+	docker compose exec server cargo watch -x 'run --bin server'
 
 # Generate GraphQL schema
 schema:
-	docker compose exec api cargo run --bin generate_schema
+	docker compose exec server cargo run --bin generate_schema
 
 # Interactive development CLI
 dev-cli:
@@ -228,4 +229,4 @@ dev-cli:
 # Create a new database migration
 migration:
 	@read -p "Migration name: " name; \
-	docker compose exec api sqlx migrate add $$name
+	docker compose exec server sqlx migrate add $$name

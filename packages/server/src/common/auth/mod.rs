@@ -1,5 +1,6 @@
 mod builder;
 mod capability;
+pub mod restate_auth;
 /// Authorization module for MN Digital Aid
 ///
 /// Provides a fluent API for authorization checks in effect code:

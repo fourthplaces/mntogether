@@ -21,13 +21,14 @@ use crate::domains::discovery::models::{
     DiscoveryFilterRule, DiscoveryQuery, DiscoveryRun, DiscoveryRunResult,
 };
 use crate::domains::website::models::{CreateWebsite, Website};
+use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
-use extraction::WebSearcher;
 
 /// Default location for {location} placeholder substitution
 const DEFAULT_LOCATION: &str = "Twin Cities, Minnesota";
 
 /// Result of a discovery run
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct DiscoveryRunStats {
     pub run_id: uuid::Uuid,
     pub queries_executed: usize,
@@ -35,6 +36,8 @@ pub struct DiscoveryRunStats {
     pub websites_created: usize,
     pub websites_filtered: usize,
 }
+
+impl_restate_serde!(DiscoveryRunStats);
 
 /// Run the full discovery pipeline.
 ///

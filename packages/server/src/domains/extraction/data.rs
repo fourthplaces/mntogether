@@ -1,18 +1,14 @@
-//! GraphQL data types for the extraction domain.
-//!
-//! These types wrap the extraction library types for GraphQL exposure.
+//! Data types for the extraction domain.
 
 use chrono::{DateTime, Utc};
-use juniper::GraphQLEnum;
-
-use crate::server::graphql::context::GraphQLContext;
+use serde::{Deserialize, Serialize};
 
 // =============================================================================
 // Extraction Status
 // =============================================================================
 
 /// Status of an extraction result
-#[derive(Debug, Clone, Copy, GraphQLEnum)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ExtractionStatusData {
     /// Information was found and extracted
     Found,
@@ -40,7 +36,7 @@ impl From<extraction::ExtractionStatus> for ExtractionStatusData {
 // =============================================================================
 
 /// How well-grounded the extraction is in sources
-#[derive(Debug, Clone, Copy, GraphQLEnum)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum GroundingGradeData {
     /// Multiple sources agree
     Verified,
@@ -68,7 +64,7 @@ impl From<extraction::GroundingGrade> for GroundingGradeData {
 // =============================================================================
 
 /// Role a source played in the extraction
-#[derive(Debug, Clone, Copy, GraphQLEnum)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum SourceRoleData {
     /// Primary source of information
     Primary,
@@ -93,8 +89,7 @@ impl From<extraction::SourceRole> for SourceRoleData {
 // =============================================================================
 
 /// A source used in an extraction
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SourceData {
     /// URL of the source
     pub url: String,
@@ -122,8 +117,7 @@ impl From<extraction::Source> for SourceData {
 // =============================================================================
 
 /// Information that couldn't be found
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GapData {
     /// What field/information is missing
     pub field: String,
@@ -150,8 +144,7 @@ impl From<extraction::GapQuery> for GapData {
 // =============================================================================
 
 /// Conflicting information from different sources
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConflictData {
     /// Topic of the conflict
     pub topic: String,
@@ -160,8 +153,7 @@ pub struct ConflictData {
 }
 
 /// A single conflicting claim
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConflictingClaimData {
     /// The statement being made
     pub statement: String,
@@ -196,8 +188,7 @@ impl From<extraction::ConflictingClaim> for ConflictingClaimData {
 // =============================================================================
 
 /// Result of an extraction query
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractionData {
     /// Extracted content (markdown formatted with citations)
     pub content: String,
@@ -239,8 +230,7 @@ impl From<extraction::Extraction> for ExtractionData {
 // =============================================================================
 
 /// Result of submitting a URL for extraction
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitUrlResult {
     /// Whether the submission was successful
     pub success: bool,
@@ -257,8 +247,7 @@ pub struct SubmitUrlResult {
 // =============================================================================
 
 /// Result of triggering an extraction
-#[derive(Debug, Clone, juniper::GraphQLObject)]
-#[graphql(context = GraphQLContext)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggerExtractionResult {
     /// Whether the extraction was successful
     pub success: bool,
@@ -277,9 +266,6 @@ pub struct TriggerExtractionResult {
 // =============================================================================
 
 /// A crawled page from the extraction library's storage.
-///
-/// This replaces the deprecated PageSnapshot type. The extraction library
-/// uses URL as the primary key, not UUID.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sqlx::FromRow)]
 pub struct ExtractionPageRow {
     pub url: String,
@@ -291,7 +277,7 @@ pub struct ExtractionPageRow {
     pub metadata: serde_json::Value,
 }
 
-/// GraphQL-friendly representation of an extraction page
+/// API representation of an extraction page
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct ExtractionPageData {
     pub url: String,
@@ -310,63 +296,6 @@ impl From<ExtractionPageRow> for ExtractionPageData {
             title: row.title,
             fetched_at: row.fetched_at.to_rfc3339(),
         }
-    }
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl ExtractionPageData {
-    /// URL of the page (primary key)
-    fn url(&self) -> &str {
-        &self.url
-    }
-
-    /// Site URL this page belongs to
-    fn site_url(&self) -> &str {
-        &self.site_url
-    }
-
-    /// Page content (markdown)
-    fn content(&self) -> &str {
-        &self.content
-    }
-
-    /// Page title (if available)
-    fn title(&self) -> Option<&str> {
-        self.title.as_deref()
-    }
-
-    /// When the page was fetched
-    fn fetched_at(&self) -> &str {
-        &self.fetched_at
-    }
-
-    /// Get all posts extracted from this page
-    async fn listings(
-        &self,
-        context: &GraphQLContext,
-    ) -> juniper::FieldResult<Vec<crate::domains::posts::data::PostData>> {
-        use crate::domains::posts::models::Post;
-        let posts = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE source_url = $1 AND deleted_at IS NULL ORDER BY created_at DESC"
-        )
-        .bind(&self.url)
-        .fetch_all(&context.db_pool)
-        .await?;
-        Ok(posts
-            .into_iter()
-            .map(crate::domains::posts::data::PostData::from)
-            .collect())
-    }
-
-    /// Count of posts extracted from this page
-    async fn listings_count(&self, context: &GraphQLContext) -> juniper::FieldResult<i32> {
-        let count: (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM posts WHERE source_url = $1 AND deleted_at IS NULL",
-        )
-        .bind(&self.url)
-        .fetch_one(&context.db_pool)
-        .await?;
-        Ok(count.0 as i32)
     }
 }
 
@@ -439,7 +368,7 @@ impl ExtractionPageData {
 // =============================================================================
 
 /// Input for submitting a URL
-#[derive(Debug, Clone, juniper::GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitUrlInput {
     /// The URL to submit
     pub url: String,
@@ -448,7 +377,7 @@ pub struct SubmitUrlInput {
 }
 
 /// Input for triggering an extraction
-#[derive(Debug, Clone, juniper::GraphQLInputObject)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TriggerExtractionInput {
     /// The extraction query
     pub query: String,

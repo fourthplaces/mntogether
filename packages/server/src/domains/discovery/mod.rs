@@ -2,6 +2,7 @@
 
 pub mod activities;
 pub mod models;
+pub mod restate;
 
 // Re-export actions
 pub use activities::{evaluate_websites_against_filters, run_discovery};

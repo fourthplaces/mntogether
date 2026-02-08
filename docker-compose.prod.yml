@@ -88,24 +88,21 @@ services:
           memory: 512M
 
   # ========================================
-  # Web App (DEPRECATED - use web-next instead)
-  # ========================================
-  # web-app service removed - migrated to web-next
-
-  # ========================================
   # Next.js Web (Production Build)
   # ========================================
-  web-next:
+  web:
     build:
-      context: ./packages/web-next
+      context: ./packages/web
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.yourdomain.com/graphql}
-    container_name: mndigitalaid_web_next_prod
+        RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
+    container_name: mndigitalaid_web_prod
     environment:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: "0.0.0.0"
+      RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
+      JWT_SECRET: ${JWT_SECRET}
     ports:
       - "3000:3000"
     restart: always

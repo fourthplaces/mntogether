@@ -6,11 +6,14 @@
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
+use crate::impl_restate_serde;
+
 /// A plain-text filter rule for pre-screening discovered websites
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct DiscoveryFilterRule {
     pub id: Uuid,
     pub query_id: Option<Uuid>,
@@ -20,6 +23,8 @@ pub struct DiscoveryFilterRule {
     pub created_by: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
+
+impl_restate_serde!(DiscoveryFilterRule);
 
 impl DiscoveryFilterRule {
     /// Find all active global rules (query_id IS NULL)

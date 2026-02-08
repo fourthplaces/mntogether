@@ -6,6 +6,7 @@ use anyhow::{Context, Result};
 use extraction::DiscoverConfig;
 use tracing::info;
 
+use crate::impl_restate_serde;
 use crate::kernel::{HttpIngestor, ServerDeps, ValidatedIngestor};
 
 // =============================================================================
@@ -193,13 +194,15 @@ pub async fn ingest_site(
 }
 
 /// Result of site ingestion
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct IngestSiteResult {
     pub site_url: String,
     pub pages_crawled: i32,
     pub pages_summarized: i32,
     pub pages_skipped: i32,
 }
+
+impl_restate_serde!(IngestSiteResult);
 
 // =============================================================================
 // Helpers

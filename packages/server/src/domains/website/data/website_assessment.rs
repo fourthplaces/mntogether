@@ -1,11 +1,10 @@
 use crate::domains::website::models::{WebsiteAssessment, WebsiteSearchResult};
 use chrono::{DateTime, Utc};
-use juniper::GraphQLObject;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// GraphQL representation of a website assessment
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "AI-generated assessment report for a website")]
+/// Assessment report for a website
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebsiteAssessmentData {
     pub id: Uuid,
     pub website_id: Uuid,
@@ -36,9 +35,8 @@ impl From<WebsiteAssessment> for WebsiteAssessmentData {
     }
 }
 
-/// GraphQL representation of a website search result
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "Website found via semantic search")]
+/// Website found via semantic search
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WebsiteSearchResultData {
     pub website_id: Uuid,
     pub assessment_id: Uuid,

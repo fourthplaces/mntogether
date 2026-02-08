@@ -1,5 +1,4 @@
 use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
-use crate::server::graphql::context::GraphQLContext;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
@@ -14,45 +13,6 @@ pub struct PostReport {
     pub resolved_at: Option<DateTime<Utc>>,
     pub resolution_notes: Option<String>,
     pub action_taken: Option<String>,
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl PostReport {
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn post_id(&self) -> &str {
-        &self.post_id
-    }
-
-    fn reason(&self) -> &str {
-        &self.reason
-    }
-
-    fn category(&self) -> &str {
-        &self.category
-    }
-
-    fn status(&self) -> &str {
-        &self.status
-    }
-
-    fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-
-    fn resolved_at(&self) -> Option<DateTime<Utc>> {
-        self.resolved_at
-    }
-
-    fn resolution_notes(&self) -> Option<&str> {
-        self.resolution_notes.as_deref()
-    }
-
-    fn action_taken(&self) -> Option<&str> {
-        self.action_taken.as_deref()
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,61 +30,6 @@ pub struct PostReportDetail {
     pub post_type: String,
     pub post_status: String,
     pub report_count_for_post: i64,
-}
-
-#[juniper::graphql_object(Context = GraphQLContext)]
-impl PostReportDetail {
-    fn id(&self) -> &str {
-        &self.id
-    }
-
-    fn post_id(&self) -> &str {
-        &self.post_id
-    }
-
-    fn reason(&self) -> &str {
-        &self.reason
-    }
-
-    fn category(&self) -> &str {
-        &self.category
-    }
-
-    fn status(&self) -> &str {
-        &self.status
-    }
-
-    fn created_at(&self) -> DateTime<Utc> {
-        self.created_at
-    }
-
-    fn resolved_at(&self) -> Option<DateTime<Utc>> {
-        self.resolved_at
-    }
-
-    fn resolution_notes(&self) -> Option<&str> {
-        self.resolution_notes.as_deref()
-    }
-
-    fn action_taken(&self) -> Option<&str> {
-        self.action_taken.as_deref()
-    }
-
-    fn post_title(&self) -> &str {
-        &self.post_title
-    }
-
-    fn post_type(&self) -> &str {
-        &self.post_type
-    }
-
-    fn post_status(&self) -> &str {
-        &self.post_status
-    }
-
-    fn report_count_for_post(&self) -> i32 {
-        self.report_count_for_post as i32
-    }
 }
 
 impl From<PostReportRecord> for PostReport {

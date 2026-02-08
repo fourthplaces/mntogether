@@ -16,7 +16,7 @@ if [ "$#" -lt 2 ]; then
   echo ""
   echo "Arguments:"
   echo "  env: dev or prod"
-  echo "  stack: core, server, web-app, web-next, or all"
+  echo "  stack: core, server, web-app, web, or all"
   echo "  pulumi-args: additional Pulumi arguments (e.g., up --yes, preview, destroy)"
   echo ""
   echo "Examples:"
@@ -38,7 +38,7 @@ if [ "$ENV" != "dev" ] && [ "$ENV" != "prod" ]; then
 fi
 
 # Validate stack
-VALID_STACKS=("core" "server" "web-app" "web-next" "all")
+VALID_STACKS=("core" "server" "web-app" "web" "all")
 if [[ ! " ${VALID_STACKS[@]} " =~ " ${STACK} " ]]; then
   echo "Error: stack must be one of: ${VALID_STACKS[@]}"
   exit 1
@@ -74,11 +74,11 @@ deploy_stack() {
 
 # Deploy stacks based on selection
 if [ "$STACK" == "all" ]; then
-  # Deploy in order: core -> server, web-app, web-next
+  # Deploy in order: core -> server, web-app, web
   deploy_stack "core"
   deploy_stack "server"
   deploy_stack "web-app"
-  deploy_stack "web-next"
+  deploy_stack "web"
 else
   deploy_stack "$STACK"
 fi

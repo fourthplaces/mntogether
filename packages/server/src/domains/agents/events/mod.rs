@@ -9,23 +9,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ChatStreamEvent {
-    /// AI generation has started for a message
-    GenerationStarted {
-        container_id: String,
-        in_reply_to: String,
-    },
-
-    /// A tool produced results (e.g., search_posts returned resources)
-    ToolResult {
-        container_id: String,
-        tool_name: String,
-        call_id: String,
-        results: serde_json::Value,
-    },
-
-    /// A token chunk from the streaming response
-    TokenDelta { container_id: String, delta: String },
-
     /// Generation complete — message has been persisted to DB
     MessageComplete {
         container_id: String,
@@ -34,9 +17,6 @@ pub enum ChatStreamEvent {
         role: String,
         created_at: String,
     },
-
-    /// Generation failed
-    GenerationError { container_id: String, error: String },
 }
 
 impl ChatStreamEvent {

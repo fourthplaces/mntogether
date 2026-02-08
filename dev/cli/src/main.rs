@@ -22,6 +22,7 @@ struct Cli {
     command: Option<Commands>,
 }
 
+
 #[derive(Subcommand)]
 enum Commands {
     /// Start development environment (Docker + migrations)
@@ -30,7 +31,7 @@ enum Commands {
         #[arg(short, long)]
         all: bool,
 
-        /// Include optional services (web-next)
+        /// Include optional services (web)
         #[arg(long)]
         full: bool,
     },
@@ -160,12 +161,7 @@ fn cmd_up(ctx: &AppContext, all: bool, full: bool) -> Result<()> {
 
     ctx.print_success("Development environment is ready!");
     println!();
-    ctx.print_info("Services:");
-    ctx.print_info("  • API:     http://localhost:8080");
-    ctx.print_info("  • GraphQL: http://localhost:8080/graphql");
-    if full {
-        ctx.print_info("  • Web:     http://localhost:3000");
-    }
+    ctx.print_info("Run 'dev docker status' to see service URLs");
 
     Ok(())
 }

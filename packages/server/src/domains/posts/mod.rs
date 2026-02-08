@@ -2,7 +2,7 @@ pub mod activities;
 pub mod data;
 pub mod loader;
 pub mod models;
-pub mod workflows;
+pub mod restate;
 
 // Re-export data types (GraphQL types)
 pub use crate::domains::tag::TagData;
@@ -16,5 +16,5 @@ pub use data::types::{
 // Re-export models (domain models)
 pub use models::post::Post;
 
-// Re-export workflows
-pub use workflows::*;
+// Re-export restate types
+pub use restate::*;

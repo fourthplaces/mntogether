@@ -1,3 +1,0 @@
-name: mndigitalaid-web-next
-runtime: nodejs
-description: Next.js app deployment to ECS Fargate (SSR)

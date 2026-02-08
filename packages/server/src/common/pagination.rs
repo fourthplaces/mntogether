@@ -20,7 +20,7 @@
 use anyhow::{Context, Result};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
-use juniper::GraphQLObject;
+use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 // ============================================================================
@@ -71,8 +71,7 @@ impl Cursor {
 /// Page information for cursor-based pagination.
 ///
 /// Implements the Relay GraphQL Cursor Connections Specification.
-#[derive(Debug, Clone, GraphQLObject)]
-#[graphql(description = "Information about pagination in a connection")]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageInfo {
     /// When paginating forwards, are there more items?
     pub has_next_page: bool,

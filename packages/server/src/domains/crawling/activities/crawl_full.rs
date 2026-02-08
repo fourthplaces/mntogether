@@ -7,7 +7,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::WebsiteId;
-use crate::domains::crawling::workflows::CrawlWebsiteResult;
+use crate::domains::crawling::restate::CrawlWebsiteResult;
 use crate::kernel::ServerDeps;
 
 /// Crawl a website end-to-end: ingest → extract → investigate → sync

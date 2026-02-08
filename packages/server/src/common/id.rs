@@ -256,6 +256,33 @@ impl<'de, T, V> Deserialize<'de> for Id<T, V> {
 }
 
 // ============================================================================
+// Restate SDK serde support
+// ============================================================================
+
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Serialize for Id<T, V> {
+    type Error = serde_json::Error;
+
+    fn serialize(&self) -> Result<bytes::Bytes, Self::Error> {
+        serde_json::to_vec(&self.0).map(bytes::Bytes::from)
+    }
+}
+
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Deserialize for Id<T, V> {
+    type Error = serde_json::Error;
+
+    fn deserialize(bytes: &mut bytes::Bytes) -> Result<Self, Self::Error> {
+        let uuid: Uuid = serde_json::from_slice(bytes)?;
+        Ok(Self::from_uuid(uuid))
+    }
+}
+
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::WithContentType for Id<T, V> {
+    fn content_type() -> &'static str {
+        "application/json"
+    }
+}
+
+// ============================================================================
 // sqlx support (always enabled)
 // ============================================================================
 
