@@ -9,13 +9,13 @@ import { useRestateObject, useRestate, callObject, callService, invalidateServic
 import type {
   WebsiteResult,
   OptionalAssessmentResult,
-  DiscoverySourceResult,
   PostList,
   ExtractionPageListResult,
   ExtractionPageCount,
+  AgentListResponse,
 } from "@/lib/restate/types";
 
-type TabType = "posts" | "snapshots" | "assessment" | "discovery";
+type TabType = "posts" | "snapshots" | "assessment" | "agents";
 
 export default function WebsiteDetailPage() {
   const params = useParams();
@@ -83,13 +83,13 @@ export default function WebsiteDetailPage() {
 
   const assessment = assessmentData?.assessment ?? null;
 
-  const { data: discoveryData } = useRestate<{ results: DiscoverySourceResult[] }>(
-    "Discovery", "get_website_sources", { website_id: websiteId }, { revalidateOnFocus: false }
+  const { data: agentsData } = useRestate<AgentListResponse>(
+    "Agents", "list_agents", { role: "curator" }, { revalidateOnFocus: false }
   );
 
   const posts = postsData?.posts || [];
   const pages = pagesData?.pages || [];
-  const discoverySources = discoveryData?.results || [];
+  const allAgents = agentsData?.agents || [];
 
   // --- Actions ---
 
@@ -453,7 +453,7 @@ export default function WebsiteDetailPage() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
             <nav className="flex">
-              {(["posts", "snapshots", "assessment", "discovery"] as TabType[]).map((tab) => (
+              {(["posts", "snapshots", "assessment", "agents"] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -466,7 +466,6 @@ export default function WebsiteDetailPage() {
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   {tab === "posts" && ` (${postsData?.total_count ?? posts.length})`}
                   {tab === "snapshots" && ` (${pageCount?.count ?? pages.length})`}
-                  {tab === "discovery" && ` (${discoverySources.length})`}
                 </button>
               ))}
             </nav>
@@ -549,54 +548,47 @@ export default function WebsiteDetailPage() {
               </div>
             )}
 
-            {/* Discovery Tab */}
-            {activeTab === "discovery" && (
+            {/* Agents Tab */}
+            {activeTab === "agents" && (
               <div>
-                {discoverySources.length > 0 ? (
+                {allAgents.length > 0 ? (
                   <div className="space-y-3">
                     <p className="text-sm text-stone-500 mb-4">
-                      This website was discovered by the following search queries:
+                      Curator agents that may have discovered or linked this website:
                     </p>
-                    {discoverySources.map((source) => (
-                      <div
-                        key={source.id}
-                        className="border border-stone-200 rounded-lg p-3"
+                    {allAgents.map((agent) => (
+                      <Link
+                        key={agent.id}
+                        href={`/admin/agents/${agent.id}`}
+                        className="block border border-stone-200 rounded-lg p-3 hover:bg-stone-50 transition-colors"
                       >
                         <div className="flex items-center justify-between">
                           <span className="text-sm font-medium text-stone-900">
-                            {source.url}
+                            {agent.display_name}
                           </span>
                           <span
                             className={`text-xs px-2 py-0.5 rounded-full ${
-                              source.filter_result === "passed"
+                              agent.status === "active"
                                 ? "bg-green-100 text-green-700"
-                                : "bg-red-100 text-red-700"
+                                : agent.status === "draft"
+                                  ? "bg-yellow-100 text-yellow-700"
+                                  : "bg-gray-100 text-gray-700"
                             }`}
                           >
-                            {source.filter_result}
+                            {agent.status}
                           </span>
                         </div>
-                        {source.filter_reason && (
-                          <p className="text-xs text-stone-500 mt-1">
-                            {source.filter_reason}
-                          </p>
-                        )}
-                        <div className="flex gap-4 mt-2 text-xs text-stone-400">
-                          {source.relevance_score != null && (
-                            <span>Score: {source.relevance_score.toFixed(2)}</span>
-                          )}
-                          <span>
-                            Discovered: {new Date(source.discovered_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 ) : (
                   <div className="text-center py-8 text-stone-500">
-                    <p>No discovery sources found for this website.</p>
+                    <p>No curator agents exist yet.</p>
                     <p className="text-sm mt-1">
-                      This website may have been submitted manually.
+                      <Link href="/admin/agents" className="text-amber-600 hover:text-amber-700 underline">
+                        Create a curator agent
+                      </Link>{" "}
+                      to discover and manage websites.
                     </p>
                   </div>
                 )}

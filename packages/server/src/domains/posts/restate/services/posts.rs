@@ -29,6 +29,7 @@ use crate::domains::posts::restate::virtual_objects::post::{PostResult, PostTagR
 pub struct ListPostsRequest {
     pub status: Option<String>,
     pub website_id: Option<Uuid>,
+    pub agent_id: Option<Uuid>,
     pub first: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
@@ -115,7 +116,7 @@ impl_restate_serde!(ListReportsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicListRequest {
-    pub audience: Option<String>,
+    pub post_type: Option<String>,
     pub category: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
@@ -337,8 +338,19 @@ pub struct FilterOption {
 impl_restate_serde!(FilterOption);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostTypeOption {
+    pub value: String,
+    pub display_name: String,
+    pub description: Option<String>,
+    pub color: Option<String>,
+}
+
+impl_restate_serde!(PostTypeOption);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicFiltersResult {
     pub categories: Vec<FilterOption>,
+    pub post_types: Vec<PostTypeOption>,
 }
 
 impl_restate_serde!(PublicFiltersResult);
@@ -416,9 +428,10 @@ impl PostsService for PostsServiceImpl {
             .map_err(|e| TerminalError::new(e))?;
 
         let website_id = req.website_id.map(crate::common::WebsiteId::from_uuid);
+        let agent_id = req.agent_id;
 
         let connection =
-            activities::get_posts_paginated(status_filter, website_id, &validated, &self.deps)
+            activities::get_posts_paginated(status_filter, website_id, agent_id, &validated, &self.deps)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -439,6 +452,7 @@ impl PostsService for PostsServiceImpl {
                     kind: row.tag.kind,
                     value: row.tag.value,
                     display_name: row.tag.display_name,
+                    color: row.tag.color,
                 });
         }
 
@@ -831,14 +845,14 @@ impl PostsService for PostsServiceImpl {
     ) -> Result<PublicListResult, HandlerError> {
         let limit = req.limit.unwrap_or(50).min(200) as i64;
         let offset = req.offset.unwrap_or(0) as i64;
-        let audience = req.audience.as_deref();
+        let post_type = req.post_type.as_deref();
         let category = req.category.as_deref();
 
-        let posts = Post::find_public_filtered(audience, category, limit, offset, &self.deps.db_pool)
+        let posts = Post::find_public_filtered(post_type, category, limit, offset, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let total_count = Post::count_public_filtered(audience, category, &self.deps.db_pool)
+        let total_count = Post::count_public_filtered(post_type, category, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -894,6 +908,10 @@ impl PostsService for PostsServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        let post_types = Tag::find_post_types(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
         Ok(PublicFiltersResult {
             categories: categories
                 .into_iter()
@@ -901,6 +919,15 @@ impl PostsService for PostsServiceImpl {
                     value: c.value,
                     display_name: c.display_name,
                     count: c.count,
+                })
+                .collect(),
+            post_types: post_types
+                .into_iter()
+                .map(|t| PostTypeOption {
+                    value: t.value,
+                    display_name: t.display_name.unwrap_or_default(),
+                    description: t.description,
+                    color: t.color,
                 })
                 .collect(),
         })
