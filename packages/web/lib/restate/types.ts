@@ -22,6 +22,8 @@ export interface TagResult {
   kind: string;
   value: string;
   display_name: string | null;
+  color: string | null;
+  description: string | null;
 }
 
 export interface TagKindResult {
@@ -227,6 +229,99 @@ export interface DiscoverySearchResult {
   run_id: string;
 }
 
+// --- Agents ---
+
+export interface AgentResponse {
+  id: string;
+  display_name: string;
+  role: string;
+  status: string;
+  created_at: string;
+}
+
+export interface AgentListResponse {
+  agents: AgentResponse[];
+}
+
+export interface AssistantConfigResponse {
+  preamble: string;
+  config_name: string;
+}
+
+export interface CuratorConfigResponse {
+  purpose: string;
+  audience_roles: string[];
+  schedule_discover: string | null;
+  schedule_monitor: string | null;
+}
+
+export interface SearchQueryResponse {
+  id: string;
+  query_text: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface SearchQueryListResponse {
+  queries: SearchQueryResponse[];
+}
+
+export interface FilterRuleResponse {
+  id: string;
+  rule_text: string;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface FilterRuleListResponse {
+  rules: FilterRuleResponse[];
+}
+
+export interface AgentTagKindResponse {
+  id: string;
+  slug: string;
+  display_name: string;
+}
+
+export interface TagKindListResponse {
+  tag_kinds: AgentTagKindResponse[];
+}
+
+export interface AgentWebsiteResponse {
+  website_id: string;
+  domain: string | null;
+  discovered_at: string;
+}
+
+export interface RunStatResponse {
+  stat_key: string;
+  stat_value: number;
+}
+
+export interface AgentRunResponse {
+  id: string;
+  step: string;
+  trigger_type: string;
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  stats: RunStatResponse[];
+}
+
+export interface AgentRunListResponse {
+  runs: AgentRunResponse[];
+}
+
+export interface AgentDetailResponse {
+  agent: AgentResponse;
+  assistant_config: AssistantConfigResponse | null;
+  curator_config: CuratorConfigResponse | null;
+  search_queries: SearchQueryResponse[];
+  filter_rules: FilterRuleResponse[];
+  required_tag_kinds: AgentTagKindResponse[];
+  websites: AgentWebsiteResponse[];
+}
+
 // --- Sync ---
 
 export interface SyncBatch {
@@ -379,7 +474,7 @@ export interface JobListResult {
 // --- Public home page ---
 
 export interface PublicListRequest {
-  audience?: string;
+  post_type?: string;
   category?: string;
   limit?: number;
   offset?: number;
@@ -415,8 +510,16 @@ export interface FilterOption {
   count: number;
 }
 
+export interface PostTypeOption {
+  value: string;
+  display_name: string;
+  description: string | null;
+  color: string | null;
+}
+
 export interface PublicFiltersResult {
   categories: FilterOption[];
+  post_types: PostTypeOption[];
 }
 
 // --- Public chat message (compatible with ChatPanel) ---
