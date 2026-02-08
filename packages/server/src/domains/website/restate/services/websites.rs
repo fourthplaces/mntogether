@@ -5,12 +5,15 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
-use crate::common::PaginationArgs;
+use crate::common::{EmptyRequest, MemberId, PaginationArgs};
+use crate::domains::crawling::activities::ingest_website;
 use crate::domains::posts::models::post::Post;
 use crate::domains::website::activities;
+use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -78,6 +81,14 @@ pub struct WebsiteSearchResults {
 
 impl_restate_serde!(WebsiteSearchResults);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledScrapeResult {
+    pub websites_scraped: i32,
+    pub status: String,
+}
+
+impl_restate_serde!(ScheduledScrapeResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -92,6 +103,9 @@ pub trait WebsitesService {
     async fn search(
         req: SearchWebsitesRequest,
     ) -> Result<WebsiteSearchResults, HandlerError>;
+    async fn run_scheduled_scrape(
+        req: EmptyRequest,
+    ) -> Result<ScheduledScrapeResult, HandlerError>;
 }
 
 pub struct WebsitesServiceImpl {
@@ -205,6 +219,91 @@ impl WebsitesService for WebsitesServiceImpl {
                     similarity: r.similarity,
                 })
                 .collect(),
+        })
+    }
+
+    async fn run_scheduled_scrape(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ScheduledScrapeResult, HandlerError> {
+        tracing::info!("Running scheduled website scrape");
+
+        let pool = &self.deps.db_pool;
+
+        let sources = Website::find_due_for_scraping(pool)
+            .await
+            .map_err(|e| HandlerError::from(e.to_string()))?;
+
+        if sources.is_empty() {
+            tracing::info!("No websites due for scraping");
+
+            // Schedule next run
+            ctx.service_client::<WebsitesServiceClient>()
+                .run_scheduled_scrape(EmptyRequest {})
+                .send_after(Duration::from_secs(3600));
+
+            return Ok(ScheduledScrapeResult {
+                websites_scraped: 0,
+                status: "no_websites_due".to_string(),
+            });
+        }
+
+        tracing::info!("Found {} websites due for scraping", sources.len());
+        let mut scraped_count = 0i32;
+
+        for website in &sources {
+            let website_id = website.id.into_uuid();
+            let domain = website.domain.clone();
+
+            let result = ctx
+                .run(|| {
+                    let deps = &self.deps;
+                    async move {
+                        ingest_website(
+                            website_id,
+                            MemberId::nil().into_uuid(),
+                            true,
+                            true,
+                            deps,
+                        )
+                        .await
+                        .map_err(Into::into)
+                    }
+                })
+                .await;
+
+            match result {
+                Ok(ingested) => {
+                    tracing::info!(
+                        website_id = %website_id,
+                        domain = %domain,
+                        job_id = %ingested.job_id,
+                        pages_crawled = ingested.pages_crawled,
+                        pages_summarized = ingested.pages_summarized,
+                        "Ingested website"
+                    );
+                    scraped_count += 1;
+                }
+                Err(e) => {
+                    tracing::error!(
+                        website_id = %website_id,
+                        domain = %domain,
+                        error = %e,
+                        "Failed to ingest website"
+                    );
+                }
+            }
+        }
+
+        // Schedule next run
+        ctx.service_client::<WebsitesServiceClient>()
+            .run_scheduled_scrape(EmptyRequest {})
+            .send_after(Duration::from_secs(3600));
+
+        Ok(ScheduledScrapeResult {
+            websites_scraped: scraped_count,
+            status: "completed".to_string(),
         })
     }
 }
