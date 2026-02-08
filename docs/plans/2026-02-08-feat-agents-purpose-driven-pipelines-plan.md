@@ -586,13 +586,13 @@ DROP TABLE IF EXISTS discovery_queries;
 
 **Why last:** Dropping tables in an earlier phase would break incremental rollout. The agents domain must be fully functional before removing discovery infrastructure.
 
-- Remove `domains/discovery/` entirely (models, activities, restate service)
-- Remove Discovery admin page
-- Remove Extraction admin page (extraction is now per-agent)
-- Remove hardcoded `POST_SEARCH_QUERY` constant from `crawling/activities/post_extraction.rs`
-- Remove Discovery service registration from `server.rs`
-- Clean up TypeScript types for discovery
-- Remove stale indexes from old agents table (`idx_agents_enabled`, `idx_agents_due`) if not already handled by migration
+- [x] Remove `domains/discovery/` entirely (models, activities, restate service)
+- [x] Remove Discovery admin page
+- [x] Remove Extraction admin page (extraction is now per-agent)
+- [ ] Remove hardcoded `POST_SEARCH_QUERY` constant from `crawling/activities/post_extraction.rs` (deferred — still used by crawling domain)
+- [x] Remove Discovery service registration from `server.rs`
+- [x] Clean up TypeScript types for discovery
+- [ ] Remove stale indexes from old agents table (`idx_agents_enabled`, `idx_agents_due`) if not already handled by migration (already handled by 000126)
 
 **Files deleted:**
 - `packages/server/src/domains/discovery/` — entire directory

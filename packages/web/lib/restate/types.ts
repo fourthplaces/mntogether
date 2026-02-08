@@ -156,17 +156,6 @@ export interface OptionalAssessmentResult {
   assessment: AssessmentResult | null;
 }
 
-export interface DiscoverySourceResult {
-  id: string;
-  query_id: string;
-  domain: string;
-  url: string;
-  relevance_score: number | null;
-  filter_result: string;
-  filter_reason: string | null;
-  discovered_at: string;
-}
-
 // --- Members ---
 
 export interface MemberResult {
@@ -175,58 +164,6 @@ export interface MemberResult {
   display_name: string | null;
   is_admin: boolean;
   created_at: string;
-}
-
-// --- Discovery ---
-
-export interface DiscoveryQuery {
-  id: string;
-  query_text: string;
-  category: string | null;
-  is_active: boolean;
-  created_at: string;
-}
-
-export interface DiscoveryFilterRule {
-  id: string;
-  query_id: string | null;
-  rule_text: string;
-  sort_order: number;
-  is_active: boolean;
-}
-
-export interface DiscoveryRun {
-  id: string;
-  queries_executed: number;
-  total_results: number;
-  websites_created: number;
-  websites_filtered: number;
-  started_at: string;
-  completed_at: string | null;
-  trigger_type: string;
-}
-
-export interface DiscoveryRunResult {
-  id: string;
-  run_id: string;
-  query_id: string;
-  domain: string;
-  url: string;
-  title: string | null;
-  snippet: string | null;
-  relevance_score: number | null;
-  filter_result: string;
-  filter_reason: string | null;
-  website_id: string | null;
-  discovered_at: string;
-}
-
-export interface DiscoverySearchResult {
-  queries_run: number;
-  total_results: number;
-  websites_created: number;
-  websites_filtered: number;
-  run_id: string;
 }
 
 // --- Agents ---
@@ -414,12 +351,6 @@ export interface ExtractionPageCount {
   count: number;
 }
 
-export interface ExtractionResult {
-  job_id: string;
-  status: string;
-  message: string | null;
-}
-
 // --- Resource Link Submission ---
 
 export interface SubmitResourceLinkResult {
@@ -447,7 +378,7 @@ export interface OrganizationMatch {
 
 // --- Post types for public display ---
 
-export type PostType = "service" | "opportunity" | "business" | "professional";
+export type PostType = "seeking" | "offering" | "announcement" | "service" | "opportunity" | "business" | "professional";
 export type Urgency = "urgent" | "high" | "medium" | "low";
 export type CapacityStatus = "accepting" | "paused" | "at_capacity";
 
