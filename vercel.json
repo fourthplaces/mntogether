@@ -2,6 +2,5 @@
   "buildCommand": "yarn build",
   "outputDirectory": ".next",
   "installCommand": "yarn install --immutable",
-  "framework": "nextjs",
-  "rootDirectory": "packages/web"
+  "framework": "nextjs"
 }
