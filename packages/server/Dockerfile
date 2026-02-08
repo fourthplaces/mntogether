@@ -40,6 +40,7 @@ COPY packages/server/src ./packages/server/src
 COPY packages/server/migrations ./packages/server/migrations
 COPY packages/twilio-rs/src ./packages/twilio-rs/src
 COPY packages/extraction/src ./packages/extraction/src
+COPY packages/extraction/migrations ./packages/extraction/migrations
 COPY packages/openai-client/src ./packages/openai-client/src
 
 # Build the actual application (touch lib.rs to force recompilation)
