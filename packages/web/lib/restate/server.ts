@@ -43,6 +43,7 @@ export async function restateCall<T>(
   }
 
   const url = `${RESTATE_INGRESS_URL}/${path}`;
+  console.log(`[restate] RESTATE_INGRESS_URL=${process.env.RESTATE_INGRESS_URL || "(NOT SET)"}`);
   console.log(`[restate] POST ${url}`);
 
   let response: Response;
