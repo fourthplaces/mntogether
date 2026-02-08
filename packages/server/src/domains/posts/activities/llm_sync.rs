@@ -388,6 +388,7 @@ async fn stage_sync_operations(
                             .source_url
                             .clone()
                             .or_else(|| Some(format!("https://{}", website.domain))),
+                        None,
                         pool,
                     )
                     .await

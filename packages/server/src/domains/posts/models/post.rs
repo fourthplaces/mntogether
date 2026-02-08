@@ -302,6 +302,8 @@ pub struct CreatePost {
     pub revision_of_post_id: Option<PostId>,
     #[builder(default)]
     pub translation_of_id: Option<PostId>,
+    #[builder(default)]
+    pub agent_id: Option<Uuid>,
 }
 
 /// Builder for updating Post content
@@ -330,6 +332,17 @@ pub struct UpdatePostContent {
 // =============================================================================
 
 impl Post {
+    /// Find all posts created by a specific agent.
+    pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM posts WHERE agent_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC",
+        )
+        .bind(agent_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
@@ -577,8 +590,9 @@ impl Post {
                 website_id,
                 source_url,
                 revision_of_post_id,
-                translation_of_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                translation_of_id,
+                agent_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
             "#,
         )
@@ -598,6 +612,7 @@ impl Post {
         .bind(input.source_url)
         .bind(input.revision_of_post_id)
         .bind(input.translation_of_id)
+        .bind(input.agent_id)
         .fetch_one(pool)
         .await?;
 

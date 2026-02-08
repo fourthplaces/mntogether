@@ -46,6 +46,7 @@ pub async fn create_extracted_post(
     post: &ExtractedPost,
     website_id: Option<WebsiteId>,
     source_url: Option<String>,
+    agent_id: Option<uuid::Uuid>,
     pool: &PgPool,
 ) -> Result<Post> {
     let urgency = normalize_urgency(post.urgency.as_deref());
@@ -62,6 +63,7 @@ pub async fn create_extracted_post(
             .submission_type(Some("scraped".to_string()))
             .website_id(website_id)
             .source_url(source_url)
+            .agent_id(agent_id)
             .build(),
         pool,
     )

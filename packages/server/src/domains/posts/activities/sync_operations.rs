@@ -74,6 +74,7 @@ pub async fn apply_insert(
             .source_url
             .clone()
             .or_else(|| Some(format!("https://{}", website.domain))),
+        None,
         pool,
     )
     .await
