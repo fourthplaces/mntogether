@@ -27,7 +27,7 @@ export default async function SearchPage({
       console.error("Search error:", error);
     }
   }
-
+  
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-8">
