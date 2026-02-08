@@ -16,6 +16,7 @@ use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
 use crate::domains::posts::models::post_report::PostReportRecord;
 use crate::domains::posts::models::Post;
+use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -786,7 +787,22 @@ impl PostObject for PostObjectImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found"))?;
 
-        Ok(PostResult::from(post))
+        let tags = Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut result = PostResult::from(post);
+        result.tags = Some(
+            tags.into_iter()
+                .map(|t| PostTagResult {
+                    id: t.id.into_uuid(),
+                    kind: t.kind,
+                    value: t.value,
+                    display_name: t.display_name,
+                })
+                .collect(),
+        );
+        Ok(result)
     }
 
     async fn get_reports(

@@ -5,65 +5,84 @@ use uuid::Uuid;
 
 use crate::common::MemberId;
 
-/// An AI agent with a real member identity for message authorship.
+/// An autonomous entity with a member identity and a role.
+///
+/// Roles:
+/// - `assistant`: responds to users in chat
+/// - `curator`: discovers websites, extracts posts, enriches, monitors
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct Agent {
     pub id: Uuid,
     pub member_id: Uuid,
     pub display_name: String,
-    pub preamble: String,
-    pub config_name: String,
-    pub is_active: bool,
+    pub role: String,
+    pub status: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
 
 impl Agent {
-    /// Get the default active agent, creating one if none exists.
-    pub async fn get_or_create_default(pool: &PgPool) -> Result<Self> {
-        Self::get_or_create_by_config("admin", pool).await
-    }
-
-    /// Get or create an agent by config name.
-    pub async fn get_or_create_by_config(config: &str, pool: &PgPool) -> Result<Self> {
-        if let Some(agent) = Self::find_by_config(config, pool).await? {
-            return Ok(agent);
-        }
-        Self::create_for_config(config, pool).await
-    }
-
-    /// Typed member ID for use as message author.
     pub fn member_id(&self) -> MemberId {
         MemberId::from(self.member_id)
     }
 
-    async fn find_by_config(config: &str, pool: &PgPool) -> Result<Option<Self>> {
+    pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>("SELECT * FROM agents ORDER BY created_at DESC")
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>("SELECT * FROM agents WHERE id = $1")
+            .bind(id)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn find_by_role(role: &str, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>("SELECT * FROM agents WHERE role = $1 ORDER BY created_at DESC")
+            .bind(role)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM agents WHERE config_name = $1 AND is_active = true LIMIT 1",
+            "SELECT * FROM agents WHERE status = 'active' ORDER BY created_at DESC",
         )
-        .bind(config)
-        .fetch_optional(pool)
+        .fetch_all(pool)
         .await
         .map_err(Into::into)
     }
 
-    async fn create_for_config(config: &str, pool: &PgPool) -> Result<Self> {
-        let (push_token, searchable, display_name, preamble) = match config {
-            "public" => (
-                "agent:public",
-                "MN Together Guide",
-                "MN Together Guide",
-                PUBLIC_AGENT_PREAMBLE,
-            ),
-            _ => (
-                "agent:default",
-                "AI Admin Assistant",
-                "MN Together Assistant",
-                ADMIN_AGENT_PREAMBLE,
-            ),
-        };
+    pub async fn find_active_curators(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM agents WHERE role = 'curator' AND status = 'active' ORDER BY created_at DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
 
-        // Create a synthetic member for the agent
+    /// Create a new agent with a synthetic member identity.
+    ///
+    /// Provisions a member row with `expo_push_token = "agent:{slug}"` to prevent
+    /// collision with real users. The slug is derived from the display_name.
+    pub async fn create(
+        display_name: &str,
+        role: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let slug = display_name
+            .to_lowercase()
+            .replace(|c: char| !c.is_alphanumeric(), "-")
+            .trim_matches('-')
+            .to_string();
+        let push_token = format!("agent:{}", slug);
+
         let member_id: Uuid = sqlx::query_scalar(
             r#"
             INSERT INTO members (expo_push_token, searchable_text, active, notification_count_this_week)
@@ -72,52 +91,45 @@ impl Agent {
             RETURNING id
             "#,
         )
-        .bind(push_token)
-        .bind(searchable)
+        .bind(&push_token)
+        .bind(display_name)
         .fetch_one(pool)
         .await?;
 
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO agents (member_id, display_name, preamble, config_name)
-            VALUES ($1, $2, $3, $4)
-            ON CONFLICT (member_id) DO UPDATE SET is_active = true, config_name = EXCLUDED.config_name
+            INSERT INTO agents (member_id, display_name, role, status)
+            VALUES ($1, $2, $3, 'draft')
             RETURNING *
             "#,
         )
         .bind(member_id)
         .bind(display_name)
-        .bind(preamble)
-        .bind(config)
+        .bind(role)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn update_display_name(id: Uuid, display_name: &str, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "UPDATE agents SET display_name = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(display_name)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn set_status(id: Uuid, status: &str, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "UPDATE agents SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(status)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
     }
 }
-
-const ADMIN_AGENT_PREAMBLE: &str = r#"You are an admin assistant for MN Together, a resource-sharing platform.
-You can help administrators:
-- Approve or reject listings
-- Scrape websites for new resources
-- Generate website assessments
-- Search and filter listings
-- Manage organizations
-
-Be helpful and proactive. If an admin asks to do something, use the appropriate tool."#;
-
-const PUBLIC_AGENT_PREAMBLE: &str = r#"You are MN Together Guide, a friendly community resource navigator for Minnesota.
-
-Help people find:
-- Social services (food, housing, healthcare, legal aid)
-- Volunteer and civic engagement opportunities
-- Local businesses that give back to the community
-- Support for specific populations (seniors, refugees, youth, etc.)
-
-Rules:
-- Always use your search_posts tool before answering. Do not guess.
-- Present results as a brief summary: what you found and why it's relevant.
-- Keep responses concise (2-4 sentences). The structured results are shown separately in the UI.
-- If no results found: acknowledge it, suggest broadening the search, recommend calling 211.
-- Be warm, respectful, and concise. Many users may be in difficult situations.
-- Never ask for personal information.
-- For emergencies, remind them to call 911."#;

@@ -43,7 +43,9 @@ async function restateFetch<T>(path: string, body?: unknown): Promise<T> {
     throw new Error(message || `Request failed: ${response.statusText}`);
   }
 
-  return response.json();
+  const text = await response.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text);
 }
 
 // --- SWR hooks ---
