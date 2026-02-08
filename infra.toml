@@ -1,0 +1,72 @@
+[project]
+name = "MN Together"
+
+[environments.dev]
+default = false
+
+[environments.dev.services.db]
+provider = "supabase"
+project_ref = "fffmfuzqcfxvxoknjvad"
+
+[environments.dev.services.mntogether]
+provider = "vercel"
+project_id = "prj_xpEvrm9gi1LAgqtA2tKpkUSn9wqG"
+target = "development"
+
+[environments.dev.services.workflows]
+provider = "restate"
+admin_url = "http://localhost:9070"
+ingress_url = "http://localhost:8080"
+
+[environments.production]
+default = true
+
+[environments.production.services.db]
+provider = "supabase"
+project_ref = "fuusttesoudnyaoeglye"
+
+[environments.production.services.mntogether]
+provider = "vercel"
+project_id = "prj_xpEvrm9gi1LAgqtA2tKpkUSn9wqG"
+target = "production"
+
+[environments.production.services.redis]
+provider = "railway"
+project_id = "a93f7906-4d54-4cec-8ba0-234bcd759514"
+service_id = "37406ca6-684e-41c6-bd00-12a31109be96"
+environment_id = "d83285d7-241d-46d1-b7dc-19770324ec6c"
+
+[environments.production.services.server]
+provider = "railway"
+project_id = "a93f7906-4d54-4cec-8ba0-234bcd759514"
+service_id = "1a606582-0549-4af6-8001-b065e24a68eb"
+environment_id = "d83285d7-241d-46d1-b7dc-19770324ec6c"
+
+[environments.production.services.web]
+provider = "railway"
+project_id = "a93f7906-4d54-4cec-8ba0-234bcd759514"
+service_id = "c43e9443-e360-469d-a1f8-113c40a18eb9"
+environment_id = "d83285d7-241d-46d1-b7dc-19770324ec6c"
+
+[environments.production.services.workflows]
+provider = "restate"
+admin_url = "restate.dev"
+ingress_url = "https://201kgxf8j6dwe03gktf1a4w71ns.env.us.restate.cloud:8080"
+
+[environments.staging]
+default = false
+
+[environments.staging.services.mntogether]
+provider = "vercel"
+project_id = "prj_xpEvrm9gi1LAgqtA2tKpkUSn9wqG"
+target = "preview"
+
+[environments.staging.services.workflows]
+provider = "restate"
+admin_url = "restate.dev"
+ingress_url = "https://201kgxf8j6dwe03gktf1a4w71ns.env.us.restate.cloud:8080"
+
+[links]
+
+[doctor]
+ai_enabled = false
