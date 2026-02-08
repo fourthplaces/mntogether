@@ -16,10 +16,26 @@ const protectedRoutes = [
 // Routes that should redirect authenticated users (e.g., login page)
 const authRoutes = ["/admin/login"];
 
+/**
+ * Decode JWT payload and check if expired.
+ * No signature verification — just reads the exp claim.
+ * Real auth validation happens in the Restate backend.
+ */
+function isTokenExpired(token: string): boolean {
+  try {
+    const payload = token.split(".")[1];
+    if (!payload) return true;
+    const decoded = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+    return !decoded.exp || decoded.exp < Date.now() / 1000;
+  } catch {
+    return true;
+  }
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  const isAuthenticated = !!token;
+  const isAuthenticated = token && !isTokenExpired(token);
 
   // Redirect /admin to /admin/dashboard
   if (pathname === "/admin" || pathname === "/admin/") {
@@ -36,11 +52,16 @@ export function middleware(request: NextRequest) {
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 
-  // Redirect unauthenticated users from protected routes to login
+  // Redirect unauthenticated or expired users from protected routes to login
   if (isProtectedRoute && !isAuthenticated) {
-    const loginUrl = new URL("/admin/login", request.url);
-    loginUrl.searchParams.set("redirect", pathname);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(
+      new URL(`/admin/login?redirect=${pathname}`, request.url)
+    );
+    // Clear stale cookie if token was expired
+    if (token) {
+      response.cookies.delete(AUTH_COOKIE_NAME);
+    }
+    return response;
   }
 
   // Redirect authenticated users from auth routes to dashboard

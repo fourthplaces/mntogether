@@ -6,7 +6,7 @@ import { restateCall } from "../restate/server";
 import type { OtpSent, OtpVerified } from "../restate/types";
 
 const AUTH_COOKIE_NAME = "auth_token";
-const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
+const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24; // 24 hours (matches JWT expiry)
 
 interface SendCodeResult {
   success: boolean;
@@ -48,7 +48,7 @@ export async function verifyCode(phoneNumber: string, code: string): Promise<Ver
     // Set cookie with the auth token
     const cookieStore = await cookies();
     cookieStore.set(AUTH_COOKIE_NAME, result.token, {
-      httpOnly: false,
+      httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       maxAge: AUTH_COOKIE_MAX_AGE,
