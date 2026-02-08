@@ -2,8 +2,6 @@ import { restateCall } from "@/lib/restate/server";
 import type { OrganizationResult, OrganizationMatch } from "@/lib/restate/types";
 import Link from "next/link";
 
-
-
 export default async function SearchPage({
   searchParams,
 }: {
