@@ -1,3 +1,6 @@
 [build]
 builder = "DOCKERFILE"
-dockerfilePath = "packages/web/Dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node server.js"
