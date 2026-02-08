@@ -6,6 +6,7 @@ import { cookies } from "next/headers";
 
 const RESTATE_INGRESS_URL =
   process.env.RESTATE_INGRESS_URL || "http://localhost:8180";
+const RESTATE_AUTH_TOKEN = process.env.RESTATE_AUTH_TOKEN || "";
 
 /**
  * Get the auth token from cookies (server-side)
@@ -31,18 +32,31 @@ export async function restateCall<T>(
     "Content-Type": "application/json",
   };
 
+  // Restate Cloud requires its own auth token for ingress
+  if (RESTATE_AUTH_TOKEN) {
+    headers["Authorization"] = `Bearer ${RESTATE_AUTH_TOKEN}`;
+  }
+
+  // Pass user's JWT as a separate header for the backend to read
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+    headers["X-User-Token"] = token;
   }
 
   const url = `${RESTATE_INGRESS_URL}/${path}`;
+  console.log(`[restate] POST ${url}`);
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : "{}",
-    cache: "no-store",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : "{}",
+      cache: "no-store",
+    });
+  } catch (err) {
+    console.error(`[restate] fetch failed for ${url}:`, err);
+    throw err;
+  }
 
   if (!response.ok) {
     const text = await response.text();

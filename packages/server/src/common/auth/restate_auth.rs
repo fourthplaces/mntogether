@@ -21,9 +21,12 @@ pub struct AuthUser {
 /// Returns `Ok(AuthUser)` if a valid Bearer token is present.
 /// Returns `Err(TerminalError)` if the token is missing or invalid.
 pub fn authenticate(headers: &HeaderMap, jwt_service: &JwtService) -> Result<AuthUser, HandlerError> {
+    // Prefer X-User-Token (set by web app when Restate Cloud consumes Authorization header)
+    // Fall back to Authorization header for direct calls
     let auth_str = headers
-        .get("authorization")
-        .ok_or_else(|| TerminalError::new("Missing Authorization header"))?;
+        .get("x-user-token")
+        .or_else(|| headers.get("authorization"))
+        .ok_or_else(|| TerminalError::new("Missing authentication header"))?;
 
     let token = auth_str.strip_prefix("Bearer ").unwrap_or(auth_str);
 
