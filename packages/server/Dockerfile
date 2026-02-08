@@ -21,6 +21,7 @@ RUN mkdir -p packages/server/src && \
     echo "fn main() {}" > packages/server/src/bin/server.rs && \
     echo "fn main() {}" > packages/server/src/bin/generate_embeddings.rs && \
     echo "fn main() {}" > packages/server/src/bin/migrate_cli.rs && \
+    echo "fn main() {}" > packages/server/src/bin/run_migrations.rs && \
     mkdir -p packages/twilio-rs/src && \
     echo "fn main() {}" > packages/twilio-rs/src/lib.rs && \
     mkdir -p packages/extraction/src && \
@@ -33,7 +34,7 @@ RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin serve
 
 # Remove dummy src files and compiled artifacts so cargo detects source changes
 RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src && \
-    rm -f target/release/server target/release/deps/server_core-* target/release/deps/libserver_core-*
+    rm -f target/release/server target/release/run_migrations target/release/deps/server_core-* target/release/deps/libserver_core-*
 
 # Copy real source code for packages we actually build
 COPY packages/server/src ./packages/server/src
@@ -43,9 +44,9 @@ COPY packages/extraction/src ./packages/extraction/src
 COPY packages/extraction/migrations ./packages/extraction/migrations
 COPY packages/openai-client/src ./packages/openai-client/src
 
-# Build the actual application (touch lib.rs to force recompilation)
+# Build both binaries (touch lib.rs to force recompilation)
 RUN touch packages/server/src/lib.rs packages/twilio-rs/src/lib.rs packages/extraction/src/lib.rs packages/openai-client/src/lib.rs && \
-    cargo build --release --manifest-path packages/server/Cargo.toml --bin server
+    cargo build --release --manifest-path packages/server/Cargo.toml --bin server --bin run_migrations
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -60,12 +61,11 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-# Copy binary from builder
+# Copy binaries from builder
 COPY --from=builder /app/target/release/server /usr/local/bin/server
-
-# Copy migrations for runtime
-COPY --from=builder /app/packages/server/migrations ./migrations
+COPY --from=builder /app/target/release/run_migrations /usr/local/bin/run_migrations
 
 EXPOSE 8080
 
-CMD ["server"]
+# Run migrations before starting the server
+CMD ["sh", "-c", "run_migrations && server"]
