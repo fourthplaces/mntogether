@@ -6,6 +6,7 @@ pub mod contacts;
 pub mod crawling;
 pub mod discovery;
 pub mod extraction;
+pub mod jobs;
 pub mod locations;
 pub mod member;
 pub mod posts;

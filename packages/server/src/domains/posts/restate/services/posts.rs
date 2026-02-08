@@ -15,6 +15,7 @@ use crate::domains::posts::data::types::SubmitPostInput;
 use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
 use crate::domains::posts::models::Post;
 use crate::domains::schedules::models::Schedule;
+use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -111,6 +112,21 @@ pub struct ListReportsRequest {
 }
 
 impl_restate_serde!(ListReportsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicListRequest {
+    pub audience: Option<String>,
+    pub category: Option<String>,
+    pub limit: Option<i32>,
+    pub offset: Option<i32>,
+}
+
+impl_restate_serde!(PublicListRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicFiltersRequest {}
+
+impl_restate_serde!(PublicFiltersRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsRequest {
@@ -279,6 +295,55 @@ pub struct ScheduleListResult {
 impl_restate_serde!(ScheduleListResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicPostResult {
+    pub id: Uuid,
+    pub title: String,
+    pub tldr: Option<String>,
+    pub description: String,
+    pub location: Option<String>,
+    pub source_url: Option<String>,
+    pub post_type: String,
+    pub category: String,
+    pub created_at: String,
+    pub tags: Vec<PublicTagResult>,
+}
+
+impl_restate_serde!(PublicPostResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicTagResult {
+    pub kind: String,
+    pub value: String,
+    pub display_name: Option<String>,
+}
+
+impl_restate_serde!(PublicTagResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicListResult {
+    pub posts: Vec<PublicPostResult>,
+    pub total_count: i32,
+}
+
+impl_restate_serde!(PublicListResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilterOption {
+    pub value: String,
+    pub display_name: String,
+    pub count: i32,
+}
+
+impl_restate_serde!(FilterOption);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PublicFiltersResult {
+    pub categories: Vec<FilterOption>,
+}
+
+impl_restate_serde!(PublicFiltersResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsResult {
     pub processed: i32,
     pub failed: i32,
@@ -314,6 +379,8 @@ pub trait PostsService {
     async fn backfill_locations(
         req: BackfillLocationsRequest,
     ) -> Result<BackfillLocationsResult, HandlerError>;
+    async fn public_list(req: PublicListRequest) -> Result<PublicListResult, HandlerError>;
+    async fn public_filters(req: PublicFiltersRequest) -> Result<PublicFiltersResult, HandlerError>;
 }
 
 // =============================================================================
@@ -730,5 +797,87 @@ impl PostsService for PostsServiceImpl {
             .await?;
 
         Ok(result)
+    }
+
+    async fn public_list(
+        &self,
+        _ctx: Context<'_>,
+        req: PublicListRequest,
+    ) -> Result<PublicListResult, HandlerError> {
+        let limit = req.limit.unwrap_or(50).min(200) as i64;
+        let offset = req.offset.unwrap_or(0) as i64;
+        let audience = req.audience.as_deref();
+        let category = req.category.as_deref();
+
+        let posts = Post::find_public_filtered(audience, category, limit, offset, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let total_count = Post::count_public_filtered(audience, category, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Batch-load tags for returned posts
+        let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Group tags by post id
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
+            std::collections::HashMap::new();
+        for row in tag_rows {
+            tags_by_post
+                .entry(row.taggable_id)
+                .or_default()
+                .push(PublicTagResult {
+                    kind: row.tag.kind,
+                    value: row.tag.value,
+                    display_name: row.tag.display_name,
+                });
+        }
+
+        Ok(PublicListResult {
+            posts: posts
+                .into_iter()
+                .map(|p| {
+                    let id = p.id.into_uuid();
+                    PublicPostResult {
+                        id,
+                        title: p.title,
+                        tldr: p.tldr,
+                        description: p.description,
+                        location: p.location,
+                        source_url: p.source_url,
+                        post_type: p.post_type,
+                        category: p.category,
+                        created_at: p.created_at.to_rfc3339(),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                    }
+                })
+                .collect(),
+            total_count: total_count as i32,
+        })
+    }
+
+    async fn public_filters(
+        &self,
+        _ctx: Context<'_>,
+        _req: PublicFiltersRequest,
+    ) -> Result<PublicFiltersResult, HandlerError> {
+        let categories = Tag::find_active_categories(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(PublicFiltersResult {
+            categories: categories
+                .into_iter()
+                .map(|c| FilterOption {
+                    value: c.value,
+                    display_name: c.display_name,
+                    count: c.count,
+                })
+                .collect(),
+        })
     }
 }

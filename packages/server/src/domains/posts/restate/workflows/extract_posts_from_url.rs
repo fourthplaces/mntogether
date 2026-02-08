@@ -12,7 +12,7 @@ use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::common::JobId;
+use crate::common::{EmptyRequest, JobId};
 use crate::domains::posts::activities::resource_link_creation::create_posts_from_resource_link;
 use crate::domains::posts::activities::resource_link_extraction::extract_posts_from_resource_link;
 use crate::domains::posts::activities::resource_link_scraping::scrape_resource_link;
@@ -47,6 +47,9 @@ impl_restate_serde!(ExtractPostsFromUrlResult);
 #[restate_sdk::workflow]
 pub trait ExtractPostsFromUrlWorkflow {
     async fn run(request: ExtractPostsFromUrlRequest) -> Result<ExtractPostsFromUrlResult, HandlerError>;
+
+    #[shared]
+    async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
 }
 
 pub struct ExtractPostsFromUrlWorkflowImpl {
@@ -74,6 +77,8 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
         );
 
         // Step 1: Scrape — journaled, won't re-run on replay
+        ctx.set("status", "Scraping URL...".to_string());
+
         let scrape = ctx
             .run(|| async {
                 scrape_resource_link(
@@ -89,6 +94,8 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
             .await?;
 
         // Step 2: AI extraction — if this fails, step 1 is replayed from journal
+        ctx.set("status", "Extracting posts...".to_string());
+
         let extraction = ctx
             .run(|| async {
                 extract_posts_from_resource_link(
@@ -107,6 +114,11 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
         let posts_count = extraction.posts.len();
 
         // Step 3: Create posts — if this fails, steps 1+2 are replayed from journal
+        ctx.set(
+            "status",
+            format!("Creating {} posts...", posts_count),
+        );
+
         let created = ctx
             .run(|| async {
                 create_posts_from_resource_link(
@@ -122,9 +134,25 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
             })
             .await?;
 
+        ctx.set(
+            "status",
+            format!("Completed: {} created", created.count),
+        );
+
         Ok(ExtractPostsFromUrlResult {
             posts_created: created.count,
             status: "completed".to_string(),
         })
+    }
+
+    async fn get_status(
+        &self,
+        ctx: SharedWorkflowContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<String, HandlerError> {
+        Ok(ctx
+            .get::<String>("status")
+            .await?
+            .unwrap_or_else(|| "pending".to_string()))
     }
 }

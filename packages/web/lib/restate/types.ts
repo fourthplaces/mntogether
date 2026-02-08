@@ -24,6 +24,23 @@ export interface TagResult {
   display_name: string | null;
 }
 
+export interface TagKindResult {
+  id: string;
+  slug: string;
+  display_name: string;
+  description: string | null;
+  allowed_resource_types: string[];
+  tag_count: number;
+}
+
+export interface TagKindListResult {
+  kinds: TagKindResult[];
+}
+
+export interface TagListResult {
+  tags: TagResult[];
+}
+
 // --- Posts ---
 
 export interface PostResult {
@@ -90,6 +107,10 @@ export interface WebsiteList {
   websites: WebsiteResult[];
   total_count: number;
   has_next_page: boolean;
+}
+
+export interface SubmitWebsiteRequest {
+  url: string;
 }
 
 export interface SnapshotResult {
@@ -212,6 +233,7 @@ export interface SyncBatch {
   id: string;
   resource_type: string;
   source_id: string | null;
+  source_name: string | null;
   status: string;
   summary: string | null;
   proposal_count: number;
@@ -333,6 +355,69 @@ export interface OrganizationMatch {
 export type PostType = "service" | "opportunity" | "business" | "professional";
 export type Urgency = "urgent" | "high" | "medium" | "low";
 export type CapacityStatus = "accepting" | "paused" | "at_capacity";
+
+// --- Jobs ---
+
+export interface JobResult {
+  id: string;
+  workflow_name: string;
+  workflow_key: string;
+  status: string;
+  progress: string | null;
+  created_at: string | null;
+  modified_at: string | null;
+  completed_at: string | null;
+  completion_result: string | null;
+  website_domain: string | null;
+  website_id: string | null;
+}
+
+export interface JobListResult {
+  jobs: JobResult[];
+}
+
+// --- Public home page ---
+
+export interface PublicListRequest {
+  audience?: string;
+  category?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface PublicTagResult {
+  kind: string;
+  value: string;
+  display_name: string | null;
+}
+
+export interface PublicPostResult {
+  id: string;
+  title: string;
+  tldr: string | null;
+  description: string;
+  location: string | null;
+  source_url: string | null;
+  post_type: string;
+  category: string;
+  created_at: string;
+  tags: PublicTagResult[];
+}
+
+export interface PublicListResult {
+  posts: PublicPostResult[];
+  total_count: number;
+}
+
+export interface FilterOption {
+  value: string;
+  display_name: string;
+  count: number;
+}
+
+export interface PublicFiltersResult {
+  categories: FilterOption[];
+}
 
 // --- Public chat message (compatible with ChatPanel) ---
 

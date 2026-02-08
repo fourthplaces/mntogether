@@ -4,6 +4,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
+use uuid::Uuid;
 
 use crate::common::{MemberId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId};
 
@@ -576,6 +577,17 @@ impl Website {
         };
 
         Ok((results, has_more))
+    }
+
+    /// Batch-lookup website domains by IDs
+    pub async fn find_domains_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<(Uuid, String)>> {
+        sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT id, domain FROM websites WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Count websites with optional status filter

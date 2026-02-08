@@ -21,16 +21,18 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch recent chats to restore session
-  const { data: recentChats, isLoading: loadingRecent } = useRestate<ChatroomResult[]>(
+  const { data: recentChatsData, isLoading: loadingRecent } = useRestate<{ chats: ChatroomResult[] }>(
     "Chats", "list_recent", { limit: 1 },
     { revalidateOnFocus: false }
   );
+  const recentChats = recentChatsData?.chats;
 
   // Fetch messages when container is selected (no polling — streaming replaces it)
-  const { data: messages, mutate: refetchMessages } = useRestateObject<ChatMessage[]>(
+  const { data: messagesData, mutate: refetchMessages } = useRestateObject<{ messages: ChatMessage[] }>(
     "Chat", containerId, "get_messages", {},
     { revalidateOnFocus: false }
   );
+  const messages = messagesData?.messages;
 
   // SSE connection — notifies when assistant reply is ready
   useChatStream(containerId, {

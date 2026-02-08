@@ -303,6 +303,13 @@ export default function PostDetailPage() {
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
                     <button
+                      onClick={handleRegenerate}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      {actionInProgress === "regenerate" ? "Re-running..." : "Re-run Investigation"}
+                    </button>
+                    <button
                       onClick={handleDelete}
                       disabled={actionInProgress !== null}
                       className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"

@@ -147,6 +147,14 @@ impl std::str::FromStr for TaggableType {
     }
 }
 
+/// Active category with post count (for public home page filters)
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct ActiveCategory {
+    pub value: String,
+    pub display_name: String,
+    pub count: i32,
+}
+
 /// Helper struct for batch-loading tags with their associated post ID.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct TagWithPostId {
@@ -174,6 +182,30 @@ impl Tag {
         )
         .bind(post_ids)
         .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find all tags ordered by kind, value
+    pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Tag>("SELECT * FROM tags ORDER BY kind, value")
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Update tag display name
+    pub async fn update_display_name(
+        id: TagId,
+        display_name: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Tag>(
+            "UPDATE tags SET display_name = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(display_name)
+        .fetch_one(pool)
         .await
         .map_err(Into::into)
     }
@@ -399,6 +431,31 @@ impl Tag {
         .fetch_optional(pool)
         .await?;
         Ok(value)
+    }
+
+    /// Find distinct ServiceOffered tags that are attached to active posts, with counts.
+    /// Powers the dynamic category pills on the public home page.
+    pub async fn find_active_categories(pool: &PgPool) -> Result<Vec<ActiveCategory>> {
+        sqlx::query_as::<_, ActiveCategory>(
+            r#"
+            SELECT t.value, COALESCE(t.display_name, t.value) as display_name, COUNT(DISTINCT tg.taggable_id)::int as count
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            INNER JOIN posts p ON p.id = tg.taggable_id
+            WHERE t.kind = 'service_offered'
+              AND tg.taggable_type = 'post'
+              AND p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            GROUP BY t.value, t.display_name
+            HAVING COUNT(DISTINCT tg.taggable_id) > 0
+            ORDER BY count DESC, t.value
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Count tags

@@ -10,7 +10,7 @@ use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::common::WebsiteId;
+use crate::common::{EmptyRequest, WebsiteId};
 use crate::domains::crawling::activities;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -38,6 +38,9 @@ impl_restate_serde!(CrawlWebsiteResult);
 #[restate_sdk::workflow]
 pub trait CrawlWebsiteWorkflow {
     async fn run(request: CrawlWebsiteRequest) -> Result<CrawlWebsiteResult, HandlerError>;
+
+    #[shared]
+    async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
 }
 
 pub struct CrawlWebsiteWorkflowImpl {
@@ -64,6 +67,8 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
 
         let website_id_typed = WebsiteId::from_uuid(request.website_id);
 
+        ctx.set("status", "Crawling website...".to_string());
+
         // Durable execution - orchestrate the full crawl pipeline
         let result = ctx
             .run(|| async {
@@ -79,6 +84,22 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
             })
             .await?;
 
+        ctx.set(
+            "status",
+            format!("Completed: {} posts synced", result.posts_synced),
+        );
+
         Ok(result)
+    }
+
+    async fn get_status(
+        &self,
+        ctx: SharedWorkflowContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<String, HandlerError> {
+        Ok(ctx
+            .get::<String>("status")
+            .await?
+            .unwrap_or_else(|| "pending".to_string()))
     }
 }

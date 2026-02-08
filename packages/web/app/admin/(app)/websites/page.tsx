@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRestate } from "@/lib/restate/client";
+import { useRestate, callService, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
-import type { WebsiteList } from "@/lib/restate/types";
+import type { WebsiteList, WebsiteResult } from "@/lib/restate/types";
 
 export default function WebsitesPage() {
   return (
@@ -31,6 +31,29 @@ function WebsitesContent() {
     }
     router.replace(`/admin/websites?${params.toString()}`);
     pagination.reset();
+  };
+
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [addUrl, setAddUrl] = useState("");
+  const [addLoading, setAddLoading] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const handleAddWebsite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addUrl.trim()) return;
+
+    setAddLoading(true);
+    setAddError(null);
+    try {
+      await callService<WebsiteResult>("Websites", "submit", { url: addUrl.trim() });
+      invalidateService("Websites");
+      setAddUrl("");
+      setShowAddForm(false);
+    } catch (err: any) {
+      setAddError(err.message || "Failed to add website");
+    } finally {
+      setAddLoading(false);
+    }
   };
 
   const { data, isLoading, error } = useRestate<WebsiteList>(
@@ -72,7 +95,7 @@ function WebsitesContent() {
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-stone-900">Websites</h1>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {["all", "pending_review", "approved", "rejected"].map((status) => (
               <button
                 key={status}
@@ -86,8 +109,45 @@ function WebsitesContent() {
                 {status === "all" ? "All" : status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
               </button>
             ))}
+            <button
+              onClick={() => setShowAddForm(!showAddForm)}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors ml-2"
+            >
+              + Add Website
+            </button>
           </div>
         </div>
+
+        {showAddForm && (
+          <form onSubmit={handleAddWebsite} className="bg-white rounded-lg shadow px-4 py-3 mb-6 flex items-center gap-3">
+            <input
+              type="text"
+              value={addUrl}
+              onChange={(e) => setAddUrl(e.target.value)}
+              placeholder="Enter URL or domain (e.g. example.com)"
+              className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              autoFocus
+              disabled={addLoading}
+            />
+            <button
+              type="submit"
+              disabled={addLoading || !addUrl.trim()}
+              className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {addLoading ? "Adding..." : "Add"}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowAddForm(false); setAddUrl(""); setAddError(null); }}
+              className="px-3 py-2 text-stone-500 hover:text-stone-700 text-sm"
+            >
+              Cancel
+            </button>
+            {addError && (
+              <span className="text-red-600 text-sm">{addError}</span>
+            )}
+          </form>
+        )}
 
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
