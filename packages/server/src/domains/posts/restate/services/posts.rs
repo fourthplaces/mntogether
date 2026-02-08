@@ -19,7 +19,7 @@ use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
-use crate::domains::posts::restate::virtual_objects::post::PostResult;
+use crate::domains::posts::restate::virtual_objects::post::{PostResult, PostTagResult};
 
 // =============================================================================
 // Request types
@@ -422,26 +422,50 @@ impl PostsService for PostsServiceImpl {
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Batch-load tags for returned posts
+        let post_ids: Vec<uuid::Uuid> = connection.edges.iter().map(|e| e.node.id).collect();
+        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+            std::collections::HashMap::new();
+        for row in tag_rows {
+            tags_by_post
+                .entry(row.taggable_id)
+                .or_default()
+                .push(PostTagResult {
+                    id: row.tag.id.into_uuid(),
+                    kind: row.tag.kind,
+                    value: row.tag.value,
+                    display_name: row.tag.display_name,
+                });
+        }
+
         Ok(PostListResult {
             posts: connection
                 .edges
                 .into_iter()
-                .map(|e| PostResult {
-                    id: e.node.id,
-                    title: e.node.title,
-                    description: e.node.description,
-                    description_markdown: e.node.description_markdown,
-                    tldr: e.node.tldr,
-                    status: format!("{:?}", e.node.status),
-                    post_type: e.node.post_type,
-                    category: e.node.category,
-                    urgency: e.node.urgency,
-                    location: e.node.location,
-                    source_url: e.node.source_url,
-                    website_id: e.node.website_id,
-                    submission_type: e.node.submission_type,
-                    created_at: e.node.created_at.to_rfc3339(),
-                    updated_at: e.node.created_at.to_rfc3339(), // PostType doesn't carry updated_at
+                .map(|e| {
+                    let id = e.node.id;
+                    PostResult {
+                        id,
+                        title: e.node.title,
+                        description: e.node.description,
+                        description_markdown: e.node.description_markdown,
+                        tldr: e.node.tldr,
+                        status: format!("{:?}", e.node.status),
+                        post_type: e.node.post_type,
+                        category: e.node.category,
+                        urgency: e.node.urgency,
+                        location: e.node.location,
+                        source_url: e.node.source_url,
+                        website_id: e.node.website_id,
+                        submission_type: e.node.submission_type,
+                        created_at: e.node.created_at.to_rfc3339(),
+                        updated_at: e.node.created_at.to_rfc3339(),
+                        tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                    }
                 })
                 .collect(),
             total_count: connection.total_count,
@@ -490,6 +514,7 @@ impl PostsService for PostsServiceImpl {
                         submission_type: pwd.submission_type,
                         created_at: pwd.created_at.to_rfc3339(),
                         updated_at: pwd.created_at.to_rfc3339(),
+                        tags: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })

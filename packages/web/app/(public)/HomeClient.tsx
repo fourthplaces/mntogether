@@ -8,7 +8,7 @@ import type {
   PublicFiltersResult,
 } from "@/lib/restate/types";
 
-type AudienceFilter = "need_help" | "want_to_give" | "events" | null;
+type AudienceFilter = "need_help" | "want_to_give" | "bulletin" | null;
 
 const AUDIENCE_BUTTONS: {
   key: AudienceFilter & string;
@@ -16,8 +16,8 @@ const AUDIENCE_BUTTONS: {
   icon: string;
 }[] = [
   { key: "need_help", label: "I Need Help", icon: "\u{1F932}" },
-  { key: "want_to_give", label: "I Want to Give", icon: "\u{1F49B}" },
-  { key: "events", label: "Community Events", icon: "\u{1F4C5}" },
+  { key: "want_to_give", label: "I Want to Support", icon: "\u{1F49B}" },
+  { key: "bulletin", label: "Community Bulletin", icon: "\u{1F4CC}" },
 ];
 
 export function HomeClient() {
@@ -157,14 +157,6 @@ export function HomeClient() {
             <p className="text-gray-400 text-sm">
               No resources found. Try a different filter.
             </p>
-            {hasFilters && (
-              <button
-                onClick={clearAll}
-                className="mt-3 text-blue-600 text-sm hover:underline"
-              >
-                Clear all filters
-              </button>
-            )}
           </div>
         ) : (
           posts.map((post) => <PostListItem key={post.id} post={post} />)

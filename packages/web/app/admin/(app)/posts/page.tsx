@@ -1,18 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRestate, callObject, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { PostReviewCard } from "@/components/admin/PostReviewCard";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { PostList, PostStats, PostResult } from "@/lib/restate/types";
+import type { PostList, PostStats } from "@/lib/restate/types";
 
 type PostTypeFilter = "all" | "service" | "opportunity" | "business";
 type SourceFilter = "all" | "USER_SUBMITTED" | "SCRAPED";
+type StatusFilter = "pending_approval" | "active" | "rejected";
 
 export default function PostsPage() {
+  const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("pending_approval");
   const [selectedType, setSelectedType] = useState<PostTypeFilter>("all");
   const [selectedSource, setSelectedSource] = useState<SourceFilter>("all");
   const [approvingId, setApprovingId] = useState<string | null>(null);
@@ -23,11 +24,11 @@ export default function PostsPage() {
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [selectedType, selectedSource]);
+  }, [selectedStatus, selectedType, selectedSource]);
 
   // Fetch stats
   const { data: statsData } = useRestate<PostStats>(
-    "Posts", "stats", { status: "pending_approval" },
+    "Posts", "stats", { status: selectedStatus },
     { revalidateOnFocus: false }
   );
 
@@ -40,7 +41,7 @@ export default function PostsPage() {
   } = useRestate<PostList>(
     "Posts", "list",
     {
-      status: "pending_approval",
+      status: selectedStatus,
       post_type: selectedType === "all" ? null : selectedType,
       submission_type: selectedSource === "all" ? null : selectedSource,
       ...pagination.variables,
@@ -49,8 +50,6 @@ export default function PostsPage() {
   );
 
   const handleApprove = async (postId: string) => {
-    if (!confirm("Are you sure you want to approve this post?")) return;
-
     setApprovingId(postId);
     try {
       await callObject("Post", postId, "approve", {});
@@ -80,10 +79,6 @@ export default function PostsPage() {
     }
   };
 
-  const handleEdit = (post: PostResult) => {
-    window.location.href = `/admin/posts/${post.id}`;
-  };
-
   const posts = data?.posts || [];
   const totalCount = data?.total_count || 0;
   const hasNextPage = data?.has_next_page || false;
@@ -103,10 +98,26 @@ export default function PostsPage() {
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-stone-900 mb-2">Post Approval Queue</h1>
-          <p className="text-stone-600">
-            Review and approve posts from users and the intelligent crawler
-          </p>
+          <h1 className="text-3xl font-bold text-stone-900 mb-2">Posts</h1>
+          <div className="flex gap-2 mt-3">
+            {([
+              { key: "pending_approval", label: "Pending" },
+              { key: "active", label: "Active" },
+              { key: "rejected", label: "Rejected" },
+            ] as const).map((s) => (
+              <button
+                key={s.key}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedStatus === s.key
+                    ? "bg-stone-900 text-white"
+                    : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                }`}
+                onClick={() => setSelectedStatus(s.key)}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Stats Dashboard - Post Types */}
@@ -231,10 +242,12 @@ export default function PostsPage() {
         {/* Empty State */}
         {!isLoading && !error && posts.length === 0 && (
           <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
-            <div className="text-6xl mb-4">{"\u{1F389}"}</div>
-            <h3 className="text-xl font-semibold text-stone-900 mb-2">All caught up!</h3>
+            <div className="text-6xl mb-4">{selectedStatus === "pending_approval" ? "\u{1F389}" : "\u{1F4ED}"}</div>
+            <h3 className="text-xl font-semibold text-stone-900 mb-2">
+              {selectedStatus === "pending_approval" ? "All caught up!" : "No posts found"}
+            </h3>
             <p className="text-stone-600">
-              No pending posts to review
+              No {selectedStatus === "pending_approval" ? "pending" : selectedStatus} posts
               {selectedType !== "all" && ` for ${selectedType}`}
               {selectedSource !== "all" && ` from ${selectedSource === "USER_SUBMITTED" ? "users" : "scraper"}`}.
             </p>
@@ -259,9 +272,8 @@ export default function PostsPage() {
                   </div>
                   <PostReviewCard
                     post={post}
-                    onApprove={handleApprove}
-                    onReject={handleReject}
-                    onEdit={handleEdit}
+                    onApprove={selectedStatus === "pending_approval" ? handleApprove : undefined}
+                    onReject={selectedStatus === "pending_approval" ? handleReject : undefined}
                     isApproving={approvingId === post.id}
                     isRejecting={rejectingId === post.id}
                   />

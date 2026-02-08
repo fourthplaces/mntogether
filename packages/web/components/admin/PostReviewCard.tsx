@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import type { PostResult } from "@/lib/restate/types";
 
 interface PostReviewCardProps {
   post: PostResult;
-  onApprove: (id: string) => void;
-  onReject: (id: string, reason?: string) => void;
-  onEdit: (post: PostResult) => void;
+  onApprove?: (id: string) => void;
+  onReject?: (id: string, reason?: string) => void;
   isApproving?: boolean;
   isRejecting?: boolean;
 }
@@ -16,13 +16,24 @@ export function PostReviewCard({
   post,
   onApprove,
   onReject,
-  onEdit,
   isApproving,
   isRejecting,
 }: PostReviewCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const getTypeColor = (type?: string | null) => {
     switch (type) {
@@ -53,10 +64,12 @@ export function PostReviewCard({
   };
 
   const handleReject = () => {
-    onReject(post.id, rejectReason);
+    onReject?.(post.id, rejectReason);
     setShowRejectModal(false);
     setRejectReason("");
   };
+
+  const tags = post.tags || [];
 
   return (
     <>
@@ -81,12 +94,48 @@ export function PostReviewCard({
                 </span>
               )}
             </div>
-            <h3 className="text-lg font-semibold text-stone-900">{post.title}</h3>
+            <Link href={`/admin/posts/${post.id}`} className="text-lg font-semibold text-stone-900 hover:text-amber-700 transition-colors">
+              {post.title}
+            </Link>
+          </div>
+
+          {/* More menu */}
+          <div className="relative ml-2" ref={menuRef}>
+            <button
+              onClick={() => setMenuOpen(!menuOpen)}
+              className="p-1.5 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded"
+            >
+              {"\u22EF"}
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                <Link
+                  href={`/admin/posts/${post.id}`}
+                  className="block w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                >
+                  Edit Tags
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
         {/* TLDR */}
         {post.tldr && <p className="text-sm text-stone-700 italic mb-2">&quot;{post.tldr}&quot;</p>}
+
+        {/* Tags */}
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2">
+            {tags.map((tag) => (
+              <span
+                key={tag.id}
+                className="px-2 py-0.5 text-xs rounded-full bg-stone-100 text-stone-600"
+              >
+                <span className="text-stone-400">{tag.kind}:</span> {tag.display_name || tag.value}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* Description (collapsed) */}
         <p className={`text-sm text-stone-600 ${!expanded && "line-clamp-2"}`}>{post.description}</p>
@@ -128,28 +177,28 @@ export function PostReviewCard({
         )}
 
         {/* Actions */}
-        <div className="flex gap-2 mt-4 pt-3 border-t border-stone-200">
-          <button
-            onClick={() => onApprove(post.id)}
-            disabled={isApproving}
-            className="flex-1 px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
-          >
-            {isApproving ? "..." : "Approve"}
-          </button>
-          <button
-            onClick={() => onEdit(post)}
-            className="flex-1 px-4 py-2 bg-amber-600 text-white rounded hover:bg-amber-700 transition-colors font-medium"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => setShowRejectModal(true)}
-            disabled={isRejecting}
-            className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors font-medium disabled:opacity-50"
-          >
-            {isRejecting ? "..." : "Reject"}
-          </button>
-        </div>
+        {(onApprove || onReject) && (
+          <div className="flex gap-2 mt-4 pt-3 border-t border-stone-200">
+            {onApprove && (
+              <button
+                onClick={() => onApprove(post.id)}
+                disabled={isApproving}
+                className="flex-1 px-4 py-2 bg-emerald-400 text-white rounded hover:bg-emerald-500 transition-colors font-medium disabled:opacity-50"
+              >
+                {isApproving ? "..." : "Approve"}
+              </button>
+            )}
+            {onReject && (
+              <button
+                onClick={() => setShowRejectModal(true)}
+                disabled={isRejecting}
+                className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500 transition-colors font-medium disabled:opacity-50"
+              >
+                {isRejecting ? "..." : "Reject"}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Reject Modal */}
@@ -171,7 +220,7 @@ export function PostReviewCard({
             <div className="flex gap-2">
               <button
                 onClick={handleReject}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500"
               >
                 Reject
               </button>

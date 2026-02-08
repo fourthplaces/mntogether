@@ -57,7 +57,7 @@ export default function DashboardPage() {
       title: "Total Posts",
       value: totalPosts,
       subtitle: `${approvedPosts} approved, ${pendingPostsCount} pending`,
-      color: "bg-green-500",
+      color: "bg-emerald-400",
       link: "/admin/posts",
     },
     {
@@ -95,7 +95,7 @@ export default function DashboardPage() {
       description: "Approve or reject pending posts",
       icon: "\u{2705}",
       link: "/admin/posts",
-      color: "bg-green-600 hover:bg-green-700",
+      color: "bg-emerald-400 hover:bg-emerald-500",
       count: pendingPostsCount,
     },
     {
@@ -185,21 +185,21 @@ export default function DashboardPage() {
           <h2 className="text-xl font-bold text-stone-900 mb-4">System Status</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+              <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
               <div>
                 <p className="text-sm font-medium text-stone-900">Scraper</p>
                 <p className="text-xs text-stone-600">Running (hourly)</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+              <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
               <div>
                 <p className="text-sm font-medium text-stone-900">Agent Search</p>
                 <p className="text-xs text-stone-600">Active (hourly)</p>
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-green-500" />
+              <div className="w-3 h-3 rounded-full bg-emerald-400" />
               <div>
                 <p className="text-sm font-medium text-stone-900">Database</p>
                 <p className="text-xs text-stone-600">Healthy</p>

@@ -326,14 +326,14 @@ export default function WebsiteDetailPage() {
                   <button
                     onClick={handleApprove}
                     disabled={actionInProgress !== null}
-                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-emerald-400 text-white rounded hover:bg-emerald-500 disabled:opacity-50"
                   >
                     {actionInProgress === "approve" ? "..." : "Approve"}
                   </button>
                   <button
                     onClick={handleReject}
                     disabled={actionInProgress !== null}
-                    className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 disabled:opacity-50"
+                    className="px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500 disabled:opacity-50"
                   >
                     {actionInProgress === "reject" ? "..." : "Reject"}
                   </button>

@@ -131,8 +131,6 @@ export default function PostDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Are you sure you want to delete this post? This cannot be undone.")) return;
-
     setActionInProgress("delete");
     setMenuOpen(false);
     try {
@@ -260,14 +258,14 @@ export default function PostDetailPage() {
                   <button
                     onClick={handleApprove}
                     disabled={actionInProgress !== null}
-                    className="px-4 py-1.5 bg-green-600 text-white text-sm rounded-full font-medium hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="px-4 py-1.5 bg-emerald-400 text-white text-sm rounded-full font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50"
                   >
                     {actionInProgress === "approve" ? "..." : "Approve"}
                   </button>
                   <button
                     onClick={() => setShowRejectModal(true)}
                     disabled={actionInProgress !== null}
-                    className="px-4 py-1.5 bg-red-600 text-white text-sm rounded-full font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                    className="px-4 py-1.5 bg-rose-400 text-white text-sm rounded-full font-medium hover:bg-rose-500 transition-colors disabled:opacity-50"
                   >
                     {actionInProgress === "reject" ? "..." : "Reject"}
                   </button>
@@ -428,13 +426,13 @@ export default function PostDetailPage() {
                   <div className="flex gap-2 ml-4">
                     <button
                       onClick={() => handleApproveProposal(proposal.id)}
-                      className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+                      className="px-3 py-1 text-sm bg-emerald-400 text-white rounded hover:bg-emerald-500"
                     >
                       Approve
                     </button>
                     <button
                       onClick={() => handleRejectProposal(proposal.id)}
-                      className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                      className="px-3 py-1 text-sm bg-rose-400 text-white rounded hover:bg-rose-500"
                     >
                       Reject
                     </button>
@@ -633,7 +631,7 @@ export default function PostDetailPage() {
             <div className="flex gap-2">
               <button
                 onClick={handleReject}
-                className="flex-1 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500"
               >
                 Reject
               </button>

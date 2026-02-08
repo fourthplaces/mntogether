@@ -132,7 +132,7 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
       setNewCategory("");
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to create query: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to create query:", e);
     }
   };
 
@@ -146,7 +146,7 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
       setEditingId(null);
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to update: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to update:", e);
     }
   };
 
@@ -155,17 +155,16 @@ function QueriesTab({ queries }: { queries: DiscoveryQuery[] }) {
       await callService("Discovery", "toggle_query", { id, is_active: !isActive });
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to toggle: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to toggle:", e);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this query? Results from previous runs are preserved.")) return;
     try {
       await callService("Discovery", "delete_query", { id });
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to delete: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to delete:", e);
     }
   };
 
@@ -344,7 +343,7 @@ function FiltersTab({
       setNewRuleText("");
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to create rule: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to create rule:", e);
     }
   };
 
@@ -357,17 +356,16 @@ function FiltersTab({
       setEditingId(null);
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to update: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to update:", e);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Delete this filter rule?")) return;
     try {
       await callService("Discovery", "delete_filter_rule", { id });
       invalidateService("Discovery");
     } catch (e: unknown) {
-      alert(`Failed to delete: ${e instanceof Error ? e.message : "Unknown error"}`);
+      console.error("Failed to delete:", e);
     }
   };
 

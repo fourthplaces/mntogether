@@ -232,12 +232,11 @@ function KindSection({
   const [showAddTag, setShowAddTag] = useState(false);
 
   const handleDeleteKind = async () => {
-    if (!confirm(`Delete kind "${kind.display_name}"?`)) return;
     try {
       await callService("Tags", "delete_kind", { id: kind.id });
       invalidateService("Tags");
     } catch (err: any) {
-      alert(err.message || "Failed to delete kind");
+      console.error("Failed to delete kind:", err);
     }
   };
 
@@ -545,20 +544,18 @@ function TagRow({ tag }: { tag: TagResult }) {
       invalidateService("Tags");
       setEditing(false);
     } catch (err: any) {
-      alert(err.message || "Failed to update tag");
+      console.error("Failed to update tag:", err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    if (!confirm(`Delete tag "${tag.value}"? This will remove it from all resources.`))
-      return;
     try {
       await callService("Tags", "delete_tag", { id: tag.id });
       invalidateService("Tags");
     } catch (err: any) {
-      alert(err.message || "Failed to delete tag");
+      console.error("Failed to delete tag:", err);
     }
   };
 
