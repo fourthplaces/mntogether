@@ -328,7 +328,15 @@ For each field:
 - **state**: 2-letter state abbreviation (e.g., "MN")
 - **urgency**: "low", "medium", "high", or "urgent" based on time-sensitivity
 - **confidence**: "low", "medium", or "high" based on information completeness
-- **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"{}
+- **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"
+- **schedule**: Array of schedule entries. For each recurring or one-off schedule mentioned, extract:
+  - **frequency**: "weekly", "biweekly", "monthly", or "one_time"
+  - **day_of_week**: Lowercase day name ("monday", "tuesday", etc.) — required for weekly/biweekly/monthly
+  - **start_time**: Start time in 24h "HH:MM" format (e.g., "17:00")
+  - **end_time**: End time in 24h "HH:MM" format (e.g., "19:00")
+  - **date**: Specific date "YYYY-MM-DD" — for one_time events only
+  - **notes**: Freeform notes (e.g., "1st and 3rd week only", "by appointment")
+  Only include schedule entries for events/programs with specific day/time info. If no schedule is mentioned, return an empty array.{}
 
 Be conservative - only include information explicitly mentioned."#,
         tag_section
@@ -548,6 +556,7 @@ pub async fn extract_posts_from_content(
             city: info.city,
             state: info.state,
             tags: TagEntry::to_map(&info.tags),
+            schedule: info.schedule,
         });
     }
 
@@ -720,6 +729,7 @@ pub async fn extract_posts_from_pages_with_tags(
             city: info.city,
             state: info.state,
             tags: TagEntry::to_map(&info.tags),
+            schedule: info.schedule,
         });
     }
 

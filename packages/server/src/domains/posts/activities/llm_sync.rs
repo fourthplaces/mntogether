@@ -165,8 +165,8 @@ fn log_sync_operations(
     existing: &[ExistingPost],
 ) {
     for op in operations {
-        let op_type = op.operation.as_str();
-        match op_type {
+        let op_type = op.operation.to_lowercase();
+        match op_type.as_str() {
             "insert" => {
                 if let Some(fresh_id) = &op.fresh_id {
                     if let Some(f) = fresh.iter().find(|f| &f.temp_id == fresh_id) {
@@ -359,7 +359,7 @@ async fn stage_sync_operations(
     summary: &str,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    use crate::domains::posts::activities::create_post::create_extracted_post;
+    use crate::domains::posts::activities::create_post::{create_extracted_post, sync_schedules_for_post};
     use crate::domains::website::models::Website;
 
     let mut proposed_ops: Vec<ProposedOperation> = Vec::new();
@@ -388,8 +388,8 @@ async fn stage_sync_operations(
     );
 
     for op in operations {
-        let op_type = op.operation.as_str();
-        match op_type {
+        let op_type = op.operation.to_lowercase();
+        match op_type.as_str() {
             "insert" => {
                 let fresh_id = match &op.fresh_id {
                     Some(id) => id.clone(),
@@ -444,13 +444,19 @@ async fn stage_sync_operations(
                 let existing_id = op.existing_id.clone().unwrap_or_default();
                 let merge_description = op.merge_description.unwrap_or(false);
 
-                if let (Some(fresh), Some(existing)) =
-                    (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
-                {
+                let fresh_post = fresh_by_id.get(&fresh_id);
+                let existing_post = existing_by_id.get(&existing_id);
+
+                if let (Some(fresh), Some(existing)) = (fresh_post, existing_post) {
                     match update_post_with_owner(existing.id, fresh, merge_description, submitted_by_id, pool).await {
                         Ok(()) => {
                             let revision = Post::find_revision_for_post(existing.id, pool).await;
                             let revision_id = revision.ok().flatten().map(|r| r.id.into_uuid());
+
+                            // Sync schedules from fresh extraction onto the existing post
+                            if !fresh.schedule.is_empty() {
+                                sync_schedules_for_post(existing.id, &fresh.schedule, pool).await;
+                            }
 
                             proposed_ops.push(ProposedOperation {
                                 operation: "update".to_string(),
@@ -466,8 +472,57 @@ async fn stage_sync_operations(
                             errors.push(format!("Update {}: {}", existing_id, e));
                         }
                     }
+                } else if fresh_post.is_some() && existing_post.is_none() {
+                    // LLM returned update with valid fresh_id but missing/invalid existing_id.
+                    // Fall back to insert so the post isn't silently dropped.
+                    tracing::warn!(
+                        fresh_id = %fresh_id,
+                        existing_id = %existing_id,
+                        "Update has no valid existing_id, falling back to insert"
+                    );
+                    let fresh = fresh_post.unwrap();
+                    let website = match Website::find_by_id(website_id, pool).await {
+                        Ok(w) => w,
+                        Err(e) => {
+                            errors.push(format!("Failed to load website for fallback insert: {}", e));
+                            continue;
+                        }
+                    };
+                    match create_extracted_post(
+                        fresh,
+                        Some(website_id),
+                        fresh.source_url.clone()
+                            .or_else(|| Some(format!("https://{}", website.domain))),
+                        submitted_by_id,
+                        pool,
+                    ).await {
+                        Ok(post) => {
+                            proposed_ops.push(ProposedOperation {
+                                operation: "insert".to_string(),
+                                entity_type: "post".to_string(),
+                                draft_entity_id: Some(post.id.into_uuid()),
+                                target_entity_id: None,
+                                reason: Some(format!("New post (update fallback): {}", fresh.title)),
+                                merge_source_ids: vec![],
+                            });
+                            staged_inserts += 1;
+                        }
+                        Err(e) => {
+                            errors.push(format!("Fallback insert for {}: {}", fresh_id, e));
+                        }
+                    }
                 } else {
-                    tracing::warn!(fresh_id = %fresh_id, existing_id = %existing_id, "Update operation references unknown IDs");
+                    tracing::warn!(
+                        fresh_id = %fresh_id,
+                        existing_id = %existing_id,
+                        fresh_found = fresh_post.is_some(),
+                        existing_found = existing_post.is_some(),
+                        "Update operation references unknown IDs, skipping"
+                    );
+                    errors.push(format!(
+                        "Update: fresh_id={} (found={}), existing_id={} (found={})",
+                        fresh_id, fresh_post.is_some(), existing_id, existing_post.is_some()
+                    ));
                 }
             }
 
@@ -512,6 +567,7 @@ async fn stage_sync_operations(
                     };
 
                     let draft_id = if merged_title.is_some() || merged_description.is_some() {
+                        // Merge produces combined content — create a revision for review
                         let fake_fresh = ExtractedPost {
                             title: merged_title.clone().unwrap_or_else(|| canonical.title.clone()),
                             tldr: canonical.tldr.clone().unwrap_or_default(),
@@ -528,6 +584,7 @@ async fn stage_sync_operations(
                             city: None,
                             state: None,
                             tags: HashMap::new(),
+                            schedule: Vec::new(),
                         };
                         match update_post_with_owner(canonical.id, &fake_fresh, false, submitted_by_id, pool).await {
                             Ok(()) => Post::find_revision_for_post(canonical.id, pool)
@@ -557,8 +614,9 @@ async fn stage_sync_operations(
                     if merge_source_ids.is_empty() {
                         tracing::warn!(
                             canonical_id = %canonical_id,
-                            "LLM returned merge with no duplicate_ids, skipping"
+                            "LLM returned merge with no valid duplicate_ids, skipping"
                         );
+                        errors.push(format!("Merge {}: no valid duplicate_ids", canonical_id));
                     } else {
                         proposed_ops.push(ProposedOperation {
                             operation: "merge".to_string(),
@@ -570,6 +628,13 @@ async fn stage_sync_operations(
                         });
                         staged_merges += 1;
                     }
+                } else {
+                    tracing::warn!(
+                        canonical_id = %canonical_id,
+                        available_ids = ?existing_by_id.keys().collect::<Vec<_>>(),
+                        "Merge canonical_id not found in existing posts, skipping"
+                    );
+                    errors.push(format!("Merge canonical_id {} not found in existing posts", canonical_id));
                 }
             }
 
@@ -577,6 +642,16 @@ async fn stage_sync_operations(
                 tracing::warn!(op = %other, "Unknown sync operation type, skipping");
             }
         }
+    }
+
+    // Log errors if all operations failed
+    if proposed_ops.is_empty() && !errors.is_empty() {
+        tracing::warn!(
+            website_id = %website_id,
+            error_count = errors.len(),
+            errors = ?errors,
+            "All LLM sync operations failed — no proposals staged"
+        );
     }
 
     // Build a summary that reflects what we actually staged
