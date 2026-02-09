@@ -4,11 +4,14 @@
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
+use chrono::Utc;
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
+use crate::common::restate_types::EmptyRequest;
 use crate::domains::agents::activities::{discover, enrich, extract, monitor};
 use crate::domains::agents::models::{
     Agent, AgentAssistantConfig, AgentCuratorConfig, AgentFilterRule, AgentRequiredTagKind,
@@ -60,6 +63,13 @@ pub struct SetAgentStatusRequest {
     pub status: String,
 }
 impl_restate_serde!(SetAgentStatusRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateAssistantConfigRequest {
+    pub agent_id: Uuid,
+    pub preamble: String,
+}
+impl_restate_serde!(UpdateAssistantConfigRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateCuratorConfigRequest {
@@ -135,6 +145,12 @@ pub struct GetRunRequest {
     pub run_id: Uuid,
 }
 impl_restate_serde!(GetRunRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuggestAgentRequest {
+    pub description: String,
+}
+impl_restate_serde!(SuggestAgentRequest);
 
 // =============================================================================
 // Response types
@@ -278,6 +294,23 @@ pub struct AgentRunListResponse {
 }
 impl_restate_serde!(AgentRunListResponse);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuggestAgentResponse {
+    pub display_name: String,
+    pub role: String,
+    pub purpose: String,
+    pub search_queries: Vec<String>,
+    pub filter_rules: Vec<String>,
+}
+impl_restate_serde!(SuggestAgentResponse);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledPipelinesResult {
+    pub agents_checked: i32,
+    pub steps_triggered: i32,
+}
+impl_restate_serde!(ScheduledPipelinesResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -285,12 +318,21 @@ impl_restate_serde!(AgentRunListResponse);
 #[restate_sdk::service]
 #[name = "Agents"]
 pub trait AgentsService {
+    // AI-assisted creation
+    async fn suggest_agent(req: SuggestAgentRequest) -> Result<SuggestAgentResponse, HandlerError>;
+
     // CRUD - Agents
     async fn list_agents(req: ListAgentsRequest) -> Result<AgentListResponse, HandlerError>;
     async fn get_agent(req: AgentIdRequest) -> Result<AgentDetailResponse, HandlerError>;
     async fn create_agent(req: CreateAgentRequest) -> Result<AgentResponse, HandlerError>;
     async fn update_agent(req: UpdateAgentRequest) -> Result<AgentResponse, HandlerError>;
     async fn set_agent_status(req: SetAgentStatusRequest) -> Result<AgentResponse, HandlerError>;
+    async fn delete_agent(req: AgentIdRequest) -> Result<EmptyResponse, HandlerError>;
+
+    // Assistant config
+    async fn update_assistant_config(
+        req: UpdateAssistantConfigRequest,
+    ) -> Result<AssistantConfigResponse, HandlerError>;
 
     // Curator config
     async fn update_curator_config(
@@ -328,6 +370,9 @@ pub trait AgentsService {
 
     // Pipeline triggers
     async fn run_agent_step(req: RunAgentStepRequest) -> Result<AgentRunResponse, HandlerError>;
+    async fn run_scheduled_pipelines(
+        req: EmptyRequest,
+    ) -> Result<ScheduledPipelinesResult, HandlerError>;
 
     // Runs
     async fn list_runs(req: ListRunsRequest) -> Result<AgentRunListResponse, HandlerError>;
@@ -344,6 +389,49 @@ impl AgentsServiceImpl {
 }
 
 impl AgentsService for AgentsServiceImpl {
+    // =========================================================================
+    // AI-assisted creation
+    // =========================================================================
+
+    async fn suggest_agent(
+        &self,
+        ctx: Context<'_>,
+        req: SuggestAgentRequest,
+    ) -> Result<SuggestAgentResponse, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        use crate::kernel::llm_request::LlmRequestExt;
+
+        let response = ctx
+            .run(|| async {
+                let suggestion: SuggestAgentResponse = self
+                    .deps
+                    .ai
+                    .request()
+                    .system(
+                        r#"You help create agents for MN Together, a community resource platform in Minnesota.
+
+Given a description of what the user wants, generate:
+- display_name: A short, clear name (2-4 words, e.g. "Food Shelf Curator", "Legal Aid Finder")
+- role: Either "curator" (finds and extracts content from websites) or "assistant" (chat agent that helps users)
+- purpose: A 1-2 sentence description of what this agent does
+- search_queries: For curators, 5-10 web search queries to find relevant websites (use {location} as placeholder for geographic targeting, e.g. "food bank {location}"). For assistants, return an empty array.
+- filter_rules: For curators, 2-4 plain-text rules for AI to filter out irrelevant websites (e.g. "Skip government websites (.gov domains)" or "Must provide direct services, not just directories"). For assistants, return an empty array.
+
+Respond with ONLY valid JSON, no markdown fences."#,
+                    )
+                    .user(&req.description)
+                    .output::<SuggestAgentResponse>()
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+
+                Ok(suggestion)
+            })
+            .await?;
+
+        Ok(response)
+    }
+
     // =========================================================================
     // CRUD - Agents
     // =========================================================================
@@ -548,6 +636,55 @@ impl AgentsService for AgentsServiceImpl {
                     .await
                     .map_err(|e| TerminalError::new(e.to_string()))?;
                 Ok(AgentResponse::from(agent))
+            })
+            .await?;
+
+        Ok(response)
+    }
+
+    async fn delete_agent(
+        &self,
+        ctx: Context<'_>,
+        req: AgentIdRequest,
+    ) -> Result<EmptyResponse, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        ctx.run(|| async {
+            Agent::delete(req.agent_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+            Ok(EmptyResponse {})
+        })
+        .await?;
+
+        Ok(EmptyResponse {})
+    }
+
+    // =========================================================================
+    // Assistant config
+    // =========================================================================
+
+    async fn update_assistant_config(
+        &self,
+        ctx: Context<'_>,
+        req: UpdateAssistantConfigRequest,
+    ) -> Result<AssistantConfigResponse, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let response = ctx
+            .run(|| async {
+                let config = AgentAssistantConfig::update(
+                    req.agent_id,
+                    &req.preamble,
+                    &self.deps.db_pool,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+                Ok(AssistantConfigResponse {
+                    preamble: config.preamble,
+                    config_name: config.config_name,
+                })
             })
             .await?;
 
@@ -889,6 +1026,108 @@ impl AgentsService for AgentsServiceImpl {
         Ok(response)
     }
 
+    async fn run_scheduled_pipelines(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ScheduledPipelinesResult, HandlerError> {
+        info!("Running scheduled agent pipelines");
+
+        let pool = &self.deps.db_pool;
+
+        let curators = Agent::find_active_curators(pool)
+            .await
+            .map_err(|e| HandlerError::from(e.to_string()))?;
+
+        let mut agents_checked = 0i32;
+        let mut steps_triggered = 0i32;
+
+        for agent in &curators {
+            agents_checked += 1;
+
+            let config = match AgentCuratorConfig::find_by_agent(agent.id, pool).await {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+
+            // Check discover schedule
+            if let Some(ref schedule) = config.schedule_discover {
+                let interval = schedule_to_seconds(schedule);
+                if interval > 0 {
+                    let is_due = match AgentRun::find_last_completed(agent.id, "discover", pool).await {
+                        Ok(Some(last)) => {
+                            let elapsed = Utc::now()
+                                .signed_duration_since(last.completed_at.unwrap_or(last.started_at));
+                            elapsed.num_seconds() >= interval
+                        }
+                        _ => true, // Never run before → due
+                    };
+
+                    if is_due {
+                        info!(agent_id = %agent.id, agent = %agent.display_name, "Scheduling discover step");
+                        let result = ctx
+                            .run(|| async {
+                                discover::discover(agent.id, "scheduled", &self.deps)
+                                    .await
+                                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                                Ok(())
+                            })
+                            .await;
+                        if let Err(e) = result {
+                            tracing::error!(agent_id = %agent.id, error = %e, "Scheduled discover failed");
+                        } else {
+                            steps_triggered += 1;
+                        }
+                    }
+                }
+            }
+
+            // Check monitor schedule
+            if let Some(ref schedule) = config.schedule_monitor {
+                let interval = schedule_to_seconds(schedule);
+                if interval > 0 {
+                    let is_due = match AgentRun::find_last_completed(agent.id, "monitor", pool).await {
+                        Ok(Some(last)) => {
+                            let elapsed = Utc::now()
+                                .signed_duration_since(last.completed_at.unwrap_or(last.started_at));
+                            elapsed.num_seconds() >= interval
+                        }
+                        _ => true,
+                    };
+
+                    if is_due {
+                        info!(agent_id = %agent.id, agent = %agent.display_name, "Scheduling monitor step");
+                        let result = ctx
+                            .run(|| async {
+                                monitor::monitor(agent.id, "scheduled", &self.deps)
+                                    .await
+                                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                                Ok(())
+                            })
+                            .await;
+                        if let Err(e) = result {
+                            tracing::error!(agent_id = %agent.id, error = %e, "Scheduled monitor failed");
+                        } else {
+                            steps_triggered += 1;
+                        }
+                    }
+                }
+            }
+        }
+
+        info!(agents_checked, steps_triggered, "Scheduled pipelines complete");
+
+        // Re-schedule in 1 hour
+        ctx.service_client::<AgentsServiceClient>()
+            .run_scheduled_pipelines(EmptyRequest {})
+            .send_after(Duration::from_secs(3600));
+
+        Ok(ScheduledPipelinesResult {
+            agents_checked,
+            steps_triggered,
+        })
+    }
+
     // =========================================================================
     // Runs
     // =========================================================================
@@ -928,5 +1167,15 @@ impl AgentsService for AgentsServiceImpl {
         }
 
         Ok(AgentRunListResponse { runs: responses })
+    }
+}
+
+/// Convert a human-readable schedule string to seconds.
+fn schedule_to_seconds(schedule: &str) -> i64 {
+    match schedule.to_lowercase().as_str() {
+        "hourly" => 3600,
+        "daily" => 86400,
+        "weekly" => 604800,
+        _ => 0, // Unknown schedule → skip
     }
 }

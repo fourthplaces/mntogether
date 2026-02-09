@@ -3,34 +3,27 @@
 import { useState, useMemo } from "react";
 import { useRestate } from "@/lib/restate/client";
 import { PostListItem, PostListItemSkeleton } from "@/components/public/PostCard";
+import { SubmitSheet } from "@/components/public/SubmitSheet";
+import { ChatSheet } from "@/components/public/ChatSheet";
 import type {
   PublicListResult,
   PublicFiltersResult,
 } from "@/lib/restate/types";
 
-type AudienceFilter = "need_help" | "want_to_give" | "bulletin" | null;
-
-const AUDIENCE_BUTTONS: {
-  key: AudienceFilter & string;
-  label: string;
-  icon: string;
-}[] = [
-  { key: "need_help", label: "I Need Help", icon: "\u{1F932}" },
-  { key: "want_to_give", label: "I Want to Support", icon: "\u{1F49B}" },
-  { key: "bulletin", label: "Community Bulletin", icon: "\u{1F4CC}" },
-];
+type ActiveSheet = "search" | "submit" | null;
 
 export function HomeClient() {
-  const [audience, setAudience] = useState<AudienceFilter>(null);
+  const [postType, setPostType] = useState<string | null>(null);
   const [category, setCategory] = useState<string | null>(null);
+  const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
 
   // Build request body — only include non-null filters
   const requestBody = useMemo(() => {
     const body: Record<string, unknown> = {};
-    if (audience) body.audience = audience;
+    if (postType) body.post_type = postType;
     if (category) body.category = category;
     return body;
-  }, [audience, category]);
+  }, [postType, category]);
 
   const { data: listData, isLoading: listLoading } =
     useRestate<PublicListResult>("Posts", "public_list", requestBody);
@@ -41,13 +34,14 @@ export function HomeClient() {
   const posts = listData?.posts ?? [];
   const totalCount = listData?.total_count ?? 0;
   const categories = filtersData?.categories ?? [];
+  const postTypes = filtersData?.post_types ?? [];
 
-  const toggleAudience = (key: AudienceFilter & string) => {
-    if (audience === key) {
-      setAudience(null);
+  const togglePostType = (value: string) => {
+    if (postType === value) {
+      setPostType(null);
       setCategory(null);
     } else {
-      setAudience(key);
+      setPostType(value);
       setCategory(null);
     }
   };
@@ -57,11 +51,11 @@ export function HomeClient() {
   };
 
   const clearAll = () => {
-    setAudience(null);
+    setPostType(null);
     setCategory(null);
   };
 
-  const hasFilters = audience !== null || category !== null;
+  const hasFilters = postType !== null || category !== null;
 
   return (
     <div className="min-h-screen bg-white">
@@ -77,23 +71,29 @@ export function HomeClient() {
         </div>
       </header>
 
-      {/* Action Buttons */}
+      {/* Post Type Buttons */}
       <div className="max-w-2xl mx-auto px-4 -mt-2">
         <div className="flex flex-col sm:flex-row gap-3">
-          {AUDIENCE_BUTTONS.map((btn) => {
-            const isActive = audience === btn.key;
+          {postTypes.map((pt) => {
+            const isActive = postType === pt.value;
+            const color = pt.color || "#3b82f6";
             return (
               <button
-                key={btn.key}
-                onClick={() => toggleAudience(btn.key)}
-                className={`flex-1 py-3 px-4 rounded-xl text-sm font-semibold transition-all border-2 ${
-                  isActive
-                    ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                    : "bg-white text-gray-700 border-gray-200 hover:border-blue-300 hover:bg-blue-50"
+                key={pt.value}
+                onClick={() => togglePostType(pt.value)}
+                className={`flex-1 py-3 px-4 rounded-xl text-center transition-all border-2 shadow-sm ${
+                  isActive ? "text-white shadow-md" : "text-gray-700 hover:shadow-md"
                 }`}
+                style={
+                  isActive
+                    ? { backgroundColor: color, borderColor: color }
+                    : { backgroundColor: color + "10", borderColor: color + "40" }
+                }
               >
-                <span className="mr-1.5">{btn.icon}</span>
-                {btn.label}
+                <span className="text-base font-semibold">
+                  {pt.emoji && <span className="mr-1.5">{pt.emoji}</span>}
+                  {pt.display_name}
+                </span>
               </button>
             );
           })}
@@ -145,7 +145,7 @@ export function HomeClient() {
       </div>
 
       {/* Post List */}
-      <div className="max-w-2xl mx-auto border-t border-gray-200">
+      <div className="max-w-2xl mx-auto border-t border-gray-200 pb-24">
         {listLoading ? (
           <>
             {Array.from({ length: 6 }).map((_, i) => (
@@ -162,6 +162,35 @@ export function HomeClient() {
           posts.map((post) => <PostListItem key={post.id} post={post} />)
         )}
       </div>
+
+      {/* Floating Action Buttons */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-40">
+        {/* Search / Chat */}
+        <button
+          onClick={() => setActiveSheet("search")}
+          className="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+          aria-label="Search resources"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </button>
+
+        {/* Submit a Link */}
+        <button
+          onClick={() => setActiveSheet("submit")}
+          className="w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg hover:bg-gray-800 transition-colors flex items-center justify-center"
+          aria-label="Submit a link"
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+        </button>
+      </div>
+
+      {/* Bottom Sheets */}
+      <ChatSheet isOpen={activeSheet === "search"} onClose={() => setActiveSheet(null)} />
+      <SubmitSheet isOpen={activeSheet === "submit"} onClose={() => setActiveSheet(null)} />
     </div>
   );
 }

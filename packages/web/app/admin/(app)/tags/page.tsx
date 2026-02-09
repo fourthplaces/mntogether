@@ -532,6 +532,9 @@ function AddTagForm({
 function TagRow({ tag }: { tag: TagResult }) {
   const [editing, setEditing] = useState(false);
   const [displayName, setDisplayName] = useState(tag.display_name || "");
+  const [color, setColor] = useState(tag.color || "");
+  const [description, setDescription] = useState(tag.description || "");
+  const [emoji, setEmoji] = useState(tag.emoji || "");
   const [loading, setLoading] = useState(false);
 
   const handleSave = async () => {
@@ -540,6 +543,9 @@ function TagRow({ tag }: { tag: TagResult }) {
       await callService("Tags", "update_tag", {
         id: tag.id,
         display_name: displayName.trim(),
+        color: color.trim() || null,
+        description: description.trim() || null,
+        emoji: emoji.trim() || null,
       });
       invalidateService("Tags");
       setEditing(false);
@@ -559,62 +565,145 @@ function TagRow({ tag }: { tag: TagResult }) {
     }
   };
 
-  return (
-    <div className="flex items-center justify-between py-1.5 px-2 rounded hover:bg-stone-50 group">
-      <div className="flex items-center gap-3 text-sm">
-        <code className="text-stone-700 bg-stone-100 px-1.5 py-0.5 rounded text-xs">
-          {tag.value}
-        </code>
-        {editing ? (
-          <div className="flex items-center gap-1">
+  if (editing) {
+    return (
+      <div className="border border-stone-200 rounded-lg p-3 space-y-3 bg-stone-50">
+        <div className="flex items-center gap-2 mb-1">
+          <code className="text-stone-700 bg-stone-100 px-1.5 py-0.5 rounded text-xs">
+            {tag.value}
+          </code>
+        </div>
+        <div className="grid grid-cols-4 gap-3">
+          <div>
+            <label className="block text-xs text-stone-500 mb-1">Display Name</label>
             <input
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="px-2 py-1 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               autoFocus
               disabled={loading}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleSave();
-                if (e.key === "Escape") setEditing(false);
-              }}
             />
-            <button
-              onClick={handleSave}
-              disabled={loading}
-              className="text-xs text-amber-600 hover:text-amber-800"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setEditing(false)}
-              className="text-xs text-stone-400 hover:text-stone-600"
-            >
-              Cancel
-            </button>
           </div>
+          <div>
+            <label className="block text-xs text-stone-500 mb-1">Emoji</label>
+            <input
+              type="text"
+              value={emoji}
+              onChange={(e) => setEmoji(e.target.value)}
+              placeholder="e.g. 🤲"
+              className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              disabled={loading}
+              maxLength={4}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-stone-500 mb-1">Description</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description..."
+              className="w-full px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              disabled={loading}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-stone-500 mb-1">Color</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={color || "#a8a29e"}
+                onChange={(e) => setColor(e.target.value)}
+                className="w-8 h-8 rounded border border-stone-300 cursor-pointer p-0"
+                disabled={loading}
+              />
+              <input
+                type="text"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+                placeholder="#3b82f6"
+                className="flex-1 px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                disabled={loading}
+              />
+              {color && (
+                <button
+                  onClick={() => setColor("")}
+                  className="text-xs text-stone-400 hover:text-stone-600"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+        {color && (
+          <span
+            className="inline-block px-3 py-1 text-sm rounded-full font-medium"
+            style={{ backgroundColor: color + "20", color: color }}
+          >
+            {displayName || tag.value}
+          </span>
+        )}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="px-3 py-1.5 bg-amber-600 text-white rounded text-xs font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {loading ? "Saving..." : "Save"}
+          </button>
+          <button
+            onClick={() => {
+              setEditing(false);
+              setDisplayName(tag.display_name || "");
+              setColor(tag.color || "");
+              setDescription(tag.description || "");
+              setEmoji(tag.emoji || "");
+            }}
+            className="text-xs text-stone-400 hover:text-stone-600"
+          >
+            Cancel
+          </button>
+          <div className="flex-1" />
+          <button
+            onClick={handleDelete}
+            className="px-2 py-1 text-xs text-red-400 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="flex items-center justify-between py-2 px-2 rounded hover:bg-stone-50 cursor-pointer"
+      onClick={() => setEditing(true)}
+    >
+      <div className="flex items-center gap-3 text-sm">
+        <code className="text-stone-700 bg-stone-100 px-1.5 py-0.5 rounded text-xs">
+          {tag.value}
+        </code>
+        {tag.emoji && <span>{tag.emoji}</span>}
+        {tag.color ? (
+          <span
+            className="px-2 py-0.5 text-xs rounded-full font-medium"
+            style={{ backgroundColor: tag.color + "20", color: tag.color }}
+          >
+            {tag.display_name || tag.value}
+          </span>
         ) : (
           <span className="text-stone-500">
             {tag.display_name || <span className="italic text-stone-300">no display name</span>}
           </span>
         )}
+        {tag.description && (
+          <span className="text-xs text-stone-400">{tag.description}</span>
+        )}
       </div>
-      {!editing && (
-        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={() => setEditing(true)}
-            className="px-2 py-0.5 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
-          >
-            Edit
-          </button>
-          <button
-            onClick={handleDelete}
-            className="px-2 py-0.5 text-xs text-stone-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-          >
-            Delete
-          </button>
-        </div>
-      )}
+      <span className="text-xs text-stone-300">click to edit</span>
     </div>
   );
 }

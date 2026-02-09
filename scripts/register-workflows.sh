@@ -33,12 +33,6 @@ echo ""
 # Bootstrap scheduled task loops
 echo "Bootstrapping scheduled tasks..."
 
-# Discovery search loop (hourly)
-curl -s -X POST "$RESTATE_INGRESS/Discovery/run_scheduled_discovery/send" \
-  -H "idempotency-key: scheduled-discovery-loop" \
-  -H "Content-Type: application/json" \
-  -d '{}' || true
-
 # Website scraping loop (hourly)
 curl -s -X POST "$RESTATE_INGRESS/Websites/run_scheduled_scrape/send" \
   -H "idempotency-key: scheduled-scrape-loop" \
@@ -51,8 +45,14 @@ curl -s -X POST "$RESTATE_INGRESS/Members/run_weekly_reset/send" \
   -H "Content-Type: application/json" \
   -d '{}' || true
 
+# Agent scheduled pipelines loop (hourly)
+curl -s -X POST "$RESTATE_INGRESS/Agents/run_scheduled_pipelines/send" \
+  -H "idempotency-key: scheduled-agent-pipelines-loop" \
+  -H "Content-Type: application/json" \
+  -d '{}' || true
+
 echo ""
 echo "Scheduled tasks bootstrapped!"
-echo "  - Discovery search (hourly loop)"
 echo "  - Website scraping (hourly loop)"
 echo "  - Weekly notification reset"
+echo "  - Agent scheduled pipelines (hourly loop)"

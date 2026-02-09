@@ -1,5 +1,32 @@
 # Claude Code Development Rules
 
+## ⛔ MIGRATION FILES ARE SACRED — DO NOT TOUCH ⛔
+
+**NEVER EDIT AN EXISTING MIGRATION FILE. NEVER. NEVER. NEVER.**
+
+**NEVER OPEN AN EXISTING MIGRATION FILE WITH THE EDIT TOOL. NEVER.**
+
+**NEVER MODIFY A SINGLE CHARACTER IN AN EXISTING MIGRATION FILE. NEVER.**
+
+**IF YOU NEED TO FIX A MIGRATION, CREATE A NEW MIGRATION FILE. ALWAYS.**
+
+**IF YOU THINK "I'LL JUST FIX THIS ONE THING IN THE MIGRATION" — STOP. CREATE A NEW FILE.**
+
+This is not a suggestion. This is not a guideline. This is an absolute, unbreakable rule.
+SQLx checksums every migration file. If you modify a file that has been applied,
+it WILL break production deployments. There is no recovery without manual DB surgery.
+
+- DO NOT edit files in `packages/server/migrations/` that already exist
+- DO NOT "fix" typos in existing migrations
+- DO NOT add lines to existing migrations
+- DO NOT remove lines from existing migrations
+- DO NOT reformat existing migrations
+- ONLY create NEW migration files with the next sequential number
+
+**VIOLATION OF THIS RULE HAS CAUSED PRODUCTION INCIDENTS. NO EXCEPTIONS. EVER.**
+
+---
+
 ## SQLx Query Rules
 
 ### HARD RULE: Never use `sqlx::query_as!` macro

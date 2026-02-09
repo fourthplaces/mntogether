@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRestate, callService, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { AgentListResponse, AgentResponse } from "@/lib/restate/types";
+import type { AgentListResponse, AgentResponse, SuggestAgentResponse } from "@/lib/restate/types";
 
 export default function AgentsPage() {
   return (
@@ -29,13 +29,41 @@ function AgentsContent() {
     router.replace(`/admin/agents?${params.toString()}`);
   };
 
-  // Create agent form
-  const [showCreateForm, setShowCreateForm] = useState(false);
+  // Create agent wizard: step 1 = describe, step 2 = review & create
+  const [createStep, setCreateStep] = useState<0 | 1 | 2>(0); // 0=closed, 1=describe, 2=review
+  const [createDescription, setCreateDescription] = useState("");
   const [createName, setCreateName] = useState("");
   const [createRole, setCreateRole] = useState("curator");
   const [createPurpose, setCreatePurpose] = useState("");
+  const [createQueries, setCreateQueries] = useState<string[]>([]);
+  const [createRules, setCreateRules] = useState<string[]>([]);
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleSuggest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createDescription.trim()) return;
+
+    setCreateLoading(true);
+    setCreateError(null);
+    try {
+      const suggestion = await callService<SuggestAgentResponse>(
+        "Agents",
+        "suggest_agent",
+        { description: createDescription.trim() }
+      );
+      setCreateName(suggestion.display_name);
+      setCreateRole(suggestion.role);
+      setCreatePurpose(suggestion.purpose);
+      setCreateQueries(suggestion.search_queries);
+      setCreateRules(suggestion.filter_rules);
+      setCreateStep(2);
+    } catch (err: any) {
+      setCreateError(err.message || "Failed to generate suggestion");
+    } finally {
+      setCreateLoading(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,16 +77,46 @@ function AgentsContent() {
         role: createRole,
         purpose: createRole === "curator" ? createPurpose.trim() || undefined : undefined,
       });
+
+      // Create search queries and filter rules for curators
+      if (createRole === "curator") {
+        await Promise.all([
+          ...createQueries.filter(q => q.trim()).map((q, i) =>
+            callService("Agents", "create_search_query", {
+              agent_id: agent.id,
+              query_text: q.trim(),
+              sort_order: i,
+            })
+          ),
+          ...createRules.filter(r => r.trim()).map((r, i) =>
+            callService("Agents", "create_filter_rule", {
+              agent_id: agent.id,
+              rule_text: r.trim(),
+              sort_order: i,
+            })
+          ),
+        ]);
+      }
+
       invalidateService("Agents");
-      setCreateName("");
-      setCreatePurpose("");
-      setShowCreateForm(false);
+      resetCreateForm();
       router.push(`/admin/agents/${agent.id}`);
     } catch (err: any) {
       setCreateError(err.message || "Failed to create agent");
     } finally {
       setCreateLoading(false);
     }
+  };
+
+  const resetCreateForm = () => {
+    setCreateStep(0);
+    setCreateDescription("");
+    setCreateName("");
+    setCreateRole("curator");
+    setCreatePurpose("");
+    setCreateQueries([]);
+    setCreateRules([]);
+    setCreateError(null);
   };
 
   const { data, isLoading, error } = useRestate<AgentListResponse>(
@@ -118,7 +176,7 @@ function AgentsContent() {
               </button>
             ))}
             <button
-              onClick={() => setShowCreateForm(!showCreateForm)}
+              onClick={() => createStep === 0 ? setCreateStep(1) : resetCreateForm()}
               className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors ml-2"
             >
               + Create Agent
@@ -126,7 +184,48 @@ function AgentsContent() {
           </div>
         </div>
 
-        {showCreateForm && (
+        {/* Step 1: Describe what you want */}
+        {createStep === 1 && (
+          <form
+            onSubmit={handleSuggest}
+            className="bg-white rounded-lg shadow px-6 py-4 mb-6 space-y-4"
+          >
+            <label className="block text-sm font-medium text-stone-700">
+              What kind of agent do you want to create?
+            </label>
+            <textarea
+              value={createDescription}
+              onChange={(e) => setCreateDescription(e.target.value)}
+              placeholder='e.g. "An agent that finds food shelves and food banks in Minnesota" or "A chat assistant that helps people find legal aid"'
+              rows={3}
+              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              autoFocus
+              disabled={createLoading}
+            />
+            <div className="flex items-center gap-3">
+              <button
+                type="submit"
+                disabled={createLoading || !createDescription.trim()}
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {createLoading ? "Generating..." : "Next"}
+              </button>
+              <button
+                type="button"
+                onClick={resetCreateForm}
+                className="px-3 py-2 text-stone-500 hover:text-stone-700 text-sm"
+              >
+                Cancel
+              </button>
+              {createError && (
+                <span className="text-red-600 text-sm">{createError}</span>
+              )}
+            </div>
+          </form>
+        )}
+
+        {/* Step 2: Review and create */}
+        {createStep === 2 && (
           <form
             onSubmit={handleCreate}
             className="bg-white rounded-lg shadow px-6 py-4 mb-6 space-y-4"
@@ -140,7 +239,6 @@ function AgentsContent() {
                   type="text"
                   value={createName}
                   onChange={(e) => setCreateName(e.target.value)}
-                  placeholder="e.g. Food Shelf Curator"
                   className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
                   autoFocus
                   disabled={createLoading}
@@ -162,19 +260,100 @@ function AgentsContent() {
               </div>
             </div>
             {createRole === "curator" && (
-              <div>
-                <label className="block text-sm font-medium text-stone-700 mb-1">
-                  Purpose
-                </label>
-                <textarea
-                  value={createPurpose}
-                  onChange={(e) => setCreatePurpose(e.target.value)}
-                  placeholder="Describe what this curator should find and extract..."
-                  rows={2}
-                  className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-                  disabled={createLoading}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-1">
+                    Purpose
+                  </label>
+                  <textarea
+                    value={createPurpose}
+                    onChange={(e) => setCreatePurpose(e.target.value)}
+                    rows={2}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                    disabled={createLoading}
+                  />
+                </div>
+
+                {/* Search Queries */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
+                    Search Queries
+                  </label>
+                  <div className="space-y-2">
+                    {createQueries.map((q, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={q}
+                          onChange={(e) => {
+                            const updated = [...createQueries];
+                            updated[i] = e.target.value;
+                            setCreateQueries(updated);
+                          }}
+                          className="flex-1 px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          disabled={createLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCreateQueries(createQueries.filter((_, j) => j !== i))
+                          }
+                          className="text-red-400 hover:text-red-600 text-xs shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCreateQueries([...createQueries, ""])}
+                      className="text-xs text-amber-600 hover:text-amber-700"
+                    >
+                      + Add query
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Rules */}
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">
+                    Filter Rules
+                  </label>
+                  <div className="space-y-2">
+                    {createRules.map((r, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          value={r}
+                          onChange={(e) => {
+                            const updated = [...createRules];
+                            updated[i] = e.target.value;
+                            setCreateRules(updated);
+                          }}
+                          className="flex-1 px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                          disabled={createLoading}
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCreateRules(createRules.filter((_, j) => j !== i))
+                          }
+                          className="text-red-400 hover:text-red-600 text-xs shrink-0"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setCreateRules([...createRules, ""])}
+                      className="text-xs text-amber-600 hover:text-amber-700"
+                    >
+                      + Add rule
+                    </button>
+                  </div>
+                </div>
+              </>
             )}
             <div className="flex items-center gap-3">
               <button
@@ -186,12 +365,14 @@ function AgentsContent() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setShowCreateForm(false);
-                  setCreateName("");
-                  setCreatePurpose("");
-                  setCreateError(null);
-                }}
+                onClick={() => setCreateStep(1)}
+                className="px-3 py-2 text-stone-500 hover:text-stone-700 text-sm"
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={resetCreateForm}
                 className="px-3 py-2 text-stone-500 hover:text-stone-700 text-sm"
               >
                 Cancel
@@ -213,7 +394,7 @@ function AgentsContent() {
           <div className="text-stone-500 text-center py-12">
             No agents found.{" "}
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={() => setCreateStep(1)}
               className="text-amber-600 hover:text-amber-700 underline"
             >
               Create one

@@ -18,6 +18,9 @@ pub struct Tag {
     pub parent_tag_id: Option<TagId>, // Self-referential FK for hierarchy
     pub external_code: Option<String>, // Code in external taxonomy (e.g., 'BD-1800.2000')
     pub taxonomy_source: Option<String>, // 'custom', 'open_eligibility', '211hsis'
+    pub color: Option<String>, // Optional hex color for display (e.g., '#3b82f6')
+    pub description: Option<String>, // Optional description of the tag purpose
+    pub emoji: Option<String>, // Optional emoji for display (e.g., '🤲')
     pub created_at: DateTime<Utc>,
 }
 
@@ -205,6 +208,54 @@ impl Tag {
         )
         .bind(id)
         .bind(display_name)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Update tag description
+    pub async fn update_description(
+        id: TagId,
+        description: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Tag>(
+            "UPDATE tags SET description = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(description)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Update tag emoji
+    pub async fn update_emoji(
+        id: TagId,
+        emoji: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Tag>(
+            "UPDATE tags SET emoji = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(emoji)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Update tag color
+    pub async fn update_color(
+        id: TagId,
+        color: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Tag>(
+            "UPDATE tags SET color = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(color)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -452,6 +503,16 @@ impl Tag {
             HAVING COUNT(DISTINCT tg.taggable_id) > 0
             ORDER BY count DESC, t.value
             "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find all post_type tags for the home page buckets.
+    pub async fn find_post_types(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Tag>(
+            "SELECT * FROM tags WHERE kind = 'post_type' AND value IN ('seeking', 'offering', 'announcement') ORDER BY CASE value WHEN 'seeking' THEN 1 WHEN 'offering' THEN 2 WHEN 'announcement' THEN 3 END",
         )
         .fetch_all(pool)
         .await

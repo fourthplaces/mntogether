@@ -80,6 +80,22 @@ impl AgentRun {
         .await
         .map_err(Into::into)
     }
+
+    /// Find the most recent completed run for a given agent + step.
+    pub async fn find_last_completed(
+        agent_id: Uuid,
+        step: &str,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM agent_runs WHERE agent_id = $1 AND step = $2 AND status = 'completed' ORDER BY completed_at DESC LIMIT 1",
+        )
+        .bind(agent_id)
+        .bind(step)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+    }
 }
 
 #[derive(Debug, Clone, sqlx::FromRow)]
