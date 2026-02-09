@@ -196,6 +196,7 @@ export function PostCard({ post }: PostCardProps) {
 
 // --- PostListItem: scannable row for public directory ---
 
+import Link from "next/link";
 import type { PublicPostResult } from "@/lib/restate/types";
 
 interface PostListItemProps {
@@ -213,23 +214,15 @@ export function PostListItem({ post }: PostListItemProps) {
   const serviceOfferedTags = post.tags.filter((t) => t.kind === "service_offered");
 
   return (
-    <div className="flex items-start gap-4 py-4 px-4 sm:px-6 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+    <Link
+      href={`/posts/${post.id}`}
+      className="flex items-start gap-4 py-4 px-4 sm:px-6 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+    >
       <div className="flex-1 min-w-0">
         {/* Title */}
-        {post.source_url ? (
-          <a
-            href={post.source_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-base font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-1"
-          >
-            {post.title}
-          </a>
-        ) : (
-          <h3 className="text-base font-medium text-gray-900 line-clamp-1">
-            {post.title}
-          </h3>
-        )}
+        <h3 className="text-base font-medium text-gray-900 line-clamp-1">
+          {post.title}
+        </h3>
 
         {/* TLDR / Description */}
         <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">
@@ -268,26 +261,13 @@ export function PostListItem({ post }: PostListItemProps) {
         </div>
       </div>
 
-      {/* Arrow / link indicator */}
-      {post.source_url && (
-        <a
-          href={post.source_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="flex-shrink-0 mt-1 text-gray-300 hover:text-blue-500 transition-colors"
-          aria-label="Open source"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"
-            />
-          </svg>
-        </a>
-      )}
-    </div>
+      {/* Chevron */}
+      <span className="flex-shrink-0 mt-2 text-gray-300">
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
+      </span>
+    </Link>
   );
 }
 

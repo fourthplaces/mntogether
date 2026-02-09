@@ -24,6 +24,7 @@ export interface TagResult {
   display_name: string | null;
   color: string | null;
   description: string | null;
+  emoji: string | null;
 }
 
 export interface TagKindResult {
@@ -178,6 +179,14 @@ export interface AgentResponse {
 
 export interface AgentListResponse {
   agents: AgentResponse[];
+}
+
+export interface SuggestAgentResponse {
+  display_name: string;
+  role: string;
+  purpose: string;
+  search_queries: string[];
+  filter_rules: string[];
 }
 
 export interface AssistantConfigResponse {
@@ -446,11 +455,27 @@ export interface PostTypeOption {
   display_name: string;
   description: string | null;
   color: string | null;
+  emoji: string | null;
 }
 
 export interface PublicFiltersResult {
   categories: FilterOption[];
   post_types: PostTypeOption[];
+}
+
+// --- Comments ---
+
+export interface CommentMessage {
+  id: string;
+  container_id: string;
+  role: string;
+  content: string;
+  parent_message_id: string | null;
+  created_at: string;
+}
+
+export interface CommentListResult {
+  messages: CommentMessage[];
 }
 
 // --- Public chat message (compatible with ChatPanel) ---

@@ -132,4 +132,12 @@ impl Agent {
         .await
         .map_err(Into::into)
     }
+
+    pub async fn delete(id: Uuid, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM agents WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
 }

@@ -10,7 +10,10 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::{optional_auth, require_admin};
 use crate::common::EmptyRequest;
-use crate::common::{PostId, ScheduleId};
+use crate::common::{MessageId, PostId, ScheduleId};
+use crate::domains::chatrooms::activities as chatroom_activities;
+use crate::domains::chatrooms::models::Message;
+use crate::domains::chatrooms::restate::virtual_objects::{MessageListResult, MessageResult};
 use crate::domains::posts::activities;
 use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
@@ -92,6 +95,7 @@ pub struct AddTagRequest {
     pub tag_kind: String,
     pub tag_value: String,
     pub display_name: Option<String>,
+    pub color: Option<String>,
 }
 
 impl_restate_serde!(AddTagRequest);
@@ -145,6 +149,14 @@ pub struct DeleteScheduleRequest {
 
 impl_restate_serde!(DeleteScheduleRequest);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AddCommentRequest {
+    pub content: String,
+    pub parent_message_id: Option<Uuid>,
+}
+
+impl_restate_serde!(AddCommentRequest);
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -155,6 +167,7 @@ pub struct PostTagResult {
     pub kind: String,
     pub value: String,
     pub display_name: Option<String>,
+    pub color: Option<String>,
 }
 
 impl_restate_serde!(PostTagResult);
@@ -268,6 +281,7 @@ pub trait PostObject {
     async fn approve_revision(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn reject_revision(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn regenerate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn add_comment(req: AddCommentRequest) -> Result<MessageResult, HandlerError>;
 
     // --- Reads (shared, concurrent) ---
     #[shared]
@@ -278,6 +292,9 @@ pub trait PostObject {
 
     #[shared]
     async fn get_revision(req: EmptyRequest) -> Result<OptionalPostResult, HandlerError>;
+
+    #[shared]
+    async fn get_comments(req: EmptyRequest) -> Result<MessageListResult, HandlerError>;
 }
 
 // =============================================================================
@@ -600,6 +617,7 @@ impl PostObject for PostObjectImpl {
                 req.tag_kind.clone(),
                 req.tag_value.clone(),
                 req.display_name.clone(),
+                req.color.clone(),
                 &self.deps.db_pool,
             )
             .await
@@ -799,6 +817,7 @@ impl PostObject for PostObjectImpl {
                     kind: t.kind,
                     value: t.value,
                     display_name: t.display_name,
+                    color: t.color,
                 })
                 .collect(),
         );
@@ -946,5 +965,77 @@ impl PostObject for PostObjectImpl {
             .ok_or_else(|| TerminalError::new("Post not found after regenerate"))?;
 
         Ok(PostResult::from(post))
+    }
+
+    async fn add_comment(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: AddCommentRequest,
+    ) -> Result<MessageResult, HandlerError> {
+        let user = optional_auth(ctx.headers(), &self.deps.jwt_service);
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found"))?;
+
+        let container_id = ctx
+            .run(|| async {
+                post.get_or_create_comments_container(&self.deps.db_pool)
+                    .await
+                    .map_err(Into::into)
+            })
+            .await?;
+
+        let parent_id = req.parent_message_id.map(MessageId::from_uuid);
+
+        let message = ctx
+            .run(|| async {
+                chatroom_activities::send_message(
+                    container_id,
+                    req.content.clone(),
+                    user.as_ref().map(|u| u.member_id),
+                    parent_id,
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::into)
+            })
+            .await?;
+
+        Ok(MessageResult::from(message))
+    }
+
+    async fn get_comments(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<MessageListResult, HandlerError> {
+        let post_id = Uuid::parse_str(ctx.key())
+            .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)))?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found"))?;
+
+        let container_id = match post.get_comments_container_id() {
+            Some(id) => id,
+            None => {
+                return Ok(MessageListResult {
+                    messages: vec![],
+                });
+            }
+        };
+
+        let messages =
+            Message::find_approved_by_container(container_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(MessageListResult {
+            messages: messages.into_iter().map(MessageResult::from).collect(),
+        })
     }
 }

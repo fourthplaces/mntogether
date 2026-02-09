@@ -79,6 +79,7 @@ pub struct MessageResult {
     pub container_id: Uuid,
     pub role: String,
     pub content: String,
+    pub parent_message_id: Option<Uuid>,
     pub created_at: String,
 }
 
@@ -98,6 +99,7 @@ impl From<Message> for MessageResult {
             container_id: m.container_id.into_uuid(),
             role: m.role,
             content: m.content,
+            parent_message_id: m.parent_message_id.map(|id| id.into_uuid()),
             created_at: m.created_at.to_rfc3339(),
         }
     }

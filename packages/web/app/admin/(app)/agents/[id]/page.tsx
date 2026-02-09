@@ -51,6 +51,18 @@ export default function AgentDetailPage() {
       ]
     : [{ key: "overview", label: "Configuration" }];
 
+  const handleDelete = async () => {
+    if (!confirm(`Delete "${agent.display_name}"? This cannot be undone.`)) return;
+    setActionInProgress("delete");
+    try {
+      await callService("Agents", "delete_agent", { agent_id: agentId });
+      invalidateService("Agents");
+      router.push("/admin/agents");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   const handleStatusChange = async (newStatus: string) => {
     setActionInProgress("status");
     try {
@@ -153,6 +165,13 @@ export default function AgentDetailPage() {
                   {actionInProgress === "status" ? "..." : "Resume"}
                 </button>
               )}
+              <button
+                onClick={handleDelete}
+                disabled={!!actionInProgress}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-red-100 text-red-700 hover:bg-red-200 disabled:opacity-50 transition-colors"
+              >
+                {actionInProgress === "delete" ? "..." : "Delete"}
+              </button>
             </div>
           </div>
 
@@ -252,6 +271,17 @@ function OverviewTab({
   const [purposeValue, setPurposeValue] = useState(
     curator_config?.purpose || ""
   );
+  const [editingPreamble, setEditingPreamble] = useState(false);
+  const [preambleValue, setPreambleValue] = useState(
+    assistant_config?.preamble || ""
+  );
+  const [editingSchedule, setEditingSchedule] = useState(false);
+  const [scheduleDiscover, setScheduleDiscover] = useState(
+    curator_config?.schedule_discover || ""
+  );
+  const [scheduleMonitor, setScheduleMonitor] = useState(
+    curator_config?.schedule_monitor || ""
+  );
   const [saving, setSaving] = useState(false);
 
   const saveName = async () => {
@@ -343,9 +373,60 @@ function OverviewTab({
           <label className="block text-sm font-medium text-stone-500 mb-1">
             Preamble
           </label>
-          <pre className="text-sm text-stone-700 whitespace-pre-wrap bg-stone-50 rounded p-3">
-            {assistant_config.preamble || "(empty)"}
-          </pre>
+          {editingPreamble ? (
+            <div className="space-y-2">
+              <textarea
+                value={preambleValue}
+                onChange={(e) => setPreambleValue(e.target.value)}
+                rows={10}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-500"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    setSaving(true);
+                    try {
+                      await callService("Agents", "update_assistant_config", {
+                        agent_id: agentId,
+                        preamble: preambleValue,
+                      });
+                      invalidateService("Agents");
+                      onUpdate();
+                      setEditingPreamble(false);
+                    } finally {
+                      setSaving(false);
+                    }
+                  }}
+                  disabled={saving}
+                  className="px-3 py-2 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingPreamble(false);
+                    setPreambleValue(assistant_config.preamble);
+                  }}
+                  className="px-3 py-2 text-stone-500 text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between">
+              <pre className="text-sm text-stone-700 whitespace-pre-wrap bg-stone-50 rounded p-3 flex-1">
+                {assistant_config.preamble || "(empty)"}
+              </pre>
+              <button
+                onClick={() => setEditingPreamble(true)}
+                className="text-sm text-amber-600 hover:text-amber-700 shrink-0 ml-4"
+              >
+                Edit
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -423,23 +504,99 @@ function OverviewTab({
             </div>
 
             <div className="bg-white rounded-lg shadow px-6 py-4">
-              <label className="block text-sm font-medium text-stone-500 mb-2">
-                Schedule
-              </label>
-              <div className="space-y-1 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Discover</span>
-                  <span className="text-stone-900">
-                    {curator_config.schedule_discover || "Manual only"}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Monitor</span>
-                  <span className="text-stone-900">
-                    {curator_config.schedule_monitor || "Manual only"}
-                  </span>
-                </div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-sm font-medium text-stone-500">
+                  Schedule
+                </label>
+                {!editingSchedule && (
+                  <button
+                    onClick={() => setEditingSchedule(true)}
+                    className="text-sm text-amber-600 hover:text-amber-700"
+                  >
+                    Edit
+                  </button>
+                )}
               </div>
+              {editingSchedule ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-stone-600 w-20">Discover</span>
+                    <select
+                      value={scheduleDiscover}
+                      onChange={(e) => setScheduleDiscover(e.target.value)}
+                      className="px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">Manual only</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-stone-600 w-20">Monitor</span>
+                    <select
+                      value={scheduleMonitor}
+                      onChange={(e) => setScheduleMonitor(e.target.value)}
+                      className="px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
+                      <option value="">Manual only</option>
+                      <option value="hourly">Hourly</option>
+                      <option value="daily">Daily</option>
+                      <option value="weekly">Weekly</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          await callService("Agents", "update_curator_config", {
+                            agent_id: agentId,
+                            purpose: curator_config.purpose,
+                            audience_roles: curator_config.audience_roles,
+                            schedule_discover: scheduleDiscover || null,
+                            schedule_monitor: scheduleMonitor || null,
+                          });
+                          invalidateService("Agents");
+                          onUpdate();
+                          setEditingSchedule(false);
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
+                      className="px-3 py-1.5 bg-amber-600 text-white rounded-lg text-sm hover:bg-amber-700 disabled:opacity-50"
+                    >
+                      Save
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingSchedule(false);
+                        setScheduleDiscover(curator_config.schedule_discover || "");
+                        setScheduleMonitor(curator_config.schedule_monitor || "");
+                      }}
+                      className="px-3 py-1.5 text-stone-500 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Discover</span>
+                    <span className="text-stone-900 capitalize">
+                      {curator_config.schedule_discover || "Manual only"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-stone-600">Monitor</span>
+                    <span className="text-stone-900 capitalize">
+                      {curator_config.schedule_monitor || "Manual only"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

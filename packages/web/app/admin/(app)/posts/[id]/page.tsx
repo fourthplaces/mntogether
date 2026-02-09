@@ -479,7 +479,8 @@ export default function PostDetailPage() {
                     {kindTags.map((tag: TagResult) => (
                       <span
                         key={tag.id}
-                        className="px-3 py-1 text-sm rounded-full font-medium bg-stone-100 text-stone-800"
+                        className={`px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
+                        style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                       >
                         {tag.display_name || tag.value}
                       </span>
@@ -617,13 +618,15 @@ export default function PostDetailPage() {
                       {kindTags.map((tag: TagResult) => (
                         <span
                           key={tag.id}
-                          className="inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium bg-stone-100 text-stone-800"
+                          className={`inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
+                          style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                         >
                           {tag.display_name || tag.value}
                           <button
                             onClick={() => handleRemoveTag(tag.id)}
                             disabled={isUpdating}
-                            className="text-stone-400 hover:text-red-600 ml-1 disabled:opacity-50"
+                            className="hover:text-red-600 ml-1 disabled:opacity-50"
+                            style={tag.color ? { color: tag.color } : { color: "#a8a29e" }}
                           >
                             &times;
                           </button>
@@ -649,6 +652,7 @@ export default function PostDetailPage() {
                       setSelectedKind(e.target.value);
                       setTagValue("");
                       setTagDisplayName("");
+
                       setIsCreatingNewTag(false);
                     }}
                     className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -689,6 +693,7 @@ export default function PostDetailPage() {
                               setIsCreatingNewTag(false);
                               setTagValue("");
                               setTagDisplayName("");
+        
                             }}
                             className="text-xs text-stone-500 hover:text-stone-700"
                           >
@@ -705,6 +710,7 @@ export default function PostDetailPage() {
                                 setIsCreatingNewTag(true);
                                 setTagValue("");
                                 setTagDisplayName("");
+          
                                 return;
                               }
                               setTagValue(val);

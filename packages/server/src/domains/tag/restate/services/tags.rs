@@ -57,6 +57,9 @@ pub struct CreateTagRequest {
     pub kind: String,
     pub value: String,
     pub display_name: Option<String>,
+    pub color: Option<String>,
+    pub description: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl_restate_serde!(CreateTagRequest);
@@ -65,6 +68,9 @@ impl_restate_serde!(CreateTagRequest);
 pub struct UpdateTagRequest {
     pub id: Uuid,
     pub display_name: String,
+    pub color: Option<String>,
+    pub description: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl_restate_serde!(UpdateTagRequest);
@@ -105,6 +111,9 @@ pub struct TagResult {
     pub kind: String,
     pub value: String,
     pub display_name: Option<String>,
+    pub color: Option<String>,
+    pub description: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl_restate_serde!(TagResult);
@@ -291,6 +300,9 @@ impl TagsService for TagsServiceImpl {
                     kind: t.kind,
                     value: t.value,
                     display_name: t.display_name,
+                    color: t.color,
+                    description: t.description,
+                    emoji: t.emoji,
                 })
                 .collect(),
         })
@@ -304,15 +316,36 @@ impl TagsService for TagsServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
         let pool = &self.deps.db_pool;
-        let tag = Tag::find_or_create(&req.kind, &req.value, req.display_name, pool)
+        let mut tag = Tag::find_or_create(&req.kind, &req.value, req.display_name, pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if req.color.is_some() {
+            tag = Tag::update_color(tag.id, req.color.as_deref(), pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
+
+        if req.description.is_some() {
+            tag = Tag::update_description(tag.id, req.description.as_deref(), pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
+
+        if req.emoji.is_some() {
+            tag = Tag::update_emoji(tag.id, req.emoji.as_deref(), pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
 
         Ok(TagResult {
             id: tag.id.into_uuid(),
             kind: tag.kind,
             value: tag.value,
             display_name: tag.display_name,
+            color: tag.color,
+            description: tag.description,
+            emoji: tag.emoji,
         })
     }
 
@@ -325,7 +358,19 @@ impl TagsService for TagsServiceImpl {
 
         let pool = &self.deps.db_pool;
         let tag_id = crate::common::TagId::from_uuid(req.id);
-        let tag = Tag::update_display_name(tag_id, &req.display_name, pool)
+        Tag::update_display_name(tag_id, &req.display_name, pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Tag::update_color(tag_id, req.color.as_deref(), pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Tag::update_description(tag_id, req.description.as_deref(), pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let tag = Tag::update_emoji(tag_id, req.emoji.as_deref(), pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -334,6 +379,9 @@ impl TagsService for TagsServiceImpl {
             kind: tag.kind,
             value: tag.value,
             display_name: tag.display_name,
+            color: tag.color,
+            description: tag.description,
+            emoji: tag.emoji,
         })
     }
 

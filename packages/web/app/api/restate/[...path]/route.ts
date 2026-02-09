@@ -10,6 +10,17 @@ const PUBLIC_PATHS = [
   "Auth/verify_otp",
   "Posts/submit",
   "Posts/submit_resource_link",
+  "Posts/public_list",
+  "Posts/public_filters",
+];
+
+// Virtual object paths that are publicly readable (Post/{uuid}/get)
+const PUBLIC_OBJECT_PATTERNS = [
+  /^Post\/[^/]+\/get$/,
+  /^Post\/[^/]+\/track_view$/,
+  /^Post\/[^/]+\/track_click$/,
+  /^Post\/[^/]+\/get_comments$/,
+  /^Post\/[^/]+\/add_comment$/,
 ];
 
 export async function POST(
@@ -18,7 +29,8 @@ export async function POST(
 ) {
   const { path } = await params;
   const restatePath = path.join("/");
-  const isPublic = PUBLIC_PATHS.some((p) => restatePath.startsWith(p));
+  const isPublic = PUBLIC_PATHS.some((p) => restatePath.startsWith(p)) ||
+    PUBLIC_OBJECT_PATTERNS.some((r) => r.test(restatePath));
 
   // Token comes from httpOnly cookie (set during login, sent automatically by browser)
   const token = request.cookies.get("auth_token")?.value;

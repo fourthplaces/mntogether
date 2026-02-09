@@ -343,6 +343,7 @@ pub struct PostTypeOption {
     pub display_name: String,
     pub description: Option<String>,
     pub color: Option<String>,
+    pub emoji: Option<String>,
 }
 
 impl_restate_serde!(PostTypeOption);
@@ -928,6 +929,7 @@ impl PostsService for PostsServiceImpl {
                     display_name: t.display_name.unwrap_or_default(),
                     description: t.description,
                     color: t.color,
+                    emoji: t.emoji,
                 })
                 .collect(),
         })

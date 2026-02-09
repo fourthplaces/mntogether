@@ -48,13 +48,19 @@ pub async fn add_post_tag(
     tag_kind: String,
     tag_value: String,
     display_name: Option<String>,
+    color: Option<String>,
     pool: &PgPool,
 ) -> Result<Tag> {
     let post_id = PostId::from_uuid(post_id);
 
     info!(post_id = %post_id, tag_kind = %tag_kind, tag_value = %tag_value, "Adding post tag");
 
-    let tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, pool).await?;
+    let mut tag = Tag::find_or_create(&tag_kind, &tag_value, display_name, pool).await?;
+
+    if color.is_some() {
+        tag = Tag::update_color(tag.id, color.as_deref(), pool).await?;
+    }
+
     Taggable::create_post_tag(post_id, tag.id, pool).await?;
 
     Ok(tag)
