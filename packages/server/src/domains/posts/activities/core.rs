@@ -120,7 +120,7 @@ pub async fn edit_and_approve_post(
             .title(input.title)
             .description(input.description)
             .description_markdown(input.description_markdown)
-            .tldr(input.tldr)
+            .summary(input.summary)
             .urgency(input.urgency)
             .location(input.location)
             .build(),

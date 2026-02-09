@@ -40,7 +40,7 @@ pub async fn create_posts_from_resource_link(
             CreatePost::builder()
                 .title(extracted_post.title.clone())
                 .description(extracted_post.description.clone())
-                .tldr(Some(extracted_post.tldr))
+                .summary(Some(extracted_post.summary))
                 .capacity_status(Some("accepting".to_string()))
                 .urgency(extracted_post.urgency)
                 .submission_type(Some("user_submitted".to_string()))

@@ -58,7 +58,7 @@ pub async fn create_extracted_post(
         CreatePost::builder()
             .title(post.title.clone())
             .description(post.description.clone())
-            .tldr(Some(post.tldr.clone()))
+            .summary(Some(post.summary.clone()))
             .capacity_status(Some("accepting".to_string()))
             .urgency(urgency)
             .location(post.location.clone())

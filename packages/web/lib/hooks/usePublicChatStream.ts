@@ -2,9 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 
-const SSE_BASE =
-  process.env.NEXT_PUBLIC_SSE_URL || "http://localhost:8081";
-
 interface UsePublicChatStreamOptions {
   /** Called when a new message is available */
   onComplete?: () => void;
@@ -13,9 +10,10 @@ interface UsePublicChatStreamOptions {
 }
 
 /**
- * Hook that connects to the public SSE endpoint for a chat container.
+ * Hook that connects to the SSE endpoint for a chat container.
  *
- * Listens for `message_complete` events and signals the parent to refetch.
+ * Routes through the Next.js SSE proxy (/api/streams/) which reads
+ * the httpOnly auth cookie and forwards it to the Rust SSE server.
  */
 export function usePublicChatStream(
   containerId: string | null,
@@ -31,7 +29,7 @@ export function usePublicChatStream(
   useEffect(() => {
     if (!containerId) return;
 
-    const url = `${SSE_BASE}/api/streams/chat:${containerId}`;
+    const url = `/api/streams/chat:${containerId}`;
     const es = new EventSource(url);
 
     es.addEventListener("message_complete", () => {

@@ -14,6 +14,7 @@ use crate::common::{MessageId, PostId, ScheduleId};
 use crate::domains::chatrooms::activities as chatroom_activities;
 use crate::domains::chatrooms::models::Message;
 use crate::domains::chatrooms::restate::virtual_objects::{MessageListResult, MessageResult};
+use crate::domains::contacts::Contact;
 use crate::domains::posts::activities;
 use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
@@ -38,7 +39,7 @@ pub struct EditApproveRequest {
     pub title: Option<String>,
     pub description: Option<String>,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
 }
@@ -174,6 +175,14 @@ pub struct PostTagResult {
 impl_restate_serde!(PostTagResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostContactResult {
+    pub id: Uuid,
+    pub contact_type: String,
+    pub contact_value: String,
+    pub contact_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmittedByInfo {
     /// "agent", "member", or "unknown"
     pub submitter_type: String,
@@ -189,7 +198,7 @@ pub struct PostResult {
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub status: String,
     pub post_type: String,
     pub category: String,
@@ -206,6 +215,8 @@ pub struct PostResult {
     pub submitted_by: Option<SubmittedByInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub schedules: Option<Vec<PostScheduleResult>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub contacts: Option<Vec<PostContactResult>>,
 }
 
 impl_restate_serde!(PostResult);
@@ -217,7 +228,7 @@ impl From<Post> for PostResult {
             title: p.title,
             description: p.description,
             description_markdown: p.description_markdown,
-            tldr: p.tldr,
+            summary: p.summary,
             status: p.status,
             post_type: p.post_type,
             category: p.category,
@@ -231,6 +242,7 @@ impl From<Post> for PostResult {
             tags: None,
             submitted_by: None,
             schedules: None,
+            contacts: None,
         }
     }
 }
@@ -392,7 +404,7 @@ impl PostObject for PostObjectImpl {
             title: req.title,
             description: req.description,
             description_markdown: req.description_markdown,
-            tldr: req.tldr,
+            summary: req.summary,
             urgency: req.urgency,
             location: req.location,
         };
@@ -866,6 +878,11 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Load contacts
+        let contacts = Contact::find_by_post(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
         let mut result = PostResult::from(post);
         result.submitted_by = submitted_by;
         result.tags = Some(
@@ -897,6 +914,21 @@ impl PostObject for PostObjectImpl {
                         dtend: s.dtend.map(|dt| dt.to_rfc3339()),
                         is_all_day: s.is_all_day,
                         duration_minutes: s.duration_minutes,
+                    })
+                    .collect(),
+            )
+        };
+        result.contacts = if contacts.is_empty() {
+            None
+        } else {
+            Some(
+                contacts
+                    .into_iter()
+                    .map(|c| PostContactResult {
+                        id: c.id,
+                        contact_type: c.contact_type,
+                        contact_value: c.contact_value,
+                        contact_label: c.contact_label,
                     })
                     .collect(),
             )

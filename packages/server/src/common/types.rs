@@ -37,7 +37,7 @@ pub struct ExtractedSchedule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedPost {
     pub title: String,
-    pub tldr: String,
+    pub summary: String,
     pub description: String,
     pub contact: Option<ContactInfo>,
     #[serde(default)]
@@ -98,7 +98,7 @@ impl ExtractedPost {
 
         Self {
             title: narrative.title,
-            tldr: narrative.tldr,
+            summary: narrative.summary,
             description: narrative.description,
             contact: info.contact_or_none(),
             location: info.location,
@@ -122,7 +122,7 @@ pub struct ExtractedPostWithSource {
     /// The source URL this listing was extracted from
     pub source_url: String,
     pub title: String,
-    pub tldr: String,
+    pub summary: String,
     pub description: String,
     pub contact: Option<ContactInfo>,
     #[serde(default)]
@@ -142,7 +142,7 @@ impl ExtractedPostWithSource {
     pub fn into_post(self) -> ExtractedPost {
         ExtractedPost {
             title: self.title,
-            tldr: self.tldr,
+            summary: self.summary,
             description: self.description,
             contact: self.contact,
             location: self.location,

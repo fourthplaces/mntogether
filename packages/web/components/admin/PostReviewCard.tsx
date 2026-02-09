@@ -113,8 +113,8 @@ export function PostReviewCard({
           </div>
         </div>
 
-        {/* TLDR */}
-        {post.tldr && <p className="text-sm text-stone-700 italic mb-2">&quot;{post.tldr}&quot;</p>}
+        {/* Summary */}
+        {post.summary && <p className="text-sm text-stone-600 mb-2">{post.summary}</p>}
 
         {/* Tags */}
         {tags.length > 0 && (

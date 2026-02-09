@@ -1,6 +1,6 @@
 //! Three-pass post extraction via structured LLM output
 //!
-//! Pass 1: Batch extract narrative posts (title + tldr + comprehensive description)
+//! Pass 1: Batch extract narrative posts (title + summary + comprehensive description)
 //! Pass 2: Deduplicate and merge posts across batches
 //! Pass 3: Agentic investigation - AI uses tools to find missing information
 //!
@@ -64,8 +64,8 @@ fn batch_pages_by_size(pages: &[CachedPage], max_chars: usize) -> Vec<Vec<&Cache
 pub struct NarrativePost {
     /// Clear, descriptive title
     pub title: String,
-    /// One-sentence summary (max 100 chars)
-    pub tldr: String,
+    /// 2-3 sentence summary (~250 chars) with key details for card previews
+    pub summary: String,
     /// Comprehensive, human-readable description with ALL details
     pub description: String,
     /// The source URL where this post was found
@@ -86,7 +86,7 @@ const NARRATIVE_EXTRACTION_PROMPT: &str = r#"You are extracting community resour
 For each DISTINCT opportunity, service, program, or event you find, provide:
 
 1. **title** - An action-focused title that tells people exactly what they can DO. Lead with the action, not the organization. (e.g., "Get Free Hot Meals Every Tuesday", "Sort and Pack Food Boxes", "Donate Food or Funds"). Never include organization names in titles - that info is captured elsewhere.
-2. **tldr** - One sentence (max 100 chars) that captures the essence
+2. **summary** - 2-3 sentence summary (~250 chars) that includes the most important actionable details: when/where it happens, key requirements, and how to get involved. Don't just say what it is — include the details someone needs to decide whether to click.
 3. **description** - A rich markdown description for humans to read
 4. **source_url** - The URL where this content was found (look at the Source header above the content)
 5. **audience** - Who this post is for: "recipient" (people who receive help), "volunteer" (people who give time), "donor" (people who give money/goods), or "participant" (general participants)
@@ -156,7 +156,7 @@ Also create separate posts for:
 - Different events (e.g., Monthly Food Drive vs Annual Gala)
 - Different programs (e.g., Senior Services vs Youth Services)"#;
 
-/// Pass 1: Extract narrative posts (title + tldr + comprehensive description)
+/// Pass 1: Extract narrative posts (title + summary + comprehensive description)
 async fn extract_narrative_posts(
     content: &str,
     context: Option<&str>,
@@ -206,7 +206,7 @@ Posts are duplicates if they describe the SAME opportunity, service, or program 
 
 Return the deduplicated list of posts. Each post should have:
 - title: The best title (action-focused, no org names)
-- tldr: One sentence summary (max 100 chars)
+- summary: 2-3 sentence summary (~250 chars) with key actionable details (when, where, requirements, how to access)
 - description: Merged description with ALL details from duplicates
 - source_url: The primary source URL (or comma-separated if merged from multiple)
 
@@ -463,7 +463,7 @@ pub async fn investigate_post(
 
 /// Extract structured posts from markdown content using three-pass extraction.
 ///
-/// Pass 1: Extract narrative posts (title + tldr + comprehensive description)
+/// Pass 1: Extract narrative posts (title + summary + comprehensive description)
 /// Pass 2: Deduplicate and merge posts
 /// Pass 3: Agentic investigation to find missing information
 ///
@@ -492,7 +492,7 @@ pub async fn extract_posts_from_content(
 
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
-    // Pass 1: Extract narrative posts (title + tldr + description)
+    // Pass 1: Extract narrative posts (title + summary + description)
     let narratives = extract_narrative_posts(content, Some(&context)).await?;
 
     if narratives.is_empty() {
@@ -543,7 +543,7 @@ pub async fn extract_posts_from_content(
 
         posts.push(ExtractedPost {
             title: narrative.title,
-            tldr: narrative.tldr,
+            summary: narrative.summary,
             description: narrative.description,
             contact: info.contact_or_none(),
             location: info.location,
@@ -716,7 +716,7 @@ pub async fn extract_posts_from_pages_with_tags(
 
         posts.push(ExtractedPost {
             title: narrative.title,
-            tldr: narrative.tldr,
+            summary: narrative.summary,
             description: narrative.description,
             contact: info.contact_or_none(),
             location: info.location,

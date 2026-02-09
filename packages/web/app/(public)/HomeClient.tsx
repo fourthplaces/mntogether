@@ -48,7 +48,7 @@ function PostCard({ post }: { post: PublicPostResult }) {
         <p className="text-sm text-[#7D7D7D] mb-1">📍 {post.location}</p>
       )}
       <p className="text-[#5D5D5D] text-[0.95rem] leading-relaxed mb-3">
-        {post.tldr || post.description}
+        {post.summary || post.description}
       </p>
       <div className="flex flex-wrap gap-2">
         <span

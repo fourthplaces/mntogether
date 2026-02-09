@@ -7,7 +7,7 @@ pub struct PostData {
     pub id: String,
     pub title: String,
     pub description: String,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
 
     // Hot path fields
     pub post_type: String,
@@ -68,7 +68,7 @@ impl From<Post> for PostData {
             id: post.id.to_string(),
             title: post.title,
             description: post.description,
-            tldr: post.tldr,
+            summary: post.summary,
             post_type: post.post_type,
             category: post.category,
             capacity_status: post.capacity_status,

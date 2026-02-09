@@ -27,7 +27,7 @@ struct ExtractionResponse {
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 struct LlmExtractedPost {
     title: String,
-    tldr: String,
+    summary: String,
     description: String,
     contact: Option<ContactInfo>,
     urgency: Option<String>,
@@ -44,7 +44,7 @@ impl LlmExtractedPost {
     fn into_extracted_post(self) -> ExtractedPost {
         ExtractedPost {
             title: self.title,
-            tldr: self.tldr,
+            summary: self.summary,
             description: self.description,
             contact: self.contact,
             urgency: self.urgency,
@@ -73,7 +73,7 @@ struct BatchExtractionResponse {
 struct LlmExtractedPostWithSource {
     source_url: String,
     title: String,
-    tldr: String,
+    summary: String,
     description: String,
     contact: Option<ContactInfo>,
     #[serde(default)]
@@ -92,7 +92,7 @@ impl LlmExtractedPostWithSource {
         ExtractedPostWithSource {
             source_url: self.source_url,
             title: self.title,
-            tldr: self.tldr,
+            summary: self.summary,
             description: self.description,
             contact: self.contact,
             location: self.location,
@@ -240,17 +240,17 @@ pub async fn extract_posts_with_pii_scrub(
             }
         }
 
-        // Scrub tldr
-        if let Ok(tldr_result) = pii_detector
+        // Scrub summary
+        if let Ok(summary_result) = pii_detector
             .scrub(
-                &listing.tldr,
+                &listing.summary,
                 DetectionContext::PublicContent,
                 RedactionStrategy::PartialMask,
             )
             .await
         {
-            if tldr_result.pii_detected {
-                listing.tldr = tldr_result.clean_text;
+            if summary_result.pii_detected {
+                listing.summary = summary_result.clean_text;
             }
         }
     }
@@ -291,7 +291,7 @@ Extract all listings mentioned on this page.
 
 For each listing, provide:
 1. **title**: A clear, concise title (5-10 words)
-2. **tldr**: A 1-2 sentence summary
+2. **summary**: A 2-3 sentence summary (~250 chars) with the most important actionable details — when/where, key requirements, how to get involved. Not just what it is, but enough specifics to decide whether to click.
 3. **description**: Full details (what they need, requirements, impact)
 4. **contact**: Any contact information (phone, email, website)
 5. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
@@ -420,7 +420,7 @@ For each listing you find, you MUST include the "source_url" field indicating wh
 For each listing, provide:
 1. **source_url**: The URL of the page this listing was found on (REQUIRED)
 2. **title**: A clear, concise title (5-10 words)
-3. **tldr**: A 1-2 sentence summary
+3. **summary**: A 2-3 sentence summary (~250 chars) with the most important actionable details — when/where, key requirements, how to get involved. Not just what it is, but enough specifics to decide whether to click.
 4. **description**: Full details (what they need, requirements, impact)
 5. **contact**: Any contact information (phone, email, website)
 6. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
@@ -499,15 +499,15 @@ Extract all listings from ALL pages as a single JSON array. Each listing must in
     Ok(result)
 }
 
-/// Generate a concise summary (tldr) from a longer description
+/// Generate a summary from a longer description
 ///
-/// Uses AI to create a 1-2 sentence summary of the listing description.
+/// Uses AI to create a 2-3 sentence summary of the listing description.
 pub async fn generate_summary(ai: &OpenAIClient, description: &str) -> Result<String> {
     // Sanitize input to prevent prompt injection
     let safe_description = sanitize_prompt_input(description);
 
     let prompt = format!(
-        r#"Summarize this listing in 1-2 clear sentences. Focus on what help is needed and the impact.
+        r#"Summarize this listing in 2-3 clear sentences (~250 chars). Include the most important actionable details: what it is, when/where it happens, key requirements or eligibility, and how to sign up or get involved. This summary appears on card previews — give people enough specifics to decide whether to click through.
 
 [SYSTEM BOUNDARY - USER INPUT BEGINS BELOW]
 

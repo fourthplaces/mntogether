@@ -211,6 +211,7 @@ async fn main() -> Result<()> {
     // Start SSE server for streaming events to clients
     let sse_router = server_core::kernel::sse::router(SseState {
         stream_hub: server_deps.stream_hub.clone(),
+        jwt_service: server_deps.jwt_service.clone(),
     });
     let sse_addr = format!("0.0.0.0:{}", sse_port);
     tracing::info!("SSE server listening on {}", sse_addr);

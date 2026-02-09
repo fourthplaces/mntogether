@@ -113,7 +113,7 @@ pub async fn regenerate_single_post(post_id: Uuid, deps: &ServerDeps) -> Result<
             .title(Some(best_match.title.clone()))
             .description(Some(best_match.description.clone()))
             .description_markdown(None::<String>)
-            .tldr(Some(best_match.tldr.clone()))
+            .summary(Some(best_match.summary.clone()))
             .urgency(best_match.urgency.clone())
             .location(best_match.location.clone())
             .build(),

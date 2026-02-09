@@ -20,7 +20,6 @@ const PUBLIC_OBJECT_PATTERNS = [
   /^Post\/[^/]+\/track_view$/,
   /^Post\/[^/]+\/track_click$/,
   /^Post\/[^/]+\/get_comments$/,
-  /^Post\/[^/]+\/add_comment$/,
 ];
 
 export async function POST(
@@ -35,7 +34,7 @@ export async function POST(
   // Token comes from httpOnly cookie (set during login, sent automatically by browser)
   const token = request.cookies.get("auth_token")?.value;
 
-  console.log(`[restate-proxy] ${restatePath} | public=${isPublic} | token=${token ? `${token.slice(0, 20)}...` : "none"}`);
+  console.log(`[restate-proxy] ${restatePath} | public=${isPublic} | auth=${token ? "yes" : "no"}`);
 
   // Require a token for non-public routes (actual JWT validation happens in the backend)
   if (!isPublic && !token) {

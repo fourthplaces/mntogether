@@ -1,5 +1,5 @@
 use crate::common::{PostId, WebsiteId};
-use crate::common::utils::generate_tldr;
+use crate::common::utils::generate_summary;
 use crate::domains::posts::activities::{tag_post_from_extracted, tag_with_audience_roles};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
@@ -41,7 +41,7 @@ pub struct ExtractedPostInput {
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub contact: Option<serde_json::Value>,
     pub location: Option<String>,
     pub urgency: Option<String>,
@@ -87,7 +87,7 @@ pub async fn sync_posts(
         if let Some(existing_post) = existing {
             // Post exists by title - check if content changed
             let content_changed = existing_post.description != post_input.description
-                || existing_post.tldr.as_deref() != post_input.tldr.as_deref()
+                || existing_post.summary.as_deref() != post_input.summary.as_deref()
                 || existing_post.location != post_input.location;
 
             if content_changed {
@@ -96,7 +96,7 @@ pub async fn sync_posts(
                     UpdatePostContent::builder()
                         .id(existing_post.id)
                         .description(Some(post_input.description.clone()))
-                        .tldr(post_input.tldr.clone())
+                        .summary(post_input.summary.clone())
                         .location(post_input.location.clone())
                         .build(),
                     pool,
@@ -120,10 +120,10 @@ pub async fn sync_posts(
         } else {
             // No title match - create new post
             // (LLM-based deduplication will handle semantic duplicates after sync)
-            let tldr = post_input
-                .tldr
+            let summary = post_input
+                .summary
                 .clone()
-                .or_else(|| Some(generate_tldr(&post_input.description, 100)));
+                .or_else(|| Some(generate_summary(&post_input.description, 250)));
 
             let urgency = normalize_urgency(post_input.urgency.clone());
 
@@ -131,7 +131,7 @@ pub async fn sync_posts(
                 CreatePost::builder()
                     .title(post_input.title.clone())
                     .description(post_input.description.clone())
-                    .tldr(tldr)
+                    .summary(summary)
                     .capacity_status(Some("accepting".to_string()))
                     .urgency(urgency)
                     .location(post_input.location.clone())
@@ -278,7 +278,7 @@ mod tests {
             title: "Test Title".to_string(),
             description: "Test Description".to_string(),
             description_markdown: None,
-            tldr: None,
+            summary: None,
             contact: None,
             location: None,
             urgency: None,
@@ -298,7 +298,7 @@ mod tests {
             title: "Volunteer Opportunity".to_string(),
             description: "Help needed".to_string(),
             description_markdown: None,
-            tldr: Some("Volunteer work".to_string()),
+            summary: Some("Volunteer work".to_string()),
             contact: None,
             location: Some("Minneapolis".to_string()),
             urgency: Some("high".to_string()),

@@ -47,7 +47,7 @@ pub async fn sync_extracted_posts(
             title: listing.title,
             description: listing.description,
             description_markdown: None,
-            tldr: Some(listing.tldr),
+            summary: Some(listing.summary),
             contact: listing.contact.and_then(|c| {
                 serde_json::json!({
                     "email": c.email,
