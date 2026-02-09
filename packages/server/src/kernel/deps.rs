@@ -63,8 +63,8 @@ pub struct ServerDeps {
     /// This field is retained for backward compatibility with deprecated code paths.
     /// Use `extraction.ingest()` or `extraction.ingest_urls()` with FirecrawlIngestor/HttpIngestor.
     pub ingestor: Arc<dyn Ingestor>,
-    /// OpenAI client for LLM operations. Use with `LlmRequestExt` for fluent API
-    /// or `CompletionExt` for simple completions.
+    /// OpenAI client for LLM operations. Use `extract<T>()` for structured JSON
+    /// output or `CompletionExt` for simple text completions.
     pub ai: Arc<OpenAIClient>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,

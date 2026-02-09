@@ -70,6 +70,8 @@ pub struct NarrativePost {
     pub description: String,
     /// The source URL where this post was found
     pub source_url: String,
+    /// Primary audience: "recipient", "volunteer", "donor", or "participant"
+    pub audience: String,
 }
 
 /// Wrapper for narrative extraction response (for schema generation)
@@ -87,6 +89,7 @@ For each DISTINCT opportunity, service, program, or event you find, provide:
 2. **tldr** - One sentence (max 100 chars) that captures the essence
 3. **description** - A rich markdown description for humans to read
 4. **source_url** - The URL where this content was found (look at the Source header above the content)
+5. **audience** - Who this post is for: "recipient" (people who receive help), "volunteer" (people who give time), "donor" (people who give money/goods), or "participant" (general participants)
 
 ## Writing the Description
 
@@ -97,11 +100,11 @@ Write in well-formatted markdown that's easy to scan. Use:
 
 Include all relevant details:
 - What this is and who it's for
-- Location and address (if mentioned)
-- Hours, dates, schedules (if mentioned)
-- How to access, apply, or sign up
-- Contact information (phone, email, website)
+- Location and address — REQUIRED for in-person services (full street address, city, state, zip). Skip for virtual-only.
+- Schedule — REQUIRED for events and recurring programs (day, time, frequency). Skip for always-available services.
+- Contact information — phone, email, website, or signup form. Note the gap explicitly if missing.
 - Eligibility or requirements
+- How to access, apply, or sign up
 
 Guidelines:
 - Use markdown formatting liberally - bold, bullets, headers if appropriate
@@ -293,6 +296,7 @@ A signup form URL IS valid contact information. If the description contains a fo
 3. **Urgency**: How time-sensitive (low/medium/high/urgent)
 4. **Confidence**: high if form/email/phone found, medium if only website, low if nothing found
 5. **Audience**: Who is this for (recipient/volunteer/donor/participant)
+6. **Schedule**: For events/recurring programs: dates, times, and frequency.
 
 ## Guidelines
 - A signup form link in the description IS the contact method - report it!
@@ -329,6 +333,37 @@ For each field:
 Be conservative - only include information explicitly mentioned."#,
         tag_section
     )
+}
+
+/// Resolve audience roles using the narrative audience (Pass 1) as the authoritative source.
+///
+/// The narrative audience is set during extraction when the LLM sees the full page context
+/// and splits posts by audience. The investigation audience_roles (Pass 3) is a secondary
+/// signal. If investigation defaulted to ["recipient"] but the narrative says "volunteer",
+/// we trust the narrative.
+fn resolve_audience_roles(narrative_audience: &str, investigation_roles: &[String]) -> Vec<String> {
+    let narrative_role = narrative_audience.to_lowercase();
+
+    // If narrative audience is a valid non-default role, always include it
+    if matches!(narrative_role.as_str(), "volunteer" | "donor" | "participant") {
+        // Start with the narrative role as primary
+        let mut roles = vec![narrative_role.clone()];
+        // Add any additional roles from investigation that aren't already included
+        for role in investigation_roles {
+            let r = role.to_lowercase();
+            if r != narrative_role && !roles.contains(&r) {
+                roles.push(r);
+            }
+        }
+        roles
+    } else {
+        // narrative is "recipient" or unknown — use investigation roles as-is
+        if investigation_roles.is_empty() {
+            vec![narrative_role]
+        } else {
+            investigation_roles.to_vec()
+        }
+    }
 }
 
 /// Investigate a single post to find missing information.
@@ -494,6 +529,10 @@ pub async fn extract_posts_from_content(
             }
         };
 
+        // Use narrative audience from Pass 1 as authoritative source,
+        // falling back to investigation audience_roles
+        let audience_roles = resolve_audience_roles(&narrative.audience, &info.audience_roles);
+
         posts.push(ExtractedPost {
             title: narrative.title,
             tldr: narrative.tldr,
@@ -502,7 +541,7 @@ pub async fn extract_posts_from_content(
             location: info.location,
             urgency: Some(info.urgency),
             confidence: Some(info.confidence),
-            audience_roles: info.audience_roles,
+            audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
             zip_code: info.zip_code,
@@ -537,30 +576,14 @@ pub async fn extract_posts_from_pages(
     extract_posts_from_pages_with_tags(pages, domain, &tag_instructions, deps).await
 }
 
-/// Extract posts from pages with custom tag instructions and optional purpose.
+/// Extract posts from pages with custom tag instructions.
 ///
-/// Use this when you have agent-specific required tag kinds instead of all tag kinds.
+/// Use this when you have specific tag kinds instead of all tag kinds.
 /// Pass empty string for tag_instructions to skip tag extraction entirely.
-/// Pass a purpose string to inject extraction focus context (e.g., curator agent purpose).
 pub async fn extract_posts_from_pages_with_tags(
     pages: &[CachedPage],
     domain: &str,
     tag_instructions: &str,
-    deps: &ServerDeps,
-) -> Result<Vec<ExtractedPost>> {
-    extract_posts_from_pages_with_tags_and_purpose(pages, domain, tag_instructions, None, deps)
-        .await
-}
-
-/// Extract posts from pages with custom tag instructions and purpose context.
-///
-/// When `purpose` is provided, it is injected into the extraction context so the LLM
-/// knows WHAT to extract, not just which pages to look at.
-pub async fn extract_posts_from_pages_with_tags_and_purpose(
-    pages: &[CachedPage],
-    domain: &str,
-    tag_instructions: &str,
-    purpose: Option<&str>,
     deps: &ServerDeps,
 ) -> Result<Vec<ExtractedPost>> {
     if pages.is_empty() {
@@ -569,13 +592,7 @@ pub async fn extract_posts_from_pages_with_tags_and_purpose(
 
     let tag_instructions = tag_instructions.to_string();
 
-    let context = match purpose {
-        Some(p) => format!(
-            "Organization: {}\nSource URL: https://{}\n\nExtraction Focus: {}",
-            domain, domain, p
-        ),
-        None => format!("Organization: {}\nSource URL: https://{}", domain, domain),
-    };
+    let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
     // Step 1: Batch pages by content size
     let batches = batch_pages_by_size(pages, MAX_CONTENT_CHARS_PER_BATCH);
@@ -684,6 +701,10 @@ pub async fn extract_posts_from_pages_with_tags_and_purpose(
             }
         };
 
+        // Use narrative audience from Pass 1 as authoritative source,
+        // falling back to investigation audience_roles
+        let audience_roles = resolve_audience_roles(&narrative.audience, &info.audience_roles);
+
         posts.push(ExtractedPost {
             title: narrative.title,
             tldr: narrative.tldr,
@@ -692,7 +713,7 @@ pub async fn extract_posts_from_pages_with_tags_and_purpose(
             location: info.location,
             urgency: Some(info.urgency),
             confidence: Some(info.confidence),
-            audience_roles: info.audience_roles,
+            audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
             zip_code: info.zip_code,

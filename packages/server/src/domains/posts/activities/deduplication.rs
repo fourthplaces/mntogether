@@ -11,6 +11,7 @@
 
 use anyhow::Result;
 use openai_client::OpenAIClient;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use tracing::{info, warn};
@@ -21,7 +22,7 @@ use crate::common::{MemberId, PostId, WebsiteId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
-use crate::kernel::{LlmRequestExt, ServerDeps};
+use crate::kernel::ServerDeps;
 
 // ============================================================================
 // Types
@@ -38,7 +39,7 @@ pub struct PostForDedup {
 }
 
 /// A group of duplicate posts identified by the LLM
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct DuplicateGroup {
     /// ID of the post to keep (canonical)
     pub canonical_id: String,
@@ -55,7 +56,7 @@ pub struct DuplicateGroup {
 }
 
 /// Result of LLM deduplication analysis
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct DuplicateAnalysis {
     /// Groups of duplicate posts
     pub duplicate_groups: Vec<DuplicateGroup>,
@@ -121,17 +122,13 @@ pub async fn deduplicate_posts_llm(
     let posts_json = serde_json::to_string_pretty(&posts_for_dedup)?;
 
     let result: DuplicateAnalysis = ai
-        .request()
-        .model("gpt-5")
-        .system(DEDUP_SYSTEM_PROMPT)
-        .user(&format!(
-            "Analyze these posts for duplicates:\n\n{}",
-            posts_json
-        ))
-        .schema_hint(DEDUP_SCHEMA)
-        .max_retries(3)
-        .output()
-        .await?;
+        .extract(
+            "gpt-4o",
+            DEDUP_SYSTEM_PROMPT,
+            &format!("Analyze these posts for duplicates:\n\n{}", posts_json),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Deduplication analysis failed: {}", e))?;
 
     info!(
         website_id = %website_id,
@@ -314,12 +311,14 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
     );
 
     let reason: String = ai
-        .request()
-        .model("gpt-5")
-        .system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters.")
-        .user(&prompt)
-        .text()
-        .await?;
+        .chat_completion(
+            openai_client::ChatRequest::new("gpt-4o")
+                .message(openai_client::Message::system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters."))
+                .message(openai_client::Message::user(&prompt)),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Merge reason generation failed: {}", e))
+        .map(|r| r.content)?;
 
     // Clean up response (remove quotes if AI wrapped it)
     let reason = reason.trim().trim_matches('"').to_string();
@@ -409,10 +408,10 @@ pub async fn deduplicate_posts(
 // ============================================================================
 
 /// A match between a pending post and an active post
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PendingActiveMatch {
-    pub pending_id: Uuid,
-    pub active_id: Uuid,
+    pub pending_id: String,
+    pub active_id: String,
     pub reasoning: String,
 }
 
@@ -460,17 +459,13 @@ pub async fn find_duplicate_pending_posts(
     let posts_json = serde_json::to_string_pretty(&posts_for_dedup)?;
 
     let result: DuplicateAnalysis = ai
-        .request()
-        .model("gpt-5")
-        .system(DEDUP_PENDING_SYSTEM_PROMPT)
-        .user(&format!(
-            "Analyze these draft posts for duplicates:\n\n{}",
-            posts_json
-        ))
-        .schema_hint(DEDUP_SCHEMA)
-        .max_retries(3)
-        .output()
-        .await?;
+        .extract(
+            "gpt-4o",
+            DEDUP_PENDING_SYSTEM_PROMPT,
+            &format!("Analyze these draft posts for duplicates:\n\n{}", posts_json),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Pending deduplication failed: {}", e))?;
 
     info!(
         groups = result.duplicate_groups.len(),
@@ -520,17 +515,16 @@ pub async fn match_pending_to_active_posts(
     let active_json = serde_json::to_string_pretty(&active_for_llm)?;
 
     let result: PendingActiveAnalysis = ai
-        .request()
-        .model("gpt-5")
-        .system(MATCH_PENDING_ACTIVE_SYSTEM_PROMPT)
-        .user(&format!(
-            "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",
-            pending_json, active_json
-        ))
-        .schema_hint(MATCH_SCHEMA)
-        .max_retries(3)
-        .output()
-        .await?;
+        .extract(
+            "gpt-4o",
+            MATCH_PENDING_ACTIVE_SYSTEM_PROMPT,
+            &format!(
+                "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",
+                pending_json, active_json
+            ),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Pending-active matching failed: {}", e))?;
 
     info!(
         matches = result.matches.len(),
@@ -542,7 +536,7 @@ pub async fn match_pending_to_active_posts(
 }
 
 /// Result of matching pending posts against active posts
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
 pub struct PendingActiveAnalysis {
     pub matches: Vec<PendingActiveMatch>,
     pub unmatched_pending_ids: Vec<String>,
@@ -589,20 +583,6 @@ Two posts are DUPLICATES only if they describe:
 Return JSON with:
 - duplicate_groups: Array of groups, each with canonical_id, duplicate_ids, optional merged content, and reasoning
 - unique_post_ids: Array of post IDs that have no duplicates"#;
-
-const DEDUP_SCHEMA: &str = r#"Return JSON in this format:
-{
-  "duplicate_groups": [
-    {
-      "canonical_id": "uuid - the post to keep",
-      "duplicate_ids": ["uuid1", "uuid2", "... - posts to merge into canonical"],
-      "merged_title": "string or null - improved title if merge improves it",
-      "merged_description": "string or null - improved description if merge adds value",
-      "reasoning": "string - why these are duplicates (same service + same audience)"
-    }
-  ],
-  "unique_post_ids": ["uuid1", "uuid2", "... - posts with no duplicates"]
-}"#;
 
 const DEDUP_PENDING_SYSTEM_PROMPT: &str = r#"You are analyzing DRAFT posts from a single organization's website to identify duplicates among them.
 
@@ -657,18 +637,6 @@ A draft MATCHES a published post only if:
 Return JSON with:
 - matches: Array of {pending_id, active_id, reasoning} for drafts that duplicate published posts
 - unmatched_pending_ids: Array of draft post IDs that are genuinely new (no published equivalent)"#;
-
-const MATCH_SCHEMA: &str = r#"Return JSON in this format:
-{
-  "matches": [
-    {
-      "pending_id": "uuid of the draft post",
-      "active_id": "uuid of the published post it duplicates",
-      "reasoning": "why these describe the same service"
-    }
-  ],
-  "unmatched_pending_ids": ["uuid1", "uuid2"]
-}"#;
 
 // ============================================================================
 // Tests

@@ -4,11 +4,100 @@
 
 use anyhow::{Context, Result};
 use openai_client::OpenAIClient;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
+use crate::common::extraction_types::ContactInfo;
 use crate::common::pii::{DetectionContext, RedactionStrategy};
-use crate::common::{ExtractedPost, ExtractedPostWithSource};
-use crate::kernel::{BasePiiDetector, CompletionExt, LlmRequestExt};
+use crate::common::{ExtractedPost, ExtractedPostWithSource, TagEntry};
+use crate::kernel::{BasePiiDetector, CompletionExt};
 use std::collections::HashMap;
+
+// ============================================================================
+// LLM response types for OpenAI structured output
+// ============================================================================
+
+/// Single extraction response (wraps array for OpenAI structured output)
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+struct ExtractionResponse {
+    posts: Vec<LlmExtractedPost>,
+}
+
+/// Post as extracted by the LLM (subset of ExtractedPost fields)
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+struct LlmExtractedPost {
+    title: String,
+    tldr: String,
+    description: String,
+    contact: Option<ContactInfo>,
+    urgency: Option<String>,
+    confidence: Option<String>,
+    audience_roles: Vec<String>,
+    /// Tag classifications using structured entries (not HashMap)
+    #[serde(default)]
+    tags: Vec<TagEntry>,
+}
+
+impl LlmExtractedPost {
+    fn into_extracted_post(self) -> ExtractedPost {
+        ExtractedPost {
+            title: self.title,
+            tldr: self.tldr,
+            description: self.description,
+            contact: self.contact,
+            urgency: self.urgency,
+            confidence: self.confidence,
+            audience_roles: self.audience_roles,
+            tags: TagEntry::to_map(&self.tags),
+            location: None,
+            source_page_snapshot_id: None,
+            source_url: None,
+            zip_code: None,
+            city: None,
+            state: None,
+        }
+    }
+}
+
+/// Batch extraction response (wraps array for OpenAI structured output)
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+struct BatchExtractionResponse {
+    posts: Vec<LlmExtractedPostWithSource>,
+}
+
+/// Post with source URL as extracted by the LLM
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+struct LlmExtractedPostWithSource {
+    source_url: String,
+    title: String,
+    tldr: String,
+    description: String,
+    contact: Option<ContactInfo>,
+    #[serde(default)]
+    location: Option<String>,
+    urgency: Option<String>,
+    confidence: Option<String>,
+    audience_roles: Vec<String>,
+    #[serde(default)]
+    tags: Vec<TagEntry>,
+}
+
+impl LlmExtractedPostWithSource {
+    fn into_extracted_post_with_source(self) -> ExtractedPostWithSource {
+        ExtractedPostWithSource {
+            source_url: self.source_url,
+            title: self.title,
+            tldr: self.tldr,
+            description: self.description,
+            contact: self.contact,
+            location: self.location,
+            urgency: self.urgency,
+            confidence: self.confidence,
+            audience_roles: self.audience_roles,
+            tags: TagEntry::to_map(&self.tags),
+        }
+    }
+}
 
 /// Sanitize user input before inserting into AI prompts
 /// Prevents prompt injection attacks by filtering malicious keywords and characters
@@ -235,29 +324,17 @@ Extract listings as a JSON array."#,
         website_content = safe_content
     );
 
-    let schema_hint = r#"Array of objects with:
-- "title": string
-- "tldr": string
-- "description": string
-- "contact": { "phone": string|null, "email": string|null, "website": string|null }
-- "urgency": "urgent" | "high" | "medium" | "low"
-- "confidence": "high" | "medium" | "low"
-- "audience_roles": string[] (values: "recipient", "donor", "volunteer", "participant")
-- "tags": { "post_type": ["service"], "population": [...], ... } (optional)
-
-Example:
-[{"title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": {"phone": null, "email": "help@org.com", "website": null}, "urgency": "medium", "confidence": "high", "audience_roles": ["volunteer"], "tags": {"post_type": ["service"], "service_offered": ["food-assistance"]}}]"#;
-
-    // Use the fluent LLM API with automatic retry
-    let posts: Vec<ExtractedPost> = ai
-        .request()
-        .system(&system_prompt)
-        .user(user_message)
-        .schema_hint(schema_hint)
-        .max_retries(3)
-        .output()
+    let response: ExtractionResponse = ai
+        .extract("gpt-4o", &system_prompt, user_message)
         .await
+        .map_err(|e| anyhow::anyhow!("Post extraction failed: {}", e))
         .context("Failed to extract listings from content")?;
+
+    let posts: Vec<ExtractedPost> = response
+        .posts
+        .into_iter()
+        .map(|p| p.into_extracted_post())
+        .collect();
 
     // Validate extracted listings for suspicious content
     validate_extracted_posts(&posts)?;
@@ -364,36 +441,23 @@ Extract all listings from ALL pages as a single JSON array. Each listing must in
         pages_content = pages_content
     );
 
-    let schema_hint = r#"Array of objects with:
-- "source_url": string (REQUIRED - the page URL this listing came from)
-- "title": string
-- "tldr": string
-- "description": string
-- "contact": { "phone": string|null, "email": string|null, "website": string|null }
-- "urgency": "urgent" | "high" | "medium" | "low"
-- "confidence": "high" | "medium" | "low"
-- "audience_roles": string[] (values: "recipient", "donor", "volunteer", "participant")
-- "tags": { "post_type": ["service"], "population": [...], ... } (optional)
-
-Example:
-[{"source_url": "https://example.org/volunteer", "title": "Food Pantry Help", "tldr": "...", "description": "...", "contact": null, "urgency": "medium", "confidence": "high", "audience_roles": ["volunteer"], "tags": {"post_type": ["service"]}}]"#;
-
     tracing::info!(
         pages_count = scrubbed_pages.len(),
         content_length = pages_content.len(),
         "Batch extracting listings from multiple pages"
     );
 
-    // Use the fluent LLM API with automatic retry
-    let listings_with_source: Vec<ExtractedPostWithSource> = ai
-        .request()
-        .system(&system_prompt)
-        .user(user_message)
-        .schema_hint(schema_hint)
-        .max_retries(3)
-        .output()
+    let response: BatchExtractionResponse = ai
+        .extract("gpt-4o", &system_prompt, user_message)
         .await
+        .map_err(|e| anyhow::anyhow!("Batch extraction failed: {}", e))
         .context("Failed to batch extract listings")?;
+
+    let listings_with_source: Vec<ExtractedPostWithSource> = response
+        .posts
+        .into_iter()
+        .map(|p| p.into_extracted_post_with_source())
+        .collect();
 
     tracing::info!(
         total_posts = listings_with_source.len(),

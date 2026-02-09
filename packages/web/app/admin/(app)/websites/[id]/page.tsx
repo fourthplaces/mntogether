@@ -12,11 +12,9 @@ import type {
   PostList,
   ExtractionPageListResult,
   ExtractionPageCount,
-  AgentListResponse,
-  LinkToAgentsResult,
 } from "@/lib/restate/types";
 
-type TabType = "posts" | "snapshots" | "assessment" | "agents";
+type TabType = "posts" | "snapshots" | "assessment";
 
 export default function WebsiteDetailPage() {
   const params = useParams();
@@ -28,7 +26,6 @@ export default function WebsiteDetailPage() {
   const [regenStatus, setRegenStatus] = useState<string | null>(null);
   const [dedupWorkflowId, setDedupWorkflowId] = useState<string | null>(null);
   const [dedupStatus, setDedupStatus] = useState<string | null>(null);
-  const [linkAgentsResult, setLinkAgentsResult] = useState<LinkToAgentsResult | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -85,16 +82,8 @@ export default function WebsiteDetailPage() {
 
   const assessment = assessmentData?.assessment ?? null;
 
-  const { data: agentsData } = useRestate<AgentListResponse>(
-    "Agents", "list_agents", { role: "curator" }, { revalidateOnFocus: false }
-  );
-
   const posts = postsData?.posts || [];
   const pages = pagesData?.pages || [];
-  const allAgents = agentsData?.agents || [];
-  const linkedAgentIds = new Set(website?.linked_agent_ids || []);
-  const linkedAgents = allAgents.filter((a) => linkedAgentIds.has(a.id));
-  const unlinkedAgents = allAgents.filter((a) => !linkedAgentIds.has(a.id));
 
   // --- Actions ---
 
@@ -180,21 +169,6 @@ export default function WebsiteDetailPage() {
       setDedupStatus("Starting...");
     } catch (err) {
       console.error("Failed to start deduplication:", err);
-      setActionInProgress(null);
-    }
-  };
-
-  const handleLinkToAgents = async () => {
-    setActionInProgress("link_agents");
-    setLinkAgentsResult(null);
-    try {
-      const result = await callObject<LinkToAgentsResult>("Website", websiteId, "link_to_agents", {});
-      setLinkAgentsResult(result);
-      invalidateObject("Website", websiteId);
-      refetchWebsite();
-    } catch (err) {
-      console.error("Failed to link agents:", err);
-    } finally {
       setActionInProgress(null);
     }
   };
@@ -397,13 +371,6 @@ export default function WebsiteDetailPage() {
                     >
                       Deduplicate Posts
                     </button>
-                    <button
-                      onClick={() => { setMenuOpen(false); handleLinkToAgents(); }}
-                      disabled={actionInProgress !== null}
-                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                    >
-                      Link to Agents
-                    </button>
                   </div>
                 )}
               </div>
@@ -479,7 +446,7 @@ export default function WebsiteDetailPage() {
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
             <nav className="flex">
-              {(["posts", "snapshots", "assessment", "agents"] as TabType[]).map((tab) => (
+              {(["posts", "snapshots", "assessment"] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -569,70 +536,6 @@ export default function WebsiteDetailPage() {
                       )}
                     </Link>
                   ))
-                )}
-              </div>
-            )}
-
-            {/* Agents Tab */}
-            {activeTab === "agents" && (
-              <div>
-                {/* Link result feedback */}
-                {linkAgentsResult && (
-                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-                    {linkAgentsResult.linked.length > 0 ? (
-                      <div>
-                        <p className="text-sm font-medium text-green-800 mb-2">
-                          Linked {linkAgentsResult.linked.length} agent{linkAgentsResult.linked.length !== 1 ? "s" : ""}:
-                        </p>
-                        <ul className="space-y-1">
-                          {linkAgentsResult.linked.map((r) => (
-                            <li key={r.agent_id} className="text-sm text-green-700">
-                              <span className="font-medium">{r.display_name}</span> — {r.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ) : (
-                      <p className="text-sm text-green-700">No matching agents found.</p>
-                    )}
-                  </div>
-                )}
-
-                {/* Linked Agents */}
-                {linkedAgents.length > 0 ? (
-                  <div className="space-y-3">
-                    {linkedAgents.map((agent) => (
-                      <Link
-                        key={agent.id}
-                        href={`/admin/agents/${agent.id}`}
-                        className="block border border-stone-200 rounded-lg p-3 hover:bg-stone-50 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-stone-900">
-                            {agent.display_name}
-                          </span>
-                          <span
-                            className={`text-xs px-2 py-0.5 rounded-full ${
-                              agent.status === "active"
-                                ? "bg-green-100 text-green-700"
-                                : agent.status === "draft"
-                                  ? "bg-yellow-100 text-yellow-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {agent.status}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-stone-500">
-                    <p>No agents linked to this website.</p>
-                    <p className="text-sm mt-1">
-                      Use <span className="font-medium">Link to Agents</span> from the menu to auto-match.
-                    </p>
-                  </div>
                 )}
               </div>
             )}

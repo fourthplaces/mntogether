@@ -6,8 +6,8 @@
 // Naming convention: Base* for trait names (e.g., BaseEmbeddingService)
 //
 // NOTE: The BaseAI trait has been removed in favor of using `openai_client::OpenAIClient`
-// directly. See `kernel/llm_request.rs` for the `LlmRequestExt` and `CompletionExt`
-// extension traits that provide similar functionality.
+// directly. Use `extract<T>()` for structured JSON output or `CompletionExt` from
+// `kernel/llm_request.rs` for simple text completions.
 
 use anyhow::Result;
 use async_trait::async_trait;

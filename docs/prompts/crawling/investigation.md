@@ -40,6 +40,7 @@ A signup form URL IS valid contact information. If the description contains a fo
 3. **Urgency**: How time-sensitive (low/medium/high/urgent)
 4. **Confidence**: high if form/email/phone found, medium if only website, low if nothing found
 5. **Audience**: Who is this for (recipient/volunteer/donor/participant)
+6. **Schedule**: For events/recurring programs: dates, times, and frequency.
 
 ## Guidelines
 - A signup form link in the description IS the contact method - report it!

@@ -1,6 +1,6 @@
 //! Websites service (stateless)
 //!
-//! Cross-website operations: list, search.
+//! Cross-website operations: list, search, search query management, discovery.
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -14,7 +14,7 @@ use crate::domains::crawling::activities::ingest_website;
 use crate::domains::posts::models::post::Post;
 use crate::domains::website::activities;
 use crate::domains::website::models::website::CreateWebsite;
-use crate::domains::website::models::Website;
+use crate::domains::website::models::{SearchQuery, Website};
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -50,6 +50,37 @@ pub struct SubmitWebsiteRequest {
 }
 
 impl_restate_serde!(SubmitWebsiteRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateSearchQueryRequest {
+    pub query_text: String,
+    pub sort_order: Option<i32>,
+}
+
+impl_restate_serde!(CreateSearchQueryRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSearchQueryRequest {
+    pub id: Uuid,
+    pub query_text: String,
+    pub sort_order: Option<i32>,
+}
+
+impl_restate_serde!(UpdateSearchQueryRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeleteSearchQueryRequest {
+    pub id: Uuid,
+}
+
+impl_restate_serde!(DeleteSearchQueryRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToggleSearchQueryRequest {
+    pub id: Uuid,
+}
+
+impl_restate_serde!(ToggleSearchQueryRequest);
 
 // =============================================================================
 // Response types
@@ -97,6 +128,39 @@ pub struct ScheduledScrapeResult {
 
 impl_restate_serde!(ScheduledScrapeResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchQueryResult {
+    pub id: Uuid,
+    pub query_text: String,
+    pub is_active: bool,
+    pub sort_order: i32,
+}
+
+impl_restate_serde!(SearchQueryResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchQueryListResult {
+    pub queries: Vec<SearchQueryResult>,
+}
+
+impl_restate_serde!(SearchQueryListResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledDiscoveryResult {
+    pub queries_executed: i32,
+    pub total_results: i32,
+    pub websites_created: i32,
+    pub websites_skipped: i32,
+    pub status: String,
+}
+
+impl_restate_serde!(ScheduledDiscoveryResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EmptyResult {}
+
+impl_restate_serde!(EmptyResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -115,6 +179,28 @@ pub trait WebsitesService {
         req: EmptyRequest,
     ) -> Result<ScheduledScrapeResult, HandlerError>;
     async fn submit(req: SubmitWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
+
+    // Search query CRUD
+    async fn list_search_queries(
+        req: EmptyRequest,
+    ) -> Result<SearchQueryListResult, HandlerError>;
+    async fn create_search_query(
+        req: CreateSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError>;
+    async fn update_search_query(
+        req: UpdateSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError>;
+    async fn delete_search_query(
+        req: DeleteSearchQueryRequest,
+    ) -> Result<EmptyResult, HandlerError>;
+    async fn toggle_search_query(
+        req: ToggleSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError>;
+
+    // Scheduled discovery
+    async fn run_scheduled_discovery(
+        req: EmptyRequest,
+    ) -> Result<ScheduledDiscoveryResult, HandlerError>;
 }
 
 pub struct WebsitesServiceImpl {
@@ -124,6 +210,15 @@ pub struct WebsitesServiceImpl {
 impl WebsitesServiceImpl {
     pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
         Self { deps }
+    }
+}
+
+fn search_query_result(q: SearchQuery) -> SearchQueryResult {
+    SearchQueryResult {
+        id: q.id,
+        query_text: q.query_text,
+        is_active: q.is_active,
+        sort_order: q.sort_order,
     }
 }
 
@@ -175,7 +270,6 @@ impl WebsitesService for WebsitesServiceImpl {
                         last_crawled_at: e.node.last_scraped_at,
                         post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
                         crawl_status: e.node.crawl_status,
-                        linked_agent_ids: vec![],
                     })
                 })
                 .collect(),
@@ -334,5 +428,142 @@ impl WebsitesService for WebsitesServiceImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(WebsiteResult::from(website))
+    }
+
+    // =========================================================================
+    // Search query CRUD
+    // =========================================================================
+
+    async fn list_search_queries(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<SearchQueryListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let queries = SearchQuery::find_all(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(SearchQueryListResult {
+            queries: queries.into_iter().map(search_query_result).collect(),
+        })
+    }
+
+    async fn create_search_query(
+        &self,
+        ctx: Context<'_>,
+        req: CreateSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                let q = SearchQuery::create(
+                    &req.query_text,
+                    req.sort_order.unwrap_or(0),
+                    &self.deps.db_pool,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(search_query_result(q))
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn update_search_query(
+        &self,
+        ctx: Context<'_>,
+        req: UpdateSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                let q = SearchQuery::update(
+                    req.id,
+                    &req.query_text,
+                    req.sort_order.unwrap_or(0),
+                    &self.deps.db_pool,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(search_query_result(q))
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn delete_search_query(
+        &self,
+        ctx: Context<'_>,
+        req: DeleteSearchQueryRequest,
+    ) -> Result<EmptyResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        ctx.run(|| async {
+            SearchQuery::delete(req.id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+            Ok(())
+        })
+        .await?;
+
+        Ok(EmptyResult {})
+    }
+
+    async fn toggle_search_query(
+        &self,
+        ctx: Context<'_>,
+        req: ToggleSearchQueryRequest,
+    ) -> Result<SearchQueryResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                let q = SearchQuery::toggle_active(req.id, &self.deps.db_pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(search_query_result(q))
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    // =========================================================================
+    // Scheduled discovery
+    // =========================================================================
+
+    async fn run_scheduled_discovery(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ScheduledDiscoveryResult, HandlerError> {
+        tracing::info!("Running scheduled website discovery");
+
+        let result = ctx
+            .run(|| async {
+                activities::discover::run_discovery(&self.deps)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()).into())
+            })
+            .await?;
+
+        // Schedule next run in 24 hours
+        ctx.service_client::<WebsitesServiceClient>()
+            .run_scheduled_discovery(EmptyRequest {})
+            .send_after(Duration::from_secs(86400));
+
+        Ok(ScheduledDiscoveryResult {
+            queries_executed: result.queries_executed,
+            total_results: result.total_results,
+            websites_created: result.websites_created,
+            websites_skipped: result.websites_skipped,
+            status: "completed".to_string(),
+        })
     }
 }

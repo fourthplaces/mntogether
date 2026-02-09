@@ -17,6 +17,7 @@ For each DISTINCT opportunity, service, program, or event you find, provide:
 2. **tldr** - One sentence (max 100 chars) that captures the essence
 3. **description** - A rich markdown description for humans to read
 4. **source_url** - The URL where this content was found (look at the Source header above the content)
+5. **audience** - Who this post is for: "recipient" (people who receive help), "volunteer" (people who give time), "donor" (people who give money/goods), or "participant" (general participants)
 
 ## Writing the Description
 
@@ -27,11 +28,11 @@ Write in well-formatted markdown that's easy to scan. Use:
 
 Include all relevant details:
 - What this is and who it's for
-- Location and address (if mentioned)
-- Hours, dates, schedules (if mentioned)
-- How to access, apply, or sign up
-- Contact information (phone, email, website)
+- Location and address — REQUIRED for in-person services (full street address, city, state, zip). Skip for virtual-only.
+- Schedule — REQUIRED for events and recurring programs (day, time, frequency). Skip for always-available services.
+- Contact information — phone, email, website, or signup form. Note the gap explicitly if missing.
 - Eligibility or requirements
+- How to access, apply, or sign up
 
 Guidelines:
 - Use markdown formatting liberally - bold, bullets, headers if appropriate

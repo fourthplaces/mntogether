@@ -206,17 +206,31 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
         let mut revision_map: Vec<(Uuid, Uuid, Uuid)> = Vec::new(); // (pending_id, active_id, revision_id)
 
         for m in &phase2.matches {
+            let pending_uuid = match Uuid::parse_str(&m.pending_id) {
+                Ok(u) => u,
+                Err(e) => {
+                    warn!(pending_id = %m.pending_id, error = %e, "Invalid pending_id UUID");
+                    continue;
+                }
+            };
+            let active_uuid = match Uuid::parse_str(&m.active_id) {
+                Ok(u) => u,
+                Err(e) => {
+                    warn!(active_id = %m.active_id, error = %e, "Invalid active_id UUID");
+                    continue;
+                }
+            };
+
             let pending_post = pending_posts
                 .iter()
-                .find(|p| p.id.into_uuid() == m.pending_id);
+                .find(|p| p.id.into_uuid() == pending_uuid);
 
             if let Some(source) = pending_post {
-                let active_id = m.active_id;
                 let created = ctx
                     .run(|| async {
                         let rev = Post::create_revision_from(
                             source,
-                            PostId::from(active_id),
+                            PostId::from(active_uuid),
                             &self.deps.db_pool,
                         )
                         .await
@@ -229,7 +243,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                     })
                     .await?;
 
-                revision_map.push((m.pending_id, m.active_id, created.id));
+                revision_map.push((pending_uuid, active_uuid, created.id));
             } else {
                 warn!(
                     pending_id = %m.pending_id,
@@ -328,7 +342,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                     phase2
                         .matches
                         .iter()
-                        .find(|m| m.pending_id == *pending_id)
+                        .find(|m| Uuid::parse_str(&m.pending_id).ok().as_ref() == Some(pending_id))
                         .map(|m| {
                             format!("Pending post duplicates active post: {}", m.reasoning)
                         })

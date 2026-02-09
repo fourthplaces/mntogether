@@ -40,7 +40,7 @@ pub use extraction::{
 
 // Other exports
 pub use deps::{ServerDeps, TwilioAdapter};
-pub use llm_request::{CompletionExt, LlmRequestExt};
+pub use llm_request::CompletionExt;
 pub use nats::{NatsClientPublisher, NatsPublisher, PublishedMessage, TestNats};
 pub use pii::{create_pii_detector, HybridPiiDetector, NoopPiiDetector, RegexPiiDetector};
 pub use stream_hub::StreamHub;
