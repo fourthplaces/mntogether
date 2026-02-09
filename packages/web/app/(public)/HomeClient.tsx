@@ -14,16 +14,16 @@ type ActiveSheet = "search" | "submit" | null;
 
 function getPostTagStyle(postType: string): { bg: string; text: string; label: string } {
   switch (postType) {
-    case "service":
-      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Resource" };
-    case "opportunity":
-      return { bg: "bg-[#B8CFC4]", text: "text-[#4D6B5F]", label: "Volunteer" };
-    case "business":
-      return { bg: "bg-[#D4C4E8]", text: "text-[#6D5B8B]", label: "Local Business" };
+    case "help":
+      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Help" };
+    case "support":
+      return { bg: "bg-[#B8CFC4]", text: "text-[#4D6B5F]", label: "Support" };
+    case "community":
+      return { bg: "bg-[#D4C4E8]", text: "text-[#6D5B8B]", label: "Community" };
     case "professional":
       return { bg: "bg-[#E6B8B8]", text: "text-[#8B4D4D]", label: "Event" };
     default:
-      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Resource" };
+      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Help" };
   }
 }
 
@@ -131,7 +131,7 @@ export function HomeClient() {
 
       {/* Pathway Cards */}
       <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-4 pb-16 grid grid-cols-1 md:grid-cols-3 gap-6 relative z-10">
-        <Link href="/posts?post_type=service" className="bg-[#F4D9B8] border-2 border-[#E0C4A0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#E0C4A0] hover:border-[#C9AD89] transition-all duration-300">
+        <Link href="/posts?post_type=help" className="bg-[#F4D9B8] border-2 border-[#E0C4A0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#E0C4A0] hover:border-[#C9AD89] transition-all duration-300">
           <div className="flex items-center gap-3 mb-4">
             <img src="/icon-help.svg" alt="" className="w-10 h-10" />
             <h3 className="text-2xl font-bold text-[#3D3D3D]">I Need Help</h3>
@@ -140,11 +140,11 @@ export function HomeClient() {
             People looking for food, shelter, legal aid, and other resources. You&apos;re not alone.
           </p>
           <span className="bg-[#3D3D3D] text-white px-7 py-3 rounded-full text-[0.95rem] font-semibold self-start mt-auto">
-            Find Resources
+            Find Help
           </span>
         </Link>
 
-        <Link href="/posts?post_type=opportunity" className="bg-[#B8CFC4] border-2 border-[#A0BDB0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#A0BDB0] hover:border-[#8AA89B] transition-all duration-300">
+        <Link href="/posts?post_type=support" className="bg-[#B8CFC4] border-2 border-[#A0BDB0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#A0BDB0] hover:border-[#8AA89B] transition-all duration-300">
           <div className="flex items-center gap-3 mb-4">
             <img src="/icon-support.svg" alt="" className="w-10 h-10" />
             <h3 className="text-2xl font-bold text-[#3D3D3D]">I Want to Support</h3>
@@ -153,20 +153,20 @@ export function HomeClient() {
             Volunteer opportunities and ways to give back to neighbors who need it.
           </p>
           <span className="bg-[#3D3D3D] text-white px-7 py-3 rounded-full text-[0.95rem] font-semibold self-start mt-auto">
-            See Opportunities
+            Find Support
           </span>
         </Link>
 
-        <Link href="/posts?post_type=business" className="bg-[#E6B8B8] border-2 border-[#D4A0A0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#D4A0A0] hover:border-[#C08989] transition-all duration-300">
+        <Link href="/posts?post_type=community" className="bg-[#E6B8B8] border-2 border-[#D4A0A0] rounded-2xl p-8 flex flex-col cursor-pointer hover:bg-[#D4A0A0] hover:border-[#C08989] transition-all duration-300">
           <div className="flex items-center gap-3 mb-4">
             <img src="/icon-events.svg" alt="" className="w-10 h-10" />
-            <h3 className="text-2xl font-bold text-[#3D3D3D]">Community Events</h3>
+            <h3 className="text-2xl font-bold text-[#3D3D3D]">Community</h3>
           </div>
           <p className="text-[#4D4D4D] text-base leading-relaxed mb-6 flex-1">
             Food drives, gatherings, and opportunities to connect with your community.
           </p>
           <span className="bg-[#3D3D3D] text-white px-7 py-3 rounded-full text-[0.95rem] font-semibold self-start mt-auto">
-            View Events
+            Explore Community
           </span>
         </Link>
       </section>
