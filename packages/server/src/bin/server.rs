@@ -79,6 +79,7 @@ async fn main() -> Result<()> {
         "EXPO_ACCESS_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
         "TWILIO_VERIFY_SERVICE_SID", "JWT_SECRET", "JWT_ISSUER",
         "SERVER_PORT", "SSE_SERVER_PORT", "ADMIN_IDENTIFIERS",
+        "RESTATE_ADMIN_URL", "RESTATE_SELF_URL", "RESTATE_AUTH_TOKEN",
     ] {
         mask_env(name);
     }
@@ -272,24 +273,27 @@ async fn main() -> Result<()> {
     if let Ok(admin_url) = std::env::var("RESTATE_ADMIN_URL") {
         let self_url = std::env::var("RESTATE_SELF_URL")
             .unwrap_or_else(|_| format!("http://localhost:{}", port));
+        let auth_token = std::env::var("RESTATE_AUTH_TOKEN").ok();
         tokio::spawn(async move {
             // Wait for the HTTP server to be ready
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
             tracing::info!(
                 admin_url = %admin_url,
                 self_url = %self_url,
+                has_auth = auth_token.is_some(),
                 "Auto-registering with Restate"
             );
             let client = reqwest::Client::new();
-            match client
+            let mut request = client
                 .post(format!("{}/deployments", admin_url))
                 .json(&serde_json::json!({
                     "uri": self_url,
                     "force": true
-                }))
-                .send()
-                .await
-            {
+                }));
+            if let Some(token) = &auth_token {
+                request = request.bearer_auth(token);
+            }
+            match request.send().await {
                 Ok(resp) if resp.status().is_success() => {
                     tracing::info!("Restate registration successful");
                 }
