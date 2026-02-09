@@ -17,7 +17,7 @@ use tracing::{debug, info, warn};
 
 use crate::common::{ExtractedPost, ExtractedPostInformation, TagEntry};
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
-use crate::kernel::{FetchPageTool, OpenAIExtractionService, ServerDeps, WebSearchTool};
+use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool};
 
 //=============================================================================
 // BATCHING
@@ -418,11 +418,6 @@ pub async fn investigate_post(
 // Main Entry Points
 //=============================================================================
 
-/// Simple search query for finding pages with community listings.
-/// Used for semantic search - keep it short and topical.
-pub const POST_SEARCH_QUERY: &str =
-    "volunteer opportunities services programs events donations community resources help";
-
 /// Extract structured posts from markdown content using three-pass extraction.
 ///
 /// Pass 1: Extract narrative posts (title + tldr + comprehensive description)
@@ -526,142 +521,6 @@ pub async fn extract_posts_from_content(
     Ok(posts)
 }
 
-/// Result of extracting posts for a domain.
-#[derive(Debug)]
-pub struct DomainExtractionResult {
-    /// Extracted posts
-    pub posts: Vec<ExtractedPost>,
-    /// URLs of pages that were searched
-    pub page_urls: Vec<String>,
-}
-
-/// Extract and deduplicate narratives for a domain (Pass 1 + 2 only).
-///
-/// Returns deduplicated narratives and page URLs, stopping before investigation (Pass 3).
-/// Use this when investigation will be done as a separate fan-out step.
-pub async fn extract_narratives_for_domain(
-    domain: &str,
-    extraction: &OpenAIExtractionService,
-) -> Result<(Vec<NarrativePost>, Vec<String>)> {
-    // Search for relevant pages
-    let pages = extraction
-        .search_and_get_pages(POST_SEARCH_QUERY, Some(domain), 50)
-        .await?;
-
-    info!(
-        domain = %domain,
-        pages_found = pages.len(),
-        "Search results for narrative extraction"
-    );
-
-    if pages.is_empty() {
-        return Ok((vec![], vec![]));
-    }
-
-    let page_urls: Vec<String> = pages.iter().map(|p| p.url.clone()).collect();
-
-    let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
-
-    // Step 1: Batch pages by content size
-    let batches = batch_pages_by_size(&pages, MAX_CONTENT_CHARS_PER_BATCH);
-
-    info!(
-        pages_count = pages.len(),
-        batch_count = batches.len(),
-        domain = %domain,
-        "Processing pages in batches (narratives only)"
-    );
-
-    // Step 2: Extract narratives from each batch (in parallel)
-    let batch_futures: Vec<_> = batches
-        .iter()
-        .enumerate()
-        .map(|(batch_idx, batch)| {
-            let combined_content: String = batch
-                .iter()
-                .map(|p| format!("## Source: {}\n\n{}", p.url, p.content))
-                .collect::<Vec<_>>()
-                .join("\n\n---\n\n");
-
-            let context = context.clone();
-
-            async move {
-                info!(batch = batch_idx + 1, "Extracting narratives from batch");
-                extract_narrative_posts(&combined_content, Some(&context)).await
-            }
-        })
-        .collect();
-
-    let batch_results = join_all(batch_futures).await;
-
-    let all_narratives: Vec<NarrativePost> = batch_results
-        .into_iter()
-        .filter_map(|r| r.ok())
-        .flatten()
-        .collect();
-
-    if all_narratives.is_empty() {
-        return Ok((vec![], page_urls));
-    }
-
-    info!(
-        total_narratives = all_narratives.len(),
-        domain = %domain,
-        "Pass 1 complete: all batches extracted"
-    );
-
-    // Step 3: Deduplicate and merge posts
-    let deduplicated = dedupe_and_merge_posts(all_narratives, domain).await?;
-
-    info!(
-        deduplicated_count = deduplicated.len(),
-        domain = %domain,
-        "Pass 2 complete: deduplication finished"
-    );
-
-    Ok((deduplicated, page_urls))
-}
-
-/// Search for pages and extract posts for a domain.
-///
-/// This function:
-/// 1. Searches for relevant pages using semantic search
-/// 2. Batches pages to fit within token limits
-/// 3. Extracts narrative posts from each batch
-/// 4. Deduplicates and merges posts across batches
-/// 5. Uses AI tools to investigate and enrich unique posts
-pub async fn extract_posts_for_domain(
-    domain: &str,
-    extraction: &OpenAIExtractionService,
-    deps: &ServerDeps,
-) -> Result<DomainExtractionResult> {
-    // Search for relevant pages
-    let pages = extraction
-        .search_and_get_pages(POST_SEARCH_QUERY, Some(domain), 50)
-        .await?;
-
-    info!(
-        domain = %domain,
-        pages_found = pages.len(),
-        page_urls = ?pages.iter().map(|p| &p.url).collect::<Vec<_>>(),
-        "Search results (with investigation)"
-    );
-
-    if pages.is_empty() {
-        return Ok(DomainExtractionResult {
-            posts: vec![],
-            page_urls: vec![],
-        });
-    }
-
-    let page_urls: Vec<String> = pages.iter().map(|p| p.url.clone()).collect();
-
-    // Combine and extract with investigation
-    let posts = extract_posts_from_pages(&pages, domain, deps).await?;
-
-    Ok(DomainExtractionResult { posts, page_urls })
-}
-
 /// Extract posts from a set of pages with batching, deduplication, and agentic investigation.
 ///
 /// Flow: batch extract → dedupe & merge → enrich
@@ -678,14 +537,30 @@ pub async fn extract_posts_from_pages(
     extract_posts_from_pages_with_tags(pages, domain, &tag_instructions, deps).await
 }
 
-/// Extract posts from pages with custom tag instructions.
+/// Extract posts from pages with custom tag instructions and optional purpose.
 ///
 /// Use this when you have agent-specific required tag kinds instead of all tag kinds.
 /// Pass empty string for tag_instructions to skip tag extraction entirely.
+/// Pass a purpose string to inject extraction focus context (e.g., curator agent purpose).
 pub async fn extract_posts_from_pages_with_tags(
     pages: &[CachedPage],
     domain: &str,
     tag_instructions: &str,
+    deps: &ServerDeps,
+) -> Result<Vec<ExtractedPost>> {
+    extract_posts_from_pages_with_tags_and_purpose(pages, domain, tag_instructions, None, deps)
+        .await
+}
+
+/// Extract posts from pages with custom tag instructions and purpose context.
+///
+/// When `purpose` is provided, it is injected into the extraction context so the LLM
+/// knows WHAT to extract, not just which pages to look at.
+pub async fn extract_posts_from_pages_with_tags_and_purpose(
+    pages: &[CachedPage],
+    domain: &str,
+    tag_instructions: &str,
+    purpose: Option<&str>,
     deps: &ServerDeps,
 ) -> Result<Vec<ExtractedPost>> {
     if pages.is_empty() {
@@ -694,7 +569,13 @@ pub async fn extract_posts_from_pages_with_tags(
 
     let tag_instructions = tag_instructions.to_string();
 
-    let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
+    let context = match purpose {
+        Some(p) => format!(
+            "Organization: {}\nSource URL: https://{}\n\nExtraction Focus: {}",
+            domain, domain, p
+        ),
+        None => format!("Organization: {}\nSource URL: https://{}", domain, domain),
+    };
 
     // Step 1: Batch pages by content size
     let batches = batch_pages_by_size(pages, MAX_CONTENT_CHARS_PER_BATCH);

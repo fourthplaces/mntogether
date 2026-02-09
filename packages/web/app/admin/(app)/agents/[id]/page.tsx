@@ -91,6 +91,19 @@ export default function AgentDetailPage() {
     }
   };
 
+  const handleRunPipeline = async () => {
+    setActionInProgress("pipeline");
+    try {
+      await callService("Agents", "run_full_pipeline", {
+        agent_id: agentId,
+      });
+      invalidateService("Agents");
+      mutate();
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "active":
@@ -179,6 +192,14 @@ export default function AgentDetailPage() {
           {isCurator && agent.status !== "paused" && (
             <div className="mt-4 pt-4 border-t border-stone-200 flex items-center gap-2">
               <span className="text-sm text-stone-500 mr-2">Run:</span>
+              <button
+                onClick={handleRunPipeline}
+                disabled={!!actionInProgress}
+                className="px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+              >
+                {actionInProgress === "pipeline" ? "Running..." : "Full Pipeline"}
+              </button>
+              <span className="text-stone-300">|</span>
               {["discover", "extract", "enrich", "monitor"].map((step) => (
                 <button
                   key={step}

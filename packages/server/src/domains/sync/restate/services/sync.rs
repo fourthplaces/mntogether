@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{SyncBatchId, SyncProposalId, WebsiteId};
+use crate::domains::agents::models::Agent;
 use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::posts::models::Post;
 use crate::domains::sync::activities::proposal_actions;
@@ -243,14 +244,16 @@ impl SyncService for SyncServiceImpl {
         }
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Look up website domains for source_ids
-        let mut domain_map: std::collections::HashMap<Uuid, String> =
+        // Look up source names: try website first, then agent
+        let mut source_name_map: std::collections::HashMap<Uuid, String> =
             std::collections::HashMap::new();
         for b in &batches {
             if let Some(source_id) = b.source_id {
-                if !domain_map.contains_key(&source_id) {
+                if !source_name_map.contains_key(&source_id) {
                     if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
-                        domain_map.insert(source_id, website.domain);
+                        source_name_map.insert(source_id, website.domain);
+                    } else if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
+                        source_name_map.insert(source_id, agent.display_name);
                     }
                 }
             }
@@ -260,7 +263,7 @@ impl SyncService for SyncServiceImpl {
             batches: batches
                 .into_iter()
                 .map(|b| {
-                    let source_name = b.source_id.and_then(|id| domain_map.get(&id).cloned());
+                    let source_name = b.source_id.and_then(|id| source_name_map.get(&id).cloned());
                     BatchResult::from_model(b, source_name)
                 })
                 .collect(),
@@ -281,10 +284,13 @@ impl SyncService for SyncServiceImpl {
             .ok_or_else(|| TerminalError::new("Batch not found"))?;
 
         let source_name = if let Some(source_id) = batch.source_id {
-            Website::find_by_id(WebsiteId::from_uuid(source_id), pool)
-                .await
-                .ok()
-                .map(|w| w.domain)
+            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
+                Some(website.domain)
+            } else if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
+                Some(agent.display_name)
+            } else {
+                None
+            }
         } else {
             None
         };
@@ -473,8 +479,11 @@ impl SyncService for SyncServiceImpl {
             .await?;
 
         let source_name = if let Some(source_id) = batch.source_id {
-            Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool)
-                .await.ok().map(|w| w.domain)
+            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
+                Some(website.domain)
+            } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
+                Some(agent.display_name)
+            } else { None }
         } else { None };
         Ok(BatchResult::from_model(batch, source_name))
     }
@@ -501,8 +510,11 @@ impl SyncService for SyncServiceImpl {
             .await?;
 
         let source_name = if let Some(source_id) = batch.source_id {
-            Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool)
-                .await.ok().map(|w| w.domain)
+            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
+                Some(website.domain)
+            } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
+                Some(agent.display_name)
+            } else { None }
         } else { None };
         Ok(BatchResult::from_model(batch, source_name))
     }

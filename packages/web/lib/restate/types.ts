@@ -104,6 +104,7 @@ export interface WebsiteResult {
   post_count: number | null;
   last_crawled_at: string | null;
   crawl_status: string | null;
+  linked_agent_ids: string[];
 }
 
 export interface WebsiteList {
@@ -155,6 +156,16 @@ export interface AssessmentResult {
 
 export interface OptionalAssessmentResult {
   assessment: AssessmentResult | null;
+}
+
+export interface LinkedAgentInfo {
+  agent_id: string;
+  display_name: string;
+  reason: string;
+}
+
+export interface LinkToAgentsResult {
+  linked: LinkedAgentInfo[];
 }
 
 // --- Members ---
@@ -257,6 +268,13 @@ export interface AgentRunResponse {
 
 export interface AgentRunListResponse {
   runs: AgentRunResponse[];
+}
+
+export interface PipelineRunResponse {
+  status: string;
+  discover: AgentRunResponse | null;
+  extract: AgentRunResponse | null;
+  enrich: AgentRunResponse | null;
 }
 
 export interface AgentDetailResponse {

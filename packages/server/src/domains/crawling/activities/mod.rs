@@ -14,7 +14,7 @@ pub mod website_context;
 pub use authorization::check_crawl_authorization;
 pub use crawl_full::crawl_website_full;
 pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
-pub use post_extraction::{extract_narratives_for_domain, investigate_post};
+pub use post_extraction::{extract_posts_from_pages_with_tags_and_purpose, investigate_post};
 pub use discovery::{discover_pages, DiscoveredPage};
 pub use regenerate_single_post::regenerate_single_post;
 pub use website_context::fetch_approved_website;

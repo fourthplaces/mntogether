@@ -37,7 +37,7 @@ pub struct UpdateAndApprovePost {
 
 /// Create a new listing with generated content hash and TLDR
 pub async fn create_post(
-    _member_id: Option<MemberId>, // TODO: Store submitted_by_member_id for tracking
+    member_id: Option<MemberId>,
     title: String,
     description: String,
     contact_info: Option<JsonValue>,
@@ -72,6 +72,7 @@ pub async fn create_post(
             .urgency(urgency)
             .location(location)
             .submission_type(Some(submission_type))
+            .submitted_by_id(member_id.map(|m| m.into_uuid()))
             .website_id(website_id)
             .build(),
         pool,
