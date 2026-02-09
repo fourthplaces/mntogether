@@ -14,16 +14,119 @@ use anyhow::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::common::MemberId;
+use crate::common::{ExtractedPost, MemberId};
 use crate::domains::agents::models::{
-    AgentCuratorConfig, AgentRequiredTagKind, AgentRun, AgentRunStat, AgentWebsite,
+    Agent, AgentCuratorConfig, AgentRequiredTagKind, AgentRun, AgentRunStat, AgentWebsite,
 };
 use crate::domains::crawling::activities::ingest_website::ingest_website;
-use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
+use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags_and_purpose;
 use crate::domains::posts::activities::create_post::create_extracted_post;
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions_for_kinds;
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
+
+/// Result of extracting posts for a single website.
+pub struct WebsiteExtractionResult {
+    pub posts: Vec<ExtractedPost>,
+    pub website_crawled: bool,
+}
+
+/// Extract posts for a single website using an agent's purpose and tag kinds.
+/// Returns extracted posts — caller decides persistence strategy.
+pub async fn extract_posts_for_website(
+    website_id: uuid::Uuid,
+    curator_purpose: &str,
+    tag_instructions: &str,
+    deps: &ServerDeps,
+) -> Result<WebsiteExtractionResult> {
+    let pool = &deps.db_pool;
+
+    let extraction = deps.extraction.as_ref().ok_or_else(|| {
+        anyhow::anyhow!("Extraction service not configured")
+    })?;
+
+    let website = Website::find_by_id(website_id.into(), pool).await?;
+    let domain = &website.domain;
+
+    info!(domain = %domain, "Extracting posts from website");
+
+    // Search for relevant pages using purpose-driven query
+    let mut pages = match extraction
+        .search_and_get_pages(curator_purpose, Some(domain), 50)
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            warn!(domain = %domain, error = %e, "Failed to search pages");
+            return Err(e.into());
+        }
+    };
+
+    let mut website_crawled = false;
+
+    // If no pages found, trigger a crawl and retry
+    if pages.is_empty() {
+        info!(domain = %domain, "No pages found, triggering crawl");
+
+        match ingest_website(
+            website.id.into_uuid(),
+            MemberId::nil().into_uuid(),
+            true,  // use_firecrawl
+            true,  // is_admin
+            deps,
+        )
+        .await
+        {
+            Ok(result) => {
+                info!(
+                    domain = %domain,
+                    pages_crawled = result.pages_crawled,
+                    "Crawl completed, retrying page search"
+                );
+                website_crawled = true;
+
+                // Retry search after crawl
+                pages = match extraction
+                    .search_and_get_pages(curator_purpose, Some(domain), 50)
+                    .await
+                {
+                    Ok(p) => p,
+                    Err(e) => {
+                        warn!(domain = %domain, error = %e, "Retry search failed after crawl");
+                        return Err(e.into());
+                    }
+                };
+            }
+            Err(e) => {
+                warn!(domain = %domain, error = %e, "Crawl failed");
+                return Err(e.into());
+            }
+        }
+    }
+
+    if pages.is_empty() {
+        info!(domain = %domain, "Still no pages after crawl");
+        return Ok(WebsiteExtractionResult {
+            posts: vec![],
+            website_crawled,
+        });
+    }
+
+    // Extract posts using 3-pass pipeline with agent-specific tag instructions and purpose
+    let posts = extract_posts_from_pages_with_tags_and_purpose(
+        &pages,
+        domain,
+        tag_instructions,
+        Some(curator_purpose),
+        deps,
+    )
+    .await?;
+
+    Ok(WebsiteExtractionResult {
+        posts,
+        website_crawled,
+    })
+}
 
 /// Run the extract step for a curator agent.
 pub async fn extract(
@@ -36,6 +139,7 @@ pub async fn extract(
     let run = AgentRun::create(agent_id, "extract", trigger_type, pool).await?;
     info!(run_id = %run.id, agent_id = %agent_id, "Starting extract step");
 
+    let agent = Agent::find_by_id(agent_id, pool).await?;
     let curator = AgentCuratorConfig::find_by_agent(agent_id, pool).await?;
     let agent_websites = AgentWebsite::find_by_agent(agent_id, pool).await?;
 
@@ -50,10 +154,6 @@ pub async fn extract(
         .await?;
         return Ok(run);
     }
-
-    let extraction = deps.extraction.as_ref().ok_or_else(|| {
-        anyhow::anyhow!("Extraction service not configured")
-    })?;
 
     // Build tag instructions from agent's required tag kinds (if any)
     let required_tag_kinds = AgentRequiredTagKind::find_by_agent(agent_id, pool).await?;
@@ -74,99 +174,40 @@ pub async fn extract(
     let mut websites_crawled: i32 = 0;
 
     for agent_website in &agent_websites {
-        let website = match Website::find_by_id(agent_website.website_id.into(), pool).await {
-            Ok(w) => w,
-            Err(e) => {
-                warn!(website_id = %agent_website.website_id, error = %e, "Website not found, skipping");
-                continue;
-            }
-        };
-
-        let domain = &website.domain;
-        info!(domain = %domain, "Extracting posts from website");
-
-        // Search for relevant pages using the extraction service
-        let mut pages = match extraction
-            .search_and_get_pages(&curator.purpose, Some(domain), 50)
-            .await
-        {
-            Ok(p) => p,
-            Err(e) => {
-                warn!(domain = %domain, error = %e, "Failed to search pages, skipping website");
-                continue;
-            }
-        };
-
-        // If no pages found, trigger a crawl and retry
-        if pages.is_empty() {
-            info!(domain = %domain, "No pages found, triggering crawl");
-
-            match ingest_website(
-                website.id.into_uuid(),
-                MemberId::nil().into_uuid(),
-                true,  // use_firecrawl
-                true,  // is_admin
-                deps,
-            )
-            .await
-            {
-                Ok(result) => {
-                    info!(
-                        domain = %domain,
-                        pages_crawled = result.pages_crawled,
-                        "Crawl completed, retrying page search"
-                    );
-                    websites_crawled += 1;
-
-                    // Retry search after crawl
-                    pages = match extraction
-                        .search_and_get_pages(&curator.purpose, Some(domain), 50)
-                        .await
-                    {
-                        Ok(p) => p,
-                        Err(e) => {
-                            warn!(domain = %domain, error = %e, "Retry search failed after crawl");
-                            continue;
-                        }
-                    };
-                }
-                Err(e) => {
-                    warn!(domain = %domain, error = %e, "Crawl failed, skipping website");
-                    continue;
-                }
-            }
-        }
-
-        if pages.is_empty() {
-            info!(domain = %domain, "Still no pages after crawl, skipping");
-            continue;
-        }
-
-        // Extract posts using 3-pass pipeline with agent-specific tag instructions
-        let extracted = match extract_posts_from_pages_with_tags(
-            &pages,
-            domain,
+        let result = match extract_posts_for_website(
+            agent_website.website_id,
+            &curator.purpose,
             &tag_instructions,
             deps,
         )
         .await
         {
-            Ok(posts) => posts,
+            Ok(r) => r,
             Err(e) => {
-                warn!(domain = %domain, error = %e, "Extraction failed, skipping website");
+                warn!(website_id = %agent_website.website_id, error = %e, "Extraction failed, skipping website");
                 continue;
             }
         };
 
+        if result.website_crawled {
+            websites_crawled += 1;
+        }
+
+        if result.posts.is_empty() {
+            continue;
+        }
+
         websites_processed += 1;
 
-        // Create posts with agent_id (skip duplicates gracefully)
-        for post in &extracted {
+        let website = Website::find_by_id(agent_website.website_id.into(), pool).await?;
+
+        // Create posts with submitted_by_id = agent.member_id (skip duplicates gracefully)
+        for post in &result.posts {
             match create_extracted_post(
                 post,
                 Some(website.id),
                 post.source_url.clone(),
-                Some(agent_id),
+                Some(agent.member_id),
                 pool,
             )
             .await

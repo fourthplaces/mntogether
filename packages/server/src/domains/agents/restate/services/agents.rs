@@ -313,6 +313,15 @@ pub struct ScheduledPipelinesResult {
 }
 impl_restate_serde!(ScheduledPipelinesResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PipelineRunResponse {
+    pub status: String,
+    pub discover: Option<AgentRunResponse>,
+    pub extract: Option<AgentRunResponse>,
+    pub enrich: Option<AgentRunResponse>,
+}
+impl_restate_serde!(PipelineRunResponse);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -372,6 +381,7 @@ pub trait AgentsService {
 
     // Pipeline triggers
     async fn run_agent_step(req: RunAgentStepRequest) -> Result<AgentRunResponse, HandlerError>;
+    async fn run_full_pipeline(req: AgentIdRequest) -> Result<PipelineRunResponse, HandlerError>;
     async fn run_scheduled_pipelines(
         req: EmptyRequest,
     ) -> Result<ScheduledPipelinesResult, HandlerError>;
@@ -1014,29 +1024,100 @@ Respond with ONLY valid JSON, no markdown fences."#,
                 }
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
-                let stats = AgentRunStat::find_by_run(run.id, pool)
-                    .await
-                    .unwrap_or_default();
-
-                Ok(AgentRunResponse {
-                    id: run.id,
-                    step: run.step,
-                    trigger_type: run.trigger_type,
-                    status: run.status,
-                    started_at: run.started_at.to_rfc3339(),
-                    completed_at: run.completed_at.map(|t| t.to_rfc3339()),
-                    stats: stats
-                        .into_iter()
-                        .map(|s| RunStatResponse {
-                            stat_key: s.stat_key,
-                            stat_value: s.stat_value,
-                        })
-                        .collect(),
-                })
+                Ok(build_run_response(&run, pool).await)
             })
             .await?;
 
         Ok(response)
+    }
+
+    async fn run_full_pipeline(
+        &self,
+        ctx: Context<'_>,
+        req: AgentIdRequest,
+    ) -> Result<PipelineRunResponse, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let pool = &self.deps.db_pool;
+
+        info!(agent_id = %req.agent_id, "Running full pipeline: discover → extract → enrich");
+
+        // Step 1: Discover
+        let discover_result = ctx
+            .run(|| async {
+                let run = discover::discover(req.agent_id, "pipeline", &self.deps)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(build_run_response(&run, pool).await)
+            })
+            .await;
+
+        let discover_response = match discover_result {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!(agent_id = %req.agent_id, error = %e, "Pipeline discover failed");
+                return Ok(PipelineRunResponse {
+                    status: "failed".to_string(),
+                    discover: None,
+                    extract: None,
+                    enrich: None,
+                });
+            }
+        };
+
+        // Step 2: Extract
+        let extract_result = ctx
+            .run(|| async {
+                let run = extract::extract(req.agent_id, "pipeline", &self.deps)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(build_run_response(&run, pool).await)
+            })
+            .await;
+
+        let extract_response = match extract_result {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!(agent_id = %req.agent_id, error = %e, "Pipeline extract failed");
+                return Ok(PipelineRunResponse {
+                    status: "partial_failure".to_string(),
+                    discover: Some(discover_response),
+                    extract: None,
+                    enrich: None,
+                });
+            }
+        };
+
+        // Step 3: Enrich
+        let enrich_result = ctx
+            .run(|| async {
+                let run = enrich::enrich(req.agent_id, "pipeline", &self.deps)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(build_run_response(&run, pool).await)
+            })
+            .await;
+
+        let enrich_response = match enrich_result {
+            Ok(resp) => resp,
+            Err(e) => {
+                tracing::error!(agent_id = %req.agent_id, error = %e, "Pipeline enrich failed");
+                return Ok(PipelineRunResponse {
+                    status: "partial_failure".to_string(),
+                    discover: Some(discover_response),
+                    extract: Some(extract_response),
+                    enrich: None,
+                });
+            }
+        };
+
+        info!(agent_id = %req.agent_id, "Full pipeline completed");
+
+        Ok(PipelineRunResponse {
+            status: "completed".to_string(),
+            discover: Some(discover_response),
+            extract: Some(extract_response),
+            enrich: Some(enrich_response),
+        })
     }
 
     async fn run_scheduled_pipelines(
@@ -1063,7 +1144,7 @@ Respond with ONLY valid JSON, no markdown fences."#,
                 Err(_) => continue,
             };
 
-            // Check discover schedule
+            // Check discover schedule — chains discover → extract → enrich
             if let Some(ref schedule) = config.schedule_discover {
                 let interval = schedule_to_seconds(schedule);
                 if interval > 0 {
@@ -1077,19 +1158,68 @@ Respond with ONLY valid JSON, no markdown fences."#,
                     };
 
                     if is_due {
-                        info!(agent_id = %agent.id, agent = %agent.display_name, "Scheduling discover step");
-                        let result = ctx
+                        info!(agent_id = %agent.id, agent = %agent.display_name, "Scheduling full pipeline: discover → extract → enrich");
+
+                        // Discover
+                        let discover_ok = match ctx
                             .run(|| async {
                                 discover::discover(agent.id, "scheduled", &self.deps)
                                     .await
                                     .map_err(|e| TerminalError::new(e.to_string()))?;
                                 Ok(())
                             })
-                            .await;
-                        if let Err(e) = result {
-                            tracing::error!(agent_id = %agent.id, error = %e, "Scheduled discover failed");
-                        } else {
-                            steps_triggered += 1;
+                            .await
+                        {
+                            Ok(()) => {
+                                steps_triggered += 1;
+                                true
+                            }
+                            Err(e) => {
+                                tracing::error!(agent_id = %agent.id, error = %e, "Scheduled discover failed");
+                                false
+                            }
+                        };
+
+                        // Extract (only if discover succeeded)
+                        if discover_ok {
+                            let extract_ok = match ctx
+                                .run(|| async {
+                                    extract::extract(agent.id, "scheduled", &self.deps)
+                                        .await
+                                        .map_err(|e| TerminalError::new(e.to_string()))?;
+                                    Ok(())
+                                })
+                                .await
+                            {
+                                Ok(()) => {
+                                    steps_triggered += 1;
+                                    true
+                                }
+                                Err(e) => {
+                                    tracing::error!(agent_id = %agent.id, error = %e, "Scheduled extract failed");
+                                    false
+                                }
+                            };
+
+                            // Enrich (only if extract succeeded)
+                            if extract_ok {
+                                match ctx
+                                    .run(|| async {
+                                        enrich::enrich(agent.id, "scheduled", &self.deps)
+                                            .await
+                                            .map_err(|e| TerminalError::new(e.to_string()))?;
+                                        Ok(())
+                                    })
+                                    .await
+                                {
+                                    Ok(()) => {
+                                        steps_triggered += 1;
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(agent_id = %agent.id, error = %e, "Scheduled enrich failed");
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -1159,27 +1289,32 @@ Respond with ONLY valid JSON, no markdown fences."#,
 
         let mut responses = Vec::new();
         for run in runs {
-            let stats = AgentRunStat::find_by_run(run.id, pool)
-                .await
-                .unwrap_or_default();
-            responses.push(AgentRunResponse {
-                id: run.id,
-                step: run.step,
-                trigger_type: run.trigger_type,
-                status: run.status,
-                started_at: run.started_at.to_rfc3339(),
-                completed_at: run.completed_at.map(|t| t.to_rfc3339()),
-                stats: stats
-                    .into_iter()
-                    .map(|s| RunStatResponse {
-                        stat_key: s.stat_key,
-                        stat_value: s.stat_value,
-                    })
-                    .collect(),
-            });
+            responses.push(build_run_response(&run, pool).await);
         }
 
         Ok(AgentRunListResponse { runs: responses })
+    }
+}
+
+/// Build an `AgentRunResponse` from a run and its stats.
+async fn build_run_response(run: &AgentRun, pool: &sqlx::PgPool) -> AgentRunResponse {
+    let stats = AgentRunStat::find_by_run(run.id, pool)
+        .await
+        .unwrap_or_default();
+    AgentRunResponse {
+        id: run.id,
+        step: run.step.clone(),
+        trigger_type: run.trigger_type.clone(),
+        status: run.status.clone(),
+        started_at: run.started_at.to_rfc3339(),
+        completed_at: run.completed_at.map(|t| t.to_rfc3339()),
+        stats: stats
+            .into_iter()
+            .map(|s| RunStatResponse {
+                stat_key: s.stat_key,
+                stat_value: s.stat_value,
+            })
+            .collect(),
     }
 }
 

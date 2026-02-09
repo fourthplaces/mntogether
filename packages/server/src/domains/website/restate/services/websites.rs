@@ -175,6 +175,7 @@ impl WebsitesService for WebsitesServiceImpl {
                         last_crawled_at: e.node.last_scraped_at,
                         post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
                         crawl_status: e.node.crawl_status,
+                        linked_agent_ids: vec![],
                     })
                 })
                 .collect(),

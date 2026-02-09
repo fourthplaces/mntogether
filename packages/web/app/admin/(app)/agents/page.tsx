@@ -184,24 +184,54 @@ function AgentsContent() {
           </div>
         </div>
 
-        {/* Step 1: Describe what you want */}
+        {/* Step 1: Pick role & describe what you want */}
         {createStep === 1 && (
           <form
             onSubmit={handleSuggest}
             className="bg-white rounded-lg shadow px-6 py-4 mb-6 space-y-4"
           >
-            <label className="block text-sm font-medium text-stone-700">
-              What kind of agent do you want to create?
-            </label>
-            <textarea
-              value={createDescription}
-              onChange={(e) => setCreateDescription(e.target.value)}
-              placeholder='e.g. "An agent that finds food shelves and food banks in Minnesota" or "A chat assistant that helps people find legal aid"'
-              rows={3}
-              className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              autoFocus
-              disabled={createLoading}
-            />
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-2">
+                Role
+              </label>
+              <div className="flex gap-2">
+                {[
+                  { value: "curator", label: "Curator", description: "Discovers websites, extracts and monitors posts" },
+                  { value: "assistant", label: "Assistant", description: "Chat agent that helps users find resources" },
+                ].map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setCreateRole(option.value)}
+                    disabled={createLoading}
+                    className={`flex-1 px-4 py-3 rounded-lg border-2 text-left transition-colors ${
+                      createRole === option.value
+                        ? "border-amber-500 bg-amber-50"
+                        : "border-stone-200 hover:border-stone-300"
+                    }`}
+                  >
+                    <span className="block text-sm font-medium text-stone-900">{option.label}</span>
+                    <span className="block text-xs text-stone-500 mt-0.5">{option.description}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1">
+                What kind of {createRole} do you want to create?
+              </label>
+              <textarea
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                placeholder={createRole === "curator"
+                  ? 'e.g. "An agent that finds food shelves and food banks in Minnesota"'
+                  : 'e.g. "A chat assistant that helps people find legal aid"'}
+                rows={3}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+                autoFocus
+                disabled={createLoading}
+              />
+            </div>
             <div className="flex items-center gap-3">
               <button
                 type="submit"

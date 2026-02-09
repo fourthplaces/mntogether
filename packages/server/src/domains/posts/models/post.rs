@@ -41,14 +41,13 @@ pub struct Post {
 
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped', 'admin', 'org_submitted'
-    pub submitted_by_admin_id: Option<Uuid>,
+
+    // Who submitted this post (member FK — both humans and agents are members)
+    pub submitted_by_id: Option<Uuid>,
 
     // Source tracking (for scraped listings)
     pub website_id: Option<WebsiteId>,
     pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
-
-    // Agent that created this post (nullable — existing posts predate agents)
-    pub agent_id: Option<Uuid>,
 
     // Soft delete (preserves links)
     pub deleted_at: Option<DateTime<Utc>>,
@@ -293,7 +292,7 @@ pub struct CreatePost {
     #[builder(default)]
     pub submission_type: Option<String>,
     #[builder(default)]
-    pub submitted_by_admin_id: Option<Uuid>,
+    pub submitted_by_id: Option<Uuid>,
     #[builder(default)]
     pub website_id: Option<WebsiteId>,
     #[builder(default)]
@@ -302,8 +301,6 @@ pub struct CreatePost {
     pub revision_of_post_id: Option<PostId>,
     #[builder(default)]
     pub translation_of_id: Option<PostId>,
-    #[builder(default)]
-    pub agent_id: Option<Uuid>,
 }
 
 /// Builder for updating Post content
@@ -332,10 +329,15 @@ pub struct UpdatePostContent {
 // =============================================================================
 
 impl Post {
-    /// Find all posts created by a specific agent.
+    /// Find all posts created by a specific agent (joins through agents.member_id).
     pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
-            "SELECT * FROM posts WHERE agent_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC",
+            r#"
+            SELECT p.* FROM posts p
+            JOIN agents a ON a.member_id = p.submitted_by_id
+            WHERE a.id = $1 AND p.deleted_at IS NULL
+            ORDER BY p.created_at DESC
+            "#,
         )
         .bind(agent_id)
         .fetch_all(pool)
@@ -343,10 +345,14 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Count posts created by a specific agent.
+    /// Count posts created by a specific agent (joins through agents.member_id).
     pub async fn count_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<i64> {
         sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE agent_id = $1 AND deleted_at IS NULL",
+            r#"
+            SELECT COUNT(*) FROM posts p
+            JOIN agents a ON a.member_id = p.submitted_by_id
+            WHERE a.id = $1 AND p.deleted_at IS NULL
+            "#,
         )
         .bind(agent_id)
         .fetch_one(pool)
@@ -361,12 +367,13 @@ impl Post {
     ) -> Result<std::collections::HashMap<Uuid, i64>> {
         let rows = sqlx::query_as::<_, (Uuid, i64)>(
             r#"
-            SELECT website_id, COUNT(*) as count
-            FROM posts
-            WHERE agent_id = $1
-              AND website_id IS NOT NULL
-              AND deleted_at IS NULL
-            GROUP BY website_id
+            SELECT p.website_id, COUNT(*) as count
+            FROM posts p
+            JOIN agents a ON a.member_id = p.submitted_by_id
+            WHERE a.id = $1
+              AND p.website_id IS NOT NULL
+              AND p.deleted_at IS NULL
+            GROUP BY p.website_id
             "#,
         )
         .bind(agent_id)
@@ -435,6 +442,7 @@ impl Post {
     ///
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
+    /// When agent_id is provided, filters via JOIN through agents.member_id.
     pub async fn find_paginated(
         status: Option<&str>,
         website_id: Option<WebsiteId>,
@@ -448,15 +456,16 @@ impl Post {
             PaginationDirection::Forward => {
                 sqlx::query_as::<_, Self>(
                     r#"
-                    SELECT * FROM posts
-                    WHERE ($1::text IS NULL OR status = $1)
-                      AND deleted_at IS NULL
-                      AND revision_of_post_id IS NULL
-                      AND translation_of_id IS NULL
-                      AND ($2::uuid IS NULL OR id > $2)
-                      AND ($4::uuid IS NULL OR website_id = $4)
-                      AND ($5::uuid IS NULL OR agent_id = $5)
-                    ORDER BY id ASC
+                    SELECT p.* FROM posts p
+                    LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+                    WHERE ($1::text IS NULL OR p.status = $1)
+                      AND p.deleted_at IS NULL
+                      AND p.revision_of_post_id IS NULL
+                      AND p.translation_of_id IS NULL
+                      AND ($2::uuid IS NULL OR p.id > $2)
+                      AND ($4::uuid IS NULL OR p.website_id = $4)
+                      AND ($5::uuid IS NULL OR a.id = $5)
+                    ORDER BY p.id ASC
                     LIMIT $3
                     "#,
                 )
@@ -472,15 +481,16 @@ impl Post {
                 // Fetch in reverse order, then re-sort
                 let mut rows = sqlx::query_as::<_, Self>(
                     r#"
-                    SELECT * FROM posts
-                    WHERE ($1::text IS NULL OR status = $1)
-                      AND deleted_at IS NULL
-                      AND revision_of_post_id IS NULL
-                      AND translation_of_id IS NULL
-                      AND ($2::uuid IS NULL OR id < $2)
-                      AND ($4::uuid IS NULL OR website_id = $4)
-                      AND ($5::uuid IS NULL OR agent_id = $5)
-                    ORDER BY id DESC
+                    SELECT p.* FROM posts p
+                    LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+                    WHERE ($1::text IS NULL OR p.status = $1)
+                      AND p.deleted_at IS NULL
+                      AND p.revision_of_post_id IS NULL
+                      AND p.translation_of_id IS NULL
+                      AND ($2::uuid IS NULL OR p.id < $2)
+                      AND ($4::uuid IS NULL OR p.website_id = $4)
+                      AND ($5::uuid IS NULL OR a.id = $5)
+                    ORDER BY p.id DESC
                     LIMIT $3
                     "#,
                 )
@@ -585,6 +595,33 @@ impl Post {
         Ok(listings)
     }
 
+    /// Find posts for a specific agent on a specific website.
+    /// Joins through agents to match by agent_id → member_id → submitted_by_id.
+    pub async fn find_by_agent_and_website(
+        agent_id: uuid::Uuid,
+        website_id: WebsiteId,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let posts = sqlx::query_as::<_, Post>(
+            r#"
+            SELECT p.*
+            FROM posts p
+            JOIN agents a ON a.member_id = p.submitted_by_id
+            WHERE a.id = $1
+              AND p.website_id = $2
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            ORDER BY p.created_at DESC
+            "#,
+        )
+        .bind(agent_id)
+        .bind(website_id)
+        .fetch_all(pool)
+        .await?;
+        Ok(posts)
+    }
+
     /// Count posts grouped by website_id for a set of website IDs
     pub async fn count_by_website_ids(
         website_ids: &[uuid::Uuid],
@@ -624,13 +661,12 @@ impl Post {
                 status,
                 source_language,
                 submission_type,
-                submitted_by_admin_id,
+                submitted_by_id,
                 website_id,
                 source_url,
                 revision_of_post_id,
-                translation_of_id,
-                agent_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+                translation_of_id
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
             "#,
         )
@@ -645,12 +681,11 @@ impl Post {
         .bind(input.status)
         .bind(input.source_language)
         .bind(input.submission_type)
-        .bind(input.submitted_by_admin_id)
+        .bind(input.submitted_by_id)
         .bind(input.website_id)
         .bind(input.source_url)
         .bind(input.revision_of_post_id)
         .bind(input.translation_of_id)
-        .bind(input.agent_id)
         .fetch_one(pool)
         .await?;
 
@@ -816,6 +851,7 @@ impl Post {
     }
 
     /// Count listings by status (for pagination)
+    /// When agent_id is provided, filters via JOIN through agents.member_id.
     pub async fn count_by_status(
         status: Option<&str>,
         website_id: Option<WebsiteId>,
@@ -825,13 +861,14 @@ impl Post {
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
-            FROM posts
-            WHERE ($1::text IS NULL OR status = $1)
-              AND deleted_at IS NULL
-              AND revision_of_post_id IS NULL
-              AND translation_of_id IS NULL
-              AND ($2::uuid IS NULL OR website_id = $2)
-              AND ($3::uuid IS NULL OR agent_id = $3)
+            FROM posts p
+            LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+            WHERE ($1::text IS NULL OR p.status = $1)
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND ($2::uuid IS NULL OR p.website_id = $2)
+              AND ($3::uuid IS NULL OR a.id = $3)
             "#,
         )
         .bind(status)

@@ -19,6 +19,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
+use crate::domains::agents::models::Agent;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
@@ -267,19 +268,37 @@ fn build_sync_prompt(fresh: &[FreshPost], existing: &[ExistingPost]) -> Result<S
 /// DELETEs and MERGEs are recorded as proposals only.
 pub async fn llm_sync_posts(
     website_id: WebsiteId,
+    agent_id: Option<Uuid>,
     fresh_posts: Vec<ExtractedPost>,
     ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
+    // Load existing posts: agent-scoped if agent_id provided, otherwise all website posts
+    let existing_db_posts = match agent_id {
+        Some(aid) => Post::find_by_agent_and_website(aid, website_id, pool).await?,
+        None => Post::find_by_website_id(website_id, pool).await?,
+    };
 
-    info!(website_id = %website_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
+    // Resolve submitted_by_id for inserts/revisions (agent's member_id)
+    let submitted_by_id = match agent_id {
+        Some(aid) => {
+            let agent = Agent::find_by_id(aid, pool).await?;
+            Some(agent.member_id)
+        }
+        None => None,
+    };
+
+    // Use agent_id as source_id for batch scoping (per-agent batch lifecycle),
+    // falling back to website_id for non-agent usage
+    let source_id = agent_id.unwrap_or_else(|| website_id.into_uuid());
+
+    info!(website_id = %website_id, agent_id = ?agent_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
 
     if fresh_posts.is_empty() && existing_db_posts.is_empty() {
         // Create an empty batch so callers always get a batch_id
         let stage_result = stage_proposals(
             "post",
-            website_id.into_uuid(),
+            source_id,
             Some("No posts to sync"),
             vec![],
             pool,
@@ -318,6 +337,8 @@ pub async fn llm_sync_posts(
 
     stage_sync_operations(
         website_id,
+        source_id,
+        submitted_by_id,
         &fresh_posts,
         &existing_db_posts,
         operations,
@@ -335,6 +356,8 @@ pub async fn llm_sync_posts(
 /// MERGEs: creates revision for canonical if merged content provided, records proposal + merge sources
 async fn stage_sync_operations(
     website_id: WebsiteId,
+    source_id: Uuid,
+    submitted_by_id: Option<Uuid>,
     fresh_posts: &[ExtractedPost],
     existing_posts: &[Post],
     operations: Vec<SyncOperation>,
@@ -388,7 +411,7 @@ async fn stage_sync_operations(
                             .source_url
                             .clone()
                             .or_else(|| Some(format!("https://{}", website.domain))),
-                        None,
+                        submitted_by_id,
                         pool,
                     )
                     .await
@@ -421,7 +444,7 @@ async fn stage_sync_operations(
                 if let (Some(fresh), Some(existing)) =
                     (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
                 {
-                    match update_post(existing.id, fresh, merge_description, pool).await {
+                    match update_post_with_owner(existing.id, fresh, merge_description, submitted_by_id, pool).await {
                         Ok(()) => {
                             // Find the revision that was just created
                             let revision = Post::find_revision_for_post(existing.id, pool).await;
@@ -506,7 +529,7 @@ async fn stage_sync_operations(
                             state: None,
                             tags: HashMap::new(),
                         };
-                        match update_post(canonical.id, &fake_fresh, false, pool).await {
+                        match update_post_with_owner(canonical.id, &fake_fresh, false, submitted_by_id, pool).await {
                             Ok(()) => Post::find_revision_for_post(canonical.id, pool)
                                 .await
                                 .ok()
@@ -562,7 +585,7 @@ async fn stage_sync_operations(
 
     let stage_result = stage_proposals(
         "post",
-        website_id.into_uuid(),
+        source_id,
         Some(&actual_summary),
         proposed_ops,
         pool,
@@ -602,6 +625,17 @@ pub async fn update_post(
     post_id: PostId,
     fresh: &ExtractedPost,
     _merge_description: bool,
+    pool: &PgPool,
+) -> Result<()> {
+    update_post_with_owner(post_id, fresh, _merge_description, None, pool).await
+}
+
+/// Update an existing post by creating a revision, with optional ownership.
+pub async fn update_post_with_owner(
+    post_id: PostId,
+    fresh: &ExtractedPost,
+    _merge_description: bool,
+    submitted_by_id: Option<Uuid>,
     pool: &PgPool,
 ) -> Result<()> {
     // Get original post for context
@@ -668,6 +702,7 @@ pub async fn update_post(
             .location(fresh.location.clone())
             .source_language(original.source_language.clone())
             .submission_type(Some("revision".to_string()))
+            .submitted_by_id(submitted_by_id)
             .website_id(original.website_id)
             .source_url(original.source_url.clone())
             .revision_of_post_id(Some(post_id))

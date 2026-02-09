@@ -13,6 +13,7 @@ import type {
   ExtractionPageListResult,
   ExtractionPageCount,
   AgentListResponse,
+  LinkToAgentsResult,
 } from "@/lib/restate/types";
 
 type TabType = "posts" | "snapshots" | "assessment" | "agents";
@@ -27,6 +28,7 @@ export default function WebsiteDetailPage() {
   const [regenStatus, setRegenStatus] = useState<string | null>(null);
   const [dedupWorkflowId, setDedupWorkflowId] = useState<string | null>(null);
   const [dedupStatus, setDedupStatus] = useState<string | null>(null);
+  const [linkAgentsResult, setLinkAgentsResult] = useState<LinkToAgentsResult | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -90,6 +92,9 @@ export default function WebsiteDetailPage() {
   const posts = postsData?.posts || [];
   const pages = pagesData?.pages || [];
   const allAgents = agentsData?.agents || [];
+  const linkedAgentIds = new Set(website?.linked_agent_ids || []);
+  const linkedAgents = allAgents.filter((a) => linkedAgentIds.has(a.id));
+  const unlinkedAgents = allAgents.filter((a) => !linkedAgentIds.has(a.id));
 
   // --- Actions ---
 
@@ -180,6 +185,21 @@ export default function WebsiteDetailPage() {
     }
   };
 
+  const handleLinkToAgents = async () => {
+    setActionInProgress("link_agents");
+    setLinkAgentsResult(null);
+    try {
+      const result = await callObject<LinkToAgentsResult>("Website", websiteId, "link_to_agents", {});
+      setLinkAgentsResult(result);
+      invalidateObject("Website", websiteId);
+      refetchWebsite();
+    } catch (err) {
+      console.error("Failed to link agents:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   // Poll regenerate posts workflow status
   useEffect(() => {
     if (!regenWorkflowId) return;
@@ -191,7 +211,7 @@ export default function WebsiteDetailPage() {
         );
         setRegenStatus(status);
 
-        if (status.startsWith("Completed:") || status.startsWith("Completed ")) {
+        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
           clearInterval(interval);
           setRegenWorkflowId(null);
           setActionInProgress(null);
@@ -216,7 +236,7 @@ export default function WebsiteDetailPage() {
         );
         setDedupStatus(status);
 
-        if (status.startsWith("Completed:") || status.startsWith("Completed ")) {
+        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
           clearInterval(interval);
           setDedupWorkflowId(null);
           setActionInProgress(null);
@@ -377,6 +397,13 @@ export default function WebsiteDetailPage() {
                       className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                     >
                       Deduplicate Posts
+                    </button>
+                    <button
+                      onClick={() => { setMenuOpen(false); handleLinkToAgents(); }}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Link to Agents
                     </button>
                   </div>
                 )}
@@ -551,12 +578,32 @@ export default function WebsiteDetailPage() {
             {/* Agents Tab */}
             {activeTab === "agents" && (
               <div>
-                {allAgents.length > 0 ? (
+                {/* Link result feedback */}
+                {linkAgentsResult && (
+                  <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
+                    {linkAgentsResult.linked.length > 0 ? (
+                      <div>
+                        <p className="text-sm font-medium text-green-800 mb-2">
+                          Linked {linkAgentsResult.linked.length} agent{linkAgentsResult.linked.length !== 1 ? "s" : ""}:
+                        </p>
+                        <ul className="space-y-1">
+                          {linkAgentsResult.linked.map((r) => (
+                            <li key={r.agent_id} className="text-sm text-green-700">
+                              <span className="font-medium">{r.display_name}</span> — {r.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-green-700">No matching agents found.</p>
+                    )}
+                  </div>
+                )}
+
+                {/* Linked Agents */}
+                {linkedAgents.length > 0 ? (
                   <div className="space-y-3">
-                    <p className="text-sm text-stone-500 mb-4">
-                      Curator agents that may have discovered or linked this website:
-                    </p>
-                    {allAgents.map((agent) => (
+                    {linkedAgents.map((agent) => (
                       <Link
                         key={agent.id}
                         href={`/admin/agents/${agent.id}`}
@@ -583,12 +630,9 @@ export default function WebsiteDetailPage() {
                   </div>
                 ) : (
                   <div className="text-center py-8 text-stone-500">
-                    <p>No curator agents exist yet.</p>
+                    <p>No agents linked to this website.</p>
                     <p className="text-sm mt-1">
-                      <Link href="/admin/agents" className="text-amber-600 hover:text-amber-700 underline">
-                        Create a curator agent
-                      </Link>{" "}
-                      to discover and manage websites.
+                      Use <span className="font-medium">Link to Agents</span> from the menu to auto-match.
                     </p>
                   </div>
                 )}
