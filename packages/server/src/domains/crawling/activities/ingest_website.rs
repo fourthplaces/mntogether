@@ -26,28 +26,17 @@ pub struct IngestUrlsResult {
 
 /// Ingest a website using the extraction library.
 ///
-/// This is the new preferred method for crawling websites. It:
-/// 1. Uses the extraction library's Ingestor pattern for fetching
-/// 2. Stores pages in extraction_pages (via ExtractionService)
-/// 3. Returns WebsiteIngested data with page counts
-///
-/// # Arguments
-///
-/// * `website_id` - Website to ingest
-/// * `visitor_id` - Visitor requesting the action
-/// * `use_firecrawl` - Whether to use Firecrawl (true) or basic HTTP (false)
-/// * `is_admin` - Whether the requester is an admin
-/// * `deps` - Server dependencies
+/// Uses Firecrawl if `FIRECRAWL_API_KEY` is set, otherwise falls back to HTTP.
 pub async fn ingest_website(
     website_id: Uuid,
     visitor_id: Uuid,
-    use_firecrawl: bool,
     is_admin: bool,
     deps: &ServerDeps,
 ) -> Result<WebsiteIngested> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
     let job_id = JobId::new();
+    let use_firecrawl = std::env::var("FIRECRAWL_API_KEY").ok().filter(|k| !k.is_empty()).is_some();
 
     info!(
         website_id = %website_id_typed,

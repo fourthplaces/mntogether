@@ -20,8 +20,6 @@ export function PostReviewCard({
   isRejecting,
 }: PostReviewCardProps) {
   const [expanded, setExpanded] = useState(false);
-  const [showRejectModal, setShowRejectModal] = useState(false);
-  const [rejectReason, setRejectReason] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -63,11 +61,6 @@ export function PostReviewCard({
     }
   };
 
-  const handleReject = () => {
-    onReject?.(post.id, rejectReason);
-    setShowRejectModal(false);
-    setRejectReason("");
-  };
 
   const tags = post.tags || [];
 
@@ -190,7 +183,7 @@ export function PostReviewCard({
             )}
             {onReject && (
               <button
-                onClick={() => setShowRejectModal(true)}
+                onClick={() => onReject(post.id)}
                 disabled={isRejecting}
                 className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500 transition-colors font-medium disabled:opacity-50"
               >
@@ -201,42 +194,6 @@ export function PostReviewCard({
         )}
       </div>
 
-      {/* Reject Modal */}
-      {showRejectModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold text-stone-900 mb-4">Reject Post</h3>
-            <p className="text-sm text-stone-600 mb-4">
-              Are you sure you want to reject &quot;{post.title}&quot;? You can optionally provide a
-              reason.
-            </p>
-            <textarea
-              value={rejectReason}
-              onChange={(e) => setRejectReason(e.target.value)}
-              placeholder="Reason for rejection (optional)"
-              className="w-full px-3 py-2 border border-stone-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-500 mb-4"
-              rows={3}
-            />
-            <div className="flex gap-2">
-              <button
-                onClick={handleReject}
-                className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500"
-              >
-                Reject
-              </button>
-              <button
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setRejectReason("");
-                }}
-                className="flex-1 px-4 py-2 bg-stone-200 text-stone-700 rounded hover:bg-stone-300"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 }

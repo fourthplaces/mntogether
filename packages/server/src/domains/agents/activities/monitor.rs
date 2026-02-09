@@ -77,7 +77,6 @@ pub async fn monitor(
         if let Err(e) = ingest_website(
             agent_website.website_id,
             MemberId::nil().into_uuid(),
-            true,  // use_firecrawl
             true,  // is_admin (system process)
             deps,
         )

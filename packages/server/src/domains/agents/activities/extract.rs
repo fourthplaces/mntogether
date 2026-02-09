@@ -71,7 +71,6 @@ pub async fn extract_posts_for_website(
         match ingest_website(
             website.id.into_uuid(),
             MemberId::nil().into_uuid(),
-            true,  // use_firecrawl
             true,  // is_admin
             deps,
         )

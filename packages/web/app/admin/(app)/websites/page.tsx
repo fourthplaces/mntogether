@@ -45,10 +45,13 @@ function WebsitesContent() {
     setAddLoading(true);
     setAddError(null);
     try {
-      await callService<WebsiteResult>("Websites", "submit", { url: addUrl.trim() });
+      const result = await callService<WebsiteResult>("Websites", "submit", { url: addUrl.trim() });
       invalidateService("Websites");
       setAddUrl("");
       setShowAddForm(false);
+      if (result?.id) {
+        router.push(`/admin/websites/${result.id}`);
+      }
     } catch (err: any) {
       setAddError(err.message || "Failed to add website");
     } finally {
