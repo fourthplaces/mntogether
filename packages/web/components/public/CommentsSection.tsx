@@ -98,9 +98,9 @@ function CommentForm({
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder={parentMessageId ? "Write a reply…" : "Add a comment…"}
+        placeholder={parentMessageId ? "Write a reply..." : "Add a comment..."}
         rows={parentMessageId ? 2 : 3}
-        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 placeholder:text-gray-400 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-400 resize-none"
+        className="w-full rounded-lg border border-[#E8DED2] bg-white px-3 py-2 text-sm text-[#3D3D3D] placeholder:text-[#A09A8D] focus:border-[#C4B8A0] focus:outline-none focus:ring-1 focus:ring-[#C4B8A0] resize-none"
         disabled={submitting}
       />
       {error && <p className="text-xs text-red-600">{error}</p>}
@@ -108,15 +108,15 @@ function CommentForm({
         <button
           type="submit"
           disabled={submitting || !content.trim()}
-          className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-4 py-1.5 text-sm font-semibold text-white bg-[#3D3D3D] rounded-full hover:bg-[#2D2D2D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
-          {submitting ? "Posting…" : parentMessageId ? "Reply" : "Comment"}
+          {submitting ? "Posting..." : parentMessageId ? "Reply" : "Comment"}
         </button>
         {onCancel && (
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700"
+            className="px-3 py-1.5 text-sm text-[#7D7D7D] hover:text-[#3D3D3D]"
           >
             Cancel
           </button>
@@ -147,19 +147,19 @@ function CommentThread({
   const { comment, children } = node;
 
   return (
-    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-6 border-l-2 border-gray-100 pl-4" : ""}>
+    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-6 border-l-2 border-[#D4CEC1] pl-4" : ""}>
       <div className="py-3">
         <div className="flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 text-xs font-medium text-gray-500">
+          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#F5F1E8] text-xs font-medium text-[#7D7D7D]">
             ?
           </span>
-          <span className="text-xs text-gray-400">{timeAgo(comment.created_at)}</span>
+          <span className="text-xs text-[#A09A8D]">{timeAgo(comment.created_at)}</span>
         </div>
-        <p className="text-sm text-gray-800 whitespace-pre-wrap">{comment.content}</p>
+        <p className="text-sm text-[#3D3D3D] whitespace-pre-wrap">{comment.content}</p>
         <button
           type="button"
           onClick={() => setReplying(!replying)}
-          className="mt-1 text-xs text-gray-400 hover:text-blue-600 transition-colors"
+          className="mt-1 text-xs text-[#A09A8D] hover:text-[#3D3D3D] transition-colors"
         >
           Reply
         </button>
@@ -211,28 +211,30 @@ export default function CommentsSection({ postId }: { postId: string }) {
   };
 
   return (
-    <div className="border-t border-gray-100 pt-6 mt-8">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">
-        Comments{comments.length > 0 ? ` (${comments.length})` : ""}
-      </h2>
+    <div className="mt-8">
+      <div className="bg-white rounded-lg border border-[#E8DED2] p-6">
+        <h2 className="text-lg font-bold text-[#3D3D3D] mb-4">
+          Comments{comments.length > 0 ? ` (${comments.length})` : ""}
+        </h2>
 
-      <CommentForm postId={postId} onSuccess={handleRefresh} />
+        <CommentForm postId={postId} onSuccess={handleRefresh} />
 
-      {comments.length === 0 ? (
-        <p className="text-sm text-gray-400 mt-4">No comments yet. Be the first to comment.</p>
-      ) : (
-        <div className="mt-4 divide-y divide-gray-50">
-          {tree.map((node) => (
-            <CommentThread
-              key={node.comment.id}
-              node={node}
-              postId={postId}
-              depth={0}
-              onRefresh={handleRefresh}
-            />
-          ))}
-        </div>
-      )}
+        {comments.length === 0 ? (
+          <p className="text-sm text-[#A09A8D] mt-4">No comments yet. Be the first to comment.</p>
+        ) : (
+          <div className="mt-4 divide-y divide-[#E8DED2]">
+            {tree.map((node) => (
+              <CommentThread
+                key={node.comment.id}
+                node={node}
+                postId={postId}
+                depth={0}
+                onRefresh={handleRefresh}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

@@ -46,6 +46,12 @@ export interface TagListResult {
 
 // --- Posts ---
 
+export interface SubmittedByInfo {
+  submitter_type: string;
+  agent_id: string | null;
+  agent_name: string | null;
+}
+
 export interface PostResult {
   id: string;
   title: string;
@@ -63,6 +69,7 @@ export interface PostResult {
   created_at: string;
   updated_at: string;
   tags?: TagResult[];
+  submitted_by?: SubmittedByInfo;
 }
 
 export interface PostList {

@@ -18,6 +18,7 @@ use crate::domains::posts::activities;
 use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
 use crate::domains::posts::models::post_report::PostReportRecord;
+use crate::domains::agents::models::Agent;
 use crate::domains::posts::models::Post;
 use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
@@ -173,6 +174,16 @@ pub struct PostTagResult {
 impl_restate_serde!(PostTagResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmittedByInfo {
+    /// "agent", "member", or "unknown"
+    pub submitter_type: String,
+    /// Agent ID if submitted by an agent
+    pub agent_id: Option<Uuid>,
+    /// Agent display name if submitted by an agent
+    pub agent_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostResult {
     pub id: Uuid,
     pub title: String,
@@ -191,6 +202,8 @@ pub struct PostResult {
     pub updated_at: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<PostTagResult>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub submitted_by: Option<SubmittedByInfo>,
 }
 
 impl_restate_serde!(PostResult);
@@ -214,6 +227,7 @@ impl From<Post> for PostResult {
             created_at: p.created_at.to_rfc3339(),
             updated_at: p.updated_at.to_rfc3339(),
             tags: None,
+            submitted_by: None,
         }
     }
 }
@@ -809,7 +823,27 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Resolve who submitted this post
+        let submitted_by = if let Some(member_id) = post.submitted_by_id {
+            // Check if this member_id belongs to an agent
+            match Agent::find_by_member_id(member_id, &self.deps.db_pool).await {
+                Ok(Some(agent)) => Some(SubmittedByInfo {
+                    submitter_type: "agent".to_string(),
+                    agent_id: Some(agent.id),
+                    agent_name: Some(agent.display_name),
+                }),
+                _ => Some(SubmittedByInfo {
+                    submitter_type: "member".to_string(),
+                    agent_id: None,
+                    agent_name: None,
+                }),
+            }
+        } else {
+            None
+        };
+
         let mut result = PostResult::from(post);
+        result.submitted_by = submitted_by;
         result.tags = Some(
             tags.into_iter()
                 .map(|t| PostTagResult {

@@ -50,10 +50,9 @@ function AgentsContent() {
       const suggestion = await callService<SuggestAgentResponse>(
         "Agents",
         "suggest_agent",
-        { description: createDescription.trim() }
+        { description: `[Role: ${createRole}] ${createDescription.trim()}` }
       );
       setCreateName(suggestion.display_name);
-      setCreateRole(suggestion.role);
       setCreatePurpose(suggestion.purpose);
       setCreateQueries(suggestion.search_queries);
       setCreateRules(suggestion.filter_rules);
