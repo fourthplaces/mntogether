@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRestate } from "@/lib/restate/client";
 import { SubmitSheet } from "@/components/public/SubmitSheet";
@@ -82,19 +82,10 @@ function PostCardSkeleton() {
 }
 
 export function HomeClient() {
-  const [postType, setPostType] = useState<string | null>(null);
-  const [category, setCategory] = useState<string | null>(null);
   const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
 
-  const requestBody = useMemo(() => {
-    const body: Record<string, unknown> = {};
-    if (postType) body.post_type = postType;
-    if (category) body.category = category;
-    return body;
-  }, [postType, category]);
-
   const { data: listData, isLoading: listLoading } =
-    useRestate<PublicListResult>("Posts", "public_list", requestBody);
+    useRestate<PublicListResult>("Posts", "public_list", {});
 
   const { data: filtersData } =
     useRestate<PublicFiltersResult>("Posts", "public_filters", {});
@@ -102,21 +93,11 @@ export function HomeClient() {
   const posts = listData?.posts ?? [];
   const postTypes = filtersData?.post_types ?? [];
 
-  const togglePostType = (value: string) => {
-    if (postType === value) {
-      setPostType(null);
-      setCategory(null);
-    } else {
-      setPostType(value);
-      setCategory(null);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#E8E2D5] text-[#3D3D3D] relative leading-relaxed">
       {/* Skyline background */}
       <div
-        className="absolute inset-0 w-screen h-screen z-0 opacity-50"
+        className="absolute inset-0 w-screen h-screen z-0 opacity-50 pointer-events-none"
         style={{
           backgroundImage: "url('/skyline.png')",
           backgroundPosition: "center 100px",
@@ -131,12 +112,13 @@ export function HomeClient() {
           MN <img src="/icon-mn.svg" alt="Minnesota" className="w-5 h-5" /> Together
         </div>
         <nav className="hidden md:flex gap-10 items-center">
-          <a href="#about" className="text-[#3D3D3D] font-medium">About</a>
-          <a href="#resources" className="text-[#3D3D3D] font-medium">Resources</a>
-          <a href="#contact" className="text-[#3D3D3D] font-medium">Contact</a>
-          <button className="bg-[#3D3D3D] text-[#E8E2D5] px-6 py-2.5 rounded-full text-sm font-semibold">
-            EN | ES | SO
-          </button>
+          {process.env.NODE_ENV === "development" && (
+            <Link href="/about" className="text-[#3D3D3D] font-medium">About</Link>
+          )}
+          <Link href="/posts" className="text-[#3D3D3D] font-medium">Resources</Link>
+          {process.env.NODE_ENV === "development" && (
+            <Link href="/contact" className="text-[#3D3D3D] font-medium">Contact</Link>
+          )}
         </nav>
       </header>
 
@@ -194,28 +176,20 @@ export function HomeClient() {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
           <h2 className="text-3xl font-bold text-[#3D3D3D]">Get Involved</h2>
           <div className="flex gap-3 overflow-x-auto scrollbar-hide">
-            <button
-              onClick={() => { setPostType(null); setCategory(null); }}
-              className={`px-5 py-2 rounded-full text-sm font-semibold border transition-all ${
-                postType === null
-                  ? "bg-[#3D3D3D] text-white border-[#3D3D3D]"
-                  : "bg-transparent text-[#5D5D5D] border-[#C4B8A0] hover:border-[#3D3D3D]"
-              }`}
+            <Link
+              href="/posts"
+              className="px-5 py-2 rounded-full text-sm font-semibold border transition-all bg-transparent text-[#5D5D5D] border-[#C4B8A0] hover:border-[#3D3D3D]"
             >
               All
-            </button>
+            </Link>
             {postTypes.map((pt) => (
-              <button
+              <Link
                 key={pt.value}
-                onClick={() => togglePostType(pt.value)}
-                className={`px-5 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${
-                  postType === pt.value
-                    ? "bg-[#3D3D3D] text-white border-[#3D3D3D]"
-                    : "bg-transparent text-[#5D5D5D] border-[#C4B8A0] hover:border-[#3D3D3D]"
-                }`}
+                href={`/posts?post_type=${pt.value}`}
+                className="px-5 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap bg-transparent text-[#5D5D5D] border-[#C4B8A0] hover:border-[#3D3D3D]"
               >
                 {pt.display_name}
-              </button>
+              </Link>
             ))}
           </div>
         </div>
@@ -234,7 +208,7 @@ export function HomeClient() {
               {posts.map((post) => <PostCard key={post.id} post={post} />)}
               <div className="text-center pt-4">
                 <Link
-                  href={postType ? `/posts?post_type=${postType}` : "/posts"}
+                  href="/posts"
                   className="inline-block px-6 py-3 rounded-full border border-[#C4B8A0] text-[#5D5D5D] font-semibold text-sm hover:border-[#3D3D3D] hover:text-[#3D3D3D] transition-all"
                 >
                   See More
@@ -245,38 +219,40 @@ export function HomeClient() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-[#3D3D3D] text-[#C4B8A0] px-6 md:px-12 pt-12 pb-8 mt-16">
-        <div className="max-w-[1200px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
-          <div>
-            <h5 className="mb-4 text-[#E8E2D5] font-bold">About</h5>
-            <a href="#mission" className="block text-[#C4B8A0] mb-2">Our Mission</a>
-            <a href="#how-it-works" className="block text-[#C4B8A0] mb-2">How It Works</a>
-            <a href="#contact" className="block text-[#C4B8A0] mb-2">Contact Us</a>
+      {/* Footer — dev only until content is finalized */}
+      {process.env.NODE_ENV === "development" && (
+        <footer className="bg-[#3D3D3D] text-[#C4B8A0] px-6 md:px-12 pt-12 pb-8 mt-16">
+          <div className="max-w-[1200px] mx-auto grid grid-cols-2 md:grid-cols-4 gap-8">
+            <div>
+              <h5 className="mb-4 text-[#E8E2D5] font-bold">About</h5>
+              <a href="#mission" className="block text-[#C4B8A0] mb-2">Our Mission</a>
+              <a href="#how-it-works" className="block text-[#C4B8A0] mb-2">How It Works</a>
+              <a href="#contact" className="block text-[#C4B8A0] mb-2">Contact Us</a>
+            </div>
+            <div>
+              <h5 className="mb-4 text-[#E8E2D5] font-bold">Get Involved</h5>
+              <a href="#volunteer" className="block text-[#C4B8A0] mb-2">Volunteer</a>
+              <a href="#submit" className="block text-[#C4B8A0] mb-2">Submit a Resource</a>
+              <a href="#events" className="block text-[#C4B8A0] mb-2">Submit an Event</a>
+            </div>
+            <div>
+              <h5 className="mb-4 text-[#E8E2D5] font-bold">Resources</h5>
+              <a href="#help" className="block text-[#C4B8A0] mb-2">Find Help</a>
+              <a href="#businesses" className="block text-[#C4B8A0] mb-2">Local Businesses</a>
+              <a href="#calendar" className="block text-[#C4B8A0] mb-2">Event Calendar</a>
+            </div>
+            <div>
+              <h5 className="mb-4 text-[#E8E2D5] font-bold">Information</h5>
+              <a href="#privacy" className="block text-[#C4B8A0] mb-2">Privacy Policy</a>
+              <a href="#accessibility" className="block text-[#C4B8A0] mb-2">Accessibility</a>
+              <a href="#rights" className="block text-[#C4B8A0] mb-2">Know Your Rights</a>
+            </div>
           </div>
-          <div>
-            <h5 className="mb-4 text-[#E8E2D5] font-bold">Get Involved</h5>
-            <a href="#volunteer" className="block text-[#C4B8A0] mb-2">Volunteer</a>
-            <a href="#submit" className="block text-[#C4B8A0] mb-2">Submit a Resource</a>
-            <a href="#events" className="block text-[#C4B8A0] mb-2">Submit an Event</a>
+          <div className="text-center mt-8 pt-8 border-t border-[#5D5D5D] text-[#999]">
+            <p>&copy; 2026 MN Together &bull; A community resource for Minneapolis</p>
           </div>
-          <div>
-            <h5 className="mb-4 text-[#E8E2D5] font-bold">Resources</h5>
-            <a href="#help" className="block text-[#C4B8A0] mb-2">Find Help</a>
-            <a href="#businesses" className="block text-[#C4B8A0] mb-2">Local Businesses</a>
-            <a href="#calendar" className="block text-[#C4B8A0] mb-2">Event Calendar</a>
-          </div>
-          <div>
-            <h5 className="mb-4 text-[#E8E2D5] font-bold">Information</h5>
-            <a href="#privacy" className="block text-[#C4B8A0] mb-2">Privacy Policy</a>
-            <a href="#accessibility" className="block text-[#C4B8A0] mb-2">Accessibility</a>
-            <a href="#rights" className="block text-[#C4B8A0] mb-2">Know Your Rights</a>
-          </div>
-        </div>
-        <div className="text-center mt-8 pt-8 border-t border-[#5D5D5D] text-[#999]">
-          <p>&copy; 2026 MN Together &bull; A community resource for Minneapolis</p>
-        </div>
-      </footer>
+        </footer>
+      )}
 
       {/* Bottom Sheets */}
       <SubmitSheet isOpen={activeSheet === "submit"} onClose={() => setActiveSheet(null)} />

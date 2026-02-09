@@ -398,6 +398,20 @@ export default function PostDetailPage() {
                 </p>
               </div>
             )}
+            <div>
+              <span className="text-xs text-stone-500 uppercase">Submitted By</span>
+              <p className="text-sm font-medium text-stone-900">
+                {post.submitted_by?.submitter_type === "agent" && post.submitted_by.agent_id ? (
+                  <Link href={`/admin/agents/${post.submitted_by.agent_id}`} className="text-purple-600 hover:text-purple-800">
+                    {post.submitted_by.agent_name || "Agent"} (AI)
+                  </Link>
+                ) : post.submitted_by?.submitter_type === "member" ? (
+                  <span>Member</span>
+                ) : (
+                  <span className="text-stone-400">Unknown</span>
+                )}
+              </p>
+            </div>
           </div>
         </div>
 

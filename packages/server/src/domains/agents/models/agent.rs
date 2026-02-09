@@ -49,6 +49,14 @@ impl Agent {
             .map_err(Into::into)
     }
 
+    pub async fn find_by_member_id(member_id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>("SELECT * FROM agents WHERE member_id = $1")
+            .bind(member_id)
+            .fetch_optional(pool)
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM agents WHERE status = 'active' ORDER BY created_at DESC",
