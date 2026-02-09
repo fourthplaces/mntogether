@@ -15,7 +15,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::common::{ExtractedPost, ExtractedPostInformation};
+use crate::common::{ExtractedPost, ExtractedPostInformation, TagEntry};
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::kernel::{FetchPageTool, OpenAIExtractionService, ServerDeps, WebSearchTool};
 
@@ -513,7 +513,7 @@ pub async fn extract_posts_from_content(
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
-            tags: info.tags,
+            tags: TagEntry::to_map(&info.tags),
         });
     }
 
@@ -670,14 +670,29 @@ pub async fn extract_posts_from_pages(
     domain: &str,
     deps: &ServerDeps,
 ) -> Result<Vec<ExtractedPost>> {
+    // Build dynamic tag instructions from all post-applicable tag kinds
+    let tag_instructions = build_tag_instructions(&deps.db_pool)
+        .await
+        .unwrap_or_default();
+
+    extract_posts_from_pages_with_tags(pages, domain, &tag_instructions, deps).await
+}
+
+/// Extract posts from pages with custom tag instructions.
+///
+/// Use this when you have agent-specific required tag kinds instead of all tag kinds.
+/// Pass empty string for tag_instructions to skip tag extraction entirely.
+pub async fn extract_posts_from_pages_with_tags(
+    pages: &[CachedPage],
+    domain: &str,
+    tag_instructions: &str,
+    deps: &ServerDeps,
+) -> Result<Vec<ExtractedPost>> {
     if pages.is_empty() {
         return Ok(vec![]);
     }
 
-    // Build dynamic tag instructions once for all investigations
-    let tag_instructions = build_tag_instructions(&deps.db_pool)
-        .await
-        .unwrap_or_default();
+    let tag_instructions = tag_instructions.to_string();
 
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
@@ -802,7 +817,7 @@ pub async fn extract_posts_from_pages(
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
-            tags: info.tags,
+            tags: TagEntry::to_map(&info.tags),
         });
     }
 

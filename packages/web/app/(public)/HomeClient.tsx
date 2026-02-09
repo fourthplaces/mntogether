@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useRestate } from "@/lib/restate/client";
 import { PostListItem, PostListItemSkeleton } from "@/components/public/PostCard";
 import { SubmitSheet } from "@/components/public/SubmitSheet";
-import { ChatSheet } from "@/components/public/ChatSheet";
 import type {
   PublicListResult,
   PublicFiltersResult,
@@ -165,31 +164,19 @@ export function HomeClient() {
 
       {/* Floating Action Buttons */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-3 z-40">
-        {/* Search / Chat */}
-        <button
-          onClick={() => setActiveSheet("search")}
-          className="w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
-          aria-label="Search resources"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-        </button>
-
-        {/* Submit a Link */}
         <button
           onClick={() => setActiveSheet("submit")}
-          className="w-14 h-14 bg-gray-900 text-white rounded-full shadow-lg hover:bg-gray-800 transition-colors flex items-center justify-center"
-          aria-label="Submit a link"
+          className="px-5 py-3 bg-green-200 text-green-800 rounded-full shadow-lg hover:bg-green-300 transition-colors flex items-center gap-2 font-medium text-sm"
+          aria-label="Share a resource"
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
+          Share a Community Resource
         </button>
       </div>
 
       {/* Bottom Sheets */}
-      <ChatSheet isOpen={activeSheet === "search"} onClose={() => setActiveSheet(null)} />
       <SubmitSheet isOpen={activeSheet === "submit"} onClose={() => setActiveSheet(null)} />
     </div>
   );

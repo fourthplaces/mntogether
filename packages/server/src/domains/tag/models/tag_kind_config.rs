@@ -117,14 +117,43 @@ impl TagKindConfig {
 /// then loads all tag values for each kind to construct prompt instructions.
 pub async fn build_tag_instructions(pool: &PgPool) -> Result<String> {
     let kinds = TagKindConfig::find_for_resource_type("post", pool).await?;
+    build_tag_instructions_from_kinds(&kinds, pool).await
+}
 
+/// Build tag instructions for specific tag kind IDs (e.g., agent's required kinds).
+///
+/// Only builds instructions for the given tag kind IDs. Returns empty string
+/// if none of the IDs resolve or have tags.
+pub async fn build_tag_instructions_for_kinds(
+    tag_kind_ids: &[Uuid],
+    pool: &PgPool,
+) -> Result<String> {
+    if tag_kind_ids.is_empty() {
+        return Ok(String::new());
+    }
+
+    let mut kinds = Vec::new();
+    for id in tag_kind_ids {
+        if let Ok(kind) = TagKindConfig::find_by_id(*id, pool).await {
+            kinds.push(kind);
+        }
+    }
+
+    build_tag_instructions_from_kinds(&kinds, pool).await
+}
+
+/// Build tag instructions from a list of TagKindConfig entries.
+async fn build_tag_instructions_from_kinds(
+    kinds: &[TagKindConfig],
+    pool: &PgPool,
+) -> Result<String> {
     if kinds.is_empty() {
         return Ok(String::new());
     }
 
     let mut lines = Vec::new();
 
-    for kind in &kinds {
+    for kind in kinds {
         // Skip audience_role since it's handled separately
         if kind.slug == "audience_role" {
             continue;

@@ -65,7 +65,7 @@ impl ExtractedPost {
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
-            tags: info.tags,
+            tags: TagEntry::to_map(&info.tags),
         }
     }
 }
@@ -111,6 +111,28 @@ impl ExtractedPostWithSource {
     }
 }
 
+/// A single tag classification entry for OpenAI structured output.
+///
+/// Uses a Vec of these instead of HashMap to be compatible with OpenAI strict mode
+/// (which requires all object schemas to have named properties, not dynamic keys).
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct TagEntry {
+    /// Tag kind slug (e.g., "post_type", "population", "service_offered")
+    pub kind: String,
+    /// Tag values for this kind (e.g., ["service", "event"])
+    pub values: Vec<String>,
+}
+
+impl TagEntry {
+    /// Convert a Vec<TagEntry> to HashMap<String, Vec<String>> for downstream use.
+    pub fn to_map(entries: &[TagEntry]) -> HashMap<String, Vec<String>> {
+        entries
+            .iter()
+            .map(|e| (e.kind.clone(), e.values.clone()))
+            .collect()
+    }
+}
+
 /// Information extracted/investigated for a post.
 ///
 /// This is the output of the agentic investigation step (Pass 2).
@@ -128,8 +150,10 @@ pub struct ExtractedPostInformation {
     pub city: Option<String>,
     #[serde(default)]
     pub state: Option<String>,
+    /// Tag classifications from AI extraction.
+    /// Empty array when no tag kinds are configured.
     #[serde(default)]
-    pub tags: HashMap<String, Vec<String>>,
+    pub tags: Vec<TagEntry>,
 }
 
 impl Default for ExtractedPostInformation {
@@ -143,7 +167,7 @@ impl Default for ExtractedPostInformation {
             zip_code: None,
             city: None,
             state: None,
-            tags: HashMap::new(),
+            tags: Vec::new(),
         }
     }
 }

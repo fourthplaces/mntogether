@@ -237,6 +237,7 @@ export interface AgentWebsiteResponse {
   website_id: string;
   domain: string | null;
   discovered_at: string;
+  post_count: number;
 }
 
 export interface RunStatResponse {
@@ -266,6 +267,7 @@ export interface AgentDetailResponse {
   filter_rules: FilterRuleResponse[];
   required_tag_kinds: AgentTagKindResponse[];
   websites: AgentWebsiteResponse[];
+  posts_count: number;
 }
 
 // --- Sync ---

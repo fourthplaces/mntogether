@@ -50,7 +50,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
 
       {/* Panel */}
       <div
-        className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl max-h-[90vh] flex flex-col transition-transform duration-300 ease-out ${
+        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-white rounded-t-2xl max-h-[90vh] flex flex-col transition-transform duration-300 ease-out ${
           visible ? "translate-y-0" : "translate-y-full"
         }`}
         onTransitionEnd={handleTransitionEnd}

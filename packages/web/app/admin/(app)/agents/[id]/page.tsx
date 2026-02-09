@@ -216,6 +216,9 @@ export default function AgentDetailPage() {
                 {tab.key === "websites" &&
                   data.websites.length > 0 &&
                   ` (${data.websites.length})`}
+                {tab.key === "posts" &&
+                  data.posts_count > 0 &&
+                  ` (${data.posts_count})`}
               </button>
             ))}
           </div>
@@ -1140,6 +1143,9 @@ function WebsitesTab({
                 Domain
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
+                Posts
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                 Discovered
               </th>
             </tr>
@@ -1153,6 +1159,9 @@ function WebsitesTab({
               >
                 <td className="px-6 py-3 whitespace-nowrap font-medium text-stone-900">
                   {w.domain || w.website_id}
+                </td>
+                <td className="px-6 py-3 whitespace-nowrap text-sm text-stone-600">
+                  {w.post_count}
                 </td>
                 <td className="px-6 py-3 whitespace-nowrap text-sm text-stone-500">
                   {new Date(w.discovered_at).toLocaleDateString()}
