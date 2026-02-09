@@ -601,15 +601,11 @@ async fn stage_sync_operations(
                         None
                     };
 
-                    let mut merge_source_ids = Vec::new();
-                    for dup_id in &duplicate_ids {
-                        match Uuid::parse_str(dup_id) {
-                            Ok(uuid) => merge_source_ids.push(uuid),
-                            Err(e) => {
-                                errors.push(format!("Invalid duplicate UUID {}: {}", dup_id, e));
-                            }
-                        }
-                    }
+                    let merge_source_ids: Vec<Uuid> = duplicate_ids
+                        .iter()
+                        .filter(|id| id.as_str() != canonical_id)
+                        .filter_map(|id| Uuid::parse_str(id).ok())
+                        .collect();
 
                     if merge_source_ids.is_empty() {
                         tracing::warn!(
