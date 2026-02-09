@@ -112,7 +112,7 @@ async fn approve_merge(
         info!(revision_id = %revision_id, canonical_id = %canonical_id, "Applied merged content revision");
     }
 
-    // Soft-delete all merge sources
+    // Soft-delete all merge sources (never the canonical)
     let reason = proposal
         .reason
         .as_deref()
@@ -120,6 +120,9 @@ async fn approve_merge(
 
     for source in merge_sources {
         let source_post_id = PostId::from(source.source_entity_id);
+        if source.source_entity_id == canonical_id {
+            continue;
+        }
         Post::soft_delete(source_post_id, reason, pool).await?;
         info!(source_id = %source.source_entity_id, canonical_id = %canonical_id, "Soft-deleted merge source");
     }
