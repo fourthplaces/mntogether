@@ -9,7 +9,7 @@ use serde::Deserialize;
 
 use crate::common::extraction_types::ContactInfo;
 use crate::common::pii::{DetectionContext, RedactionStrategy};
-use crate::common::{ExtractedPost, ExtractedPostWithSource, TagEntry};
+use crate::common::{ExtractedPost, ExtractedPostWithSource, ExtractedSchedule, TagEntry};
 use crate::kernel::{BasePiiDetector, CompletionExt};
 use std::collections::HashMap;
 
@@ -36,6 +36,8 @@ struct LlmExtractedPost {
     /// Tag classifications using structured entries (not HashMap)
     #[serde(default)]
     tags: Vec<TagEntry>,
+    #[serde(default)]
+    schedule: Vec<ExtractedSchedule>,
 }
 
 impl LlmExtractedPost {
@@ -49,6 +51,7 @@ impl LlmExtractedPost {
             confidence: self.confidence,
             audience_roles: self.audience_roles,
             tags: TagEntry::to_map(&self.tags),
+            schedule: self.schedule,
             location: None,
             source_page_snapshot_id: None,
             source_url: None,
@@ -80,6 +83,8 @@ struct LlmExtractedPostWithSource {
     audience_roles: Vec<String>,
     #[serde(default)]
     tags: Vec<TagEntry>,
+    #[serde(default)]
+    schedule: Vec<ExtractedSchedule>,
 }
 
 impl LlmExtractedPostWithSource {
@@ -95,6 +100,7 @@ impl LlmExtractedPostWithSource {
             confidence: self.confidence,
             audience_roles: self.audience_roles,
             tags: TagEntry::to_map(&self.tags),
+            schedule: self.schedule,
         }
     }
 }

@@ -4,16 +4,18 @@
 //! (contact info, audience role tags, page source links).
 
 use anyhow::Result;
+use chrono::{NaiveDate, NaiveTime, Utc};
 use sqlx::PgPool;
 use std::collections::HashMap;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::common::{ContactInfo, ExtractedPost, PostId, WebsiteId};
+use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, PostId, WebsiteId};
 use crate::domains::locations::models::Location;
 use crate::domains::posts::models::PostLocation;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post};
+use crate::domains::schedules::models::Schedule;
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -83,6 +85,11 @@ pub async fn create_extracted_post(
     // Create structured location if zip/city/state available
     if post.zip_code.is_some() || post.city.is_some() {
         create_post_location(&created, post, pool).await;
+    }
+
+    // Save schedule entries
+    for sched in &post.schedule {
+        save_schedule(created.id, sched, pool).await;
     }
 
     // Link post to source page snapshot
@@ -203,6 +210,184 @@ pub async fn tag_post_from_extracted(
                     warn!(kind = %kind, value = %normalized, error = %e, "Tag lookup failed");
                 }
             }
+        }
+    }
+}
+
+/// Parse day_of_week string to i32 (0=Sunday, 1=Monday, ..., 6=Saturday)
+fn parse_day_of_week(s: &str) -> Option<i32> {
+    match s.to_lowercase().as_str() {
+        "sunday" => Some(0),
+        "monday" => Some(1),
+        "tuesday" => Some(2),
+        "wednesday" => Some(3),
+        "thursday" => Some(4),
+        "friday" => Some(5),
+        "saturday" => Some(6),
+        _ => {
+            warn!(day = %s, "Invalid day_of_week from LLM");
+            None
+        }
+    }
+}
+
+/// Convert day_of_week integer to RRULE day abbreviation
+fn day_abbr(day: i32) -> &'static str {
+    match day {
+        0 => "SU",
+        1 => "MO",
+        2 => "TU",
+        3 => "WE",
+        4 => "TH",
+        5 => "FR",
+        6 => "SA",
+        _ => "MO",
+    }
+}
+
+/// Parse time string to NaiveTime
+fn parse_time(s: &str) -> Option<NaiveTime> {
+    NaiveTime::parse_from_str(s, "%H:%M")
+        .or_else(|_| NaiveTime::parse_from_str(s, "%k:%M"))
+        .ok()
+        .or_else(|| {
+            warn!(time = %s, "Invalid time from LLM");
+            None
+        })
+}
+
+/// Parse date string to NaiveDate
+fn parse_date(s: &str) -> Option<NaiveDate> {
+    NaiveDate::parse_from_str(s, "%Y-%m-%d").ok().or_else(|| {
+        warn!(date = %s, "Invalid date from LLM");
+        None
+    })
+}
+
+/// Replace all schedules for a post with fresh extraction data.
+///
+/// Deletes existing schedules and saves new ones. Used when updating/regenerating
+/// an existing post with fresh extraction that includes schedule data.
+pub async fn sync_schedules_for_post(post_id: PostId, schedules: &[ExtractedSchedule], pool: &PgPool) {
+    if schedules.is_empty() {
+        return;
+    }
+    // Clear existing schedules for this post before saving new ones
+    if let Err(e) = Schedule::delete_all_for_entity("post", post_id.into_uuid(), pool).await {
+        warn!(post_id = %post_id, error = %e, "Failed to clear existing schedules");
+    }
+    for sched in schedules {
+        save_schedule(post_id, sched, pool).await;
+    }
+}
+
+/// Save a single extracted schedule entry for a post.
+async fn save_schedule(post_id: PostId, sched: &ExtractedSchedule, pool: &PgPool) {
+    let tz = "America/Chicago";
+    let notes = sched.notes.as_deref();
+    let post_uuid = post_id.into_uuid();
+
+    let result = match sched.frequency.as_str() {
+        "weekly" => {
+            let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
+                warn!(frequency = "weekly", "Missing or invalid day_of_week for weekly schedule, skipping");
+                return;
+            };
+            let opens = sched.start_time.as_deref().and_then(parse_time);
+            let closes = sched.end_time.as_deref().and_then(parse_time);
+
+            Schedule::create_operating_hours("post", post_uuid, day, opens, closes, tz, notes, pool).await
+        }
+        "biweekly" => {
+            let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
+                warn!(frequency = "biweekly", "Missing or invalid day_of_week, skipping");
+                return;
+            };
+            let opens = sched.start_time.as_deref().and_then(parse_time);
+            let closes = sched.end_time.as_deref().and_then(parse_time);
+            let rrule = format!("FREQ=WEEKLY;INTERVAL=2;BYDAY={}", day_abbr(day));
+            let duration = match (opens, closes) {
+                (Some(o), Some(c)) => {
+                    let diff = c.signed_duration_since(o);
+                    Some(diff.num_minutes() as i32)
+                }
+                _ => None,
+            };
+
+            Schedule::create_recurring(
+                "post", post_uuid, Utc::now(), &rrule, duration,
+                opens, closes, Some(day), tz, notes, pool,
+            ).await
+        }
+        "monthly" => {
+            let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
+                warn!(frequency = "monthly", "Missing or invalid day_of_week, skipping");
+                return;
+            };
+            let opens = sched.start_time.as_deref().and_then(parse_time);
+            let closes = sched.end_time.as_deref().and_then(parse_time);
+            let rrule = format!("FREQ=MONTHLY;BYDAY=1{}", day_abbr(day));
+            let duration = match (opens, closes) {
+                (Some(o), Some(c)) => {
+                    let diff = c.signed_duration_since(o);
+                    Some(diff.num_minutes() as i32)
+                }
+                _ => None,
+            };
+
+            Schedule::create_recurring(
+                "post", post_uuid, Utc::now(), &rrule, duration,
+                opens, closes, Some(day), tz, notes, pool,
+            ).await
+        }
+        "one_time" => {
+            let Some(date) = sched.date.as_deref().and_then(parse_date) else {
+                warn!(frequency = "one_time", "Missing or invalid date for one-off event, skipping");
+                return;
+            };
+            let start_time = sched.start_time.as_deref().and_then(parse_time)
+                .unwrap_or_else(|| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
+            let end_time = sched.end_time.as_deref().and_then(parse_time)
+                .unwrap_or_else(|| NaiveTime::from_hms_opt(23, 59, 0).unwrap());
+            let is_all_day = sched.start_time.is_none() && sched.end_time.is_none();
+
+            let dtstart = date.and_time(start_time).and_utc();
+            let dtend = date.and_time(end_time).and_utc();
+
+            Schedule::create_one_off("post", post_uuid, dtstart, dtend, is_all_day, tz, notes, pool).await
+        }
+        other => {
+            // Default to weekly if frequency is unknown but we have a day
+            if let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) {
+                let opens = sched.start_time.as_deref().and_then(parse_time);
+                let closes = sched.end_time.as_deref().and_then(parse_time);
+                warn!(frequency = %other, "Unknown frequency from LLM, defaulting to weekly");
+                Schedule::create_operating_hours("post", post_uuid, day, opens, closes, tz, notes, pool).await
+            } else {
+                warn!(frequency = %other, "Unknown frequency and no day_of_week, skipping");
+                return;
+            }
+        }
+    };
+
+    match result {
+        Ok(created) => {
+            // Validate the generated rrule if present
+            if let Some(ref rrule_str) = created.rrule {
+                let test = format!("DTSTART:20260101T000000Z\nRRULE:{}", rrule_str);
+                if test.parse::<rrule::RRuleSet>().is_err() {
+                    warn!(rrule = %rrule_str, post_id = %post_id, "Generated rrule failed to parse, deleting schedule");
+                    let _ = Schedule::delete(created.id, pool).await;
+                }
+            }
+        }
+        Err(e) => {
+            warn!(
+                post_id = %post_id,
+                frequency = %sched.frequency,
+                error = %e,
+                "Failed to save schedule"
+            );
         }
     }
 }

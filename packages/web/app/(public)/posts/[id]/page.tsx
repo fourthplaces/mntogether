@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useRestateObject, callObject } from "@/lib/restate/client";
 import { useEffect } from "react";
-import type { PostResult, TagResult } from "@/lib/restate/types";
+import type { PostResult, TagResult, PostScheduleResult } from "@/lib/restate/types";
 import CommentsSection from "@/components/public/CommentsSection";
 
 function getPostTagStyle(postType: string): {
@@ -32,6 +32,41 @@ function formatCategory(value: string): string {
     .split("-")
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(" ");
+}
+
+const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function formatTime12h(time24: string): string {
+  const [h, m] = time24.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
+}
+
+function formatSchedule(s: PostScheduleResult): string {
+  // One-off event: has dtstart, no day_of_week
+  if (s.dtstart && s.day_of_week == null) {
+    const date = new Date(s.dtstart);
+    const dateStr = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+    const timeStr = s.opens_at && s.closes_at
+      ? `${formatTime12h(s.opens_at)} – ${formatTime12h(s.closes_at)}`
+      : s.opens_at ? formatTime12h(s.opens_at) : "";
+    const parts = [dateStr, timeStr].filter(Boolean).join("  ");
+    return s.notes ? `${parts} (${s.notes})` : parts;
+  }
+
+  // Recurring: has day_of_week
+  const dayName = s.day_of_week != null ? DAY_NAMES[s.day_of_week] : "";
+  const timeStr = s.opens_at && s.closes_at
+    ? `${formatTime12h(s.opens_at)} – ${formatTime12h(s.closes_at)}`
+    : s.opens_at ? formatTime12h(s.opens_at) : "";
+
+  let suffix = "";
+  if (s.rrule?.includes("INTERVAL=2")) suffix = " (every other week)";
+  if (s.rrule?.includes("FREQ=MONTHLY")) suffix = " (monthly)";
+  if (s.notes) suffix = ` (${s.notes})`;
+
+  return [dayName, timeStr, suffix].filter(Boolean).join("  ");
 }
 
 function formatTimeAgo(dateString: string) {
@@ -225,6 +260,23 @@ export default function PublicPostDetailPage() {
               {post.description_markdown || post.description || ""}
             </ReactMarkdown>
           </div>
+
+          {/* Schedule */}
+          {post.schedules && post.schedules.length > 0 && (
+            <div className="border-t border-[#E8DED2] pt-6 mb-6">
+              <h3 className="text-sm font-semibold text-[#7D7D7D] uppercase tracking-wide mb-3">Schedule</h3>
+              <div className="space-y-2">
+                {post.schedules.map((s: PostScheduleResult) => (
+                  <div key={s.id} className="flex items-start gap-2 text-[#4D4D4D]">
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6D3F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm">{formatSchedule(s)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Source link CTA */}
           {post.source_url && (

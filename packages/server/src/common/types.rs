@@ -11,6 +11,28 @@ use uuid::Uuid;
 // Import unified ContactInfo from extraction_types
 use super::extraction_types::ContactInfo;
 
+/// A schedule entry extracted from text by AI
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ExtractedSchedule {
+    /// "weekly", "biweekly", "monthly", "one_time"
+    pub frequency: String,
+    /// Day of week: "monday", "tuesday", etc. For recurring schedules.
+    #[serde(default)]
+    pub day_of_week: Option<String>,
+    /// Start time in "HH:MM" 24h format (e.g., "17:00")
+    #[serde(default)]
+    pub start_time: Option<String>,
+    /// End time in "HH:MM" 24h format (e.g., "19:00")
+    #[serde(default)]
+    pub end_time: Option<String>,
+    /// Specific date for one-off events: "2026-03-15"
+    #[serde(default)]
+    pub date: Option<String>,
+    /// Freeform notes like "By appointment only", "1st and 3rd week only"
+    #[serde(default)]
+    pub notes: Option<String>,
+}
+
 /// A listing extracted from a website by AI
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedPost {
@@ -43,6 +65,9 @@ pub struct ExtractedPost {
     /// e.g., {"post_type": ["service"], "population": ["refugees", "seniors"]}
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+    /// Extracted schedule entries (day/time/frequency)
+    #[serde(default)]
+    pub schedule: Vec<ExtractedSchedule>,
 }
 
 impl ExtractedPost {
@@ -86,6 +111,7 @@ impl ExtractedPost {
             city: info.city,
             state: info.state,
             tags: TagEntry::to_map(&info.tags),
+            schedule: info.schedule,
         }
     }
 }
@@ -107,6 +133,8 @@ pub struct ExtractedPostWithSource {
     pub audience_roles: Vec<String>,
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub schedule: Vec<ExtractedSchedule>,
 }
 
 impl ExtractedPostWithSource {
@@ -127,6 +155,7 @@ impl ExtractedPostWithSource {
             city: None,
             state: None,
             tags: self.tags,
+            schedule: self.schedule,
         }
     }
 }
@@ -174,6 +203,9 @@ pub struct ExtractedPostInformation {
     /// Empty array when no tag kinds are configured.
     #[serde(default)]
     pub tags: Vec<TagEntry>,
+    /// Extracted schedule entries (day/time/frequency)
+    #[serde(default)]
+    pub schedule: Vec<ExtractedSchedule>,
 }
 
 impl Default for ExtractedPostInformation {
@@ -188,6 +220,7 @@ impl Default for ExtractedPostInformation {
             city: None,
             state: None,
             tags: Vec::new(),
+            schedule: Vec::new(),
         }
     }
 }

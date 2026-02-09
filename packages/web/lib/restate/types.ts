@@ -52,6 +52,20 @@ export interface SubmittedByInfo {
   agent_name: string | null;
 }
 
+export interface PostScheduleResult {
+  id: string;
+  day_of_week: number | null;
+  opens_at: string | null;
+  closes_at: string | null;
+  timezone: string;
+  notes: string | null;
+  rrule: string | null;
+  dtstart: string | null;
+  dtend: string | null;
+  is_all_day: boolean;
+  duration_minutes: number | null;
+}
+
 export interface PostResult {
   id: string;
   title: string;
@@ -70,6 +84,7 @@ export interface PostResult {
   updated_at: string;
   tags?: TagResult[];
   submitted_by?: SubmittedByInfo;
+  schedules?: PostScheduleResult[];
 }
 
 export interface PostList {

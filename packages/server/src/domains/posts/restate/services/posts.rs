@@ -481,6 +481,7 @@ impl PostsService for PostsServiceImpl {
                         updated_at: e.node.created_at.to_rfc3339(),
                         tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
                         submitted_by: None,
+                        schedules: None,
                     }
                 })
                 .collect(),
@@ -532,6 +533,7 @@ impl PostsService for PostsServiceImpl {
                         updated_at: pwd.created_at.to_rfc3339(),
                         tags: None,
                         submitted_by: None,
+                        schedules: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })

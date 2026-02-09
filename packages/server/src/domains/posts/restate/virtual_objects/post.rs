@@ -204,6 +204,8 @@ pub struct PostResult {
     pub tags: Option<Vec<PostTagResult>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub submitted_by: Option<SubmittedByInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedules: Option<Vec<PostScheduleResult>>,
 }
 
 impl_restate_serde!(PostResult);
@@ -228,6 +230,7 @@ impl From<Post> for PostResult {
             updated_at: p.updated_at.to_rfc3339(),
             tags: None,
             submitted_by: None,
+            schedules: None,
         }
     }
 }
@@ -240,6 +243,21 @@ pub struct ScheduleResult {
 }
 
 impl_restate_serde!(ScheduleResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostScheduleResult {
+    pub id: Uuid,
+    pub day_of_week: Option<i32>,
+    pub opens_at: Option<String>,
+    pub closes_at: Option<String>,
+    pub timezone: String,
+    pub notes: Option<String>,
+    pub rrule: Option<String>,
+    pub dtstart: Option<String>,
+    pub dtend: Option<String>,
+    pub is_all_day: bool,
+    pub duration_minutes: Option<i32>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportResult {
@@ -842,6 +860,12 @@ impl PostObject for PostObjectImpl {
             None
         };
 
+        // Load schedules
+        use crate::domains::schedules::models::Schedule as ScheduleModel;
+        let schedules = ScheduleModel::find_for_post(post_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
         let mut result = PostResult::from(post);
         result.submitted_by = submitted_by;
         result.tags = Some(
@@ -855,6 +879,28 @@ impl PostObject for PostObjectImpl {
                 })
                 .collect(),
         );
+        result.schedules = if schedules.is_empty() {
+            None
+        } else {
+            Some(
+                schedules
+                    .into_iter()
+                    .map(|s| PostScheduleResult {
+                        id: s.id.into_uuid(),
+                        day_of_week: s.day_of_week,
+                        opens_at: s.opens_at.map(|t| t.format("%H:%M").to_string()),
+                        closes_at: s.closes_at.map(|t| t.format("%H:%M").to_string()),
+                        timezone: s.timezone,
+                        notes: s.notes,
+                        rrule: s.rrule,
+                        dtstart: s.dtstart.map(|dt| dt.to_rfc3339()),
+                        dtend: s.dtend.map(|dt| dt.to_rfc3339()),
+                        is_all_day: s.is_all_day,
+                        duration_minutes: s.duration_minutes,
+                    })
+                    .collect(),
+            )
+        };
         Ok(result)
     }
 
