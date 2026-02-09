@@ -3,18 +3,8 @@ import type { NextRequest } from "next/server";
 
 const AUTH_COOKIE_NAME = "auth_token";
 
-// Routes that require authentication
-const protectedRoutes = [
-  "/admin/dashboard",
-  "/admin/posts",
-  "/admin/websites",
-  "/admin/extraction",
-  "/admin/resources",
-  "/admin/organizations",
-];
-
-// Routes that should redirect authenticated users (e.g., login page)
-const authRoutes = ["/admin/login"];
+// Routes within /admin that do NOT require authentication
+const publicAdminRoutes = ["/admin/login"];
 
 /**
  * Decode JWT payload and check if expired.
@@ -42,18 +32,14 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL("/admin/dashboard", request.url));
   }
 
-  // Check if the current path starts with any protected route
-  const isProtectedRoute = protectedRoutes.some(
+  // All /admin/* routes require auth EXCEPT publicAdminRoutes
+  const isAdminRoute = pathname.startsWith("/admin");
+  const isPublicAdminRoute = publicAdminRoutes.some(
     (route) => pathname === route || pathname.startsWith(`${route}/`)
   );
 
-  // Check if the current path is an auth route (login)
-  const isAuthRoute = authRoutes.some(
-    (route) => pathname === route || pathname.startsWith(`${route}/`)
-  );
-
-  // Redirect unauthenticated or expired users from protected routes to login
-  if (isProtectedRoute && !isAuthenticated) {
+  // Redirect unauthenticated or expired users from protected admin routes to login
+  if (isAdminRoute && !isPublicAdminRoute && !isAuthenticated) {
     const response = NextResponse.redirect(
       new URL(`/admin/login?redirect=${pathname}`, request.url)
     );
@@ -64,8 +50,8 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  // Redirect authenticated users from auth routes to dashboard
-  if (isAuthRoute && isAuthenticated) {
+  // Redirect authenticated users from login page to dashboard
+  if (isPublicAdminRoute && isAuthenticated) {
     const redirectUrl = request.nextUrl.searchParams.get("redirect");
     const destination = redirectUrl || "/admin/dashboard";
     return NextResponse.redirect(new URL(destination, request.url));

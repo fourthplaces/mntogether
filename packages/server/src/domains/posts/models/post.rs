@@ -19,7 +19,7 @@ pub struct Post {
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
 
     // Hot path fields (hybrid approach)
     pub post_type: String, // 'service', 'opportunity', 'business'
@@ -87,7 +87,7 @@ pub struct PostWithDistance {
     pub title: String,
     pub description: String,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub post_type: String,
     pub category: String,
     pub status: String,
@@ -108,7 +108,7 @@ pub struct PostSearchResultWithLocation {
     pub post_id: PostId,
     pub title: String,
     pub description: String,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub category: String,
     pub post_type: String,
     pub location: Option<String>,
@@ -274,7 +274,7 @@ pub struct CreatePost {
 
     // Optional fields - have defaults
     #[builder(default)]
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     #[builder(default = "opportunity".to_string())]
     pub post_type: String,
     #[builder(default = "general".to_string())]
@@ -315,7 +315,7 @@ pub struct UpdatePostContent {
     #[builder(default)]
     pub description_markdown: Option<String>,
     #[builder(default)]
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     #[builder(default)]
     pub category: Option<String>,
     #[builder(default)]
@@ -652,7 +652,7 @@ impl Post {
             INSERT INTO posts (
                 title,
                 description,
-                tldr,
+                summary,
                 post_type,
                 category,
                 capacity_status,
@@ -672,7 +672,7 @@ impl Post {
         )
         .bind(input.title)
         .bind(input.description)
-        .bind(input.tldr)
+        .bind(input.summary)
         .bind(input.post_type)
         .bind(input.category)
         .bind(input.capacity_status)
@@ -739,7 +739,7 @@ impl Post {
                 title = COALESCE($2, title),
                 description = COALESCE($3, description),
                 description_markdown = COALESCE($4, description_markdown),
-                tldr = COALESCE($5, tldr),
+                summary = COALESCE($5, summary),
                 category = COALESCE($6, category),
                 urgency = COALESCE($7, urgency),
                 location = COALESCE($8, location),
@@ -752,7 +752,7 @@ impl Post {
         .bind(input.title)
         .bind(input.description)
         .bind(input.description_markdown)
-        .bind(input.tldr)
+        .bind(input.summary)
         .bind(input.category)
         .bind(input.urgency)
         .bind(input.location)
@@ -1044,7 +1044,7 @@ impl Post {
                 p.id as post_id,
                 p.title,
                 p.description,
-                p.tldr,
+                p.summary,
                 p.category,
                 p.post_type,
                 p.location,
@@ -1092,14 +1092,14 @@ impl Post {
     }
 
     /// Get text for embedding generation
-    /// Combines title, description, tldr, category, post_type, and location
+    /// Combines title, description, summary, category, post_type, and location
     pub fn get_embedding_text(&self) -> String {
         let mut parts = vec![self.title.clone()];
 
         parts.push(self.description.clone());
 
-        if let Some(ref tldr) = self.tldr {
-            parts.push(tldr.clone());
+        if let Some(ref summary) = self.summary {
+            parts.push(summary.clone());
         }
 
         parts.push(format!("Category: {}", self.category));
@@ -1145,7 +1145,7 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT p.id, p.title, p.description,
-                   p.description_markdown, p.tldr,
+                   p.description_markdown, p.summary,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
                    p.website_id, p.created_at,
@@ -1227,7 +1227,7 @@ impl Post {
                 .title(Some(revision.title))
                 .description(Some(revision.description))
                 .description_markdown(revision.description_markdown)
-                .tldr(revision.tldr)
+                .summary(revision.summary)
                 .category(Some(revision.category))
                 .urgency(revision.urgency)
                 .location(revision.location)
@@ -1330,7 +1330,7 @@ impl Post {
             CreatePost::builder()
                 .title(source.title.clone())
                 .description(source.description.clone())
-                .tldr(source.tldr.clone())
+                .summary(source.summary.clone())
                 .post_type(source.post_type.clone())
                 .category(source.category.clone())
                 .urgency(source.urgency.clone())

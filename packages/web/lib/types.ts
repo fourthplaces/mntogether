@@ -82,7 +82,7 @@ export type Urgency = "urgent" | "high" | "medium" | "low";
 export interface Post {
   id: string;
   title: string;
-  tldr?: string;
+  summary?: string;
   description: string;
   descriptionMarkdown?: string;
   postType?: PostType;
@@ -339,7 +339,7 @@ export interface SubmitResourceLinkInput {
 export interface EditPostInput {
   title?: string;
   description?: string;
-  tldr?: string;
+  summary?: string;
   location?: string;
   category?: string;
   urgency?: Urgency;

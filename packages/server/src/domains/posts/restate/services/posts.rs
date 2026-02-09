@@ -299,7 +299,7 @@ impl_restate_serde!(ScheduleListResult);
 pub struct PublicPostResult {
     pub id: Uuid,
     pub title: String,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub description: String,
     pub location: Option<String>,
     pub source_url: Option<String>,
@@ -468,7 +468,7 @@ impl PostsService for PostsServiceImpl {
                         title: e.node.title,
                         description: e.node.description,
                         description_markdown: e.node.description_markdown,
-                        tldr: e.node.tldr,
+                        summary: e.node.summary,
                         status: format!("{:?}", e.node.status),
                         post_type: e.node.post_type,
                         category: e.node.category,
@@ -482,6 +482,7 @@ impl PostsService for PostsServiceImpl {
                         tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
                         submitted_by: None,
                         schedules: None,
+                        contacts: None,
                     }
                 })
                 .collect(),
@@ -520,7 +521,7 @@ impl PostsService for PostsServiceImpl {
                         title: pwd.title,
                         description: pwd.description,
                         description_markdown: pwd.description_markdown,
-                        tldr: pwd.tldr,
+                        summary: pwd.summary,
                         status: pwd.status,
                         post_type: pwd.post_type,
                         category: pwd.category,
@@ -534,6 +535,7 @@ impl PostsService for PostsServiceImpl {
                         tags: None,
                         submitted_by: None,
                         schedules: None,
+                        contacts: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -889,7 +891,7 @@ impl PostsService for PostsServiceImpl {
                     PublicPostResult {
                         id,
                         title: p.title,
-                        tldr: p.tldr,
+                        summary: p.summary,
                         description: p.description,
                         location: p.location,
                         source_url: p.source_url,

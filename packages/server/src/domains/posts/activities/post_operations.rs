@@ -10,7 +10,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
 use crate::common::{MemberId, PostId, WebsiteId};
-use crate::common::utils::generate_tldr;
+use crate::common::utils::generate_summary;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 
@@ -26,7 +26,7 @@ pub struct UpdateAndApprovePost {
     #[builder(default)]
     pub description_markdown: Option<String>,
     #[builder(default)]
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     #[builder(default)]
     pub contact_info: Option<JsonValue>,
     #[builder(default)]
@@ -35,7 +35,7 @@ pub struct UpdateAndApprovePost {
     pub location: Option<String>,
 }
 
-/// Create a new listing with generated content hash and TLDR
+/// Create a new listing with generated content hash and summary
 pub async fn create_post(
     member_id: Option<MemberId>,
     title: String,
@@ -54,12 +54,12 @@ pub async fn create_post(
         tracing::info!(ip_address = %ip, "Listing submitted from IP");
     }
 
-    // Generate TLDR using AI
-    let tldr = super::post_extraction::generate_summary(ai, &description)
+    // Generate summary using AI
+    let summary = super::post_extraction::generate_summary(ai, &description)
         .await
         .unwrap_or_else(|_| {
             // Fallback to truncation if AI fails
-            generate_tldr(&description, 100)
+            generate_summary(&description, 250)
         });
 
     // Create listing using model method
@@ -67,7 +67,7 @@ pub async fn create_post(
         CreatePost::builder()
             .title(title)
             .description(description)
-            .tldr(Some(tldr))
+            .summary(Some(summary))
             .capacity_status(Some("accepting".to_string()))
             .urgency(urgency)
             .location(location)
@@ -112,7 +112,7 @@ pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool)
             .title(input.title)
             .description(input.description)
             .description_markdown(input.description_markdown)
-            .tldr(input.tldr)
+            .summary(input.summary)
             .urgency(input.urgency)
             .location(input.location)
             .build(),

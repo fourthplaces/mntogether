@@ -158,9 +158,9 @@ export function PostCard({ post }: PostCardProps) {
         )}
       </div>
 
-      {/* TLDR / Description */}
-      {post.tldr ? (
-        <p className="text-gray-700 text-sm mb-4 line-clamp-3 flex-grow">{post.tldr}</p>
+      {/* Summary / Description */}
+      {post.summary ? (
+        <p className="text-gray-700 text-sm mb-4 line-clamp-3 flex-grow">{post.summary}</p>
       ) : (
         <p className="text-gray-700 text-sm mb-4 line-clamp-3 flex-grow">{post.description}</p>
       )}
@@ -224,9 +224,9 @@ export function PostListItem({ post }: PostListItemProps) {
           {post.title}
         </h3>
 
-        {/* TLDR / Description */}
+        {/* Summary / Description */}
         <p className="text-sm text-gray-500 mt-0.5 line-clamp-1">
-          {post.tldr || post.description}
+          {post.summary || post.description}
         </p>
 
         {/* Tags row */}

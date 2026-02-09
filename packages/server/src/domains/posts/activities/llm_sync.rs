@@ -30,7 +30,7 @@ pub struct FreshPost {
     /// Temporary ID for LLM to reference (e.g., "fresh_1", "fresh_2")
     pub temp_id: String,
     pub title: String,
-    pub tldr: String,
+    pub summary: String,
     pub description: String,
     /// Primary audience roles: "recipient", "volunteer", "donor", etc.
     pub audience_roles: Vec<String>,
@@ -47,7 +47,7 @@ pub struct FreshPost {
 pub struct ExistingPost {
     pub id: String,
     pub title: String,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub description: String,
     pub status: String,
     pub location: Option<String>,
@@ -107,7 +107,7 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
         .map(|(i, p)| FreshPost {
             temp_id: format!("fresh_{}", i + 1),
             title: p.title.clone(),
-            tldr: p.tldr.clone(),
+            summary: p.summary.clone(),
             description: p.description.clone(),
             audience_roles: p.audience_roles.clone(),
             tags: p.tags.clone(),
@@ -137,7 +137,7 @@ async fn convert_existing_posts(existing_posts: &[Post], pool: &PgPool) -> Vec<E
         existing.push(ExistingPost {
             id: p.id.as_uuid().to_string(),
             title: p.title.clone(),
-            tldr: p.tldr.clone(),
+            summary: p.summary.clone(),
             description: p.description.clone(),
             status: p.status.clone(),
             location: p.location.clone(),
@@ -570,7 +570,7 @@ async fn stage_sync_operations(
                         // Merge produces combined content — create a revision for review
                         let fake_fresh = ExtractedPost {
                             title: merged_title.clone().unwrap_or_else(|| canonical.title.clone()),
-                            tldr: canonical.tldr.clone().unwrap_or_default(),
+                            summary: canonical.summary.clone().unwrap_or_default(),
                             description: merged_description.clone()
                                 .unwrap_or_else(|| canonical.description.clone()),
                             audience_roles: vec![],
@@ -730,7 +730,7 @@ pub async fn update_post_with_owner(
                 .id(existing_revision.id)
                 .title(Some(fresh.title.clone()))
                 .description(Some(fresh.description.clone()))
-                .tldr(Some(fresh.tldr.clone()))
+                .summary(Some(fresh.summary.clone()))
                 .location(fresh.location.clone())
                 .build(),
             pool,
@@ -769,7 +769,7 @@ pub async fn update_post_with_owner(
         CreatePost::builder()
             .title(fresh.title.clone())
             .description(fresh.description.clone())
-            .tldr(Some(fresh.tldr.clone()))
+            .summary(Some(fresh.summary.clone()))
             .post_type(original.post_type.clone())
             .category(original.category.clone())
             .capacity_status(original.capacity_status.clone())

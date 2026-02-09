@@ -8,7 +8,7 @@ use uuid::Uuid;
 pub struct PostType {
     pub id: Uuid,
     pub title: String,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub description: String,
     pub description_markdown: Option<String>,
     pub post_type: String,
@@ -45,7 +45,7 @@ impl From<Post> for PostType {
         Self {
             id: post.id.into_uuid(),
             title: post.title,
-            tldr: post.tldr,
+            summary: post.summary,
             description: post.description,
             description_markdown: post.description_markdown,
             post_type: post.post_type,
@@ -112,7 +112,7 @@ pub struct EditPostInput {
     pub title: Option<String>,
     pub description: Option<String>,
     pub description_markdown: Option<String>,
-    pub tldr: Option<String>,
+    pub summary: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
 }

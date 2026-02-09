@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useState, useRef, useEffect } from "react";
-import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal, PostScheduleResult } from "@/lib/restate/types";
+import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal, PostScheduleResult, PostContactResult } from "@/lib/restate/types";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -266,9 +266,9 @@ export default function PostDetailPage() {
 
   const missingFields: string[] = [];
   if (!post.source_url && post.website_id) missingFields.push("source URL");
-  if (!post.tldr) missingFields.push("TLDR");
   if (!post.location) missingFields.push("location");
   if (tags.length === 0) missingFields.push("tags");
+  if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
 
   return (
     <div className="min-h-screen bg-stone-50 p-6">
@@ -372,10 +372,6 @@ export default function PostDetailPage() {
             </div>
           )}
 
-          {post.tldr && (
-            <p className="text-stone-700 bg-amber-50 p-3 rounded-lg mb-4">{post.tldr}</p>
-          )}
-
           {/* Details Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
@@ -443,6 +439,32 @@ export default function PostDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Contact Info */}
+        {post.contacts && post.contacts.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">Contact Info</h2>
+            <div className="space-y-2">
+              {post.contacts.map((c: PostContactResult) => (
+                <div key={c.id} className="flex items-start gap-3">
+                  <span className="text-xs text-stone-500 uppercase w-20 flex-shrink-0 pt-0.5">{c.contact_type}</span>
+                  <span className="text-sm text-stone-700">
+                    {c.contact_type === "email" ? (
+                      <a href={`mailto:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
+                    ) : c.contact_type === "phone" ? (
+                      <a href={`tel:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
+                    ) : c.contact_type === "website" || c.contact_type === "intake_form_url" ? (
+                      <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 break-all">{c.contact_value}</a>
+                    ) : (
+                      <span>{c.contact_value}</span>
+                    )}
+                    {c.contact_label && <span className="text-stone-400 ml-2">({c.contact_label})</span>}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Pending Changes (Proposals) */}
         {proposals.length > 0 && (

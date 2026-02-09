@@ -36,7 +36,7 @@ pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Post
             .title(Some(revision.title))
             .description(Some(revision.description))
             .description_markdown(revision.description_markdown)
-            .tldr(revision.tldr)
+            .summary(revision.summary)
             .category(Some(revision.category))
             .urgency(revision.urgency)
             .location(revision.location)

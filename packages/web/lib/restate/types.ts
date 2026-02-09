@@ -66,12 +66,19 @@ export interface PostScheduleResult {
   duration_minutes: number | null;
 }
 
+export interface PostContactResult {
+  id: string;
+  contact_type: string;
+  contact_value: string;
+  contact_label: string | null;
+}
+
 export interface PostResult {
   id: string;
   title: string;
   description: string;
   description_markdown: string | null;
-  tldr: string | null;
+  summary: string | null;
   status: string;
   post_type: string | null;
   category: string | null;
@@ -85,6 +92,7 @@ export interface PostResult {
   tags?: TagResult[];
   submitted_by?: SubmittedByInfo;
   schedules?: PostScheduleResult[];
+  contacts?: PostContactResult[];
 }
 
 export interface PostList {
@@ -363,7 +371,7 @@ export interface PublicTagResult {
 export interface PublicPostResult {
   id: string;
   title: string;
-  tldr: string | null;
+  summary: string | null;
   description: string;
   location: string | null;
   source_url: string | null;

@@ -478,8 +478,11 @@ export default function WebsiteDetailPage() {
                       className="block border border-stone-200 rounded-lg p-4 hover:bg-stone-50"
                     >
                       <div className="flex justify-between items-start">
-                        <div>
+                        <div className="flex-1 min-w-0">
                           <h3 className="font-medium text-stone-900">{post.title}</h3>
+                          {post.summary && (
+                            <p className="text-sm text-stone-500 mt-1 line-clamp-2">{post.summary}</p>
+                          )}
                           <div className="flex gap-2 mt-2">
                             <span
                               className={`text-xs px-2 py-1 rounded ${
