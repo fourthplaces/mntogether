@@ -47,10 +47,30 @@ pub struct ExtractedPost {
 
 impl ExtractedPost {
     /// Combine a NarrativePost with investigation info into a complete ExtractedPost.
+    ///
+    /// Uses the narrative's audience field as the authoritative audience role,
+    /// since Pass 1 sees the full page context when splitting by audience.
     pub fn from_narrative_and_info(
         narrative: crate::domains::crawling::activities::post_extraction::NarrativePost,
         info: ExtractedPostInformation,
     ) -> Self {
+        // Trust narrative audience over investigation defaults
+        let narrative_role = narrative.audience.to_lowercase();
+        let audience_roles = if matches!(narrative_role.as_str(), "volunteer" | "donor" | "participant") {
+            let mut roles = vec![narrative_role.clone()];
+            for role in &info.audience_roles {
+                let r = role.to_lowercase();
+                if r != narrative_role && !roles.contains(&r) {
+                    roles.push(r);
+                }
+            }
+            roles
+        } else if info.audience_roles.is_empty() {
+            vec![narrative_role]
+        } else {
+            info.audience_roles.clone()
+        };
+
         Self {
             title: narrative.title,
             tldr: narrative.tldr,
@@ -59,7 +79,7 @@ impl ExtractedPost {
             location: info.location,
             urgency: Some(info.urgency),
             confidence: Some(info.confidence),
-            audience_roles: info.audience_roles,
+            audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
             zip_code: info.zip_code,

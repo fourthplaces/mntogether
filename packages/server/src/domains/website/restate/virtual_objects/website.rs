@@ -10,7 +10,6 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::EmptyRequest;
 use crate::common::WebsiteId;
-use crate::domains::agents::models::AgentWebsite;
 use crate::domains::website::activities;
 use crate::domains::website::models::{Website, WebsiteAssessment};
 use crate::domains::website::restate::WebsiteResearchRequest;
@@ -56,7 +55,6 @@ pub struct WebsiteResult {
     pub last_crawled_at: Option<String>,
     pub post_count: Option<i64>,
     pub crawl_status: Option<String>,
-    pub linked_agent_ids: Vec<Uuid>,
 }
 
 impl_restate_serde!(WebsiteResult);
@@ -72,7 +70,6 @@ impl From<Website> for WebsiteResult {
             last_crawled_at: w.last_scraped_at.map(|dt| dt.to_rfc3339()),
             post_count: None,
             crawl_status: w.crawl_status,
-            linked_agent_ids: vec![],
         }
     }
 }
@@ -118,20 +115,6 @@ pub struct DeduplicatePostsResult {
 
 impl_restate_serde!(DeduplicatePostsResult);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LinkedAgentInfo {
-    pub agent_id: Uuid,
-    pub display_name: String,
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct LinkToAgentsResult {
-    pub linked: Vec<LinkedAgentInfo>,
-}
-
-impl_restate_serde!(LinkToAgentsResult);
-
 // =============================================================================
 // Virtual object definition
 // =============================================================================
@@ -154,9 +137,6 @@ pub trait WebsiteObject {
     async fn deduplicate_posts(
         req: EmptyRequest,
     ) -> Result<DeduplicatePostsResult, HandlerError>;
-    async fn link_to_agents(
-        req: EmptyRequest,
-    ) -> Result<LinkToAgentsResult, HandlerError>;
 
     #[shared]
     async fn get(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
@@ -299,8 +279,6 @@ impl WebsiteObject for WebsiteObjectImpl {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let website_id = Self::parse_website_id(ctx.key())?;
 
-        // assess_website returns a type without Restate serde, so call outside ctx.run()
-        // This is safe since assess_website is internally idempotent (checks for fresh research)
         let result = activities::approval::assess_website(
             website_id,
             user.member_id.into_uuid(),
@@ -355,13 +333,7 @@ impl WebsiteObject for WebsiteObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let agent_links = AgentWebsite::find_by_website(website_id, &self.deps.db_pool)
-            .await
-            .unwrap_or_default();
-
-        let mut result = WebsiteResult::from(website);
-        result.linked_agent_ids = agent_links.iter().map(|aw| aw.agent_id).collect();
-        Ok(result)
+        Ok(WebsiteResult::from(website))
     }
 
     async fn get_assessment(
@@ -398,8 +370,6 @@ impl WebsiteObject for WebsiteObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let website_id = Self::parse_website_id(ctx.key())?;
 
-        // Fire-and-forget: kick off the workflow and return immediately.
-        // The workflow runs asynchronously with progress tracking via get_status.
         let workflow_id = format!("regen-{}-{}", website_id, chrono::Utc::now().timestamp());
         let _ = ctx
             .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
@@ -434,34 +404,6 @@ impl WebsiteObject for WebsiteObjectImpl {
 
         Ok(DeduplicatePostsResult {
             status: format!("started:{}", workflow_id),
-        })
-    }
-
-    async fn link_to_agents(
-        &self,
-        ctx: ObjectContext<'_>,
-        _req: EmptyRequest,
-    ) -> Result<LinkToAgentsResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let website_id = Self::parse_website_id(ctx.key())?;
-
-        let result = activities::link_agents::link_website_to_agents(
-            WebsiteId::from_uuid(website_id),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        Ok(LinkToAgentsResult {
-            linked: result
-                .linked
-                .into_iter()
-                .map(|r| LinkedAgentInfo {
-                    agent_id: r.agent_id,
-                    display_name: r.display_name,
-                    reason: r.reason,
-                })
-                .collect(),
         })
     }
 }

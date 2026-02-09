@@ -5,18 +5,24 @@
 
 use anyhow::Result;
 use openai_client::OpenAIClient;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 use super::detector::{PiiFindings, PiiType};
-use crate::kernel::CompletionExt;
 
 /// PII entity detected by LLM with context
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct PiiEntity {
     pub entity_type: String, // "person_name", "street_address", "organization_name", etc.
     pub value: String,
-    pub confidence: f32, // 0.0 to 1.0
+    pub confidence: f64, // 0.0 to 1.0 — f64 for JsonSchema compatibility
     pub context: Option<String>,
+}
+
+/// Wrapper for OpenAI structured output (must be top-level object)
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+struct PiiDetectionResponse {
+    pub entities: Vec<PiiEntity>,
 }
 
 /// System prompt for PII detection
@@ -37,17 +43,13 @@ DO NOT flag:
 - Generic email domains or phone area codes
 - Job titles or roles without names
 
-Return ONLY a JSON array of detected entities:
-[
-  {
-    "entity_type": "person_name",
-    "value": "John Smith",
-    "confidence": 0.95,
-    "context": "mentioned as contact person"
-  }
-]
+For each detected PII entity, provide:
+- entity_type: "person_name", "street_address", "medical_info", "financial_info", "government_id", "email", "phone", "ssn", "credit_card", "ip_address"
+- value: the exact PII text found
+- confidence: 0.0 to 1.0
+- context: brief description of where/how it appears (or null)
 
-If no PII is detected, return an empty array: []"#;
+If no PII is detected, return an empty entities array."#;
 
 /// Detect PII using an AI model for context-aware analysis.
 ///
@@ -60,23 +62,12 @@ pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<Pii
 
     let user_prompt = format!("Analyze this text for PII:\n\n{}", text);
 
-    // Call AI with the PII detection prompt
-    let prompt = format!("{}\n\n{}", PII_DETECTION_PROMPT, user_prompt);
-    let completion_text = ai.complete_json(&prompt).await?;
+    let response: PiiDetectionResponse = ai
+        .extract("gpt-4o", PII_DETECTION_PROMPT, &user_prompt)
+        .await
+        .map_err(|e| anyhow::anyhow!("PII detection failed: {}", e))?;
 
-    // Parse the JSON response
-    let entities: Vec<PiiEntity> = serde_json::from_str(&completion_text).unwrap_or_else(|_| {
-        // Try to extract JSON from markdown code block
-        let trimmed = completion_text.trim();
-        let json_str = trimmed
-            .trim_start_matches("```json")
-            .trim_start_matches("```")
-            .trim_end_matches("```")
-            .trim();
-        serde_json::from_str(json_str).unwrap_or_default()
-    });
-
-    Ok(entities)
+    Ok(response.entities)
 }
 
 /// Legacy function that takes an API key directly.

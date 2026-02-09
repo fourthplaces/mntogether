@@ -106,6 +106,7 @@ services:
       # Server Config
       SERVER_PORT: 9080
       RESTATE_ADMIN_URL: http://restate:9070
+      RESTATE_SELF_URL: http://server:9080
       RUST_LOG: ${RUST_LOG:-info,server_core=debug}
 
       # API Keys (same as main API)

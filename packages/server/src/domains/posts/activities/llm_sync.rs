@@ -12,6 +12,7 @@
 
 use anyhow::Result;
 use openai_client::OpenAIClient;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use std::collections::HashMap;
@@ -19,11 +20,9 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
-use crate::domains::agents::models::Agent;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
-use crate::kernel::LlmRequestExt;
 
 /// A fresh post from extraction, with a temporary ID for matching
 #[derive(Debug, Clone, Serialize)]
@@ -56,71 +55,37 @@ pub struct ExistingPost {
     pub contact_email: Option<String>,
 }
 
-/// LLM's decision for a single sync operation
-#[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "operation")]
-pub enum SyncOperation {
-    /// Insert a new post (fresh post has no match in DB)
-    #[serde(rename = "insert", alias = "INSERT")]
-    Insert { fresh_id: String },
-
-    /// Update an existing post with fresh data
-    #[serde(rename = "update", alias = "UPDATE")]
-    Update {
-        fresh_id: String,
-        existing_id: String,
-        /// If true, merge fresh description with existing (don't overwrite completely)
-        #[serde(default)]
-        merge_description: bool,
-    },
-
-    /// Delete an existing post (no longer in fresh extraction)
-    #[serde(rename = "delete", alias = "DELETE")]
-    Delete { existing_id: String, reason: String },
-
-    /// Merge duplicate existing posts (consolidate pre-existing duplicates)
-    #[serde(rename = "merge", alias = "MERGE")]
-    Merge {
-        /// The post to keep (also accept "target_id" from LLM variations)
-        #[serde(alias = "target_id")]
-        canonical_id: String,
-        /// Posts to delete (merge into canonical) - also accept "target_ids" from LLM
-        #[serde(alias = "target_ids")]
-        duplicate_ids: Vec<String>,
-        /// Optional: improved title from merging
-        #[serde(default)]
-        merged_title: Option<String>,
-        /// Optional: improved description from merging
-        #[serde(default)]
-        merged_description: Option<String>,
-        #[serde(default)]
-        reason: String,
-    },
+/// LLM's decision for a single sync operation.
+///
+/// Flat struct (not a tagged enum) for maximum compatibility with OpenAI structured output.
+/// The `operation` field discriminates: "insert", "update", "delete", or "merge".
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct SyncOperation {
+    /// Operation type: "insert", "update", "delete", or "merge"
+    pub operation: String,
+    /// For insert/update: the temporary ID of the fresh post (e.g., "fresh_1")
+    pub fresh_id: Option<String>,
+    /// For update/delete/merge: the UUID of the existing post
+    pub existing_id: Option<String>,
+    /// For update: whether to merge descriptions (default: false)
+    pub merge_description: Option<bool>,
+    /// For merge: the post to keep
+    pub canonical_id: Option<String>,
+    /// For merge: posts to merge into canonical
+    pub duplicate_ids: Option<Vec<String>>,
+    /// For merge: improved title
+    pub merged_title: Option<String>,
+    /// For merge: improved description
+    pub merged_description: Option<String>,
+    /// Reason for delete or merge
+    pub reason: Option<String>,
 }
 
-/// Result of LLM sync analysis - accepts multiple formats
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub enum SyncAnalysisResponse {
-    /// Full format: {"operations": [...], "summary": "..."}
-    Full {
-        operations: Vec<SyncOperation>,
-        summary: String,
-    },
-    /// Array only: [op1, op2, ...]
-    ArrayOnly(Vec<SyncOperation>),
-}
-
-impl SyncAnalysisResponse {
-    pub fn into_parts(self) -> (Vec<SyncOperation>, String) {
-        match self {
-            Self::Full {
-                operations,
-                summary,
-            } => (operations, summary),
-            Self::ArrayOnly(operations) => (operations, "No summary".to_string()),
-        }
-    }
+/// Result of LLM sync analysis — structured output from OpenAI
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct SyncAnalysisResponse {
+    pub operations: Vec<SyncOperation>,
+    pub summary: String,
 }
 
 /// Result of LLM-based sync - proposals are staged for review
@@ -200,52 +165,54 @@ fn log_sync_operations(
     existing: &[ExistingPost],
 ) {
     for op in operations {
-        match op {
-            SyncOperation::Insert { fresh_id } => {
-                if let Some(f) = fresh.iter().find(|f| &f.temp_id == fresh_id) {
-                    info!(op = "INSERT", fresh_id = %fresh_id, title = %f.title, "LLM decision: insert new post");
+        let op_type = op.operation.as_str();
+        match op_type {
+            "insert" => {
+                if let Some(fresh_id) = &op.fresh_id {
+                    if let Some(f) = fresh.iter().find(|f| &f.temp_id == fresh_id) {
+                        info!(op = "INSERT", fresh_id = %fresh_id, title = %f.title, "LLM decision: insert new post");
+                    }
                 }
             }
-            SyncOperation::Update {
-                fresh_id,
-                existing_id,
-                merge_description,
-            } => {
+            "update" => {
+                let fresh_id = op.fresh_id.as_deref().unwrap_or("?");
+                let existing_id = op.existing_id.as_deref().unwrap_or("?");
+                let merge_desc = op.merge_description.unwrap_or(false);
                 let fresh_title = fresh
                     .iter()
-                    .find(|f| &f.temp_id == fresh_id)
+                    .find(|f| f.temp_id == fresh_id)
                     .map(|f| f.title.as_str())
                     .unwrap_or("?");
                 let existing_title = existing
                     .iter()
-                    .find(|e| &e.id == existing_id)
+                    .find(|e| e.id == existing_id)
                     .map(|e| e.title.as_str())
                     .unwrap_or("?");
-                info!(op = "UPDATE", fresh_id = %fresh_id, existing_id = %existing_id, fresh_title = %fresh_title, existing_title = %existing_title, merge_description = %merge_description, "LLM decision: update existing post");
+                info!(op = "UPDATE", fresh_id = %fresh_id, existing_id = %existing_id, fresh_title = %fresh_title, existing_title = %existing_title, merge_description = %merge_desc, "LLM decision: update existing post");
             }
-            SyncOperation::Delete {
-                existing_id,
-                reason,
-            } => {
+            "delete" => {
+                let existing_id = op.existing_id.as_deref().unwrap_or("?");
+                let reason = op.reason.as_deref().unwrap_or("");
                 let existing_title = existing
                     .iter()
-                    .find(|e| &e.id == existing_id)
+                    .find(|e| e.id == existing_id)
                     .map(|e| e.title.as_str())
                     .unwrap_or("?");
                 info!(op = "DELETE", existing_id = %existing_id, existing_title = %existing_title, reason = %reason, "LLM decision: delete stale post");
             }
-            SyncOperation::Merge {
-                canonical_id,
-                duplicate_ids,
-                reason,
-                ..
-            } => {
+            "merge" => {
+                let canonical_id = op.canonical_id.as_deref().unwrap_or("?");
+                let dup_ids = op.duplicate_ids.as_deref().unwrap_or(&[]);
+                let reason = op.reason.as_deref().unwrap_or("");
                 let canonical_title = existing
                     .iter()
-                    .find(|e| &e.id == canonical_id)
+                    .find(|e| e.id == canonical_id)
                     .map(|e| e.title.as_str())
                     .unwrap_or("?");
-                info!(op = "MERGE", canonical_id = %canonical_id, canonical_title = %canonical_title, duplicate_count = duplicate_ids.len(), reason = %reason, "LLM decision: merge duplicates");
+                info!(op = "MERGE", canonical_id = %canonical_id, canonical_title = %canonical_title, duplicate_count = dup_ids.len(), reason = %reason, "LLM decision: merge duplicates");
+            }
+            other => {
+                tracing::warn!(op = %other, "Unknown sync operation type from LLM");
             }
         }
     }
@@ -268,31 +235,15 @@ fn build_sync_prompt(fresh: &[FreshPost], existing: &[ExistingPost]) -> Result<S
 /// DELETEs and MERGEs are recorded as proposals only.
 pub async fn llm_sync_posts(
     website_id: WebsiteId,
-    agent_id: Option<Uuid>,
     fresh_posts: Vec<ExtractedPost>,
     ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    // Load existing posts: agent-scoped if agent_id provided, otherwise all website posts
-    let existing_db_posts = match agent_id {
-        Some(aid) => Post::find_by_agent_and_website(aid, website_id, pool).await?,
-        None => Post::find_by_website_id(website_id, pool).await?,
-    };
+    let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
+    let submitted_by_id: Option<Uuid> = None;
+    let source_id = website_id.into_uuid();
 
-    // Resolve submitted_by_id for inserts/revisions (agent's member_id)
-    let submitted_by_id = match agent_id {
-        Some(aid) => {
-            let agent = Agent::find_by_id(aid, pool).await?;
-            Some(agent.member_id)
-        }
-        None => None,
-    };
-
-    // Use agent_id as source_id for batch scoping (per-agent batch lifecycle),
-    // falling back to website_id for non-agent usage
-    let source_id = agent_id.unwrap_or_else(|| website_id.into_uuid());
-
-    info!(website_id = %website_id, agent_id = ?agent_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
+    info!(website_id = %website_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
 
     if fresh_posts.is_empty() && existing_db_posts.is_empty() {
         // Create an empty batch so callers always get a batch_id
@@ -322,18 +273,62 @@ pub async fn llm_sync_posts(
     let user_prompt = build_sync_prompt(&fresh, &existing)?;
 
     let response: SyncAnalysisResponse = ai
-        .request()
-        .system(SYNC_SYSTEM_PROMPT)
-        .user(&user_prompt)
-        .schema_hint(SYNC_SCHEMA)
-        .max_retries(3)
-        .output()
-        .await?;
+        .extract("gpt-4o", SYNC_SYSTEM_PROMPT, &user_prompt)
+        .await
+        .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
 
-    let (operations, summary) = response.into_parts();
+    let mut operations = response.operations;
+    let summary = response.summary;
     info!(website_id = %website_id, operations_count = operations.len(), summary = %summary, "LLM sync analysis complete");
 
     log_sync_operations(&operations, &fresh, &existing);
+
+    // Safety net: auto-INSERT any fresh posts not referenced by any operation.
+    // LLMs sometimes skip posts (especially on retry after a parse failure).
+    let referenced_fresh_ids: std::collections::HashSet<String> = operations
+        .iter()
+        .filter_map(|op| match op.operation.as_str() {
+            "insert" | "update" => op.fresh_id.clone(),
+            _ => None,
+        })
+        .collect();
+
+    let all_fresh_ids: Vec<String> = (1..=fresh_posts.len())
+        .map(|i| format!("fresh_{}", i))
+        .collect();
+
+    let missing: Vec<&String> = all_fresh_ids
+        .iter()
+        .filter(|id| !referenced_fresh_ids.contains(*id))
+        .collect();
+
+    if !missing.is_empty() {
+        let missing_titles: Vec<&str> = missing
+            .iter()
+            .filter_map(|id| {
+                fresh.iter().find(|f| &f.temp_id == *id).map(|f| f.title.as_str())
+            })
+            .collect();
+        tracing::warn!(
+            missing_count = missing.len(),
+            missing_ids = ?missing,
+            missing_titles = ?missing_titles,
+            "LLM skipped fresh posts — auto-inserting"
+        );
+        for id in missing {
+            operations.push(SyncOperation {
+                operation: "insert".to_string(),
+                fresh_id: Some(id.clone()),
+                existing_id: None,
+                merge_description: None,
+                canonical_id: None,
+                duplicate_ids: None,
+                merged_title: None,
+                merged_description: None,
+                reason: None,
+            });
+        }
+    }
 
     stage_sync_operations(
         website_id,
@@ -393,8 +388,16 @@ async fn stage_sync_operations(
     );
 
     for op in operations {
-        match op {
-            SyncOperation::Insert { fresh_id } => {
+        let op_type = op.operation.as_str();
+        match op_type {
+            "insert" => {
+                let fresh_id = match &op.fresh_id {
+                    Some(id) => id.clone(),
+                    None => {
+                        tracing::warn!("Insert operation missing fresh_id");
+                        continue;
+                    }
+                };
                 if let Some(fresh) = fresh_by_id.get(&fresh_id) {
                     let website = match Website::find_by_id(website_id, pool).await {
                         Ok(w) => w,
@@ -436,17 +439,16 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Update {
-                fresh_id,
-                existing_id,
-                merge_description,
-            } => {
+            "update" => {
+                let fresh_id = op.fresh_id.clone().unwrap_or_default();
+                let existing_id = op.existing_id.clone().unwrap_or_default();
+                let merge_description = op.merge_description.unwrap_or(false);
+
                 if let (Some(fresh), Some(existing)) =
                     (fresh_by_id.get(&fresh_id), existing_by_id.get(&existing_id))
                 {
                     match update_post_with_owner(existing.id, fresh, merge_description, submitted_by_id, pool).await {
                         Ok(()) => {
-                            // Find the revision that was just created
                             let revision = Post::find_revision_for_post(existing.id, pool).await;
                             let revision_id = revision.ok().flatten().map(|r| r.id.into_uuid());
 
@@ -469,13 +471,12 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Delete {
-                existing_id,
-                reason,
-            } => {
+            "delete" => {
+                let existing_id = op.existing_id.clone().unwrap_or_default();
+                let reason = op.reason.clone().unwrap_or_default();
+
                 if existing_by_id.contains_key(&existing_id) {
-                    let target_uuid = Uuid::parse_str(&existing_id);
-                    match target_uuid {
+                    match Uuid::parse_str(&existing_id) {
                         Ok(uuid) => {
                             proposed_ops.push(ProposedOperation {
                                 operation: "delete".to_string(),
@@ -494,13 +495,13 @@ async fn stage_sync_operations(
                 }
             }
 
-            SyncOperation::Merge {
-                canonical_id,
-                duplicate_ids,
-                merged_title,
-                merged_description,
-                reason,
-            } => {
+            "merge" => {
+                let canonical_id = op.canonical_id.clone().unwrap_or_default();
+                let duplicate_ids = op.duplicate_ids.clone().unwrap_or_default();
+                let merged_title = op.merged_title.clone();
+                let merged_description = op.merged_description.clone();
+                let reason = op.reason.clone().unwrap_or_default();
+
                 if let Some(canonical) = existing_by_id.get(&canonical_id) {
                     let canonical_uuid = match Uuid::parse_str(&canonical_id) {
                         Ok(u) => u,
@@ -510,12 +511,11 @@ async fn stage_sync_operations(
                         }
                     };
 
-                    // If merged content is provided, create a revision for the canonical post
                     let draft_id = if merged_title.is_some() || merged_description.is_some() {
                         let fake_fresh = ExtractedPost {
-                            title: merged_title.unwrap_or_else(|| canonical.title.clone()),
+                            title: merged_title.clone().unwrap_or_else(|| canonical.title.clone()),
                             tldr: canonical.tldr.clone().unwrap_or_default(),
-                            description: merged_description
+                            description: merged_description.clone()
                                 .unwrap_or_else(|| canonical.description.clone()),
                             audience_roles: vec![],
                             location: canonical.location.clone(),
@@ -544,7 +544,6 @@ async fn stage_sync_operations(
                         None
                     };
 
-                    // Parse duplicate IDs
                     let mut merge_source_ids = Vec::new();
                     for dup_id in &duplicate_ids {
                         match Uuid::parse_str(dup_id) {
@@ -572,6 +571,10 @@ async fn stage_sync_operations(
                         staged_merges += 1;
                     }
                 }
+            }
+
+            other => {
+                tracing::warn!(op = %other, "Unknown sync operation type, skipping");
             }
         }
     }
@@ -772,6 +775,28 @@ When merging duplicates, CREATE BETTER COMBINED CONTENT:
 4. **Merge content intelligently**: When merging, combine the best parts of each duplicate
 5. **If fresh posts << existing posts**: This usually means extraction was incomplete. Prefer UPDATE/INSERT over DELETE in this case.
 
+## CRITICAL: Account for EVERY Fresh Post
+
+**Every fresh post MUST appear in exactly one INSERT or UPDATE operation.** If a fresh post doesn't match any existing post, it MUST be INSERTed. Do NOT skip fresh posts.
+
+## MERGE is ONLY for Existing Duplicates
+
+MERGE is ONLY for consolidating existing database posts that are duplicates of EACH OTHER. It uses existing UUIDs only. Do NOT use MERGE to combine a fresh post with an existing post — use UPDATE for that.
+
+## Operation Fields
+
+Each operation object has an "operation" field plus relevant data:
+- **insert**: Set `fresh_id` to the fresh post temp_id (e.g., "fresh_1"). Leave other fields null.
+- **update**: Set `fresh_id` and `existing_id`. Optionally set `merge_description` to true.
+- **delete**: Set `existing_id` and `reason`.
+- **merge**: Set `canonical_id`, `duplicate_ids`, optionally `merged_title`/`merged_description`, and `reason`.
+
+## ID Rules
+
+1. Use LOWERCASE operation names: "insert", "update", "delete", "merge"
+2. For fresh_id: Use EXACT values from Fresh Posts (e.g., "fresh_1", "fresh_2")
+3. For existing_id/canonical_id/duplicate_ids: Use EXACT UUIDs from Existing Posts
+
 ## Output Order
 
 1. MERGE operations first (consolidate duplicates with combined content)
@@ -779,77 +804,53 @@ When merging duplicates, CREATE BETTER COMBINED CONTENT:
 3. INSERT operations (add new posts)
 4. DELETE operations ONLY if certain (remove truly stale posts)"#;
 
-const SYNC_SCHEMA: &str = r#"EXACT structure required (use lowercase operation names):
-
-{
-  "operations": [
-    {"operation": "insert", "fresh_id": "fresh_1"},
-    {"operation": "update", "fresh_id": "fresh_2", "existing_id": "550e8400-e29b-41d4-a716-446655440000"},
-    {"operation": "delete", "existing_id": "550e8400-e29b-41d4-a716-446655440000", "reason": "No longer on website"},
-    {"operation": "merge", "canonical_id": "550e8400-e29b-41d4-a716-446655440000", "duplicate_ids": ["6ba7b810-9dad-11d1-80b4-00c04fd430c8"], "merged_title": "Best combined title", "merged_description": "Combined description with details from all duplicates", "reason": "Duplicate entries for same service"}
-  ],
-  "summary": "1 insert, 1 merge"
-}
-
-CRITICAL RULES:
-1. Use LOWERCASE operation names: "insert", "update", "delete", "merge"
-2. For fresh_id: Use EXACT values from Fresh Posts (e.g., "fresh_1", "fresh_2") - do NOT invent IDs
-3. For existing_id/canonical_id/duplicate_ids: Use EXACT UUIDs from Existing Posts (the "id" field) - NEVER use placeholders like "uuid-123" or made-up IDs
-4. For MERGE: provide merged_title and merged_description with COMBINED content from all duplicates"#;
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn test_sync_operation_deserialize() {
-        let json = r#"{"operation": "insert", "fresh_id": "fresh_1"}"#;
+        let json = r#"{"operation": "insert", "fresh_id": "fresh_1", "existing_id": null, "merge_description": null, "canonical_id": null, "duplicate_ids": null, "merged_title": null, "merged_description": null, "reason": null}"#;
         let op: SyncOperation = serde_json::from_str(json).unwrap();
-        assert!(matches!(op, SyncOperation::Insert { fresh_id } if fresh_id == "fresh_1"));
+        assert_eq!(op.operation, "insert");
+        assert_eq!(op.fresh_id.as_deref(), Some("fresh_1"));
 
-        let json = r#"{"operation": "update", "fresh_id": "fresh_2", "existing_id": "abc-123"}"#;
+        let json = r#"{"operation": "update", "fresh_id": "fresh_2", "existing_id": "abc-123", "merge_description": false, "canonical_id": null, "duplicate_ids": null, "merged_title": null, "merged_description": null, "reason": null}"#;
         let op: SyncOperation = serde_json::from_str(json).unwrap();
-        assert!(matches!(op, SyncOperation::Update { .. }));
+        assert_eq!(op.operation, "update");
 
-        let json =
-            r#"{"operation": "delete", "existing_id": "abc-123", "reason": "Removed from site"}"#;
+        let json = r#"{"operation": "delete", "fresh_id": null, "existing_id": "abc-123", "merge_description": null, "canonical_id": null, "duplicate_ids": null, "merged_title": null, "merged_description": null, "reason": "Removed from site"}"#;
         let op: SyncOperation = serde_json::from_str(json).unwrap();
-        assert!(matches!(op, SyncOperation::Delete { .. }));
+        assert_eq!(op.operation, "delete");
 
-        let json = r#"{
-            "operation": "merge",
-            "canonical_id": "abc-123",
-            "duplicate_ids": ["def-456"],
-            "reason": "Same event"
-        }"#;
+        let json = r#"{"operation": "merge", "fresh_id": null, "existing_id": null, "merge_description": null, "canonical_id": "abc-123", "duplicate_ids": ["def-456"], "merged_title": null, "merged_description": null, "reason": "Same event"}"#;
         let op: SyncOperation = serde_json::from_str(json).unwrap();
-        assert!(matches!(op, SyncOperation::Merge { .. }));
+        assert_eq!(op.operation, "merge");
+        assert_eq!(op.duplicate_ids.as_ref().unwrap().len(), 1);
     }
 
     #[test]
-    fn test_sync_analysis_deserialize_full() {
+    fn test_sync_analysis_deserialize() {
         let json = r#"{
             "operations": [
-                { "operation": "insert", "fresh_id": "fresh_1" },
-                { "operation": "update", "fresh_id": "fresh_2", "existing_id": "abc-123" }
+                { "operation": "insert", "fresh_id": "fresh_1", "existing_id": null, "merge_description": null, "canonical_id": null, "duplicate_ids": null, "merged_title": null, "merged_description": null, "reason": null },
+                { "operation": "update", "fresh_id": "fresh_2", "existing_id": "abc-123", "merge_description": false, "canonical_id": null, "duplicate_ids": null, "merged_title": null, "merged_description": null, "reason": null }
             ],
             "summary": "1 new post, 1 update"
         }"#;
         let response: SyncAnalysisResponse = serde_json::from_str(json).unwrap();
-        let (operations, summary) = response.into_parts();
-        assert_eq!(operations.len(), 2);
-        assert_eq!(summary, "1 new post, 1 update");
+        assert_eq!(response.operations.len(), 2);
+        assert_eq!(response.summary, "1 new post, 1 update");
     }
 
     #[test]
-    fn test_sync_analysis_deserialize_array_only() {
-        // LLM sometimes returns just an array without the wrapper
-        let json = r#"[
-            { "operation": "insert", "fresh_id": "fresh_1" },
-            { "operation": "MERGE", "canonical_id": "abc", "duplicate_ids": ["def"], "reason": "dupes" }
-        ]"#;
-        let response: SyncAnalysisResponse = serde_json::from_str(json).unwrap();
-        let (operations, _summary) = response.into_parts();
-        assert_eq!(operations.len(), 2);
+    fn test_sync_schema_generation() {
+        use openai_client::StructuredOutput;
+        let schema = SyncAnalysisResponse::openai_schema();
+        let schema_str = serde_json::to_string_pretty(&schema).unwrap();
+        // Should be an object with operations and summary
+        assert!(schema_str.contains("operations"));
+        assert!(schema_str.contains("summary"));
+        assert!(schema_str.contains("additionalProperties"));
     }
 }

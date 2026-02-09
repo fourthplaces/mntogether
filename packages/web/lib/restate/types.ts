@@ -111,7 +111,6 @@ export interface WebsiteResult {
   post_count: number | null;
   last_crawled_at: string | null;
   crawl_status: string | null;
-  linked_agent_ids: string[];
 }
 
 export interface WebsiteList {
@@ -165,16 +164,6 @@ export interface OptionalAssessmentResult {
   assessment: AssessmentResult | null;
 }
 
-export interface LinkedAgentInfo {
-  agent_id: string;
-  display_name: string;
-  reason: string;
-}
-
-export interface LinkToAgentsResult {
-  linked: LinkedAgentInfo[];
-}
-
 // --- Members ---
 
 export interface MemberResult {
@@ -185,114 +174,17 @@ export interface MemberResult {
   created_at: string;
 }
 
-// --- Agents ---
+// --- Search Queries ---
 
-export interface AgentResponse {
-  id: string;
-  display_name: string;
-  role: string;
-  status: string;
-  created_at: string;
-}
-
-export interface AgentListResponse {
-  agents: AgentResponse[];
-}
-
-export interface SuggestAgentResponse {
-  display_name: string;
-  role: string;
-  purpose: string;
-  search_queries: string[];
-  filter_rules: string[];
-}
-
-export interface AssistantConfigResponse {
-  preamble: string;
-  config_name: string;
-}
-
-export interface CuratorConfigResponse {
-  purpose: string;
-  audience_roles: string[];
-  schedule_discover: string | null;
-  schedule_monitor: string | null;
-}
-
-export interface SearchQueryResponse {
+export interface SearchQueryResult {
   id: string;
   query_text: string;
   is_active: boolean;
   sort_order: number;
 }
 
-export interface SearchQueryListResponse {
-  queries: SearchQueryResponse[];
-}
-
-export interface FilterRuleResponse {
-  id: string;
-  rule_text: string;
-  is_active: boolean;
-  sort_order: number;
-}
-
-export interface FilterRuleListResponse {
-  rules: FilterRuleResponse[];
-}
-
-export interface AgentTagKindResponse {
-  id: string;
-  slug: string;
-  display_name: string;
-}
-
-export interface TagKindListResponse {
-  tag_kinds: AgentTagKindResponse[];
-}
-
-export interface AgentWebsiteResponse {
-  website_id: string;
-  domain: string | null;
-  discovered_at: string;
-  post_count: number;
-}
-
-export interface RunStatResponse {
-  stat_key: string;
-  stat_value: number;
-}
-
-export interface AgentRunResponse {
-  id: string;
-  step: string;
-  trigger_type: string;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  stats: RunStatResponse[];
-}
-
-export interface AgentRunListResponse {
-  runs: AgentRunResponse[];
-}
-
-export interface PipelineRunResponse {
-  status: string;
-  discover: AgentRunResponse | null;
-  extract: AgentRunResponse | null;
-  enrich: AgentRunResponse | null;
-}
-
-export interface AgentDetailResponse {
-  agent: AgentResponse;
-  assistant_config: AssistantConfigResponse | null;
-  curator_config: CuratorConfigResponse | null;
-  search_queries: SearchQueryResponse[];
-  filter_rules: FilterRuleResponse[];
-  required_tag_kinds: AgentTagKindResponse[];
-  websites: AgentWebsiteResponse[];
-  posts_count: number;
+export interface SearchQueryListResult {
+  queries: SearchQueryResult[];
 }
 
 // --- Sync ---

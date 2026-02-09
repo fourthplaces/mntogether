@@ -4,7 +4,7 @@
 //! and the returned event is dispatched through the engine.
 
 pub mod approval;
-pub mod link_agents;
+pub mod discover;
 
 use anyhow::Result;
 use tracing::info;
