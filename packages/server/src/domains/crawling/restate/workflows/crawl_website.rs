@@ -20,7 +20,6 @@ use crate::kernel::ServerDeps;
 pub struct CrawlWebsiteRequest {
     pub website_id: Uuid,
     pub visitor_id: Uuid,
-    pub use_firecrawl: bool,
 }
 
 impl_restate_serde!(CrawlWebsiteRequest);
@@ -76,7 +75,6 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
                 activities::crawl_website_full(
                     website_id_typed,
                     request.visitor_id,
-                    request.use_firecrawl,
                     &self.deps,
                 )
                 .await

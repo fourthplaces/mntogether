@@ -133,7 +133,6 @@ export default function WebsiteDetailPage() {
       await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
         website_id: websiteId,
         visitor_id: "00000000-0000-0000-0000-000000000000",
-        use_firecrawl: false,
       });
       refetchWebsite();
     } catch (err) {
@@ -542,16 +541,15 @@ export default function WebsiteDetailPage() {
                   <div className="text-center py-8 text-stone-500">No crawled pages yet</div>
                 ) : (
                   pages.map((page, index) => (
-                    <div key={index} className="border border-stone-200 rounded-lg p-4">
+                    <Link
+                      key={index}
+                      href={`/admin/websites/${websiteId}/snapshots?url=${encodeURIComponent(page.url)}`}
+                      className="block border border-stone-200 rounded-lg p-4 hover:border-stone-300 hover:shadow-sm transition-all"
+                    >
                       <div className="mb-2">
-                        <a
-                          href={page.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline"
-                        >
+                        <span className="text-sm text-blue-600">
                           {page.url}
-                        </a>
+                        </span>
                       </div>
                       {page.content && (
                         <div className="text-sm text-stone-600 line-clamp-3">
@@ -569,7 +567,7 @@ export default function WebsiteDetailPage() {
                           </ReactMarkdown>
                         </div>
                       )}
-                    </div>
+                    </Link>
                   ))
                 )}
               </div>

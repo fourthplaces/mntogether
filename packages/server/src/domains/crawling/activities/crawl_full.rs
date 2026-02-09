@@ -17,13 +17,11 @@ use crate::kernel::ServerDeps;
 pub async fn crawl_website_full(
     website_id: WebsiteId,
     visitor_id: Uuid,
-    use_firecrawl: bool,
     deps: &ServerDeps,
 ) -> Result<CrawlWebsiteResult> {
     info!(
         website_id = %website_id,
         visitor_id = %visitor_id,
-        use_firecrawl = use_firecrawl,
         "Starting full website crawl"
     );
 
@@ -31,7 +29,6 @@ pub async fn crawl_website_full(
     let ingest_result = super::ingest_website(
         website_id.into_uuid(),
         visitor_id,
-        use_firecrawl,
         true, // Authorization checked at workflow layer
         deps,
     )

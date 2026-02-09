@@ -139,7 +139,7 @@ services:
     volumes:
       - ./packages/server:/app/packages/server
       - rust_target:/app/target
-    command: cargo run --bin server
+    command: cargo watch -w /app/packages/server -w /app/packages/extraction -w /app/packages/twilio-rs -s 'cargo run --bin server'
     networks:
       - mndigitalaid
 

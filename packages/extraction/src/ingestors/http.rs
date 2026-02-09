@@ -68,8 +68,8 @@ impl HttpIngestor {
         self
     }
 
-    /// Fetch a single URL and return a RawPage.
-    async fn fetch_url(&self, url: &str) -> CrawlResult<RawPage> {
+    /// Fetch a single URL and return a RawPage plus the raw HTML and final URL (after redirects).
+    async fn fetch_url_with_html(&self, url: &str) -> CrawlResult<(RawPage, String, Url)> {
         debug!(url = %url, "HTTP fetch starting");
         let response = self
             .client
@@ -89,6 +89,9 @@ impl HttpIngestor {
                 format!("HTTP {}", status),
             ))));
         }
+
+        // Capture final URL after redirects
+        let final_url = response.url().clone();
 
         // Extract content type from headers
         let content_type = response
@@ -128,7 +131,7 @@ impl HttpIngestor {
         }
         page.metadata = metadata;
 
-        Ok(page)
+        Ok((page, html, final_url))
     }
 
     /// Extract links from HTML content.
@@ -265,13 +268,14 @@ impl Ingestor for HttpIngestor {
             "HttpIngestor.discover() starting"
         );
 
-        let base_url = Url::parse(&config.url).map_err(|_| CrawlError::InvalidUrl {
+        let mut base_url = Url::parse(&config.url).map_err(|_| CrawlError::InvalidUrl {
             url: config.url.clone(),
         })?;
 
         let mut visited: HashSet<String> = HashSet::new();
         let mut queue: VecDeque<(String, usize)> = VecDeque::new();
         let mut pages: Vec<RawPage> = Vec::new();
+        let mut base_resolved = false;
 
         queue.push_back((config.url.clone(), 0));
         debug!(url = %config.url, "Starting BFS crawl");
@@ -292,39 +296,46 @@ impl Ingestor for HttpIngestor {
 
             debug!(url = %url, depth = depth, pages_so_far = pages.len(), "Fetching page");
 
-            // Fetch page
-            match self.fetch_url(&url).await {
-                Ok(page) => {
+            // Fetch page (returns raw HTML + final URL after redirects)
+            match self.fetch_url_with_html(&url).await {
+                Ok((page, html, final_url)) => {
+                    // On first fetch, update base_url to the final URL after redirects
+                    // This handles cases like canmn.org -> www.canmn.org
+                    if !base_resolved {
+                        if final_url.host_str() != base_url.host_str() {
+                            info!(
+                                original = %base_url,
+                                resolved = %final_url,
+                                "Base URL resolved after redirect"
+                            );
+                            base_url = final_url.clone();
+                        }
+                        base_resolved = true;
+                    }
+
                     debug!(
                         url = %url,
                         content_length = page.content.len(),
                         "Page fetched successfully"
                     );
 
-                    // Extract links for further crawling (need to re-fetch HTML for link extraction)
-                    // Note: This is inefficient - in production we'd cache the raw HTML
+                    // Extract links from the already-fetched HTML (no double-fetch)
                     if depth < config.max_depth {
-                        if let Ok(response) = self.client.get(&url).send().await {
-                            if let Ok(html) = response.text().await {
-                                if let Ok(page_url) = Url::parse(&url) {
-                                    let links = self.extract_links(&page_url, &html);
-                                    let new_links: Vec<_> = links
-                                        .into_iter()
-                                        .filter(|link| {
-                                            if let Ok(link_url) = Url::parse(link) {
-                                                self.should_crawl(&link_url, &base_url, config)
-                                                    && !visited.contains(link)
-                                            } else {
-                                                false
-                                            }
-                                        })
-                                        .collect();
-                                    debug!(url = %url, new_links_count = new_links.len(), "Extracted links");
-                                    for link in new_links {
-                                        queue.push_back((link, depth + 1));
-                                    }
+                        let links = self.extract_links(&final_url, &html);
+                        let new_links: Vec<_> = links
+                            .into_iter()
+                            .filter(|link| {
+                                if let Ok(link_url) = Url::parse(link) {
+                                    self.should_crawl(&link_url, &base_url, config)
+                                        && !visited.contains(link)
+                                } else {
+                                    false
                                 }
-                            }
+                            })
+                            .collect();
+                        debug!(url = %url, new_links_count = new_links.len(), "Extracted links");
+                        for link in new_links {
+                            queue.push_back((link, depth + 1));
                         }
                     }
 
@@ -355,8 +366,8 @@ impl Ingestor for HttpIngestor {
         let mut pages = Vec::with_capacity(urls.len());
 
         for url in urls {
-            match self.fetch_url(url).await {
-                Ok(page) => pages.push(page),
+            match self.fetch_url_with_html(url).await {
+                Ok((page, _html, _final_url)) => pages.push(page),
                 Err(e) => {
                     tracing::warn!("Failed to fetch {}: {}", url, e);
                 }
