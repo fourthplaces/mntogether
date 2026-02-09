@@ -182,13 +182,6 @@ export default function PublicPostDetailPage() {
             ))}
           </div>
 
-          {/* TLDR */}
-          {post.tldr && (
-            <div className="bg-[#F5F1E8] border border-[#E8DED2] rounded-lg px-4 py-3 mb-6">
-              <p className="text-[#4D4D4D] text-sm leading-relaxed">{post.tldr}</p>
-            </div>
-          )}
-
           {/* Description */}
           <div className="prose max-w-none mb-8">
             <ReactMarkdown
