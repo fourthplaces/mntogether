@@ -18,13 +18,13 @@ function getPostTagStyle(postType: string): {
   switch (postType) {
     case "help":
       return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Help" };
-    case "support":
+    case "opportunities":
       return {
         bg: "bg-[#B8CFC4]",
         text: "text-[#4D6B5F]",
         label: "Support",
       };
-    case "community":
+    case "event":
       return {
         bg: "bg-[#D4C4E8]",
         text: "text-[#6D5B8B]",

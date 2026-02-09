@@ -268,6 +268,47 @@ async fn main() -> Result<()> {
         .bind(RegeneratePostsWorkflowImpl::with_deps(server_deps.clone()).serve())
         .build();
 
+    // Auto-register with Restate runtime if RESTATE_ADMIN_URL is set
+    if let Ok(admin_url) = std::env::var("RESTATE_ADMIN_URL") {
+        let self_url = std::env::var("RESTATE_SELF_URL")
+            .unwrap_or_else(|_| format!("http://localhost:{}", port));
+        tokio::spawn(async move {
+            // Wait for the HTTP server to be ready
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            tracing::info!(
+                admin_url = %admin_url,
+                self_url = %self_url,
+                "Auto-registering with Restate"
+            );
+            let client = reqwest::Client::new();
+            match client
+                .post(format!("{}/deployments", admin_url))
+                .json(&serde_json::json!({
+                    "uri": self_url,
+                    "force": true
+                }))
+                .send()
+                .await
+            {
+                Ok(resp) if resp.status().is_success() => {
+                    tracing::info!("Restate registration successful");
+                }
+                Ok(resp) => {
+                    let status = resp.status();
+                    let body = resp.text().await.unwrap_or_default();
+                    tracing::warn!(
+                        status = %status,
+                        body = %body,
+                        "Restate registration failed"
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to connect to Restate admin");
+                }
+            }
+        });
+    }
+
     // Start HTTP server
     HttpServer::new(endpoint)
         .listen_and_serve(addr.parse()?)
