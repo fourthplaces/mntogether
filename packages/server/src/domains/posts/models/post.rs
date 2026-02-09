@@ -343,6 +343,39 @@ impl Post {
         .map_err(Into::into)
     }
 
+    /// Count posts created by a specific agent.
+    pub async fn count_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<i64> {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM posts WHERE agent_id = $1 AND deleted_at IS NULL",
+        )
+        .bind(agent_id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Count posts by agent grouped by website_id (for per-website counts).
+    pub async fn count_by_agent_grouped_by_website(
+        agent_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<std::collections::HashMap<Uuid, i64>> {
+        let rows = sqlx::query_as::<_, (Uuid, i64)>(
+            r#"
+            SELECT website_id, COUNT(*) as count
+            FROM posts
+            WHERE agent_id = $1
+              AND website_id IS NOT NULL
+              AND deleted_at IS NULL
+            GROUP BY website_id
+            "#,
+        )
+        .bind(agent_id)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().collect())
+    }
+
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(

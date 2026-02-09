@@ -2,22 +2,26 @@
 //!
 //! Pipeline:
 //! 1. Load agent + curator config + linked websites
-//! 2. For each website, load crawled pages
-//! 3. Load agent's required tag kinds
-//! 4. Build extraction prompt by injecting curator's purpose and required tags
-//! 5. Run 3-pass extraction (narrative → dedupe → investigate) using modified prompts
-//! 6. Create posts with agent_id set
-//! 7. Return stats
+//! 2. Load agent's required tag kinds → build tag instructions
+//! 3. For each website:
+//!    a. Search for crawled pages
+//!    b. If none found, trigger crawl via ingest_website, then retry
+//! 4. Run 3-pass extraction with agent-specific tag instructions
+//! 5. Create posts with agent_id set (skip duplicates)
+//! 6. Return stats
 
 use anyhow::Result;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::common::MemberId;
 use crate::domains::agents::models::{
-    AgentCuratorConfig, AgentRun, AgentRunStat, AgentWebsite,
+    AgentCuratorConfig, AgentRequiredTagKind, AgentRun, AgentRunStat, AgentWebsite,
 };
-use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages;
+use crate::domains::crawling::activities::ingest_website::ingest_website;
+use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
 use crate::domains::posts::activities::create_post::create_extracted_post;
+use crate::domains::tag::models::tag_kind_config::build_tag_instructions_for_kinds;
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
@@ -40,7 +44,7 @@ pub async fn extract(
         let run = AgentRun::complete(run.id, pool).await?;
         AgentRunStat::create_batch(
             run.id,
-            &[("websites_processed", 0), ("posts_extracted", 0)],
+            &[("websites_processed", 0), ("posts_extracted", 0), ("websites_crawled", 0)],
             pool,
         )
         .await?;
@@ -51,8 +55,23 @@ pub async fn extract(
         anyhow::anyhow!("Extraction service not configured")
     })?;
 
+    // Build tag instructions from agent's required tag kinds (if any)
+    let required_tag_kinds = AgentRequiredTagKind::find_by_agent(agent_id, pool).await?;
+    let tag_kind_ids: Vec<Uuid> = required_tag_kinds.iter().map(|r| r.tag_kind_id).collect();
+    let tag_instructions = build_tag_instructions_for_kinds(&tag_kind_ids, pool)
+        .await
+        .unwrap_or_default();
+
+    if tag_instructions.is_empty() {
+        info!("No required tag kinds configured, tags will be empty");
+    } else {
+        info!(tag_kind_count = tag_kind_ids.len(), "Built tag instructions from required tag kinds");
+    }
+
     let mut websites_processed: i32 = 0;
     let mut posts_extracted: i32 = 0;
+    let mut posts_skipped: i32 = 0;
+    let mut websites_crawled: i32 = 0;
 
     for agent_website in &agent_websites {
         let website = match Website::find_by_id(agent_website.website_id.into(), pool).await {
@@ -67,7 +86,7 @@ pub async fn extract(
         info!(domain = %domain, "Extracting posts from website");
 
         // Search for relevant pages using the extraction service
-        let pages = match extraction
+        let mut pages = match extraction
             .search_and_get_pages(&curator.purpose, Some(domain), 50)
             .await
         {
@@ -78,13 +97,60 @@ pub async fn extract(
             }
         };
 
+        // If no pages found, trigger a crawl and retry
         if pages.is_empty() {
-            info!(domain = %domain, "No pages found, skipping");
+            info!(domain = %domain, "No pages found, triggering crawl");
+
+            match ingest_website(
+                website.id.into_uuid(),
+                MemberId::nil().into_uuid(),
+                true,  // use_firecrawl
+                true,  // is_admin
+                deps,
+            )
+            .await
+            {
+                Ok(result) => {
+                    info!(
+                        domain = %domain,
+                        pages_crawled = result.pages_crawled,
+                        "Crawl completed, retrying page search"
+                    );
+                    websites_crawled += 1;
+
+                    // Retry search after crawl
+                    pages = match extraction
+                        .search_and_get_pages(&curator.purpose, Some(domain), 50)
+                        .await
+                    {
+                        Ok(p) => p,
+                        Err(e) => {
+                            warn!(domain = %domain, error = %e, "Retry search failed after crawl");
+                            continue;
+                        }
+                    };
+                }
+                Err(e) => {
+                    warn!(domain = %domain, error = %e, "Crawl failed, skipping website");
+                    continue;
+                }
+            }
+        }
+
+        if pages.is_empty() {
+            info!(domain = %domain, "Still no pages after crawl, skipping");
             continue;
         }
 
-        // Extract posts using existing 3-pass pipeline
-        let extracted = match extract_posts_from_pages(&pages, domain, deps).await {
+        // Extract posts using 3-pass pipeline with agent-specific tag instructions
+        let extracted = match extract_posts_from_pages_with_tags(
+            &pages,
+            domain,
+            &tag_instructions,
+            deps,
+        )
+        .await
+        {
             Ok(posts) => posts,
             Err(e) => {
                 warn!(domain = %domain, error = %e, "Extraction failed, skipping website");
@@ -94,7 +160,7 @@ pub async fn extract(
 
         websites_processed += 1;
 
-        // Create posts with agent_id
+        // Create posts with agent_id (skip duplicates gracefully)
         for post in &extracted {
             match create_extracted_post(
                 post,
@@ -110,7 +176,13 @@ pub async fn extract(
                     posts_extracted += 1;
                 }
                 Err(e) => {
-                    warn!(title = %post.title, error = %e, "Failed to create post");
+                    let err_str = e.to_string();
+                    if err_str.contains("duplicate key") || err_str.contains("unique constraint") {
+                        info!(title = %post.title, "Post already exists, skipping");
+                        posts_skipped += 1;
+                    } else {
+                        warn!(title = %post.title, error = %e, "Failed to create post");
+                    }
                 }
             }
         }
@@ -121,6 +193,8 @@ pub async fn extract(
         &[
             ("websites_processed", websites_processed),
             ("posts_extracted", posts_extracted),
+            ("posts_skipped_duplicate", posts_skipped),
+            ("websites_crawled", websites_crawled),
         ],
         pool,
     )
@@ -132,6 +206,8 @@ pub async fn extract(
         run_id = %run.id,
         websites_processed,
         posts_extracted,
+        posts_skipped,
+        websites_crawled,
         "Extract step completed"
     );
 

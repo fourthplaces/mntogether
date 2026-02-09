@@ -108,7 +108,8 @@ pub async fn enrich(
         match investigate_post(&narrative, &tag_instructions, deps).await {
             Ok(info) => {
                 // Apply newly discovered tags
-                tag_post_from_extracted(post.id, &info.tags, pool).await;
+                let tags_map = crate::common::TagEntry::to_map(&info.tags);
+                tag_post_from_extracted(post.id, &tags_map, pool).await;
 
                 // Apply audience roles if found
                 if !info.audience_roles.is_empty() {

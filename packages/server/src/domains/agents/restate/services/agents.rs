@@ -193,6 +193,7 @@ pub struct AgentDetailResponse {
     pub filter_rules: Vec<FilterRuleResponse>,
     pub required_tag_kinds: Vec<TagKindResponse>,
     pub websites: Vec<AgentWebsiteResponse>,
+    pub posts_count: i64,
 }
 impl_restate_serde!(AgentDetailResponse);
 
@@ -243,6 +244,7 @@ pub struct AgentWebsiteResponse {
     pub website_id: Uuid,
     pub domain: Option<String>,
     pub discovered_at: String,
+    pub post_count: i64,
 }
 impl_restate_serde!(AgentWebsiteResponse);
 
@@ -534,6 +536,14 @@ Respond with ONLY valid JSON, no markdown fences."#,
         let agent_websites_raw = AgentWebsite::find_by_agent(agent.id, pool)
             .await
             .unwrap_or_default();
+
+        // Get post counts: total and per-website
+        use crate::domains::posts::models::Post;
+        let posts_count = Post::count_by_agent(agent.id, pool).await.unwrap_or(0);
+        let website_post_counts = Post::count_by_agent_grouped_by_website(agent.id, pool)
+            .await
+            .unwrap_or_default();
+
         let mut websites = Vec::new();
         for aw in &agent_websites_raw {
             use crate::domains::website::models::Website;
@@ -541,10 +551,12 @@ Respond with ONLY valid JSON, no markdown fences."#,
                 .await
                 .ok()
                 .map(|w| w.domain);
+            let post_count = website_post_counts.get(&aw.website_id).copied().unwrap_or(0);
             websites.push(AgentWebsiteResponse {
                 website_id: aw.website_id,
                 domain,
                 discovered_at: aw.discovered_at.to_rfc3339(),
+                post_count,
             });
         }
 
@@ -556,6 +568,7 @@ Respond with ONLY valid JSON, no markdown fences."#,
             filter_rules,
             required_tag_kinds,
             websites,
+            posts_count,
         })
     }
 

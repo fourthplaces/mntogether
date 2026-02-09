@@ -59,7 +59,7 @@ export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
   };
 
   return (
-    <BottomSheet isOpen={isOpen} onClose={onClose} title="Submit a Link">
+    <BottomSheet isOpen={isOpen} onClose={onClose} title="Share a Community Resource">
       <div className="px-4 pb-6">
         {result && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
@@ -76,8 +76,11 @@ export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
         )}
 
         <form onSubmit={handleSubmit}>
+          <p className="text-sm text-gray-500 mb-3">
+            Know someone who needs help, a place to volunteer, or a community update? Paste the link and we'll add it to the directory.
+          </p>
           <label htmlFor="submit-url" className="block text-sm font-medium text-gray-700 mb-1.5">
-            Paste a link from Instagram, Facebook, or any website
+            Link
           </label>
           <input
             id="submit-url"

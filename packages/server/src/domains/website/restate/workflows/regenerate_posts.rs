@@ -143,7 +143,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                 confidence: Some(info.confidence),
                 source_url: Some(narrative.source_url.clone()),
                 audience_roles: info.audience_roles,
-                tags: info.tags,
+                tags: crate::common::TagEntry::to_map(&info.tags),
             });
         }
 
