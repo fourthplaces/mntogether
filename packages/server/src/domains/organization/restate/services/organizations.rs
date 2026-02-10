@@ -8,6 +8,9 @@ use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, WebsiteId};
 use crate::domains::crawling::activities::extract_and_create_organization;
 use crate::domains::organization::models::Organization;
+use crate::domains::posts::models::Post;
+use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
+use crate::domains::tag::models::Tag;
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -55,6 +58,29 @@ pub struct RegenerateOrganizationRequest {
 impl_restate_serde!(RegenerateOrganizationRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ApproveOrganizationRequest {
+    pub id: Uuid,
+}
+
+impl_restate_serde!(ApproveOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RejectOrganizationRequest {
+    pub id: Uuid,
+    pub reason: String,
+}
+
+impl_restate_serde!(RejectOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SuspendOrganizationRequest {
+    pub id: Uuid,
+    pub reason: String,
+}
+
+impl_restate_serde!(SuspendOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegenerateOrganizationResult {
     pub organization_id: Option<String>,
     pub websites_processed: i64,
@@ -72,6 +98,7 @@ pub struct OrganizationResult {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub status: String,
     pub website_count: i64,
     pub social_profile_count: i64,
     pub created_at: String,
@@ -96,6 +123,16 @@ pub struct BackfillResult {
 
 impl_restate_serde!(BackfillResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OrganizationDetailResult {
+    pub id: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub posts: Vec<PublicPostResult>,
+}
+
+impl_restate_serde!(OrganizationDetailResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -103,11 +140,18 @@ impl_restate_serde!(BackfillResult);
 #[restate_sdk::service]
 #[name = "Organizations"]
 pub trait OrganizationsService {
+    async fn public_list(req: EmptyRequest) -> Result<OrganizationListResult, HandlerError>;
+    async fn public_get(
+        req: GetOrganizationRequest,
+    ) -> Result<OrganizationDetailResult, HandlerError>;
     async fn list(req: EmptyRequest) -> Result<OrganizationListResult, HandlerError>;
     async fn get(req: GetOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn create(req: CreateOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn update(req: UpdateOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn delete(req: DeleteOrganizationRequest) -> Result<EmptyRequest, HandlerError>;
+    async fn approve(req: ApproveOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
+    async fn reject(req: RejectOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
+    async fn suspend(req: SuspendOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn regenerate(
         req: RegenerateOrganizationRequest,
     ) -> Result<RegenerateOrganizationResult, HandlerError>;
@@ -125,6 +169,97 @@ impl OrganizationsServiceImpl {
 }
 
 impl OrganizationsService for OrganizationsServiceImpl {
+    async fn public_list(
+        &self,
+        _ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<OrganizationListResult, HandlerError> {
+        let orgs = Organization::find_approved(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut results = Vec::with_capacity(orgs.len());
+        for org in orgs {
+            results.push(OrganizationResult {
+                id: org.id.to_string(),
+                name: org.name,
+                description: org.description,
+                status: org.status,
+                website_count: 0,
+                social_profile_count: 0,
+                created_at: org.created_at.to_rfc3339(),
+                updated_at: org.updated_at.to_rfc3339(),
+            });
+        }
+
+        Ok(OrganizationListResult {
+            organizations: results,
+        })
+    }
+
+    async fn public_get(
+        &self,
+        _ctx: Context<'_>,
+        req: GetOrganizationRequest,
+    ) -> Result<OrganizationDetailResult, HandlerError> {
+        let org = Organization::find_by_id(OrganizationId::from(req.id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if org.status != "approved" {
+            return Err(TerminalError::new("Organization not found").into());
+        }
+
+        let posts = Post::find_by_organization_id(req.id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Batch-load public tags
+        let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+        let tag_rows = Tag::find_public_for_post_ids(&post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
+            std::collections::HashMap::new();
+        for row in tag_rows {
+            tags_by_post
+                .entry(row.taggable_id)
+                .or_default()
+                .push(PublicTagResult {
+                    kind: row.tag.kind,
+                    value: row.tag.value,
+                    display_name: row.tag.display_name,
+                    color: row.tag.color,
+                });
+        }
+
+        Ok(OrganizationDetailResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            posts: posts
+                .into_iter()
+                .map(|p| {
+                    let id = p.id.into_uuid();
+                    PublicPostResult {
+                        id,
+                        title: p.title,
+                        summary: p.summary,
+                        description: p.description,
+                        location: p.location,
+                        source_url: p.source_url,
+                        post_type: p.post_type,
+                        category: p.category,
+                        created_at: p.created_at.to_rfc3339(),
+                        published_at: p.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                    }
+                })
+                .collect(),
+        })
+    }
+
     async fn list(
         &self,
         ctx: Context<'_>,
@@ -139,7 +274,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         let mut results = Vec::with_capacity(orgs.len());
         for org in orgs {
             let website_count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM websites WHERE organization_id = $1",
+                "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
             )
             .bind(org.id)
             .fetch_one(&self.deps.db_pool)
@@ -147,7 +282,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             .unwrap_or(0);
 
             let social_profile_count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM social_profiles WHERE organization_id = $1",
+                "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
             )
             .bind(org.id)
             .fetch_one(&self.deps.db_pool)
@@ -158,6 +293,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 id: org.id.to_string(),
                 name: org.name,
                 description: org.description,
+                status: org.status,
                 website_count,
                 social_profile_count,
                 created_at: org.created_at.to_rfc3339(),
@@ -182,7 +318,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let website_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM websites WHERE organization_id = $1",
+            "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
         )
         .bind(org.id)
         .fetch_one(&self.deps.db_pool)
@@ -190,7 +326,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .unwrap_or(0);
 
         let social_profile_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM social_profiles WHERE organization_id = $1",
+            "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
         )
         .bind(org.id)
         .fetch_one(&self.deps.db_pool)
@@ -201,6 +337,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
+            status: org.status,
             website_count,
             social_profile_count,
             created_at: org.created_at.to_rfc3339(),
@@ -213,9 +350,14 @@ impl OrganizationsService for OrganizationsServiceImpl {
         ctx: Context<'_>,
         req: CreateOrganizationRequest,
     ) -> Result<OrganizationResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let org = Organization::create(&req.name, req.description.as_deref(), &self.deps.db_pool)
+        let org = Organization::create(&req.name, req.description.as_deref(), "admin", &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Admin-created orgs are auto-approved
+        let org = Organization::approve(org.id, user.member_id, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -223,6 +365,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
+            status: org.status,
             website_count: 0,
             social_profile_count: 0,
             created_at: org.created_at.to_rfc3339(),
@@ -247,7 +390,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let website_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM websites WHERE organization_id = $1",
+            "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
         )
         .bind(org.id)
         .fetch_one(&self.deps.db_pool)
@@ -255,7 +398,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .unwrap_or(0);
 
         let social_profile_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM social_profiles WHERE organization_id = $1",
+            "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
         )
         .bind(org.id)
         .fetch_one(&self.deps.db_pool)
@@ -266,6 +409,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
+            status: org.status,
             website_count,
             social_profile_count,
             created_at: org.created_at.to_rfc3339(),
@@ -287,6 +431,95 @@ impl OrganizationsService for OrganizationsServiceImpl {
         Ok(EmptyRequest {})
     }
 
+    async fn approve(
+        &self,
+        ctx: Context<'_>,
+        req: ApproveOrganizationRequest,
+    ) -> Result<OrganizationResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let org = Organization::approve(
+            OrganizationId::from(req.id),
+            user.member_id,
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org.id, "Organization approved");
+
+        Ok(OrganizationResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            status: org.status,
+            website_count: 0,
+            social_profile_count: 0,
+            created_at: org.created_at.to_rfc3339(),
+            updated_at: org.updated_at.to_rfc3339(),
+        })
+    }
+
+    async fn reject(
+        &self,
+        ctx: Context<'_>,
+        req: RejectOrganizationRequest,
+    ) -> Result<OrganizationResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let org = Organization::reject(
+            OrganizationId::from(req.id),
+            user.member_id,
+            req.reason,
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org.id, "Organization rejected");
+
+        Ok(OrganizationResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            status: org.status,
+            website_count: 0,
+            social_profile_count: 0,
+            created_at: org.created_at.to_rfc3339(),
+            updated_at: org.updated_at.to_rfc3339(),
+        })
+    }
+
+    async fn suspend(
+        &self,
+        ctx: Context<'_>,
+        req: SuspendOrganizationRequest,
+    ) -> Result<OrganizationResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let org = Organization::suspend(
+            OrganizationId::from(req.id),
+            user.member_id,
+            req.reason,
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org.id, "Organization suspended");
+
+        Ok(OrganizationResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            status: org.status,
+            website_count: 0,
+            social_profile_count: 0,
+            created_at: org.created_at.to_rfc3339(),
+            updated_at: org.updated_at.to_rfc3339(),
+        })
+    }
+
     async fn regenerate(
         &self,
         ctx: Context<'_>,
@@ -298,7 +531,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
 
         // Find all websites linked to this org before deleting
         let website_ids: Vec<WebsiteId> = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM websites WHERE organization_id = $1",
+            "SELECT id FROM sources WHERE source_type = 'website' AND organization_id = $1",
         )
         .bind(req.id)
         .fetch_all(pool)

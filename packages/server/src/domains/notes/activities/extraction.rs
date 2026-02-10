@@ -288,6 +288,13 @@ pub async fn extract_and_create_notes(
         )
         .await?;
 
+        // Generate embedding for semantic matching against posts
+        if let Ok(emb) = deps.embedding_service.generate(&extracted_note.content).await {
+            if let Err(e) = Note::update_embedding(note.id, &emb, pool).await {
+                warn!(note_id = %note.id, error = %e, "Failed to store note embedding");
+            }
+        }
+
         // Link to organization
         Noteable::create(note.id, "organization", org_id.into_uuid(), pool).await?;
 

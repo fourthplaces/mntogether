@@ -18,7 +18,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{MemberId, PostId, WebsiteId};
+use crate::common::{MemberId, PostId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
@@ -75,20 +75,22 @@ pub struct DeduplicationRunResult {
 // LLM Analysis
 // ============================================================================
 
-/// Analyze posts for a website using LLM to identify duplicates
+/// Analyze posts for a source using LLM to identify duplicates
 ///
 /// Returns a DuplicateAnalysis with groups of duplicates and unique posts.
 pub async fn deduplicate_posts_llm(
-    website_id: WebsiteId,
+    source_type: &str,
+    source_id: Uuid,
     ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
-    // Get all non-deleted posts for this website
-    let posts = Post::find_active_by_website(website_id, pool).await?;
+    // Get all non-deleted posts for this source
+    let posts = Post::find_active_by_source(source_type, source_id, pool).await?;
 
     if posts.len() < 2 {
         info!(
-            website_id = %website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             posts_count = posts.len(),
             "Too few posts to deduplicate"
         );
@@ -99,7 +101,8 @@ pub async fn deduplicate_posts_llm(
     }
 
     info!(
-        website_id = %website_id,
+        source_type = %source_type,
+        source_id = %source_id,
         posts_count = posts.len(),
         "Running LLM deduplication analysis"
     );
@@ -131,7 +134,8 @@ pub async fn deduplicate_posts_llm(
         .map_err(|e| anyhow::anyhow!("Deduplication analysis failed: {}", e))?;
 
     info!(
-        website_id = %website_id,
+        source_type = %source_type,
+        source_id = %source_id,
         duplicate_groups = result.duplicate_groups.len(),
         unique_posts = result.unique_post_ids.len(),
         "LLM deduplication analysis complete"
@@ -364,7 +368,7 @@ pub async fn deduplicate_posts(
 
     for website in &websites {
         let dedup_result =
-            match deduplicate_posts_llm(website.id, deps.ai.as_ref(), &deps.db_pool).await {
+            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
                 Ok(r) => r,
                 Err(e) => {
                     warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");

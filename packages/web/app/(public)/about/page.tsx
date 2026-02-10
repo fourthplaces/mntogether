@@ -2,71 +2,67 @@ import Link from "next/link";
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-[#E8E2D5] text-[#3D3D3D]">
-      {/* Header */}
-      <header className="bg-[#E8E2D5] px-6 md:px-12 py-6 flex justify-between items-center">
+    <section className="max-w-[800px] mx-auto px-6 md:px-12 pt-12 pb-24">
+      <Link
+        href="/"
+        className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D] mb-8"
+      >
+        &larr; Back to Home
+      </Link>
+
+      <h1 className="text-4xl font-bold text-[#3D3D3D] mb-4">About MN Together</h1>
+
+      <div className="space-y-6 text-[#4D4D4D] text-base leading-relaxed">
+        <p className="text-lg">
+          MN Together is a community hub connecting Minneapolis neighbors with
+          resources, support, and each other. Find help when you need it, offer
+          support when you can, and stay connected to your community.
+        </p>
+
+        <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">What We Do</h2>
+        <p>We bring together essential resources in one accessible place:</p>
+        <p>
+          <strong className="text-[#3D3D3D]">For those seeking help</strong> — Find
+          food assistance, shelter, legal aid, healthcare, and other vital
+          services. No judgment, no barriers.
+        </p>
+        <p>
+          <strong className="text-[#3D3D3D]">For those wanting to give</strong> — Discover
+          volunteer opportunities and ways to support your neighbors through
+          time, donations, or skills.
+        </p>
+        <p>
+          <strong className="text-[#3D3D3D]">For staying connected</strong> — Learn
+          about community events, gatherings, and opportunities to come together.
+        </p>
+        <p>
+          <strong className="text-[#3D3D3D]">For service workers</strong> — Access
+          professional tools, referral resources, and multilingual materials to
+          better serve your clients.
+        </p>
+
+        <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">Why We Exist</h2>
+        <p>
+          During times of uncertainty, people need a trusted place to turn. MN
+          Together was created to be that place — where anyone can find help,
+          offer support, or simply connect with their community.
+        </p>
+        <p>
+          We know that asking for help can be hard. We know that finding the
+          right resources can be overwhelming. We&apos;re here to make it easier.
+        </p>
+
+        <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">Contact Us</h2>
+        <p>
+          Questions, suggestions, or want to get involved?
+        </p>
         <Link
-          href="/"
-          className="flex items-center gap-2 text-2xl font-bold text-[#3D3D3D]"
+          href="/contact"
+          className="inline-block mt-2 px-6 py-3 rounded-full bg-[#3D3D3D] text-white font-semibold text-sm hover:bg-[#2D2D2D] transition-colors"
         >
-          MN{" "}
-          <img src="/icon-mn.svg" alt="Minnesota" className="w-5 h-5" />{" "}
-          Together
+          Reach Out
         </Link>
-        <nav className="hidden md:flex gap-10 items-center">
-          <Link href="/about" className="text-[#3D3D3D] font-medium">About</Link>
-          <Link href="/posts" className="text-[#3D3D3D] font-medium">Resources</Link>
-          <Link href="/contact" className="text-[#3D3D3D] font-medium">Contact</Link>
-        </nav>
-      </header>
-
-      {/* Content */}
-      <section className="max-w-[800px] mx-auto px-6 md:px-12 pt-12 pb-24">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D] mb-8"
-        >
-          &larr; Back to Home
-        </Link>
-
-        <h1 className="text-4xl font-bold text-[#3D3D3D] mb-8">About MN Together</h1>
-
-        <div className="space-y-6 text-[#4D4D4D] text-base leading-relaxed">
-          <p>
-            MN Together is a community resource hub connecting Minneapolis residents
-            with the services, volunteer opportunities, and local organizations that
-            strengthen our neighborhoods.
-          </p>
-
-          <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">Our Mission</h2>
-          <p>
-            We believe that strong communities are built when people can easily find
-            and share resources. Whether you need help, want to volunteer, or are
-            looking for ways to connect with your neighbors, MN Together makes it
-            simple to get involved.
-          </p>
-
-          <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">How It Works</h2>
-          <p>
-            We aggregate resources from trusted local organizations and community
-            members across Minneapolis. Our platform makes it easy to discover
-            services, volunteer opportunities, and community events — all in one place.
-          </p>
-
-          <h2 className="text-2xl font-bold text-[#3D3D3D] pt-4">Get Involved</h2>
-          <p>
-            MN Together is built by and for the community. If you know of a resource
-            that should be listed, or if you represent an organization that wants to
-            reach more people, we&apos;d love to hear from you.
-          </p>
-          <Link
-            href="/contact"
-            className="inline-block mt-2 px-6 py-3 rounded-full bg-[#3D3D3D] text-white font-semibold text-sm hover:bg-[#2D2D2D] transition-colors"
-          >
-            Contact Us
-          </Link>
-        </div>
-      </section>
-    </div>
+      </div>
+    </section>
   );
 }

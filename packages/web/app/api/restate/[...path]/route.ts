@@ -12,6 +12,8 @@ const PUBLIC_PATHS = [
   "Posts/submit_resource_link",
   "Posts/public_list",
   "Posts/public_filters",
+  "Organizations/public_list",
+  "Organizations/public_get",
 ];
 
 // Virtual object paths that are publicly readable (Post/{uuid}/get)

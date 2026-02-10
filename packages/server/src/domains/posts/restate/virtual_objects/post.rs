@@ -205,10 +205,11 @@ pub struct PostResult {
     pub urgency: Option<String>,
     pub location: Option<String>,
     pub source_url: Option<String>,
-    pub website_id: Option<Uuid>,
     pub submission_type: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tags: Option<Vec<PostTagResult>>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -217,6 +218,10 @@ pub struct PostResult {
     pub schedules: Option<Vec<PostScheduleResult>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub contacts: Option<Vec<PostContactResult>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_name: Option<String>,
 }
 
 impl_restate_serde!(PostResult);
@@ -235,14 +240,16 @@ impl From<Post> for PostResult {
             urgency: p.urgency,
             location: p.location,
             source_url: p.source_url,
-            website_id: p.website_id.map(|id| id.into_uuid()),
             submission_type: p.submission_type,
             created_at: p.created_at.to_rfc3339(),
             updated_at: p.updated_at.to_rfc3339(),
+            published_at: p.published_at.map(|dt| dt.to_rfc3339()),
             tags: None,
             submitted_by: None,
             schedules: None,
             contacts: None,
+            organization_id: None,
+            organization_name: None,
         }
     }
 }
@@ -309,6 +316,7 @@ pub trait PostObject {
     async fn reject(req: RejectPostRequest) -> Result<PostResult, HandlerError>;
     async fn delete(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn archive(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn reactivate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn expire(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn report(req: ReportPostRequest) -> Result<(), HandlerError>;
     async fn resolve_report(req: ResolveReportRequest) -> Result<(), HandlerError>;
@@ -508,6 +516,30 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found after archive"))?;
+
+        Ok(PostResult::from(post))
+    }
+
+    async fn reactivate(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        ctx.run(|| async {
+            Post::update_status(PostId::from_uuid(post_id), "pending_approval", &self.deps.db_pool)
+                .await
+                .map(|_| ())
+                .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after reactivate"))?;
 
         Ok(PostResult::from(post))
     }
@@ -883,7 +915,27 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Load organization through post_sources -> sources -> organizations
+        let org_row = sqlx::query_as::<_, (Uuid, String)>(
+            r#"
+            SELECT o.id, o.name
+            FROM organizations o
+            JOIN sources s ON s.organization_id = o.id
+            JOIN post_sources ps ON ps.source_id = s.id
+            WHERE ps.post_id = $1
+            LIMIT 1
+            "#,
+        )
+        .bind(post_id)
+        .fetch_optional(&self.deps.db_pool)
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
         let mut result = PostResult::from(post);
+        if let Some((org_id, org_name)) = org_row {
+            result.organization_id = Some(org_id);
+            result.organization_name = Some(org_name);
+        }
         result.submitted_by = submitted_by;
         result.tags = Some(
             tags.into_iter()

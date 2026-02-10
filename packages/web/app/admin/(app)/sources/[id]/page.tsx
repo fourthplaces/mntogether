@@ -280,11 +280,12 @@ export default function SourceDetailPage() {
   };
 
   // Poll regenerate posts workflow status
+  const regenWorkflowName = isWebsite ? "RegeneratePostsWorkflow" : "RegenerateSocialPostsWorkflow";
   useEffect(() => {
     if (!regenWorkflowId) return;
     const interval = setInterval(async () => {
       try {
-        const status = await callObject<string>("RegeneratePostsWorkflow", regenWorkflowId, "get_status", {});
+        const status = await callObject<string>(regenWorkflowName, regenWorkflowId, "get_status", {});
         setRegenStatus(status);
         if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
           clearInterval(interval);
@@ -295,7 +296,7 @@ export default function SourceDetailPage() {
       } catch { /* keep polling */ }
     }, 3000);
     return () => clearInterval(interval);
-  }, [regenWorkflowId, refetchPosts]);
+  }, [regenWorkflowId, regenWorkflowName, refetchPosts]);
 
   // Poll deduplicate posts workflow status
   useEffect(() => {
@@ -463,15 +464,15 @@ export default function SourceDetailPage() {
                         >
                           Generate AI Assessment
                         </button>
-                        <button
-                          onClick={handleRegeneratePosts}
-                          disabled={actionInProgress !== null}
-                          className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                        >
-                          Regenerate Posts
-                        </button>
                       </>
                     )}
+                    <button
+                      onClick={handleRegeneratePosts}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Regenerate Posts
+                    </button>
                     <button
                       onClick={handleDeduplicatePosts}
                       disabled={actionInProgress !== null}
@@ -611,6 +612,16 @@ export default function SourceDetailPage() {
                             <Link href={`/admin/posts/${post.id}`} className="font-medium text-stone-900 hover:underline">
                               {post.title}
                             </Link>
+                            {post.source_url && (
+                              <a
+                                href={post.source_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-blue-600 hover:text-blue-800 shrink-0"
+                              >
+                                Source {"\u2197"}
+                              </a>
+                            )}
                             <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                               post.status === "active" || post.status === "Active"
                                 ? "bg-green-100 text-green-800"

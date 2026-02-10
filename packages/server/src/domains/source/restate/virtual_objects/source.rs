@@ -359,18 +359,37 @@ impl SourceObject for SourceObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
-        // Only websites support regeneration
-        let _ws = WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
             .await
-            .map_err(|_| TerminalError::new("Post regeneration is only available for website sources"))?;
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let workflow_id = format!("regen-{}-{}", source_id, chrono::Utc::now().timestamp());
-        let _ = ctx
-            .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
-                workflow_id.clone(),
-            )
-            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id: source_id })
-            .send();
+
+        match source.source_type.as_str() {
+            "website" => {
+                let _ = ctx
+                    .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
+                        workflow_id.clone(),
+                    )
+                    .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id: source_id })
+                    .send();
+            }
+            "instagram" | "facebook" | "tiktok" => {
+                let _ = ctx
+                    .workflow_client::<crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsWorkflowClient>(
+                        workflow_id.clone(),
+                    )
+                    .run(crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsRequest { source_id })
+                    .send();
+            }
+            other => {
+                return Err(TerminalError::new(format!(
+                    "Post regeneration is not supported for source type '{}'",
+                    other
+                ))
+                .into());
+            }
+        }
 
         Ok(RegeneratePostsResult {
             posts_created: 0,

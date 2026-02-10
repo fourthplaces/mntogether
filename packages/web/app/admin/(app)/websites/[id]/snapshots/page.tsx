@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -15,6 +16,8 @@ export default function SnapshotDetailPage() {
   const { id: websiteId } = useParams<{ id: string }>();
   const searchParams = useSearchParams();
   const url = searchParams.get("url");
+
+  const [showRaw, setShowRaw] = useState(false);
 
   const { data, isLoading, error } = useRestate<OptionalPageResult>(
     "Extraction",
@@ -62,9 +65,25 @@ export default function SnapshotDetailPage() {
       )}
 
       {page && (
-        <div className="bg-white border border-stone-200 rounded-lg shadow-sm p-6">
-          <div className="prose prose-stone max-w-none">
-            <ReactMarkdown>{page.content || ""}</ReactMarkdown>
+        <div className="bg-white border border-stone-200 rounded-lg shadow-sm">
+          <div className="flex items-center justify-end px-6 pt-4">
+            <button
+              onClick={() => setShowRaw(!showRaw)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors"
+            >
+              {showRaw ? "Rendered" : "Raw"}
+            </button>
+          </div>
+          <div className="p-6 pt-3">
+            {showRaw ? (
+              <pre className="whitespace-pre-wrap text-sm text-stone-700 font-mono bg-stone-50 rounded-lg p-4 overflow-x-auto">
+                {page.content || ""}
+              </pre>
+            ) : (
+              <div className="prose prose-stone max-w-none">
+                <ReactMarkdown>{page.content || ""}</ReactMarkdown>
+              </div>
+            )}
           </div>
         </div>
       )}

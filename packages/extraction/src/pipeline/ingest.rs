@@ -17,6 +17,10 @@ use crate::traits::ingestor::RawPage;
 use crate::traits::{ai::AI, store::PageStore};
 use crate::types::{page::CachedPage, summary::Summary};
 
+/// Minimum content length (in chars) for a page to be worth summarizing.
+/// Pages shorter than this are likely non-content pages (cart, login, etc.)
+const MIN_CONTENT_LENGTH_FOR_SUMMARY: usize = 50;
+
 // =============================================================================
 // URL Normalization
 // =============================================================================
@@ -342,12 +346,23 @@ where
         "Discovered pages"
     );
 
-    // 2. Convert to cached pages (skip empty content)
+    // 2. Convert to cached pages (skip empty/short content)
     let pages: Vec<CachedPage> = raw_pages
         .iter()
-        .filter(|raw| raw.has_content())
+        .filter(|raw| {
+            if !raw.has_content() {
+                return false;
+            }
+            if raw.content.trim().len() < MIN_CONTENT_LENGTH_FOR_SUMMARY {
+                debug!(url = %raw.url, len = raw.content.trim().len(), "Skipping page with insufficient content");
+                return false;
+            }
+            true
+        })
         .map(|raw| raw_to_cached(raw, &discover_config.url))
         .collect();
+
+    let content_filtered = raw_pages.len() - pages.len();
 
     // 3. Process pages (cache check, store, summarize)
     let prompt_hash = summarize_prompt_hash();
@@ -362,6 +377,8 @@ where
         &mut result,
     )
     .await;
+
+    result.pages_skipped += content_filtered;
 
     info!(
         url = %discover_config.url,
@@ -403,12 +420,23 @@ where
 
     result.pages_crawled = raw_pages.len();
 
-    // 2. Convert to cached pages (skip empty content, use URL as fallback site)
+    // 2. Convert to cached pages (skip empty/short content, use URL as fallback site)
     let pages: Vec<CachedPage> = raw_pages
         .iter()
-        .filter(|raw| raw.has_content())
+        .filter(|raw| {
+            if !raw.has_content() {
+                return false;
+            }
+            if raw.content.trim().len() < MIN_CONTENT_LENGTH_FOR_SUMMARY {
+                debug!(url = %raw.url, len = raw.content.trim().len(), "Skipping page with insufficient content");
+                return false;
+            }
+            true
+        })
         .map(|raw| raw_to_cached(raw, &raw.url))
         .collect();
+
+    let content_filtered = raw_pages.len() - pages.len();
 
     // 3. Process pages (cache check, store, summarize)
     let prompt_hash = summarize_prompt_hash();
@@ -423,6 +451,8 @@ where
         &mut result,
     )
     .await;
+
+    result.pages_skipped += content_filtered;
 
     info!(
         urls = urls.len(),
@@ -510,10 +540,10 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/", "Home page content"));
+        ingestor.add_page(RawPage::new("https://example.com/", "Home page content with enough text to pass the minimum content length filter for summarization"));
         ingestor.add_page(RawPage::new(
             "https://example.com/about",
-            "About page content",
+            "About page content with enough text to pass the minimum content length filter for summarization",
         ));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
@@ -537,7 +567,7 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/", "Content"));
+        ingestor.add_page(RawPage::new("https://example.com/", "Content with enough text to pass the minimum content length filter for summarization"));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
         let config = IngestorConfig::default();
@@ -561,8 +591,8 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/a", "Page A"));
-        ingestor.add_page(RawPage::new("https://example.com/b", "Page B"));
+        ingestor.add_page(RawPage::new("https://example.com/a", "Page A content with enough text to pass the minimum content length filter for summarization"));
+        ingestor.add_page(RawPage::new("https://example.com/b", "Page B content with enough text to pass the minimum content length filter for summarization"));
 
         let urls = vec![
             "https://example.com/a".to_string(),
@@ -584,7 +614,7 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/", "Content"));
+        ingestor.add_page(RawPage::new("https://example.com/", "Content with enough text to pass the minimum content length filter for summarization"));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
 

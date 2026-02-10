@@ -196,7 +196,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                     match generate_notes_for_organization(org_id, &org.name, &self.deps).await {
                         Ok(r) => {
                             info!(org_id = %org_id, notes_created = r.notes_created, "Note generation complete");
-                            if let Err(e) = attach_notes_to_org_posts(org_id, pool).await {
+                            if let Err(e) = attach_notes_to_org_posts(org_id, &self.deps).await {
                                 warn!(org_id = %org_id, error = %e, "Failed to attach notes to posts");
                             }
                         }

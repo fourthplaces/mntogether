@@ -6,7 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useState, useRef, useEffect } from "react";
-import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal, PostScheduleResult, PostContactResult } from "@/lib/restate/types";
+import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal, PostScheduleResult, PostContactResult, NoteListResult, NoteResult } from "@/lib/restate/types";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -15,6 +15,12 @@ function formatTime12h(time24: string): string {
   const suffix = h >= 12 ? "PM" : "AM";
   const h12 = h % 12 || 12;
   return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
+}
+
+function isScheduleExpired(s: PostScheduleResult): boolean {
+  if (s.dtend && !s.rrule) return new Date(s.dtend) < new Date();
+  if (s.dtstart && !s.rrule && !s.dtend) return new Date(s.dtstart) < new Date();
+  return false;
 }
 
 function formatSchedule(s: PostScheduleResult): string {
@@ -78,7 +84,14 @@ export default function PostDetailPage() {
     { revalidateOnFocus: false }
   );
 
+  const { data: notesData } = useRestate<NoteListResult>(
+    "Notes", "list_for_entity",
+    { noteable_type: "post", noteable_id: postId },
+    { revalidateOnFocus: false }
+  );
+
   const proposals = proposalsData?.proposals || [];
+  const notes = notesData?.notes || [];
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -167,6 +180,21 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleArchive = async () => {
+    setActionInProgress("archive");
+    setMenuOpen(false);
+    try {
+      await callObject("Post", postId, "archive", {});
+      invalidateService("Posts");
+      invalidateObject("Post", postId);
+      refetch();
+    } catch (err) {
+      console.error("Failed to archive post:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   const handleDelete = async () => {
     setActionInProgress("delete");
     setMenuOpen(false);
@@ -175,6 +203,20 @@ export default function PostDetailPage() {
       router.push("/admin/posts");
     } catch (err) {
       console.error("Failed to delete post:", err);
+      setActionInProgress(null);
+    }
+  };
+
+  const handleReactivate = async () => {
+    setActionInProgress("reactivate");
+    try {
+      await callObject("Post", postId, "reactivate", {});
+      invalidateService("Posts");
+      invalidateObject("Post", postId);
+      refetch();
+    } catch (err) {
+      console.error("Failed to reactivate post:", err);
+    } finally {
       setActionInProgress(null);
     }
   };
@@ -265,7 +307,7 @@ export default function PostDetailPage() {
   }
 
   const missingFields: string[] = [];
-  if (!post.source_url && post.website_id) missingFields.push("source URL");
+  if (!post.source_url) missingFields.push("source URL");
   if (!post.location) missingFields.push("location");
   if (tags.length === 0) missingFields.push("tags");
   if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
@@ -288,29 +330,35 @@ export default function PostDetailPage() {
               <h1 className="text-2xl font-bold text-stone-900 mb-2">{post.title}</h1>
             </div>
             <div className="flex items-center gap-2">
-              {post.status === "pending_approval" && (
-                <>
-                  <button
-                    onClick={handleApprove}
-                    disabled={actionInProgress !== null}
-                    className="px-4 py-1.5 bg-emerald-400 text-white text-sm rounded-full font-medium hover:bg-emerald-500 transition-colors disabled:opacity-50"
-                  >
-                    {actionInProgress === "approve" ? "..." : "Approve"}
-                  </button>
-                  <button
-                    onClick={handleReject}
-                    disabled={actionInProgress !== null}
-                    className="px-4 py-1.5 bg-rose-400 text-white text-sm rounded-full font-medium hover:bg-rose-500 transition-colors disabled:opacity-50"
-                  >
-                    {actionInProgress === "reject" ? "..." : "Reject"}
-                  </button>
-                </>
-              )}
-              <span
-                className={`px-3 py-1 text-sm rounded-full font-medium ${getStatusBadgeClass(post.status)}`}
+              <select
+                value={post.status}
+                disabled={actionInProgress !== null}
+                onChange={(e) => {
+                  const newStatus = e.target.value;
+                  if (newStatus === post.status) return;
+                  if (newStatus === "active") handleApprove();
+                  else if (newStatus === "rejected") handleReject();
+                  else if (newStatus === "archived") handleArchive();
+                  else if (newStatus === "pending_approval") handleReactivate();
+                }}
+                className={`pl-2.5 py-1 text-xs rounded-full font-medium appearance-none cursor-pointer pr-5 border-0 ${getStatusBadgeClass(post.status)} disabled:opacity-50`}
+                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
               >
-                {post.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
-              </span>
+                <option value="pending_approval">Pending</option>
+                <option value="active">Active</option>
+                <option value="rejected">Rejected</option>
+                <option value="archived">Archived</option>
+              </select>
+
+              {post.status === "active" && (
+                <Link
+                  href={`/posts/${postId}`}
+                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg"
+                  title="View public page"
+                >
+                  {"\u2197"}
+                </Link>
+              )}
 
               {post.source_url && (
                 <a
@@ -351,6 +399,16 @@ export default function PostDetailPage() {
                     >
                       {actionInProgress === "regenerate" ? "Re-running..." : "Re-run Investigation"}
                     </button>
+                    {post.status === "active" && (
+                      <button
+                        onClick={handleArchive}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}
+                      </button>
+                    )}
+                    <div className="border-t border-stone-100 my-1" />
                     <button
                       onClick={handleDelete}
                       disabled={actionInProgress !== null}
@@ -395,8 +453,8 @@ export default function PostDetailPage() {
               </div>
             )}
             <div>
-              <span className="text-xs text-stone-500 uppercase">Created</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(post.created_at)}</p>
+              <span className="text-xs text-stone-500 uppercase">{post.published_at ? "Published" : "Created"}</span>
+              <p className="text-sm font-medium text-stone-900">{formatDate(post.published_at || post.created_at)}</p>
             </div>
             {post.source_url && (
               <div className="col-span-2">
@@ -413,16 +471,18 @@ export default function PostDetailPage() {
                 </p>
               </div>
             )}
-            {post.website_id && (
-              <div>
-                <span className="text-xs text-stone-500 uppercase">Website</span>
-                <p className="text-sm font-medium">
-                  <Link href={`/admin/websites/${post.website_id}`} className="text-blue-600 hover:text-blue-800">
-                    View Website {"\u2192"}
+            <div>
+              <span className="text-xs text-stone-500 uppercase">Organization</span>
+              <p className="text-sm font-medium text-stone-900">
+                {post.organization_id ? (
+                  <Link href={`/admin/organizations/${post.organization_id}`} className="text-amber-700 hover:text-amber-900">
+                    {post.organization_name}
                   </Link>
-                </p>
-              </div>
-            )}
+                ) : (
+                  <span className="text-stone-400">None</span>
+                )}
+              </p>
+            </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Submitted By</span>
               <p className="text-sm font-medium text-stone-900">
@@ -466,59 +526,59 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Pending Changes (Proposals) */}
+        {/* Review: pending proposals — approving proposals auto-updates post status */}
         {proposals.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-amber-400">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
               Pending Changes ({proposals.length})
             </h2>
             <div className="space-y-3">
-              {proposals.map((proposal: EntityProposal) => (
-                <div
-                  key={proposal.id}
-                  className="flex items-center justify-between border border-stone-200 rounded-lg p-4"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                          proposal.operation === "create"
-                            ? "bg-green-100 text-green-800"
-                            : proposal.operation === "update"
-                              ? "bg-blue-100 text-blue-800"
-                              : proposal.operation === "delete"
-                                ? "bg-red-100 text-red-800"
-                                : proposal.operation === "merge"
-                                  ? "bg-purple-100 text-purple-800"
-                                  : "bg-stone-100 text-stone-800"
-                        }`}
-                      >
-                        {proposal.operation}
-                      </span>
-                      <span className="text-xs text-stone-400">
-                        {new Date(proposal.created_at).toLocaleDateString()}
-                      </span>
+                {proposals.map((proposal: EntityProposal) => (
+                  <div
+                    key={proposal.id}
+                    className="flex items-center justify-between border border-stone-200 rounded-lg p-4"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            proposal.operation === "create"
+                              ? "bg-green-100 text-green-800"
+                              : proposal.operation === "update"
+                                ? "bg-blue-100 text-blue-800"
+                                : proposal.operation === "delete"
+                                  ? "bg-red-100 text-red-800"
+                                  : proposal.operation === "merge"
+                                    ? "bg-purple-100 text-purple-800"
+                                    : "bg-stone-100 text-stone-800"
+                          }`}
+                        >
+                          {proposal.operation}
+                        </span>
+                        <span className="text-xs text-stone-400">
+                          {new Date(proposal.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {proposal.reason && (
+                        <p className="text-sm text-stone-600">{proposal.reason}</p>
+                      )}
                     </div>
-                    {proposal.reason && (
-                      <p className="text-sm text-stone-600">{proposal.reason}</p>
-                    )}
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => handleApproveProposal(proposal.id)}
+                        className="px-3 py-1 text-sm bg-emerald-400 text-white rounded hover:bg-emerald-500"
+                      >
+                        Approve
+                      </button>
+                      <button
+                        onClick={() => handleRejectProposal(proposal.id)}
+                        className="px-3 py-1 text-sm bg-rose-400 text-white rounded hover:bg-rose-500"
+                      >
+                        Reject
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-2 ml-4">
-                    <button
-                      onClick={() => handleApproveProposal(proposal.id)}
-                      className="px-3 py-1 text-sm bg-emerald-400 text-white rounded hover:bg-emerald-500"
-                    >
-                      Approve
-                    </button>
-                    <button
-                      onClick={() => handleRejectProposal(proposal.id)}
-                      className="px-3 py-1 text-sm bg-rose-400 text-white rounded hover:bg-rose-500"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
             </div>
           </div>
         )}
@@ -559,22 +619,106 @@ export default function PostDetailPage() {
           )}
         </div>
 
-        {/* Schedule */}
-        {post.schedules && post.schedules.length > 0 && (
+        {/* Notes */}
+        {notes.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">Schedule</h2>
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">
+              Notes ({notes.length})
+            </h2>
             <div className="space-y-2">
-              {post.schedules.map((s: PostScheduleResult) => (
-                <div key={s.id} className="flex items-start gap-2 text-stone-700">
-                  <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm">{formatSchedule(s)}</span>
-                </div>
-              ))}
+              {notes.map((note: NoteResult) => {
+                const isExpired = !!note.expired_at;
+                const severityStyle =
+                  note.severity === "warn" ? "bg-red-100 text-red-800" :
+                  note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
+                  "bg-blue-100 text-blue-800";
+
+                return (
+                  <div
+                    key={note.id}
+                    className={`p-3 rounded-lg border ${
+                      isExpired ? "border-stone-200 bg-stone-50 opacity-60" : "border-stone-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${severityStyle}`}>
+                        {note.severity}
+                      </span>
+                      {note.is_public && (
+                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
+                          public
+                        </span>
+                      )}
+                      {isExpired && (
+                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
+                          expired
+                        </span>
+                      )}
+                      {note.source_type && (
+                        <span className="text-xs text-stone-400">via {note.source_type}</span>
+                      )}
+                      <span className="text-xs text-stone-400">
+                        {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-stone-700">{note.content}</p>
+                    {note.source_url && (
+                      <a
+                        href={note.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
+                      >
+                        Source {"\u2197"}
+                      </a>
+                    )}
+                    {note.linked_posts && note.linked_posts.filter(p => p.id !== postId).length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                        <span className="text-xs text-stone-400">Also on:</span>
+                        {note.linked_posts.filter(p => p.id !== postId).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/admin/posts/${p.id}`}
+                            className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 hover:text-stone-800 transition-colors truncate max-w-[200px]"
+                            title={p.title}
+                          >
+                            {p.title}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
+
+        {/* Schedule */}
+        {post.schedules && post.schedules.length > 0 && (() => {
+          const oneOffSchedules = post.schedules!.filter((s: PostScheduleResult) => !s.rrule);
+          const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
+          return (
+            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+              <h2 className="text-lg font-semibold text-stone-900 mb-4">Schedule</h2>
+              {allOneOffsExpired && (
+                <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-800">
+                  This event has passed
+                </div>
+              )}
+              <div className="space-y-2">
+                {post.schedules!.map((s: PostScheduleResult) => (
+                  <div key={s.id} className={`flex items-start gap-2 text-stone-700 ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="text-sm">{formatSchedule(s)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Source Pages */}
         {post.source_pages && post.source_pages.length > 0 && (

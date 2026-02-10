@@ -34,6 +34,9 @@ export default function OrganizationDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [generatingNotes, setGeneratingNotes] = useState(false);
+  const [actionInProgress, setActionInProgress] = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -137,17 +140,61 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setGeneratingNotes(true);
     try {
-      const result = await callService<{ notes_created: number; sources_scanned: number }>(
+      const result = await callService<{ notes_created: number; sources_scanned: number; posts_attached: number }>(
         "Notes", "generate_notes", { organization_id: orgId }
       );
       invalidateService("Notes");
       refetchNotes();
-      alert(`Generated ${result.notes_created} notes from ${result.sources_scanned} sources.`);
+      alert(`Generated ${result.notes_created} notes from ${result.sources_scanned} sources. Attached to ${result.posts_attached} posts.`);
     } catch (err: any) {
       console.error("Failed to generate notes:", err);
       alert(err.message || "Failed to generate notes");
     } finally {
       setGeneratingNotes(false);
+    }
+  };
+
+  const handleApprove = async () => {
+    setActionInProgress("approve");
+    try {
+      await callService("Organizations", "approve", { id: orgId });
+      invalidateService("Organizations");
+      refetchOrg();
+    } catch (err: any) {
+      alert(err.message || "Failed to approve organization");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleReject = async () => {
+    if (!rejectReason.trim()) return;
+    setActionInProgress("reject");
+    try {
+      await callService("Organizations", "reject", { id: orgId, reason: rejectReason.trim() });
+      invalidateService("Organizations");
+      refetchOrg();
+      setShowRejectDialog(false);
+      setRejectReason("");
+    } catch (err: any) {
+      alert(err.message || "Failed to reject organization");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleSuspend = async () => {
+    const reason = prompt("Suspension reason:");
+    if (!reason) return;
+    setActionInProgress("suspend");
+    try {
+      await callService("Organizations", "suspend", { id: orgId, reason });
+      invalidateService("Organizations");
+      refetchOrg();
+    } catch (err: any) {
+      alert(err.message || "Failed to suspend organization");
+    } finally {
+      setActionInProgress(null);
     }
   };
 
@@ -233,12 +280,45 @@ export default function OrganizationDetailPage() {
           ) : (
             <div className="flex justify-between items-start">
               <div>
-                <h1 className="text-2xl font-bold text-stone-900 mb-1">{org.name}</h1>
+                <div className="flex items-center gap-3 mb-1">
+                  <h1 className="text-2xl font-bold text-stone-900">{org.name}</h1>
+                  <span
+                    className={`px-3 py-1 text-sm rounded-full font-medium ${
+                      org.status === "approved"
+                        ? "bg-green-100 text-green-800"
+                        : org.status === "pending_review"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : org.status === "rejected"
+                            ? "bg-red-100 text-red-800"
+                            : "bg-gray-100 text-gray-800"
+                    }`}
+                  >
+                    {org.status.replace(/_/g, " ")}
+                  </span>
+                </div>
                 {org.description && (
                   <p className="text-stone-600">{org.description}</p>
                 )}
               </div>
               <div className="flex gap-2">
+                {org.status === "pending_review" && (
+                  <>
+                    <button
+                      onClick={handleApprove}
+                      disabled={actionInProgress !== null}
+                      className="px-4 py-1.5 bg-emerald-400 text-white rounded-lg text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                    >
+                      {actionInProgress === "approve" ? "..." : "Approve"}
+                    </button>
+                    <button
+                      onClick={() => setShowRejectDialog(true)}
+                      disabled={actionInProgress !== null}
+                      className="px-4 py-1.5 bg-rose-400 text-white rounded-lg text-sm font-medium hover:bg-rose-500 disabled:opacity-50 transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </>
+                )}
                 <button
                   onClick={startEditing}
                   className="px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors"
@@ -269,6 +349,15 @@ export default function OrganizationDetailPage() {
                       >
                         {generatingNotes ? "Generating Notes..." : "Generate Notes"}
                       </button>
+                      {org.status === "approved" && (
+                        <button
+                          onClick={() => { setMenuOpen(false); handleSuspend(); }}
+                          disabled={actionInProgress !== null}
+                          className="w-full text-left px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+                        >
+                          Suspend Organization
+                        </button>
+                      )}
                       <div className="border-t border-stone-100 my-1" />
                       <button
                         onClick={() => { setMenuOpen(false); handleDelete(); }}
@@ -399,6 +488,48 @@ export default function OrganizationDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Reject Dialog */}
+        {showRejectDialog && (
+          <>
+            <div
+              className="fixed inset-0 bg-black/40 z-40"
+              onClick={() => setShowRejectDialog(false)}
+            />
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
+                <div className="px-5 py-4 border-b border-stone-200">
+                  <h2 className="text-lg font-semibold text-stone-900">Reject Organization</h2>
+                </div>
+                <div className="p-5 space-y-3">
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Reason for rejection..."
+                    rows={3}
+                    className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button
+                      onClick={() => { setShowRejectDialog(false); setRejectReason(""); }}
+                      className="px-4 py-2 text-stone-500 hover:text-stone-700 text-sm"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleReject}
+                      disabled={!rejectReason.trim() || actionInProgress !== null}
+                      className="px-4 py-2 bg-rose-500 text-white rounded-lg text-sm font-medium hover:bg-rose-600 disabled:opacity-50 transition-colors"
+                    >
+                      {actionInProgress === "reject" ? "Rejecting..." : "Reject"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
       </div>
     </div>
@@ -659,6 +790,21 @@ function NoteRow({
           >
             Source {"\u2197"}
           </a>
+        )}
+        {note.linked_posts && note.linked_posts.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 mt-1.5">
+            <span className="text-xs text-stone-400">Attached to:</span>
+            {note.linked_posts.map((post) => (
+              <Link
+                key={post.id}
+                href={`/admin/posts/${post.id}`}
+                className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 hover:text-stone-800 transition-colors truncate max-w-[200px]"
+                title={post.title}
+              >
+                {post.title}
+              </Link>
+            ))}
+          </div>
         )}
       </div>
       <div className="flex gap-1 ml-2 shrink-0">

@@ -87,16 +87,34 @@ pub async fn ingest_instagram_profile(
 
         // Create the post via SQL
         let post_id = sqlx::query_scalar::<_, PostId>(
-            "INSERT INTO posts (title, description, post_type, category, status, submission_type, social_profile_id, source_url, source_language)
-             VALUES ($1, $2, 'service', 'general', 'pending_approval', 'scraped', $3, $4, 'en')
+            "INSERT INTO posts (title, description, post_type, category, status, submission_type, source_url, source_language, published_at)
+             VALUES ($1, $2, 'service', 'general', 'pending_approval', 'scraped', $3, 'en', $4)
              RETURNING id",
         )
         .bind(&title)
         .bind(caption)
-        .bind(profile.id)
         .bind(source_url)
+        .bind(ig_post.timestamp)
         .fetch_one(&deps.db_pool)
         .await?;
+
+        // Link to social profile source via post_sources
+        use crate::domains::posts::models::PostSource;
+        if let Err(e) = PostSource::create(
+            post_id,
+            &profile.platform,
+            profile.id.into_uuid(),
+            Some(source_url),
+            &deps.db_pool,
+        )
+        .await
+        {
+            tracing::warn!(
+                post_id = %post_id,
+                error = %e,
+                "Failed to create post source link for Instagram post"
+            );
+        }
 
         created_ids.push(post_id);
     }

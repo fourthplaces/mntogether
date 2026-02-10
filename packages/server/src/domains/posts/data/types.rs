@@ -18,8 +18,8 @@ pub struct PostType {
     pub location: Option<String>,
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
-    pub website_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
     pub business_info: Option<BusinessInfo>,
 }
 
@@ -62,8 +62,8 @@ impl From<Post> for PostType {
             location: post.location,
             submission_type: post.submission_type,
             source_url: post.source_url,
-            website_id: post.website_id.map(|id| id.into_uuid()),
             created_at: post.created_at,
+            published_at: post.published_at,
             business_info: None, // Populated by query layer when post_type = 'business'
         }
     }
