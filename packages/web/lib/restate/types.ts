@@ -34,6 +34,7 @@ export interface TagKindResult {
   description: string | null;
   allowed_resource_types: string[];
   required: boolean;
+  is_public: boolean;
   tag_count: number;
 }
 
@@ -134,6 +135,7 @@ export interface WebsiteResult {
   crawl_count: number | null;
   post_count: number | null;
   last_crawled_at: string | null;
+  organization_id: string | null;
 }
 
 export interface WebsiteList {
@@ -303,21 +305,38 @@ export interface SubmitResourceLinkResult {
   message: string | null;
 }
 
-// --- Search / Organizations ---
+// --- Organizations ---
 
 export interface OrganizationResult {
   id: string;
   name: string;
   description: string | null;
-  summary: string | null;
-  website: string | null;
-  phone: string | null;
-  primary_address: string | null;
+  website_count: number;
+  social_profile_count: number;
+  created_at: string;
+  updated_at: string;
 }
 
-export interface OrganizationMatch {
-  organization: OrganizationResult;
-  similarity_score: number;
+export interface OrganizationListResult {
+  organizations: OrganizationResult[];
+}
+
+// --- Social Profiles ---
+
+export interface SocialProfileResult {
+  id: string;
+  organization_id: string;
+  platform: string;
+  handle: string;
+  url: string | null;
+  scrape_frequency_hours: number;
+  last_scraped_at: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface SocialProfileListResult {
+  profiles: SocialProfileResult[];
 }
 
 // --- Post types for public display ---

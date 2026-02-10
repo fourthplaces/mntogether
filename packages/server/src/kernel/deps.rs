@@ -4,6 +4,7 @@
 //! All external services use trait abstractions to enable testing.
 
 use anyhow::Result;
+use apify_client::ApifyClient;
 use async_trait::async_trait;
 use openai_client::OpenAIClient;
 use sqlx::PgPool;
@@ -78,6 +79,8 @@ pub struct ServerDeps {
     pub jwt_service: Arc<JwtService>,
     /// In-process pub/sub hub for real-time streaming to SSE endpoints
     pub stream_hub: StreamHub,
+    /// Apify client for social media scraping (optional — not all envs need it)
+    pub apify_client: Option<Arc<ApifyClient>>,
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
 }
@@ -97,6 +100,7 @@ impl ServerDeps {
         extraction: Option<Arc<OpenAIExtractionService>>,
         jwt_service: Arc<JwtService>,
         stream_hub: StreamHub,
+        apify_client: Option<Arc<ApifyClient>>,
         test_identifier_enabled: bool,
         admin_identifiers: Vec<String>,
     ) -> Self {
@@ -112,6 +116,7 @@ impl ServerDeps {
             extraction,
             jwt_service,
             stream_hub,
+            apify_client,
             test_identifier_enabled,
             admin_identifiers,
         }

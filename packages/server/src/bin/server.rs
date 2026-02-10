@@ -18,6 +18,9 @@ use server_core::domains::chatrooms::restate::{
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
 use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
+use server_core::domains::organization::restate::{
+    OrganizationsService, OrganizationsServiceImpl,
+};
 use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
     RegisterMemberWorkflowImpl,
@@ -25,6 +28,9 @@ use server_core::domains::member::restate::{
 use server_core::domains::posts::restate::{
     DeduplicatePostsWorkflow, DeduplicatePostsWorkflowImpl, ExtractPostsFromUrlWorkflow,
     ExtractPostsFromUrlWorkflowImpl, PostObject, PostObjectImpl, PostsService, PostsServiceImpl,
+};
+use server_core::domains::social_profile::restate::{
+    SocialProfilesService, SocialProfilesServiceImpl,
 };
 use server_core::domains::providers::restate::{
     ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
@@ -178,6 +184,12 @@ async fn main() -> Result<()> {
     // Create StreamHub
     let stream_hub = StreamHub::new();
 
+    // Create Apify client (optional — only if token is set)
+    let apify_client = std::env::var("APIFY_API_TOKEN")
+        .ok()
+        .filter(|t| !t.is_empty())
+        .map(|token| Arc::new(apify_client::ApifyClient::new(token)));
+
     // Build ServerDeps and wrap in Arc for sharing across workflows
     let server_deps = Arc::new(ServerDeps::new(
         pool.clone(),
@@ -191,6 +203,7 @@ async fn main() -> Result<()> {
         Some(extraction_service),
         jwt_service,
         stream_hub,
+        apify_client,
         test_identifier_enabled,
         admin_identifiers,
     ));
@@ -245,6 +258,8 @@ async fn main() -> Result<()> {
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs domain
         .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Organization domain
+        .bind(OrganizationsServiceImpl::with_deps(server_deps.clone()).serve())
         // Member domain
         .bind(MemberObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(MembersServiceImpl::with_deps(server_deps.clone()).serve())
@@ -254,6 +269,8 @@ async fn main() -> Result<()> {
         .bind(PostsServiceImpl::with_deps(server_deps.clone()).serve())
         .bind(ExtractPostsFromUrlWorkflowImpl::with_deps(server_deps.clone()).serve())
         .bind(DeduplicatePostsWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Social profile domain
+        .bind(SocialProfilesServiceImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())

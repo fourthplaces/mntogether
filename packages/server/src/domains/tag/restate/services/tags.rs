@@ -26,6 +26,8 @@ pub struct CreateTagKindRequest {
     pub allowed_resource_types: Vec<String>,
     #[serde(default)]
     pub required: bool,
+    #[serde(default)]
+    pub is_public: bool,
 }
 
 impl_restate_serde!(CreateTagKindRequest);
@@ -38,6 +40,8 @@ pub struct UpdateTagKindRequest {
     pub allowed_resource_types: Vec<String>,
     #[serde(default)]
     pub required: bool,
+    #[serde(default)]
+    pub is_public: bool,
 }
 
 impl_restate_serde!(UpdateTagKindRequest);
@@ -98,6 +102,7 @@ pub struct TagKindResult {
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
     pub required: bool,
+    pub is_public: bool,
     pub tag_count: i64,
 }
 
@@ -182,6 +187,7 @@ impl TagsService for TagsServiceImpl {
                 description: kind.description,
                 allowed_resource_types: kind.allowed_resource_types,
                 required: kind.required,
+                is_public: kind.is_public,
                 tag_count,
             });
         }
@@ -203,6 +209,7 @@ impl TagsService for TagsServiceImpl {
             req.description.as_deref(),
             &req.allowed_resource_types,
             req.required,
+            req.is_public,
             pool,
         )
         .await
@@ -215,6 +222,7 @@ impl TagsService for TagsServiceImpl {
             description: kind.description,
             allowed_resource_types: kind.allowed_resource_types,
             required: kind.required,
+            is_public: kind.is_public,
             tag_count: 0,
         })
     }
@@ -233,6 +241,7 @@ impl TagsService for TagsServiceImpl {
             req.description.as_deref(),
             &req.allowed_resource_types,
             req.required,
+            req.is_public,
             pool,
         )
         .await
@@ -249,6 +258,7 @@ impl TagsService for TagsServiceImpl {
             description: kind.description,
             allowed_resource_types: kind.allowed_resource_types,
             required: kind.required,
+            is_public: kind.is_public,
             tag_count,
         })
     }

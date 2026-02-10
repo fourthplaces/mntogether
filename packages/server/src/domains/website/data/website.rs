@@ -15,6 +15,7 @@ pub struct WebsiteData {
     pub submitted_by: Option<String>,
     pub submitter_type: Option<String>,
     pub created_at: String,
+    pub organization_id: Option<String>,
 }
 
 impl From<Website> for WebsiteData {
@@ -29,6 +30,7 @@ impl From<Website> for WebsiteData {
             submitted_by: website.submitted_by.map(|id| id.to_string()),
             submitter_type: website.submitter_type,
             created_at: website.created_at.to_rfc3339(),
+            organization_id: website.organization_id.map(|id| id.to_string()),
         }
     }
 }

@@ -108,6 +108,7 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
   const [description, setDescription] = useState("");
   const [resourceTypes, setResourceTypes] = useState<string[]>([]);
   const [required, setRequired] = useState(false);
+  const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,6 +130,7 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
         description: description.trim() || null,
         allowed_resource_types: resourceTypes,
         required,
+        is_public: isPublic,
       });
       invalidateService("Tags");
       onClose();
@@ -194,16 +196,28 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
-      <label className="flex items-center gap-2 text-sm text-stone-700">
-        <input
-          type="checkbox"
-          checked={required}
-          onChange={(e) => setRequired(e.target.checked)}
-          disabled={loading}
-          className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
-        />
-        Required (AI must always classify this tag kind)
-      </label>
+      <div className="flex items-center gap-6">
+        <label className="flex items-center gap-2 text-sm text-stone-700">
+          <input
+            type="checkbox"
+            checked={required}
+            onChange={(e) => setRequired(e.target.checked)}
+            disabled={loading}
+            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+          />
+          Required (AI must always classify this tag kind)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-stone-700">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            disabled={loading}
+            className="rounded border-stone-300 text-green-600 focus:ring-green-500"
+          />
+          Public (visible on home page)
+        </label>
+      </div>
       <div className="flex items-center gap-2">
         <button
           type="submit"
@@ -270,6 +284,11 @@ function KindSection({
           {kind.required && (
             <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
               Required
+            </span>
+          )}
+          {kind.is_public && (
+            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+              Public
             </span>
           )}
           <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">
@@ -369,6 +388,7 @@ function EditKindForm({
     kind.allowed_resource_types
   );
   const [required, setRequired] = useState(kind.required);
+  const [isPublic, setIsPublic] = useState(kind.is_public);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -389,6 +409,7 @@ function EditKindForm({
         description: description.trim() || null,
         allowed_resource_types: resourceTypes,
         required,
+        is_public: isPublic,
       });
       invalidateService("Tags");
       onClose();
@@ -444,16 +465,28 @@ function EditKindForm({
           ))}
         </div>
       </div>
-      <label className="flex items-center gap-2 text-sm text-stone-700">
-        <input
-          type="checkbox"
-          checked={required}
-          onChange={(e) => setRequired(e.target.checked)}
-          disabled={loading}
-          className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
-        />
-        Required (AI must always classify this tag kind)
-      </label>
+      <div className="flex items-center gap-6">
+        <label className="flex items-center gap-2 text-sm text-stone-700">
+          <input
+            type="checkbox"
+            checked={required}
+            onChange={(e) => setRequired(e.target.checked)}
+            disabled={loading}
+            className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+          />
+          Required (AI must always classify this tag kind)
+        </label>
+        <label className="flex items-center gap-2 text-sm text-stone-700">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            disabled={loading}
+            className="rounded border-stone-300 text-green-600 focus:ring-green-500"
+          />
+          Public (visible on home page)
+        </label>
+      </div>
       <div className="flex items-center gap-2">
         <button
           type="submit"

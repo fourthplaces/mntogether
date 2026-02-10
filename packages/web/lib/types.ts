@@ -31,45 +31,6 @@ export interface ContactInfo {
 }
 
 // ============================================================================
-// Organization Types
-// ============================================================================
-
-export interface BusinessInfo {
-  proceedsPercentage?: number;
-  proceedsBeneficiaryId?: string;
-  proceedsBeneficiary?: {
-    id: string;
-    name: string;
-  };
-  donationLink?: string;
-  giftCardLink?: string;
-  onlineStoreUrl?: string;
-  isCauseDriven?: boolean;
-}
-
-export interface Organization {
-  id: string;
-  name: string;
-  description?: string;
-  summary?: string;
-  website?: string;
-  phone?: string;
-  primaryAddress?: string;
-  verified?: boolean;
-  contactInfo?: ContactInfo;
-  location?: string;
-  businessInfo?: BusinessInfo;
-  tags?: Tag[];
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface OrganizationMatch {
-  organization: Organization;
-  similarityScore: number;
-}
-
-// ============================================================================
 // Post Types
 // ============================================================================
 
@@ -120,8 +81,6 @@ export interface Post {
   skillsNeeded?: string[];
   remoteOk?: boolean;
 
-  // Business-specific fields
-  businessInfo?: BusinessInfo;
 }
 
 // ============================================================================
@@ -273,18 +232,6 @@ export interface GetWebsiteAssessmentResult {
 
 export interface SearchWebsitesResult {
   searchWebsites: WebsiteSearchResult[];
-}
-
-export interface GetOrganizationsResult {
-  organizations: PaginatedResult<Organization>;
-}
-
-export interface GetOrganizationResult {
-  organization: Organization | null;
-}
-
-export interface SearchOrganizationsResult {
-  searchOrganizationsSemantic: OrganizationMatch[];
 }
 
 export interface GetResourcesResult {

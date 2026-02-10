@@ -14,6 +14,7 @@ pub struct TagKindConfig {
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
     pub required: bool,
+    pub is_public: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -47,11 +48,12 @@ impl TagKindConfig {
         description: Option<&str>,
         allowed_resource_types: &[String],
         required: bool,
+        is_public: bool,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
-            "INSERT INTO tag_kinds (slug, display_name, description, allowed_resource_types, required)
-             VALUES ($1, $2, $3, $4, $5)
+            "INSERT INTO tag_kinds (slug, display_name, description, allowed_resource_types, required, is_public)
+             VALUES ($1, $2, $3, $4, $5, $6)
              RETURNING *",
         )
         .bind(slug)
@@ -59,6 +61,7 @@ impl TagKindConfig {
         .bind(description)
         .bind(allowed_resource_types)
         .bind(required)
+        .bind(is_public)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -70,11 +73,12 @@ impl TagKindConfig {
         description: Option<&str>,
         allowed_resource_types: &[String],
         required: bool,
+        is_public: bool,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "UPDATE tag_kinds
-             SET display_name = $2, description = $3, allowed_resource_types = $4, required = $5
+             SET display_name = $2, description = $3, allowed_resource_types = $4, required = $5, is_public = $6
              WHERE id = $1
              RETURNING *",
         )
@@ -83,6 +87,7 @@ impl TagKindConfig {
         .bind(description)
         .bind(allowed_resource_types)
         .bind(required)
+        .bind(is_public)
         .fetch_one(pool)
         .await
         .map_err(Into::into)

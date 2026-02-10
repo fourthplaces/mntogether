@@ -271,6 +271,7 @@ impl WebsitesService for WebsitesServiceImpl {
                         created_at: Some(e.node.created_at),
                         last_crawled_at: e.node.last_scraped_at,
                         post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
+                        organization_id: e.node.organization_id,
                     })
                 })
                 .collect(),
