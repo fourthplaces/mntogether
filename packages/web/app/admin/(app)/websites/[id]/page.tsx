@@ -241,6 +241,24 @@ export default function WebsiteDetailPage() {
     }
   };
 
+  const formatStatus = (status: string) => {
+    const map: Record<string, string> = {
+      Active: "Active",
+      active: "Active",
+      PendingApproval: "Pending Approval",
+      pending_approval: "Pending Approval",
+      Rejected: "Rejected",
+      rejected: "Rejected",
+      Expired: "Expired",
+      expired: "Expired",
+      Filled: "Filled",
+      filled: "Filled",
+      Archived: "Archived",
+      archived: "Archived",
+    };
+    return map[status] || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+  };
+
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Never";
     return new Date(dateString).toLocaleString();
@@ -388,30 +406,6 @@ export default function WebsiteDetailPage() {
               <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Crawl Status</span>
-              <p className="text-sm font-medium">
-                {website.crawl_status ? (
-                  <span
-                    className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      website.crawl_status === "completed"
-                        ? "bg-green-100 text-green-800"
-                        : website.crawl_status === "crawling"
-                          ? "bg-blue-100 text-blue-800"
-                          : website.crawl_status === "pending"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : website.crawl_status === "failed"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-stone-100 text-stone-800"
-                    }`}
-                  >
-                    {website.crawl_status === "no_posts_found" ? "No posts found" : website.crawl_status}
-                  </span>
-                ) : (
-                  <span className="text-stone-400">Never crawled</span>
-                )}
-              </p>
-            </div>
-            <div>
               <span className="text-xs text-stone-500 uppercase">Last Crawled</span>
               <p className="text-sm font-medium text-stone-900">{formatDate(website.last_crawled_at)}</p>
             </div>
@@ -479,23 +473,35 @@ export default function WebsiteDetailPage() {
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-medium text-stone-900">{post.title}</h3>
-                          {post.summary && (
-                            <p className="text-sm text-stone-500 mt-1 line-clamp-2">{post.summary}</p>
-                          )}
-                          <div className="flex gap-2 mt-2">
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-stone-900">{post.title}</h3>
                             <span
-                              className={`text-xs px-2 py-1 rounded ${
+                              className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                 post.status === "active" || post.status === "Active"
                                   ? "bg-green-100 text-green-800"
                                   : post.status === "pending_approval" || post.status === "PendingApproval"
                                     ? "bg-amber-100 text-amber-800"
-                                    : "bg-stone-100 text-stone-800"
+                                    : "bg-stone-100 text-stone-600"
                               }`}
                             >
-                              {post.status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                              {formatStatus(post.status)}
                             </span>
                           </div>
+                          {post.summary && (
+                            <p className="text-sm text-stone-500 mt-1 line-clamp-2">{post.summary}</p>
+                          )}
+                          {post.tags && post.tags.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                              {post.tags.map((tag) => (
+                                <span
+                                  key={`${tag.kind}:${tag.value}`}
+                                  className="text-xs px-2 py-1 rounded bg-stone-100 text-stone-600"
+                                >
+                                  {tag.kind}: {tag.display_name || tag.value}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </Link>

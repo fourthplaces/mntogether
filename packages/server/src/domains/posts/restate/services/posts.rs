@@ -316,6 +316,7 @@ pub struct PublicTagResult {
     pub kind: String,
     pub value: String,
     pub display_name: Option<String>,
+    pub color: Option<String>,
 }
 
 impl_restate_serde!(PublicTagResult);
@@ -880,6 +881,7 @@ impl PostsService for PostsServiceImpl {
                     kind: row.tag.kind,
                     value: row.tag.value,
                     display_name: row.tag.display_name,
+                    color: row.tag.color,
                 });
         }
 

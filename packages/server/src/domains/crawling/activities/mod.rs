@@ -89,7 +89,7 @@ pub async fn discover_website(
     let website = Website::find_by_id(website_id_typed, &deps.db_pool).await?;
 
     // Run Tavily discovery
-    let max_pages = website.max_pages_per_crawl.unwrap_or(40) as usize;
+    let max_pages = 40usize;
     let discovered =
         match discover_pages(&website.domain, deps.web_searcher.as_ref(), max_pages).await {
             Ok(pages) => pages,

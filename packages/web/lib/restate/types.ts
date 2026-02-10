@@ -33,6 +33,7 @@ export interface TagKindResult {
   display_name: string;
   description: string | null;
   allowed_resource_types: string[];
+  required: boolean;
   tag_count: number;
 }
 
@@ -133,7 +134,6 @@ export interface WebsiteResult {
   crawl_count: number | null;
   post_count: number | null;
   last_crawled_at: string | null;
-  crawl_status: string | null;
 }
 
 export interface WebsiteList {
@@ -165,13 +165,6 @@ export interface WebsiteDetail {
   snapshots_count: number;
   listings_count: number;
   created_at: string;
-  crawl_status: string | null;
-  crawl_attempt_count: number | null;
-  max_crawl_retries: number | null;
-  last_crawl_started_at: string | null;
-  last_crawl_completed_at: string | null;
-  pages_crawled_count: number | null;
-  max_pages_per_crawl: number | null;
   snapshots: SnapshotResult[];
   listings: PostResult[];
 }
@@ -366,6 +359,7 @@ export interface PublicTagResult {
   kind: string;
   value: string;
   display_name: string | null;
+  color: string | null;
 }
 
 export interface PublicPostResult {

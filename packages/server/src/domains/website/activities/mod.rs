@@ -66,24 +66,6 @@ pub async fn suspend_website(
     Ok(website_id)
 }
 
-/// Update website crawl settings
-/// Returns the updated WebsiteId.
-pub async fn update_crawl_settings(
-    website_id: WebsiteId,
-    max_pages_per_crawl: i32,
-    deps: &ServerDeps,
-) -> Result<WebsiteId> {
-    info!(
-        website_id = %website_id,
-        max_pages_per_crawl = max_pages_per_crawl,
-        "Updating website crawl settings"
-    );
-
-    Website::update_max_pages_per_crawl(website_id, max_pages_per_crawl, &deps.db_pool).await?;
-
-    Ok(website_id)
-}
-
 // ============================================================================
 // Semantic Search
 // ============================================================================
@@ -118,16 +100,17 @@ pub async fn search_websites_semantic(
 /// Note: Admin auth is checked at the GraphQL layer
 pub async fn get_websites_paginated(
     status: Option<&str>,
+    search: Option<&str>,
     args: &ValidatedPaginationArgs,
     deps: &ServerDeps,
 ) -> Result<WebsiteConnection> {
     let pool = &deps.db_pool;
 
     // Fetch websites with cursor pagination
-    let (websites, has_more) = Website::find_paginated(status, args, pool).await?;
+    let (websites, has_more) = Website::find_paginated(status, search, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Website::count_with_filters(status, pool).await? as i32;
+    let total_count = Website::count_with_filters(status, search, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<WebsiteEdge> = websites

@@ -46,15 +46,6 @@ pub struct Website {
     pub crawl_rate_limit_seconds: i32,
     pub is_trusted: bool,
 
-    // Crawl tracking (for multi-page crawling with retry)
-    pub crawl_status: Option<String>, // 'pending', 'crawling', 'completed', 'no_posts_found', 'failed'
-    pub crawl_attempt_count: Option<i32>,
-    pub max_crawl_retries: Option<i32>,
-    pub last_crawl_started_at: Option<DateTime<Utc>>,
-    pub last_crawl_completed_at: Option<DateTime<Utc>>,
-    pub pages_crawled_count: Option<i32>,
-    pub max_pages_per_crawl: Option<i32>,
-
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -90,44 +81,6 @@ impl std::str::FromStr for WebsiteStatus {
             "rejected" => Ok(WebsiteStatus::Rejected),
             "suspended" => Ok(WebsiteStatus::Suspended),
             _ => Err(anyhow::anyhow!("Invalid website status: {}", s)),
-        }
-    }
-}
-
-/// Crawl status enum for multi-page crawling workflow
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum CrawlStatus {
-    Pending,
-    Crawling,
-    Completed,
-    NoListingsFound,
-    Failed,
-}
-
-impl std::fmt::Display for CrawlStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CrawlStatus::Pending => write!(f, "pending"),
-            CrawlStatus::Crawling => write!(f, "crawling"),
-            CrawlStatus::Completed => write!(f, "completed"),
-            CrawlStatus::NoListingsFound => write!(f, "no_posts_found"),
-            CrawlStatus::Failed => write!(f, "failed"),
-        }
-    }
-}
-
-impl std::str::FromStr for CrawlStatus {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "pending" => Ok(CrawlStatus::Pending),
-            "crawling" => Ok(CrawlStatus::Crawling),
-            "completed" => Ok(CrawlStatus::Completed),
-            "no_posts_found" => Ok(CrawlStatus::NoListingsFound),
-            "failed" => Ok(CrawlStatus::Failed),
-            _ => Err(anyhow::anyhow!("Invalid crawl status: {}", s)),
         }
     }
 }
@@ -459,66 +412,6 @@ impl Website {
         Ok(normalized)
     }
 
-    /// Update max pages per crawl setting
-    pub async fn update_max_pages_per_crawl(
-        id: WebsiteId,
-        max_pages: i32,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        let website = sqlx::query_as::<_, Website>(
-            r#"
-            UPDATE websites
-            SET
-                max_pages_per_crawl = $2,
-                updated_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(max_pages)
-        .fetch_one(pool)
-        .await?;
-        Ok(website)
-    }
-
-    /// Record crawl completion with page count
-    pub async fn record_crawl_completed(
-        id: WebsiteId,
-        pages_crawled: i32,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        let website = sqlx::query_as::<_, Website>(
-            r#"
-            UPDATE websites
-            SET
-                pages_crawled_count = $2,
-                crawl_status = 'completed',
-                last_crawl_completed_at = NOW(),
-                last_scraped_at = NOW(),
-                updated_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .bind(pages_crawled)
-        .fetch_one(pool)
-        .await?;
-        Ok(website)
-    }
-
-    /// Reset crawl status to pending for retry
-    pub async fn reset_for_retry(id: WebsiteId, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            "UPDATE websites SET crawl_status = 'pending', updated_at = NOW() WHERE id = $1",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
     // =========================================================================
     // Cursor-Based Pagination (Relay spec)
     // =========================================================================
@@ -526,6 +419,7 @@ impl Website {
     /// Find websites with cursor-based pagination
     pub async fn find_paginated(
         status: Option<&str>,
+        search: Option<&str>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
@@ -538,6 +432,7 @@ impl Website {
                     SELECT * FROM websites
                     WHERE ($1::text IS NULL OR status = $1)
                       AND ($2::uuid IS NULL OR id > $2)
+                      AND ($4::text IS NULL OR domain ILIKE '%' || $4 || '%')
                     ORDER BY id ASC
                     LIMIT $3
                     "#,
@@ -545,6 +440,7 @@ impl Website {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
+                .bind(search)
                 .fetch_all(pool)
                 .await?
             }
@@ -554,6 +450,7 @@ impl Website {
                     SELECT * FROM websites
                     WHERE ($1::text IS NULL OR status = $1)
                       AND ($2::uuid IS NULL OR id < $2)
+                      AND ($4::text IS NULL OR domain ILIKE '%' || $4 || '%')
                     ORDER BY id DESC
                     LIMIT $3
                     "#,
@@ -561,6 +458,7 @@ impl Website {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
+                .bind(search)
                 .fetch_all(pool)
                 .await?;
 
@@ -590,12 +488,17 @@ impl Website {
         .map_err(Into::into)
     }
 
-    /// Count websites with optional status filter
-    pub async fn count_with_filters(status: Option<&str>, pool: &PgPool) -> Result<i64> {
+    /// Count websites with optional status and search filters
+    pub async fn count_with_filters(
+        status: Option<&str>,
+        search: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM websites WHERE ($1::text IS NULL OR status = $1)",
+            "SELECT COUNT(*) FROM websites WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR domain ILIKE '%' || $2 || '%')",
         )
         .bind(status)
+        .bind(search)
         .fetch_one(pool)
         .await?;
         Ok(count)

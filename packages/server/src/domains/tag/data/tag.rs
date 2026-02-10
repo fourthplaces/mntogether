@@ -21,12 +21,6 @@ pub struct TagData {
     /// Parent tag ID for hierarchy (e.g., 'Food' > 'Food Pantries')
     pub parent_tag_id: Option<String>,
 
-    /// Code in external taxonomy (e.g., 'BD-1800.2000' for 211HSIS)
-    pub external_code: Option<String>,
-
-    /// Taxonomy system: 'custom', 'open_eligibility', '211hsis'
-    pub taxonomy_source: Option<String>,
-
     /// When the tag was created
     pub created_at: DateTime<Utc>,
 }
@@ -39,8 +33,6 @@ impl From<Tag> for TagData {
             value: tag.value,
             display_name: tag.display_name,
             parent_tag_id: tag.parent_tag_id.map(|id| id.to_string()),
-            external_code: tag.external_code,
-            taxonomy_source: tag.taxonomy_source,
             created_at: tag.created_at,
         }
     }

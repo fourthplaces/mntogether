@@ -76,10 +76,7 @@ pub async fn create_extracted_post(
         save_contact_info(created.id, contact, pool).await;
     }
 
-    // Tag post with audience roles
-    tag_with_audience_roles(created.id, &post.audience_roles, pool).await;
-
-    // Tag post with dynamic extracted tags
+    // Tag post with dynamic extracted tags (includes audience_role)
     tag_post_from_extracted(created.id, &post.tags, pool).await;
 
     // Create structured location if zip/city/state available
@@ -116,35 +113,6 @@ pub async fn save_contact_info(post_id: PostId, contact: &ContactInfo, pool: &Pg
             error = %e,
             "Failed to save contact info"
         );
-    }
-}
-
-/// Tag a post with audience roles.
-pub async fn tag_with_audience_roles(post_id: PostId, audience_roles: &[String], pool: &PgPool) {
-    for role in audience_roles {
-        let normalized_role = role.to_lowercase();
-        match Tag::find_by_kind_value("audience_role", &normalized_role, pool).await {
-            Ok(Some(tag)) => {
-                if let Err(e) = Taggable::create_post_tag(post_id, tag.id, pool).await {
-                    warn!(
-                        post_id = %post_id,
-                        role = %normalized_role,
-                        error = %e,
-                        "Failed to tag post with audience role"
-                    );
-                }
-            }
-            Ok(None) => {
-                warn!(role = %normalized_role, "Unknown audience role from AI");
-            }
-            Err(e) => {
-                warn!(
-                    role = %normalized_role,
-                    error = %e,
-                    "Failed to look up audience role tag"
-                );
-            }
-        }
     }
 }
 

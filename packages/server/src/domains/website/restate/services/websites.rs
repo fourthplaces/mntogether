@@ -27,6 +27,8 @@ use crate::domains::website::restate::virtual_objects::website::WebsiteResult;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListWebsitesRequest {
     pub status: Option<String>,
+    #[serde(default)]
+    pub search: Option<String>,
     pub first: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
@@ -241,7 +243,7 @@ impl WebsitesService for WebsitesServiceImpl {
             .map_err(|e| TerminalError::new(e))?;
 
         let connection =
-            activities::get_websites_paginated(req.status.as_deref(), &validated, &self.deps)
+            activities::get_websites_paginated(req.status.as_deref(), req.search.as_deref(), &validated, &self.deps)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -269,7 +271,6 @@ impl WebsitesService for WebsitesServiceImpl {
                         created_at: Some(e.node.created_at),
                         last_crawled_at: e.node.last_scraped_at,
                         post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
-                        crawl_status: e.node.crawl_status,
                     })
                 })
                 .collect(),

@@ -16,8 +16,6 @@ pub struct Tag {
     pub value: String, // 'somali', 'minneapolis', 'seniors', etc.
     pub display_name: Option<String>, // 'Somali', 'Minneapolis', 'Seniors', etc.
     pub parent_tag_id: Option<TagId>, // Self-referential FK for hierarchy
-    pub external_code: Option<String>, // Code in external taxonomy (e.g., 'BD-1800.2000')
-    pub taxonomy_source: Option<String>, // 'custom', 'open_eligibility', '211hsis'
     pub color: Option<String>, // Optional hex color for display (e.g., '#3b82f6')
     pub description: Option<String>, // Optional description of the tag purpose
     pub emoji: Option<String>, // Optional emoji for display (e.g., '🤲')
@@ -32,84 +30,6 @@ pub struct Taggable {
     pub taggable_type: String, // 'post', 'organization', 'referral_document', 'domain', 'provider'
     pub taggable_id: Uuid,
     pub added_at: DateTime<Utc>,
-}
-
-/// Tag kind enum for type-safe querying
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum TagKind {
-    // Who is this for?
-    AudienceRole, // 'recipient', 'donor', 'volunteer', 'participant', 'customer', 'job-seeker'
-    Population,   // 'disabilities', 'seniors', 'refugees', 'immigrants', 'youth'
-    CommunityServed, // 'somali', 'hmong', 'latino', 'karen'
-
-    // What is offered?
-    ServiceOffered, // 'legal-aid', 'food-assistance', 'housing', 'transportation'
-    PostType,       // 'service', 'business', 'event', 'opportunity'
-
-    // Who runs it?
-    OrgLeadership, // 'immigrant-owned', 'refugee-owned', 'woman-owned'
-    BusinessModel, // 'nonprofit', 'social-enterprise', 'donate-proceeds'
-
-    // Where?
-    ServiceArea, // 'twin-cities', 'st-cloud', 'statewide'
-
-    // Provider-specific tag kinds
-    ProviderCategory,  // 'wellness_coach', 'therapist', etc.
-    ProviderSpecialty, // 'grief', 'anxiety', etc.
-    ProviderLanguage,  // 'en', 'es', 'hmn'
-
-    // Service-specific
-    ServiceLanguage, // Languages offered by a service (e.g., 'somali', 'spanish')
-
-    // Other
-    VerificationSource, // verification source for organizations
-    WithAgent,          // 'default', 'admin', etc. - enables AI agent for container
-}
-
-impl std::fmt::Display for TagKind {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TagKind::AudienceRole => write!(f, "audience_role"),
-            TagKind::Population => write!(f, "population"),
-            TagKind::CommunityServed => write!(f, "community_served"),
-            TagKind::ServiceOffered => write!(f, "service_offered"),
-            TagKind::PostType => write!(f, "post_type"),
-            TagKind::OrgLeadership => write!(f, "org_leadership"),
-            TagKind::BusinessModel => write!(f, "business_model"),
-            TagKind::ServiceArea => write!(f, "service_area"),
-            TagKind::ProviderCategory => write!(f, "provider_category"),
-            TagKind::ProviderSpecialty => write!(f, "provider_specialty"),
-            TagKind::ProviderLanguage => write!(f, "provider_language"),
-            TagKind::ServiceLanguage => write!(f, "service_language"),
-            TagKind::VerificationSource => write!(f, "verification_source"),
-            TagKind::WithAgent => write!(f, "with_agent"),
-        }
-    }
-}
-
-impl std::str::FromStr for TagKind {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "audience_role" => Ok(TagKind::AudienceRole),
-            "population" => Ok(TagKind::Population),
-            "community_served" => Ok(TagKind::CommunityServed),
-            "service_offered" => Ok(TagKind::ServiceOffered),
-            "post_type" => Ok(TagKind::PostType),
-            "org_leadership" => Ok(TagKind::OrgLeadership),
-            "business_model" => Ok(TagKind::BusinessModel),
-            "service_area" => Ok(TagKind::ServiceArea),
-            "provider_category" => Ok(TagKind::ProviderCategory),
-            "provider_specialty" => Ok(TagKind::ProviderSpecialty),
-            "provider_language" => Ok(TagKind::ProviderLanguage),
-            "service_language" => Ok(TagKind::ServiceLanguage),
-            "verification_source" => Ok(TagKind::VerificationSource),
-            "with_agent" => Ok(TagKind::WithAgent),
-            _ => Err(anyhow::anyhow!("Invalid tag kind: {}", s)),
-        }
-    }
 }
 
 /// Taggable type enum for type-safe querying
@@ -288,39 +208,6 @@ impl Tag {
         .bind(kind)
         .bind(value)
         .bind(display_name)
-        .fetch_one(pool)
-        .await?;
-        Ok(tag)
-    }
-
-    /// Find or create tag with hierarchy and external mapping
-    pub async fn find_or_create_with_hierarchy(
-        kind: &str,
-        value: &str,
-        display_name: Option<String>,
-        parent_tag_id: Option<TagId>,
-        external_code: Option<&str>,
-        taxonomy_source: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        let tag = sqlx::query_as::<_, Tag>(
-            r#"
-            INSERT INTO tags (kind, value, display_name, parent_tag_id, external_code, taxonomy_source)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            ON CONFLICT (kind, value) DO UPDATE SET
-                display_name = COALESCE(EXCLUDED.display_name, tags.display_name),
-                parent_tag_id = COALESCE(EXCLUDED.parent_tag_id, tags.parent_tag_id),
-                external_code = COALESCE(EXCLUDED.external_code, tags.external_code),
-                taxonomy_source = COALESCE(EXCLUDED.taxonomy_source, tags.taxonomy_source)
-            RETURNING *
-            "#,
-        )
-        .bind(kind)
-        .bind(value)
-        .bind(display_name)
-        .bind(parent_tag_id)
-        .bind(external_code)
-        .bind(taxonomy_source)
         .fetch_one(pool)
         .await?;
         Ok(tag)
@@ -512,7 +399,7 @@ impl Tag {
     /// Find all post_type tags for the home page buckets.
     pub async fn find_post_types(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Tag>(
-            "SELECT * FROM tags WHERE kind = 'post_type' AND value IN ('seeking', 'offering', 'announcement') ORDER BY CASE value WHEN 'seeking' THEN 1 WHEN 'offering' THEN 2 WHEN 'announcement' THEN 3 END",
+            "SELECT * FROM tags WHERE kind = 'post_type' AND value IN ('seeking', 'offering', 'announcement') ORDER BY CASE value WHEN 'offering' THEN 1 WHEN 'seeking' THEN 2 WHEN 'announcement' THEN 3 END",
         )
         .fetch_all(pool)
         .await
@@ -562,21 +449,6 @@ impl Tag {
         Ok(tags)
     }
 
-    /// Find tag by external taxonomy code
-    pub async fn find_by_external_code(
-        taxonomy_source: &str,
-        external_code: &str,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
-        let tag = sqlx::query_as::<_, Tag>(
-            "SELECT * FROM tags WHERE taxonomy_source = $1 AND external_code = $2",
-        )
-        .bind(taxonomy_source)
-        .bind(external_code)
-        .fetch_optional(pool)
-        .await?;
-        Ok(tag)
-    }
 }
 
 // =============================================================================

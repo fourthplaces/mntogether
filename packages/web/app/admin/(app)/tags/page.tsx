@@ -107,6 +107,7 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [resourceTypes, setResourceTypes] = useState<string[]>([]);
+  const [required, setRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,6 +128,7 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
         display_name: displayName.trim(),
         description: description.trim() || null,
         allowed_resource_types: resourceTypes,
+        required,
       });
       invalidateService("Tags");
       onClose();
@@ -192,6 +194,16 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
+      <label className="flex items-center gap-2 text-sm text-stone-700">
+        <input
+          type="checkbox"
+          checked={required}
+          onChange={(e) => setRequired(e.target.checked)}
+          disabled={loading}
+          className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+        />
+        Required (AI must always classify this tag kind)
+      </label>
       <div className="flex items-center gap-2">
         <button
           type="submit"
@@ -255,6 +267,11 @@ function KindSection({
             </span>
             <span className="text-stone-400 text-sm ml-2">({kind.slug})</span>
           </div>
+          {kind.required && (
+            <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
+              Required
+            </span>
+          )}
           <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">
             {kind.tag_count} tags
           </span>
@@ -351,6 +368,7 @@ function EditKindForm({
   const [resourceTypes, setResourceTypes] = useState<string[]>(
     kind.allowed_resource_types
   );
+  const [required, setRequired] = useState(kind.required);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -370,6 +388,7 @@ function EditKindForm({
         display_name: displayName.trim(),
         description: description.trim() || null,
         allowed_resource_types: resourceTypes,
+        required,
       });
       invalidateService("Tags");
       onClose();
@@ -425,6 +444,16 @@ function EditKindForm({
           ))}
         </div>
       </div>
+      <label className="flex items-center gap-2 text-sm text-stone-700">
+        <input
+          type="checkbox"
+          checked={required}
+          onChange={(e) => setRequired(e.target.checked)}
+          disabled={loading}
+          className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
+        />
+        Required (AI must always classify this tag kind)
+      </label>
       <div className="flex items-center gap-2">
         <button
           type="submit"
