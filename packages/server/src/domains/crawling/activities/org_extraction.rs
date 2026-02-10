@@ -262,7 +262,6 @@ const SOCIAL_PATTERNS: &[SocialPattern] = &[
 /// Returns deduplicated profiles found across all pages.
 fn scan_social_profiles(pages: &[(Uuid, String, String)]) -> Vec<ExtractedSocialLink> {
 
-    println!("SOCIAL {:#?}", pages);
     let mut seen = std::collections::HashSet::new();
     let mut profiles = Vec::new();
 
@@ -354,8 +353,6 @@ pub async fn extract_and_create_organization(
     let org_name = extracted.name.trim();
     let org_desc = extracted.description.as_deref().map(|d| d.trim());
 
-
-    println!("PAGES: {:#?}", pages);
 
     // Regex extraction: social profiles across ALL pages
     info!(
