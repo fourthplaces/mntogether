@@ -7,12 +7,19 @@ import { useRestate, callService, invalidateService } from "@/lib/restate/client
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import type {
   OrganizationResult,
-  SocialProfileListResult,
-  SocialProfileResult,
-  WebsiteList,
+  SourceListResult,
+  NoteListResult,
+  NoteResult,
 } from "@/lib/restate/types";
 
 const PLATFORMS = ["instagram", "facebook", "tiktok"];
+
+const SOURCE_TYPE_LABELS: Record<string, string> = {
+  website: "Website",
+  instagram: "Instagram",
+  facebook: "Facebook",
+  tiktok: "TikTok",
+};
 
 export default function OrganizationDetailPage() {
   const params = useParams();
@@ -26,6 +33,7 @@ export default function OrganizationDetailPage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
+  const [generatingNotes, setGeneratingNotes] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -47,18 +55,19 @@ export default function OrganizationDetailPage() {
     revalidateOnFocus: false,
   });
 
-  const { data: profilesData, mutate: refetchProfiles } =
-    useRestate<SocialProfileListResult>("SocialProfiles", "list_by_organization", {
+  const { data: sourcesData, mutate: refetchSources } =
+    useRestate<SourceListResult>("Sources", "list_by_organization", {
       organization_id: orgId,
     }, { revalidateOnFocus: false });
 
-  const { data: websitesData } = useRestate<WebsiteList>("Websites", "list", {
-    organization_id: orgId,
-    first: 50,
-  }, { revalidateOnFocus: false });
+  const { data: notesData, mutate: refetchNotes } =
+    useRestate<NoteListResult>("Notes", "list_for_entity", {
+      noteable_type: "organization",
+      noteable_id: orgId,
+    }, { revalidateOnFocus: false });
 
-  const profiles = profilesData?.profiles || [];
-  const websites = websitesData?.websites || [];
+  const sources = sourcesData?.sources || [];
+  const notes = notesData?.notes || [];
 
   const startEditing = () => {
     if (!org) return;
@@ -109,19 +118,36 @@ export default function OrganizationDetailPage() {
         "Organizations", "regenerate", { id: orgId }
       );
       invalidateService("Organizations");
-      invalidateService("SocialProfiles");
-      invalidateService("Websites");
+      invalidateService("Sources");
       if (result.organization_id && result.organization_id !== orgId) {
         router.push(`/admin/organizations/${result.organization_id}`);
       } else {
         refetchOrg();
-        refetchProfiles();
+        refetchSources();
       }
     } catch (err: any) {
       console.error("Failed to regenerate:", err);
       alert(err.message || "Failed to regenerate organization");
     } finally {
       setRegenerating(false);
+    }
+  };
+
+  const handleGenerateNotes = async () => {
+    setMenuOpen(false);
+    setGeneratingNotes(true);
+    try {
+      const result = await callService<{ notes_created: number; sources_scanned: number }>(
+        "Notes", "generate_notes", { organization_id: orgId }
+      );
+      invalidateService("Notes");
+      refetchNotes();
+      alert(`Generated ${result.notes_created} notes from ${result.sources_scanned} sources.`);
+    } catch (err: any) {
+      console.error("Failed to generate notes:", err);
+      alert(err.message || "Failed to generate notes");
+    } finally {
+      setGeneratingNotes(false);
     }
   };
 
@@ -222,10 +248,10 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating}
+                    disabled={regenerating || generatingNotes}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating ? "..." : "\u22EF"}
+                    {regenerating || generatingNotes ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
@@ -235,6 +261,13 @@ export default function OrganizationDetailPage() {
                         className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                       >
                         Regenerate with AI
+                      </button>
+                      <button
+                        onClick={handleGenerateNotes}
+                        disabled={generatingNotes}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {generatingNotes ? "Generating Notes..." : "Generate Notes"}
                       </button>
                       <div className="border-t border-stone-100 my-1" />
                       <button
@@ -259,13 +292,22 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
+          {generatingNotes && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Generating notes from crawled content...
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-3 gap-4 pt-4 mt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Websites</span>
               <p className="text-lg font-semibold text-stone-900">{org.website_count}</p>
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Social Profiles</span>
+              <span className="text-xs text-stone-500 uppercase">Social</span>
               <p className="text-lg font-semibold text-stone-900">{org.social_profile_count}</p>
             </div>
             <div>
@@ -277,72 +319,87 @@ export default function OrganizationDetailPage() {
           </div>
         </div>
 
-        {/* Linked Websites */}
+        {/* Sources */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">Linked Websites</h2>
-          {websites.length === 0 ? (
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">Sources</h2>
+          {sources.length === 0 ? (
             <p className="text-stone-500 text-sm">
-              No websites linked. Assign this organization from a website's detail page.
+              No sources linked. Assign this organization from a source's detail page, or add a social profile below.
             </p>
           ) : (
             <div className="space-y-2">
-              {websites.map((website) => (
+              {sources.map((source) => (
                 <Link
-                  key={website.id}
-                  href={`/admin/websites/${website.id}`}
+                  key={source.id}
+                  href={`/admin/sources/${source.id}`}
                   className="flex items-center justify-between p-3 rounded-lg border border-stone-200 hover:bg-stone-50"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="font-medium text-stone-900">{website.domain}</span>
+                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                      source.source_type === "website" ? "bg-blue-100 text-blue-800" :
+                      source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
+                      source.source_type === "facebook" ? "bg-indigo-100 text-indigo-800" :
+                      "bg-stone-100 text-stone-800"
+                    }`}>
+                      {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
+                    </span>
+                    <span className="font-medium text-stone-900">{source.identifier}</span>
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                        website.status === "approved"
+                        source.status === "approved"
                           ? "bg-green-100 text-green-800"
-                          : website.status === "pending_review"
+                          : source.status === "pending_review"
                             ? "bg-yellow-100 text-yellow-800"
                             : "bg-stone-100 text-stone-600"
                       }`}
                     >
-                      {website.status.replace(/_/g, " ")}
+                      {source.status.replace(/_/g, " ")}
                     </span>
                   </div>
                   <span className="text-sm text-stone-500">
-                    {website.post_count || 0} posts
+                    {source.post_count || 0} posts
                   </span>
                 </Link>
               ))}
             </div>
           )}
+
+          <div className="mt-4 pt-4 border-t border-stone-200">
+            <h3 className="text-sm font-medium text-stone-700 mb-2">Add Social Profile</h3>
+            <AddSocialProfileForm orgId={orgId} onAdded={() => {
+              refetchSources();
+              refetchOrg();
+            }} />
+          </div>
         </div>
 
-        {/* Social Profiles */}
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-stone-900">Social Profiles</h2>
-          </div>
+        {/* Notes */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-4">Notes</h2>
 
-          <AddSocialProfileForm orgId={orgId} onAdded={() => {
-            refetchProfiles();
-            refetchOrg();
-          }} />
+          <AddNoteForm
+            noteableType="organization"
+            noteableId={orgId}
+            onAdded={() => refetchNotes()}
+          />
 
-          {profiles.length === 0 ? (
-            <p className="text-stone-500 text-sm mt-4">No social profiles yet.</p>
+          {notes.length === 0 ? (
+            <p className="text-stone-500 text-sm mt-4">No notes yet.</p>
           ) : (
             <div className="space-y-2 mt-4">
-              {profiles.map((profile) => (
-                <SocialProfileRow
-                  key={profile.id}
-                  profile={profile}
-                  onDeleted={() => {
-                    refetchProfiles();
-                    refetchOrg();
-                  }}
+              {notes.map((note) => (
+                <NoteRow
+                  key={note.id}
+                  note={note}
+                  noteableType="organization"
+                  noteableId={orgId}
+                  onChanged={() => refetchNotes()}
                 />
               ))}
             </div>
           )}
         </div>
+
       </div>
     </div>
   );
@@ -368,13 +425,13 @@ function AddSocialProfileForm({
     setLoading(true);
     setError(null);
     try {
-      await callService("SocialProfiles", "create", {
+      await callService("Sources", "create_social", {
         organization_id: orgId,
-        platform,
+        source_type: platform,
         handle: handle.trim(),
         url: url.trim() || null,
       });
-      invalidateService("SocialProfiles");
+      invalidateService("Sources");
       setHandle("");
       setUrl("");
       onAdded();
@@ -430,62 +487,197 @@ function AddSocialProfileForm({
   );
 }
 
-function SocialProfileRow({
-  profile,
-  onDeleted,
+function AddNoteForm({
+  noteableType,
+  noteableId,
+  onAdded,
 }: {
-  profile: SocialProfileResult;
-  onDeleted: () => void;
+  noteableType: string;
+  noteableId: string;
+  onAdded: () => void;
 }) {
-  const handleDelete = async () => {
+  const [content, setContent] = useState("");
+  const [severity, setSeverity] = useState("info");
+  const [isPublic, setIsPublic] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim()) return;
+
+    setLoading(true);
+    setError(null);
     try {
-      await callService("SocialProfiles", "delete", { id: profile.id });
-      invalidateService("SocialProfiles");
-      onDeleted();
+      await callService("Notes", "create", {
+        content: content.trim(),
+        severity,
+        is_public: isPublic,
+        noteable_type: noteableType,
+        noteable_id: noteableId,
+      });
+      invalidateService("Notes");
+      setContent("");
+      setSeverity("info");
+      setIsPublic(false);
+      onAdded();
     } catch (err: any) {
-      console.error("Failed to delete profile:", err);
+      setError(err.message || "Failed to add note");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const platformIcon: Record<string, string> = {
-    instagram: "IG",
-    facebook: "FB",
-    tiktok: "TT",
+  return (
+    <form onSubmit={handleSubmit} className="space-y-2 bg-stone-50 rounded-lg px-3 py-2">
+      <div className="flex items-center gap-2">
+        <select
+          value={severity}
+          onChange={(e) => setSeverity(e.target.value)}
+          className="px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+          disabled={loading}
+        >
+          <option value="info">Info</option>
+          <option value="notice">Notice</option>
+          <option value="warn">Warn</option>
+        </select>
+        <input
+          type="text"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder="Add a note..."
+          className="flex-1 px-3 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+          disabled={loading}
+        />
+        <label className="flex items-center gap-1 text-xs text-stone-500 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={isPublic}
+            onChange={(e) => setIsPublic(e.target.checked)}
+            className="rounded border-stone-300"
+            disabled={loading}
+          />
+          Public
+        </label>
+        <button
+          type="submit"
+          disabled={loading || !content.trim()}
+          className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
+        >
+          {loading ? "..." : "Add"}
+        </button>
+      </div>
+      {error && <span className="text-red-600 text-xs">{error}</span>}
+    </form>
+  );
+}
+
+const SEVERITY_STYLES: Record<string, string> = {
+  warn: "bg-red-100 text-red-800",
+  notice: "bg-yellow-100 text-yellow-800",
+  info: "bg-blue-100 text-blue-800",
+};
+
+function NoteRow({
+  note,
+  noteableType,
+  noteableId,
+  onChanged,
+}: {
+  note: NoteResult;
+  noteableType: string;
+  noteableId: string;
+  onChanged: () => void;
+}) {
+  const isExpired = !!note.expired_at;
+
+  const handleDelete = async () => {
+    try {
+      await callService("Notes", "delete", { id: note.id });
+      invalidateService("Notes");
+      onChanged();
+    } catch (err: any) {
+      console.error("Failed to delete note:", err);
+    }
+  };
+
+  const handleUnlink = async () => {
+    try {
+      await callService("Notes", "unlink", {
+        note_id: note.id,
+        noteable_type: noteableType,
+        noteable_id: noteableId,
+      });
+      invalidateService("Notes");
+      onChanged();
+    } catch (err: any) {
+      console.error("Failed to unlink note:", err);
+    }
   };
 
   return (
-    <div className="flex items-center justify-between p-3 rounded-lg border border-stone-200">
-      <div className="flex items-center gap-3">
-        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-purple-100 text-purple-800">
-          {platformIcon[profile.platform] || profile.platform}
-        </span>
-        <span className="font-medium text-stone-900">{profile.handle}</span>
-        {profile.url && (
+    <div
+      className={`flex items-start justify-between p-3 rounded-lg border ${
+        isExpired ? "border-stone-200 bg-stone-50 opacity-60" : "border-stone-200"
+      }`}
+    >
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1">
+          <span
+            className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+              SEVERITY_STYLES[note.severity] || SEVERITY_STYLES.info
+            }`}
+          >
+            {note.severity}
+          </span>
+          {note.is_public && (
+            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
+              public
+            </span>
+          )}
+          {isExpired && (
+            <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
+              expired
+            </span>
+          )}
+          {note.source_type && (
+            <span className="text-xs text-stone-400">
+              via {note.source_type}
+            </span>
+          )}
+          <span className="text-xs text-stone-400">
+            {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
+          </span>
+        </div>
+        <p className="text-sm text-stone-700">{note.content}</p>
+        {note.source_url && (
           <a
-            href={profile.url}
+            href={note.source_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-blue-600 hover:text-blue-800"
-            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
           >
-            {"\u2197"}
+            Source {"\u2197"}
           </a>
         )}
-        <span className="text-xs text-stone-400">
-          every {profile.scrape_frequency_hours}h
-        </span>
-        {profile.last_scraped_at && (
-          <span className="text-xs text-stone-400">
-            last: {new Date(profile.last_scraped_at).toLocaleDateString()}
-          </span>
-        )}
       </div>
-      <button
-        onClick={handleDelete}
-        className="px-2 py-1 text-xs text-stone-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
-      >
-        Delete
-      </button>
+      <div className="flex gap-1 ml-2 shrink-0">
+        <button
+          onClick={handleUnlink}
+          className="px-2 py-1 text-xs text-stone-500 hover:text-amber-700 hover:bg-amber-50 rounded transition-colors"
+          title="Unlink from this entity"
+        >
+          Unlink
+        </button>
+        <button
+          onClick={handleDelete}
+          className="px-2 py-1 text-xs text-stone-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors"
+          title="Delete note entirely"
+        >
+          Delete
+        </button>
+      </div>
     </div>
   );
 }
+
