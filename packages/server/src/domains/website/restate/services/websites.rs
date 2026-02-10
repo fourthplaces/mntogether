@@ -29,6 +29,8 @@ pub struct ListWebsitesRequest {
     pub status: Option<String>,
     #[serde(default)]
     pub search: Option<String>,
+    #[serde(default)]
+    pub organization_id: Option<Uuid>,
     pub first: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
@@ -243,7 +245,7 @@ impl WebsitesService for WebsitesServiceImpl {
             .map_err(|e| TerminalError::new(e))?;
 
         let connection =
-            activities::get_websites_paginated(req.status.as_deref(), req.search.as_deref(), &validated, &self.deps)
+            activities::get_websites_paginated(req.status.as_deref(), req.search.as_deref(), req.organization_id, &validated, &self.deps)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 

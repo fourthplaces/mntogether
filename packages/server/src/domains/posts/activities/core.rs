@@ -231,16 +231,17 @@ pub async fn get_posts_paginated(
     status: Option<&str>,
     website_id: Option<crate::common::WebsiteId>,
     agent_id: Option<uuid::Uuid>,
+    search: Option<&str>,
     args: &ValidatedPaginationArgs,
     deps: &ServerDeps,
 ) -> Result<PostConnection> {
     let pool = &deps.db_pool;
 
     // Fetch posts with cursor pagination
-    let (posts, has_more) = Post::find_paginated(status, website_id, agent_id, args, pool).await?;
+    let (posts, has_more) = Post::find_paginated(status, website_id, agent_id, search, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Post::count_by_status(status, website_id, agent_id, pool).await? as i32;
+    let total_count = Post::count_by_status(status, website_id, agent_id, search, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<PostEdge> = posts

@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::EmptyRequest;
-use crate::common::WebsiteId;
+use crate::common::{OrganizationId, WebsiteId};
 use crate::domains::website::activities;
 use crate::domains::website::models::{Website, WebsiteAssessment};
 use crate::domains::website::restate::WebsiteResearchRequest;
@@ -33,6 +33,13 @@ pub struct SuspendWebsiteRequest {
 }
 
 impl_restate_serde!(SuspendWebsiteRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AssignOrganizationRequest {
+    pub organization_id: Uuid,
+}
+
+impl_restate_serde!(AssignOrganizationRequest);
 
 // =============================================================================
 // Response types
@@ -108,6 +115,14 @@ pub struct DeduplicatePostsResult {
 
 impl_restate_serde!(DeduplicatePostsResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExtractOrganizationResult {
+    pub organization_id: Option<String>,
+    pub status: String,
+}
+
+impl_restate_serde!(ExtractOrganizationResult);
+
 // =============================================================================
 // Virtual object definition
 // =============================================================================
@@ -127,6 +142,15 @@ pub trait WebsiteObject {
     async fn deduplicate_posts(
         req: EmptyRequest,
     ) -> Result<DeduplicatePostsResult, HandlerError>;
+    async fn extract_organization(
+        req: EmptyRequest,
+    ) -> Result<ExtractOrganizationResult, HandlerError>;
+    async fn assign_organization(
+        req: AssignOrganizationRequest,
+    ) -> Result<WebsiteResult, HandlerError>;
+    async fn unassign_organization(
+        req: EmptyRequest,
+    ) -> Result<WebsiteResult, HandlerError>;
 
     #[shared]
     async fn get(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
@@ -368,5 +392,66 @@ impl WebsiteObject for WebsiteObjectImpl {
         Ok(DeduplicatePostsResult {
             status: format!("started:{}", workflow_id),
         })
+    }
+
+    async fn extract_organization(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ExtractOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        match crate::domains::crawling::activities::extract_and_create_organization(
+            WebsiteId::from_uuid(website_id),
+            &self.deps,
+        )
+        .await
+        {
+            Ok(org_id) => Ok(ExtractOrganizationResult {
+                organization_id: Some(org_id.into_uuid().to_string()),
+                status: "completed".to_string(),
+            }),
+            Err(e) => Err(
+                TerminalError::new(format!("Organization extraction failed: {}", e)).into(),
+            ),
+        }
+    }
+
+    async fn assign_organization(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: AssignOrganizationRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let website = Website::set_organization_id(
+            WebsiteId::from_uuid(website_id),
+            OrganizationId::from(req.organization_id),
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
+    }
+
+    async fn unassign_organization(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<WebsiteResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let website_id = Self::parse_website_id(ctx.key())?;
+
+        let website = Website::unset_organization_id(
+            WebsiteId::from_uuid(website_id),
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(WebsiteResult::from(website))
     }
 }

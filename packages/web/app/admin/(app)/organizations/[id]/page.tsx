@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useRestate, callService, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -24,6 +24,19 @@ export default function OrganizationDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const {
     data: org,
@@ -85,6 +98,30 @@ export default function OrganizationDetailPage() {
       router.push("/admin/organizations");
     } catch (err: any) {
       alert(err.message || "Failed to delete organization");
+    }
+  };
+
+  const handleRegenerate = async () => {
+    setMenuOpen(false);
+    setRegenerating(true);
+    try {
+      const result = await callService<{ organization_id: string | null; status: string }>(
+        "Organizations", "regenerate", { id: orgId }
+      );
+      invalidateService("Organizations");
+      invalidateService("SocialProfiles");
+      invalidateService("Websites");
+      if (result.organization_id && result.organization_id !== orgId) {
+        router.push(`/admin/organizations/${result.organization_id}`);
+      } else {
+        refetchOrg();
+        refetchProfiles();
+      }
+    } catch (err: any) {
+      console.error("Failed to regenerate:", err);
+      alert(err.message || "Failed to regenerate organization");
+    } finally {
+      setRegenerating(false);
     }
   };
 
@@ -182,13 +219,43 @@ export default function OrganizationDetailPage() {
                 >
                   Edit
                 </button>
-                <button
-                  onClick={handleDelete}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                >
-                  Delete
-                </button>
+                <div className="relative" ref={menuRef}>
+                  <button
+                    onClick={() => setMenuOpen(!menuOpen)}
+                    disabled={regenerating}
+                    className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
+                  >
+                    {regenerating ? "..." : "\u22EF"}
+                  </button>
+                  {menuOpen && (
+                    <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                      <button
+                        onClick={handleRegenerate}
+                        disabled={regenerating}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        Regenerate with AI
+                      </button>
+                      <div className="border-t border-stone-100 my-1" />
+                      <button
+                        onClick={() => { setMenuOpen(false); handleDelete(); }}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        Delete Organization
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
+            </div>
+          )}
+
+          {regenerating && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Regenerating organization from website content...
+              </span>
             </div>
           )}
 

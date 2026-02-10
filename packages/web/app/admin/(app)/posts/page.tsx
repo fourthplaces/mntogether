@@ -16,6 +16,8 @@ export default function PostsPage() {
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("pending_approval");
   const [selectedType, setSelectedType] = useState<PostTypeFilter>("all");
   const [selectedSource, setSelectedSource] = useState<SourceFilter>("all");
+  const [searchInput, setSearchInput] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
@@ -24,7 +26,7 @@ export default function PostsPage() {
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [selectedStatus, selectedType, selectedSource]);
+  }, [selectedStatus, selectedType, selectedSource, searchQuery]);
 
   // Fetch stats
   const { data: statsData } = useRestate<PostStats>(
@@ -44,6 +46,7 @@ export default function PostsPage() {
       status: selectedStatus,
       post_type: selectedType === "all" ? null : selectedType,
       submission_type: selectedSource === "all" ? null : selectedSource,
+      search: searchQuery || null,
       ...pagination.variables,
     },
     { revalidateOnFocus: false }
@@ -118,6 +121,43 @@ export default function PostsPage() {
               </button>
             ))}
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="mb-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setSearchQuery(searchInput);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              type="text"
+              placeholder="Search posts by title or description..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="flex-1 px-4 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+            />
+            <button
+              type="submit"
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 transition-colors"
+            >
+              Search
+            </button>
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchInput("");
+                  setSearchQuery("");
+                }}
+                className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-200 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </form>
         </div>
 
         {/* Stats Dashboard - Post Types */}
@@ -206,8 +246,16 @@ export default function PostsPage() {
         </div>
 
         {/* Active Filters */}
-        {(selectedType !== "all" || selectedSource !== "all") && (
+        {(selectedType !== "all" || selectedSource !== "all" || searchQuery) && (
           <div className="mb-4 flex gap-2 flex-wrap">
+            {searchQuery && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                Search: <span className="font-semibold">{searchQuery}</span>
+                <button onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-blue-900">
+                  {"\u2715"}
+                </button>
+              </span>
+            )}
             {selectedType !== "all" && (
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm">
                 Type: <span className="font-semibold capitalize">{selectedType}</span>

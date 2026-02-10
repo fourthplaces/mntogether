@@ -101,16 +101,17 @@ pub async fn search_websites_semantic(
 pub async fn get_websites_paginated(
     status: Option<&str>,
     search: Option<&str>,
+    organization_id: Option<uuid::Uuid>,
     args: &ValidatedPaginationArgs,
     deps: &ServerDeps,
 ) -> Result<WebsiteConnection> {
     let pool = &deps.db_pool;
 
     // Fetch websites with cursor pagination
-    let (websites, has_more) = Website::find_paginated(status, search, args, pool).await?;
+    let (websites, has_more) = Website::find_paginated(status, search, organization_id, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Website::count_with_filters(status, search, pool).await? as i32;
+    let total_count = Website::count_with_filters(status, search, organization_id, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<WebsiteEdge> = websites

@@ -41,6 +41,34 @@ impl SocialProfile {
         .map_err(Into::into)
     }
 
+    /// Find or create a social profile by platform + handle.
+    /// If already exists, returns the existing one without modification.
+    pub async fn find_or_create(
+        organization_id: OrganizationId,
+        platform: &str,
+        handle: &str,
+        url: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        // Try insert, on conflict return existing
+        let result = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO social_profiles (organization_id, platform, handle, url)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (platform, handle) DO UPDATE
+            SET platform = EXCLUDED.platform
+            RETURNING *
+            "#,
+        )
+        .bind(organization_id)
+        .bind(platform)
+        .bind(handle)
+        .bind(url)
+        .fetch_one(pool)
+        .await?;
+        Ok(result)
+    }
+
     pub async fn find_by_id(id: SocialProfileId, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>("SELECT * FROM social_profiles WHERE id = $1")
             .bind(id)
