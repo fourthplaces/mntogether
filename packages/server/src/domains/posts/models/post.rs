@@ -601,6 +601,30 @@ impl Post {
         .map_err(Into::into)
     }
 
+    /// Find ALL posts for an organization (joins through post_sources → sources), regardless of status.
+    /// Used by admin views.
+    pub async fn find_all_by_organization_id(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Post>(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            ORDER BY p.created_at DESC
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find posts by source (via post_sources join), excludes soft-deleted and revisions
     pub async fn find_by_source(
         source_type: &str,
