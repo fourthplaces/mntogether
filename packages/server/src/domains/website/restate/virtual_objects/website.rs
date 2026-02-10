@@ -47,6 +47,7 @@ pub struct WebsiteResult {
     pub created_at: Option<String>,
     pub last_crawled_at: Option<String>,
     pub post_count: Option<i64>,
+    pub organization_id: Option<String>,
 }
 
 impl_restate_serde!(WebsiteResult);
@@ -61,6 +62,7 @@ impl From<Website> for WebsiteResult {
             created_at: Some(w.created_at.to_rfc3339()),
             last_crawled_at: w.last_scraped_at.map(|dt| dt.to_rfc3339()),
             post_count: None,
+            organization_id: w.organization_id.map(|id| id.to_string()),
         }
     }
 }

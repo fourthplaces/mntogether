@@ -12,6 +12,7 @@ import type {
   PostList,
   ExtractionPageListResult,
   ExtractionPageCount,
+  OrganizationResult,
 } from "@/lib/restate/types";
 
 type TabType = "posts" | "snapshots" | "assessment";
@@ -79,6 +80,13 @@ export default function WebsiteDetailPage() {
     data: assessmentData,
     mutate: refetchAssessment,
   } = useRestateObject<OptionalAssessmentResult>("Website", websiteId, "get_assessment", {}, { revalidateOnFocus: false });
+
+  const { data: orgData } = useRestate<OrganizationResult>(
+    website?.organization_id ? "Organizations" : null,
+    "get",
+    { id: website?.organization_id },
+    { revalidateOnFocus: false }
+  );
 
   const assessment = assessmentData?.assessment ?? null;
 
@@ -398,6 +406,19 @@ export default function WebsiteDetailPage() {
           {/* Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
+              <span className="text-xs text-stone-500 uppercase">Organization</span>
+              {orgData ? (
+                <Link
+                  href={`/admin/organizations/${orgData.id}`}
+                  className="block text-sm font-medium text-amber-700 hover:text-amber-900"
+                >
+                  {orgData.name}
+                </Link>
+              ) : (
+                <p className="text-sm text-stone-400">{"\u2014"}</p>
+              )}
+            </div>
+            <div>
               <span className="text-xs text-stone-500 uppercase">Posts</span>
               <p className="text-lg font-semibold text-stone-900">{postsData?.total_count ?? website.post_count ?? 0}</p>
             </div>
@@ -408,10 +429,6 @@ export default function WebsiteDetailPage() {
             <div>
               <span className="text-xs text-stone-500 uppercase">Last Crawled</span>
               <p className="text-sm font-medium text-stone-900">{formatDate(website.last_crawled_at)}</p>
-            </div>
-            <div>
-              <span className="text-xs text-stone-500 uppercase">Created</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(website.created_at)}</p>
             </div>
           </div>
 

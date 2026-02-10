@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRestate, callService, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
-import type { WebsiteList, WebsiteResult } from "@/lib/restate/types";
+import type { WebsiteList, WebsiteResult, OrganizationListResult } from "@/lib/restate/types";
 
 export default function WebsitesPage() {
   return (
@@ -79,6 +79,18 @@ function WebsitesContent() {
     },
     { revalidateOnFocus: false }
   );
+
+  const { data: orgsData } = useRestate<OrganizationListResult>(
+    "Organizations", "list", {}, { revalidateOnFocus: false }
+  );
+
+  const orgMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const org of orgsData?.organizations || []) {
+      map[org.id] = org.name;
+    }
+    return map;
+  }, [orgsData]);
 
   const websites = data?.websites || [];
   const totalCount = data?.total_count || 0;
@@ -189,6 +201,9 @@ function WebsitesContent() {
                     Domain
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
+                    Organization
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
@@ -208,6 +223,13 @@ function WebsitesContent() {
                   >
                     <td className="px-6 py-4 whitespace-nowrap font-medium text-stone-900">
                       {website.domain}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
+                      {website.organization_id ? (
+                        orgMap[website.organization_id] || "\u2014"
+                      ) : (
+                        <span className="text-stone-300">\u2014</span>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(website.status)}`}>

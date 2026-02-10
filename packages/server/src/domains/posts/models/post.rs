@@ -6,7 +6,7 @@ use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::{
-    ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs, WebsiteId,
+    ContainerId, PaginationDirection, PostId, SocialProfileId, ValidatedPaginationArgs, WebsiteId,
 };
 use crate::domains::schedules::models::Schedule;
 
@@ -47,6 +47,7 @@ pub struct Post {
 
     // Source tracking (for scraped listings)
     pub website_id: Option<WebsiteId>,
+    pub social_profile_id: Option<SocialProfileId>,
     pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
 
     // Soft delete (preserves links)

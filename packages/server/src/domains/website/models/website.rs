@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{MemberId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId};
+use crate::common::{MemberId, OrganizationId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId};
 
 /// Builder for creating a new Website
 #[derive(TypedBuilder)]
@@ -45,6 +45,9 @@ pub struct Website {
     pub max_crawl_depth: i32,
     pub crawl_rate_limit_seconds: i32,
     pub is_trusted: bool,
+
+    // Organization linkage
+    pub organization_id: Option<OrganizationId>,
 
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,

@@ -80,6 +80,12 @@ pub struct SyncBatch;
 /// Marker type for SyncProposal entities (individual AI-proposed operations).
 pub struct SyncProposal;
 
+/// Marker type for Organization entities (groups of related sources).
+pub struct Organization;
+
+/// Marker type for SocialProfile entities (social media profiles to scrape).
+pub struct SocialProfile;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -140,3 +146,9 @@ pub type SyncBatchId = Id<SyncBatch>;
 
 /// Typed ID for SyncProposal entities.
 pub type SyncProposalId = Id<SyncProposal>;
+
+/// Typed ID for Organization entities.
+pub type OrganizationId = Id<Organization>;
+
+/// Typed ID for SocialProfile entities.
+pub type SocialProfileId = Id<SocialProfile>;

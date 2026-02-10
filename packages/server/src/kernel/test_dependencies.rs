@@ -363,6 +363,7 @@ impl TestDependencies {
             None, // No extraction service in tests
             jwt_service,
             StreamHub::new(),
+            None, // No Apify client in tests
             true,   // test_identifier_enabled
             vec![], // admin_identifiers
         )
