@@ -8,9 +8,8 @@ use tracing::info;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{ExtractedPost, PostId, WebsiteId};
+use crate::common::{ExtractedPost, PostId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
-use crate::domains::website::models::Website;
 
 use super::create_post::create_extracted_post;
 
@@ -52,7 +51,8 @@ pub enum SyncOpResult {
 pub async fn apply_insert(
     fresh_id: &str,
     fresh: &ExtractedPost,
-    website_id: WebsiteId,
+    source_type: &str,
+    source_id: Uuid,
     pool: &PgPool,
 ) -> SyncOpResult {
     info!(
@@ -62,18 +62,24 @@ pub async fn apply_insert(
         "Inserting new post into database"
     );
 
-    let website = match Website::find_by_id(website_id, pool).await {
-        Ok(w) => w,
-        Err(e) => return SyncOpResult::Error(format!("Failed to load website: {}", e)),
+    let default_url = if source_type == "website" {
+        use crate::domains::website::models::Website;
+        match Website::find_by_id(crate::common::WebsiteId::from_uuid(source_id), pool).await {
+            Ok(w) => Some(format!("https://{}", w.domain)),
+            Err(_) => None,
+        }
+    } else {
+        None
     };
 
     match create_extracted_post(
         fresh,
-        Some(website_id),
+        Some(source_type),
+        Some(source_id),
         fresh
             .source_url
             .clone()
-            .or_else(|| Some(format!("https://{}", website.domain))),
+            .or(default_url),
         None,
         pool,
     )

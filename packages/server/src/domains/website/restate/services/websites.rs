@@ -11,7 +11,6 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, MemberId, PaginationArgs};
 use crate::domains::crawling::activities::ingest_website;
-use crate::domains::posts::models::post::Post;
 use crate::domains::website::activities;
 use crate::domains::website::models::website::CreateWebsite;
 use crate::domains::website::models::{SearchQuery, Website};
@@ -256,7 +255,8 @@ impl WebsitesService for WebsitesServiceImpl {
             .filter_map(|e| uuid::Uuid::parse_str(&e.node.id).ok())
             .collect();
 
-        let post_counts = Post::count_by_website_ids(&website_ids, &self.deps.db_pool)
+        use crate::domains::posts::models::PostSource;
+        let post_counts = PostSource::count_by_sources("website", &website_ids, &self.deps.db_pool)
             .await
             .unwrap_or_default();
 

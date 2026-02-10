@@ -5,7 +5,7 @@
 use anyhow::Result;
 use tracing::{info, warn};
 
-use crate::common::{ExtractedPost, JobId, WebsiteId};
+use crate::common::{ExtractedPost, JobId};
 use crate::kernel::ServerDeps;
 
 /// Create posts from extracted resource link data.
@@ -44,7 +44,6 @@ pub async fn create_posts_from_resource_link(
                 .capacity_status(Some("accepting".to_string()))
                 .urgency(extracted_post.urgency)
                 .submission_type(Some("user_submitted".to_string()))
-                .website_id(Some(WebsiteId::from_uuid(source_id.into_uuid())))
                 .source_url(Some(url.clone()))
                 .build(),
             &deps.db_pool,
@@ -52,6 +51,19 @@ pub async fn create_posts_from_resource_link(
         .await
         {
             Ok(new_post) => {
+                // Link to website source via post_sources
+                use crate::domains::posts::models::PostSource;
+                if let Err(e) = PostSource::create(
+                    new_post.id, "website", source_id.into_uuid(),
+                    Some(&url), &deps.db_pool,
+                ).await {
+                    warn!(
+                        post_id = %new_post.id,
+                        error = %e,
+                        "Failed to create post source link"
+                    );
+                }
+
                 created_count += 1;
                 info!(
                     post_id = %new_post.id,

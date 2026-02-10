@@ -40,10 +40,15 @@ pub async fn regenerate_single_post(post_id: Uuid, deps: &ServerDeps) -> Result<
         .as_ref()
         .ok_or_else(|| anyhow!("Post has no source_url, cannot regenerate"))?;
 
-    let website_id = post
-        .website_id
-        .ok_or_else(|| anyhow!("Post has no website_id, cannot regenerate"))?;
+    // Find the website source via post_sources
+    use crate::domains::posts::models::PostSource;
+    let sources = PostSource::find_by_post(post_id_typed, &deps.db_pool).await?;
+    let website_source = sources
+        .iter()
+        .find(|s| s.source_type == "website")
+        .ok_or_else(|| anyhow!("Post has no website source, cannot regenerate"))?;
 
+    let website_id = crate::common::WebsiteId::from_uuid(website_source.source_id);
     let website = Website::find_by_id(website_id, &deps.db_pool).await?;
 
     info!(

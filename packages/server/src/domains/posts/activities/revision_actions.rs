@@ -7,7 +7,8 @@ use anyhow::Result;
 use sqlx::PgPool;
 use tracing::info;
 
-use crate::common::{PostId, WebsiteId};
+use crate::common::PostId;
+use uuid::Uuid;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 
 /// Approve revision: copy revision fields to original, delete revision
@@ -76,13 +77,13 @@ pub async fn reject_revision(revision_id: PostId, pool: &PgPool) -> Result<()> {
     Post::delete(revision_id, pool).await
 }
 
-/// Get all pending revisions, optionally filtered by website
+/// Get all pending revisions, optionally filtered by source
 pub async fn get_pending_revisions(
-    website_id: Option<WebsiteId>,
+    source: Option<(&str, Uuid)>,
     pool: &PgPool,
 ) -> Result<Vec<Post>> {
-    match website_id {
-        Some(id) => Post::find_revisions_by_website(id, pool).await,
+    match source {
+        Some((source_type, source_id)) => Post::find_revisions_by_source(source_type, source_id, pool).await,
         None => Post::find_pending_revisions(pool).await,
     }
 }

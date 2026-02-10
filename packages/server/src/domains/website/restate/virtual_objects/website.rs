@@ -385,7 +385,8 @@ impl WebsiteObject for WebsiteObjectImpl {
                 workflow_id.clone(),
             )
             .run(crate::domains::posts::restate::workflows::deduplicate_posts::DeduplicatePostsRequest {
-                website_id,
+                source_type: "website".to_string(),
+                source_id: website_id,
             })
             .send();
 

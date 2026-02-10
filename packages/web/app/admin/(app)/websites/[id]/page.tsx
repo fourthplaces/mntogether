@@ -58,7 +58,7 @@ export default function WebsiteDetailPage() {
     mutate: refetchPosts,
   } = useRestate<PostList>(
     "Posts", "list",
-    { website_id: websiteId, first: 100 },
+    { source_type: "website", source_id: websiteId, first: 100 },
     { revalidateOnFocus: false }
   );
 

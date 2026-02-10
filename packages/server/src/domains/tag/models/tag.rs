@@ -109,6 +109,27 @@ impl Tag {
         .map_err(Into::into)
     }
 
+    /// Batch-load only public tags for multiple posts.
+    /// Filters by tag_kinds.is_public = true.
+    pub async fn find_public_for_post_ids(post_ids: &[Uuid], pool: &PgPool) -> Result<Vec<TagWithPostId>> {
+        sqlx::query_as::<_, TagWithPostId>(
+            r#"
+            SELECT tg.taggable_id, t.*
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            INNER JOIN tag_kinds tk ON tk.slug = t.kind
+            WHERE tg.taggable_type = 'post'
+              AND tg.taggable_id = ANY($1)
+              AND tk.is_public = true
+            ORDER BY t.kind, t.value
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find all tags ordered by kind, value
     pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Tag>("SELECT * FROM tags ORDER BY kind, value")

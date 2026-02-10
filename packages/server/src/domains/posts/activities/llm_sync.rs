@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use tracing::info;
 use uuid::Uuid;
 
-use crate::common::{ExtractedPost, PostId, SyncBatchId, WebsiteId};
+use crate::common::{ExtractedPost, PostId, SyncBatchId};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
@@ -231,16 +231,16 @@ fn build_sync_prompt(fresh: &[FreshPost], existing: &[ExistingPost]) -> Result<S
 /// for human review. INSERTs create draft posts, UPDATEs create revisions,
 /// DELETEs and MERGEs are recorded as proposals only.
 pub async fn llm_sync_posts(
-    website_id: WebsiteId,
+    source_type: &str,
+    source_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
     ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    let existing_db_posts = Post::find_by_website_id(website_id, pool).await?;
+    let existing_db_posts = Post::find_by_source(source_type, source_id, pool).await?;
     let submitted_by_id: Option<Uuid> = None;
-    let source_id = website_id.into_uuid();
 
-    info!(website_id = %website_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
+    info!(source_type = %source_type, source_id = %source_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
 
     if fresh_posts.is_empty() && existing_db_posts.is_empty() {
         // Create an empty batch so callers always get a batch_id
@@ -276,7 +276,7 @@ pub async fn llm_sync_posts(
 
     let mut operations = response.operations;
     let summary = response.summary;
-    info!(website_id = %website_id, operations_count = operations.len(), summary = %summary, "LLM sync analysis complete");
+    info!(source_type = %source_type, source_id = %source_id, operations_count = operations.len(), summary = %summary, "LLM sync analysis complete");
 
     log_sync_operations(&operations, &fresh, &existing);
 
@@ -328,7 +328,7 @@ pub async fn llm_sync_posts(
     }
 
     stage_sync_operations(
-        website_id,
+        source_type,
         source_id,
         submitted_by_id,
         &fresh_posts,
@@ -347,7 +347,7 @@ pub async fn llm_sync_posts(
 /// DELETEs: only records proposal (no post changes)
 /// MERGEs: creates revision for canonical if merged content provided, records proposal + merge sources
 async fn stage_sync_operations(
-    website_id: WebsiteId,
+    source_type: &str,
     source_id: Uuid,
     submitted_by_id: Option<Uuid>,
     fresh_posts: &[ExtractedPost],
@@ -378,8 +378,15 @@ async fn stage_sync_operations(
         .map(|p| (p.id.as_uuid().to_string(), p))
         .collect();
 
+    let website_id = if source_type == "website" {
+        Some(crate::common::WebsiteId::from_uuid(source_id))
+    } else {
+        None
+    };
+
     info!(
-        website_id = %website_id,
+        source_type = %source_type,
+        source_id = %source_id,
         operations_count = operations.len(),
         "Staging sync operations as proposals"
     );
@@ -396,21 +403,23 @@ async fn stage_sync_operations(
                     }
                 };
                 if let Some(fresh) = fresh_by_id.get(&fresh_id) {
-                    let website = match Website::find_by_id(website_id, pool).await {
-                        Ok(w) => w,
-                        Err(e) => {
-                            errors.push(format!("Failed to load website: {}", e));
-                            continue;
+                    let default_url = if let Some(wid) = website_id {
+                        match Website::find_by_id(wid, pool).await {
+                            Ok(w) => Some(format!("https://{}", w.domain)),
+                            Err(_) => None,
                         }
+                    } else {
+                        None
                     };
 
                     match create_extracted_post(
                         fresh,
-                        Some(website_id),
+                        Some(source_type),
+                        Some(source_id),
                         fresh
                             .source_url
                             .clone()
-                            .or_else(|| Some(format!("https://{}", website.domain))),
+                            .or(default_url.clone()),
                         submitted_by_id,
                         pool,
                     )
@@ -478,18 +487,20 @@ async fn stage_sync_operations(
                         "Update has no valid existing_id, falling back to insert"
                     );
                     let fresh = fresh_post.unwrap();
-                    let website = match Website::find_by_id(website_id, pool).await {
-                        Ok(w) => w,
-                        Err(e) => {
-                            errors.push(format!("Failed to load website for fallback insert: {}", e));
-                            continue;
+                    let default_url = if let Some(wid) = website_id {
+                        match Website::find_by_id(wid, pool).await {
+                            Ok(w) => Some(format!("https://{}", w.domain)),
+                            Err(_) => None,
                         }
+                    } else {
+                        None
                     };
                     match create_extracted_post(
                         fresh,
-                        Some(website_id),
+                        Some(source_type),
+                        Some(source_id),
                         fresh.source_url.clone()
-                            .or_else(|| Some(format!("https://{}", website.domain))),
+                            .or(default_url),
                         submitted_by_id,
                         pool,
                     ).await {
@@ -639,7 +650,8 @@ async fn stage_sync_operations(
     // Log errors if all operations failed
     if proposed_ops.is_empty() && !errors.is_empty() {
         tracing::warn!(
-            website_id = %website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             error_count = errors.len(),
             errors = ?errors,
             "All LLM sync operations failed — no proposals staged"
@@ -663,7 +675,8 @@ async fn stage_sync_operations(
     .await?;
 
     info!(
-        website_id = %website_id,
+        source_type = %source_type,
+        source_id = %source_id,
         batch_id = %stage_result.batch_id,
         staged_inserts,
         staged_updates,
@@ -773,13 +786,15 @@ pub async fn update_post_with_owner(
             .source_language(original.source_language.clone())
             .submission_type(Some("revision".to_string()))
             .submitted_by_id(submitted_by_id)
-            .website_id(original.website_id)
             .source_url(original.source_url.clone())
             .revision_of_post_id(Some(post_id))
             .build(),
         pool,
     )
     .await?;
+
+    // Copy sources from original to revision
+    crate::domains::posts::models::PostSource::copy_sources(original.id, revision.id, pool).await?;
 
     // Create contact info on revision if available
     if let Some(ref contact) = fresh.contact {

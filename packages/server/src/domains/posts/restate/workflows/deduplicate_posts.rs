@@ -14,7 +14,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::common::{EmptyRequest, PostId, WebsiteId};
+use crate::common::{EmptyRequest, PostId};
 use crate::domains::posts::activities::deduplication::{
     find_duplicate_pending_posts, match_pending_to_active_posts, Phase1Result, Phase2Result,
 };
@@ -49,7 +49,8 @@ impl_restate_serde!(StagingDone);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeduplicatePostsRequest {
-    pub website_id: Uuid,
+    pub source_type: String,
+    pub source_id: Uuid,
 }
 
 impl_restate_serde!(DeduplicatePostsRequest);
@@ -94,22 +95,24 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
         ctx: WorkflowContext<'_>,
         req: DeduplicatePostsRequest,
     ) -> Result<DeduplicatePostsWorkflowResult, HandlerError> {
-        let website_id = WebsiteId::from_uuid(req.website_id);
-        info!(website_id = %req.website_id, "Starting deduplicate posts workflow");
+        let source_type = &req.source_type;
+        let source_id = req.source_id;
+        info!(source_type = %source_type, source_id = %source_id, "Starting deduplicate posts workflow");
 
         // Step 1: Load posts
         ctx.set("status", "Loading posts...".to_string());
 
-        let pending_posts = Post::find_pending_by_website(website_id, &self.deps.db_pool)
+        let pending_posts = Post::find_pending_by_source(source_type, source_id, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(format!("Failed to load pending posts: {}", e)))?;
 
-        let active_posts = Post::find_active_only_by_website(website_id, &self.deps.db_pool)
+        let active_posts = Post::find_active_only_by_source(source_type, source_id, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(format!("Failed to load active posts: {}", e)))?;
 
         info!(
-            website_id = %req.website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             pending = pending_posts.len(),
             active = active_posts.len(),
             "Posts loaded"
@@ -146,7 +149,8 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
             .await?;
 
         info!(
-            website_id = %req.website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             groups = phase1.groups.len(),
             "Phase 1 complete"
         );
@@ -193,7 +197,8 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
             .await?;
 
         info!(
-            website_id = %req.website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             matches = phase2.matches.len(),
             "Phase 2 complete"
         );
@@ -381,7 +386,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
         ctx.run(|| async {
             stage_proposals(
                 "post",
-                req.website_id,
+                req.source_id,
                 Some(&summary),
                 proposed_ops,
                 &self.deps.db_pool,
@@ -407,7 +412,8 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
         );
 
         info!(
-            website_id = %req.website_id,
+            source_type = %source_type,
+            source_id = %source_id,
             duplicates_found = result.duplicates_found,
             proposals_created = result.proposals_created,
             "Deduplicate posts workflow completed"

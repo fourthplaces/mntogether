@@ -249,13 +249,13 @@ Surface `is_public` notes on public-facing post pages.
 ## Acceptance Criteria
 
 ### Phase 1
-- [ ] Migration creates `notes` and `noteables` tables with correct schema, indexes, and constraints
-- [ ] Rust `Note` and `Noteable` models with full CRUD + linking methods
-- [ ] `NoteId` and `NoteableId` typed IDs registered in `entity_ids.rs`
-- [ ] `NotesService` Restate service with create/get/update/delete/list/link/unlink handlers
-- [ ] TypeScript types for `NoteResult`, `NoteListResult`
-- [ ] Organization detail page shows Notes section with add/delete/unlink functionality
-- [ ] Notes display severity badges, source info, and expired status
+- [x] Migration creates `notes` and `noteables` tables with correct schema, indexes, and constraints
+- [x] Rust `Note` and `Noteable` models with full CRUD + linking methods
+- [x] `NoteId` and `NoteableId` typed IDs registered in `entity_ids.rs`
+- [x] `NotesService` Restate service with create/get/update/delete/list/link/unlink handlers
+- [x] TypeScript types for `NoteResult`, `NoteListResult`
+- [x] Organization detail page shows Notes section with add/delete/unlink functionality
+- [x] Notes display severity badges, source info, and expired status
 
 ### Phase 2
 - [ ] Note extraction activity runs after org extraction in crawl pipeline

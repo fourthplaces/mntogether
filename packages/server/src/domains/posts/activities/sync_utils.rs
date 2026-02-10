@@ -1,4 +1,5 @@
-use crate::common::{PostId, WebsiteId};
+use crate::common::PostId;
+use uuid::Uuid;
 use crate::common::utils::generate_summary;
 use crate::domains::posts::activities::tag_post_from_extracted;
 use crate::domains::contacts::Contact;
@@ -64,11 +65,13 @@ pub struct ExtractedPostInput {
 /// This function only does exact title matching.
 pub async fn sync_posts(
     pool: &PgPool,
-    website_id: WebsiteId,
+    source_type: &str,
+    source_id: Uuid,
     extracted_posts: Vec<ExtractedPostInput>,
 ) -> Result<TitleMatchSyncResult> {
     tracing::info!(
-        website_id = %website_id,
+        source_type = %source_type,
+        source_id = %source_id,
         post_count = extracted_posts.len(),
         "Syncing posts"
     );
@@ -79,7 +82,7 @@ pub async fn sync_posts(
 
     for post_input in extracted_posts {
         // Check for exact title match
-        let existing = Post::find_by_domain_and_title(website_id, &post_input.title, pool).await?;
+        let existing = Post::find_by_source_and_title(source_type, source_id, &post_input.title, pool).await?;
 
         if let Some(existing_post) = existing {
             // Post exists by title - check if content changed
@@ -133,7 +136,6 @@ pub async fn sync_posts(
                     .urgency(urgency)
                     .location(post_input.location.clone())
                     .submission_type(Some("scraped".to_string()))
-                    .website_id(Some(website_id))
                     .source_url(post_input.source_url.clone())
                     .build(),
                 pool,
@@ -146,6 +148,19 @@ pub async fn sync_posts(
                         title = %post_input.title,
                         "Created new post"
                     );
+
+                    // Link to source via post_sources
+                    use crate::domains::posts::models::PostSource;
+                    if let Err(e) = PostSource::create(
+                        created.id, source_type, source_id,
+                        post_input.source_url.as_deref(), pool,
+                    ).await {
+                        tracing::warn!(
+                            post_id = %created.id,
+                            error = %e,
+                            "Failed to create post source link"
+                        );
+                    }
 
                     // Save contact info if present
                     if let Some(ref contact_info) = post_input.contact {

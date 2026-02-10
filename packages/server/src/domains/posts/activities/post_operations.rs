@@ -9,7 +9,8 @@ use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::{MemberId, PostId, WebsiteId};
+use crate::common::{MemberId, PostId};
+use uuid::Uuid;
 use crate::common::utils::generate_summary;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
@@ -45,7 +46,8 @@ pub async fn create_post(
     location: Option<String>,
     ip_address: Option<String>,
     submission_type: String,
-    website_id: Option<WebsiteId>,
+    source_type: Option<&str>,
+    source_id: Option<Uuid>,
     ai: &OpenAIClient,
     pool: &PgPool,
 ) -> Result<Post> {
@@ -73,12 +75,23 @@ pub async fn create_post(
             .location(location)
             .submission_type(Some(submission_type))
             .submitted_by_id(member_id.map(|m| m.into_uuid()))
-            .website_id(website_id)
             .build(),
         pool,
     )
     .await
     .context("Failed to create listing")?;
+
+    // Link to source via post_sources
+    if let (Some(st), Some(sid)) = (source_type, source_id) {
+        use crate::domains::posts::models::PostSource;
+        if let Err(e) = PostSource::create(post.id, st, sid, None, pool).await {
+            tracing::warn!(
+                post_id = %post.id,
+                error = %e,
+                "Failed to create post source link"
+            );
+        }
+    }
 
     // Save contact info if provided
     if let Some(ref contact) = contact_info {

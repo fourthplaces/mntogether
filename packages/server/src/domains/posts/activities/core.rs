@@ -37,7 +37,8 @@ pub async fn submit_post(
         input.location,
         None, // ip_address
         "user_submitted".to_string(),
-        None, // domain_id
+        None, // source_type
+        None, // source_id
         deps.ai.as_ref(),
         &deps.db_pool,
     )
@@ -229,7 +230,8 @@ use crate::domains::posts::models::Post;
 /// Returns a PostConnection with edges, pageInfo, and totalCount.
 pub async fn get_posts_paginated(
     status: Option<&str>,
-    website_id: Option<crate::common::WebsiteId>,
+    source_type: Option<&str>,
+    source_id: Option<uuid::Uuid>,
     agent_id: Option<uuid::Uuid>,
     search: Option<&str>,
     args: &ValidatedPaginationArgs,
@@ -238,10 +240,10 @@ pub async fn get_posts_paginated(
     let pool = &deps.db_pool;
 
     // Fetch posts with cursor pagination
-    let (posts, has_more) = Post::find_paginated(status, website_id, agent_id, search, args, pool).await?;
+    let (posts, has_more) = Post::find_paginated(status, source_type, source_id, agent_id, search, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Post::count_by_status(status, website_id, agent_id, search, pool).await? as i32;
+    let total_count = Post::count_by_status(status, source_type, source_id, agent_id, search, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<PostEdge> = posts

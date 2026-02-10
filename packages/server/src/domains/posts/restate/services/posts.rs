@@ -28,7 +28,8 @@ use crate::domains::posts::restate::virtual_objects::post::{PostResult, PostTagR
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListPostsRequest {
     pub status: Option<String>,
-    pub website_id: Option<Uuid>,
+    pub source_type: Option<String>,
+    pub source_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
     pub search: Option<String>,
     pub first: Option<i32>,
@@ -101,7 +102,8 @@ impl_restate_serde!(UpcomingEventsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingRevisionsRequest {
-    pub website_id: Option<Uuid>,
+    pub source_type: Option<String>,
+    pub source_id: Option<Uuid>,
 }
 
 impl_restate_serde!(PendingRevisionsRequest);
@@ -307,6 +309,7 @@ pub struct PublicPostResult {
     pub post_type: String,
     pub category: String,
     pub created_at: String,
+    pub published_at: Option<String>,
     pub tags: Vec<PublicTagResult>,
 }
 
@@ -415,7 +418,7 @@ impl PostsServiceImpl {
 impl PostsService for PostsServiceImpl {
     async fn list(
         &self,
-        ctx: Context<'_>,
+        _ctx: Context<'_>,
         req: ListPostsRequest,
     ) -> Result<PostListResult, HandlerError> {
         let status_filter = req.status.as_deref();
@@ -430,12 +433,13 @@ impl PostsService for PostsServiceImpl {
             .validate()
             .map_err(|e| TerminalError::new(e))?;
 
-        let website_id = req.website_id.map(crate::common::WebsiteId::from_uuid);
+        let source_type = req.source_type.as_deref();
+        let source_id = req.source_id;
         let agent_id = req.agent_id;
         let search_filter = req.search.as_deref();
 
         let connection =
-            activities::get_posts_paginated(status_filter, website_id, agent_id, search_filter, &validated, &self.deps)
+            activities::get_posts_paginated(status_filter, source_type, source_id, agent_id, search_filter, &validated, &self.deps)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -478,14 +482,16 @@ impl PostsService for PostsServiceImpl {
                         urgency: e.node.urgency,
                         location: e.node.location,
                         source_url: e.node.source_url,
-                        website_id: e.node.website_id,
                         submission_type: e.node.submission_type,
                         created_at: e.node.created_at.to_rfc3339(),
                         updated_at: e.node.created_at.to_rfc3339(),
+                        published_at: e.node.published_at.map(|dt| dt.to_rfc3339()),
                         tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
                         submitted_by: None,
                         schedules: None,
                         contacts: None,
+                        organization_id: None,
+                        organization_name: None,
                     }
                 })
                 .collect(),
@@ -531,14 +537,16 @@ impl PostsService for PostsServiceImpl {
                         urgency: pwd.urgency,
                         location: pwd.location,
                         source_url: pwd.source_url,
-                        website_id: pwd.website_id.map(|id| id.into_uuid()),
                         submission_type: pwd.submission_type,
                         created_at: pwd.created_at.to_rfc3339(),
                         updated_at: pwd.created_at.to_rfc3339(),
+                        published_at: None,
                         tags: None,
                         submitted_by: None,
                         schedules: None,
                         contacts: None,
+                        organization_id: None,
+                        organization_name: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -717,10 +725,13 @@ impl PostsService for PostsServiceImpl {
     ) -> Result<PendingRevisionsResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let website_id = req.website_id.map(crate::common::WebsiteId::from_uuid);
+        let source_filter = match (req.source_type.as_deref(), req.source_id) {
+            (Some(st), Some(sid)) => Some((st, sid)),
+            _ => None,
+        };
 
         let revisions =
-            activities::revision_actions::get_pending_revisions(website_id, &self.deps.db_pool)
+            activities::revision_actions::get_pending_revisions(source_filter, &self.deps.db_pool)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -866,9 +877,9 @@ impl PostsService for PostsServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch-load tags for returned posts
+        // Batch-load public tags for returned posts
         let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
-        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+        let tag_rows = Tag::find_public_for_post_ids(&post_ids, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -902,6 +913,7 @@ impl PostsService for PostsServiceImpl {
                         post_type: p.post_type,
                         category: p.category,
                         created_at: p.created_at.to_rfc3339(),
+                        published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                     }
                 })

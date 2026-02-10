@@ -32,7 +32,8 @@ use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
 };
 use server_core::domains::source::restate::{
-    SourceObject, SourceObjectImpl, SourcesService, SourcesServiceImpl,
+    RegenerateSocialPostsWorkflow, RegenerateSocialPostsWorkflowImpl, SourceObject,
+    SourceObjectImpl, SourcesService, SourcesServiceImpl,
 };
 use server_core::domains::providers::restate::{
     ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
@@ -278,6 +279,7 @@ async fn main() -> Result<()> {
         // Source domain
         .bind(SourceObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
+        .bind(RegenerateSocialPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())

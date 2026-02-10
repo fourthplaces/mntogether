@@ -11,7 +11,6 @@ use sqlx::PgPool;
 
 use super::sync_utils::{sync_posts, ExtractedPostInput};
 use crate::common::ExtractedPost;
-use crate::common::WebsiteId;
 use crate::domains::website::models::Website;
 
 /// Result of syncing listings with the database
@@ -32,7 +31,7 @@ pub struct PostSyncResult {
 /// NOTE: Deduplication is handled separately by LLM-based deduplication.
 /// This function only does title-matching for updates.
 pub async fn sync_extracted_posts(
-    source_id: WebsiteId,
+    source_id: crate::common::WebsiteId,
     posts: Vec<ExtractedPost>,
     pool: &PgPool,
 ) -> Result<PostSyncResult> {
@@ -66,8 +65,7 @@ pub async fn sync_extracted_posts(
         .collect();
 
     // Sync with database (title-match only - LLM handles semantic dedup after)
-    let website_id = WebsiteId::from_uuid(source_id.into_uuid());
-    let sync_result = sync_posts(pool, website_id, sync_input)
+    let sync_result = sync_posts(pool, "website", source_id.into_uuid(), sync_input)
         .await
         .context("Sync failed")?;
 

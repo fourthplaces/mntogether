@@ -117,15 +117,15 @@ impl WebsiteAssessment {
         let results = sqlx::query_as::<_, WebsiteSearchResult>(
             r#"
             SELECT
-                w.id as website_id,
+                ws.source_id as website_id,
                 wa.id as assessment_id,
-                w.domain as website_domain,
+                ws.domain as website_domain,
                 wa.organization_name,
                 wa.recommendation,
                 wa.assessment_markdown,
                 (1 - (wa.embedding <=> $1))::float8 as similarity
             FROM website_assessments wa
-            JOIN websites w ON w.id = wa.website_id
+            JOIN website_sources ws ON ws.source_id = wa.website_id
             WHERE wa.embedding IS NOT NULL
                 AND (1 - (wa.embedding <=> $1)) > $2
             ORDER BY wa.embedding <=> $1

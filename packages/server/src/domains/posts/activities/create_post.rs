@@ -10,14 +10,12 @@ use std::collections::HashMap;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, OrganizationId, PostId, SourceId};
+use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, PostId};
 use crate::domains::locations::models::Location;
-use crate::domains::notes::activities::attach_org_notes_to_post;
 use crate::domains::posts::models::PostLocation;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post};
 use crate::domains::schedules::models::Schedule;
-use crate::domains::source::models::Source;
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -101,18 +99,6 @@ pub async fn create_extracted_post(
     // Link post to source page snapshot
     if let Some(page_snapshot_id) = post.source_page_snapshot_id {
         link_to_page_source(created.id, page_snapshot_id, pool).await;
-    }
-
-    // Attach existing org-level notes to this new post
-    if let Some(sid) = source_id {
-        if let Ok(source) = Source::find_by_id(SourceId::from_uuid(sid), pool).await {
-            if let Some(org_uuid) = source.organization_id {
-                let org_id = OrganizationId::from(org_uuid);
-                if let Err(e) = attach_org_notes_to_post(org_id, created.id, pool).await {
-                    warn!(post_id = %created.id, error = %e, "Failed to attach org notes to new post");
-                }
-            }
-        }
     }
 
     Ok(created)

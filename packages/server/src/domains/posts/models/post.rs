@@ -52,6 +52,9 @@ pub struct Post {
     pub deleted_at: Option<DateTime<Utc>>,
     pub deleted_reason: Option<String>,
 
+    // Original publication date (e.g. from Instagram timestamp)
+    pub published_at: Option<DateTime<Utc>>,
+
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 
@@ -297,6 +300,8 @@ pub struct CreatePost {
     pub revision_of_post_id: Option<PostId>,
     #[builder(default)]
     pub translation_of_id: Option<PostId>,
+    #[builder(default)]
+    pub published_at: Option<DateTime<Utc>>,
 }
 
 /// Builder for updating Post content
@@ -669,8 +674,9 @@ impl Post {
                 submitted_by_id,
                 source_url,
                 revision_of_post_id,
-                translation_of_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                translation_of_id,
+                published_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
             "#,
         )
@@ -689,6 +695,7 @@ impl Post {
         .bind(input.source_url)
         .bind(input.revision_of_post_id)
         .bind(input.translation_of_id)
+        .bind(input.published_at)
         .fetch_one(pool)
         .await?;
 
@@ -1369,6 +1376,7 @@ impl Post {
                 .submission_type(Some("revision".to_string()))
                 .source_url(source.source_url.clone())
                 .revision_of_post_id(Some(original_id))
+                .published_at(source.published_at)
                 .build(),
             pool,
         )

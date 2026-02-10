@@ -90,10 +90,13 @@ export interface PostResult {
   submission_type: string | null;
   created_at: string;
   updated_at: string;
+  published_at?: string | null;
   tags?: TagResult[];
   submitted_by?: SubmittedByInfo;
   schedules?: PostScheduleResult[];
   contacts?: PostContactResult[];
+  organization_id?: string;
+  organization_name?: string;
 }
 
 export interface PostList {
@@ -310,6 +313,7 @@ export interface OrganizationResult {
   id: string;
   name: string;
   description: string | null;
+  status: string;
   website_count: number;
   social_profile_count: number;
   created_at: string;
@@ -320,7 +324,19 @@ export interface OrganizationListResult {
   organizations: OrganizationResult[];
 }
 
+export interface OrganizationDetailResult {
+  id: string;
+  name: string;
+  description: string | null;
+  posts: PublicPostResult[];
+}
+
 // --- Notes ---
+
+export interface LinkedPostResult {
+  id: string;
+  title: string;
+}
 
 export interface NoteResult {
   id: string;
@@ -334,6 +350,7 @@ export interface NoteResult {
   expired_at: string | null;
   created_at: string;
   updated_at: string;
+  linked_posts?: LinkedPostResult[];
 }
 
 export interface NoteListResult {
@@ -447,6 +464,7 @@ export interface PublicPostResult {
   post_type: string;
   category: string;
   created_at: string;
+  published_at?: string | null;
   tags: PublicTagResult[];
 }
 
