@@ -5,8 +5,6 @@
 
 use std::sync::Arc;
 
-
-
 use anyhow::{Context, Result};
 use restate_sdk::prelude::*;
 use server_core::common::utils::{EmbeddingService, ExpoClient};
@@ -21,6 +19,7 @@ use server_core::domains::extraction::restate::{ExtractionService, ExtractionSer
 use server_core::domains::organization::restate::{
     OrganizationsService, OrganizationsServiceImpl,
 };
+use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
 use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
     RegisterMemberWorkflowImpl,
@@ -31,6 +30,9 @@ use server_core::domains::posts::restate::{
 };
 use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
+};
+use server_core::domains::source::restate::{
+    SourceObject, SourceObjectImpl, SourcesService, SourcesServiceImpl,
 };
 use server_core::domains::providers::restate::{
     ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
@@ -258,6 +260,8 @@ async fn main() -> Result<()> {
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs domain
         .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Notes domain
+        .bind(NotesServiceImpl::with_deps(server_deps.clone()).serve())
         // Organization domain
         .bind(OrganizationsServiceImpl::with_deps(server_deps.clone()).serve())
         // Member domain
@@ -271,6 +275,9 @@ async fn main() -> Result<()> {
         .bind(DeduplicatePostsWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Social profile domain
         .bind(SocialProfilesServiceImpl::with_deps(server_deps.clone()).serve())
+        // Source domain
+        .bind(SourceObjectImpl::with_deps(server_deps.clone()).serve())
+        .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())
