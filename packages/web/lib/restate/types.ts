@@ -87,7 +87,6 @@ export interface PostResult {
   urgency: string | null;
   location: string | null;
   source_url: string | null;
-  website_id: string | null;
   submission_type: string | null;
   created_at: string;
   updated_at: string;
@@ -319,6 +318,63 @@ export interface OrganizationResult {
 
 export interface OrganizationListResult {
   organizations: OrganizationResult[];
+}
+
+// --- Notes ---
+
+export interface NoteResult {
+  id: string;
+  content: string;
+  severity: string;
+  source_url: string | null;
+  source_id: string | null;
+  source_type: string | null;
+  is_public: boolean;
+  created_by: string;
+  expired_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteListResult {
+  notes: NoteResult[];
+}
+
+// --- Sources (unified) ---
+
+export interface SourceResult {
+  id: string;
+  source_type: string;
+  identifier: string;
+  url: string | null;
+  status: string;
+  active: boolean;
+  organization_id: string | null;
+  organization_name: string | null;
+  scrape_frequency_hours: number;
+  last_scraped_at: string | null;
+  post_count: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SourceListResult {
+  sources: SourceResult[];
+  total_count: number;
+  has_next_page: boolean;
+  has_previous_page: boolean;
+}
+
+export interface SourceObjectResult {
+  id: string;
+  source_type: string;
+  identifier: string;
+  url: string | null;
+  status: string;
+  active: boolean;
+  created_at: string | null;
+  last_scraped_at: string | null;
+  organization_id: string | null;
 }
 
 // --- Social Profiles ---
