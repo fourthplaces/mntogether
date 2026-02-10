@@ -128,6 +128,13 @@ pub struct PublicListRequest {
 impl_restate_serde!(PublicListRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ListPostsByOrganizationRequest {
+    pub organization_id: Uuid,
+}
+
+impl_restate_serde!(ListPostsByOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicFiltersRequest {}
 
 impl_restate_serde!(PublicFiltersRequest);
@@ -397,6 +404,9 @@ pub trait PostsService {
     async fn backfill_locations(
         req: BackfillLocationsRequest,
     ) -> Result<BackfillLocationsResult, HandlerError>;
+    async fn list_by_organization(
+        req: ListPostsByOrganizationRequest,
+    ) -> Result<PostListResult, HandlerError>;
     async fn public_list(req: PublicListRequest) -> Result<PublicListResult, HandlerError>;
     async fn public_filters(req: PublicFiltersRequest) -> Result<PublicFiltersResult, HandlerError>;
 }
@@ -857,6 +867,75 @@ impl PostsService for PostsServiceImpl {
             .await?;
 
         Ok(result)
+    }
+
+    async fn list_by_organization(
+        &self,
+        ctx: Context<'_>,
+        req: ListPostsByOrganizationRequest,
+    ) -> Result<PostListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let posts = Post::find_all_by_organization_id(req.organization_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+            std::collections::HashMap::new();
+        for row in tag_rows {
+            tags_by_post
+                .entry(row.taggable_id)
+                .or_default()
+                .push(PostTagResult {
+                    id: row.tag.id.into_uuid(),
+                    kind: row.tag.kind,
+                    value: row.tag.value,
+                    display_name: row.tag.display_name,
+                    color: row.tag.color,
+                });
+        }
+
+        let total_count = posts.len() as i32;
+
+        Ok(PostListResult {
+            posts: posts
+                .into_iter()
+                .map(|p| {
+                    let id = p.id.into_uuid();
+                    PostResult {
+                        id,
+                        title: p.title,
+                        description: p.description,
+                        description_markdown: p.description_markdown,
+                        summary: p.summary,
+                        status: format!("{:?}", p.status),
+                        post_type: p.post_type,
+                        category: p.category,
+                        urgency: p.urgency,
+                        location: p.location,
+                        source_url: p.source_url,
+                        submission_type: p.submission_type,
+                        created_at: p.created_at.to_rfc3339(),
+                        updated_at: p.updated_at.to_rfc3339(),
+                        published_at: p.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                        submitted_by: None,
+                        schedules: None,
+                        contacts: None,
+                        organization_id: None,
+                        organization_name: None,
+                    }
+                })
+                .collect(),
+            total_count,
+            has_next_page: false,
+            has_previous_page: false,
+        })
     }
 
     async fn public_list(
