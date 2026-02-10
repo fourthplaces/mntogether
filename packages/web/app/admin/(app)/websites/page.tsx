@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useRestate, callService, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -33,6 +33,17 @@ function WebsitesContent() {
     pagination.reset();
   };
 
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search);
+      pagination.reset();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUrl, setAddUrl] = useState("");
   const [addLoading, setAddLoading] = useState(false);
@@ -64,6 +75,7 @@ function WebsitesContent() {
     {
       ...pagination.variables,
       status: statusFilter,
+      search: debouncedSearch || undefined,
     },
     { revalidateOnFocus: false }
   );
@@ -99,6 +111,13 @@ function WebsitesContent() {
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-3xl font-bold text-stone-900">Websites</h1>
           <div className="flex gap-2 items-center">
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search domains..."
+              className="px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent w-48"
+            />
             {["all", "pending_review", "approved", "rejected"].map((status) => (
               <button
                 key={status}

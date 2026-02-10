@@ -32,9 +32,7 @@ pub struct FreshPost {
     pub title: String,
     pub summary: String,
     pub description: String,
-    /// Primary audience roles: "recipient", "volunteer", "donor", etc.
-    pub audience_roles: Vec<String>,
-    /// Dynamic tags from AI extraction, keyed by tag kind slug.
+    /// Dynamic tags from AI extraction, keyed by tag kind slug (includes audience_role).
     #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
     pub location: Option<String>,
@@ -109,7 +107,6 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
             title: p.title.clone(),
             summary: p.summary.clone(),
             description: p.description.clone(),
-            audience_roles: p.audience_roles.clone(),
             tags: p.tags.clone(),
             location: p.location.clone(),
             contact_phone: p.contact.as_ref().and_then(|c| c.phone.clone()),
@@ -573,7 +570,6 @@ async fn stage_sync_operations(
                             summary: canonical.summary.clone().unwrap_or_default(),
                             description: merged_description.clone()
                                 .unwrap_or_else(|| canonical.description.clone()),
-                            audience_roles: vec![],
                             location: canonical.location.clone(),
                             contact: None,
                             source_url: canonical.source_url.clone(),

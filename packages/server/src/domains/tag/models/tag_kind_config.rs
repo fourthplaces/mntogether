@@ -13,6 +13,7 @@ pub struct TagKindConfig {
     pub display_name: String,
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
+    pub required: bool,
     pub created_at: DateTime<Utc>,
 }
 
@@ -45,17 +46,19 @@ impl TagKindConfig {
         display_name: &str,
         description: Option<&str>,
         allowed_resource_types: &[String],
+        required: bool,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
-            "INSERT INTO tag_kinds (slug, display_name, description, allowed_resource_types)
-             VALUES ($1, $2, $3, $4)
+            "INSERT INTO tag_kinds (slug, display_name, description, allowed_resource_types, required)
+             VALUES ($1, $2, $3, $4, $5)
              RETURNING *",
         )
         .bind(slug)
         .bind(display_name)
         .bind(description)
         .bind(allowed_resource_types)
+        .bind(required)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -66,11 +69,12 @@ impl TagKindConfig {
         display_name: &str,
         description: Option<&str>,
         allowed_resource_types: &[String],
+        required: bool,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "UPDATE tag_kinds
-             SET display_name = $2, description = $3, allowed_resource_types = $4
+             SET display_name = $2, description = $3, allowed_resource_types = $4, required = $5
              WHERE id = $1
              RETURNING *",
         )
@@ -78,6 +82,7 @@ impl TagKindConfig {
         .bind(display_name)
         .bind(description)
         .bind(allowed_resource_types)
+        .bind(required)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -154,11 +159,6 @@ async fn build_tag_instructions_from_kinds(
     let mut lines = Vec::new();
 
     for kind in kinds {
-        // Skip audience_role since it's handled separately
-        if kind.slug == "audience_role" {
-            continue;
-        }
-
         let tags = Tag::find_by_kind(&kind.slug, pool).await?;
         if tags.is_empty() {
             continue;
@@ -169,10 +169,12 @@ async fn build_tag_instructions_from_kinds(
             .description
             .as_deref()
             .unwrap_or(&kind.display_name);
+        let required_marker = if kind.required { " (required)" } else { "" };
 
         lines.push(format!(
-            "  - **{}**: {} — Array from: {}",
+            "  - **{}**{}: {} — Pick from: {}",
             kind.slug,
+            required_marker,
             description,
             values
                 .iter()

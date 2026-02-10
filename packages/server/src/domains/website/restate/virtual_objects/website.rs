@@ -34,13 +34,6 @@ pub struct SuspendWebsiteRequest {
 
 impl_restate_serde!(SuspendWebsiteRequest);
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CrawlSettingsRequest {
-    pub max_pages_per_crawl: i32,
-}
-
-impl_restate_serde!(CrawlSettingsRequest);
-
 // =============================================================================
 // Response types
 // =============================================================================
@@ -54,7 +47,6 @@ pub struct WebsiteResult {
     pub created_at: Option<String>,
     pub last_crawled_at: Option<String>,
     pub post_count: Option<i64>,
-    pub crawl_status: Option<String>,
 }
 
 impl_restate_serde!(WebsiteResult);
@@ -69,7 +61,6 @@ impl From<Website> for WebsiteResult {
             created_at: Some(w.created_at.to_rfc3339()),
             last_crawled_at: w.last_scraped_at.map(|dt| dt.to_rfc3339()),
             post_count: None,
-            crawl_status: w.crawl_status,
         }
     }
 }
@@ -125,9 +116,6 @@ pub trait WebsiteObject {
     async fn approve(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
     async fn reject(req: RejectWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
     async fn suspend(req: SuspendWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
-    async fn update_crawl_settings(
-        req: CrawlSettingsRequest,
-    ) -> Result<WebsiteResult, HandlerError>;
     async fn generate_assessment(
         req: EmptyRequest,
     ) -> Result<GenerateAssessmentResult, HandlerError>;
@@ -230,33 +218,6 @@ impl WebsiteObject for WebsiteObjectImpl {
                     WebsiteId::from_uuid(website_id),
                     req.reason.clone(),
                     user.member_id,
-                    &self.deps,
-                )
-                .await
-                .map_err(Into::into)
-            })
-            .await?;
-
-        let website = Website::find_by_id(id, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        Ok(WebsiteResult::from(website))
-    }
-
-    async fn update_crawl_settings(
-        &self,
-        ctx: ObjectContext<'_>,
-        req: CrawlSettingsRequest,
-    ) -> Result<WebsiteResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let website_id = Self::parse_website_id(ctx.key())?;
-
-        let id = ctx
-            .run(|| async {
-                activities::update_crawl_settings(
-                    WebsiteId::from_uuid(website_id),
-                    req.max_pages_per_crawl,
                     &self.deps,
                 )
                 .await

@@ -1,6 +1,6 @@
 use crate::common::{PostId, WebsiteId};
 use crate::common::utils::generate_summary;
-use crate::domains::posts::activities::{tag_post_from_extracted, tag_with_audience_roles};
+use crate::domains::posts::activities::tag_post_from_extracted;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use anyhow::Result;
@@ -47,9 +47,6 @@ pub struct ExtractedPostInput {
     pub urgency: Option<String>,
     pub confidence: Option<String>,
     pub source_url: Option<String>,
-    /// Audience roles: who this listing is for
-    /// Valid values: "recipient", "donor", "volunteer", "participant"
-    pub audience_roles: Vec<String>,
     /// Dynamic tags from AI extraction, keyed by tag kind slug.
     #[allow(dead_code)]
     pub tags: HashMap<String, Vec<String>>,
@@ -163,10 +160,7 @@ pub async fn sync_posts(
                         }
                     }
 
-                    // Tag post with audience roles
-                    tag_with_audience_roles(created.id, &post_input.audience_roles, pool).await;
-
-                    // Tag post with dynamic extracted tags
+                    // Tag post with dynamic extracted tags (includes audience_role)
                     tag_post_from_extracted(created.id, &post_input.tags, pool).await;
 
                     new_posts.push(created.id);
@@ -284,16 +278,18 @@ mod tests {
             urgency: None,
             confidence: None,
             source_url: None,
-            audience_roles: vec![],
             tags: HashMap::new(),
         };
 
         assert_eq!(input.title, "Test Title");
-        assert!(input.audience_roles.is_empty());
+        assert!(input.tags.is_empty());
     }
 
     #[test]
-    fn test_extracted_post_input_with_audience_roles() {
+    fn test_extracted_post_input_with_tags() {
+        let mut tags = HashMap::new();
+        tags.insert("audience_role".to_string(), vec!["volunteer".to_string(), "donor".to_string()]);
+
         let input = ExtractedPostInput {
             title: "Volunteer Opportunity".to_string(),
             description: "Help needed".to_string(),
@@ -304,12 +300,12 @@ mod tests {
             urgency: Some("high".to_string()),
             confidence: Some("high".to_string()),
             source_url: Some("https://example.org/volunteer".to_string()),
-            audience_roles: vec!["volunteer".to_string(), "donor".to_string()],
-            tags: HashMap::new(),
+            tags,
         };
 
-        assert_eq!(input.audience_roles.len(), 2);
-        assert!(input.audience_roles.contains(&"volunteer".to_string()));
-        assert!(input.audience_roles.contains(&"donor".to_string()));
+        let audience_roles = input.tags.get("audience_role").unwrap();
+        assert_eq!(audience_roles.len(), 2);
+        assert!(audience_roles.contains(&"volunteer".to_string()));
+        assert!(audience_roles.contains(&"donor".to_string()));
     }
 }

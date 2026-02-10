@@ -44,10 +44,6 @@ pub struct ExtractedPost {
     pub location: Option<String>,
     pub urgency: Option<String>,
     pub confidence: Option<String>, // "high" | "medium" | "low"
-    /// Target audience roles: who should engage with this listing
-    /// Values: "recipient", "donor", "volunteer", "participant"
-    #[serde(default)]
-    pub audience_roles: Vec<String>,
     /// The page snapshot this post was extracted from (for linking)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_page_snapshot_id: Option<Uuid>,
@@ -73,28 +69,20 @@ pub struct ExtractedPost {
 impl ExtractedPost {
     /// Combine a NarrativePost with investigation info into a complete ExtractedPost.
     ///
-    /// Uses the narrative's audience field as the authoritative audience role,
+    /// Injects the narrative's audience as an `audience_role` tag entry,
     /// since Pass 1 sees the full page context when splitting by audience.
     pub fn from_narrative_and_info(
         narrative: crate::domains::crawling::activities::post_extraction::NarrativePost,
         info: ExtractedPostInformation,
     ) -> Self {
-        // Trust narrative audience over investigation defaults
+        let mut tags = TagEntry::to_map(&info.tags);
+
+        // Inject narrative audience as audience_role tag
         let narrative_role = narrative.audience.to_lowercase();
-        let audience_roles = if matches!(narrative_role.as_str(), "volunteer" | "donor" | "participant") {
-            let mut roles = vec![narrative_role.clone()];
-            for role in &info.audience_roles {
-                let r = role.to_lowercase();
-                if r != narrative_role && !roles.contains(&r) {
-                    roles.push(r);
-                }
-            }
-            roles
-        } else if info.audience_roles.is_empty() {
-            vec![narrative_role]
-        } else {
-            info.audience_roles.clone()
-        };
+        let audience_roles = tags.entry("audience_role".to_string()).or_default();
+        if !audience_roles.contains(&narrative_role) {
+            audience_roles.insert(0, narrative_role);
+        }
 
         Self {
             title: narrative.title,
@@ -104,13 +92,12 @@ impl ExtractedPost {
             location: info.location,
             urgency: Some(info.urgency),
             confidence: Some(info.confidence),
-            audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(narrative.source_url),
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,
-            tags: TagEntry::to_map(&info.tags),
+            tags,
             schedule: info.schedule,
         }
     }
@@ -130,8 +117,6 @@ pub struct ExtractedPostWithSource {
     pub urgency: Option<String>,
     pub confidence: Option<String>,
     #[serde(default)]
-    pub audience_roles: Vec<String>,
-    #[serde(default)]
     pub tags: HashMap<String, Vec<String>>,
     #[serde(default)]
     pub schedule: Vec<ExtractedSchedule>,
@@ -148,7 +133,6 @@ impl ExtractedPostWithSource {
             location: self.location,
             urgency: self.urgency,
             confidence: self.confidence,
-            audience_roles: self.audience_roles,
             source_page_snapshot_id: None,
             source_url: Some(self.source_url),
             zip_code: None,
@@ -192,7 +176,6 @@ pub struct ExtractedPostInformation {
     pub location: Option<String>,
     pub urgency: String,
     pub confidence: String,
-    pub audience_roles: Vec<String>,
     #[serde(default)]
     pub zip_code: Option<String>,
     #[serde(default)]
@@ -215,11 +198,13 @@ impl Default for ExtractedPostInformation {
             location: None,
             urgency: "medium".to_string(),
             confidence: "low".to_string(),
-            audience_roles: vec!["recipient".to_string()],
             zip_code: None,
             city: None,
             state: None,
-            tags: Vec::new(),
+            tags: vec![TagEntry {
+                kind: "audience_role".to_string(),
+                values: vec!["recipient".to_string()],
+            }],
             schedule: Vec::new(),
         }
     }

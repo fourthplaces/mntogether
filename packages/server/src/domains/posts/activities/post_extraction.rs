@@ -32,7 +32,6 @@ struct LlmExtractedPost {
     contact: Option<ContactInfo>,
     urgency: Option<String>,
     confidence: Option<String>,
-    audience_roles: Vec<String>,
     /// Tag classifications using structured entries (not HashMap)
     #[serde(default)]
     tags: Vec<TagEntry>,
@@ -49,7 +48,6 @@ impl LlmExtractedPost {
             contact: self.contact,
             urgency: self.urgency,
             confidence: self.confidence,
-            audience_roles: self.audience_roles,
             tags: TagEntry::to_map(&self.tags),
             schedule: self.schedule,
             location: None,
@@ -80,7 +78,6 @@ struct LlmExtractedPostWithSource {
     location: Option<String>,
     urgency: Option<String>,
     confidence: Option<String>,
-    audience_roles: Vec<String>,
     #[serde(default)]
     tags: Vec<TagEntry>,
     #[serde(default)]
@@ -98,7 +95,6 @@ impl LlmExtractedPostWithSource {
             location: self.location,
             urgency: self.urgency,
             confidence: self.confidence,
-            audience_roles: self.audience_roles,
             tags: TagEntry::to_map(&self.tags),
             schedule: self.schedule,
         }
@@ -280,7 +276,7 @@ pub async fn extract_posts_raw(
         String::new()
     } else {
         format!(
-            "\n8. **tags**: Object with tag classifications:\n{}",
+            "\n7. **tags**: Object with tag classifications:\n{}",
             tag_instructions
         )
     };
@@ -298,12 +294,7 @@ For each listing, provide:
 6. **confidence**: Your confidence in this extraction ("high", "medium", or "low")
    - "high": Explicitly stated listing with clear details
    - "medium": Mentioned but some details are inferred
-   - "low": Vague or unclear, might not be a real listing
-7. **audience_roles**: Array of who this listing is for. One or more of:
-   - "recipient": People receiving services/benefits (food, housing, healthcare, etc.)
-   - "donor": People giving money, food, goods, or other resources
-   - "volunteer": People giving their time to help
-   - "participant": People attending events, classes, groups, or programs{tag_section}
+   - "low": Vague or unclear, might not be a real listing{tag_section}
 
 IMPORTANT RULES:
 - ONLY extract REAL listings explicitly stated on the page
@@ -408,7 +399,7 @@ pub async fn extract_posts_batch(
         String::new()
     } else {
         format!(
-            "\n9. **tags**: Object with tag classifications:\n{}",
+            "\n8. **tags**: Object with tag classifications:\n{}",
             tag_instructions
         )
     };
@@ -424,8 +415,7 @@ For each listing, provide:
 4. **description**: Full details (what they need, requirements, impact)
 5. **contact**: Any contact information (phone, email, website)
 6. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
-7. **confidence**: Your confidence ("high", "medium", or "low")
-8. **audience_roles**: Array of who this is for: "recipient", "donor", "volunteer", "participant"{tag_section}
+7. **confidence**: Your confidence ("high", "medium", or "low"){tag_section}
 
 IMPORTANT RULES:
 - ONLY extract REAL listings explicitly stated on the pages

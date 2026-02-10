@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::common::PostId;
 use crate::domains::extraction::data::ExtractionPageData;
-use crate::domains::posts::activities::create_post::{save_contact_info, tag_post_from_extracted, tag_with_audience_roles};
+use crate::domains::posts::activities::create_post::{save_contact_info, tag_post_from_extracted};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::tag::models::Taggable;
@@ -127,9 +127,8 @@ pub async fn regenerate_single_post(post_id: Uuid, deps: &ServerDeps) -> Result<
         save_contact_info(post_id_typed, contact, &deps.db_pool).await;
     }
 
-    // 8. Update all tags: clear existing, re-apply audience roles + dynamic tags
+    // 8. Update all tags: clear existing, re-apply all tags (including audience_role)
     Taggable::delete_all_for_post(post_id_typed, &deps.db_pool).await?;
-    tag_with_audience_roles(post_id_typed, &best_match.audience_roles, &deps.db_pool).await;
     tag_post_from_extracted(post_id_typed, &best_match.tags, &deps.db_pool).await;
 
     info!(post_id = %post_id, "Single post regeneration complete");

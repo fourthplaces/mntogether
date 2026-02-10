@@ -94,33 +94,39 @@ function CommentForm({
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-2">
-      <textarea
-        value={content}
-        onChange={(e) => setContent(e.target.value)}
-        placeholder={parentMessageId ? "Write a reply..." : "Add a comment..."}
-        rows={parentMessageId ? 2 : 3}
-        className="w-full rounded-lg border border-[#E8DED2] bg-white px-3 py-2 text-sm text-[#3D3D3D] placeholder:text-[#A09A8D] focus:border-[#C4B8A0] focus:outline-none focus:ring-1 focus:ring-[#C4B8A0] resize-none"
-        disabled={submitting}
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
-      <div className="flex items-center gap-2">
-        <button
-          type="submit"
-          disabled={submitting || !content.trim()}
-          className="px-4 py-1.5 text-sm font-semibold text-white bg-[#3D3D3D] rounded-full hover:bg-[#2D2D2D] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
-          {submitting ? "Posting..." : parentMessageId ? "Reply" : "Comment"}
-        </button>
-        {onCancel && (
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-3 py-1.5 text-sm text-[#7D7D7D] hover:text-[#3D3D3D]"
-          >
-            Cancel
-          </button>
-        )}
+    <form onSubmit={handleSubmit}>
+      <div className={`rounded-xl border border-[#E8DED2] bg-[#FDFCFA] overflow-hidden ${parentMessageId ? "" : "shadow-sm"} focus-within:border-[#C4B8A0] focus-within:ring-1 focus-within:ring-[#C4B8A0] transition-all`}>
+        <textarea
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          placeholder={parentMessageId ? "Write a reply..." : "Share your thoughts..."}
+          rows={parentMessageId ? 2 : 3}
+          className="w-full bg-transparent px-4 pt-3 pb-2 text-sm text-[#3D3D3D] placeholder:text-[#B5AFA2] focus:outline-none resize-none"
+          disabled={submitting}
+        />
+        <div className="flex items-center justify-between px-3 pb-2">
+          <div>
+            {error && <p className="text-xs text-red-600">{error}</p>}
+          </div>
+          <div className="flex items-center gap-2">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="px-3 py-1 text-xs font-medium text-[#7D7D7D] hover:text-[#3D3D3D] transition-colors"
+              >
+                Cancel
+              </button>
+            )}
+            <button
+              type="submit"
+              disabled={submitting || !content.trim()}
+              className="px-4 py-1.5 text-xs font-semibold text-white bg-[#3D3D3D] rounded-full hover:bg-[#2D2D2D] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+            >
+              {submitting ? "Posting..." : parentMessageId ? "Reply" : "Post"}
+            </button>
+          </div>
+        </div>
       </div>
     </form>
   );
@@ -147,24 +153,21 @@ function CommentThread({
   const { comment, children } = node;
 
   return (
-    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-6 border-l-2 border-[#D4CEC1] pl-4" : ""}>
-      <div className="py-3">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-[#F5F1E8] text-xs font-medium text-[#7D7D7D]">
-            ?
-          </span>
-          <span className="text-xs text-[#A09A8D]">{timeAgo(comment.created_at)}</span>
+    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-5 pl-4 border-l-2 border-[#E8DED2]" : ""}>
+      <div className="py-3 group">
+        <p className="text-[0.9rem] text-[#3D3D3D] whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+        <div className="flex items-center gap-3 mt-1.5 px-1">
+          <span className="text-[0.7rem] text-[#B5AFA2]">{timeAgo(comment.created_at)}</span>
+          <button
+            type="button"
+            onClick={() => setReplying(!replying)}
+            className="text-[0.7rem] font-semibold text-[#B5AFA2] hover:text-[#5D5D5D] transition-colors"
+          >
+            Reply
+          </button>
         </div>
-        <p className="text-sm text-[#3D3D3D] whitespace-pre-wrap">{comment.content}</p>
-        <button
-          type="button"
-          onClick={() => setReplying(!replying)}
-          className="mt-1 text-xs text-[#A09A8D] hover:text-[#3D3D3D] transition-colors"
-        >
-          Reply
-        </button>
         {replying && (
-          <div className="mt-2">
+          <div className="mt-3">
             <CommentForm
               postId={postId}
               parentMessageId={comment.id}
@@ -211,18 +214,21 @@ export default function CommentsSection({ postId }: { postId: string }) {
   };
 
   return (
-    <div className="mt-8">
-      <div className="bg-white rounded-lg border border-[#E8DED2] p-6">
-        <h2 className="text-lg font-bold text-[#3D3D3D] mb-4">
-          Comments{comments.length > 0 ? ` (${comments.length})` : ""}
+    <div>
+      <div className="bg-white rounded-xl border border-[#E8DED2] p-6 shadow-sm">
+        <h2 className="text-base font-bold text-[#3D3D3D] mb-4">
+          Conversation{comments.length > 0 && <span className="ml-1.5 text-xs font-medium text-[#B5AFA2]">{comments.length}</span>}
         </h2>
 
         <CommentForm postId={postId} onSuccess={handleRefresh} />
 
         {comments.length === 0 ? (
-          <p className="text-sm text-[#A09A8D] mt-4">No comments yet. Be the first to comment.</p>
+          <div className="text-center py-8">
+            <p className="text-sm text-[#B5AFA2]">No comments yet</p>
+            <p className="text-xs text-[#C4BEB1] mt-1">Start the conversation above</p>
+          </div>
         ) : (
-          <div className="mt-4 divide-y divide-[#E8DED2]">
+          <div className="mt-5 space-y-1">
             {tree.map((node) => (
               <CommentThread
                 key={node.comment.id}

@@ -4,28 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useRestateObject, callObject } from "@/lib/restate/client";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { PostResult, TagResult, PostScheduleResult } from "@/lib/restate/types";
+import { isAuthenticated } from "@/lib/auth/actions";
 import CommentsSection from "@/components/public/CommentsSection";
-
-function getPostTagStyle(postType: string): {
-  bg: string;
-  text: string;
-  label: string;
-} {
-  switch (postType) {
-    case "help":
-      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Help" };
-    case "opportunities":
-      return { bg: "bg-[#B8CFC4]", text: "text-[#4D6B5F]", label: "Support" };
-    case "event":
-      return { bg: "bg-[#D4C4E8]", text: "text-[#6D5B8B]", label: "Community" };
-    case "professional":
-      return { bg: "bg-[#E6B8B8]", text: "text-[#8B4D4D]", label: "Event" };
-    default:
-      return { bg: "bg-[#F4D9B8]", text: "text-[#8B6D3F]", label: "Help" };
-  }
-}
 
 function formatCategory(value: string): string {
   return value
@@ -93,6 +75,12 @@ export default function PublicPostDetailPage() {
     {}
   );
 
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    isAuthenticated().then(setIsAdmin);
+  }, []);
+
   // Track view
   useEffect(() => {
     if (postId) {
@@ -153,10 +141,10 @@ export default function PublicPostDetailPage() {
   }
 
   const tags = post.tags || [];
-  const tagStyle = post.post_type ? getPostTagStyle(post.post_type) : null;
-  const serviceOfferedTags = tags.filter(
-    (t: TagResult) => t.kind === "service_offered"
-  );
+  const displayTags = tags.filter((t: TagResult) => t.kind !== "post_type");
+  const postTypeTag = tags.find((t: TagResult) => t.kind === "post_type");
+
+  const hasDetails = (post.schedules && post.schedules.length > 0) || post.source_url || post.contacts && post.contacts.length > 0;
 
   return (
     <div className="min-h-screen bg-[#E8E2D5] text-[#3D3D3D]">
@@ -170,139 +158,193 @@ export default function PublicPostDetailPage() {
         </nav>
       </header>
 
-      {/* Content */}
-      <section className="max-w-[800px] mx-auto px-6 md:px-12 pt-8 pb-16">
+      <section className="max-w-[1100px] mx-auto px-6 md:px-12 pt-8 pb-16">
         {/* Back link */}
-        <Link
-          href="/posts"
-          className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D] mb-6"
-        >
-          &larr; Back to Resources
-        </Link>
-
-        <div className="bg-white rounded-lg border border-[#E8DED2] p-8">
-          {/* Title */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#3D3D3D] mb-3">
-            {post.title}
-          </h1>
-
-          {/* Meta row */}
-          <div className="flex flex-wrap items-center gap-3 text-sm text-[#7D7D7D] mb-6">
-            {post.location && (
-              <span className="inline-flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                {post.location}
-              </span>
-            )}
-            <span>Posted {formatTimeAgo(post.created_at)}</span>
-          </div>
-
-          {/* Tags */}
-          <div className="flex flex-wrap gap-2 mb-6">
-            {tagStyle && (
-              <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${tagStyle.bg} ${tagStyle.text}`}>
-                {tagStyle.label}
-              </span>
-            )}
-            {serviceOfferedTags.map((tag: TagResult) => (
-              <span
-                key={tag.id}
-                className="px-3 py-1 rounded-full text-xs font-medium bg-[#F5F1E8] text-[#5D5D5D]"
-              >
-                {tag.display_name || formatCategory(tag.value)}
-              </span>
-            ))}
-          </div>
-
-          {/* Description */}
-          <div className="prose max-w-none mb-8">
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => (
-                  <p className="mb-4 text-[#4D4D4D] leading-relaxed">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>
-                ),
-                li: ({ children }) => (
-                  <li className="text-[#4D4D4D]">{children}</li>
-                ),
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-[#3D3D3D]">{children}</strong>
-                ),
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    className="text-[#8B6D3F] hover:text-[#6D5530] underline"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {children}
-                  </a>
-                ),
-                h1: ({ children }) => (
-                  <h2 className="text-xl font-bold text-[#3D3D3D] mt-6 mb-3">{children}</h2>
-                ),
-                h2: ({ children }) => (
-                  <h3 className="text-lg font-bold text-[#3D3D3D] mt-5 mb-2">{children}</h3>
-                ),
-                h3: ({ children }) => (
-                  <h4 className="text-base font-semibold text-[#3D3D3D] mt-4 mb-2">{children}</h4>
-                ),
-              }}
+        <div className="flex items-center justify-between mb-8">
+          <Link
+            href="/posts"
+            className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D]"
+          >
+            &larr; Back to Resources
+          </Link>
+          {isAdmin && (
+            <Link
+              href={`/admin/posts/${postId}`}
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#7D7D7D] hover:text-[#3D3D3D] bg-white/60 hover:bg-white border border-[#E8DED2] rounded-lg px-3 py-1.5 transition-colors"
             >
-              {post.description_markdown || post.description || ""}
-            </ReactMarkdown>
-          </div>
-
-          {/* Schedule */}
-          {post.schedules && post.schedules.length > 0 && (
-            <div className="border-t border-[#E8DED2] pt-6 mb-6">
-              <h3 className="text-sm font-semibold text-[#7D7D7D] uppercase tracking-wide mb-3">Schedule</h3>
-              <div className="space-y-2">
-                {post.schedules.map((s: PostScheduleResult) => (
-                  <div key={s.id} className="flex items-start gap-2 text-[#4D4D4D]">
-                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#8B6D3F]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    <span className="text-sm">{formatSchedule(s)}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Source link CTA */}
-          {post.source_url && (
-            <div className="border-t border-[#E8DED2] pt-6">
-              <a
-                href={
-                  post.source_url.startsWith("http")
-                    ? post.source_url
-                    : `https://${post.source_url}`
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={handleSourceClick}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-[#3D3D3D] text-white text-sm font-semibold rounded-full hover:bg-[#2D2D2D] transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Visit Source
-              </a>
-            </div>
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              Edit
+            </Link>
           )}
         </div>
 
-        {/* Comments */}
-        <CommentsSection postId={postId} />
+        {/* Two-column: Content + Sidebar */}
+        <div className={`grid gap-5 ${hasDetails ? "md:grid-cols-[1fr_280px]" : ""}`}>
+          {/* Main content card */}
+          <div className="order-1">
+            <div className="bg-white rounded-xl border border-[#E8DED2] p-6 sm:p-8 shadow-sm">
+              {/* Title */}
+              <h1 className="text-2xl sm:text-3xl font-bold text-[#3D3D3D] leading-tight mb-3">
+                {post.title}
+              </h1>
+
+              {/* Meta */}
+              <div className="flex flex-wrap items-center gap-4 text-sm text-[#7D7D7D] mb-3">
+                <span>{formatTimeAgo(post.created_at)}</span>
+                {post.location && (
+                  <span className="inline-flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {post.location}
+                  </span>
+                )}
+              </div>
+
+              {/* Description */}
+              <div className="prose max-w-none">
+                <ReactMarkdown
+                  components={{
+                    p: ({ children }) => (
+                      <p className="mb-4 text-[#4D4D4D] leading-relaxed">{children}</p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>
+                    ),
+                    li: ({ children }) => (
+                      <li className="text-[#4D4D4D]">{children}</li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-[#3D3D3D]">{children}</strong>
+                    ),
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        className="text-[#8B6D3F] hover:text-[#6D5530] underline"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {children}
+                      </a>
+                    ),
+                    h1: ({ children }) => (
+                      <h2 className="text-xl font-bold text-[#3D3D3D] mt-6 mb-3">{children}</h2>
+                    ),
+                    h2: ({ children }) => (
+                      <h3 className="text-lg font-bold text-[#3D3D3D] mt-5 mb-2">{children}</h3>
+                    ),
+                    h3: ({ children }) => (
+                      <h4 className="text-base font-semibold text-[#3D3D3D] mt-4 mb-2">{children}</h4>
+                    ),
+                  }}
+                >
+                  {post.description_markdown || post.description || ""}
+                </ReactMarkdown>
+              </div>
+
+              {/* Tags */}
+              {(postTypeTag || displayTags.length > 0) && (
+                <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-[#E8DED2]">
+                  {postTypeTag && (
+                    <span
+                      title={`${postTypeTag.kind}: ${postTypeTag.value}`}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${!postTypeTag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
+                      style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
+                    >
+                      {postTypeTag.display_name || formatCategory(postTypeTag.value)}
+                    </span>
+                  )}
+                  {displayTags.map((tag: TagResult) => (
+                    <span
+                      key={tag.id}
+                      title={`${tag.kind}: ${tag.value}`}
+                      className={`px-3 py-1 rounded-full text-xs font-medium ${!tag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
+                      style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
+                    >
+                      {tag.display_name || formatCategory(tag.value)}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Sidebar */}
+          {hasDetails && (
+            <div className="order-2 flex flex-col gap-5">
+              {/* Schedule card */}
+              {post.schedules && post.schedules.length > 0 && (
+                <div className="bg-white rounded-xl border border-[#E8DED2] p-5 shadow-sm">
+                  <h3 className="text-xs font-semibold text-[#A09A8D] uppercase tracking-wider mb-3">Schedule</h3>
+                  <div className="space-y-3">
+                    {post.schedules.map((s: PostScheduleResult) => (
+                      <div key={s.id} className="flex items-start gap-2.5">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#C4B8A0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span className="text-sm text-[#4D4D4D] leading-snug">{formatSchedule(s)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Contacts card */}
+              {post.contacts && post.contacts.length > 0 && (
+                <div className="bg-white rounded-xl border border-[#E8DED2] p-5 shadow-sm">
+                  <h3 className="text-xs font-semibold text-[#A09A8D] uppercase tracking-wider mb-3">Contact</h3>
+                  <div className="space-y-2">
+                    {post.contacts.map((c) => (
+                      <div key={c.id} className="text-sm text-[#4D4D4D]">
+                        {c.contact_label && <span className="text-xs text-[#A09A8D] block">{c.contact_label}</span>}
+                        {c.contact_type === "url" ? (
+                          <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-[#8B6D3F] hover:text-[#6D5530] underline break-all">{c.contact_value}</a>
+                        ) : c.contact_type === "email" ? (
+                          <a href={`mailto:${c.contact_value}`} className="text-[#8B6D3F] hover:text-[#6D5530] underline">{c.contact_value}</a>
+                        ) : c.contact_type === "phone" ? (
+                          <a href={`tel:${c.contact_value}`} className="text-[#8B6D3F] hover:text-[#6D5530] underline">{c.contact_value}</a>
+                        ) : (
+                          <span>{c.contact_value}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Source link card */}
+              {post.source_url && (
+                <a
+                  href={
+                    post.source_url.startsWith("http")
+                      ? post.source_url
+                      : `https://${post.source_url}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={handleSourceClick}
+                  className="flex items-center justify-center gap-2 bg-[#3D3D3D] text-white text-sm font-semibold rounded-xl px-5 py-3.5 hover:bg-[#2D2D2D] transition-colors shadow-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Visit Source
+                </a>
+              )}
+            </div>
+          )}
+
+          {/* Comments — same column as main card on desktop, after sidebar on mobile */}
+          <div className="order-3 md:col-start-1 md:col-end-2">
+            <CommentsSection postId={postId} />
+          </div>
+        </div>
       </section>
     </div>
   );

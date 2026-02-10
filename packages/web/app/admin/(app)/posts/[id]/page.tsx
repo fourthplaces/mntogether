@@ -547,7 +547,7 @@ export default function PostDetailPage() {
                         className={`px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
                         style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                       >
-                        {tag.display_name || tag.value}
+                        {tag.value}
                       </span>
                     ))}
                   </div>
@@ -703,7 +703,7 @@ export default function PostDetailPage() {
                           className={`inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
                           style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                         >
-                          {tag.display_name || tag.value}
+                          {tag.value}
                           <button
                             onClick={() => handleRemoveTag(tag.id)}
                             disabled={isUpdating}
@@ -804,7 +804,7 @@ export default function PostDetailPage() {
                             <option value="">Select a value...</option>
                             {availableTags.map((tag) => (
                               <option key={tag.id} value={tag.value}>
-                                {tag.display_name || tag.value}
+                                {tag.value}
                               </option>
                             ))}
                             <option value="__new__">+ Create new...</option>

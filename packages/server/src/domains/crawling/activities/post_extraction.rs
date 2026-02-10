@@ -15,7 +15,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
-use crate::common::{ExtractedPost, ExtractedPostInformation, TagEntry};
+use crate::common::{ExtractedPost, ExtractedPostInformation};
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool};
 
@@ -328,7 +328,6 @@ For each field:
 - **state**: 2-letter state abbreviation (e.g., "MN")
 - **urgency**: "low", "medium", "high", or "urgent" based on time-sensitivity
 - **confidence**: "low", "medium", or "high" based on information completeness
-- **audience_roles**: Array of who this is for: "recipient", "volunteer", "donor", "participant"
 - **schedule**: Array of schedule entries. For each recurring or one-off schedule mentioned, extract:
   - **frequency**: "weekly", "biweekly", "monthly", or "one_time"
   - **day_of_week**: Lowercase day name ("monday", "tuesday", etc.) — required for weekly/biweekly/monthly
@@ -341,37 +340,6 @@ For each field:
 Be conservative - only include information explicitly mentioned."#,
         tag_section
     )
-}
-
-/// Resolve audience roles using the narrative audience (Pass 1) as the authoritative source.
-///
-/// The narrative audience is set during extraction when the LLM sees the full page context
-/// and splits posts by audience. The investigation audience_roles (Pass 3) is a secondary
-/// signal. If investigation defaulted to ["recipient"] but the narrative says "volunteer",
-/// we trust the narrative.
-fn resolve_audience_roles(narrative_audience: &str, investigation_roles: &[String]) -> Vec<String> {
-    let narrative_role = narrative_audience.to_lowercase();
-
-    // If narrative audience is a valid non-default role, always include it
-    if matches!(narrative_role.as_str(), "volunteer" | "donor" | "participant") {
-        // Start with the narrative role as primary
-        let mut roles = vec![narrative_role.clone()];
-        // Add any additional roles from investigation that aren't already included
-        for role in investigation_roles {
-            let r = role.to_lowercase();
-            if r != narrative_role && !roles.contains(&r) {
-                roles.push(r);
-            }
-        }
-        roles
-    } else {
-        // narrative is "recipient" or unknown — use investigation roles as-is
-        if investigation_roles.is_empty() {
-            vec![narrative_role]
-        } else {
-            investigation_roles.to_vec()
-        }
-    }
 }
 
 /// Investigate a single post to find missing information.
@@ -450,7 +418,6 @@ pub async fn investigate_post(
         has_location = result.location.is_some(),
         urgency = %result.urgency,
         confidence = %result.confidence,
-        audience_roles = ?result.audience_roles,
         "Structured extraction complete"
     );
 
@@ -537,27 +504,7 @@ pub async fn extract_posts_from_content(
             }
         };
 
-        // Use narrative audience from Pass 1 as authoritative source,
-        // falling back to investigation audience_roles
-        let audience_roles = resolve_audience_roles(&narrative.audience, &info.audience_roles);
-
-        posts.push(ExtractedPost {
-            title: narrative.title,
-            summary: narrative.summary,
-            description: narrative.description,
-            contact: info.contact_or_none(),
-            location: info.location,
-            urgency: Some(info.urgency),
-            confidence: Some(info.confidence),
-            audience_roles,
-            source_page_snapshot_id: None,
-            source_url: Some(narrative.source_url),
-            zip_code: info.zip_code,
-            city: info.city,
-            state: info.state,
-            tags: TagEntry::to_map(&info.tags),
-            schedule: info.schedule,
-        });
+        posts.push(ExtractedPost::from_narrative_and_info(narrative, info));
     }
 
     info!(
@@ -710,27 +657,7 @@ pub async fn extract_posts_from_pages_with_tags(
             }
         };
 
-        // Use narrative audience from Pass 1 as authoritative source,
-        // falling back to investigation audience_roles
-        let audience_roles = resolve_audience_roles(&narrative.audience, &info.audience_roles);
-
-        posts.push(ExtractedPost {
-            title: narrative.title,
-            summary: narrative.summary,
-            description: narrative.description,
-            contact: info.contact_or_none(),
-            location: info.location,
-            urgency: Some(info.urgency),
-            confidence: Some(info.confidence),
-            audience_roles,
-            source_page_snapshot_id: None,
-            source_url: Some(narrative.source_url),
-            zip_code: info.zip_code,
-            city: info.city,
-            state: info.state,
-            tags: TagEntry::to_map(&info.tags),
-            schedule: info.schedule,
-        });
+        posts.push(ExtractedPost::from_narrative_and_info(narrative, info));
     }
 
     info!(

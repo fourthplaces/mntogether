@@ -24,6 +24,8 @@ pub struct CreateTagKindRequest {
     pub display_name: String,
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
+    #[serde(default)]
+    pub required: bool,
 }
 
 impl_restate_serde!(CreateTagKindRequest);
@@ -34,6 +36,8 @@ pub struct UpdateTagKindRequest {
     pub display_name: String,
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
+    #[serde(default)]
+    pub required: bool,
 }
 
 impl_restate_serde!(UpdateTagKindRequest);
@@ -93,6 +97,7 @@ pub struct TagKindResult {
     pub display_name: String,
     pub description: Option<String>,
     pub allowed_resource_types: Vec<String>,
+    pub required: bool,
     pub tag_count: i64,
 }
 
@@ -176,6 +181,7 @@ impl TagsService for TagsServiceImpl {
                 display_name: kind.display_name,
                 description: kind.description,
                 allowed_resource_types: kind.allowed_resource_types,
+                required: kind.required,
                 tag_count,
             });
         }
@@ -196,6 +202,7 @@ impl TagsService for TagsServiceImpl {
             &req.display_name,
             req.description.as_deref(),
             &req.allowed_resource_types,
+            req.required,
             pool,
         )
         .await
@@ -207,6 +214,7 @@ impl TagsService for TagsServiceImpl {
             display_name: kind.display_name,
             description: kind.description,
             allowed_resource_types: kind.allowed_resource_types,
+            required: kind.required,
             tag_count: 0,
         })
     }
@@ -224,6 +232,7 @@ impl TagsService for TagsServiceImpl {
             &req.display_name,
             req.description.as_deref(),
             &req.allowed_resource_types,
+            req.required,
             pool,
         )
         .await
@@ -239,6 +248,7 @@ impl TagsService for TagsServiceImpl {
             display_name: kind.display_name,
             description: kind.description,
             allowed_resource_types: kind.allowed_resource_types,
+            required: kind.required,
             tag_count,
         })
     }
