@@ -400,12 +400,18 @@ impl SourcesService for SourcesServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Batch lookup post counts
+        let source_ids: Vec<Uuid> = sources.iter().map(|s| s.id.into_uuid()).collect();
+        let post_counts = PostSource::count_by_sources_any_type(&source_ids, &self.deps.db_pool)
+            .await
+            .unwrap_or_default();
+
         let mut results = Vec::new();
         for s in sources {
-            results.push(
-                source_to_result(s, &self.deps.db_pool)
-                    .await?,
-            );
+            let sid = s.id.into_uuid();
+            let mut result = source_to_result(s, &self.deps.db_pool).await?;
+            result.post_count = Some(*post_counts.get(&sid).unwrap_or(&0));
+            results.push(result);
         }
 
         let count = results.len() as i32;
