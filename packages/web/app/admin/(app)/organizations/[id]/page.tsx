@@ -558,7 +558,7 @@ function AddSocialProfileForm({
     try {
       await callService("Sources", "create_social", {
         organization_id: orgId,
-        source_type: platform,
+        platform: platform,
         handle: handle.trim(),
         url: url.trim() || null,
       });
