@@ -86,6 +86,24 @@ pub struct Organization;
 /// Marker type for SocialProfile entities (social media profiles to scrape).
 pub struct SocialProfile;
 
+/// Marker type for Source entities (unified content sources).
+pub struct Source;
+
+/// Marker type for WebsiteSource entities (website-specific source details).
+pub struct WebsiteSource;
+
+/// Marker type for SocialSource entities (social-media-specific source details).
+pub struct SocialSource;
+
+/// Marker type for Note entities (attachable alerts and context).
+pub struct Note;
+
+/// Marker type for Noteable entities (polymorphic note associations).
+pub struct Noteable;
+
+/// Marker type for PostSource entities (unified post source tracking).
+pub struct PostSource;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -152,3 +170,21 @@ pub type OrganizationId = Id<Organization>;
 
 /// Typed ID for SocialProfile entities.
 pub type SocialProfileId = Id<SocialProfile>;
+
+/// Typed ID for Source entities (unified content sources).
+pub type SourceId = Id<Source>;
+
+/// Typed ID for WebsiteSource entities.
+pub type WebsiteSourceId = Id<WebsiteSource>;
+
+/// Typed ID for SocialSource entities.
+pub type SocialSourceId = Id<SocialSource>;
+
+/// Typed ID for Note entities.
+pub type NoteId = Id<Note>;
+
+/// Typed ID for Noteable entities.
+pub type NoteableId = Id<Noteable>;
+
+/// Typed ID for PostSource entities.
+pub type PostSourceId = Id<PostSource>;
