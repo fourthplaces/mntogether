@@ -10,12 +10,14 @@ use std::collections::HashMap;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, PostId, WebsiteId};
+use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, OrganizationId, PostId, SourceId};
 use crate::domains::locations::models::Location;
+use crate::domains::notes::activities::attach_org_notes_to_post;
 use crate::domains::posts::models::PostLocation;
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post};
 use crate::domains::schedules::models::Schedule;
+use crate::domains::source::models::Source;
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -46,11 +48,14 @@ fn normalize_urgency(urgency: Option<&str>) -> Option<String> {
 /// All sync functions should use this instead of calling Post::create directly.
 pub async fn create_extracted_post(
     post: &ExtractedPost,
-    website_id: Option<WebsiteId>,
+    source_type: Option<&str>,
+    source_id: Option<uuid::Uuid>,
     source_url: Option<String>,
     submitted_by_id: Option<uuid::Uuid>,
     pool: &PgPool,
 ) -> Result<Post> {
+    use crate::domains::posts::models::PostSource;
+
     let urgency = normalize_urgency(post.urgency.as_deref());
 
     // Create the post
@@ -63,13 +68,17 @@ pub async fn create_extracted_post(
             .urgency(urgency)
             .location(post.location.clone())
             .submission_type(Some("scraped".to_string()))
-            .website_id(website_id)
-            .source_url(source_url)
+            .source_url(source_url.clone())
             .submitted_by_id(submitted_by_id)
             .build(),
         pool,
     )
     .await?;
+
+    // Link to source via post_sources
+    if let (Some(st), Some(sid)) = (source_type, source_id) {
+        PostSource::create(created.id, st, sid, source_url.as_deref(), pool).await?;
+    }
 
     // Create contact info if available
     if let Some(ref contact) = post.contact {
@@ -92,6 +101,18 @@ pub async fn create_extracted_post(
     // Link post to source page snapshot
     if let Some(page_snapshot_id) = post.source_page_snapshot_id {
         link_to_page_source(created.id, page_snapshot_id, pool).await;
+    }
+
+    // Attach existing org-level notes to this new post
+    if let Some(sid) = source_id {
+        if let Ok(source) = Source::find_by_id(SourceId::from_uuid(sid), pool).await {
+            if let Some(org_uuid) = source.organization_id {
+                let org_id = OrganizationId::from(org_uuid);
+                if let Err(e) = attach_org_notes_to_post(org_id, created.id, pool).await {
+                    warn!(post_id = %created.id, error = %e, "Failed to attach org notes to new post");
+                }
+            }
+        }
     }
 
     Ok(created)

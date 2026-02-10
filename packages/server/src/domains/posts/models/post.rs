@@ -6,7 +6,7 @@ use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::{
-    ContainerId, PaginationDirection, PostId, SocialProfileId, ValidatedPaginationArgs, WebsiteId,
+    ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs,
 };
 use crate::domains::schedules::models::Schedule;
 
@@ -46,8 +46,6 @@ pub struct Post {
     pub submitted_by_id: Option<Uuid>,
 
     // Source tracking (for scraped listings)
-    pub website_id: Option<WebsiteId>,
-    pub social_profile_id: Option<SocialProfileId>,
     pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
 
     // Soft delete (preserves links)
@@ -96,7 +94,6 @@ pub struct PostWithDistance {
     pub location: Option<String>,
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
-    pub website_id: Option<WebsiteId>,
     pub created_at: DateTime<Utc>,
     pub zip_code: Option<String>,
     pub location_city: Option<String>,
@@ -295,8 +292,6 @@ pub struct CreatePost {
     #[builder(default)]
     pub submitted_by_id: Option<Uuid>,
     #[builder(default)]
-    pub website_id: Option<WebsiteId>,
-    #[builder(default)]
     pub source_url: Option<String>,
     #[builder(default)]
     pub revision_of_post_id: Option<PostId>,
@@ -361,29 +356,6 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Count posts by agent grouped by website_id (for per-website counts).
-    pub async fn count_by_agent_grouped_by_website(
-        agent_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<std::collections::HashMap<Uuid, i64>> {
-        let rows = sqlx::query_as::<_, (Uuid, i64)>(
-            r#"
-            SELECT p.website_id, COUNT(*) as count
-            FROM posts p
-            JOIN agents a ON a.member_id = p.submitted_by_id
-            WHERE a.id = $1
-              AND p.website_id IS NOT NULL
-              AND p.deleted_at IS NULL
-            GROUP BY p.website_id
-            "#,
-        )
-        .bind(agent_id)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(rows.into_iter().collect())
-    }
-
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
@@ -444,11 +416,13 @@ impl Post {
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
     /// When agent_id is provided, filters via JOIN through agents.member_id.
+    /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn find_paginated(
         status: Option<&str>,
-        website_id: Option<WebsiteId>,
-        agent_id: Option<uuid::Uuid>,
+        source_type: Option<&str>,
+        source_id: Option<Uuid>,
+        agent_id: Option<Uuid>,
         search: Option<&str>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
@@ -460,16 +434,18 @@ impl Post {
             PaginationDirection::Forward => {
                 sqlx::query_as::<_, Self>(
                     r#"
-                    SELECT p.* FROM posts p
+                    SELECT DISTINCT p.* FROM posts p
                     LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+                    LEFT JOIN post_sources ps ON ps.post_id = p.id
                     WHERE ($1::text IS NULL OR p.status = $1)
                       AND p.deleted_at IS NULL
                       AND p.revision_of_post_id IS NULL
                       AND p.translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR p.id > $2)
-                      AND ($4::uuid IS NULL OR p.website_id = $4)
-                      AND ($5::uuid IS NULL OR a.id = $5)
-                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($4::text IS NULL OR ps.source_type = $4)
+                      AND ($5::uuid IS NULL OR ps.source_id = $5)
+                      AND ($6::uuid IS NULL OR a.id = $6)
+                      AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
                     ORDER BY p.id ASC
                     LIMIT $3
                     "#,
@@ -477,7 +453,8 @@ impl Post {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(website_id)
+                .bind(source_type)
+                .bind(source_id)
                 .bind(agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
@@ -487,16 +464,18 @@ impl Post {
                 // Fetch in reverse order, then re-sort
                 let mut rows = sqlx::query_as::<_, Self>(
                     r#"
-                    SELECT p.* FROM posts p
+                    SELECT DISTINCT p.* FROM posts p
                     LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+                    LEFT JOIN post_sources ps ON ps.post_id = p.id
                     WHERE ($1::text IS NULL OR p.status = $1)
                       AND p.deleted_at IS NULL
                       AND p.revision_of_post_id IS NULL
                       AND p.translation_of_id IS NULL
                       AND ($2::uuid IS NULL OR p.id < $2)
-                      AND ($4::uuid IS NULL OR p.website_id = $4)
-                      AND ($5::uuid IS NULL OR a.id = $5)
-                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($4::text IS NULL OR ps.source_type = $4)
+                      AND ($5::uuid IS NULL OR ps.source_id = $5)
+                      AND ($6::uuid IS NULL OR a.id = $6)
+                      AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
                     ORDER BY p.id DESC
                     LIMIT $3
                     "#,
@@ -504,7 +483,8 @@ impl Post {
                 .bind(status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(website_id)
+                .bind(source_type)
+                .bind(source_id)
                 .bind(agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
@@ -592,31 +572,70 @@ impl Post {
         Ok(listings)
     }
 
-    /// Find listings by domain ID (excludes soft-deleted and revisions)
-    pub async fn find_by_website_id(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts WHERE website_id = $1 AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL",
-        )
-        .bind(website_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(listings)
-    }
-
-    /// Find posts for a specific agent on a specific website.
-    /// Joins through agents to match by agent_id → member_id → submitted_by_id.
-    pub async fn find_by_agent_and_website(
-        agent_id: uuid::Uuid,
-        website_id: WebsiteId,
+    /// Find active posts for an organization (joins through post_sources → sources)
+    pub async fn find_by_organization_id(
+        organization_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let posts = sqlx::query_as::<_, Post>(
+        sqlx::query_as::<_, Post>(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            ORDER BY p.created_at DESC
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find posts by source (via post_sources join), excludes soft-deleted and revisions
+    pub async fn find_by_source(
+        source_type: &str,
+        source_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Post>(
+            r#"
+            SELECT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE ps.source_type = $1 AND ps.source_id = $2
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            "#,
+        )
+        .bind(source_type)
+        .bind(source_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find posts for a specific agent on a specific source.
+    /// Joins through agents to match by agent_id → member_id → submitted_by_id.
+    pub async fn find_by_agent_and_source(
+        agent_id: Uuid,
+        source_type: &str,
+        source_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Post>(
             r#"
             SELECT p.*
             FROM posts p
             JOIN agents a ON a.member_id = p.submitted_by_id
+            JOIN post_sources ps ON ps.post_id = p.id
             WHERE a.id = $1
-              AND p.website_id = $2
+              AND ps.source_type = $2
+              AND ps.source_id = $3
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
@@ -624,33 +643,11 @@ impl Post {
             "#,
         )
         .bind(agent_id)
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .fetch_all(pool)
-        .await?;
-        Ok(posts)
-    }
-
-    /// Count posts grouped by website_id for a set of website IDs
-    pub async fn count_by_website_ids(
-        website_ids: &[uuid::Uuid],
-        pool: &PgPool,
-    ) -> Result<std::collections::HashMap<uuid::Uuid, i64>> {
-        let rows = sqlx::query_as::<_, (uuid::Uuid, i64)>(
-            r#"
-            SELECT website_id, COUNT(*) as count
-            FROM posts
-            WHERE website_id = ANY($1)
-              AND deleted_at IS NULL
-              AND revision_of_post_id IS NULL
-              AND translation_of_id IS NULL
-            GROUP BY website_id
-            "#,
-        )
-        .bind(website_ids)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(rows.into_iter().collect())
+        .await
+        .map_err(Into::into)
     }
 
     /// Create a new listing (returns inserted record with defaults applied)
@@ -670,11 +667,10 @@ impl Post {
                 source_language,
                 submission_type,
                 submitted_by_id,
-                website_id,
                 source_url,
                 revision_of_post_id,
                 translation_of_id
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
             RETURNING *
             "#,
         )
@@ -690,7 +686,6 @@ impl Post {
         .bind(input.source_language)
         .bind(input.submission_type)
         .bind(input.submitted_by_id)
-        .bind(input.website_id)
         .bind(input.source_url)
         .bind(input.revision_of_post_id)
         .bind(input.translation_of_id)
@@ -799,48 +794,55 @@ impl Post {
         Ok(result.rows_affected())
     }
 
-    /// Find existing active listings from a domain (for sync)
-    pub async fn find_active_by_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
+    /// Find existing active listings from a source (for sync)
+    pub async fn find_active_by_source(
+        source_type: &str,
+        source_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Post>(
             r#"
-            SELECT *
-            FROM posts
-            WHERE website_id = $1
-              AND status IN ('pending_approval', 'active')
-              AND disappeared_at IS NULL
-              AND deleted_at IS NULL
-              AND revision_of_post_id IS NULL
+            SELECT p.*
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE ps.source_type = $1 AND ps.source_id = $2
+              AND p.status IN ('pending_approval', 'active')
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
             "#,
         )
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .fetch_all(pool)
-        .await?;
-        Ok(listings)
+        .await
+        .map_err(Into::into)
     }
 
-    /// Find listing by domain and title (for sync - detecting changed listings)
-    pub async fn find_by_domain_and_title(
-        website_id: WebsiteId,
+    /// Find listing by source and title (for sync - detecting changed listings)
+    pub async fn find_by_source_and_title(
+        source_type: &str,
+        source_id: Uuid,
         title: &str,
         pool: &PgPool,
     ) -> Result<Option<Self>> {
-        let post = sqlx::query_as::<_, Post>(
+        sqlx::query_as::<_, Post>(
             r#"
-            SELECT *
-            FROM posts
-            WHERE website_id = $1
-              AND title = $2
-              AND status IN ('pending_approval', 'active')
-              AND disappeared_at IS NULL
-              AND deleted_at IS NULL
+            SELECT p.*
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE ps.source_type = $1 AND ps.source_id = $2
+              AND p.title = $3
+              AND p.status IN ('pending_approval', 'active')
+              AND p.deleted_at IS NULL
             LIMIT 1
             "#,
         )
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .bind(title)
         .fetch_optional(pool)
-        .await?;
-        Ok(post)
+        .await
+        .map_err(Into::into)
     }
 
     /// Update last_seen_at for a specific listing
@@ -860,31 +862,36 @@ impl Post {
 
     /// Count listings by status (for pagination)
     /// When agent_id is provided, filters via JOIN through agents.member_id.
+    /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn count_by_status(
         status: Option<&str>,
-        website_id: Option<WebsiteId>,
-        agent_id: Option<uuid::Uuid>,
+        source_type: Option<&str>,
+        source_id: Option<Uuid>,
+        agent_id: Option<Uuid>,
         search: Option<&str>,
         pool: &PgPool,
     ) -> Result<i64> {
         let search_pattern = search.map(|s| format!("%{}%", s));
         let count = sqlx::query_scalar::<_, i64>(
             r#"
-            SELECT COUNT(*)
+            SELECT COUNT(DISTINCT p.id)
             FROM posts p
             LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+            LEFT JOIN post_sources ps ON ps.post_id = p.id
             WHERE ($1::text IS NULL OR p.status = $1)
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
-              AND ($2::uuid IS NULL OR p.website_id = $2)
-              AND ($3::uuid IS NULL OR a.id = $3)
-              AND ($4::text IS NULL OR p.title ILIKE $4 OR p.description ILIKE $4)
+              AND ($2::text IS NULL OR ps.source_type = $2)
+              AND ($3::uuid IS NULL OR ps.source_id = $3)
+              AND ($4::uuid IS NULL OR a.id = $4)
+              AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
             "#,
         )
         .bind(status)
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .bind(agent_id)
         .bind(&search_pattern)
         .fetch_one(pool)
@@ -1161,7 +1168,7 @@ impl Post {
                    p.description_markdown, p.summary,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
-                   p.website_id, p.created_at,
+                   p.created_at,
                    l.postal_code as zip_code, l.city as location_city,
                    haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
             FROM posts p
@@ -1201,25 +1208,28 @@ impl Post {
         Ok(revision)
     }
 
-    /// Find revisions by website (for bulk operations)
-    pub async fn find_revisions_by_website(
-        website_id: WebsiteId,
+    /// Find revisions by source (for bulk operations)
+    pub async fn find_revisions_by_source(
+        source_type: &str,
+        source_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let revisions = sqlx::query_as::<_, Post>(
+        sqlx::query_as::<_, Post>(
             r#"
-            SELECT * FROM posts
-            WHERE revision_of_post_id IS NOT NULL
-              AND website_id = $1
-              AND deleted_at IS NULL
-              AND status = 'pending_approval'
-            ORDER BY created_at DESC
+            SELECT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE p.revision_of_post_id IS NOT NULL
+              AND ps.source_type = $1 AND ps.source_id = $2
+              AND p.deleted_at IS NULL
+              AND p.status = 'pending_approval'
+            ORDER BY p.created_at DESC
             "#,
         )
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .fetch_all(pool)
-        .await?;
-        Ok(revisions)
+        .await
+        .map_err(Into::into)
     }
 
     /// Delete a revision and update the original post with the revision's content
@@ -1291,55 +1301,62 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Find pending (non-deleted, non-revision) posts for a website
-    pub async fn find_pending_by_website(
-        website_id: WebsiteId,
+    /// Find pending (non-deleted, non-revision) posts for a source
+    pub async fn find_pending_by_source(
+        source_type: &str,
+        source_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
-            SELECT * FROM posts
-            WHERE website_id = $1
-              AND status = 'pending_approval'
-              AND deleted_at IS NULL
-              AND revision_of_post_id IS NULL
-            ORDER BY created_at DESC
+            SELECT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE ps.source_type = $1 AND ps.source_id = $2
+              AND p.status = 'pending_approval'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+            ORDER BY p.created_at DESC
             "#,
         )
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .fetch_all(pool)
         .await
         .map_err(Into::into)
     }
 
-    /// Find only active (published) posts for a website, excluding pending
-    pub async fn find_active_only_by_website(
-        website_id: WebsiteId,
+    /// Find only active (published) posts for a source, excluding pending
+    pub async fn find_active_only_by_source(
+        source_type: &str,
+        source_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
-            SELECT * FROM posts
-            WHERE website_id = $1
-              AND status = 'active'
-              AND deleted_at IS NULL
-              AND revision_of_post_id IS NULL
-            ORDER BY created_at DESC
+            SELECT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            WHERE ps.source_type = $1 AND ps.source_id = $2
+              AND p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+            ORDER BY p.created_at DESC
             "#,
         )
-        .bind(website_id)
+        .bind(source_type)
+        .bind(source_id)
         .fetch_all(pool)
         .await
         .map_err(Into::into)
     }
 
-    /// Create a revision post by copying content from a source post, pointing at original_id
+    /// Create a revision post by copying content from a source post, pointing at original_id.
+    /// Also copies all post_sources from the source post.
     pub async fn create_revision_from(
         source: &Post,
         original_id: PostId,
         pool: &PgPool,
     ) -> Result<Self> {
-        Post::create(
+        let revision = Post::create(
             CreatePost::builder()
                 .title(source.title.clone())
                 .description(source.description.clone())
@@ -1350,13 +1367,17 @@ impl Post {
                 .location(source.location.clone())
                 .source_language(source.source_language.clone())
                 .submission_type(Some("revision".to_string()))
-                .website_id(source.website_id)
                 .source_url(source.source_url.clone())
                 .revision_of_post_id(Some(original_id))
                 .build(),
             pool,
         )
-        .await
+        .await?;
+
+        // Copy sources from the source post to the revision
+        super::PostSource::copy_sources(source.id, revision.id, pool).await?;
+
+        Ok(revision)
     }
 
     // =========================================================================

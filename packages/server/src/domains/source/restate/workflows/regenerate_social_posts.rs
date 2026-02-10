@@ -1,13 +1,12 @@
-//! Regenerate posts workflow
+//! Regenerate posts workflow for social sources
 //!
-//! Long-running workflow that re-extracts posts from a website using system-level
-//! extraction. Uses Restate K/V state for progress tracking via a shared `get_status` handler.
+//! Long-running workflow that scrapes a social media source via Apify,
+//! runs 3-pass LLM extraction, and syncs results via llm_sync_posts.
 //!
 //! Flow:
-//! 1. Load website
-//! 2. Search pages (using website domain as query)
-//! 3. Extract with system-level extraction (no agent purpose)
-//! 4. LLM sync proposals for admin review
+//! 1. Scrape social posts via Apify → Vec<CachedPage>
+//! 2. Extract with 3-pass LLM extraction
+//! 3. LLM sync proposals for admin review
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,13 +14,13 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::common::{EmptyRequest, WebsiteId};
+use crate::common::{EmptyRequest, OrganizationId};
 use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
-use crate::domains::notes::activities::{attach_notes_to_org_posts, generate_notes_for_organization};
+use crate::domains::notes::activities::{attach_notes_to_org_posts, extract_and_create_notes, SourceContent};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::activities::llm_sync::llm_sync_posts;
+use crate::domains::source::activities::scrape_social::scrape_social_source;
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
-use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -30,84 +29,70 @@ use crate::kernel::ServerDeps;
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegeneratePostsRequest {
-    pub website_id: Uuid,
+pub struct RegenerateSocialPostsRequest {
+    pub source_id: Uuid,
 }
 
-impl_restate_serde!(RegeneratePostsRequest);
+impl_restate_serde!(RegenerateSocialPostsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegeneratePostsWorkflowResult {
+pub struct RegenerateSocialPostsResult {
     pub proposals_staged: i32,
     pub status: String,
 }
 
-impl_restate_serde!(RegeneratePostsWorkflowResult);
+impl_restate_serde!(RegenerateSocialPostsResult);
 
 // =============================================================================
 // Workflow definition
 // =============================================================================
 
 #[restate_sdk::workflow]
-#[name = "RegeneratePostsWorkflow"]
-pub trait RegeneratePostsWorkflow {
-    async fn run(req: RegeneratePostsRequest)
-        -> Result<RegeneratePostsWorkflowResult, HandlerError>;
+#[name = "RegenerateSocialPostsWorkflow"]
+pub trait RegenerateSocialPostsWorkflow {
+    async fn run(
+        req: RegenerateSocialPostsRequest,
+    ) -> Result<RegenerateSocialPostsResult, HandlerError>;
 
     #[shared]
     async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
 }
 
-pub struct RegeneratePostsWorkflowImpl {
+pub struct RegenerateSocialPostsWorkflowImpl {
     deps: Arc<ServerDeps>,
 }
 
-impl RegeneratePostsWorkflowImpl {
+impl RegenerateSocialPostsWorkflowImpl {
     pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
         Self { deps }
     }
 }
 
-impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
+impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
     async fn run(
         &self,
         ctx: WorkflowContext<'_>,
-        req: RegeneratePostsRequest,
-    ) -> Result<RegeneratePostsWorkflowResult, HandlerError> {
-        info!(website_id = %req.website_id, "Starting regenerate posts workflow");
+        req: RegenerateSocialPostsRequest,
+    ) -> Result<RegenerateSocialPostsResult, HandlerError> {
+        info!(source_id = %req.source_id, "Starting regenerate social posts workflow");
 
         let pool = &self.deps.db_pool;
-        let website_id = WebsiteId::from_uuid(req.website_id);
-
-        let website =
-            Website::find_by_id(website_id, pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        let domain = &website.domain;
 
         // Build tag instructions from all active tag kinds
         let tag_instructions = build_tag_instructions(pool)
             .await
             .unwrap_or_default();
 
-        // Phase 1: Search for pages using the extraction service
-        ctx.set("status", "Searching for pages...".to_string());
+        // Phase 1: Scrape social source via Apify
+        ctx.set("status", "Scraping social media posts...".to_string());
 
-        let extraction = self.deps.extraction.as_ref().ok_or_else(|| {
-            TerminalError::new("Extraction service not configured")
-        })?;
-
-        let pages = match extraction
-            .search_and_get_pages(domain, Some(domain), 50)
-            .await
-        {
+        let pages = match scrape_social_source(req.source_id, &self.deps).await {
             Ok(p) => p,
             Err(e) => {
-                let msg = format!("Failed to search pages: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "Page search failed");
-                ctx.set("status", msg.clone());
-                return Ok(RegeneratePostsWorkflowResult {
+                let msg = format!("Failed to scrape social source: {}", e);
+                warn!(source_id = %req.source_id, error = %e, "Social scrape failed");
+                ctx.set("status", msg);
+                return Ok(RegenerateSocialPostsResult {
                     proposals_staged: 0,
                     status: "failed".to_string(),
                 });
@@ -115,18 +100,27 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         };
 
         if pages.is_empty() {
-            ctx.set("status", "No pages found for this website.".to_string());
-            return Ok(RegeneratePostsWorkflowResult {
+            ctx.set(
+                "status",
+                "No recent posts found for this social source.".to_string(),
+            );
+            return Ok(RegenerateSocialPostsResult {
                 proposals_staged: 0,
                 status: "no_pages".to_string(),
             });
         }
 
-        // Phase 2: Extract posts using system-level extraction
+        // Phase 2: Extract posts using 3-pass LLM extraction
         ctx.set(
             "status",
-            format!("Extracting posts from {} pages...", pages.len()),
+            format!("Extracting posts from {} social media posts...", pages.len()),
         );
+
+        // Use the source handle as the "domain" for extraction context
+        let domain = pages
+            .first()
+            .map(|p| p.site_url.as_str())
+            .unwrap_or("social");
 
         let posts = match extract_posts_from_pages_with_tags(
             &pages,
@@ -139,9 +133,9 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             Ok(p) => p,
             Err(e) => {
                 let msg = format!("Extraction failed: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "Extraction failed");
+                warn!(source_id = %req.source_id, error = %e, "Extraction failed");
                 ctx.set("status", msg);
-                return Ok(RegeneratePostsWorkflowResult {
+                return Ok(RegenerateSocialPostsResult {
                     proposals_staged: 0,
                     status: "failed".to_string(),
                 });
@@ -149,8 +143,11 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         };
 
         if posts.is_empty() {
-            ctx.set("status", "No posts extracted from pages.".to_string());
-            return Ok(RegeneratePostsWorkflowResult {
+            ctx.set(
+                "status",
+                "No posts extracted from social media content.".to_string(),
+            );
+            return Ok(RegenerateSocialPostsResult {
                 proposals_staged: 0,
                 status: "no_posts".to_string(),
             });
@@ -162,9 +159,17 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             format!("Analyzing {} posts...", posts.len()),
         );
 
+        // Determine source_type from the source record
+        let source = crate::domains::source::models::Source::find_by_id(
+            crate::common::SourceId::from_uuid(req.source_id),
+            pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
+
         let sync_result = match llm_sync_posts(
-            "website",
-            req.website_id,
+            &source.source_type,
+            req.source_id,
             posts,
             self.deps.ai.as_ref(),
             pool,
@@ -174,9 +179,9 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             Ok(r) => r,
             Err(e) => {
                 let msg = format!("LLM sync failed: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "LLM sync failed");
+                warn!(source_id = %req.source_id, error = %e, "LLM sync failed");
                 ctx.set("status", msg);
-                return Ok(RegeneratePostsWorkflowResult {
+                return Ok(RegenerateSocialPostsResult {
                     proposals_staged: 0,
                     status: "failed".to_string(),
                 });
@@ -188,12 +193,23 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             + sync_result.staged_deletes
             + sync_result.staged_merges) as i32;
 
-        // Phase 4: Generate notes for the organization (best-effort)
-        if let Some(org_id) = website.organization_id {
+        // Phase 4: Generate notes for the organization using already-scraped content (best-effort)
+        if let Some(org_uuid) = source.organization_id {
+            let org_id = OrganizationId::from(org_uuid);
             ctx.set("status", "Generating notes...".to_string());
             match Organization::find_by_id(org_id, pool).await {
                 Ok(org) => {
-                    match generate_notes_for_organization(org_id, &org.name, &self.deps).await {
+                    // Convert already-scraped CachedPages to SourceContent for note extraction
+                    let social_content: Vec<SourceContent> = pages.iter().map(|page| {
+                        SourceContent {
+                            source_id: uuid::Uuid::new_v4(),
+                            source_type: source.source_type.clone(),
+                            source_url: page.url.clone(),
+                            content: page.content.clone(),
+                        }
+                    }).collect();
+
+                    match extract_and_create_notes(org_id, &org.name, social_content, &self.deps).await {
                         Ok(r) => {
                             info!(org_id = %org_id, notes_created = r.notes_created, "Note generation complete");
                             if let Err(e) = attach_notes_to_org_posts(org_id, pool).await {
@@ -203,11 +219,11 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                         Err(e) => warn!(org_id = %org_id, error = %e, "Note generation failed (non-blocking)"),
                     }
                 }
-                Err(e) => warn!(org_id = %org_id, error = %e, "Failed to load org for note generation"),
+                Err(e) => warn!(org_id = %org_uuid, error = %e, "Failed to load org for note generation"),
             }
         }
 
-        let result = RegeneratePostsWorkflowResult {
+        let result = RegenerateSocialPostsResult {
             proposals_staged: total_proposals,
             status: "completed".to_string(),
         };
@@ -218,9 +234,9 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         );
 
         info!(
-            website_id = %req.website_id,
+            source_id = %req.source_id,
             proposals_staged = total_proposals,
-            "Regenerate posts workflow completed"
+            "Regenerate social posts workflow completed"
         );
 
         Ok(result)
