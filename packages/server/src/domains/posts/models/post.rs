@@ -444,14 +444,17 @@ impl Post {
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
     /// When agent_id is provided, filters via JOIN through agents.member_id.
+    /// When search is provided, filters by ILIKE on title and description.
     pub async fn find_paginated(
         status: Option<&str>,
         website_id: Option<WebsiteId>,
         agent_id: Option<uuid::Uuid>,
+        search: Option<&str>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
         let fetch_limit = args.fetch_limit();
+        let search_pattern = search.map(|s| format!("%{}%", s));
 
         let results = match args.direction {
             PaginationDirection::Forward => {
@@ -466,6 +469,7 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id > $2)
                       AND ($4::uuid IS NULL OR p.website_id = $4)
                       AND ($5::uuid IS NULL OR a.id = $5)
+                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
                     ORDER BY p.id ASC
                     LIMIT $3
                     "#,
@@ -475,6 +479,7 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(website_id)
                 .bind(agent_id)
+                .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?
             }
@@ -491,6 +496,7 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id < $2)
                       AND ($4::uuid IS NULL OR p.website_id = $4)
                       AND ($5::uuid IS NULL OR a.id = $5)
+                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
                     ORDER BY p.id DESC
                     LIMIT $3
                     "#,
@@ -500,6 +506,7 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(website_id)
                 .bind(agent_id)
+                .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?;
 
@@ -853,12 +860,15 @@ impl Post {
 
     /// Count listings by status (for pagination)
     /// When agent_id is provided, filters via JOIN through agents.member_id.
+    /// When search is provided, filters by ILIKE on title and description.
     pub async fn count_by_status(
         status: Option<&str>,
         website_id: Option<WebsiteId>,
         agent_id: Option<uuid::Uuid>,
+        search: Option<&str>,
         pool: &PgPool,
     ) -> Result<i64> {
+        let search_pattern = search.map(|s| format!("%{}%", s));
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(*)
@@ -870,11 +880,13 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($2::uuid IS NULL OR p.website_id = $2)
               AND ($3::uuid IS NULL OR a.id = $3)
+              AND ($4::text IS NULL OR p.title ILIKE $4 OR p.description ILIKE $4)
             "#,
         )
         .bind(status)
         .bind(website_id)
         .bind(agent_id)
+        .bind(&search_pattern)
         .fetch_one(pool)
         .await?;
         Ok(count)

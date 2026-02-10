@@ -229,10 +229,16 @@ impl StructuredRequest {
         user: impl Into<String>,
         schema: serde_json::Value,
     ) -> Self {
+        let model = model.into();
+        let temperature = if model.starts_with("gpt-5") {
+            None // gpt-5 only supports default temperature (1)
+        } else {
+            Some(0.0)
+        };
         Self {
-            model: model.into(),
+            model,
             messages: vec![Message::system(system), Message::user(user)],
-            temperature: Some(0.0),
+            temperature,
             response_format: ResponseFormat {
                 format_type: "json_schema".to_string(),
                 json_schema: JsonSchemaFormat {

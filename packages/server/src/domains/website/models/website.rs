@@ -364,6 +364,52 @@ impl Website {
         Ok(website)
     }
 
+    /// Set the organization for a website
+    pub async fn set_organization_id(
+        id: WebsiteId,
+        organization_id: OrganizationId,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET organization_id = $2, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(organization_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
+    /// Find websites without an organization
+    pub async fn find_without_organization(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM websites WHERE organization_id IS NULL AND status = 'approved' ORDER BY domain",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn unset_organization_id(id: WebsiteId, pool: &PgPool) -> Result<Self> {
+        let website = sqlx::query_as::<_, Website>(
+            r#"
+            UPDATE websites
+            SET organization_id = NULL, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+        Ok(website)
+    }
+
     /// Delete a website
     pub async fn delete(id: WebsiteId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM websites WHERE id = $1")
@@ -423,6 +469,7 @@ impl Website {
     pub async fn find_paginated(
         status: Option<&str>,
         search: Option<&str>,
+        organization_id: Option<Uuid>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
@@ -436,6 +483,7 @@ impl Website {
                     WHERE ($1::text IS NULL OR status = $1)
                       AND ($2::uuid IS NULL OR id > $2)
                       AND ($4::text IS NULL OR domain ILIKE '%' || $4 || '%')
+                      AND ($5::uuid IS NULL OR organization_id = $5)
                     ORDER BY id ASC
                     LIMIT $3
                     "#,
@@ -444,6 +492,7 @@ impl Website {
                 .bind(args.cursor)
                 .bind(fetch_limit)
                 .bind(search)
+                .bind(organization_id)
                 .fetch_all(pool)
                 .await?
             }
@@ -454,6 +503,7 @@ impl Website {
                     WHERE ($1::text IS NULL OR status = $1)
                       AND ($2::uuid IS NULL OR id < $2)
                       AND ($4::text IS NULL OR domain ILIKE '%' || $4 || '%')
+                      AND ($5::uuid IS NULL OR organization_id = $5)
                     ORDER BY id DESC
                     LIMIT $3
                     "#,
@@ -462,6 +512,7 @@ impl Website {
                 .bind(args.cursor)
                 .bind(fetch_limit)
                 .bind(search)
+                .bind(organization_id)
                 .fetch_all(pool)
                 .await?;
 
@@ -491,17 +542,19 @@ impl Website {
         .map_err(Into::into)
     }
 
-    /// Count websites with optional status and search filters
+    /// Count websites with optional status, search, and organization filters
     pub async fn count_with_filters(
         status: Option<&str>,
         search: Option<&str>,
+        organization_id: Option<Uuid>,
         pool: &PgPool,
     ) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM websites WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR domain ILIKE '%' || $2 || '%')",
+            "SELECT COUNT(*) FROM websites WHERE ($1::text IS NULL OR status = $1) AND ($2::text IS NULL OR domain ILIKE '%' || $2 || '%') AND ($3::uuid IS NULL OR organization_id = $3)",
         )
         .bind(status)
         .bind(search)
+        .bind(organization_id)
         .fetch_one(pool)
         .await?;
         Ok(count)

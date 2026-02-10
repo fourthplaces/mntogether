@@ -13,6 +13,7 @@ import type {
   ExtractionPageListResult,
   ExtractionPageCount,
   OrganizationResult,
+  OrganizationListResult,
 } from "@/lib/restate/types";
 
 type TabType = "posts" | "snapshots" | "assessment";
@@ -27,6 +28,9 @@ export default function WebsiteDetailPage() {
   const [regenStatus, setRegenStatus] = useState<string | null>(null);
   const [dedupWorkflowId, setDedupWorkflowId] = useState<string | null>(null);
   const [dedupStatus, setDedupStatus] = useState<string | null>(null);
+  const [approvingPostId, setApprovingPostId] = useState<string | null>(null);
+  const [rejectingPostId, setRejectingPostId] = useState<string | null>(null);
+  const [showOrgPicker, setShowOrgPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -88,6 +92,13 @@ export default function WebsiteDetailPage() {
     { revalidateOnFocus: false }
   );
 
+  const { data: orgsListData } = useRestate<OrganizationListResult>(
+    showOrgPicker ? "Organizations" : null,
+    "list",
+    {},
+    { revalidateOnFocus: false }
+  );
+
   const assessment = assessmentData?.assessment ?? null;
 
   const posts = postsData?.posts || [];
@@ -120,6 +131,34 @@ export default function WebsiteDetailPage() {
       console.error("Failed to reject:", err);
     } finally {
       setActionInProgress(null);
+    }
+  };
+
+  const handleApprovePost = async (postId: string) => {
+    setApprovingPostId(postId);
+    try {
+      await callObject("Post", postId, "approve", {});
+      invalidateService("Posts");
+      invalidateObject("Post", postId);
+      refetchPosts();
+    } catch (err) {
+      console.error("Failed to approve post:", err);
+    } finally {
+      setApprovingPostId(null);
+    }
+  };
+
+  const handleRejectPost = async (postId: string) => {
+    setRejectingPostId(postId);
+    try {
+      await callObject("Post", postId, "reject", { reason: "Rejected by admin" });
+      invalidateService("Posts");
+      invalidateObject("Post", postId);
+      refetchPosts();
+    } catch (err) {
+      console.error("Failed to reject post:", err);
+    } finally {
+      setRejectingPostId(null);
     }
   };
 
@@ -177,6 +216,55 @@ export default function WebsiteDetailPage() {
       setDedupStatus("Starting...");
     } catch (err) {
       console.error("Failed to start deduplication:", err);
+      setActionInProgress(null);
+    }
+  };
+
+  const handleExtractOrganization = async () => {
+    setActionInProgress("extract_org");
+    setMenuOpen(false);
+    try {
+      const result = await callObject<{ organization_id: string | null; status: string }>(
+        "Website", websiteId, "extract_organization", {}
+      );
+      invalidateObject("Website", websiteId);
+      invalidateService("Websites");
+      invalidateService("Organizations");
+      refetchWebsite();
+    } catch (err) {
+      console.error("Failed to extract organization:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleAssignOrganization = async (orgId: string) => {
+    setActionInProgress("assign_org");
+    try {
+      await callObject("Website", websiteId, "assign_organization", { organization_id: orgId });
+      invalidateObject("Website", websiteId);
+      invalidateService("Websites");
+      invalidateService("Organizations");
+      refetchWebsite();
+      setShowOrgPicker(false);
+    } catch (err) {
+      console.error("Failed to assign organization:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleUnassignOrganization = async () => {
+    setActionInProgress("unassign_org");
+    try {
+      await callObject("Website", websiteId, "unassign_organization", {});
+      invalidateObject("Website", websiteId);
+      invalidateService("Websites");
+      invalidateService("Organizations");
+      refetchWebsite();
+    } catch (err) {
+      console.error("Failed to unassign organization:", err);
+    } finally {
       setActionInProgress(null);
     }
   };
@@ -397,6 +485,32 @@ export default function WebsiteDetailPage() {
                     >
                       Deduplicate Posts
                     </button>
+                    <div className="border-t border-stone-100 my-1" />
+                    {!website.organization_id && (
+                      <button
+                        onClick={handleExtractOrganization}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {actionInProgress === "extract_org" ? "Extracting..." : "Extract Organization (AI)"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setMenuOpen(false); setShowOrgPicker(true); }}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Assign Organization
+                    </button>
+                    {website.organization_id && (
+                      <button
+                        onClick={() => { setMenuOpen(false); handleUnassignOrganization(); }}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Remove Organization
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -414,8 +528,19 @@ export default function WebsiteDetailPage() {
                 >
                   {orgData.name}
                 </Link>
+              ) : actionInProgress === "extract_org" ? (
+                <div className="flex items-center gap-2 mt-0.5">
+                  <div className="animate-spin h-3 w-3 border-2 border-amber-600 border-t-transparent rounded-full" />
+                  <span className="text-sm text-amber-600">Extracting...</span>
+                </div>
               ) : (
-                <p className="text-sm text-stone-400">{"\u2014"}</p>
+                <button
+                  onClick={handleExtractOrganization}
+                  disabled={actionInProgress !== null}
+                  className="block text-sm text-amber-600 hover:text-amber-800 font-medium disabled:opacity-50"
+                >
+                  Extract with AI
+                </button>
               )}
             </div>
             <div>
@@ -483,15 +608,16 @@ export default function WebsiteDetailPage() {
                   <div className="text-center py-8 text-stone-500">No posts yet</div>
                 ) : (
                   posts.map((post) => (
-                    <Link
+                    <div
                       key={post.id}
-                      href={`/admin/posts/${post.id}`}
-                      className="block border border-stone-200 rounded-lg p-4 hover:bg-stone-50"
+                      className="border border-stone-200 rounded-lg p-4 hover:bg-stone-50"
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-stone-900">{post.title}</h3>
+                            <Link href={`/admin/posts/${post.id}`} className="font-medium text-stone-900 hover:underline">
+                              {post.title}
+                            </Link>
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                 post.status === "active" || post.status === "Active"
@@ -520,8 +646,26 @@ export default function WebsiteDetailPage() {
                             </div>
                           )}
                         </div>
+                        {(post.status === "pending_approval" || post.status === "PendingApproval") && (
+                          <div className="flex items-center gap-2 ml-4 shrink-0">
+                            <button
+                              onClick={() => handleApprovePost(post.id)}
+                              disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              {approvingPostId === post.id ? "Approving..." : "Approve"}
+                            </button>
+                            <button
+                              onClick={() => handleRejectPost(post.id)}
+                              disabled={approvingPostId === post.id || rejectingPostId === post.id}
+                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                              {rejectingPostId === post.id ? "Rejecting..." : "Reject"}
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    </Link>
+                    </div>
                   ))
                 )}
               </div>
@@ -618,6 +762,68 @@ export default function WebsiteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Assign Organization Modal */}
+      {showOrgPicker && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/40 z-40"
+            onClick={() => setShowOrgPicker(false)}
+          />
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-md max-h-[70vh] flex flex-col">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200">
+                <h2 className="text-lg font-semibold text-stone-900">Assign Organization</h2>
+                <button
+                  onClick={() => setShowOrgPicker(false)}
+                  className="text-stone-400 hover:text-stone-600 text-xl leading-none"
+                >
+                  {"\u00D7"}
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-5">
+                {(orgsListData?.organizations || []).length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-stone-500 mb-3">No organizations yet.</p>
+                    <Link
+                      href="/admin/organizations"
+                      className="text-amber-600 hover:text-amber-800 text-sm font-medium"
+                      onClick={() => setShowOrgPicker(false)}
+                    >
+                      Create one first {"\u2192"}
+                    </Link>
+                  </div>
+                ) : (
+                  <div className="space-y-1">
+                    {(orgsListData?.organizations || []).map((org) => (
+                      <button
+                        key={org.id}
+                        onClick={() => handleAssignOrganization(org.id)}
+                        disabled={actionInProgress !== null}
+                        className={`w-full text-left px-4 py-3 rounded-lg transition-colors disabled:opacity-50 ${
+                          website?.organization_id === org.id
+                            ? "bg-amber-100 text-amber-900"
+                            : "hover:bg-stone-50 text-stone-800"
+                        }`}
+                      >
+                        <div className="font-medium">{org.name}</div>
+                        {org.description && (
+                          <div className="text-sm text-stone-500 mt-0.5 line-clamp-1">
+                            {org.description}
+                          </div>
+                        )}
+                        <div className="text-xs text-stone-400 mt-1">
+                          {org.website_count} websites · {org.social_profile_count} social profiles
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

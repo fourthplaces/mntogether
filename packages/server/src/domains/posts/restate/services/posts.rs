@@ -30,6 +30,7 @@ pub struct ListPostsRequest {
     pub status: Option<String>,
     pub website_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
+    pub search: Option<String>,
     pub first: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
@@ -431,9 +432,10 @@ impl PostsService for PostsServiceImpl {
 
         let website_id = req.website_id.map(crate::common::WebsiteId::from_uuid);
         let agent_id = req.agent_id;
+        let search_filter = req.search.as_deref();
 
         let connection =
-            activities::get_posts_paginated(status_filter, website_id, agent_id, &validated, &self.deps)
+            activities::get_posts_paginated(status_filter, website_id, agent_id, search_filter, &validated, &self.deps)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 

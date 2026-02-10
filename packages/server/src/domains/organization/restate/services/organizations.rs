@@ -1,12 +1,14 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
-use crate::common::{EmptyRequest, OrganizationId};
-use crate::domains::organization::data::OrganizationData;
+use crate::common::{EmptyRequest, OrganizationId, WebsiteId};
+use crate::domains::crawling::activities::extract_and_create_organization;
 use crate::domains::organization::models::Organization;
+use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -45,6 +47,22 @@ pub struct DeleteOrganizationRequest {
 
 impl_restate_serde!(DeleteOrganizationRequest);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegenerateOrganizationRequest {
+    pub id: Uuid,
+}
+
+impl_restate_serde!(RegenerateOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegenerateOrganizationResult {
+    pub organization_id: Option<String>,
+    pub websites_processed: i64,
+    pub status: String,
+}
+
+impl_restate_serde!(RegenerateOrganizationResult);
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -69,6 +87,15 @@ pub struct OrganizationListResult {
 
 impl_restate_serde!(OrganizationListResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackfillResult {
+    pub processed: i64,
+    pub succeeded: i64,
+    pub failed: i64,
+}
+
+impl_restate_serde!(BackfillResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -81,6 +108,10 @@ pub trait OrganizationsService {
     async fn create(req: CreateOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn update(req: UpdateOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn delete(req: DeleteOrganizationRequest) -> Result<EmptyRequest, HandlerError>;
+    async fn regenerate(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn backfill_organizations(req: EmptyRequest) -> Result<BackfillResult, HandlerError>;
 }
 
 pub struct OrganizationsServiceImpl {
@@ -254,5 +285,100 @@ impl OrganizationsService for OrganizationsServiceImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(EmptyRequest {})
+    }
+
+    async fn regenerate(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.id);
+        let pool = &self.deps.db_pool;
+
+        // Find all websites linked to this org before deleting
+        let website_ids: Vec<WebsiteId> = sqlx::query_scalar::<_, Uuid>(
+            "SELECT id FROM websites WHERE organization_id = $1",
+        )
+        .bind(req.id)
+        .fetch_all(pool)
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?
+        .into_iter()
+        .map(WebsiteId::from_uuid)
+        .collect();
+
+        let websites_processed = website_ids.len() as i64;
+
+        if website_ids.is_empty() {
+            return Err(TerminalError::new("No websites linked to this organization").into());
+        }
+
+        info!(org_id = %org_id, websites = websites_processed, "Regenerating organization: deleting and re-extracting");
+
+        // Delete org — cascades: websites get org_id=NULL, social_profiles deleted
+        Organization::delete(org_id, pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Re-run extraction on each website
+        let mut new_org_id: Option<String> = None;
+        for website_id in &website_ids {
+            match extract_and_create_organization(*website_id, &self.deps).await {
+                Ok(oid) => {
+                    info!(website_id = %website_id, org_id = %oid, "Re-extraction succeeded");
+                    new_org_id = Some(oid.into_uuid().to_string());
+                }
+                Err(e) => {
+                    warn!(website_id = %website_id, error = %e, "Re-extraction failed for website");
+                }
+            }
+        }
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: new_org_id,
+            websites_processed,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn backfill_organizations(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<BackfillResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let websites = Website::find_without_organization(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let processed = websites.len() as i64;
+        let mut succeeded: i64 = 0;
+        let mut failed: i64 = 0;
+
+        info!(count = processed, "Starting organization backfill");
+
+        for website in &websites {
+            let website_id = website.id;
+            match extract_and_create_organization(website_id, &self.deps).await {
+                Ok(org_id) => {
+                    info!(website_id = %website_id, org_id = %org_id, "Backfill: organization created");
+                    succeeded += 1;
+                }
+                Err(e) => {
+                    warn!(website_id = %website_id, error = %e, "Backfill: organization extraction failed");
+                    failed += 1;
+                }
+            }
+        }
+
+        info!(processed, succeeded, failed, "Organization backfill complete");
+
+        Ok(BackfillResult {
+            processed,
+            succeeded,
+            failed,
+        })
     }
 }

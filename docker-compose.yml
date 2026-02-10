@@ -139,8 +139,9 @@ services:
         condition: service_healthy
     volumes:
       - ./packages/server:/app/packages/server
+      - ./packages/apify-client:/app/packages/apify-client
       - rust_target:/app/target
-    command: cargo watch -w /app/packages/server -w /app/packages/extraction -w /app/packages/twilio-rs -s 'cargo run --bin server'
+    command: cargo watch -w /app/packages/server -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
     networks:
       - mndigitalaid
 

@@ -62,6 +62,29 @@ impl Organization {
         .map_err(Into::into)
     }
 
+    /// Find or create an organization by name (exact match).
+    /// If exists, updates description only if the new one is non-null.
+    pub async fn find_or_create_by_name(
+        name: &str,
+        description: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO organizations (name, description)
+            VALUES ($1, $2)
+            ON CONFLICT (name) DO UPDATE
+            SET description = COALESCE(EXCLUDED.description, organizations.description)
+            RETURNING *
+            "#,
+        )
+        .bind(name)
+        .bind(description)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn delete(id: OrganizationId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM organizations WHERE id = $1")
             .bind(id)
