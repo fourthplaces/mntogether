@@ -17,7 +17,8 @@ use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsite
 use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
 use server_core::domains::organization::restate::{
-    OrganizationsService, OrganizationsServiceImpl,
+    ExtractOrgPostsWorkflow, ExtractOrgPostsWorkflowImpl, OrganizationsService,
+    OrganizationsServiceImpl,
 };
 use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
 use server_core::domains::member::restate::{
@@ -32,8 +33,9 @@ use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
 };
 use server_core::domains::source::restate::{
-    RegenerateSocialPostsWorkflow, RegenerateSocialPostsWorkflowImpl, SourceObject,
-    SourceObjectImpl, SourcesService, SourcesServiceImpl,
+    CrawlSocialSourceWorkflow, CrawlSocialSourceWorkflowImpl, RegenerateSocialPostsWorkflow,
+    RegenerateSocialPostsWorkflowImpl, SourceObject, SourceObjectImpl, SourcesService,
+    SourcesServiceImpl,
 };
 use server_core::domains::providers::restate::{
     ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
@@ -265,6 +267,7 @@ async fn main() -> Result<()> {
         .bind(NotesServiceImpl::with_deps(server_deps.clone()).serve())
         // Organization domain
         .bind(OrganizationsServiceImpl::with_deps(server_deps.clone()).serve())
+        .bind(ExtractOrgPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Member domain
         .bind(MemberObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(MembersServiceImpl::with_deps(server_deps.clone()).serve())
@@ -280,6 +283,7 @@ async fn main() -> Result<()> {
         .bind(SourceObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
         .bind(RegenerateSocialPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(CrawlSocialSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())

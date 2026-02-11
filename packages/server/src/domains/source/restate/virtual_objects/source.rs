@@ -374,12 +374,12 @@ impl SourceObject for SourceObjectImpl {
                     .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id: source_id })
                     .send();
             }
-            "instagram" | "facebook" | "tiktok" => {
+            "instagram" | "facebook" | "x" | "tiktok" => {
                 let _ = ctx
-                    .workflow_client::<crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsWorkflowClient>(
+                    .workflow_client::<crate::domains::source::restate::workflows::crawl_social_source::CrawlSocialSourceWorkflowClient>(
                         workflow_id.clone(),
                     )
-                    .run(crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsRequest { source_id })
+                    .run(crate::domains::source::restate::workflows::crawl_social_source::CrawlSocialSourceRequest { source_id })
                     .send();
             }
             other => {

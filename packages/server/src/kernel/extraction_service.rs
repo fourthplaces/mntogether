@@ -267,6 +267,19 @@ impl<A: AI + Clone> ExtractionService<A> {
             .await
             .map_err(|e| anyhow::anyhow!("Failed to store page {}: {}", page.url, e))
     }
+
+    /// Get all cached pages for a site_url.
+    ///
+    /// Used by org-level extraction to pool content from multiple sources.
+    pub async fn get_pages_for_site(&self, site_url: &str) -> Result<Vec<CachedPage>> {
+        use extraction::traits::store::PageCache;
+
+        self.index
+            .store()
+            .get_pages_for_site(site_url)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get pages for site {}: {}", site_url, e))
+    }
 }
 
 /// Type alias for OpenAI-backed extraction service.
