@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use sqlx::PgPool;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::common::PostId;
 use uuid::Uuid;
@@ -13,11 +13,16 @@ use crate::domains::posts::models::{Post, UpdatePostContent};
 
 /// Approve revision: copy revision fields to original, delete revision
 ///
-/// Returns the updated original post.
-pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Post> {
-    let revision = Post::find_by_id(revision_id, pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Revision not found"))?;
+/// Returns the updated original post, or None if the revision was already applied.
+/// Idempotent: if the revision no longer exists, it was already consumed by a prior attempt.
+pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Option<Post>> {
+    let revision = match Post::find_by_id(revision_id, pool).await? {
+        Some(r) => r,
+        None => {
+            warn!(revision_id = %revision_id, "Revision not found - already applied, skipping");
+            return Ok(None);
+        }
+    };
 
     let original_id = revision
         .revision_of_post_id
@@ -54,14 +59,19 @@ pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Post
         "Revision approved and applied"
     );
 
-    Ok(updated)
+    Ok(Some(updated))
 }
 
-/// Reject revision: delete revision, original unchanged
+/// Reject revision: delete revision, original unchanged.
+/// Idempotent: if the revision no longer exists, it was already deleted.
 pub async fn reject_revision(revision_id: PostId, pool: &PgPool) -> Result<()> {
-    let revision = Post::find_by_id(revision_id, pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Revision not found"))?;
+    let revision = match Post::find_by_id(revision_id, pool).await? {
+        Some(r) => r,
+        None => {
+            warn!(revision_id = %revision_id, "Revision not found - already deleted, skipping");
+            return Ok(());
+        }
+    };
 
     if revision.revision_of_post_id.is_none() {
         anyhow::bail!("Not a revision post");

@@ -19,6 +19,7 @@ use crate::domains::posts::activities::deduplication::{
     find_duplicate_pending_posts, match_pending_to_active_posts, Phase1Result, Phase2Result,
 };
 use crate::domains::posts::models::Post;
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -141,7 +142,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
 
         let phase1 = ctx
             .run(|| async {
-                find_duplicate_pending_posts(&pending_posts, self.deps.ai_next.as_ref())
+                find_duplicate_pending_posts(&pending_posts, self.deps.ai.as_ref())
                     .await
                     .map(|groups| Phase1Result { groups })
                     .map_err(Into::into)
@@ -188,7 +189,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                 match_pending_to_active_posts(
                     &remaining_posts_owned,
                     &active_posts,
-                    self.deps.ai_next.as_ref(),
+                    self.deps.ai.as_ref(),
                 )
                 .await
                 .map(|matches| Phase2Result { matches })
@@ -389,6 +390,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                 req.source_id,
                 Some(&summary),
                 proposed_ops,
+                &PostProposalHandler,
                 &self.deps.db_pool,
             )
             .await

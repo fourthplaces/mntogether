@@ -9,7 +9,7 @@ use crate::common::{OrganizationId, SocialProfileId};
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SocialProfile {
     pub id: SocialProfileId,
-    pub organization_id: OrganizationId,
+    pub organization_id: Option<OrganizationId>,
     pub platform: String,
     pub handle: String,
     pub url: Option<String>,

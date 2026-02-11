@@ -336,17 +336,32 @@ fn run_restart(ctx: &AppContext, services: Vec<String>, all: bool) -> Result<()>
         services
     };
 
-    ctx.print_header("Restarting services");
+    ctx.print_header("Restarting services (down + up)");
     for svc in &services {
         println!("  • {}", style(svc).cyan());
     }
     println!();
 
-    let mut cmd = docker_compose(ctx);
-    cmd.arg("restart");
-    cmd.args(&services);
+    // Use rm -sf + up -d instead of restart so config changes (volumes, env, etc.) are picked up
+    let mut rm_cmd = docker_compose(ctx);
+    rm_cmd.args(["rm", "-sf"]);
+    rm_cmd.args(&services);
 
-    let status = cmd.status().context("Failed to run docker compose")?;
+    let status = rm_cmd
+        .status()
+        .context("Failed to stop services")?;
+
+    if !status.success() {
+        anyhow::bail!("Failed to stop services");
+    }
+
+    let mut up_cmd = docker_compose(ctx);
+    up_cmd.args(["up", "-d"]);
+    up_cmd.args(&services);
+
+    let status = up_cmd
+        .status()
+        .context("Failed to start services")?;
 
     if status.success() {
         ctx.print_success("Services restarted");

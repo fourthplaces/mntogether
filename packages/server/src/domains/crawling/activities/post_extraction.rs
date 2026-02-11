@@ -10,14 +10,14 @@
 use anyhow::Result;
 use extraction::types::page::CachedPage;
 use futures::future::join_all;
-use ai_client::{Agent, OpenRouter, PromptBuilder};
+use ai_client::{Agent, OpenAi, PromptBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::common::{ExtractedPost, ExtractedPostInformation};
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
-use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool, FRONTIER_MODEL};
+use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool, GPT_5_MINI};
 
 //=============================================================================
 // BATCHING
@@ -70,7 +70,7 @@ pub struct NarrativePost {
     pub description: String,
     /// The source URL where this post was found
     pub source_url: String,
-    /// Primary audience: "recipient", "volunteer", "donor", or "participant"
+    /// Primary audience: "participant", "volunteer", or "donor"
     pub audience: String,
 }
 
@@ -81,86 +81,103 @@ struct NarrativeExtractionResponse {
 }
 
 /// System prompt for Pass 1: narrative extraction
-const NARRATIVE_EXTRACTION_PROMPT: &str = r#"You are extracting community resources from website content.
+const NARRATIVE_EXTRACTION_PROMPT: &str = r#"You are extracting posts for MN Together, a platform connecting communities around the immigration crisis in Minnesota.
 
-For each DISTINCT opportunity, service, program, or event you find, provide:
+## The Litmus Test
 
-1. **title** - An action-focused title that tells people exactly what they can DO. Lead with the action, not the organization. (e.g., "Get Free Hot Meals Every Tuesday", "Sort and Pack Food Boxes", "Donate Food or Funds"). Never include organization names in titles - that info is captured elsewhere.
-2. **summary** - 2-3 sentence summary (~250 chars) that includes the most important actionable details: when/where it happens, key requirements, and how to get involved. Don't just say what it is — include the details someone needs to decide whether to click.
+Only extract content that passes BOTH tests:
+1. "Is this connected to immigrant communities and the current crisis?"
+2. "Is this something someone can show up to, participate in, or contribute to?"
+
+If BOTH yes → extract. Otherwise → skip.
+
+## What to Extract
+
+For each DISTINCT event, drive, or action you find, provide:
+
+1. **title** - Action-focused. Lead with what someone can DO, not the org name. (e.g., "Deliver Groceries to Immigrant Families", "Attend Know Your Rights Workshop", "Donate to Emergency Legal Defense Fund"). Never include organization names in titles.
+2. **summary** - 2-3 sentence summary (~250 chars) with when/where/how to participate. Include the details someone needs to decide whether to click.
 3. **description** - A rich markdown description for humans to read
-4. **source_url** - The URL where this content was found (look at the Source header above the content)
-5. **audience** - Who this post is for: "recipient" (people who receive help), "volunteer" (people who give time), "donor" (people who give money/goods), or "participant" (general participants)
+4. **source_url** - The URL where this content was found (from the Source header above the content)
+5. **audience** - Who this post is for: "participant" (attend/join events), "volunteer" (give time to help immigrants), or "donor" (give money/goods)
+
+## What Qualifies
+
+### Community Support Events
+- Know-your-rights workshops and trainings
+- Community meetings about immigration response
+- Vigils, gatherings, and community support events connected to immigration
+- Rallies and marches connected to immigration
+- ICE rapid response trainings
+- Sanctuary-related events
+- Legal clinics or legal aid events (not standing office hours)
+
+### Volunteer Opportunities
+- Grocery/supply delivery to immigrant families afraid to leave home
+- Accompaniment (escorting people to appointments, court, etc.)
+- Supply packing or sorting for immigrant communities
+- Rapid response team signups and trainings
+- Sanctuary hosting
+- Translation/interpretation at events
+
+### Donation Drives
+- Fundraisers for legal defense, bail funds, or family support
+- Supply drives (food, clothing, hygiene items for immigrant families)
+- Rent/housing emergency funds for families in crisis
+
+## DO NOT Extract
+
+- **Regular worship services** (Sunday mass, Bible study, prayer groups)
+- **Standing services with regular hours** (food shelf open Mon-Fri, legal clinic every Tuesday) — UNLESS explicitly serving immigrant families in crisis (e.g., "delivery for families afraid to leave home")
+- **Staff job postings** (hiring for the org)
+- **Board governance** (meeting minutes, bylaws, annual reports)
+- **"About Us" pages** (org history, mission statements, leadership bios)
+- **Past event recaps** (only extract upcoming or ongoing events/drives)
+- **Press releases** that aren't actionable events
+- **Donor thank-yous / impact reports** (unless they contain a current donation drive)
+- **Generic navigation content** ("Explore Our Events", "Learn About Our Programs")
+- **General community programs** not connected to immigrant communities (after-school programs, senior fitness, arts classes, etc.)
+- **Political events unrelated to immigration** (environmental protests, general labor actions, non-immigration policy issues)
+
+If a page has no content connected to immigrant communities or the current crisis, extract NOTHING. Fewer high-quality posts is always better than noise.
+
+## Minimum Quality Bar
+
+A post MUST have:
+- A clear connection to immigrant communities or the immigration crisis
+- A specific way to participate (date/time, location, signup link, donation method)
+
+If the content is vague, has no actionable details, or isn't connected to immigrant communities — **skip it entirely**.
+
+Ask: "Would someone supporting immigrant neighbors find this relevant and know exactly what to do?" If no, skip.
 
 ## Writing the Description
 
-Write in well-formatted markdown that's easy to scan. Use:
-- **Bold** for key terms (eligibility, deadlines, requirements)
-- Bullet lists for multiple items (hours, services offered, eligibility criteria)
+Write in well-formatted markdown that's easy to scan:
+- **Bold** for key terms (dates, deadlines, requirements)
+- Bullet lists for multiple items
 - Short paragraphs for narrative context
 
 Include all relevant details:
 - What this is and who it's for
-- Location and address — REQUIRED for in-person services (full street address, city, state, zip). Skip for virtual-only.
-- Schedule — REQUIRED for events and recurring programs (day, time, frequency). Skip for always-available services.
-- Contact information — phone, email, website, or signup form. Note the gap explicitly if missing.
-- Eligibility or requirements
-- How to access, apply, or sign up
+- Location and address (full street address for in-person events)
+- Date, time, and frequency
+- Contact information (phone, email, website, signup form)
+- What to bring or how to prepare
+- How to sign up or participate
 
-Guidelines:
-- Use markdown formatting liberally - bold, bullets, headers if appropriate
-- Be comprehensive and well-organized
-- Capture EVERYTHING mentioned - location, hours, contact info, eligibility
-- ALWAYS include the source_url from the Source header above each content section
+## Splitting Posts
 
-## CRITICAL: Only Extract SPECIFIC Opportunities
-
-Only create posts for CONCRETE, SPECIFIC opportunities that someone can actually act on.
-
-**DO extract:**
-- "Free Tax Preparation Help - Saturdays in February" (specific service with timing)
-- "Community Meal - Every Wednesday 5:30pm" (specific recurring event)
-- "Emergency Shelter Beds Available" (specific service)
-- "Youth Soccer League Registration Open" (specific program)
-
-**DO NOT extract:**
-- "Explore Our Events" (too vague - no specific event)
-- "Learn About Our Programs" (meta-content, not a program itself)
-- "Visit Our Website" (not actionable)
-- "Check Our Calendar" (pointer to content, not content itself)
-- "Contact Us For More Information" (generic, not a specific opportunity)
-
-If a page only contains navigation or generic "learn more" content without specific details, extract NOTHING from that page. It's better to have fewer, high-quality posts than many vague ones.
-
-## CRITICAL: Split by Audience
-
-**ALWAYS create separate posts for each audience type.** A single page often describes multiple ways to engage:
-
-- **Recipients**: People who RECEIVE help (get food, get assistance, access services)
-- **Volunteers**: People who GIVE time (sort food, deliver boxes, help at events)
-- **Donors**: People who GIVE money or goods (donate food, contribute funds)
-
-If a page says "Get food here" AND "Volunteer to help" AND "Donate to support us" - that is THREE separate posts:
-1. "Get Free Food Boxes" (audience: recipient)
-2. "Sort and Pack Food Boxes" (audience: volunteer)
-3. "Donate Food or Funds" (audience: donor)
-
-Each post should have:
-- An action-focused title (what can I DO?) - no organization names
-- Description focused on THAT audience's needs and actions
-- The specific contact info for THAT action (e.g., volunteer signup form, donation link, food registration)
-
-## Other Reasons to Split Posts
-
-Also create separate posts for:
-- Different services (e.g., Food Shelf vs Clothing Closet)
-- Different events (e.g., Monthly Food Drive vs Annual Gala)
-- Different programs (e.g., Senior Services vs Youth Services)"#;
+Create separate posts for:
+- Different audience types (participant vs volunteer vs donor)
+- Different events (a rally on Saturday vs a workshop on Tuesday)
+- Different programs (rapid response training vs accompaniment signup)"#;
 
 /// Pass 1: Extract narrative posts (title + summary + comprehensive description)
 async fn extract_narrative_posts(
     content: &str,
     context: Option<&str>,
-    ai: &OpenRouter,
+    ai: &OpenAi,
 ) -> Result<Vec<NarrativePost>> {
     if content.trim().is_empty() {
         return Ok(vec![]);
@@ -174,7 +191,7 @@ async fn extract_narrative_posts(
     let user_prompt = format!("## Content to Extract\n\n{}", content);
 
     let response: NarrativeExtractionResponse = ai
-        .extract(FRONTIER_MODEL, &system_prompt, &user_prompt)
+        .extract(GPT_5_MINI, &system_prompt, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("Narrative extraction failed: {}", e))?;
 
@@ -220,13 +237,13 @@ The input descriptions contain rich markdown formatting. You MUST preserve this 
 
 Do NOT strip formatting or convert to plain text. The output descriptions should be as well-formatted as the inputs.
 
-Be aggressive about merging duplicates, but never merge posts that serve different audiences (recipient vs volunteer vs donor) or different services."#;
+Be aggressive about merging duplicates, but never merge posts that serve different audiences (participant vs volunteer vs donor) or different services."#;
 
 /// Deduplicate and merge posts using LLM.
 async fn dedupe_and_merge_posts(
     posts: Vec<NarrativePost>,
     domain: &str,
-    ai: &OpenRouter,
+    ai: &OpenAi,
 ) -> Result<Vec<NarrativePost>> {
     if posts.len() <= 1 {
         return Ok(posts);
@@ -246,7 +263,7 @@ async fn dedupe_and_merge_posts(
     );
 
     let response: NarrativeExtractionResponse = ai
-        .extract(FRONTIER_MODEL, DEDUPE_PROMPT, &user_prompt)
+        .extract(GPT_5_MINI, DEDUPE_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("Deduplication failed: {}", e))?;
 
@@ -295,7 +312,7 @@ A signup form URL IS valid contact information. If the description contains a fo
 2. **Location**: Physical address if this is an in-person service
 3. **Urgency**: How time-sensitive (low/medium/high/urgent)
 4. **Confidence**: high if form/email/phone found, medium if only website, low if nothing found
-5. **Audience**: Who is this for (recipient/volunteer/donor/participant)
+5. **Audience**: Who is this for (participant/volunteer/donor)
 6. **Schedule**: For events/recurring programs: dates, times, and frequency.
 
 ## Guidelines
@@ -365,7 +382,7 @@ pub async fn investigate_post(
     // Step 1: Agent investigates with tools
     info!(title = %narrative.title, "Running agent with tools (web_search, fetch_page)");
 
-    let agent = (*deps.ai_next)
+    let agent = (*deps.ai)
         .clone()
         .tool(WebSearchTool::new(deps.web_searcher.clone()))
         .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()));
@@ -402,8 +419,8 @@ pub async fn investigate_post(
     );
 
     let extraction_prompt = build_extraction_prompt(tag_instructions);
-    let result = deps.ai_next
-        .extract::<ExtractedPostInformation>(FRONTIER_MODEL, &extraction_prompt, &extraction_input)
+    let result = deps.ai
+        .extract::<ExtractedPostInformation>(GPT_5_MINI, &extraction_prompt, &extraction_input)
         .await
         .map_err(|e| anyhow::anyhow!("Structured extraction failed: {}", e))?;
 
@@ -458,7 +475,7 @@ pub async fn extract_posts_from_content(
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
     // Pass 1: Extract narrative posts (title + summary + description)
-    let narratives = extract_narrative_posts(content, Some(&context), deps.ai_next.as_ref()).await?;
+    let narratives = extract_narrative_posts(content, Some(&context), deps.ai.as_ref()).await?;
 
     if narratives.is_empty() {
         return Ok(vec![]);
@@ -471,7 +488,7 @@ pub async fn extract_posts_from_content(
     );
 
     // Pass 2: Deduplicate and merge
-    let deduplicated = dedupe_and_merge_posts(narratives, domain, deps.ai_next.as_ref()).await?;
+    let deduplicated = dedupe_and_merge_posts(narratives, domain, deps.ai.as_ref()).await?;
 
     info!(
         deduplicated_count = deduplicated.len(),
@@ -559,7 +576,7 @@ pub async fn extract_posts_from_pages_with_tags(
     );
 
     // Step 2: Extract narratives from each batch (in parallel)
-    let ai = deps.ai_next.as_ref();
+    let ai = deps.ai.as_ref();
     let batch_futures: Vec<_> = batches
         .iter()
         .enumerate()
@@ -625,7 +642,7 @@ pub async fn extract_posts_from_pages_with_tags(
     );
 
     // Step 3: Deduplicate and merge posts
-    let deduplicated = dedupe_and_merge_posts(all_narratives, domain, deps.ai_next.as_ref()).await?;
+    let deduplicated = dedupe_and_merge_posts(all_narratives, domain, deps.ai.as_ref()).await?;
 
     info!(
         deduplicated_count = deduplicated.len(),

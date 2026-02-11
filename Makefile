@@ -11,7 +11,7 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart clean build migrate seed shell db-shell redis-cli test check
+.PHONY: help up down logs restart restart-server restart-web clean build migrate seed shell db-shell redis-cli test check
 
 # Default target - show help
 help:
@@ -21,7 +21,9 @@ help:
 	@echo "  make up          - Start all services (Postgres, Redis, API, Web App)"
 	@echo "  make up-full     - Start all services including Next.js"
 	@echo "  make down        - Stop all services"
-	@echo "  make restart     - Restart all services"
+	@echo "  make restart        - Restart all services (down + up, picks up config changes)"
+	@echo "  make restart-server - Restart server only"
+	@echo "  make restart-web    - Restart web only"
 	@echo ""
 	@echo "📋 Logs & Monitoring:"
 	@echo "  make logs        - View logs from all services"
@@ -64,9 +66,20 @@ up-full:
 down:
 	docker compose down
 
-# Restart all services
+# Restart all services (down + up to pick up compose config changes)
 restart:
-	docker compose restart
+	docker compose down
+	docker compose up -d
+
+# Restart server only
+restart-server:
+	docker compose rm -sf server
+	docker compose up -d server
+
+# Restart web only
+restart-web:
+	docker compose rm -sf web
+	docker compose up -d web
 
 # Rebuild and start all services
 build:

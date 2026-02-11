@@ -149,6 +149,13 @@ pub struct DeduplicateCrossSourceRequest {}
 impl_restate_serde!(DeduplicateCrossSourceRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostStatsRequest {
+    pub status: Option<String>,
+}
+
+impl_restate_serde!(PostStatsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsRequest {
     pub batch_size: Option<i32>,
 }
@@ -397,6 +404,18 @@ pub struct PublicFiltersResult {
 impl_restate_serde!(PublicFiltersResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostStatsResult {
+    pub total: i64,
+    pub services: i64,
+    pub opportunities: i64,
+    pub businesses: i64,
+    pub user_submitted: i64,
+    pub scraped: i64,
+}
+
+impl_restate_serde!(PostStatsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsResult {
     pub processed: i32,
     pub failed: i32,
@@ -455,6 +474,7 @@ pub trait PostsService {
     async fn expire_stale_posts(
         req: ExpireStalePostsRequest,
     ) -> Result<ExpireStalePostsResult, HandlerError>;
+    async fn stats(req: PostStatsRequest) -> Result<PostStatsResult, HandlerError>;
 }
 
 // =============================================================================
@@ -1224,5 +1244,47 @@ impl PostsService for PostsServiceImpl {
             .await?;
 
         Ok(ExpireStalePostsResult { expired_count })
+    }
+
+    async fn stats(
+        &self,
+        _ctx: Context<'_>,
+        req: PostStatsRequest,
+    ) -> Result<PostStatsResult, HandlerError> {
+        let rows = Post::stats_by_status(req.status.as_deref(), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut total: i64 = 0;
+        let mut services: i64 = 0;
+        let mut opportunities: i64 = 0;
+        let mut businesses: i64 = 0;
+        let mut scraped: i64 = 0;
+        let mut user_submitted: i64 = 0;
+
+        for (post_type, submission_type, count) in &rows {
+            total += count;
+
+            match post_type.as_deref() {
+                Some("service") => services += count,
+                Some("opportunity") => opportunities += count,
+                Some("business") => businesses += count,
+                _ => {}
+            }
+
+            match submission_type.as_deref() {
+                Some("scraped") => scraped += count,
+                _ => user_submitted += count,
+            }
+        }
+
+        Ok(PostStatsResult {
+            total,
+            services,
+            opportunities,
+            businesses,
+            user_submitted,
+            scraped,
+        })
     }
 }

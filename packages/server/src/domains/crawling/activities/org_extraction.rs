@@ -299,24 +299,18 @@ fn scan_social_profiles(pages: &[(Uuid, String, String)]) -> Vec<ExtractedSocial
 // Main Activity
 // =============================================================================
 
-/// Extract organization info from crawled pages and create Organization + SocialProfiles.
+/// Extracted organization info (name, description, social links) without any DB writes.
 ///
-/// This is a best-effort activity — failures are logged but don't propagate.
-/// Callable from both the crawl pipeline and the backfill endpoint.
-pub async fn extract_and_create_organization(
+/// Used by both `extract_and_create_organization` (new orgs) and the regenerate endpoint
+/// (update-in-place).
+pub async fn extract_organization_info(
     website_id: WebsiteId,
     deps: &ServerDeps,
-) -> Result<OrganizationId> {
+) -> Result<(String, Option<String>, Vec<ExtractedSocialLink>)> {
     let pool = &deps.db_pool;
 
     // Load website
     let website = Website::find_by_id(website_id, pool).await?;
-
-    // Skip if already has an organization
-    if website.organization_id.is_some() {
-        info!(website_id = %website_id, "Website already has organization, skipping");
-        return Ok(website.organization_id.unwrap());
-    }
 
     // Load extraction pages
     let pages = ExtractionPage::find_by_domain(&website.domain, pool).await?;
@@ -337,8 +331,8 @@ pub async fn extract_and_create_organization(
     );
 
     // LLM extraction: org name + description (priority pages only)
-    let extracted: ExtractedOrganization = deps.ai_next
-        .extract(crate::kernel::FRONTIER_MODEL, ORG_EXTRACTION_PROMPT, &org_content)
+    let extracted: ExtractedOrganization = deps.ai
+        .extract(crate::kernel::GPT_5_MINI, ORG_EXTRACTION_PROMPT, &org_content)
         .await
         .map_err(|e| anyhow::anyhow!("Organization extraction failed: {}", e))?;
 
@@ -350,9 +344,8 @@ pub async fn extract_and_create_organization(
         );
     }
 
-    let org_name = extracted.name.trim();
-    let org_desc = extracted.description.as_deref().map(|d| d.trim());
-
+    let org_name = extracted.name.trim().to_string();
+    let org_desc = extracted.description.as_deref().map(|d| d.trim().to_string());
 
     // Regex extraction: social profiles across ALL pages
     info!(
@@ -380,14 +373,16 @@ pub async fn extract_and_create_organization(
         "Organization info extracted"
     );
 
-    // Create or find organization
-    let org = Organization::find_or_create_by_name(org_name, org_desc, pool).await?;
+    Ok((org_name, org_desc, social_result))
+}
 
-    // Link website to organization
-    Website::set_organization_id(website_id, org.id, pool).await?;
-
-    // Create social profiles
-    for link in &social_result {
+/// Normalize and persist extracted social links for an organization.
+pub async fn create_social_profiles_for_org(
+    org_id: OrganizationId,
+    social_links: &[ExtractedSocialLink],
+    pool: &sqlx::PgPool,
+) {
+    for link in social_links {
         let platform = match normalize_platform(&link.platform) {
             Some(p) => p,
             None => {
@@ -403,7 +398,7 @@ pub async fn extract_and_create_organization(
         }
 
         match SocialProfile::find_or_create(
-            org.id,
+            org_id,
             platform,
             &handle,
             link.url.as_deref(),
@@ -413,7 +408,7 @@ pub async fn extract_and_create_organization(
         {
             Ok(profile) => {
                 info!(
-                    org_id = %org.id,
+                    org_id = %org_id,
                     platform = %platform,
                     handle = %handle,
                     profile_id = %profile.id,
@@ -422,7 +417,7 @@ pub async fn extract_and_create_organization(
             }
             Err(e) => {
                 warn!(
-                    org_id = %org.id,
+                    org_id = %org_id,
                     platform = %platform,
                     handle = %handle,
                     error = %e,
@@ -431,6 +426,38 @@ pub async fn extract_and_create_organization(
             }
         }
     }
+}
+
+/// Extract organization info from crawled pages and create Organization + SocialProfiles.
+///
+/// This is a best-effort activity — failures are logged but don't propagate.
+/// Callable from both the crawl pipeline and the backfill endpoint.
+pub async fn extract_and_create_organization(
+    website_id: WebsiteId,
+    deps: &ServerDeps,
+) -> Result<OrganizationId> {
+    let pool = &deps.db_pool;
+
+    // Load website
+    let website = Website::find_by_id(website_id, pool).await?;
+
+    // Skip if already has an organization
+    if website.organization_id.is_some() {
+        info!(website_id = %website_id, "Website already has organization, skipping");
+        return Ok(website.organization_id.unwrap());
+    }
+
+    // Extract org info (LLM + regex)
+    let (org_name, org_desc, social_links) = extract_organization_info(website_id, deps).await?;
+
+    // Create or find organization
+    let org = Organization::find_or_create_by_name(&org_name, org_desc.as_deref(), pool).await?;
+
+    // Link website to organization
+    Website::set_organization_id(website_id, org.id, pool).await?;
+
+    // Create social profiles
+    create_social_profiles_for_org(org.id, &social_links, pool).await;
 
     info!(
         website_id = %website_id,

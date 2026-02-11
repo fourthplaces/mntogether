@@ -5,7 +5,7 @@
 
 use anyhow::Result;
 use sqlx::PgPool;
-use tracing::info;
+use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{MemberId, SyncBatchId, SyncProposalId};
@@ -34,21 +34,36 @@ pub struct StageResult {
 /// Stage a set of proposals into a new batch.
 ///
 /// Automatically expires stale pending batches for the same resource + source.
+/// Runs each stale proposal through `handler.reject()` for entity-specific cleanup
+/// (e.g. deleting draft posts, removing revisions).
 pub async fn stage_proposals(
     resource_type: &str,
     source_id: Uuid,
     summary: Option<&str>,
     proposals: Vec<ProposedOperation>,
+    handler: &impl ProposalHandler,
     pool: &PgPool,
 ) -> Result<StageResult> {
-    // Expire stale batches first
-    let expired = SyncBatch::expire_stale(resource_type, source_id, pool).await?;
+    // Expire stale batches — reject through handler for draft cleanup
+    let stale = SyncBatch::find_stale(resource_type, source_id, pool).await?;
+    for batch in &stale {
+        let pending = SyncProposal::find_pending_by_batch(batch.id, pool).await?;
+        for proposal in &pending {
+            let merge_sources = SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
+            if let Err(e) = handler.reject(proposal, &merge_sources, pool).await {
+                warn!(proposal_id = %proposal.id, error = %e, "Draft cleanup failed during expiry");
+            }
+        }
+        SyncProposal::reject_all_pending(batch.id, pool).await?;
+        SyncBatch::update_status(batch.id, "expired", pool).await?;
+    }
+    let expired = stale.len() as u64;
     if expired > 0 {
         info!(
             resource_type = %resource_type,
             source_id = %source_id,
             expired = expired,
-            "Expired stale pending batches"
+            "Expired stale batches with draft cleanup"
         );
     }
 

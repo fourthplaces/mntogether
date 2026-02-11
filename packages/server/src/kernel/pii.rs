@@ -56,11 +56,11 @@ impl BasePiiDetector for RegexPiiDetector {
 /// Hybrid PII detector using regex + LLM
 /// Detects structured PII (regex) + unstructured PII (names, addresses via LLM)
 pub struct HybridPiiDetector {
-    ai: Arc<ai_client::OpenRouter>,
+    ai: Arc<ai_client::OpenAi>,
 }
 
 impl HybridPiiDetector {
-    pub fn new(ai: Arc<ai_client::OpenRouter>) -> Self {
+    pub fn new(ai: Arc<ai_client::OpenAi>) -> Self {
         Self { ai }
     }
 }
@@ -170,7 +170,7 @@ impl BasePiiDetector for NoopPiiDetector {
 pub fn create_pii_detector(
     enabled: bool,
     use_llm: bool,
-    ai: Option<Arc<ai_client::OpenRouter>>,
+    ai: Option<Arc<ai_client::OpenAi>>,
 ) -> Arc<dyn BasePiiDetector> {
     if !enabled {
         tracing::info!("PII scrubbing disabled");

@@ -14,11 +14,13 @@ pub mod traits;
 
 // Re-export AI client types
 pub use ai_client::OpenAi;
-pub use ai_client::OpenRouter;
 pub use ai_client::openai::StructuredOutput;
 
-/// The frontier model used for accuracy-critical tasks via OpenRouter.
-pub const FRONTIER_MODEL: &str = "deepseek/deepseek-v3.2-speciale";
+/// GPT-5 Mini — cost-effective frontier model for extraction, dedup, sync, PII.
+pub const GPT_5_MINI: &str = "gpt-5-mini";
+
+/// GPT-5 — full frontier model for highest-accuracy tasks.
+pub const GPT_5: &str = "gpt-5";
 
 // Extraction library integration
 pub use extraction_service::{

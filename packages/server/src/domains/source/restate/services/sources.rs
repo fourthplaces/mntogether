@@ -7,9 +7,10 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, MemberId, OrganizationId, PaginationArgs, SourceId};
 use crate::domains::crawling::activities::ingest_website;
+use crate::domains::crawling::models::ExtractionPage;
 use crate::domains::posts::models::PostSource;
 use crate::domains::source::models::{
-    create_social_source, find_or_create_website_source, Source,
+    find_or_create_social_source, find_or_create_website_source, Source,
     WebsiteSource,
 };
 use crate::domains::website::activities;
@@ -122,6 +123,7 @@ pub struct SourceResult {
     pub scrape_frequency_hours: i32,
     pub last_scraped_at: Option<String>,
     pub post_count: Option<i64>,
+    pub snapshot_count: Option<i64>,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -282,6 +284,7 @@ async fn source_to_result(source: Source, pool: &sqlx::PgPool) -> Result<SourceR
         scrape_frequency_hours: source.scrape_frequency_hours,
         last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
         post_count: None,
+        snapshot_count: None,
         created_at: source.created_at.to_rfc3339(),
         updated_at: source.updated_at.to_rfc3339(),
     })
@@ -372,6 +375,7 @@ impl SourcesService for SourcesServiceImpl {
                     scrape_frequency_hours: s.scrape_frequency_hours,
                     last_scraped_at: s.last_scraped_at.map(|dt| dt.to_rfc3339()),
                     post_count: Some(*post_counts.get(&sid).unwrap_or(&0)),
+                    snapshot_count: None,
                     created_at: s.created_at.to_rfc3339(),
                     updated_at: s.updated_at.to_rfc3339(),
                 }
@@ -400,17 +404,18 @@ impl SourcesService for SourcesServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch lookup post counts
-        let source_ids: Vec<Uuid> = sources.iter().map(|s| s.id.into_uuid()).collect();
-        let post_counts = PostSource::count_by_sources_any_type(&source_ids, &self.deps.db_pool)
-            .await
-            .unwrap_or_default();
-
         let mut results = Vec::new();
         for s in sources {
-            let sid = s.id.into_uuid();
+            // Compute snapshot (extraction page) count per source
+            let snapshot_count = match s.site_url(&self.deps.db_pool).await {
+                Ok(site_url) => ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool)
+                    .await
+                    .unwrap_or(0) as i64,
+                Err(_) => 0,
+            };
+
             let mut result = source_to_result(s, &self.deps.db_pool).await?;
-            result.post_count = Some(*post_counts.get(&sid).unwrap_or(&0));
+            result.snapshot_count = Some(snapshot_count);
             results.push(result);
         }
 
@@ -451,15 +456,30 @@ impl SourcesService for SourcesServiceImpl {
     ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let (source, _ss) = create_social_source(
+        let org_id = req.organization_id.map(OrganizationId::from);
+
+        let (source, _ss) = find_or_create_social_source(
             &req.platform,
             &req.handle,
             req.url.as_deref(),
-            req.organization_id.map(OrganizationId::from),
+            org_id,
             &self.deps.db_pool,
         )
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Link to organization if provided and not already linked
+        let source = if let Some(org_id) = org_id {
+            if source.organization_id != Some(org_id) {
+                Source::set_organization_id(source.id, org_id, &self.deps.db_pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?
+            } else {
+                source
+            }
+        } else {
+            source
+        };
 
         source_to_result(source, &self.deps.db_pool).await
     }

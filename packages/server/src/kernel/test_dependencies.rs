@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use ai_client::{OpenAi, OpenRouter};
+use ai_client::OpenAi;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
@@ -30,14 +30,6 @@ use extraction::{MockIngestor, MockWebSearcher};
 /// that can be mocked at a higher level.
 pub fn mock_openai_client() -> Arc<OpenAi> {
     Arc::new(OpenAi::new("sk-test-mock-key-for-testing", "gpt-4o"))
-}
-
-/// Create a mock OpenRouter client for testing.
-pub fn mock_openrouter_client() -> Arc<OpenRouter> {
-    Arc::new(OpenRouter::new(
-        "sk-or-test-mock-key-for-testing",
-        "deepseek/deepseek-v3.2-speciale",
-    ))
 }
 
 /// Legacy MockAI for test compatibility.
@@ -286,7 +278,6 @@ impl BasePiiDetector for MockPiiDetector {
 pub struct TestDependencies {
     pub ingestor: Arc<MockIngestor>,
     pub ai: Arc<OpenAi>,
-    pub ai_next: Arc<OpenRouter>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
     pub web_searcher: Arc<MockWebSearcher>,
@@ -298,7 +289,6 @@ impl TestDependencies {
         Self {
             ingestor: Arc::new(MockIngestor::new()),
             ai: mock_openai_client(),
-            ai_next: mock_openrouter_client(),
             embedding_service: Arc::new(MockEmbeddingService::new()),
             push_service: Arc::new(MockPushNotificationService::new()),
             web_searcher: Arc::new(MockWebSearcher::new()),
@@ -365,7 +355,6 @@ impl TestDependencies {
             db_pool,
             self.ingestor,
             self.ai,
-            self.ai_next,
             self.embedding_service,
             self.push_service,
             Arc::new(TwilioAdapter::new(twilio)),

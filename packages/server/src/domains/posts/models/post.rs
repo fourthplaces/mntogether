@@ -702,6 +702,13 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sync_proposals sp
+                JOIN sync_batches sb ON sb.id = sp.batch_id
+                WHERE sp.draft_entity_id = p.id
+                  AND sp.status = 'pending'
+                  AND sb.status IN ('pending', 'partially_reviewed')
+              )
             ORDER BY p.created_at DESC
             "#,
         )
@@ -725,6 +732,13 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sync_proposals sp
+                JOIN sync_batches sb ON sb.id = sp.batch_id
+                WHERE sp.draft_entity_id = p.id
+                  AND sp.status = 'pending'
+                  AND sb.status IN ('pending', 'partially_reviewed')
+              )
             "#,
         )
         .bind(source_type)
@@ -938,7 +952,7 @@ impl Post {
     }
 
     /// Find existing active listings from a source (for sync)
-    pub async fn find_active_by_source(
+    pub async fn find_reviewable_by_source(
         source_type: &str,
         source_id: Uuid,
         pool: &PgPool,
@@ -1036,6 +1050,29 @@ impl Post {
         .fetch_one(pool)
         .await?;
         Ok(count)
+    }
+
+    /// Count posts grouped by post_type and submission_type for a given status.
+    /// Returns (post_type, submission_type, count) tuples.
+    pub async fn stats_by_status(
+        status: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Vec<(Option<String>, Option<String>, i64)>> {
+        sqlx::query_as::<_, (Option<String>, Option<String>, i64)>(
+            r#"
+            SELECT p.post_type, p.submission_type, COUNT(*)::bigint
+            FROM posts p
+            WHERE ($1::text IS NULL OR p.status = $1)
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            GROUP BY p.post_type, p.submission_type
+            "#,
+        )
+        .bind(status)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Ensure listing is active (for operations that require active status)
@@ -1719,6 +1756,30 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.duplicate_of_id IS NULL
             ORDER BY p.id, s.source_type
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find rejected posts for an organization (for cleanup/purge).
+    /// Joins through post_sources → sources to find org membership.
+    pub async fn find_rejected_by_organization(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT ON (p.id) p.*
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status = 'rejected'
+              AND p.deleted_at IS NULL
+            ORDER BY p.id
             "#,
         )
         .bind(organization_id)

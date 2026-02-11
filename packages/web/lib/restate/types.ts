@@ -319,6 +319,7 @@ export interface OrganizationResult {
   status: string;
   website_count: number;
   social_profile_count: number;
+  snapshot_count: number;
   created_at: string;
   updated_at: string;
 }
@@ -375,6 +376,7 @@ export interface SourceResult {
   scrape_frequency_hours: number;
   last_scraped_at: string | null;
   post_count: number | null;
+  snapshot_count: number | null;
   created_at: string;
   updated_at: string;
 }

@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SocialProfileData {
     pub id: String,
-    pub organization_id: String,
+    pub organization_id: Option<String>,
     pub platform: String,
     pub handle: String,
     pub url: Option<String>,
@@ -19,7 +19,7 @@ impl From<SocialProfile> for SocialProfileData {
     fn from(sp: SocialProfile) -> Self {
         Self {
             id: sp.id.to_string(),
-            organization_id: sp.organization_id.to_string(),
+            organization_id: sp.organization_id.map(|id| id.to_string()),
             platform: sp.platform,
             handle: sp.handle,
             url: sp.url,

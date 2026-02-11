@@ -388,37 +388,14 @@ impl SourceObject for SourceObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
-        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
         let workflow_id = format!("regen-{}-{}", source_id, chrono::Utc::now().timestamp());
 
-        match source.source_type.as_str() {
-            "website" => {
-                let _ = ctx
-                    .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
-                        workflow_id.clone(),
-                    )
-                    .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id: source_id })
-                    .send();
-            }
-            "instagram" | "facebook" | "x" | "tiktok" => {
-                let _ = ctx
-                    .workflow_client::<crate::domains::source::restate::workflows::crawl_social_source::CrawlSocialSourceWorkflowClient>(
-                        workflow_id.clone(),
-                    )
-                    .run(crate::domains::source::restate::workflows::crawl_social_source::CrawlSocialSourceRequest { source_id })
-                    .send();
-            }
-            other => {
-                return Err(TerminalError::new(format!(
-                    "Post regeneration is not supported for source type '{}'",
-                    other
-                ))
-                .into());
-            }
-        }
+        let _ = ctx
+            .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
+                workflow_id.clone(),
+            )
+            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { source_id })
+            .send();
 
         Ok(RegeneratePostsResult {
             posts_created: 0,

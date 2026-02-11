@@ -11,8 +11,8 @@
 //! - MERGE: Pre-existing duplicates in DB that should be consolidated
 
 use anyhow::Result;
-use ai_client::OpenRouter;
-use crate::kernel::FRONTIER_MODEL;
+use ai_client::OpenAi;
+use crate::kernel::GPT_5_MINI;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -23,6 +23,7 @@ use uuid::Uuid;
 use crate::common::{ExtractedPost, PostId, SyncBatchId};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 
 /// A fresh post from extraction, with a temporary ID for matching
@@ -235,10 +236,10 @@ pub async fn llm_sync_posts(
     source_type: &str,
     source_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenRouter,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    let existing_db_posts = Post::find_by_source(source_type, source_id, pool).await?;
+    let existing_db_posts = Post::find_active_only_by_source(source_type, source_id, pool).await?;
     let submitted_by_id: Option<Uuid> = None;
 
     info!(source_type = %source_type, source_id = %source_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting LLM sync analysis");
@@ -250,6 +251,7 @@ pub async fn llm_sync_posts(
             source_id,
             Some("No posts to sync"),
             vec![],
+            &PostProposalHandler,
             pool,
         )
         .await?;
@@ -271,7 +273,7 @@ pub async fn llm_sync_posts(
     let user_prompt = build_sync_prompt(&fresh, &existing)?;
 
     let response: SyncAnalysisResponse = ai
-        .extract(FRONTIER_MODEL, SYNC_SYSTEM_PROMPT, &user_prompt)
+        .extract(GPT_5_MINI, SYNC_SYSTEM_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
 
@@ -671,6 +673,7 @@ async fn stage_sync_operations(
         source_id,
         Some(&actual_summary),
         proposed_ops,
+        &PostProposalHandler,
         pool,
     )
     .await?;
@@ -852,11 +855,10 @@ When merging duplicates, CREATE BETTER COMBINED CONTENT:
 
 ## Important Rules
 
-1. **BE VERY CONSERVATIVE WITH DELETE**: Only DELETE if you're CERTAIN the program/service was removed from the website. If unsure, DO NOT DELETE. It's better to keep an extra post than lose a valid one.
-2. **Active and pending posts are protected**: Never DELETE posts with status "active" or "pending_approval"
+1. **DELETE when content is gone**: If an existing post has NO semantic match in the fresh extraction, DELETE it. The fresh extraction represents what currently exists on the website.
+2. **Every existing post must be accounted for**: Each existing post should appear in an UPDATE (if matched), a MERGE, or a DELETE (if no match). Don't leave existing posts unaddressed.
 3. **Prefer UPDATE over INSERT+DELETE**: If fresh matches existing, UPDATE it
 4. **Merge content intelligently**: When merging, combine the best parts of each duplicate
-5. **If fresh posts << existing posts**: This usually means extraction was incomplete. Prefer UPDATE/INSERT over DELETE in this case.
 
 ## CRITICAL: Account for EVERY Fresh Post
 
@@ -885,7 +887,7 @@ Each operation object has an "operation" field plus relevant data:
 1. MERGE operations first (consolidate duplicates with combined content)
 2. UPDATE operations (refresh existing posts)
 3. INSERT operations (add new posts)
-4. DELETE operations ONLY if certain (remove truly stale posts)"#;
+4. DELETE operations (remove posts no longer on the website)"#;
 
 /// LLM sync at org level — compares fresh posts against ALL existing posts for the org.
 ///
@@ -895,7 +897,7 @@ Each operation object has an "operation" field plus relevant data:
 pub async fn llm_sync_posts_for_org(
     organization_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenRouter,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     let existing_db_posts = Post::find_by_organization_id(organization_id, pool).await?;
@@ -909,6 +911,7 @@ pub async fn llm_sync_posts_for_org(
             organization_id,
             Some("No posts to sync"),
             vec![],
+            &PostProposalHandler,
             pool,
         )
         .await?;
@@ -930,7 +933,7 @@ pub async fn llm_sync_posts_for_org(
     let user_prompt = build_sync_prompt(&fresh, &existing)?;
 
     let response: SyncAnalysisResponse = ai
-        .extract(FRONTIER_MODEL, SYNC_SYSTEM_PROMPT, &user_prompt)
+        .extract(GPT_5_MINI, SYNC_SYSTEM_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
 

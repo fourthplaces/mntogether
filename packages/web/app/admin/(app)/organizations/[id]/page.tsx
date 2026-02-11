@@ -39,6 +39,7 @@ export default function OrganizationDetailPage() {
   const [regeneratingPosts, setRegeneratingPosts] = useState(false);
   const [generatingNotes, setGeneratingNotes] = useState(false);
   const [extractingOrgPosts, setExtractingOrgPosts] = useState(false);
+  const [cleaningUpPosts, setCleaningUpPosts] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -218,6 +219,21 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const handleCleanUpPosts = async () => {
+    setMenuOpen(false);
+    setCleaningUpPosts(true);
+    try {
+      await callService("Organizations", "clean_up_org_posts", { id: orgId });
+      invalidateService("Posts");
+      refetchPosts();
+    } catch (err: any) {
+      console.error("Failed to clean up posts:", err);
+      alert(err.message || "Failed to clean up posts");
+    } finally {
+      setCleaningUpPosts(false);
+    }
+  };
+
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
@@ -392,10 +408,10 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts}
+                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts ? "..." : "\u22EF"}
+                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
@@ -426,6 +442,13 @@ export default function OrganizationDetailPage() {
                         className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                       >
                         {extractingOrgPosts ? "Extracting Posts..." : "Extract Org Posts"}
+                      </button>
+                      <button
+                        onClick={handleCleanUpPosts}
+                        disabled={cleaningUpPosts}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {cleaningUpPosts ? "Cleaning Up..." : "Clean Up Posts"}
                       </button>
                       {org.status === "approved" && (
                         <button
@@ -486,6 +509,15 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
+          {cleaningUpPosts && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Cleaning up duplicate and rejected posts...
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-4 gap-4 pt-4 mt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Websites</span>
@@ -496,8 +528,8 @@ export default function OrganizationDetailPage() {
               <p className="text-lg font-semibold text-stone-900">{org.social_profile_count}</p>
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Posts</span>
-              <p className="text-lg font-semibold text-stone-900">{posts.length}</p>
+              <span className="text-xs text-stone-500 uppercase">Snapshots</span>
+              <p className="text-lg font-semibold text-stone-900">{org.snapshot_count}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Created</span>
@@ -547,7 +579,7 @@ export default function OrganizationDetailPage() {
                     </span>
                   </div>
                   <span className="text-sm text-stone-500">
-                    {source.post_count || 0} posts
+                    {source.snapshot_count || 0} snapshots
                   </span>
                 </Link>
               ))}
@@ -564,75 +596,13 @@ export default function OrganizationDetailPage() {
         </div>
 
         {/* Posts */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">
-            Posts {posts.length > 0 && <span className="text-stone-400 font-normal">({posts.length})</span>}
-          </h2>
-          {posts.length === 0 ? (
-            <p className="text-stone-500 text-sm">No posts found for this organization.</p>
-          ) : (
-            <div className="space-y-2">
-              {posts.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-stone-200 hover:bg-stone-50"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <Link href={`/admin/posts/${post.id}`} className="font-medium text-stone-900 truncate hover:underline">
-                      {post.title}
-                    </Link>
-                    <select
-                      value={post.status}
-                      onChange={async (e) => {
-                        const newStatus = e.target.value;
-                        try {
-                          if (newStatus === "active") {
-                            await callObject("Post", post.id, "approve", {});
-                          } else if (newStatus === "rejected") {
-                            await callObject("Post", post.id, "reject", { reason: "Rejected by admin" });
-                          }
-                          invalidateService("Posts");
-                          invalidateObject("Post", post.id);
-                          refetchPosts();
-                        } catch (err: any) {
-                          console.error("Failed to update post status:", err);
-                        }
-                      }}
-                      className={`px-2 py-0.5 text-xs rounded-full font-medium border-0 cursor-pointer appearance-none pr-5 shrink-0 ${
-                        post.status === "active"
-                          ? "bg-green-100 text-green-800"
-                          : post.status === "pending_approval"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : post.status === "rejected"
-                              ? "bg-red-100 text-red-800"
-                              : "bg-stone-100 text-stone-600"
-                      }`}
-                      style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
-                    >
-                      <option value="pending_approval">pending</option>
-                      <option value="active">active</option>
-                      <option value="rejected">rejected</option>
-                    </select>
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${
-                      post.post_type === "service"
-                        ? "bg-blue-100 text-blue-800"
-                        : post.post_type === "opportunity"
-                          ? "bg-purple-100 text-purple-800"
-                          : post.post_type === "business"
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-stone-100 text-stone-600"
-                    }`}>
-                      {post.post_type}
-                    </span>
-                  </div>
-                  <span className="text-sm text-stone-500 shrink-0 ml-3">
-                    {new Date(post.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <PostsSection
+          posts={posts}
+          onChanged={() => {
+            invalidateService("Posts");
+            refetchPosts();
+          }}
+        />
 
         {/* Notes */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -715,6 +685,156 @@ export default function OrganizationDetailPage() {
         )}
 
       </div>
+    </div>
+  );
+}
+
+type PostStatusTab = "pending_approval" | "active" | "rejected";
+
+const POST_STATUS_TABS: { value: PostStatusTab; label: string }[] = [
+  { value: "pending_approval", label: "Pending" },
+  { value: "active", label: "Active" },
+  { value: "rejected", label: "Rejected" },
+];
+
+function PostsSection({
+  posts,
+  onChanged,
+}: {
+  posts: PostResult[];
+  onChanged: () => void;
+}) {
+  const [tab, setTab] = useState<PostStatusTab>("pending_approval");
+
+  const counts = {
+    pending_approval: posts.filter((p) => p.status === "pending_approval").length,
+    active: posts.filter((p) => p.status === "active").length,
+    rejected: posts.filter((p) => p.status === "rejected").length,
+  };
+
+  const filtered = posts.filter((p) => p.status === tab);
+
+  return (
+    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <h2 className="text-lg font-semibold text-stone-900 mb-4">
+        Posts {posts.length > 0 && <span className="text-stone-400 font-normal">({posts.length})</span>}
+      </h2>
+      <div className="flex gap-1 mb-4">
+        {POST_STATUS_TABS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={`px-3 py-1.5 text-sm font-medium rounded ${
+              tab === t.value
+                ? t.value === "active"
+                  ? "bg-green-100 text-green-800"
+                  : t.value === "rejected"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-yellow-100 text-yellow-800"
+                : "text-stone-600 hover:bg-stone-100"
+            }`}
+          >
+            {t.label}
+            {counts[t.value] > 0 && (
+              <span className="ml-1.5 text-xs opacity-70">{counts[t.value]}</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {filtered.length === 0 ? (
+        <p className="text-stone-500 text-sm">No {tab === "pending_approval" ? "pending" : tab} posts.</p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((post) => (
+            <PostRow key={post.id} post={post} onChanged={onChanged} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PostRow({
+  post,
+  onChanged,
+}: {
+  post: PostResult;
+  onChanged: () => void;
+}) {
+  const [status, setStatus] = useState(post.status);
+  const [loading, setLoading] = useState(false);
+
+  // Sync local state when server data changes
+  useEffect(() => {
+    setStatus(post.status);
+  }, [post.status]);
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (newStatus === status) return;
+    const previousStatus = status;
+    setStatus(newStatus);
+    setLoading(true);
+
+    try {
+      if (newStatus === "active") {
+        await callObject("Post", post.id, "approve", {});
+      } else if (newStatus === "rejected") {
+        await callObject("Post", post.id, "reject", { reason: "Rejected by admin" });
+      } else if (newStatus === "pending_approval") {
+        await callObject("Post", post.id, "reactivate", {});
+      }
+      invalidateObject("Post", post.id);
+      onChanged();
+    } catch (err: any) {
+      console.error("Failed to update post status:", err);
+      setStatus(previousStatus);
+      alert(err.message || "Failed to update post status");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg border border-stone-200 hover:bg-stone-50">
+      <div className="flex items-center gap-3 min-w-0">
+        <Link href={`/admin/posts/${post.id}`} className="font-medium text-stone-900 truncate hover:underline">
+          {post.title}
+        </Link>
+        <select
+          value={status}
+          disabled={loading}
+          onChange={(e) => handleStatusChange(e.target.value)}
+          className={`px-2 py-0.5 text-xs rounded-full font-medium border-0 cursor-pointer appearance-none pr-5 shrink-0 ${
+            loading ? "opacity-50" :
+            status === "active"
+              ? "bg-green-100 text-green-800"
+              : status === "pending_approval"
+                ? "bg-yellow-100 text-yellow-800"
+                : status === "rejected"
+                  ? "bg-red-100 text-red-800"
+                  : "bg-stone-100 text-stone-600"
+          }`}
+          style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
+        >
+          <option value="pending_approval">pending</option>
+          <option value="active">active</option>
+          <option value="rejected">rejected</option>
+        </select>
+        <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${
+          post.post_type === "service"
+            ? "bg-blue-100 text-blue-800"
+            : post.post_type === "opportunity"
+              ? "bg-purple-100 text-purple-800"
+              : post.post_type === "business"
+                ? "bg-amber-100 text-amber-800"
+                : "bg-stone-100 text-stone-600"
+        }`}>
+          {post.post_type}
+        </span>
+      </div>
+      <span className="text-sm text-stone-500 shrink-0 ml-3">
+        {new Date(post.created_at).toLocaleDateString()}
+      </span>
     </div>
   );
 }

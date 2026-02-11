@@ -138,6 +138,32 @@ impl Note {
         Ok(())
     }
 
+    /// Delete all system-generated notes for an entity.
+    /// Manual/admin notes (created_by != 'system') are preserved.
+    /// Noteables cascade-delete automatically.
+    pub async fn delete_system_notes_for_entity(
+        noteable_type: &str,
+        noteable_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<u64> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM notes
+            WHERE id IN (
+                SELECT n.id FROM notes n
+                INNER JOIN noteables nb ON nb.note_id = n.id
+                WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
+                  AND n.created_by = 'system'
+            )
+            "#,
+        )
+        .bind(noteable_type)
+        .bind(noteable_id)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     /// Find all notes linked to an entity (including expired).
     pub async fn find_for_entity(
         noteable_type: &str,
