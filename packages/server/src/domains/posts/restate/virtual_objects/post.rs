@@ -881,15 +881,27 @@ impl PostObject for PostObjectImpl {
     ) -> Result<PostResult, HandlerError> {
         let post_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)))?;
+        let caller = optional_auth(ctx.headers(), &self.deps.jwt_service);
+        let is_admin = caller.as_ref().map(|u| u.is_admin).unwrap_or(false);
 
         let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found"))?;
 
-        let tags = Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+        // Admins see all tags; public visitors see only public tags
+        let tags = if is_admin {
+            Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?
+        } else {
+            Tag::find_public_for_post_ids(&[post_id], &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?
+                .into_iter()
+                .map(|t| t.tag)
+                .collect()
+        };
 
         // Resolve who submitted this post
         let submitted_by = if let Some(member_id) = post.submitted_by_id {

@@ -118,7 +118,10 @@ fn inline_refs(value: &mut serde_json::Value) {
     }
 }
 
-/// Recursively inline $ref references.
+/// Recursively inline $ref references and flatten single-element `allOf` wrappers.
+///
+/// `schemars` generates `{"allOf": [{"$ref": "..."}]}` for non-optional nested structs.
+/// OpenAI strict mode rejects `allOf`, so we flatten these after inlining.
 fn inline_refs_recursive(value: &mut serde_json::Value, definitions: &serde_json::Value) {
     match value {
         serde_json::Value::Object(map) => {
@@ -134,6 +137,15 @@ fn inline_refs_recursive(value: &mut serde_json::Value, definitions: &serde_json
                         inline_refs_recursive(value, definitions);
                         return;
                     }
+                }
+            }
+
+            // Flatten single-element allOf (schemars wraps $ref in allOf for non-optional fields)
+            if let Some(serde_json::Value::Array(all_of)) = map.get("allOf").cloned() {
+                if all_of.len() == 1 {
+                    *value = all_of.into_iter().next().unwrap();
+                    inline_refs_recursive(value, definitions);
+                    return;
                 }
             }
 
