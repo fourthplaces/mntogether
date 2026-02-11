@@ -629,7 +629,7 @@ export default function PostDetailPage() {
               {notes.map((note: NoteResult) => {
                 const isExpired = !!note.expired_at;
                 const severityStyle =
-                  note.severity === "warn" ? "bg-red-100 text-red-800" :
+                  note.severity === "urgent" ? "bg-red-100 text-red-800" :
                   note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
                   "bg-blue-100 text-blue-800";
 

@@ -395,6 +395,7 @@ export default function SourceDetailPage() {
           <div className="flex justify-between items-start mb-4">
             <div>
               <div className="flex items-center gap-3 mb-2">
+                <h1 className="text-2xl font-bold text-stone-900">{source.identifier}</h1>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                   source.source_type === "website" ? "bg-blue-100 text-blue-800" :
                   source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
@@ -403,7 +404,6 @@ export default function SourceDetailPage() {
                 }`}>
                   {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
                 </span>
-                <h1 className="text-2xl font-bold text-stone-900">{source.identifier}</h1>
                 {source.url && (
                   <a
                     href={source.url}

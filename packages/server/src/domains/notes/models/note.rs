@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::common::{NoteId, NoteableId};
@@ -145,7 +146,7 @@ impl Note {
             INNER JOIN noteables nb ON nb.note_id = n.id
             WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
             ORDER BY
-                CASE n.severity WHEN 'warn' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
+                CASE n.severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
                 n.created_at DESC
             "#,
         )
@@ -170,7 +171,7 @@ impl Note {
             WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
               AND n.expired_at IS NULL
             ORDER BY
-                CASE n.severity WHEN 'warn' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
+                CASE n.severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
                 n.created_at DESC
             "#,
         )
@@ -196,7 +197,7 @@ impl Note {
               AND n.is_public = true
               AND n.expired_at IS NULL
             ORDER BY
-                CASE n.severity WHEN 'warn' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
+                CASE n.severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
                 n.created_at DESC
             "#,
         )
@@ -205,6 +206,32 @@ impl Note {
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+    }
+
+    /// Find post IDs that have active, public, urgent notes attached.
+    pub async fn find_post_ids_with_urgent_notes(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<HashSet<Uuid>> {
+        if post_ids.is_empty() {
+            return Ok(HashSet::new());
+        }
+        let rows = sqlx::query_as::<_, (Uuid,)>(
+            r#"
+            SELECT DISTINCT nb.noteable_id
+            FROM noteables nb
+            JOIN notes n ON n.id = nb.note_id
+            WHERE nb.noteable_type = 'post'
+              AND nb.noteable_id = ANY($1)
+              AND n.severity = 'urgent'
+              AND n.is_public = true
+              AND n.expired_at IS NULL
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await?;
+        Ok(rows.into_iter().map(|(id,)| id).collect())
     }
 
     /// Find notes by source (for deduplication and refresh).

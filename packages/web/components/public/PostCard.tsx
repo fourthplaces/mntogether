@@ -17,6 +17,11 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
       href={`/posts/${post.id}`}
       className="bg-white p-6 rounded-lg border border-[#E8DED2] hover:shadow-md transition-shadow block"
     >
+      {post.has_urgent_notes && (
+        <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 mb-2 inline-block">
+          Urgent
+        </span>
+      )}
       <h3 className="text-xl font-bold text-[#3D3D3D] mb-1">{post.title}</h3>
       {post.location && (
         <p className="text-sm text-[#7D7D7D] mb-1">{post.location}</p>

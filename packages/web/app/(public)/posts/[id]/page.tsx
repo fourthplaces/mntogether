@@ -163,6 +163,13 @@ export default function PublicPostDetailPage() {
         {/* Main content card */}
         <div className="order-1">
           <div className="bg-white rounded-xl border border-[#E8DED2] p-6 sm:p-8 shadow-sm">
+            {/* Urgent banner */}
+            {post.has_urgent_notes && (
+              <div className="mb-4 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-medium">
+                This resource has urgent notes — check details before visiting.
+              </div>
+            )}
+
             {/* Title */}
             <h1 className="text-2xl sm:text-3xl font-bold text-[#3D3D3D] leading-tight mb-3">
               {post.title}

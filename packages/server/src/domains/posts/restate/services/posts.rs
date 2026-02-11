@@ -318,6 +318,8 @@ pub struct PublicPostResult {
     pub created_at: String,
     pub published_at: Option<String>,
     pub tags: Vec<PublicTagResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_urgent_notes: Option<bool>,
 }
 
 impl_restate_serde!(PublicPostResult);
@@ -502,6 +504,7 @@ impl PostsService for PostsServiceImpl {
                         contacts: None,
                         organization_id: None,
                         organization_name: None,
+                        has_urgent_notes: None,
                     }
                 })
                 .collect(),
@@ -557,6 +560,7 @@ impl PostsService for PostsServiceImpl {
                         contacts: None,
                         organization_id: None,
                         organization_name: None,
+                        has_urgent_notes: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -913,7 +917,7 @@ impl PostsService for PostsServiceImpl {
                         description: p.description,
                         description_markdown: p.description_markdown,
                         summary: p.summary,
-                        status: format!("{:?}", p.status),
+                        status: p.status,
                         post_type: p.post_type,
                         category: p.category,
                         urgency: p.urgency,
@@ -929,6 +933,7 @@ impl PostsService for PostsServiceImpl {
                         contacts: None,
                         organization_id: None,
                         organization_name: None,
+                        has_urgent_notes: None,
                     }
                 })
                 .collect(),
@@ -959,6 +964,12 @@ impl PostsService for PostsServiceImpl {
         // Batch-load public tags for returned posts
         let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
         let tag_rows = Tag::find_public_for_post_ids(&post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Batch-load urgent note flags
+        use crate::domains::notes::models::note::Note;
+        let urgent_post_ids = Note::find_post_ids_with_urgent_notes(&post_ids, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -994,6 +1005,7 @@ impl PostsService for PostsServiceImpl {
                         created_at: p.created_at.to_rfc3339(),
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        has_urgent_notes: if urgent_post_ids.contains(&id) { Some(true) } else { None },
                     }
                 })
                 .collect(),

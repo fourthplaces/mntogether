@@ -222,6 +222,8 @@ pub struct PostResult {
     pub organization_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub organization_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub has_urgent_notes: Option<bool>,
 }
 
 impl_restate_serde!(PostResult);
@@ -250,6 +252,7 @@ impl From<Post> for PostResult {
             contacts: None,
             organization_id: None,
             organization_name: None,
+            has_urgent_notes: None,
         }
     }
 }
@@ -931,11 +934,18 @@ impl PostObject for PostObjectImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Check for urgent notes
+        use crate::domains::notes::models::note::Note;
+        let urgent_ids = Note::find_post_ids_with_urgent_notes(&[post_id], &self.deps.db_pool)
+            .await
+            .unwrap_or_default();
+
         let mut result = PostResult::from(post);
         if let Some((org_id, org_name)) = org_row {
             result.organization_id = Some(org_id);
             result.organization_name = Some(org_name);
         }
+        result.has_urgent_notes = Some(urgent_ids.contains(&post_id));
         result.submitted_by = submitted_by;
         result.tags = Some(
             tags.into_iter()
