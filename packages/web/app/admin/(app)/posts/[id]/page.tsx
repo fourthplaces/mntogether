@@ -430,6 +430,32 @@ export default function PostDetailPage() {
             </div>
           )}
 
+          {/* Relevance Score */}
+          {post.relevance_score != null && (
+            <div className="mb-4 p-3 rounded-lg border border-stone-200 bg-stone-50">
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-xs text-stone-500 uppercase font-medium">Relevance Score</span>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
+                    post.relevance_score >= 8
+                      ? "bg-green-100 text-green-800"
+                      : post.relevance_score >= 5
+                        ? "bg-amber-100 text-amber-800"
+                        : "bg-red-100 text-red-800"
+                  }`}
+                >
+                  {post.relevance_score}/10
+                </span>
+                <span className="text-xs text-stone-400">
+                  {post.relevance_score >= 8 ? "High confidence" : post.relevance_score >= 5 ? "Review needed" : "Likely noise"}
+                </span>
+              </div>
+              {post.relevance_breakdown && (
+                <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line mt-1">{post.relevance_breakdown}</p>
+              )}
+            </div>
+          )}
+
           {/* Details Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>

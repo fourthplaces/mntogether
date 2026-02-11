@@ -228,6 +228,10 @@ pub struct PostResult {
     pub urgent_notes: Option<Vec<crate::domains::posts::restate::services::posts::UrgentNoteInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_miles: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_score: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_breakdown: Option<String>,
 }
 
 impl_restate_serde!(PostResult);
@@ -259,6 +263,8 @@ impl From<Post> for PostResult {
             has_urgent_notes: None,
             urgent_notes: None,
             distance_miles: None,
+            relevance_score: p.relevance_score,
+            relevance_breakdown: p.relevance_breakdown,
         }
     }
 }

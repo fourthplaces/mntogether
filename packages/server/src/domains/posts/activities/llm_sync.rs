@@ -338,6 +338,7 @@ pub async fn llm_sync_posts(
         &existing_db_posts,
         operations,
         &summary,
+        ai,
         pool,
     )
     .await
@@ -357,9 +358,11 @@ async fn stage_sync_operations(
     existing_posts: &[Post],
     operations: Vec<SyncOperation>,
     summary: &str,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     use crate::domains::posts::activities::create_post::{create_extracted_post, sync_schedules_for_post};
+    use crate::domains::posts::activities::scoring::score_post_by_id;
     use crate::domains::website::models::Website;
 
     let mut proposed_ops: Vec<ProposedOperation> = Vec::new();
@@ -429,6 +432,9 @@ async fn stage_sync_operations(
                     .await
                     {
                         Ok(post) => {
+                            // Best-effort relevance scoring (Pass 4)
+                            score_post_by_id(post.id, ai, pool).await;
+
                             proposed_ops.push(ProposedOperation {
                                 operation: "insert".to_string(),
                                 entity_type: "post".to_string(),
@@ -508,6 +514,9 @@ async fn stage_sync_operations(
                         pool,
                     ).await {
                         Ok(post) => {
+                            // Best-effort relevance scoring (Pass 4)
+                            score_post_by_id(post.id, ai, pool).await;
+
                             proposed_ops.push(ProposedOperation {
                                 operation: "insert".to_string(),
                                 entity_type: "post".to_string(),
@@ -990,6 +999,7 @@ pub async fn llm_sync_posts_for_org(
         &existing_db_posts,
         operations,
         &summary,
+        ai,
         pool,
     )
     .await
