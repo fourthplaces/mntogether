@@ -2,6 +2,7 @@
 
 pub mod activities;
 pub mod data;
+pub mod ingestors;
 pub mod models;
 pub mod restate;
 

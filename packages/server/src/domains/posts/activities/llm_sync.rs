@@ -886,6 +886,111 @@ Each operation object has an "operation" field plus relevant data:
 3. INSERT operations (add new posts)
 4. DELETE operations ONLY if certain (remove truly stale posts)"#;
 
+/// LLM sync at org level — compares fresh posts against ALL existing posts for the org.
+///
+/// Same logic as `llm_sync_posts`, but:
+/// - Finds existing posts via `Post::find_by_organization_id` (across all sources)
+/// - Stages proposals with entity_type = "organization"
+pub async fn llm_sync_posts_for_org(
+    organization_id: Uuid,
+    fresh_posts: Vec<ExtractedPost>,
+    ai: &OpenAIClient,
+    pool: &PgPool,
+) -> Result<LlmSyncResult> {
+    let existing_db_posts = Post::find_by_organization_id(organization_id, pool).await?;
+    let submitted_by_id: Option<Uuid> = None;
+
+    info!(organization_id = %organization_id, fresh_count = fresh_posts.len(), existing_count = existing_db_posts.len(), "Starting org-level LLM sync analysis");
+
+    if fresh_posts.is_empty() && existing_db_posts.is_empty() {
+        let stage_result = stage_proposals(
+            "organization",
+            organization_id,
+            Some("No posts to sync"),
+            vec![],
+            pool,
+        )
+        .await?;
+        return Ok(LlmSyncResult {
+            batch_id: stage_result.batch_id,
+            staged_inserts: 0,
+            staged_updates: 0,
+            staged_deletes: 0,
+            staged_merges: 0,
+            errors: vec![],
+        });
+    }
+
+    log_sync_diagnostics(&fresh_posts, &existing_db_posts);
+
+    let fresh = convert_fresh_posts(&fresh_posts);
+    let existing = convert_existing_posts(&existing_db_posts, pool).await;
+
+    let user_prompt = build_sync_prompt(&fresh, &existing)?;
+
+    let response: SyncAnalysisResponse = ai
+        .extract("gpt-4o", SYNC_SYSTEM_PROMPT, &user_prompt)
+        .await
+        .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
+
+    let mut operations = response.operations;
+    let summary = response.summary;
+    info!(organization_id = %organization_id, operations_count = operations.len(), summary = %summary, "Org-level LLM sync analysis complete");
+
+    log_sync_operations(&operations, &fresh, &existing);
+
+    // Safety net: auto-INSERT any fresh posts not referenced by any operation
+    let referenced_fresh_ids: std::collections::HashSet<String> = operations
+        .iter()
+        .filter_map(|op| match op.operation.as_str() {
+            "insert" | "update" => op.fresh_id.clone(),
+            _ => None,
+        })
+        .collect();
+
+    let all_fresh_ids: Vec<String> = (1..=fresh_posts.len())
+        .map(|i| format!("fresh_{}", i))
+        .collect();
+
+    let missing: Vec<&String> = all_fresh_ids
+        .iter()
+        .filter(|id| !referenced_fresh_ids.contains(*id))
+        .collect();
+
+    if !missing.is_empty() {
+        tracing::warn!(
+            missing_count = missing.len(),
+            missing_ids = ?missing,
+            "LLM skipped fresh posts — auto-inserting"
+        );
+        for id in missing {
+            operations.push(SyncOperation {
+                operation: "insert".to_string(),
+                fresh_id: Some(id.clone()),
+                existing_id: None,
+                merge_description: None,
+                canonical_id: None,
+                duplicate_ids: None,
+                merged_title: None,
+                merged_description: None,
+                reason: None,
+            });
+        }
+    }
+
+    stage_sync_operations(
+        "organization",
+        organization_id,
+        submitted_by_id,
+        &fresh_posts,
+        &existing_db_posts,
+        operations,
+        &summary,
+        pool,
+    )
+    .await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

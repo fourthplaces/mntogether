@@ -1,12 +1,16 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, WebsiteId};
 use crate::domains::crawling::activities::extract_and_create_organization;
+use crate::domains::organization::restate::workflows::extract_org_posts::{
+    ExtractOrgPostsRequest, ExtractOrgPostsWorkflowClient,
+};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::Post;
 use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
@@ -133,6 +137,14 @@ pub struct OrganizationDetailResult {
 
 impl_restate_serde!(OrganizationDetailResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledExtractionResult {
+    pub orgs_triggered: i32,
+    pub status: String,
+}
+
+impl_restate_serde!(ScheduledExtractionResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -156,6 +168,12 @@ pub trait OrganizationsService {
         req: RegenerateOrganizationRequest,
     ) -> Result<RegenerateOrganizationResult, HandlerError>;
     async fn backfill_organizations(req: EmptyRequest) -> Result<BackfillResult, HandlerError>;
+    async fn extract_org_posts(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn run_scheduled_extraction(
+        req: EmptyRequest,
+    ) -> Result<ScheduledExtractionResult, HandlerError>;
 }
 
 pub struct OrganizationsServiceImpl {
@@ -613,6 +631,80 @@ impl OrganizationsService for OrganizationsServiceImpl {
             processed,
             succeeded,
             failed,
+        })
+    }
+
+    async fn extract_org_posts(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let workflow_id = format!("extract-org-{}-{}", org_id, chrono::Utc::now().timestamp());
+
+        ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(workflow_id.clone())
+            .run(ExtractOrgPostsRequest {
+                organization_id: org_id,
+            })
+            .send();
+
+        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered org-level extraction");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn run_scheduled_extraction(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ScheduledExtractionResult, HandlerError> {
+        info!("Running scheduled org extraction check");
+
+        let pool = &self.deps.db_pool;
+        let org_ids = Organization::find_needing_extraction(pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if org_ids.is_empty() {
+            info!("No organizations need extraction");
+            // Self-schedule for 15 minutes
+            ctx.service_client::<OrganizationsServiceClient>()
+                .run_scheduled_extraction(EmptyRequest {})
+                .send_after(Duration::from_secs(900));
+
+            return Ok(ScheduledExtractionResult {
+                orgs_triggered: 0,
+                status: "no_orgs_due".to_string(),
+            });
+        }
+
+        info!(count = org_ids.len(), "Triggering extraction for organizations");
+
+        for org_id in &org_ids {
+            let wf_key = org_id.into_uuid().to_string();
+            ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(wf_key)
+                .run(ExtractOrgPostsRequest {
+                    organization_id: org_id.into_uuid(),
+                })
+                .send();
+        }
+
+        let triggered = org_ids.len() as i32;
+
+        // Self-schedule for 15 minutes
+        ctx.service_client::<OrganizationsServiceClient>()
+            .run_scheduled_extraction(EmptyRequest {})
+            .send_after(Duration::from_secs(900));
+
+        Ok(ScheduledExtractionResult {
+            orgs_triggered: triggered,
+            status: "completed".to_string(),
         })
     }
 }
