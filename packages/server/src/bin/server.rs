@@ -47,7 +47,7 @@ use server_core::domains::website::restate::{
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
 };
 use server_core::kernel::{
-    create_extraction_service, sse::SseState, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
+    create_extraction_service, sse::SseState, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -143,8 +143,8 @@ async fn main() -> Result<()> {
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create OpenAI client
-    let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
+    // Create AI client
+    let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector

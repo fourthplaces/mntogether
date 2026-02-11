@@ -218,10 +218,6 @@ health:
 watch:
 	docker compose exec server cargo watch -x 'run --bin server'
 
-# Generate GraphQL schema
-schema:
-	docker compose exec server cargo run --bin generate_schema
-
 # Interactive development CLI
 dev-cli:
 	./dev.sh

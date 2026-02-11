@@ -1,13 +1,13 @@
 //! Reusable AI tools for agentic workflows.
 //!
-//! These tools implement the `openai_client::Tool` trait and can be used
+//! These tools implement the `ai_client::Tool` trait and can be used
 //! with the Agent builder for tool-calling loops.
 
 use std::sync::Arc;
 
 use async_trait::async_trait;
 use extraction::{Ingestor, WebSearcher};
-use openai_client::Tool;
+use ai_client::{Tool, ToolDefinition};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -66,8 +66,12 @@ impl Tool for WebSearchTool {
     type Output = Vec<SearchResultOutput>;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Search the web for information. Use this to find contact info, addresses, hours, or other details about an organization."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Search the web for information. Use this to find contact info, addresses, hours, or other details about an organization.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(WebSearchArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -147,8 +151,12 @@ impl Tool for FetchPageTool {
     type Output = FetchPageOutput;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Fetch the content of a web page. Use this to get detailed information from a specific URL like a contact page or about page."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Fetch the content of a web page. Use this to get detailed information from a specific URL like a contact page or about page.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(FetchPageArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -231,8 +239,12 @@ impl Tool for SearchPostsTool {
     type Output = Vec<SearchPostOutput>;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Search for services, opportunities, businesses, and resources. Use this to find posts matching a user's question about what's available in their community."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Search for services, opportunities, businesses, and resources. Use this to find posts matching a user's question about what's available in their community.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(SearchPostsArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

@@ -19,7 +19,7 @@ pub mod restate_auth;
 /// OTP verification by checking the phone number against admin_identifiers.
 ///
 /// This pattern keeps authorization logic in the effect layer where it belongs,
-/// not in the GraphQL resolver layer.
+/// not in the API handler layer.
 mod errors;
 
 pub use builder::{Actor, CapabilityBuilder, HasAuthContext};

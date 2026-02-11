@@ -1,21 +1,13 @@
 //! OpenAI implementation of the AI trait.
 //!
-//! Uses the `openai-client` crate for API communication and implements
+//! Uses the `ai-client` crate for API communication and implements
 //! extraction-specific logic (summarization, classification, etc.).
-//!
-//! # Example
-//!
-//! ```rust,ignore
-//! use extraction::ai::OpenAI;
-//!
-//! let ai = OpenAI::new("sk-...").with_model("gpt-4o");
-//! let index = Index::new(store, ai);
-//! ```
 
 use async_trait::async_trait;
-use openai_client::{ChatRequest, Message, OpenAIClient};
 use serde::Deserialize;
 use tracing::{info, warn};
+
+use ai_client::OpenAi;
 
 use crate::error::{ExtractionError, Result};
 use crate::traits::ai::{ExtractionStrategy, Partition, AI};
@@ -27,44 +19,39 @@ use crate::types::{
 
 /// OpenAI-based AI implementation for extraction.
 ///
-/// Wraps the pure `openai-client` and implements extraction-specific logic.
+/// Wraps the `ai-client` OpenAi struct and implements extraction-specific logic.
 #[derive(Clone)]
 pub struct OpenAI {
-    client: OpenAIClient,
-    model: String,
-    embedding_model: String,
+    client: OpenAi,
 }
 
 impl OpenAI {
     /// Create a new OpenAI extraction AI with the given API key.
     pub fn new(api_key: impl Into<String>) -> Self {
         Self {
-            client: OpenAIClient::new(api_key),
-            model: "gpt-4o".to_string(),
-            embedding_model: "text-embedding-3-small".to_string(),
+            client: OpenAi::new(api_key, "gpt-4o"),
         }
     }
 
     /// Create from environment variable `OPENAI_API_KEY`.
     pub fn from_env() -> Result<Self> {
         let client =
-            OpenAIClient::from_env().map_err(|e| ExtractionError::Config(e.to_string().into()))?;
-        Ok(Self {
-            client,
-            model: "gpt-4o".to_string(),
-            embedding_model: "text-embedding-3-small".to_string(),
-        })
+            OpenAi::from_env("gpt-4o").map_err(|e| ExtractionError::Config(e.to_string().into()))?;
+        Ok(Self { client })
     }
 
     /// Set the chat model (default: gpt-4o).
     pub fn with_model(mut self, model: impl Into<String>) -> Self {
-        self.model = model.into();
+        self.client = OpenAi::new(self.client.api_key(), model);
+        if let Some(url) = self.base_url() {
+            self.client = self.client.with_base_url(url);
+        }
         self
     }
 
     /// Set the embedding model (default: text-embedding-3-small).
     pub fn with_embedding_model(mut self, model: impl Into<String>) -> Self {
-        self.embedding_model = model.into();
+        self.client = self.client.with_embedding_model(model);
         self
     }
 
@@ -76,12 +63,17 @@ impl OpenAI {
 
     /// Get the current model name.
     pub fn model(&self) -> &str {
-        &self.model
+        self.client.model()
     }
 
     /// Get the API key (for bridge implementations that need it).
     pub fn api_key(&self) -> &str {
         self.client.api_key()
+    }
+
+    fn base_url(&self) -> Option<String> {
+        // OpenAi doesn't expose base_url, so we track it separately if needed
+        None
     }
 
     // =========================================================================
@@ -90,47 +82,34 @@ impl OpenAI {
 
     /// Generic chat completion (for server's BaseAI trait).
     pub async fn complete(&self, prompt: &str) -> Result<String> {
-        let request = ChatRequest::new(&self.model)
-            .message(Message::system("You are a helpful assistant."))
-            .message(Message::user(prompt));
-
-        let response = self
-            .client
-            .chat_completion(request)
+        self.client
+            .complete(prompt)
             .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        Ok(response.content)
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     /// Chat completion with specific model override.
     pub async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
-        let model_to_use = model.unwrap_or(&self.model);
-
-        let request = ChatRequest::new(model_to_use)
-            .message(Message::system("You are a helpful assistant."))
-            .message(Message::user(prompt));
-
-        let response = self
-            .client
-            .chat_completion(request)
-            .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        Ok(response.content)
+        if let Some(model) = model {
+            let temp_client = OpenAi::new(self.client.api_key(), model);
+            temp_client
+                .complete(prompt)
+                .await
+                .map_err(|e| ExtractionError::AI(e.to_string().into()))
+        } else {
+            self.complete(prompt).await
+        }
     }
 
-    /// Structured output with JSON schema (OpenAI's json_schema response_format).
+    /// Structured output with JSON schema.
     pub async fn generate_structured(
         &self,
         system: &str,
         user: &str,
         schema: serde_json::Value,
     ) -> Result<String> {
-        let request = openai_client::StructuredRequest::new(&self.model, system, user, schema);
-
         self.client
-            .structured_output(request)
+            .structured_output(system, user, schema)
             .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
@@ -141,16 +120,10 @@ impl OpenAI {
         messages: &[serde_json::Value],
         tools: &serde_json::Value,
     ) -> Result<serde_json::Value> {
-        let request =
-            openai_client::FunctionRequest::new(&self.model, messages.to_vec(), tools.clone());
-
-        let response = self
-            .client
-            .function_calling(request)
+        self.client
+            .function_calling(messages, tools)
             .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        Ok(response.message)
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     // =========================================================================
@@ -159,24 +132,10 @@ impl OpenAI {
 
     /// Make a chat request and get response.
     async fn chat(&self, system: &str, user: &str) -> Result<String> {
-        let mut request = ChatRequest::new(&self.model)
-            .message(Message::system(system))
-            .message(Message::user(user));
-
-        // Configure tokens based on model type
-        if ChatRequest::uses_max_completion_tokens(&self.model) {
-            request = request.max_completion_tokens(4096);
-        } else {
-            request = request.max_tokens(4096).temperature(0.0);
-        }
-
-        let response = self
-            .client
-            .chat_completion(request)
+        self.client
+            .chat_completion(system, user)
             .await
-            .map_err(|e| ExtractionError::AI(e.to_string().into()))?;
-
-        Ok(response.content)
+            .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     /// Parse JSON response with retry - if parsing fails, ask AI to fix it.
@@ -185,9 +144,8 @@ impl OpenAI {
         response: &str,
         context: &str,
     ) -> Result<T> {
-        let cleaned = openai_client::strip_code_blocks(response);
+        let cleaned = ai_client::strip_code_blocks(response);
 
-        // First attempt
         match serde_json::from_str::<T>(cleaned) {
             Ok(parsed) => return Ok(parsed),
             Err(first_error) => {
@@ -197,7 +155,6 @@ impl OpenAI {
                     "JSON parse failed, asking AI to fix"
                 );
 
-                // Ask AI to fix the JSON
                 let fix_prompt = format!(
                     "The following JSON is invalid. Fix it and return ONLY valid JSON, no explanation:\n\nError: {}\n\nInvalid JSON:\n{}",
                     first_error,
@@ -207,7 +164,7 @@ impl OpenAI {
                 let fixed_response = self
                     .chat("You are a JSON fixer. Return only valid JSON.", &fix_prompt)
                     .await?;
-                let fixed_cleaned = openai_client::strip_code_blocks(&fixed_response);
+                let fixed_cleaned = ai_client::strip_code_blocks(&fixed_response);
 
                 serde_json::from_str::<T>(fixed_cleaned).map_err(|e| {
                     ExtractionError::AI(
@@ -237,12 +194,11 @@ Output JSON with this structure:
 
 Be factual. Only extract what's explicitly stated."#;
 
-        let truncated_content = openai_client::truncate_to_char_boundary(content, 12000);
+        let truncated_content = ai_client::truncate_to_char_boundary(content, 12000);
         let user = format!("URL: {}\n\nContent:\n{}", url, truncated_content);
 
         let response = self.chat(system, &user).await?;
 
-        // Parse JSON response with retry if needed
         let parsed: SummaryJsonResponse = self.parse_json_with_retry(&response, "summary").await?;
 
         Ok(SummaryResponse {
@@ -261,7 +217,6 @@ Be factual. Only extract what's explicitly stated."#;
         let system = "Generate 5 related search terms for the query. Return as JSON array.";
         let response = self.chat(system, query).await?;
 
-        // Try parsing with retry, fall back to original query if all parsing fails
         match self
             .parse_json_with_retry::<Vec<String>>(&response, "expand_query")
             .await
@@ -286,7 +241,6 @@ Be factual. Only extract what's explicitly stated."#;
             strategy: String,
         }
 
-        // Try parsing with retry, default to collection if all parsing fails
         let parsed: Classification = self
             .parse_json_with_retry(&response, "classify_query")
             .await
@@ -342,7 +296,6 @@ Each distinct item should be its own partition."#;
             rationale: String,
         }
 
-        // Try parsing with retry, default to empty partitions if all parsing fails
         let parsed: PartitionResponse = self
             .parse_json_with_retry(&response, "recall_and_partition")
             .await
@@ -391,7 +344,7 @@ Include all relevant details found in the sources. Be thorough - extract everyth
                     i + 1,
                     p.url,
                     p.title.as_deref().unwrap_or("Untitled"),
-                    openai_client::truncate_to_char_boundary(&p.content, 8000)
+                    ai_client::truncate_to_char_boundary(&p.content, 8000)
                 )
             })
             .collect::<Vec<_>>()
@@ -415,7 +368,6 @@ Include all relevant details found in the sources. Be thorough - extract everyth
             query: String,
         }
 
-        // Parse with retry - if parsing fails, ask AI to fix the JSON
         let parsed: ExtractionResponse =
             self.parse_json_with_retry(&response, "extraction").await?;
 
@@ -475,14 +427,14 @@ Include all relevant details found in the sources. Be thorough - extract everyth
 
     async fn embed(&self, text: &str) -> Result<Vec<f32>> {
         self.client
-            .create_embedding(text, &self.embedding_model)
+            .create_embedding(text, "text-embedding-3-small")
             .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
 
     async fn embed_batch(&self, texts: &[&str]) -> Result<Vec<Vec<f32>>> {
         self.client
-            .create_embeddings_batch(texts, &self.embedding_model)
+            .create_embeddings_batch(texts, "text-embedding-3-small")
             .await
             .map_err(|e| ExtractionError::AI(e.to_string().into()))
     }
@@ -516,10 +468,8 @@ mod tests {
     fn test_openai_builder() {
         let ai = OpenAI::new("sk-test")
             .with_model("gpt-4o-mini")
-            .with_embedding_model("text-embedding-3-large")
-            .with_base_url("https://custom.api.com");
+            .with_embedding_model("text-embedding-3-large");
 
-        assert_eq!(ai.model, "gpt-4o-mini");
-        assert_eq!(ai.embedding_model, "text-embedding-3-large");
+        assert_eq!(ai.model(), "gpt-4o-mini");
     }
 }

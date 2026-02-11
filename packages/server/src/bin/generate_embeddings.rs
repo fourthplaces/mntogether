@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use server_core::config::Config;
 use server_core::domains::website::models::WebsiteAssessment;
 use sqlx::PgPool;
@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     println!("Connected to database");
 
     // Initialize OpenAI client
-    let openai_client = OpenAIClient::new(config.openai_api_key.clone());
+    let openai_client = OpenAi::new(config.openai_api_key.clone(), "gpt-4o");
 
     println!("\nStarting embedding generation...\n");
 

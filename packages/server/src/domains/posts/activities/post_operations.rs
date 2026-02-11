@@ -4,7 +4,7 @@
 // separated from the thin Effect orchestrator.
 
 use anyhow::{Context, Result};
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
@@ -48,7 +48,7 @@ pub async fn create_post(
     submission_type: String,
     source_type: Option<&str>,
     source_id: Option<Uuid>,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<Post> {
     // Log IP for spam tracking

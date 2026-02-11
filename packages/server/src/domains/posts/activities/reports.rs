@@ -1,6 +1,6 @@
 //! Post report actions - entry-point functions for report operations
 //!
-//! These are called directly from GraphQL mutations.
+//! These are called from Restate virtual objects.
 //! Actions are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return plain data.
 

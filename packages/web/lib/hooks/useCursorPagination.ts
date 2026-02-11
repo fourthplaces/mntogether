@@ -22,7 +22,7 @@ interface CursorPaginationState {
 }
 
 interface UseCursorPaginationResult {
-  // Query variables to pass to GraphQL
+  // Query variables to pass to the API
   variables: {
     first: number;
     after: string | null;

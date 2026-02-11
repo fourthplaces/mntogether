@@ -1,7 +1,7 @@
 //! Provider domain actions - business logic functions
 //!
-//! Actions are async functions called directly from GraphQL mutations via `process()`.
-//! They do the work and can emit events for cascading effects.
+//! Actions are async functions called from Restate virtual objects.
+//! They do the work and return results directly.
 
 mod mutations;
 mod queries;

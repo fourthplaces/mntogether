@@ -10,7 +10,7 @@
 use anyhow::Result;
 use extraction::types::page::CachedPage;
 use futures::future::join_all;
-use openai_client::OpenAIClient;
+use ai_client::{Agent, OpenAi, PromptBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -172,7 +172,7 @@ async fn extract_narrative_posts(
 
     let user_prompt = format!("## Content to Extract\n\n{}", content);
 
-    let client = OpenAIClient::from_env()?;
+    let client = OpenAi::from_env("gpt-4o")?;
     let response: NarrativeExtractionResponse = client
         .extract("gpt-4o", &system_prompt, &user_prompt)
         .await
@@ -244,7 +244,7 @@ async fn dedupe_and_merge_posts(
         "Deduplicating posts"
     );
 
-    let client = OpenAIClient::from_env()?;
+    let client = OpenAi::from_env("gpt-4o")?;
     let response: NarrativeExtractionResponse = client
         .extract("gpt-4o", DEDUPE_PROMPT, &user_prompt)
         .await
@@ -362,39 +362,39 @@ pub async fn investigate_post(
         "Starting post investigation"
     );
 
-    let client = OpenAIClient::from_env()?;
+    let client = OpenAi::from_env("gpt-4o")?;
 
     // Step 1: Agent investigates with tools
     info!(title = %narrative.title, "Running agent with tools (web_search, fetch_page)");
 
-    let response = client
-        .agent("gpt-4o")
-        .system(INVESTIGATION_PROMPT)
+    let agent = client
+        .clone()
         .tool(WebSearchTool::new(deps.web_searcher.clone()))
-        .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()))
-        .max_iterations(5)
-        .build()
-        .chat(&user_message)
+        .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()));
+
+    let findings = agent
+        .prompt(&user_message)
+        .preamble(INVESTIGATION_PROMPT)
+        .multi_turn(5)
+        .send()
         .await?;
 
     info!(
         title = %narrative.title,
-        tool_calls_made = ?response.tool_calls_made,
-        iterations = response.iterations,
-        findings_len = response.content.len(),
+        findings_len = findings.len(),
         "Agent investigation complete"
     );
 
     debug!(
         title = %narrative.title,
-        findings = %response.content,
+        findings = %findings,
         "Full investigation findings"
     );
 
     // Step 2: Extract structured info from findings
     let extraction_input = format!(
         "Post Title: {}\n\nOriginal Description:\n{}\n\nInvestigation Findings:\n{}",
-        narrative.title, narrative.description, response.content
+        narrative.title, narrative.description, findings
     );
 
     info!(

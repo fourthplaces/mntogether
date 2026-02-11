@@ -1,6 +1,6 @@
 //! Website Approval actions
 //!
-//! Entry-point actions are called directly from GraphQL mutations via `process()`.
+//! Entry-point actions are called from Restate virtual objects.
 //! They do the work synchronously and return values.
 //!
 //! Actions are self-contained: they take raw Uuid types, handle conversions,
@@ -22,7 +22,7 @@ use anyhow::{Context, Result};
 use tracing::info;
 use uuid::Uuid;
 
-/// Result of a website assessment operation (for GraphQL return)
+/// Result of a website assessment operation
 #[derive(Debug, Clone)]
 pub struct AssessmentResult {
     pub job_id: Uuid,

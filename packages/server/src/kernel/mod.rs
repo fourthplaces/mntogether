@@ -12,8 +12,9 @@ pub mod tag;
 pub mod test_dependencies;
 pub mod traits;
 
-// Re-export OpenAIClient from openai_client crate
-pub use openai_client::OpenAIClient;
+// Re-export AI client types
+pub use ai_client::OpenAi;
+pub use ai_client::openai::StructuredOutput;
 
 // Extraction library integration
 pub use extraction_service::{
