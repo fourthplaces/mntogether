@@ -1,67 +1,144 @@
-# Development Rules
+# TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD
 
-## Test-Driven Development
+## Test-Driven Development IS MANDATORY
 
-Red, green, refactor. For every feature, bug fix, or GraphQL edge change:
+### TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD
 
-1. **Red** — Write a failing test first. Run it, verify it fails for the right reason.
-2. **Green** — Write the simplest code that makes it pass.
-3. **Refactor** — Clean up while keeping tests green.
+**RED → GREEN → REFACTOR**
 
-### Test through GraphQL only
+## The Sacred TDD Process
 
-Tests exercise the public API surface, not internal implementation details.
+For EVERY feature, bug fix, or change to GraphQL edges:
 
-- Use `ctx.graphql()` client for mutations and queries
-- Verify results via GraphQL response and model queries
-- Mock external services via TestDependencies
-- Never access the event bus directly in tests (`bus().send()`, `settle()`)
+1. **RED** - Write a FAILING test FIRST
+   - Test must FAIL before you write ANY implementation code
+   - Run the test and verify it fails for the right reason
+   - If test passes before implementation, you're testing the wrong thing
 
+2. **GREEN** - Make the test pass with minimal code
+   - Write the SIMPLEST code that makes the test pass
+   - Don't over-engineer or add extra features
+   - Just make it work
+
+3. **REFACTOR** - Improve the code while keeping tests green
+   - Clean up code smells
+   - Extract duplications
+   - Improve names and structure
+   - Tests must still pass after each refactor
+
+## ABSOLUTE HARD RULE: GRAPHQL TESTING ONLY
+
+**NEVER EVER UNDER ANY CIRCUMSTANCES:**
+- ❌ `test_harness.bus().send(event).await` - FORBIDDEN
+- ❌ `harness.settle().await` - FORBIDDEN
+- ❌ Direct event bus access in tests - FORBIDDEN
+- ❌ Test internal implementation details - FORBIDDEN
+
+**ALWAYS AND ONLY:**
+- ✅ Test through GraphQL mutations and queries
+- ✅ Use `ctx.graphql()` client
+- ✅ Verify results via GraphQL response AND model queries
+- ✅ Mock external services via TestDependencies
+
+This is a VERY VERY VERY HARD RULE. No exceptions.
+
+### ✅ GOOD - Testing through GraphQL edges:
 ```rust
 #[test_context(TestHarness)]
 #[tokio::test]
 async fn test_scrape_creates_snapshots(ctx: &TestHarness) {
     let client = ctx.graphql();
 
-    // Arrange
+    // Arrange: Setup using models
     let domain = Domain::create(...).await?;
 
-    // Act: through GraphQL
+    // Act: Use GraphQL mutation
     let result = client.query_with_vars(
         "mutation { scrapeOrganization(...) }",
         vars
     ).await;
 
-    // Assert: response + database state via models
+    // Assert: Check result AND database state using models
     assert_eq!(result["status"], "completed");
     let snapshots = DomainSnapshot::find_by_domain(...).await?;
     assert_eq!(snapshots.len(), 1);
 }
 ```
 
-### Use models, not raw SQL in tests
-
+### ❌ ABSOLUTELY FORBIDDEN:
 ```rust
-// Good
-let domain = Domain::find_by_id(id, pool).await?;
+// DON'T DO THIS! EVER! NEVER! FORBIDDEN!
+test_harness.bus().send(ListingEvent::...).await;
+test_harness.settle().await;  // ALSO FORBIDDEN!
 
-// Bad
-sqlx::query!("SELECT * FROM domains WHERE id = $1", id)
+// These bypass the GraphQL layer and test internal implementation.
+// Tests MUST go through the actual API surface that users call.
 ```
 
-### Coverage expectations
+## Use Models, Not Raw SQL
 
-Every GraphQL mutation/query should test:
-1. Happy path
-2. Error cases (validation, not found, unauthorized)
-3. Edge cases (boundary values, concurrent requests)
-4. State verification via models
-5. GraphQL response structure
+**NEVER write raw SQL queries in tests**
+**ALWAYS use model methods or helper functions**
 
-### Test structure
+### ✅ GOOD:
+```rust
+let domain = Domain::find_by_id(id, pool).await?;
+let snapshots = DomainSnapshot::find_by_domain(domain_id, pool).await?;
+Domain::approve(domain_id, admin_id, pool).await?;
+```
 
-- Place in `packages/server/tests/`
+### ❌ BAD:
+```rust
+// DON'T DO THIS!
+sqlx::query!("SELECT * FROM domains WHERE id = $1", id)
+sqlx::query!("UPDATE domains SET status = 'approved' WHERE id = $1", id)
+```
+
+## Test Coverage Requirements
+
+Every edge mutation/query MUST test:
+
+1. **Happy path** - Successful operation
+2. **Error cases** - Validation failures, not found, unauthorized
+3. **Edge cases** - Race conditions, concurrent requests, boundary values
+4. **State verification** - Check database state after operations using models
+5. **GraphQL response** - Verify correct status, message, data
+
+## Test Location and Structure
+
+- Place in `packages/server/tests/` directory
 - Name files descriptively: `{feature}_tests.rs`
-- Use `#[test_context(TestHarness)]`
-- One focused assertion per test
-- Run `cargo test` before committing
+- Group related tests in same file
+- Use TestHarness with `#[test_context(TestHarness)]`
+- Use GraphQL client: `ctx.graphql()`
+- Clear test documentation
+
+## The Iron Law
+
+```
+TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD
+
+IF TEST IS NOT FAILING FIRST → YOU ARE DOING IT WRONG
+
+TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD
+```
+
+## Non-Negotiable Rules
+
+1. **NO CODE WITHOUT TESTS** - Write test first, see it fail, then implement
+2. **NO BUS TESTING** - Test through GraphQL edges only
+3. **NO RAW SQL** - Use models and helper functions
+4. **NO DELETING TESTS** - Fix them, don't delete them
+5. **NO SKIPPING REFACTOR** - Clean code after making tests pass
+6. **RUN TESTS BEFORE COMMIT** - `cargo test` must pass
+7. **ONE ASSERTION PER TEST** - Tests should be focused and clear
+
+## Remember
+
+The point of TDD is not just to have tests.
+The point is to let tests DRIVE your design.
+
+Write the test you WISH you had.
+Then make it real.
+
+**TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD**
