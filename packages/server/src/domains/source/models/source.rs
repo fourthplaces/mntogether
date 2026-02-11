@@ -5,6 +5,8 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::common::{MemberId, OrganizationId, PaginationDirection, SourceId, ValidatedPaginationArgs};
+use crate::domains::source::activities::ingest_social::build_profile_url;
+use crate::domains::source::models::website_source::WebsiteSource;
 
 /// Source - a unified content source (website, social profile, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -77,6 +79,25 @@ impl Source {
             .fetch_optional(pool)
             .await
             .map_err(Into::into)
+    }
+
+    /// Get the site_url used in extraction_pages for this source.
+    /// For websites: `https://{domain}`. For social: the profile URL.
+    pub async fn site_url(&self, pool: &PgPool) -> Result<String> {
+        match self.source_type.as_str() {
+            "website" => {
+                let ws = WebsiteSource::find_by_source_id(self.id, pool).await?;
+                Ok(format!("https://{}", ws.domain))
+            }
+            "instagram" | "facebook" | "x" | "twitter" | "tiktok" => {
+                if let Some(url) = &self.url {
+                    return Ok(url.clone());
+                }
+                let ss = super::social_source::SocialSource::find_by_source_id(self.id, pool).await?;
+                Ok(build_profile_url(&self.source_type, &ss.handle))
+            }
+            other => anyhow::bail!("Unknown source type for site_url: {}", other),
+        }
     }
 
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {

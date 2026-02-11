@@ -9,34 +9,36 @@ import { useRestateObject, useRestate, callObject, callService, invalidateServic
 import type {
   SourceObjectResult,
   OptionalAssessmentResult,
-  PostList,
   ExtractionPageListResult,
   ExtractionPageCount,
   OrganizationResult,
   OrganizationListResult,
 } from "@/lib/restate/types";
 
-type TabType = "posts" | "snapshots" | "assessment";
+// Source object returns same shape as Extraction service
+type SourcePageListResult = ExtractionPageListResult;
+type SourcePageCountResult = ExtractionPageCount;
+
+type TabType = "snapshots" | "assessment";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   website: "Website",
   instagram: "Instagram",
   facebook: "Facebook",
   tiktok: "TikTok",
+  x: "X (Twitter)",
 };
 
 export default function SourceDetailPage() {
   const params = useParams();
   const sourceId = params.id as string;
-  const [activeTab, setActiveTab] = useState<TabType>("posts");
+  const [activeTab, setActiveTab] = useState<TabType>("snapshots");
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [regenWorkflowId, setRegenWorkflowId] = useState<string | null>(null);
   const [regenStatus, setRegenStatus] = useState<string | null>(null);
   const [dedupWorkflowId, setDedupWorkflowId] = useState<string | null>(null);
   const [dedupStatus, setDedupStatus] = useState<string | null>(null);
-  const [approvingPostId, setApprovingPostId] = useState<string | null>(null);
-  const [rejectingPostId, setRejectingPostId] = useState<string | null>(null);
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -62,29 +64,16 @@ export default function SourceDetailPage() {
   const isWebsite = source?.source_type === "website";
 
   const {
-    data: postsData,
-    mutate: refetchPosts,
-  } = useRestate<PostList>(
-    "Posts", "list",
-    { source_type: source?.source_type || "website", source_id: sourceId, first: 100 },
-    { revalidateOnFocus: false }
-  );
-
-  const {
     data: pagesData,
-  } = useRestate<ExtractionPageListResult>(
-    isWebsite && source?.identifier ? "Extraction" : null,
-    "list_pages",
-    { domain: source?.identifier, limit: 50 },
+  } = useRestateObject<SourcePageListResult>(
+    "Source", source ? sourceId : null, "list_pages", {},
     { revalidateOnFocus: false }
   );
 
   const {
     data: pageCount,
-  } = useRestate<ExtractionPageCount>(
-    isWebsite && source?.identifier ? "Extraction" : null,
-    "count_pages",
-    { domain: source?.identifier },
+  } = useRestateObject<SourcePageCountResult>(
+    "Source", source ? sourceId : null, "count_pages", {},
     { revalidateOnFocus: false }
   );
 
@@ -114,7 +103,6 @@ export default function SourceDetailPage() {
   );
 
   const assessment = assessmentData?.assessment ?? null;
-  const posts = postsData?.posts || [];
   const pages = pagesData?.pages || [];
 
   // --- Actions ---
@@ -144,34 +132,6 @@ export default function SourceDetailPage() {
       console.error("Failed to reject:", err);
     } finally {
       setActionInProgress(null);
-    }
-  };
-
-  const handleApprovePost = async (postId: string) => {
-    setApprovingPostId(postId);
-    try {
-      await callObject("Post", postId, "approve", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetchPosts();
-    } catch (err) {
-      console.error("Failed to approve post:", err);
-    } finally {
-      setApprovingPostId(null);
-    }
-  };
-
-  const handleRejectPost = async (postId: string) => {
-    setRejectingPostId(postId);
-    try {
-      await callObject("Post", postId, "reject", { reason: "Rejected by admin" });
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetchPosts();
-    } catch (err) {
-      console.error("Failed to reject post:", err);
-    } finally {
-      setRejectingPostId(null);
     }
   };
 
@@ -232,6 +192,7 @@ export default function SourceDetailPage() {
     }
   };
 
+
   const handleExtractOrganization = async () => {
     setActionInProgress("extract_org");
     setMenuOpen(false);
@@ -291,12 +252,11 @@ export default function SourceDetailPage() {
           clearInterval(interval);
           setRegenWorkflowId(null);
           setActionInProgress(null);
-          refetchPosts();
         }
       } catch { /* keep polling */ }
     }, 3000);
     return () => clearInterval(interval);
-  }, [regenWorkflowId, regenWorkflowName, refetchPosts]);
+  }, [regenWorkflowId, regenWorkflowName]);
 
   // Poll deduplicate posts workflow status
   useEffect(() => {
@@ -309,12 +269,11 @@ export default function SourceDetailPage() {
           clearInterval(interval);
           setDedupWorkflowId(null);
           setActionInProgress(null);
-          refetchPosts();
         }
       } catch { /* keep polling */ }
     }, 3000);
     return () => clearInterval(interval);
-  }, [dedupWorkflowId, refetchPosts]);
+  }, [dedupWorkflowId]);
 
   // --- Helpers ---
 
@@ -328,24 +287,15 @@ export default function SourceDetailPage() {
     }
   };
 
-  const formatStatus = (status: string) => {
-    const map: Record<string, string> = {
-      Active: "Active", active: "Active",
-      PendingApproval: "Pending Approval", pending_approval: "Pending Approval",
-      Rejected: "Rejected", rejected: "Rejected",
-    };
-    return map[status] || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
-  };
-
   const formatDate = (dateString: string | null | undefined) => {
     if (!dateString) return "Never";
     return new Date(dateString).toLocaleString();
   };
 
-  // Determine available tabs
+  // Determine available tabs — all sources have snapshots, assessment is website-only
   const tabs: TabType[] = isWebsite
-    ? ["posts", "snapshots", "assessment"]
-    : ["posts"];
+    ? ["snapshots", "assessment"]
+    : ["snapshots"];
 
   // --- Loading / Error states ---
 
@@ -400,6 +350,7 @@ export default function SourceDetailPage() {
                   source.source_type === "website" ? "bg-blue-100 text-blue-800" :
                   source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
                   source.source_type === "facebook" ? "bg-indigo-100 text-indigo-800" :
+                  source.source_type === "x" ? "bg-stone-800 text-white" :
                   "bg-stone-100 text-stone-800"
                 }`}>
                   {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
@@ -541,15 +492,9 @@ export default function SourceDetailPage() {
               )}
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Posts</span>
-              <p className="text-lg font-semibold text-stone-900">{postsData?.total_count ?? 0}</p>
+              <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
+              <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
             </div>
-            {isWebsite && (
-              <div>
-                <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
-                <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
-              </div>
-            )}
             <div>
               <span className="text-xs text-stone-500 uppercase">Last Scraped</span>
               <p className="text-sm font-medium text-stone-900">{formatDate(source.last_scraped_at)}</p>
@@ -575,7 +520,8 @@ export default function SourceDetailPage() {
           )}
         </div>
 
-        {/* Tabs */}
+        {/* Tabs (website only) */}
+        {tabs.length > 0 && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
             <nav className="flex">
@@ -590,7 +536,6 @@ export default function SourceDetailPage() {
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  {tab === "posts" && ` (${postsData?.total_count ?? posts.length})`}
                   {tab === "snapshots" && ` (${pageCount?.count ?? pages.length})`}
                 </button>
               ))}
@@ -598,83 +543,8 @@ export default function SourceDetailPage() {
           </div>
 
           <div className="p-6">
-            {/* Posts Tab */}
-            {activeTab === "posts" && (
-              <div className="space-y-4">
-                {posts.length === 0 ? (
-                  <div className="text-center py-8 text-stone-500">No posts yet</div>
-                ) : (
-                  posts.map((post) => (
-                    <div key={post.id} className="border border-stone-200 rounded-lg p-4 hover:bg-stone-50">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <Link href={`/admin/posts/${post.id}`} className="font-medium text-stone-900 hover:underline">
-                              {post.title}
-                            </Link>
-                            {post.source_url && (
-                              <a
-                                href={post.source_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-blue-600 hover:text-blue-800 shrink-0"
-                              >
-                                Source {"\u2197"}
-                              </a>
-                            )}
-                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                              post.status === "active" || post.status === "Active"
-                                ? "bg-green-100 text-green-800"
-                                : post.status === "pending_approval" || post.status === "PendingApproval"
-                                  ? "bg-amber-100 text-amber-800"
-                                  : "bg-stone-100 text-stone-600"
-                            }`}>
-                              {formatStatus(post.status)}
-                            </span>
-                          </div>
-                          {post.summary && (
-                            <p className="text-sm text-stone-500 mt-1 line-clamp-2">{post.summary}</p>
-                          )}
-                          {post.tags && post.tags.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {post.tags.map((tag) => (
-                                <span
-                                  key={`${tag.kind}:${tag.value}`}
-                                  className="text-xs px-2 py-1 rounded bg-stone-100 text-stone-600"
-                                >
-                                  {tag.kind}: {tag.display_name || tag.value}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        {(post.status === "pending_approval" || post.status === "PendingApproval") && (
-                          <div className="flex items-center gap-2 ml-4 shrink-0">
-                            <button
-                              onClick={() => handleApprovePost(post.id)}
-                              disabled={approvingPostId === post.id || rejectingPostId === post.id}
-                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50"
-                            >
-                              {approvingPostId === post.id ? "Approving..." : "Approve"}
-                            </button>
-                            <button
-                              onClick={() => handleRejectPost(post.id)}
-                              disabled={approvingPostId === post.id || rejectingPostId === post.id}
-                              className="px-3 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
-                            >
-                              {rejectingPostId === post.id ? "Rejecting..." : "Reject"}
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {/* Snapshots Tab (website only) */}
-            {activeTab === "snapshots" && isWebsite && (
+            {/* Snapshots Tab */}
+            {activeTab === "snapshots" && (
               <div className="space-y-4">
                 {pages.length === 0 ? (
                   <div className="text-center py-8 text-stone-500">No crawled pages yet</div>
@@ -761,6 +631,7 @@ export default function SourceDetailPage() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* Assign Organization Modal */}
