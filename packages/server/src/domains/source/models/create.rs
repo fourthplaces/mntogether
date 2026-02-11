@@ -88,7 +88,7 @@ pub async fn find_or_create_website_source(
 }
 
 /// Create a social source (inserts into both sources + social_sources)
-/// Social sources default to 'approved' status.
+/// Social sources default to 'pending_review' status.
 pub async fn create_social_source(
     platform: &str,
     handle: &str,
@@ -96,17 +96,29 @@ pub async fn create_social_source(
     organization_id: Option<OrganizationId>,
     pool: &PgPool,
 ) -> Result<(Source, SocialSource)> {
+    let resolved_url = url
+        .map(|u| u.to_string())
+        .unwrap_or_else(|| {
+            let clean_handle = handle.trim_start_matches('@');
+            match platform {
+                "instagram" => format!("https://instagram.com/{}", clean_handle),
+                "facebook" => format!("https://facebook.com/{}", clean_handle),
+                "tiktok" => format!("https://tiktok.com/@{}", clean_handle),
+                _ => format!("https://{}.com/{}", platform, clean_handle),
+            }
+        });
+
     let mut tx = pool.begin().await?;
 
     let source = sqlx::query_as::<_, Source>(
         r#"
         INSERT INTO sources (source_type, url, organization_id, status)
-        VALUES ($1, $2, $3, 'approved')
+        VALUES ($1, $2, $3, 'pending_review')
         RETURNING *
         "#,
     )
     .bind(platform)
-    .bind(url)
+    .bind(&resolved_url)
     .bind(organization_id)
     .fetch_one(&mut *tx)
     .await?;

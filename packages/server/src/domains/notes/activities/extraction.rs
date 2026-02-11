@@ -31,7 +31,7 @@ pub struct ExtractedNotes {
 pub struct ExtractedNote {
     /// The note content — a concise, factual statement
     pub content: String,
-    /// Severity: "info", "notice", or "warn"
+    /// Severity: "info", "notice", or "urgent"
     pub severity: String,
     /// The source URL where this information was found (optional)
     pub source_url: Option<String>,
@@ -45,7 +45,7 @@ const NOTE_EXTRACTION_PROMPT: &str = r#"You are extracting noteworthy operationa
 
 Look for information that would be important for someone trying to access this organization's services. Focus on:
 
-## WARN severity (action needed / people should know before visiting)
+## URGENT severity (action needed / people should know before visiting)
 - Service pauses or shutdowns ("we are pausing all donations", "no longer accepting volunteers")
 - Capacity limits ("at capacity", "waitlist only")
 - Safety or fraud alerts
@@ -260,7 +260,7 @@ pub async fn extract_and_create_notes(
 
     for extracted_note in &extracted.notes {
         let severity = match extracted_note.severity.as_str() {
-            "warn" | "notice" | "info" => extracted_note.severity.as_str(),
+            "urgent" | "notice" | "info" => extracted_note.severity.as_str(),
             _ => "info",
         };
 

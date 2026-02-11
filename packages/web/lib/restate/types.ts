@@ -97,6 +97,7 @@ export interface PostResult {
   contacts?: PostContactResult[];
   organization_id?: string;
   organization_name?: string;
+  has_urgent_notes?: boolean;
 }
 
 export interface PostList {
@@ -466,6 +467,7 @@ export interface PublicPostResult {
   created_at: string;
   published_at?: string | null;
   tags: PublicTagResult[];
+  has_urgent_notes?: boolean;
 }
 
 export interface PublicListResult {

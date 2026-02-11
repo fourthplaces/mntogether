@@ -254,6 +254,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                         created_at: p.created_at.to_rfc3339(),
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        has_urgent_notes: None,
                     }
                 })
                 .collect(),

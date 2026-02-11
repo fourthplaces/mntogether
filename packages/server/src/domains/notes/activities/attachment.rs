@@ -66,13 +66,13 @@ pub async fn attach_notes_to_org_posts(
     let mut attached = 0;
 
     for note in &notes {
-        if note.severity == "warn" {
-            // Warn-severity: attach to ALL posts (org-wide safety alerts)
+        if note.severity == "urgent" {
+            // Urgent-severity: attach to ALL posts (org-wide safety alerts)
             for post in &posts {
                 match Noteable::create(note.id, "post", post.id.into_uuid(), pool).await {
                     Ok(_) => attached += 1,
                     Err(e) => {
-                        warn!(note_id = %note.id, post_id = %post.id, error = %e, "Failed to attach warn note");
+                        warn!(note_id = %note.id, post_id = %post.id, error = %e, "Failed to attach urgent note");
                     }
                 }
             }

@@ -89,6 +89,13 @@ pub struct GenerateNotesRequest {
 
 impl_restate_serde!(GenerateNotesRequest);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachNotesRequest {
+    pub organization_id: Uuid,
+}
+
+impl_restate_serde!(AttachNotesRequest);
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -155,6 +162,15 @@ pub struct GenerateNotesResult {
 
 impl_restate_serde!(GenerateNotesResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachNotesResult {
+    pub notes_count: i32,
+    pub posts_count: i32,
+    pub noteables_created: i32,
+}
+
+impl_restate_serde!(AttachNotesResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -174,6 +190,9 @@ pub trait NotesService {
     async fn generate_notes(
         req: GenerateNotesRequest,
     ) -> Result<GenerateNotesResult, HandlerError>;
+    async fn attach_notes(
+        req: AttachNotesRequest,
+    ) -> Result<AttachNotesResult, HandlerError>;
 }
 
 pub struct NotesServiceImpl {
@@ -387,6 +406,25 @@ impl NotesService for NotesServiceImpl {
             notes_created: result.notes_created,
             sources_scanned: result.sources_scanned,
             posts_attached,
+        })
+    }
+
+    async fn attach_notes(
+        &self,
+        ctx: Context<'_>,
+        req: AttachNotesRequest,
+    ) -> Result<AttachNotesResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let org_id = OrganizationId::from(req.organization_id);
+        let result = activities::attach_notes_to_org_posts(org_id, &self.deps)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(AttachNotesResult {
+            notes_count: result.notes_count,
+            posts_count: result.posts_count,
+            noteables_created: result.noteables_created,
         })
     }
 }
