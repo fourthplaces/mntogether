@@ -260,20 +260,20 @@ This is handled in the model layer — `approve_revision()` and any content-upda
 ## Acceptance Criteria
 
 ### Functional Requirements
-- [ ] `score_post_relevance()` activity returns composite score + breakdown
-- [ ] Composite computed in code from sub-scores (weights adjustable without re-scoring)
-- [ ] New posts scored as Pass 4 before proposals are surfaced
-- [ ] Batch scoring endpoint scores all unscored active posts
-- [ ] Scores stored on post record with `scored_at` timestamp
-- [ ] Scores cleared when post content changes
+- [x] `score_post_relevance()` activity returns composite score + breakdown
+- [x] Composite computed in code from sub-scores (weights adjustable without re-scoring)
+- [x] New posts scored as Pass 4 before proposals are surfaced
+- [x] Batch scoring endpoint scores all unscored active posts
+- [x] Scores stored on post record with `scored_at` timestamp
+- [x] Scores cleared when post content changes
 - [ ] Admin proposals page shows color-coded score badges
 - [ ] Admin proposals page supports filtering by score threshold
-- [ ] Admin post detail page shows score and breakdown
+- [x] Admin post detail page shows score and breakdown
 
 ### Non-Functional Requirements
-- [ ] Scoring is best-effort — failures don't block the pipeline
-- [ ] Batch scoring handles hundreds of posts without rate limit issues
-- [ ] Score filter queries use the index efficiently
+- [x] Scoring is best-effort — failures don't block the pipeline
+- [x] Batch scoring handles hundreds of posts without rate limit issues
+- [x] Score filter queries use the index efficiently
 
 ## Implementation Phases
 

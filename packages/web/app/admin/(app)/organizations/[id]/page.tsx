@@ -831,6 +831,17 @@ function PostRow({
         }`}>
           {post.post_type}
         </span>
+        {post.relevance_score != null && (
+          <span className={`px-1.5 py-0.5 text-xs rounded font-bold shrink-0 ${
+            post.relevance_score >= 8
+              ? "bg-green-100 text-green-800"
+              : post.relevance_score >= 5
+                ? "bg-amber-100 text-amber-800"
+                : "bg-red-100 text-red-800"
+          }`}>
+            {post.relevance_score}
+          </span>
+        )}
       </div>
       <span className="text-sm text-stone-500 shrink-0 ml-3">
         {new Date(post.created_at).toLocaleDateString()}

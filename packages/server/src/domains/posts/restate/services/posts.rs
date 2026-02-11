@@ -156,6 +156,13 @@ pub struct PostStatsRequest {
 impl_restate_serde!(PostStatsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchScorePostsRequest {
+    pub limit: Option<i32>,
+}
+
+impl_restate_serde!(BatchScorePostsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsRequest {
     pub batch_size: Option<i32>,
 }
@@ -425,6 +432,15 @@ pub struct BackfillLocationsResult {
 impl_restate_serde!(BackfillLocationsResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchScorePostsResult {
+    pub scored: i32,
+    pub failed: i32,
+    pub remaining: i32,
+}
+
+impl_restate_serde!(BatchScorePostsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExpireStalePostsRequest {}
 
 impl_restate_serde!(ExpireStalePostsRequest);
@@ -475,6 +491,9 @@ pub trait PostsService {
         req: ExpireStalePostsRequest,
     ) -> Result<ExpireStalePostsResult, HandlerError>;
     async fn stats(req: PostStatsRequest) -> Result<PostStatsResult, HandlerError>;
+    async fn batch_score_posts(
+        req: BatchScorePostsRequest,
+    ) -> Result<BatchScorePostsResult, HandlerError>;
 }
 
 // =============================================================================
@@ -573,6 +592,8 @@ impl PostsService for PostsServiceImpl {
                             has_urgent_notes: None,
                             urgent_notes: None,
                             distance_miles: Some(pwd.distance_miles),
+                            relevance_score: None,
+                            relevance_breakdown: None,
                         }
                     })
                     .collect(),
@@ -649,6 +670,8 @@ impl PostsService for PostsServiceImpl {
                             has_urgent_notes: None,
                             urgent_notes: None,
                             distance_miles: None,
+                            relevance_score: None,
+                            relevance_breakdown: None,
                         }
                     })
                     .collect(),
@@ -708,6 +731,8 @@ impl PostsService for PostsServiceImpl {
                         has_urgent_notes: None,
                         urgent_notes: None,
                         distance_miles: None,
+                            relevance_score: None,
+                            relevance_breakdown: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -1083,6 +1108,8 @@ impl PostsService for PostsServiceImpl {
                         has_urgent_notes: None,
                         urgent_notes: None,
                         distance_miles: None,
+                        relevance_score: p.relevance_score,
+                        relevance_breakdown: p.relevance_breakdown,
                     }
                 })
                 .collect(),
@@ -1286,5 +1313,52 @@ impl PostsService for PostsServiceImpl {
             user_submitted,
             scraped,
         })
+    }
+
+    async fn batch_score_posts(
+        &self,
+        ctx: Context<'_>,
+        req: BatchScorePostsRequest,
+    ) -> Result<BatchScorePostsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let limit = req.limit.unwrap_or(50).min(200);
+
+        let result = ctx
+            .run(|| async {
+                let unscored = Post::find_unscored_active(&self.deps.db_pool)
+                    .await
+                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
+
+                let total_remaining = unscored.len() as i32;
+                let batch: Vec<_> = unscored.into_iter().take(limit as usize).collect();
+
+                let mut scored = 0i32;
+                let mut failed = 0i32;
+
+                for post in batch {
+                    match activities::score_post_by_id(
+                        post.id,
+                        &self.deps.ai,
+                        &self.deps.db_pool,
+                    )
+                    .await
+                    {
+                        Some(_) => scored += 1,
+                        None => failed += 1,
+                    }
+                }
+
+                let remaining = (total_remaining - scored - failed).max(0);
+
+                Ok(BatchScorePostsResult {
+                    scored,
+                    failed,
+                    remaining,
+                })
+            })
+            .await?;
+
+        Ok(result)
     }
 }

@@ -100,6 +100,8 @@ export interface PostResult {
   has_urgent_notes?: boolean;
   urgent_notes?: UrgentNoteInfo[];
   distance_miles?: number;
+  relevance_score?: number | null;
+  relevance_breakdown?: string | null;
 }
 
 export interface PostList {

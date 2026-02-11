@@ -882,6 +882,9 @@ impl Post {
                 category = COALESCE($6, category),
                 urgency = COALESCE($7, urgency),
                 location = COALESCE($8, location),
+                relevance_score = NULL,
+                relevance_breakdown = NULL,
+                scored_at = NULL,
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
