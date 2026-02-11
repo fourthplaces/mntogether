@@ -72,6 +72,11 @@ pub struct Post {
 
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
+
+    // Relevance scoring (for human review triage)
+    pub relevance_score: Option<i32>,
+    pub relevance_breakdown: Option<String>,
+    pub scored_at: Option<DateTime<Utc>>,
 }
 
 /// Search result from semantic similarity search
@@ -1812,5 +1817,78 @@ impl Post {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    // =========================================================================
+    // Relevance Scoring
+    // =========================================================================
+
+    /// Update relevance score for a post
+    pub async fn update_relevance_score(
+        id: PostId,
+        score: i32,
+        breakdown: &str,
+        pool: &PgPool,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE posts SET relevance_score = $1, relevance_breakdown = $2, scored_at = NOW(), updated_at = NOW() WHERE id = $3",
+        )
+        .bind(score)
+        .bind(breakdown)
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Clear relevance score (e.g. when content changes)
+    pub async fn clear_relevance_score(id: PostId, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            "UPDATE posts SET relevance_score = NULL, relevance_breakdown = NULL, scored_at = NULL, updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Find unscored active posts for batch scoring.
+    /// Excludes revisions, translations, duplicates, and deleted posts.
+    pub async fn find_unscored_active(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM posts
+            WHERE status = 'active'
+              AND relevance_score IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+              AND duplicate_of_id IS NULL
+              AND deleted_at IS NULL
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find organization name for a post (via post_sources → sources → organizations).
+    /// Returns None if the post has no linked organization.
+    pub async fn find_org_name(id: PostId, pool: &PgPool) -> Result<Option<String>> {
+        sqlx::query_scalar::<_, String>(
+            r#"
+            SELECT o.name
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            JOIN organizations o ON s.organization_id = o.id
+            WHERE p.id = $1
+            LIMIT 1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
     }
 }

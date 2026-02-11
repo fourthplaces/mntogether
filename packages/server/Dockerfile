@@ -13,6 +13,7 @@ COPY packages/server/Cargo.toml ./packages/server/
 COPY packages/twilio-rs/Cargo.toml ./packages/twilio-rs/
 COPY packages/extraction/Cargo.toml ./packages/extraction/
 COPY packages/openai-client/Cargo.toml ./packages/openai-client/
+COPY packages/ai-client/Cargo.toml ./packages/ai-client/
 COPY packages/apify-client/Cargo.toml ./packages/apify-client/
 
 # Create dummy src files for all packages to cache dependencies
@@ -29,6 +30,8 @@ RUN mkdir -p packages/server/src && \
     echo "fn main() {}" > packages/extraction/src/lib.rs && \
     mkdir -p packages/openai-client/src && \
     echo "fn main() {}" > packages/openai-client/src/lib.rs && \
+    mkdir -p packages/ai-client/src && \
+    echo "fn main() {}" > packages/ai-client/src/lib.rs && \
     mkdir -p packages/apify-client/src && \
     echo "fn main() {}" > packages/apify-client/src/lib.rs
 
@@ -36,7 +39,7 @@ RUN mkdir -p packages/server/src && \
 RUN cargo build --release --manifest-path packages/server/Cargo.toml --bin server
 
 # Remove dummy src files and compiled artifacts so cargo detects source changes
-RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src packages/apify-client/src && \
+RUN rm -rf packages/server/src packages/twilio-rs/src packages/extraction/src packages/openai-client/src packages/ai-client/src packages/apify-client/src && \
     rm -f target/release/server target/release/run_migrations target/release/deps/server_core-* target/release/deps/libserver_core-*
 
 # Copy real source code for packages we actually build
@@ -46,10 +49,11 @@ COPY packages/twilio-rs/src ./packages/twilio-rs/src
 COPY packages/extraction/src ./packages/extraction/src
 COPY packages/extraction/migrations ./packages/extraction/migrations
 COPY packages/openai-client/src ./packages/openai-client/src
+COPY packages/ai-client/src ./packages/ai-client/src
 COPY packages/apify-client/src ./packages/apify-client/src
 
 # Build both binaries (touch lib.rs to force recompilation)
-RUN touch packages/server/src/lib.rs packages/twilio-rs/src/lib.rs packages/extraction/src/lib.rs packages/openai-client/src/lib.rs packages/apify-client/src/lib.rs && \
+RUN touch packages/server/src/lib.rs packages/twilio-rs/src/lib.rs packages/extraction/src/lib.rs packages/openai-client/src/lib.rs packages/ai-client/src/lib.rs packages/apify-client/src/lib.rs && \
     cargo build --release --manifest-path packages/server/Cargo.toml --bin server --bin run_migrations
 
 # Runtime stage
