@@ -1,55 +1,35 @@
 # Claude Code Development Rules
 
-## ⛔⛔⛔ RULE ZERO: NEVER MODIFY THE DATABASE WITHOUT EXPLICIT PERMISSION!!! ⛔⛔⛔
+## Rule Zero: database modifications require explicit permission
 
-**!!! THIS IS THE MOST IMPORTANT RULE !!! IT OVERRIDES EVERYTHING ELSE !!!**
+Database-modifying commands are blocked by a PreToolUse hook
+(`.claude/hooks/guard-db-commands.sh`). The hook will deny any Bash command
+that runs migrations, executes write SQL (INSERT, UPDATE, DELETE, ALTER, DROP,
+TRUNCATE, CREATE, GRANT, REVOKE) via psql or docker exec, or pipes a SQL file
+into the database.
 
-**!!! NEVER EVER EVER RUN `cargo sqlx migrate run` WITHOUT THE USER EXPLICITLY SAYING "GO", "DO IT", "RUN IT" !!!**
+**What to do:**
+1. Write the migration file (this is allowed).
+2. Tell the user: "Migration file created at `path`. Run it when ready."
+3. Wait for explicit approval ("go", "do it", "yes", "proceed").
+4. Only then execute.
 
-**!!! NEVER EVER EVER EXECUTE RAW SQL AGAINST THE DATABASE WITHOUT THE USER EXPLICITLY SAYING "GO", "DO IT", "RUN IT" !!!**
-
-**!!! NEVER EVER EVER RUN ANY COMMAND THAT MODIFIES DATABASE STATE WITHOUT EXPLICIT USER APPROVAL !!!** THIS INCLUDES:
-- `cargo sqlx migrate run` — NEVER WITHOUT PERMISSION!!!
-- `docker-compose exec postgres psql -c "ALTER TABLE ..."` — NEVER WITHOUT PERMISSION!!!
-- ANY RAW SQL VIA PSQL, DOCKER EXEC, OR ANY OTHER METHOD — NEVER WITHOUT PERMISSION!!!
-- ANY COMMAND THAT INSERTS, UPDATES, DELETES, OR ALTERS DATABASE OBJECTS — NEVER WITHOUT PERMISSION!!!
-
-**!!! WHAT TO DO INSTEAD !!!**
-1. CREATE THE MIGRATION FILE (WRITING FILES IS FINE)
-2. **STOP!!! DO NOT RUN IT!!!** TELL THE USER: "MIGRATION FILE CREATED AT `path`. RUN `cargo sqlx migrate run` WHEN READY."
-3. **WAIT!!!** FOR EXPLICIT APPROVAL ("GO", "DO IT", "RUN IT", "YES", "PROCEED")
-4. ONLY THEN EXECUTE
-
-**!!! WRITING MIGRATION FILES IS OK. RUNNING THEM IS NEVER OK WITHOUT EXPLICIT PERMISSION !!!**
-
-**!!! THIS RULE EXISTS BECAUSE IT WAS VIOLATED AND CAUSED AN INCIDENT. NO EXCEPTIONS. EVER. !!!**
+Read-only commands (SELECT, `\dt`, `pg_dump`) pass through without restriction.
 
 ---
 
-## ⛔ MIGRATION FILES ARE SACRED — DO NOT TOUCH ⛔
+## Migration files are immutable
 
-**NEVER EDIT AN EXISTING MIGRATION FILE. NEVER. NEVER. NEVER.**
+Edits to existing migration files are blocked by a PreToolUse hook
+(`.claude/hooks/guard-migrations.sh`). The hook will deny any Edit to a file
+in `packages/server/migrations/`, and any Write that would overwrite an
+existing file in that directory.
 
-**NEVER OPEN AN EXISTING MIGRATION FILE WITH THE EDIT TOOL. NEVER.**
+SQLx checksums every migration file. Modifying one that has been applied breaks
+production deployments with no recovery short of manual database surgery.
 
-**NEVER MODIFY A SINGLE CHARACTER IN AN EXISTING MIGRATION FILE. NEVER.**
-
-**IF YOU NEED TO FIX A MIGRATION, CREATE A NEW MIGRATION FILE. ALWAYS.**
-
-**IF YOU THINK "I'LL JUST FIX THIS ONE THING IN THE MIGRATION" — STOP. CREATE A NEW FILE.**
-
-This is not a suggestion. This is not a guideline. This is an absolute, unbreakable rule.
-SQLx checksums every migration file. If you modify a file that has been applied,
-it WILL break production deployments. There is no recovery without manual DB surgery.
-
-- DO NOT edit files in `packages/server/migrations/` that already exist
-- DO NOT "fix" typos in existing migrations
-- DO NOT add lines to existing migrations
-- DO NOT remove lines from existing migrations
-- DO NOT reformat existing migrations
-- ONLY create NEW migration files with the next sequential number
-
-**VIOLATION OF THIS RULE HAS CAUSED PRODUCTION INCIDENTS. NO EXCEPTIONS. EVER.**
+If you need to fix a migration, create a new migration file with the next
+sequential number.
 
 ---
 
@@ -173,39 +153,14 @@ The `query_as` function:
 
 ## Database Migration Rules
 
-### HARD RULE: NEVER Modify Existing Migration Scripts
-
-**NEVER, under ANY circumstances, edit or modify an existing migration file. ALWAYS create a new migration file instead.**
-
-Once a migration file has been created, it is immutable. SQLx tracks migrations by their checksum - if you modify a migration that has already been applied, it will cause deployment failures with "migration was previously applied but has been modified" errors.
-
-#### What To Do Instead:
-
-1. **Need to fix a mistake?** Create a NEW migration file with the fix
-2. **Need to add something you forgot?** Create a NEW migration file
-3. **Need to change a column type?** Create a NEW migration file with `ALTER TABLE`
-4. **Need to rename something?** Create a NEW migration file
-
-#### Example:
-
-If migration `000057_add_users.sql` is missing a column:
+Migration immutability is enforced by the `guard-migrations.sh` hook (see above).
+When you need to change the schema, always create a new migration file:
 
 ```sql
--- ❌ WRONG: DO NOT edit 000057_add_users.sql
-
--- ✅ CORRECT: Create 000058_add_user_email.sql
+-- Need to add a column to an existing table?
+-- Create 000058_add_user_email.sql (never edit the original migration)
 ALTER TABLE users ADD COLUMN email TEXT;
 ```
-
-#### Why This Rule Exists:
-
-- Migrations are checksummed by SQLx
-- Modifying applied migrations breaks the checksum
-- This causes "migration was previously applied but has been modified" errors
-- Recovering from this requires manual database intervention
-- It can cause data loss in production
-
-**NO EXCEPTIONS. EVER.**
 
 ---
 
