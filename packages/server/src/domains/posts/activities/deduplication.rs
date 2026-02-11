@@ -18,8 +18,10 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
-use crate::common::{MemberId, PostId};
+use crate::common::{ExtractedPost, MemberId, PostId, SyncBatchId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
+use crate::domains::source::models::Source;
+use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -406,6 +408,364 @@ pub async fn deduplicate_posts(
         posts_deleted: total_deleted,
     })
 }
+
+// ============================================================================
+// Cross-Source Deduplication (via Sync Batches)
+// ============================================================================
+
+/// Post data formatted for cross-source deduplication analysis
+#[derive(Debug, Clone, Serialize)]
+pub struct PostForCrossSourceDedup {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub summary: Option<String>,
+    pub source_type: String,
+    pub status: String,
+}
+
+/// Result of staging cross-source dedup proposals for a single org
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StageCrossSourceResult {
+    pub batch_id: Option<SyncBatchId>,
+    pub proposals_staged: usize,
+}
+
+impl_restate_serde!(StageCrossSourceResult);
+
+/// Result of running cross-source dedup across all orgs
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossSourceDedupResult {
+    pub batches_created: usize,
+    pub total_proposals: usize,
+    pub orgs_processed: usize,
+}
+
+impl_restate_serde!(CrossSourceDedupResult);
+
+/// Detect cross-source duplicates for a single organization using LLM analysis.
+pub async fn detect_cross_source_duplicates(
+    org_id: Uuid,
+    ai: &OpenAIClient,
+    pool: &PgPool,
+) -> Result<DuplicateAnalysis> {
+    let posts = Post::find_active_pending_by_organization_with_source(org_id, pool).await?;
+
+    if posts.len() < 2 {
+        return Ok(DuplicateAnalysis {
+            duplicate_groups: vec![],
+            unique_post_ids: posts.iter().map(|p| p.id.as_uuid().to_string()).collect(),
+        });
+    }
+
+    // Check if there are multiple source types - if all from same source, no cross-source dupes
+    let source_types: std::collections::HashSet<&str> =
+        posts.iter().map(|p| p.source_type.as_str()).collect();
+    if source_types.len() < 2 {
+        info!(
+            org_id = %org_id,
+            source_type = ?source_types,
+            "Single source type for org, skipping cross-source dedup"
+        );
+        return Ok(DuplicateAnalysis {
+            duplicate_groups: vec![],
+            unique_post_ids: posts.iter().map(|p| p.id.as_uuid().to_string()).collect(),
+        });
+    }
+
+    info!(
+        org_id = %org_id,
+        posts_count = posts.len(),
+        source_types = ?source_types,
+        "Running cross-source deduplication analysis"
+    );
+
+    let posts_for_dedup: Vec<PostForCrossSourceDedup> = posts
+        .iter()
+        .map(|p| PostForCrossSourceDedup {
+            id: p.id.as_uuid().to_string(),
+            title: p.title.clone(),
+            description: p.description.clone(),
+            summary: p.summary.clone(),
+            source_type: p.source_type.clone(),
+            status: p.status.clone(),
+        })
+        .collect();
+
+    let posts_json = serde_json::to_string_pretty(&posts_for_dedup)?;
+
+    let result: DuplicateAnalysis = ai
+        .extract(
+            "gpt-4o",
+            CROSS_SOURCE_DEDUP_SYSTEM_PROMPT,
+            &format!(
+                "Analyze these posts from the same organization across different sources for cross-platform duplicates:\n\n{}",
+                posts_json
+            ),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Cross-source deduplication analysis failed: {}", e))?;
+
+    info!(
+        org_id = %org_id,
+        duplicate_groups = result.duplicate_groups.len(),
+        unique_posts = result.unique_post_ids.len(),
+        "Cross-source deduplication analysis complete"
+    );
+
+    Ok(result)
+}
+
+/// Stage cross-source dedup proposals for a single organization.
+/// Creates a sync batch with merge proposals for admin review.
+pub async fn stage_cross_source_dedup(
+    org_id: Uuid,
+    ai: &OpenAIClient,
+    pool: &PgPool,
+) -> Result<StageCrossSourceResult> {
+    let analysis = detect_cross_source_duplicates(org_id, ai, pool).await?;
+
+    if analysis.duplicate_groups.is_empty() {
+        return Ok(StageCrossSourceResult {
+            batch_id: None,
+            proposals_staged: 0,
+        });
+    }
+
+    let mut proposed_ops = Vec::new();
+
+    for group in &analysis.duplicate_groups {
+        let canonical_uuid = match Uuid::parse_str(&group.canonical_id) {
+            Ok(u) => u,
+            Err(e) => {
+                warn!(
+                    canonical_id = %group.canonical_id,
+                    error = %e,
+                    "Invalid canonical UUID in cross-source dedup, skipping group"
+                );
+                continue;
+            }
+        };
+
+        // If the LLM provided merged content, create a revision for review
+        let draft_id = if group.merged_title.is_some() || group.merged_description.is_some() {
+            let canonical = match Post::find_by_id(PostId::from(canonical_uuid), pool).await? {
+                Some(p) => p,
+                None => {
+                    warn!(canonical_id = %canonical_uuid, "Canonical post not found, skipping");
+                    continue;
+                }
+            };
+
+            let fake_fresh = ExtractedPost {
+                title: group
+                    .merged_title
+                    .clone()
+                    .unwrap_or_else(|| canonical.title.clone()),
+                summary: canonical.summary.clone().unwrap_or_default(),
+                description: group
+                    .merged_description
+                    .clone()
+                    .unwrap_or_else(|| canonical.description.clone()),
+                location: canonical.location.clone(),
+                contact: None,
+                source_url: canonical.source_url.clone(),
+                urgency: None,
+                confidence: None,
+                source_page_snapshot_id: None,
+                zip_code: None,
+                city: None,
+                state: None,
+                tags: std::collections::HashMap::new(),
+                schedule: Vec::new(),
+            };
+
+            match super::llm_sync::update_post_with_owner(
+                canonical.id,
+                &fake_fresh,
+                false,
+                None,
+                pool,
+            )
+            .await
+            {
+                Ok(()) => Post::find_revision_for_post(canonical.id, pool)
+                    .await
+                    .ok()
+                    .flatten()
+                    .map(|r| r.id.into_uuid()),
+                Err(e) => {
+                    warn!(
+                        canonical_id = %canonical_uuid,
+                        error = %e,
+                        "Failed to create merge revision for cross-source dedup"
+                    );
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        let merge_source_ids: Vec<Uuid> = group
+            .duplicate_ids
+            .iter()
+            .filter(|id| id.as_str() != group.canonical_id)
+            .filter_map(|id| Uuid::parse_str(id).ok())
+            .collect();
+
+        if merge_source_ids.is_empty() {
+            warn!(
+                canonical_id = %canonical_uuid,
+                "Cross-source merge with no valid duplicate_ids, skipping"
+            );
+            continue;
+        }
+
+        proposed_ops.push(ProposedOperation {
+            operation: "merge".to_string(),
+            entity_type: "post".to_string(),
+            draft_entity_id: draft_id,
+            target_entity_id: Some(canonical_uuid),
+            reason: Some(group.reasoning.clone()),
+            merge_source_ids,
+        });
+    }
+
+    if proposed_ops.is_empty() {
+        return Ok(StageCrossSourceResult {
+            batch_id: None,
+            proposals_staged: 0,
+        });
+    }
+
+    let proposal_count = proposed_ops.len();
+
+    let stage_result = stage_proposals(
+        "post",
+        org_id,
+        Some("Cross-source duplicate detection"),
+        proposed_ops,
+        pool,
+    )
+    .await?;
+
+    info!(
+        org_id = %org_id,
+        batch_id = %stage_result.batch_id,
+        proposals = proposal_count,
+        "Staged cross-source dedup proposals"
+    );
+
+    Ok(StageCrossSourceResult {
+        batch_id: Some(stage_result.batch_id),
+        proposals_staged: proposal_count,
+    })
+}
+
+/// Run cross-source deduplication across all organizations with multiple sources.
+/// Admin-only. Creates sync batches with merge proposals for review.
+pub async fn deduplicate_cross_source_all_orgs(
+    member_id: Uuid,
+    is_admin: bool,
+    deps: &ServerDeps,
+) -> Result<CrossSourceDedupResult> {
+    let requested_by = MemberId::from_uuid(member_id);
+
+    Actor::new(requested_by, is_admin)
+        .can(AdminCapability::FullAdmin)
+        .check(deps)
+        .await
+        .map_err(|auth_err| anyhow::anyhow!("Authorization denied: {}", auth_err))?;
+
+    info!("Starting cross-source deduplication across all organizations");
+
+    let org_ids = Source::find_org_ids_with_multiple_sources(&deps.db_pool).await?;
+
+    info!(
+        org_count = org_ids.len(),
+        "Found organizations with multiple sources"
+    );
+
+    let mut batches_created = 0;
+    let mut total_proposals = 0;
+
+    for org_id in &org_ids {
+        match stage_cross_source_dedup(org_id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
+            Ok(result) => {
+                if result.batch_id.is_some() {
+                    batches_created += 1;
+                    total_proposals += result.proposals_staged;
+                }
+            }
+            Err(e) => {
+                warn!(
+                    org_id = %org_id,
+                    error = %e,
+                    "Failed cross-source dedup for org, continuing"
+                );
+            }
+        }
+    }
+
+    info!(
+        orgs_processed = org_ids.len(),
+        batches_created = batches_created,
+        total_proposals = total_proposals,
+        "Cross-source deduplication complete"
+    );
+
+    Ok(CrossSourceDedupResult {
+        batches_created,
+        total_proposals,
+        orgs_processed: org_ids.len(),
+    })
+}
+
+const CROSS_SOURCE_DEDUP_SYSTEM_PROMPT: &str = r#"You are analyzing posts from the SAME organization that were scraped from DIFFERENT sources (website, Instagram, Facebook, TikTok, X/Twitter).
+
+## Goal
+Identify posts that describe the SAME resource/service/event but were found on different platforms.
+
+## Core Principle
+Cross-platform duplicates are common because organizations post the same content on their website AND social media. The same food shelf might appear as:
+- A detailed page on their website
+- A shorter Instagram post with a photo
+- A Facebook post with slightly different wording
+
+## Source Priority (for choosing canonical)
+When choosing which post to keep as canonical, prefer in this order:
+1. **website** — most detailed, structured content
+2. **facebook** — often includes good descriptions
+3. **instagram** — shorter, but may have fresher info
+4. **tiktok** — video-first, least text
+5. **x** — shortest content
+
+## Merge Strategy
+When merging:
+- Use the **website** version for structure and detail
+- Incorporate any **unique information** from social posts (e.g., updated hours, special events, phone numbers)
+- The merged result should be the best of both worlds
+
+## Key Rules
+
+### Same Resource = Duplicate
+- "Valley Outreach Food Pantry" on website + "Food pantry open Tues/Thurs!" on Instagram for the same org → DUPLICATES
+
+### Different Services = NOT Duplicates
+- "Food Shelf" from website + "Legal Aid Clinic" from Instagram → NOT duplicates (different services)
+
+### Different Audience = NOT Duplicates
+- "Volunteer at our food shelf" + "Get free groceries" → NOT duplicates (different audiences)
+
+### Published Posts ("active") Preferred as Canonical
+- If one is "active" and another "pending_approval", the active one is canonical
+
+## Output Format
+
+Return JSON with:
+- duplicate_groups: Array of groups, each with canonical_id, duplicate_ids, optional merged_title/merged_description, and reasoning
+- unique_post_ids: Array of post IDs that have no cross-source duplicates"#;
 
 // ============================================================================
 // Per-Website Deduplication (for Restate workflow)

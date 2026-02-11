@@ -163,10 +163,22 @@ export default function PublicPostDetailPage() {
         {/* Main content card */}
         <div className="order-1">
           <div className="bg-white rounded-xl border border-[#E8DED2] p-6 sm:p-8 shadow-sm">
-            {/* Urgent banner */}
-            {post.has_urgent_notes && (
-              <div className="mb-4 px-4 py-2.5 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm font-medium">
-                This resource has urgent notes — check details before visiting.
+            {/* Urgent notes */}
+            {post.urgent_notes && post.urgent_notes.length > 0 && (
+              <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800">Urgent</span>
+                </div>
+                <div className="space-y-1.5 mt-2">
+                  {post.urgent_notes.map((note, i) => (
+                    <div key={i}>
+                      {note.cta_text && (
+                        <p className="text-sm font-semibold text-red-900">{note.cta_text}</p>
+                      )}
+                      <p className="text-sm text-red-800 leading-relaxed">{note.content}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 

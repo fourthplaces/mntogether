@@ -67,6 +67,9 @@ pub struct Post {
     // Translation tracking
     pub translation_of_id: Option<PostId>,
 
+    // Deduplication tracking (points to the canonical post this was merged into)
+    pub duplicate_of_id: Option<PostId>,
+
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
 }
@@ -115,6 +118,18 @@ pub struct PostSearchResultWithLocation {
     pub location: Option<String>,
     pub source_url: Option<String>,
     pub similarity: f64,
+}
+
+/// Post with source type info for cross-source deduplication
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostWithSourceType {
+    pub id: PostId,
+    pub title: String,
+    pub description: String,
+    pub summary: Option<String>,
+    pub status: String,
+    pub source_type: String,
+    pub source_id: Uuid,
 }
 
 // =============================================================================
@@ -1495,5 +1510,63 @@ impl Post {
         .fetch_optional(pool)
         .await
         .map_err(Into::into)
+    }
+
+    // =========================================================================
+    // Cross-Source Deduplication
+    // =========================================================================
+
+    /// Find active/pending posts for an organization with their source type info.
+    /// Used for cross-source deduplication (detecting same resource from website + Instagram, etc.)
+    pub async fn find_active_pending_by_organization_with_source(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<PostWithSourceType>> {
+        sqlx::query_as::<_, PostWithSourceType>(
+            r#"
+            SELECT DISTINCT ON (p.id)
+                p.id, p.title, p.description, p.summary, p.status,
+                s.source_type, s.id as source_id
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status IN ('pending_approval', 'active')
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.duplicate_of_id IS NULL
+            ORDER BY p.id, s.source_type
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Mark a post as a duplicate of another post.
+    /// Sets duplicate_of_id, soft-deletes, and records the reason.
+    pub async fn mark_as_duplicate(
+        id: PostId,
+        canonical_id: PostId,
+        reason: &str,
+        pool: &PgPool,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            UPDATE posts
+            SET duplicate_of_id = $2,
+                deleted_at = NOW(),
+                deleted_reason = $3,
+                updated_at = NOW()
+            WHERE id = $1
+            "#,
+        )
+        .bind(id)
+        .bind(canonical_id)
+        .bind(reason)
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 }

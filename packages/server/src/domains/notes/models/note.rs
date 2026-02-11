@@ -11,6 +11,7 @@ use crate::common::{NoteId, NoteableId};
 pub struct Note {
     pub id: NoteId,
     pub content: String,
+    pub cta_text: Option<String>,
     pub severity: String,
     pub source_url: Option<String>,
     pub source_id: Option<Uuid>,
@@ -45,12 +46,13 @@ impl Note {
         source_type: Option<&str>,
         is_public: bool,
         created_by: &str,
+        cta_text: Option<&str>,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO notes (content, severity, source_url, source_id, source_type, is_public, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO notes (content, severity, source_url, source_id, source_type, is_public, created_by, cta_text)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
             "#,
         )
@@ -61,6 +63,7 @@ impl Note {
         .bind(source_type)
         .bind(is_public)
         .bind(created_by)
+        .bind(cta_text)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -79,15 +82,17 @@ impl Note {
         content: &str,
         severity: &str,
         is_public: bool,
+        cta_text: Option<&str>,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
-            "UPDATE notes SET content = $2, severity = $3, is_public = $4, updated_at = now() WHERE id = $1 RETURNING *",
+            "UPDATE notes SET content = $2, severity = $3, is_public = $4, cta_text = $5, updated_at = now() WHERE id = $1 RETURNING *",
         )
         .bind(id)
         .bind(content)
         .bind(severity)
         .bind(is_public)
+        .bind(cta_text)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -232,6 +237,34 @@ impl Note {
         .fetch_all(pool)
         .await?;
         Ok(rows.into_iter().map(|(id,)| id).collect())
+    }
+
+    /// Batch-fetch urgent, public note content for a set of post IDs.
+    /// Returns (post_id, note_content, cta_text) triples.
+    pub async fn find_urgent_note_content_for_posts(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<(Uuid, String, Option<String>)>> {
+        if post_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        sqlx::query_as::<_, (Uuid, String, Option<String>)>(
+            r#"
+            SELECT nb.noteable_id, n.content, n.cta_text
+            FROM noteables nb
+            JOIN notes n ON n.id = nb.note_id
+            WHERE nb.noteable_type = 'post'
+              AND nb.noteable_id = ANY($1)
+              AND n.severity = 'urgent'
+              AND n.is_public = true
+              AND n.expired_at IS NULL
+            ORDER BY n.created_at DESC
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Find notes by source (for deduplication and refresh).

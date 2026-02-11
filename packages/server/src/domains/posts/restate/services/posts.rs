@@ -140,6 +140,11 @@ pub struct PublicFiltersRequest {}
 impl_restate_serde!(PublicFiltersRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeduplicateCrossSourceRequest {}
+
+impl_restate_serde!(DeduplicateCrossSourceRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsRequest {
     pub batch_size: Option<i32>,
 }
@@ -243,6 +248,15 @@ pub struct DeduplicateResult {
 impl_restate_serde!(DeduplicateResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeduplicateCrossSourceResult {
+    pub batches_created: i32,
+    pub total_proposals: i32,
+    pub orgs_processed: i32,
+}
+
+impl_restate_serde!(DeduplicateCrossSourceResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportDetailResult {
     pub id: Uuid,
     pub post_id: Uuid,
@@ -306,6 +320,14 @@ pub struct ScheduleListResult {
 impl_restate_serde!(ScheduleListResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UrgentNoteInfo {
+    pub content: String,
+    pub cta_text: Option<String>,
+}
+
+impl_restate_serde!(UrgentNoteInfo);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicPostResult {
     pub id: Uuid,
     pub title: String,
@@ -318,8 +340,8 @@ pub struct PublicPostResult {
     pub created_at: String,
     pub published_at: Option<String>,
     pub tags: Vec<PublicTagResult>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub has_urgent_notes: Option<bool>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub urgent_notes: Vec<UrgentNoteInfo>,
 }
 
 impl_restate_serde!(PublicPostResult);
@@ -411,6 +433,9 @@ pub trait PostsService {
     ) -> Result<PostListResult, HandlerError>;
     async fn public_list(req: PublicListRequest) -> Result<PublicListResult, HandlerError>;
     async fn public_filters(req: PublicFiltersRequest) -> Result<PublicFiltersResult, HandlerError>;
+    async fn deduplicate_cross_source(
+        req: DeduplicateCrossSourceRequest,
+    ) -> Result<DeduplicateCrossSourceResult, HandlerError>;
 }
 
 // =============================================================================
@@ -505,6 +530,7 @@ impl PostsService for PostsServiceImpl {
                         organization_id: None,
                         organization_name: None,
                         has_urgent_notes: None,
+                        urgent_notes: None,
                     }
                 })
                 .collect(),
@@ -561,6 +587,7 @@ impl PostsService for PostsServiceImpl {
                         organization_id: None,
                         organization_name: None,
                         has_urgent_notes: None,
+                        urgent_notes: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -934,6 +961,7 @@ impl PostsService for PostsServiceImpl {
                         organization_id: None,
                         organization_name: None,
                         has_urgent_notes: None,
+                        urgent_notes: None,
                     }
                 })
                 .collect(),
@@ -967,11 +995,16 @@ impl PostsService for PostsServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch-load urgent note flags
+        // Batch-load urgent note content
         use crate::domains::notes::models::note::Note;
-        let urgent_post_ids = Note::find_post_ids_with_urgent_notes(&post_ids, &self.deps.db_pool)
+        let urgent_rows = Note::find_urgent_note_content_for_posts(&post_ids, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
+        let mut urgent_notes_by_post: std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>> =
+            std::collections::HashMap::new();
+        for (post_id, content, cta_text) in urgent_rows {
+            urgent_notes_by_post.entry(post_id).or_default().push(UrgentNoteInfo { content, cta_text });
+        }
 
         // Group tags by post id
         let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
@@ -1005,7 +1038,7 @@ impl PostsService for PostsServiceImpl {
                         created_at: p.created_at.to_rfc3339(),
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
-                        has_urgent_notes: if urgent_post_ids.contains(&id) { Some(true) } else { None },
+                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
                     }
                 })
                 .collect(),
@@ -1046,5 +1079,33 @@ impl PostsService for PostsServiceImpl {
                 })
                 .collect(),
         })
+    }
+
+    async fn deduplicate_cross_source(
+        &self,
+        ctx: Context<'_>,
+        _req: DeduplicateCrossSourceRequest,
+    ) -> Result<DeduplicateCrossSourceResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                let r = activities::deduplicate_cross_source_all_orgs(
+                    user.member_id.into_uuid(),
+                    user.is_admin,
+                    &self.deps,
+                )
+                .await
+                .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
+
+                Ok(DeduplicateCrossSourceResult {
+                    batches_created: r.batches_created as i32,
+                    total_proposals: r.total_proposals as i32,
+                    orgs_processed: r.orgs_processed as i32,
+                })
+            })
+            .await?;
+
+        Ok(result)
     }
 }

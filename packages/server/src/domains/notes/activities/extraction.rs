@@ -35,6 +35,8 @@ pub struct ExtractedNote {
     pub severity: String,
     /// The source URL where this information was found (optional)
     pub source_url: Option<String>,
+    /// A concise call-to-action summary matching the severity tone
+    pub cta_text: Option<String>,
 }
 
 // =============================================================================
@@ -61,6 +63,13 @@ Look for information that would be important for someone trying to access this o
 - Location changes ("we've moved to...")
 - New programs or services launching
 - Major organizational announcements
+
+## CTA Text (cta_text)
+For each note, provide a concise summary that captures the core ask or awareness. The cta_text tone should match the severity:
+- URGENT: What is urgently needed or asked of people. E.g., "Emergency rent and food assistance needed for families facing eviction"
+- NOTICE: What people should be aware of. E.g., "Evening services no longer available starting March 15"
+- INFO: What has changed or is new. E.g., "Online applications now accepted"
+cta_text is required for all notes.
 
 ## Rules
 - Only extract genuinely noteworthy operational information
@@ -284,6 +293,7 @@ pub async fn extract_and_create_notes(
             source_type,
             false, // is_public defaults to false for system-generated
             "system",
+            extracted_note.cta_text.as_deref(),
             pool,
         )
         .await?;

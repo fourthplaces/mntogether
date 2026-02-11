@@ -332,6 +332,25 @@ impl Source {
         Ok((results, has_more))
     }
 
+    /// Find organization IDs that have >= 2 approved sources (candidates for cross-source dedup)
+    pub async fn find_org_ids_with_multiple_sources(
+        pool: &PgPool,
+    ) -> Result<Vec<OrganizationId>> {
+        sqlx::query_scalar::<_, OrganizationId>(
+            r#"
+            SELECT organization_id
+            FROM sources
+            WHERE organization_id IS NOT NULL
+              AND status = 'approved'
+            GROUP BY organization_id
+            HAVING COUNT(*) >= 2
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn count_with_filters(
         status: Option<&str>,
         source_type: Option<&str>,

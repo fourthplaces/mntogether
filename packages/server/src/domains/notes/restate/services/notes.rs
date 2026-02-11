@@ -25,6 +25,7 @@ pub struct CreateNoteRequest {
     pub source_id: Option<Uuid>,
     pub source_type: Option<String>,
     pub is_public: Option<bool>,
+    pub cta_text: Option<String>,
     /// Optionally link to an entity on creation.
     pub noteable_type: Option<String>,
     pub noteable_id: Option<Uuid>,
@@ -45,6 +46,7 @@ pub struct UpdateNoteRequest {
     pub content: String,
     pub severity: String,
     pub is_public: bool,
+    pub cta_text: Option<String>,
 }
 
 impl_restate_serde!(UpdateNoteRequest);
@@ -112,6 +114,7 @@ impl_restate_serde!(LinkedPostResult);
 pub struct NoteResult {
     pub id: String,
     pub content: String,
+    pub cta_text: Option<String>,
     pub severity: String,
     pub source_url: Option<String>,
     pub source_id: Option<String>,
@@ -132,6 +135,7 @@ impl From<Note> for NoteResult {
         Self {
             id: note.id.to_string(),
             content: note.content,
+            cta_text: note.cta_text,
             severity: note.severity,
             source_url: note.source_url,
             source_id: note.source_id.map(|id| id.to_string()),
@@ -221,6 +225,7 @@ impl NotesService for NotesServiceImpl {
             req.source_type.as_deref(),
             req.is_public.unwrap_or(false),
             "admin",
+            req.cta_text.as_deref(),
             &self.deps.db_pool,
         )
         .await
@@ -267,6 +272,7 @@ impl NotesService for NotesServiceImpl {
             &req.content,
             &req.severity,
             req.is_public,
+            req.cta_text.as_deref(),
             &self.deps.db_pool,
         )
         .await

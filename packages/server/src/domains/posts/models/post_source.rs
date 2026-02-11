@@ -215,6 +215,33 @@ impl PostSource {
         Ok(rows.into_iter().collect())
     }
 
+    /// Move all source links from one post to another (for merge/dedup).
+    /// Uses INSERT ... SELECT with ON CONFLICT to update last_seen_at if already linked.
+    pub async fn move_to_post(
+        from_post_id: PostId,
+        to_post_id: PostId,
+        pool: &PgPool,
+    ) -> Result<()> {
+        sqlx::query(
+            r#"
+            INSERT INTO post_sources (post_id, source_type, source_id, source_url,
+                first_seen_at, last_seen_at, disappeared_at)
+            SELECT $2, source_type, source_id, source_url,
+                first_seen_at, last_seen_at, disappeared_at
+            FROM post_sources
+            WHERE post_id = $1
+            ON CONFLICT (post_id, source_type, source_id)
+            DO UPDATE SET last_seen_at = GREATEST(post_sources.last_seen_at, EXCLUDED.last_seen_at),
+                          updated_at = NOW()
+            "#,
+        )
+        .bind(from_post_id)
+        .bind(to_post_id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
     /// Copy all sources from one post to another (for revision creation)
     pub async fn copy_sources(
         from_post_id: PostId,

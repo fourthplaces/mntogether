@@ -573,7 +573,7 @@ export default function OrganizationDetailPage() {
                       }`}
                       style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
                     >
-                      <option value="pending_approval">pending approval</option>
+                      <option value="pending_approval">pending</option>
                       <option value="active">active</option>
                       <option value="rejected">rejected</option>
                     </select>
@@ -775,6 +775,7 @@ function AddNoteForm({
   onAdded: () => void;
 }) {
   const [content, setContent] = useState("");
+  const [ctaText, setCtaText] = useState("");
   const [severity, setSeverity] = useState("info");
   const [isPublic, setIsPublic] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -791,11 +792,13 @@ function AddNoteForm({
         content: content.trim(),
         severity,
         is_public: isPublic,
+        cta_text: ctaText.trim() || null,
         noteable_type: noteableType,
         noteable_id: noteableId,
       });
       invalidateService("Notes");
       setContent("");
+      setCtaText("");
       setSeverity("info");
       setIsPublic(false);
       onAdded();
@@ -845,6 +848,14 @@ function AddNoteForm({
           {loading ? "..." : "Add"}
         </button>
       </div>
+      <input
+        type="text"
+        value={ctaText}
+        onChange={(e) => setCtaText(e.target.value)}
+        placeholder="Call to action (optional)"
+        className="w-full px-3 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+        disabled={loading}
+      />
       {error && <span className="text-red-600 text-xs">{error}</span>}
     </form>
   );
@@ -878,6 +889,7 @@ function NoteRow({
         content: note.content,
         severity: note.severity,
         is_public: !note.is_public,
+        cta_text: note.cta_text,
       });
       invalidateService("Notes");
       onChanged();
@@ -893,6 +905,7 @@ function NoteRow({
         content: note.content,
         severity: newSeverity,
         is_public: note.is_public,
+        cta_text: note.cta_text,
       });
       invalidateService("Notes");
       onChanged();
@@ -970,6 +983,9 @@ function NoteRow({
           </span>
         </div>
         <p className="text-sm text-stone-700">{note.content}</p>
+        {note.cta_text && (
+          <p className="text-xs italic text-stone-500 mt-0.5">{note.cta_text}</p>
+        )}
         {note.source_url && (
           <a
             href={note.source_url}
