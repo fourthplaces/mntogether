@@ -14,16 +14,6 @@ if [[ -z "$COMMAND" ]]; then
   exit 0
 fi
 
-# ─── Safe command prefixes ─────────────────────────────────────────
-# Commands that can't modify the database, even if their arguments
-# contain DB keywords (e.g., git commit messages mentioning migrations).
-FIRST_TOKEN=$(echo "$COMMAND" | awk '{print $1}')
-case "$FIRST_TOKEN" in
-  git|echo|cat|ls|find|grep|rg|sed|awk|head|tail|wc|sort|diff|mkdir|cp|mv|touch|chmod|tar|zip|unzip|curl|wget|npm|npx|node|pnpm|yarn|rustc|rustup|cargo-fmt|just|make)
-    exit 0
-    ;;
-esac
-
 # Normalize: lowercase for pattern matching, collapse whitespace
 LOWER_CMD=$(echo "$COMMAND" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')
 
@@ -103,19 +93,19 @@ if echo "$LOWER_CMD" | grep -qE 'psql|docker.*(exec|compose).*postgres'; then
     }'
     exit 0
   fi
-fi
 
-# 3. Drop/create database commands
-if echo "$LOWER_CMD" | grep -qiE '(drop|create)\s+database'; then
-  jq -n '{
-    "hookSpecificOutput": {
-      "hookEventName": "PreToolUse",
-      "permissionDecision": "deny",
-      "permissionDecisionReason": "BLOCKED: Database drop/create detected.",
-      "additionalContext": "RULE ZERO: NEVER MODIFY THE DATABASE WITHOUT EXPLICIT PERMISSION.\n\nThis command was blocked because it drops or creates a database — a destructive, irreversible operation.\n\nYou MUST:\n1. Tell the user exactly what you want to do and why\n2. STOP and WAIT for explicit approval (\"go\", \"do it\", \"yes\", \"proceed\")\n3. Only then execute the command\n\nThis rule exists because it was violated and caused a production incident."
-    }
-  }'
-  exit 0
+  # Drop/create database commands
+  if echo "$LOWER_CMD" | grep -qiE '(drop|create)\s+database'; then
+    jq -n '{
+      "hookSpecificOutput": {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": "BLOCKED: Database drop/create detected.",
+        "additionalContext": "RULE ZERO: NEVER MODIFY THE DATABASE WITHOUT EXPLICIT PERMISSION.\n\nThis command was blocked because it drops or creates a database — a destructive, irreversible operation.\n\nYou MUST:\n1. Tell the user exactly what you want to do and why\n2. STOP and WAIT for explicit approval (\"go\", \"do it\", \"yes\", \"proceed\")\n3. Only then execute the command\n\nThis rule exists because it was violated and caused a production incident."
+      }
+    }'
+    exit 0
+  fi
 fi
 
 # ─── Everything else passes through ───────────────────────────────

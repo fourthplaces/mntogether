@@ -136,6 +136,120 @@ In a new Claude Code session, try asking Claude to:
 4. Run `SELECT * FROM posts` via psql — should pass
 5. Write code with `query_as!()` — should get a warning
 
+## Revision: prefix whitelist removed (v2)
+
+### The bug
+
+The initial version of `guard-db-commands.sh` included a safe-command prefix
+whitelist — it extracted the first token of the Bash command (`git`, `echo`,
+`cat`, etc.) and exited early if it matched, skipping all pattern checks. This
+was added to prevent false positives when DB keywords appeared inside arguments
+(e.g., `git commit -m "fix DROP DATABASE migration"` was being blocked because
+the hook saw `DROP DATABASE` in the commit message).
+
+The whitelist fixed the false positive but introduced a bypass: `cat` was in
+the safe list, so `cat dump.sql | psql -U postgres -d db` would match `cat` as
+the first token, exit early, and never reach the SQL file import check. The
+entire pipe-to-psql detection was silently disabled for any command starting
+with `cat`.
+
+This went undetected during initial testing because the live hook (which scans
+the raw Bash tool command) would catch test payloads containing
+`cat dump.sql | psql` as a substring — making it *appear* blocked when it was
+actually the test harness being blocked, not the payload.
+
+### The fix
+
+Removed the prefix whitelist entirely. Instead, each dangerous pattern check is
+now self-sufficient:
+
+1. **`cargo sqlx` commands** — matches a specific enough pattern
+   (`cargo sqlx migrate`, `sqlx database reset|drop|create`) that it won't
+   false-positive on commit messages or echoed strings.
+2. **SQL write keywords and file imports** — gated behind a DB pathway check
+   (`psql` or `docker exec/compose postgres` must be present in the command).
+   A `git commit -m "INSERT INTO"` passes because there's no DB pathway.
+3. **`DROP/CREATE DATABASE`** — moved inside the DB pathway gate (was
+   previously a standalone check that matched bare keywords anywhere).
+
+The key insight: you can't execute SQL without a client (`psql`, `docker exec`).
+Checking for the client's presence is more robust than trying to enumerate every
+safe command prefix.
+
+### Testing challenges
+
+**The hook-sees-itself problem.** Claude Code's PreToolUse hook receives the
+entire raw Bash command string, including string literals, heredocs, and quoted
+arguments. When Claude tries to run a test like:
+
+```bash
+echo '{"tool_input":{"command":"cargo sqlx migrate run"}}' | .claude/hooks/guard-db-commands.sh
+```
+
+The live hook sees `cargo sqlx migrate run` in the Bash command and blocks it
+before the test ever reaches the script. This applies to any test approach where
+dangerous strings appear in the command text — Python scripts with inline test
+data, heredocs, etc.
+
+**The workaround:** Write the test script to a file (using the Write tool, which
+is not matched by the Bash hook), then execute the file. The Bash command
+becomes `python3 .claude/hooks/test_db_guard.py` — no dangerous strings for the
+live hook to intercept.
+
+**Hook caching.** Hooks load at session start. Edits to hook scripts on disk
+don't take effect until a new session (`/clear`). This means you can't test a
+fix in the same session you write it — the old version keeps running.
+
+### Test results (21/21 passing)
+
+**Should DENY (9 tests):**
+
+| Command | Result |
+|---------|--------|
+| `cargo sqlx migrate run` | denied |
+| `cargo sqlx database reset` | denied |
+| `psql -c "INSERT INTO posts ..."` | denied |
+| `docker compose exec postgres psql -c "ALTER TABLE ..."` | denied |
+| `psql -c "DROP DATABASE mydb"` | denied |
+| `psql -d db < dump.sql` | denied |
+| `psql -c "TRUNCATE TABLE posts"` | denied |
+| `cat dump.sql \| psql -U postgres -d db` | denied (was bypassing) |
+| `docker exec postgres psql -c "DELETE FROM posts"` | denied |
+
+**Should PASS (12 tests):**
+
+| Command | Result |
+|---------|--------|
+| `psql -c "SELECT count(*) FROM posts"` | passed |
+| `pg_dump -U postgres -d db > dump.sql` | passed |
+| `docker compose exec postgres psql -c "\dt"` | passed |
+| `cargo build --release` | passed |
+| `cargo test` | passed |
+| `docker compose up -d` | passed |
+| `git commit -m "fix DROP DATABASE migration"` | passed (was blocked) |
+| `git commit -m "add INSERT for seed data"` | passed (was blocked) |
+| `echo "INSERT INTO posts"` | passed |
+| `cat src/main.rs` | passed |
+| `ls packages/server/migrations/` | passed |
+| `grep -r "INSERT" src/` | passed |
+
+### Additional live test results
+
+These were tested by having Claude attempt real tool calls in a session:
+
+| Hook | Test | Result |
+|------|------|--------|
+| guard-db-commands | `cargo sqlx migrate run` (Bash) | denied |
+| guard-db-commands | `SELECT count(*)` via psql (Bash) | passed |
+| guard-db-commands | `INSERT INTO` via psql (Bash) | denied |
+| guard-db-commands | `pg_dump` (Bash) | passed |
+| guard-db-commands | `DROP DATABASE` (Bash) | denied |
+| guard-db-commands | `psql -c "\dt"` (Bash) | passed |
+| guard-migrations | Edit existing migration (Edit) | denied |
+| guard-migrations | Write overwrite existing migration (Write) | denied |
+| guard-migrations | Write new migration (Write) | allowed + reminder |
+| guard-code-patterns | `query_as!()` in .rs file (Edit) | warning |
+
 ## Important notes
 
 - Hooks are project-level (`.claude/settings.json`), so they apply to anyone
