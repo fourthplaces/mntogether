@@ -98,6 +98,7 @@ export interface PostResult {
   organization_id?: string;
   organization_name?: string;
   has_urgent_notes?: boolean;
+  urgent_notes?: UrgentNoteInfo[];
 }
 
 export interface PostList {
@@ -342,6 +343,7 @@ export interface LinkedPostResult {
 export interface NoteResult {
   id: string;
   content: string;
+  cta_text: string | null;
   severity: string;
   source_url: string | null;
   source_id: string | null;
@@ -455,6 +457,11 @@ export interface PublicTagResult {
   color: string | null;
 }
 
+export interface UrgentNoteInfo {
+  content: string;
+  cta_text: string | null;
+}
+
 export interface PublicPostResult {
   id: string;
   title: string;
@@ -467,7 +474,7 @@ export interface PublicPostResult {
   created_at: string;
   published_at?: string | null;
   tags: PublicTagResult[];
-  has_urgent_notes?: boolean;
+  urgent_notes?: UrgentNoteInfo[];
 }
 
 export interface PublicListResult {

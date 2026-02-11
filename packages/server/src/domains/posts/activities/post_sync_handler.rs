@@ -8,7 +8,7 @@ use sqlx::PgPool;
 use tracing::info;
 
 use crate::common::PostId;
-use crate::domains::posts::models::Post;
+use crate::domains::posts::models::{Post, PostSource};
 use crate::domains::sync::activities::ProposalHandler;
 use crate::domains::sync::models::{SyncProposal, SyncProposalMergeSource};
 
@@ -112,7 +112,7 @@ async fn approve_merge(
         info!(revision_id = %revision_id, canonical_id = %canonical_id, "Applied merged content revision");
     }
 
-    // Soft-delete all merge sources (never the canonical)
+    // Move source links and mark duplicates (never the canonical)
     let reason = proposal
         .reason
         .as_deref()
@@ -123,8 +123,11 @@ async fn approve_merge(
         if source.source_entity_id == canonical_id {
             continue;
         }
-        Post::soft_delete(source_post_id, reason, pool).await?;
-        info!(source_id = %source.source_entity_id, canonical_id = %canonical_id, "Soft-deleted merge source");
+        // Consolidate source links from duplicate onto canonical
+        PostSource::move_to_post(source_post_id, PostId::from(canonical_id), pool).await?;
+        // Mark as duplicate (sets duplicate_of_id + soft-deletes)
+        Post::mark_as_duplicate(source_post_id, PostId::from(canonical_id), reason, pool).await?;
+        info!(source_id = %source.source_entity_id, canonical_id = %canonical_id, "Merged and marked as duplicate");
     }
 
     Ok(())

@@ -30,7 +30,10 @@ pub mod upcoming_events;
 // Re-export for convenience
 pub use core::*;
 pub use create_post::{create_extracted_post, tag_post_from_extracted};
-pub use deduplication::{deduplicate_posts, DeduplicationRunResult};
+pub use deduplication::{
+    deduplicate_cross_source_all_orgs, deduplicate_posts, CrossSourceDedupResult,
+    DeduplicationRunResult,
+};
 pub use reports::ReportCreated;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
 pub use post_sync_handler::PostProposalHandler;
