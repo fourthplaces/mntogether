@@ -208,7 +208,7 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
         let sync_result = match llm_sync_posts_for_org(
             req.organization_id,
             posts,
-            self.deps.ai_next.as_ref(),
+            self.deps.ai.as_ref(),
             pool,
         )
         .await

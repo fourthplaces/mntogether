@@ -308,7 +308,7 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {hasPending && (
+            {hasPending ? (
               <>
                 <button
                   onClick={(e) => {
@@ -331,6 +331,17 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
                   {batchActionLoading ? "..." : "Reject All"}
                 </button>
               </>
+            ) : batch.status !== "completed" && batch.status !== "expired" && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleBatchAction("approve");
+                }}
+                disabled={batchActionLoading}
+                className="px-3 py-1.5 text-xs font-medium bg-stone-400 text-white rounded hover:bg-stone-500 disabled:opacity-50"
+              >
+                {batchActionLoading ? "..." : "Dismiss"}
+              </button>
             )}
             <span className="text-stone-400 text-sm">
               {expanded ? "\u25B2" : "\u25BC"}

@@ -362,7 +362,7 @@ impl WebsiteObject for WebsiteObjectImpl {
             .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
                 workflow_id.clone(),
             )
-            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id })
+            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { source_id: website_id })
             .send();
 
         Ok(RegeneratePostsResult {

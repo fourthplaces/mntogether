@@ -160,34 +160,12 @@ impl SyncBatch {
         .map_err(Into::into)
     }
 
-    /// Expire stale pending batches for the same resource_type + source_id.
-    /// Called before creating a new batch to avoid reviewing outdated proposals.
-    /// Also rejects all pending proposals within expired batches.
-    pub async fn expire_stale(resource_type: &str, source_id: Uuid, pool: &PgPool) -> Result<u64> {
-        // Reject proposals in batches that are about to be expired
-        sqlx::query(
+    /// Find stale pending/partially_reviewed batches for the same resource_type + source_id.
+    /// Used by `stage_proposals` to expire old batches before creating a new one.
+    pub async fn find_stale(resource_type: &str, source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
             r#"
-            UPDATE sync_proposals
-            SET status = 'rejected', reviewed_at = NOW()
-            WHERE status = 'pending'
-              AND batch_id IN (
-                SELECT id FROM sync_batches
-                WHERE resource_type = $1
-                  AND source_id = $2
-                  AND status IN ('pending', 'partially_reviewed')
-              )
-            "#,
-        )
-        .bind(resource_type)
-        .bind(source_id)
-        .execute(pool)
-        .await?;
-
-        // Then expire the batches themselves
-        let result = sqlx::query(
-            r#"
-            UPDATE sync_batches
-            SET status = 'expired', reviewed_at = NOW()
+            SELECT * FROM sync_batches
             WHERE resource_type = $1
               AND source_id = $2
               AND status IN ('pending', 'partially_reviewed')
@@ -195,8 +173,8 @@ impl SyncBatch {
         )
         .bind(resource_type)
         .bind(source_id)
-        .execute(pool)
-        .await?;
-        Ok(result.rows_affected())
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 }

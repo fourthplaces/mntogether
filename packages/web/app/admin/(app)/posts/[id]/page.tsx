@@ -619,81 +619,6 @@ export default function PostDetailPage() {
           )}
         </div>
 
-        {/* Notes */}
-        {notes.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Notes ({notes.length})
-            </h2>
-            <div className="space-y-2">
-              {notes.map((note: NoteResult) => {
-                const isExpired = !!note.expired_at;
-                const severityStyle =
-                  note.severity === "urgent" ? "bg-red-100 text-red-800" :
-                  note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
-                  "bg-blue-100 text-blue-800";
-
-                return (
-                  <div
-                    key={note.id}
-                    className={`p-3 rounded-lg border ${
-                      isExpired ? "border-stone-200 bg-stone-50 opacity-60" : "border-stone-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${severityStyle}`}>
-                        {note.severity}
-                      </span>
-                      {note.is_public && (
-                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
-                          public
-                        </span>
-                      )}
-                      {isExpired && (
-                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
-                          expired
-                        </span>
-                      )}
-                      {note.source_type && (
-                        <span className="text-xs text-stone-400">via {note.source_type}</span>
-                      )}
-                      <span className="text-xs text-stone-400">
-                        {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                    <p className="text-sm text-stone-700">{note.content}</p>
-                    {note.source_url && (
-                      <a
-                        href={note.source_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
-                      >
-                        Source {"\u2197"}
-                      </a>
-                    )}
-                    {note.linked_posts && note.linked_posts.filter(p => p.id !== postId).length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                        <span className="text-xs text-stone-400">Also on:</span>
-                        {note.linked_posts.filter(p => p.id !== postId).map((p) => (
-                          <Link
-                            key={p.id}
-                            href={`/admin/posts/${p.id}`}
-                            className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 hover:text-stone-800 transition-colors truncate max-w-[200px]"
-                            title={p.title}
-                          >
-                            {p.title}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
         {/* Schedule */}
         {post.schedules && post.schedules.length > 0 && (() => {
           const oneOffSchedules = post.schedules!.filter((s: PostScheduleResult) => !s.rrule);
@@ -797,7 +722,7 @@ export default function PostDetailPage() {
         )}
 
         {/* Description */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Description</h2>
           <div className="prose prose-stone max-w-none">
             <ReactMarkdown
@@ -818,6 +743,81 @@ export default function PostDetailPage() {
             </ReactMarkdown>
           </div>
         </div>
+
+        {/* Notes */}
+        {notes.length > 0 && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h2 className="text-lg font-semibold text-stone-900 mb-4">
+              Notes ({notes.length})
+            </h2>
+            <div className="space-y-2">
+              {notes.map((note: NoteResult) => {
+                const isExpired = !!note.expired_at;
+                const severityStyle =
+                  note.severity === "urgent" ? "bg-red-100 text-red-800" :
+                  note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
+                  "bg-blue-100 text-blue-800";
+
+                return (
+                  <div
+                    key={note.id}
+                    className={`p-3 rounded-lg border ${
+                      isExpired ? "border-stone-200 bg-stone-50 opacity-60" : "border-stone-200"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${severityStyle}`}>
+                        {note.severity}
+                      </span>
+                      {note.is_public && (
+                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
+                          public
+                        </span>
+                      )}
+                      {isExpired && (
+                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
+                          expired
+                        </span>
+                      )}
+                      {note.source_type && (
+                        <span className="text-xs text-stone-400">via {note.source_type}</span>
+                      )}
+                      <span className="text-xs text-stone-400">
+                        {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-sm text-stone-700">{note.content}</p>
+                    {note.source_url && (
+                      <a
+                        href={note.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
+                      >
+                        Source {"\u2197"}
+                      </a>
+                    )}
+                    {note.linked_posts && note.linked_posts.filter(p => p.id !== postId).length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1 mt-1.5">
+                        <span className="text-xs text-stone-400">Also on:</span>
+                        {note.linked_posts.filter(p => p.id !== postId).map((p) => (
+                          <Link
+                            key={p.id}
+                            href={`/admin/posts/${p.id}`}
+                            className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 hover:text-stone-800 transition-colors truncate max-w-[200px]"
+                            title={p.title}
+                          >
+                            {p.title}
+                          </Link>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Tag Editor Modal */}

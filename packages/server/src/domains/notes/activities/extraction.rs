@@ -238,6 +238,18 @@ pub async fn extract_and_create_notes(
         });
     }
 
+    // Snapshot model: delete old system-generated notes before creating fresh ones.
+    // Manual/admin notes are preserved.
+    let deleted = Note::delete_system_notes_for_entity(
+        "organization",
+        org_id.into_uuid(),
+        pool,
+    )
+    .await?;
+    if deleted > 0 {
+        info!(org_id = %org_id, deleted, "Deleted stale system notes");
+    }
+
     let sources_scanned = all_sources.len() as i32;
 
     // Build LLM prompt from all sources
@@ -253,8 +265,8 @@ pub async fn extract_and_create_notes(
 
     // LLM extraction
     let extracted: ExtractedNotes = deps
-        .ai_next
-        .extract(crate::kernel::FRONTIER_MODEL, NOTE_EXTRACTION_PROMPT, &user_content)
+        .ai
+        .extract(crate::kernel::GPT_5_MINI, NOTE_EXTRACTION_PROMPT, &user_content)
         .await
         .map_err(|e| anyhow::anyhow!("Note extraction failed: {}", e))?;
 

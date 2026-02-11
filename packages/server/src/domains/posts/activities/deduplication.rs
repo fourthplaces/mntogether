@@ -10,7 +10,7 @@
 //! 4. Same service described differently = merge (LLM understands identity)
 
 use anyhow::Result;
-use ai_client::{OpenAi, OpenRouter};
+use ai_client::OpenAi;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -21,10 +21,11 @@ use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, MemberId, PostId, SyncBatchId};
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::source::models::Source;
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
-use crate::kernel::{ServerDeps, FRONTIER_MODEL};
+use crate::kernel::{ServerDeps, GPT_5_MINI};
 
 // ============================================================================
 // Types
@@ -83,11 +84,11 @@ pub struct DeduplicationRunResult {
 pub async fn deduplicate_posts_llm(
     source_type: &str,
     source_id: Uuid,
-    ai: &OpenRouter,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this source
-    let posts = Post::find_active_by_source(source_type, source_id, pool).await?;
+    let posts = Post::find_reviewable_by_source(source_type, source_id, pool).await?;
 
     if posts.len() < 2 {
         info!(
@@ -128,7 +129,7 @@ pub async fn deduplicate_posts_llm(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            FRONTIER_MODEL,
+            GPT_5_MINI,
             DEDUP_SYSTEM_PROMPT,
             &format!("Analyze these posts for duplicates:\n\n{}", posts_json),
         )
@@ -368,7 +369,7 @@ pub async fn deduplicate_posts(
 
     for website in &websites {
         let dedup_result =
-            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai_next.as_ref(), &deps.db_pool).await {
+            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
                 Ok(r) => r,
                 Err(e) => {
                     warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
@@ -441,10 +442,13 @@ pub struct CrossSourceDedupResult {
 
 impl_restate_serde!(CrossSourceDedupResult);
 
-/// Detect cross-source duplicates for a single organization using LLM analysis.
+/// Detect duplicates for a single organization using LLM analysis.
+/// Handles both cross-source and same-source duplicates.
+/// The `model` parameter controls which LLM to use (e.g. GPT_5_MINI for pipeline, GPT_5 for cleanup).
 pub async fn detect_cross_source_duplicates(
     org_id: Uuid,
-    ai: &OpenRouter,
+    model: &str,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     let posts = Post::find_active_pending_by_organization_with_source(org_id, pool).await?;
@@ -456,26 +460,15 @@ pub async fn detect_cross_source_duplicates(
         });
     }
 
-    // Check if there are multiple source types - if all from same source, no cross-source dupes
     let source_types: std::collections::HashSet<&str> =
         posts.iter().map(|p| p.source_type.as_str()).collect();
-    if source_types.len() < 2 {
-        info!(
-            org_id = %org_id,
-            source_type = ?source_types,
-            "Single source type for org, skipping cross-source dedup"
-        );
-        return Ok(DuplicateAnalysis {
-            duplicate_groups: vec![],
-            unique_post_ids: posts.iter().map(|p| p.id.as_uuid().to_string()).collect(),
-        });
-    }
 
     info!(
         org_id = %org_id,
         posts_count = posts.len(),
         source_types = ?source_types,
-        "Running cross-source deduplication analysis"
+        model = %model,
+        "Running deduplication analysis"
     );
 
     let posts_for_dedup: Vec<PostForCrossSourceDedup> = posts
@@ -494,34 +487,36 @@ pub async fn detect_cross_source_duplicates(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            FRONTIER_MODEL,
+            model,
             CROSS_SOURCE_DEDUP_SYSTEM_PROMPT,
             &format!(
-                "Analyze these posts from the same organization across different sources for cross-platform duplicates:\n\n{}",
+                "Analyze these posts from the same organization for duplicates:\n\n{}",
                 posts_json
             ),
         )
         .await
-        .map_err(|e| anyhow::anyhow!("Cross-source deduplication analysis failed: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Deduplication analysis failed: {}", e))?;
 
     info!(
         org_id = %org_id,
         duplicate_groups = result.duplicate_groups.len(),
         unique_posts = result.unique_post_ids.len(),
-        "Cross-source deduplication analysis complete"
+        "Deduplication analysis complete"
     );
 
     Ok(result)
 }
 
-/// Stage cross-source dedup proposals for a single organization.
+/// Stage dedup proposals for a single organization.
 /// Creates a sync batch with merge proposals for admin review.
+/// The `model` parameter controls which LLM to use for duplicate detection.
 pub async fn stage_cross_source_dedup(
     org_id: Uuid,
-    ai: &OpenRouter,
+    model: &str,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<StageCrossSourceResult> {
-    let analysis = detect_cross_source_duplicates(org_id, ai, pool).await?;
+    let analysis = detect_cross_source_duplicates(org_id, model, ai, pool).await?;
 
     if analysis.duplicate_groups.is_empty() {
         return Ok(StageCrossSourceResult {
@@ -644,6 +639,7 @@ pub async fn stage_cross_source_dedup(
         org_id,
         Some("Cross-source duplicate detection"),
         proposed_ops,
+        &PostProposalHandler,
         pool,
     )
     .await?;
@@ -659,6 +655,23 @@ pub async fn stage_cross_source_dedup(
         batch_id: Some(stage_result.batch_id),
         proposals_staged: proposal_count,
     })
+}
+
+/// Soft-delete all rejected posts for an organization.
+/// Returns count of posts purged.
+pub async fn purge_rejected_posts_for_org(
+    org_id: Uuid,
+    pool: &PgPool,
+) -> Result<usize> {
+    let rejected = Post::find_rejected_by_organization(org_id, pool).await?;
+    let count = rejected.len();
+
+    for post in &rejected {
+        Post::soft_delete(post.id, "Purged by org cleanup (rejected)", pool).await?;
+    }
+
+    info!(org_id = %org_id, purged = count, "Purged rejected posts");
+    Ok(count)
 }
 
 /// Run cross-source deduplication across all organizations with multiple sources.
@@ -689,7 +702,7 @@ pub async fn deduplicate_cross_source_all_orgs(
     let mut total_proposals = 0;
 
     for org_id in &org_ids {
-        match stage_cross_source_dedup(org_id.into_uuid(), deps.ai_next.as_ref(), &deps.db_pool).await {
+        match stage_cross_source_dedup(org_id.into_uuid(), GPT_5_MINI, deps.ai.as_ref(), &deps.db_pool).await {
             Ok(result) => {
                 if result.batch_id.is_some() {
                     batches_created += 1;
@@ -801,7 +814,7 @@ impl_restate_serde!(Phase2Result);
 /// If < 2 pending posts, returns empty vec.
 pub async fn find_duplicate_pending_posts(
     pending_posts: &[Post],
-    ai: &OpenRouter,
+    ai: &OpenAi,
 ) -> Result<Vec<DuplicateGroup>> {
     if pending_posts.len() < 2 {
         return Ok(vec![]);
@@ -822,7 +835,7 @@ pub async fn find_duplicate_pending_posts(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            FRONTIER_MODEL,
+            GPT_5_MINI,
             DEDUP_PENDING_SYSTEM_PROMPT,
             &format!("Analyze these draft posts for duplicates:\n\n{}", posts_json),
         )
@@ -845,7 +858,7 @@ pub async fn find_duplicate_pending_posts(
 pub async fn match_pending_to_active_posts(
     pending_posts: &[Post],
     active_posts: &[Post],
-    ai: &OpenRouter,
+    ai: &OpenAi,
 ) -> Result<Vec<PendingActiveMatch>> {
     if pending_posts.is_empty() || active_posts.is_empty() {
         return Ok(vec![]);
@@ -878,7 +891,7 @@ pub async fn match_pending_to_active_posts(
 
     let result: PendingActiveAnalysis = ai
         .extract(
-            FRONTIER_MODEL,
+            GPT_5_MINI,
             MATCH_PENDING_ACTIVE_SYSTEM_PROMPT,
             &format!(
                 "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",

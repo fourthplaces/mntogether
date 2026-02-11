@@ -139,6 +139,8 @@ services:
       restate:
         condition: service_healthy
     volumes:
+      - ./Cargo.toml:/app/Cargo.toml
+      - ./Cargo.lock:/app/Cargo.lock
       - ./packages/server:/app/packages/server
       - ./packages/ai-client:/app/packages/ai-client
       - ./packages/apify-client:/app/packages/apify-client
