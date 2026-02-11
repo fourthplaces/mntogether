@@ -9,6 +9,7 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, SourceId, WebsiteId};
+use crate::domains::crawling::models::ExtractionPage;
 use crate::domains::source::models::{get_source_identifier, Source, WebsiteSource};
 use crate::domains::website::activities;
 use crate::domains::website::models::WebsiteAssessment;
@@ -108,6 +109,28 @@ pub struct ExtractOrganizationResult {
 
 impl_restate_serde!(ExtractOrganizationResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageResult {
+    pub url: String,
+    pub content: Option<String>,
+}
+
+impl_restate_serde!(SourcePageResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageListResult {
+    pub pages: Vec<SourcePageResult>,
+}
+
+impl_restate_serde!(SourcePageListResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageCountResult {
+    pub count: i64,
+}
+
+impl_restate_serde!(SourcePageCountResult);
+
 // =============================================================================
 // Virtual object definition
 // =============================================================================
@@ -142,6 +165,12 @@ pub trait SourceObject {
 
     #[shared]
     async fn get_assessment(req: EmptyRequest) -> Result<OptionalAssessmentResult, HandlerError>;
+
+    #[shared]
+    async fn list_pages(req: EmptyRequest) -> Result<SourcePageListResult, HandlerError>;
+
+    #[shared]
+    async fn count_pages(req: EmptyRequest) -> Result<SourcePageCountResult, HandlerError>;
 }
 
 pub struct SourceObjectImpl {
@@ -494,6 +523,65 @@ impl SourceObject for SourceObjectImpl {
                 assessment_markdown: a.assessment_markdown,
                 confidence_score: a.confidence_score,
             }),
+        })
+    }
+
+    async fn list_pages(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<SourcePageListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let source_id = Self::parse_source_id(ctx.key())?;
+
+        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let site_url = source
+            .site_url(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let pages = ExtractionPage::find_by_domain(&site_url, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(SourcePageListResult {
+            pages: pages
+                .into_iter()
+                .take(50)
+                .map(|(_id, url, content)| SourcePageResult {
+                    url,
+                    content: Some(content),
+                })
+                .collect(),
+        })
+    }
+
+    async fn count_pages(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<SourcePageCountResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let source_id = Self::parse_source_id(ctx.key())?;
+
+        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let site_url = source
+            .site_url(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let count = ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(SourcePageCountResult {
+            count: count as i64,
         })
     }
 }

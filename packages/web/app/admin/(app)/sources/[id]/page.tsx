@@ -15,6 +15,10 @@ import type {
   OrganizationListResult,
 } from "@/lib/restate/types";
 
+// Source object returns same shape as Extraction service
+type SourcePageListResult = ExtractionPageListResult;
+type SourcePageCountResult = ExtractionPageCount;
+
 type TabType = "snapshots" | "assessment";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
@@ -61,19 +65,15 @@ export default function SourceDetailPage() {
 
   const {
     data: pagesData,
-  } = useRestate<ExtractionPageListResult>(
-    isWebsite && source?.identifier ? "Extraction" : null,
-    "list_pages",
-    { domain: source?.identifier, limit: 50 },
+  } = useRestateObject<SourcePageListResult>(
+    "Source", source ? sourceId : null, "list_pages", {},
     { revalidateOnFocus: false }
   );
 
   const {
     data: pageCount,
-  } = useRestate<ExtractionPageCount>(
-    isWebsite && source?.identifier ? "Extraction" : null,
-    "count_pages",
-    { domain: source?.identifier },
+  } = useRestateObject<SourcePageCountResult>(
+    "Source", source ? sourceId : null, "count_pages", {},
     { revalidateOnFocus: false }
   );
 
@@ -292,10 +292,10 @@ export default function SourceDetailPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  // Determine available tabs (website-only — social sources have no tabs)
+  // Determine available tabs — all sources have snapshots, assessment is website-only
   const tabs: TabType[] = isWebsite
     ? ["snapshots", "assessment"]
-    : [];
+    : ["snapshots"];
 
   // --- Loading / Error states ---
 
@@ -491,12 +491,10 @@ export default function SourceDetailPage() {
                 <p className="text-sm text-stone-400">{"\u2014"}</p>
               )}
             </div>
-            {isWebsite && (
-              <div>
-                <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
-                <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
-              </div>
-            )}
+            <div>
+              <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
+              <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
+            </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Last Scraped</span>
               <p className="text-sm font-medium text-stone-900">{formatDate(source.last_scraped_at)}</p>
@@ -545,8 +543,8 @@ export default function SourceDetailPage() {
           </div>
 
           <div className="p-6">
-            {/* Snapshots Tab (website only) */}
-            {activeTab === "snapshots" && isWebsite && (
+            {/* Snapshots Tab */}
+            {activeTab === "snapshots" && (
               <div className="space-y-4">
                 {pages.length === 0 ? (
                   <div className="text-center py-8 text-stone-500">No crawled pages yet</div>
