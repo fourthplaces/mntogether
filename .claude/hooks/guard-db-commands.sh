@@ -14,6 +14,16 @@ if [[ -z "$COMMAND" ]]; then
   exit 0
 fi
 
+# ─── Safe command prefixes ─────────────────────────────────────────
+# Commands that can't modify the database, even if their arguments
+# contain DB keywords (e.g., git commit messages mentioning migrations).
+FIRST_TOKEN=$(echo "$COMMAND" | awk '{print $1}')
+case "$FIRST_TOKEN" in
+  git|echo|cat|ls|find|grep|rg|sed|awk|head|tail|wc|sort|diff|mkdir|cp|mv|touch|chmod|tar|zip|unzip|curl|wget|npm|npx|node|pnpm|yarn|rustc|rustup|cargo-fmt|just|make)
+    exit 0
+    ;;
+esac
+
 # Normalize: lowercase for pattern matching, collapse whitespace
 LOWER_CMD=$(echo "$COMMAND" | tr '[:upper:]' '[:lower:]' | tr -s '[:space:]' ' ')
 
@@ -46,8 +56,8 @@ is_readonly() {
 
 # ─── Dangerous pattern detection ──────────────────────────────────
 
-# 1. Migration execution
-if echo "$LOWER_CMD" | grep -qE 'migrate\s+run|migration.*run|sqlx.*migrate'; then
+# 1. Migration execution and sqlx database commands
+if echo "$LOWER_CMD" | grep -qE 'cargo\s+sqlx\s+migrate|sqlx\s+migrate\s+run|sqlx\s+database\s+(reset|drop|create)'; then
   jq -n '{
     "hookSpecificOutput": {
       "hookEventName": "PreToolUse",
