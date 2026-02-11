@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Duration, NaiveDate, NaiveTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
 use crate::common::ScheduleId;
@@ -32,6 +33,77 @@ pub struct Schedule {
     pub is_all_day: bool,
     pub duration_minutes: Option<i32>,
     pub updated_at: DateTime<Utc>,
+}
+
+// =============================================================================
+// Creation / update parameter structs
+// =============================================================================
+
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateOneOffSchedule<'a> {
+    pub schedulable_type: &'a str,
+    pub schedulable_id: Uuid,
+    pub dtstart: DateTime<Utc>,
+    pub dtend: DateTime<Utc>,
+    #[builder(default = false)]
+    pub is_all_day: bool,
+    #[builder(default = "America/Chicago")]
+    pub timezone: &'a str,
+    #[builder(default)]
+    pub notes: Option<&'a str>,
+}
+
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateRecurringSchedule<'a> {
+    pub schedulable_type: &'a str,
+    pub schedulable_id: Uuid,
+    pub dtstart: DateTime<Utc>,
+    pub rrule: &'a str,
+    #[builder(default = "America/Chicago")]
+    pub timezone: &'a str,
+    #[builder(default)]
+    pub duration_minutes: Option<i32>,
+    #[builder(default)]
+    pub opens_at: Option<NaiveTime>,
+    #[builder(default)]
+    pub closes_at: Option<NaiveTime>,
+    #[builder(default)]
+    pub day_of_week: Option<i32>,
+    #[builder(default)]
+    pub notes: Option<&'a str>,
+}
+
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateOperatingHoursSchedule<'a> {
+    pub schedulable_type: &'a str,
+    pub schedulable_id: Uuid,
+    pub day_of_week: i32,
+    #[builder(default = "America/Chicago")]
+    pub timezone: &'a str,
+    #[builder(default)]
+    pub opens_at: Option<NaiveTime>,
+    #[builder(default)]
+    pub closes_at: Option<NaiveTime>,
+    #[builder(default)]
+    pub notes: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct UpdateScheduleParams<'a> {
+    pub dtstart: Option<DateTime<Utc>>,
+    pub dtend: Option<DateTime<Utc>>,
+    pub rrule: Option<&'a str>,
+    pub exdates: Option<&'a str>,
+    pub opens_at: Option<NaiveTime>,
+    pub closes_at: Option<NaiveTime>,
+    pub day_of_week: Option<i32>,
+    pub is_all_day: Option<bool>,
+    pub duration_minutes: Option<i32>,
+    pub timezone: Option<&'a str>,
+    pub notes: Option<&'a str>,
 }
 
 impl Schedule {
@@ -141,13 +213,7 @@ impl Schedule {
 
     /// Create a one-off event schedule (e.g. workshop on Mar 15 2-4pm)
     pub async fn create_one_off(
-        schedulable_type: &str,
-        schedulable_id: Uuid,
-        dtstart: DateTime<Utc>,
-        dtend: DateTime<Utc>,
-        is_all_day: bool,
-        timezone: &str,
-        notes: Option<&str>,
+        params: &CreateOneOffSchedule<'_>,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
@@ -160,13 +226,13 @@ impl Schedule {
             RETURNING *
             "#,
         )
-        .bind(schedulable_type)
-        .bind(schedulable_id)
-        .bind(dtstart)
-        .bind(dtend)
-        .bind(is_all_day)
-        .bind(timezone)
-        .bind(notes)
+        .bind(params.schedulable_type)
+        .bind(params.schedulable_id)
+        .bind(params.dtstart)
+        .bind(params.dtend)
+        .bind(params.is_all_day)
+        .bind(params.timezone)
+        .bind(params.notes)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -174,16 +240,7 @@ impl Schedule {
 
     /// Create a recurring event schedule (e.g. ESL class every Tue 6-8pm)
     pub async fn create_recurring(
-        schedulable_type: &str,
-        schedulable_id: Uuid,
-        dtstart: DateTime<Utc>,
-        rrule: &str,
-        duration_minutes: Option<i32>,
-        opens_at: Option<NaiveTime>,
-        closes_at: Option<NaiveTime>,
-        day_of_week: Option<i32>,
-        timezone: &str,
-        notes: Option<&str>,
+        params: &CreateRecurringSchedule<'_>,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
@@ -197,16 +254,16 @@ impl Schedule {
             RETURNING *
             "#,
         )
-        .bind(schedulable_type)
-        .bind(schedulable_id)
-        .bind(dtstart)
-        .bind(rrule)
-        .bind(duration_minutes)
-        .bind(opens_at)
-        .bind(closes_at)
-        .bind(day_of_week)
-        .bind(timezone)
-        .bind(notes)
+        .bind(params.schedulable_type)
+        .bind(params.schedulable_id)
+        .bind(params.dtstart)
+        .bind(params.rrule)
+        .bind(params.duration_minutes)
+        .bind(params.opens_at)
+        .bind(params.closes_at)
+        .bind(params.day_of_week)
+        .bind(params.timezone)
+        .bind(params.notes)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -214,16 +271,10 @@ impl Schedule {
 
     /// Create an operating hours schedule (e.g. Mon 9am-5pm)
     pub async fn create_operating_hours(
-        schedulable_type: &str,
-        schedulable_id: Uuid,
-        day_of_week: i32,
-        opens_at: Option<NaiveTime>,
-        closes_at: Option<NaiveTime>,
-        timezone: &str,
-        notes: Option<&str>,
+        params: &CreateOperatingHoursSchedule<'_>,
         pool: &PgPool,
     ) -> Result<Self> {
-        let day_abbr = match day_of_week {
+        let day_abbr = match params.day_of_week {
             0 => "SU",
             1 => "MO",
             2 => "TU",
@@ -231,7 +282,7 @@ impl Schedule {
             4 => "TH",
             5 => "FR",
             6 => "SA",
-            _ => return Err(anyhow::anyhow!("Invalid day_of_week: {}", day_of_week)),
+            _ => return Err(anyhow::anyhow!("Invalid day_of_week: {}", params.day_of_week)),
         };
         let rrule = format!("FREQ=WEEKLY;BYDAY={}", day_abbr);
 
@@ -245,14 +296,14 @@ impl Schedule {
             RETURNING *
             "#,
         )
-        .bind(schedulable_type)
-        .bind(schedulable_id)
-        .bind(day_of_week)
-        .bind(opens_at)
-        .bind(closes_at)
+        .bind(params.schedulable_type)
+        .bind(params.schedulable_id)
+        .bind(params.day_of_week)
+        .bind(params.opens_at)
+        .bind(params.closes_at)
         .bind(&rrule)
-        .bind(timezone)
-        .bind(notes)
+        .bind(params.timezone)
+        .bind(params.notes)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -260,17 +311,7 @@ impl Schedule {
 
     pub async fn update(
         id: ScheduleId,
-        dtstart: Option<DateTime<Utc>>,
-        dtend: Option<DateTime<Utc>>,
-        rrule: Option<&str>,
-        exdates: Option<&str>,
-        opens_at: Option<NaiveTime>,
-        closes_at: Option<NaiveTime>,
-        day_of_week: Option<i32>,
-        is_all_day: Option<bool>,
-        duration_minutes: Option<i32>,
-        timezone: Option<&str>,
-        notes: Option<&str>,
+        params: &UpdateScheduleParams<'_>,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
@@ -293,17 +334,17 @@ impl Schedule {
             "#,
         )
         .bind(id)
-        .bind(dtstart)
-        .bind(dtend)
-        .bind(rrule)
-        .bind(exdates)
-        .bind(opens_at)
-        .bind(closes_at)
-        .bind(day_of_week)
-        .bind(is_all_day)
-        .bind(duration_minutes)
-        .bind(timezone)
-        .bind(notes)
+        .bind(params.dtstart)
+        .bind(params.dtend)
+        .bind(params.rrule)
+        .bind(params.exdates)
+        .bind(params.opens_at)
+        .bind(params.closes_at)
+        .bind(params.day_of_week)
+        .bind(params.is_all_day)
+        .bind(params.duration_minutes)
+        .bind(params.timezone)
+        .bind(params.notes)
         .fetch_one(pool)
         .await
         .map_err(Into::into)

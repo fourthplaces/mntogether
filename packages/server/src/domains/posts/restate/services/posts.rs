@@ -13,6 +13,7 @@ use crate::domains::locations::models::ZipCode;
 use crate::domains::posts::activities;
 use crate::domains::posts::data::types::SubmitPostInput;
 use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
+use crate::domains::posts::models::post::PostFilters;
 use crate::domains::posts::models::Post;
 use crate::domains::schedules::models::Schedule;
 use crate::domains::tag::models::tag::Tag;
@@ -32,7 +33,10 @@ pub struct ListPostsRequest {
     pub source_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
     pub search: Option<String>,
+    pub zip_code: Option<String>,
+    pub radius_miles: Option<f64>,
     pub first: Option<i32>,
+    pub offset: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
     pub before: Option<String>,
@@ -473,86 +477,166 @@ impl PostsService for PostsServiceImpl {
         _ctx: Context<'_>,
         req: ListPostsRequest,
     ) -> Result<PostListResult, HandlerError> {
-        let status_filter = req.status.as_deref();
-
-        let pagination_args = PaginationArgs {
-            first: req.first,
-            after: req.after,
-            last: req.last,
-            before: req.before,
+        let filters = PostFilters {
+            status: req.status.as_deref(),
+            source_type: req.source_type.as_deref(),
+            source_id: req.source_id,
+            agent_id: req.agent_id,
+            search: req.search.as_deref(),
         };
-        let validated = pagination_args
-            .validate()
-            .map_err(|e| TerminalError::new(e))?;
 
-        let source_type = req.source_type.as_deref();
-        let source_id = req.source_id;
-        let agent_id = req.agent_id;
-        let search_filter = req.search.as_deref();
+        // Branch: zip-based proximity filtering vs standard listing
+        if let Some(ref zip_code) = req.zip_code {
+            let radius = req.radius_miles.unwrap_or(25.0).min(100.0);
+            let limit = req.first.unwrap_or(20);
+            let offset = req.offset.unwrap_or(0);
 
-        let connection =
-            activities::get_posts_paginated(status_filter, source_type, source_id, agent_id, search_filter, &validated, &self.deps)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        // Batch-load tags for returned posts
-        let post_ids: Vec<uuid::Uuid> = connection.edges.iter().map(|e| e.node.id).collect();
-        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+            let (results, total_count, has_more) = activities::get_posts_near_zip(
+                zip_code,
+                radius,
+                &filters,
+                limit,
+                offset,
+                &self.deps,
+            )
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
-            std::collections::HashMap::new();
-        for row in tag_rows {
-            tags_by_post
-                .entry(row.taggable_id)
-                .or_default()
-                .push(PostTagResult {
-                    id: row.tag.id.into_uuid(),
-                    kind: row.tag.kind,
-                    value: row.tag.value,
-                    display_name: row.tag.display_name,
-                    color: row.tag.color,
-                });
-        }
+            // Batch-load tags for returned posts
+            let post_ids: Vec<uuid::Uuid> = results.iter().map(|r| r.id.into_uuid()).collect();
+            let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        Ok(PostListResult {
-            posts: connection
-                .edges
-                .into_iter()
-                .map(|e| {
-                    let id = e.node.id;
-                    PostResult {
-                        id,
-                        title: e.node.title,
-                        description: e.node.description,
-                        description_markdown: e.node.description_markdown,
-                        summary: e.node.summary,
-                        status: format!("{:?}", e.node.status),
-                        post_type: e.node.post_type,
-                        category: e.node.category,
-                        urgency: e.node.urgency,
-                        location: e.node.location,
-                        source_url: e.node.source_url,
-                        submission_type: e.node.submission_type,
-                        created_at: e.node.created_at.to_rfc3339(),
-                        updated_at: e.node.created_at.to_rfc3339(),
-                        published_at: e.node.published_at.map(|dt| dt.to_rfc3339()),
-                        tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
-                        submitted_by: None,
-                        schedules: None,
-                        contacts: None,
-                        organization_id: None,
-                        organization_name: None,
-                        has_urgent_notes: None,
-                        urgent_notes: None,
-                    }
-                })
-                .collect(),
-            total_count: connection.total_count,
-            has_next_page: connection.page_info.has_next_page,
-            has_previous_page: connection.page_info.has_previous_page,
-        })
+            let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+                std::collections::HashMap::new();
+            for row in tag_rows {
+                tags_by_post
+                    .entry(row.taggable_id)
+                    .or_default()
+                    .push(PostTagResult {
+                        id: row.tag.id.into_uuid(),
+                        kind: row.tag.kind,
+                        value: row.tag.value,
+                        display_name: row.tag.display_name,
+                        color: row.tag.color,
+                    });
+            }
+
+            Ok(PostListResult {
+                posts: results
+                    .into_iter()
+                    .map(|pwd| {
+                        let id = pwd.id.into_uuid();
+                        PostResult {
+                            id,
+                            title: pwd.title,
+                            description: pwd.description,
+                            description_markdown: pwd.description_markdown,
+                            summary: pwd.summary,
+                            status: pwd.status,
+                            post_type: pwd.post_type,
+                            category: pwd.category,
+                            urgency: pwd.urgency,
+                            location: pwd.location,
+                            source_url: pwd.source_url,
+                            submission_type: pwd.submission_type,
+                            created_at: pwd.created_at.to_rfc3339(),
+                            updated_at: pwd.updated_at.to_rfc3339(),
+                            published_at: pwd.published_at.map(|dt| dt.to_rfc3339()),
+                            tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                            submitted_by: None,
+                            schedules: None,
+                            contacts: None,
+                            organization_id: None,
+                            organization_name: None,
+                            has_urgent_notes: None,
+                            urgent_notes: None,
+                            distance_miles: Some(pwd.distance_miles),
+                        }
+                    })
+                    .collect(),
+                total_count,
+                has_next_page: has_more,
+                has_previous_page: offset > 0,
+            })
+        } else {
+            // Standard listing path (unchanged)
+            let pagination_args = PaginationArgs {
+                first: req.first,
+                after: req.after,
+                last: req.last,
+                before: req.before,
+            };
+            let validated = pagination_args
+                .validate()
+                .map_err(|e| TerminalError::new(e))?;
+
+            let connection =
+                activities::get_posts_paginated(&filters, &validated, &self.deps)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            // Batch-load tags for returned posts
+            let post_ids: Vec<uuid::Uuid> = connection.edges.iter().map(|e| e.node.id).collect();
+            let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+                std::collections::HashMap::new();
+            for row in tag_rows {
+                tags_by_post
+                    .entry(row.taggable_id)
+                    .or_default()
+                    .push(PostTagResult {
+                        id: row.tag.id.into_uuid(),
+                        kind: row.tag.kind,
+                        value: row.tag.value,
+                        display_name: row.tag.display_name,
+                        color: row.tag.color,
+                    });
+            }
+
+            Ok(PostListResult {
+                posts: connection
+                    .edges
+                    .into_iter()
+                    .map(|e| {
+                        let id = e.node.id;
+                        PostResult {
+                            id,
+                            title: e.node.title,
+                            description: e.node.description,
+                            description_markdown: e.node.description_markdown,
+                            summary: e.node.summary,
+                            status: format!("{:?}", e.node.status),
+                            post_type: e.node.post_type,
+                            category: e.node.category,
+                            urgency: e.node.urgency,
+                            location: e.node.location,
+                            source_url: e.node.source_url,
+                            submission_type: e.node.submission_type,
+                            created_at: e.node.created_at.to_rfc3339(),
+                            updated_at: e.node.created_at.to_rfc3339(),
+                            published_at: e.node.published_at.map(|dt| dt.to_rfc3339()),
+                            tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                            submitted_by: None,
+                            schedules: None,
+                            contacts: None,
+                            organization_id: None,
+                            organization_name: None,
+                            has_urgent_notes: None,
+                            urgent_notes: None,
+                            distance_miles: None,
+                        }
+                    })
+                    .collect(),
+                total_count: connection.total_count,
+                has_next_page: connection.page_info.has_next_page,
+                has_previous_page: connection.page_info.has_previous_page,
+            })
+        }
     }
 
     async fn search_nearby(
@@ -593,8 +677,8 @@ impl PostsService for PostsServiceImpl {
                         source_url: pwd.source_url,
                         submission_type: pwd.submission_type,
                         created_at: pwd.created_at.to_rfc3339(),
-                        updated_at: pwd.created_at.to_rfc3339(),
-                        published_at: None,
+                        updated_at: pwd.updated_at.to_rfc3339(),
+                        published_at: pwd.published_at.map(|dt| dt.to_rfc3339()),
                         tags: None,
                         submitted_by: None,
                         schedules: None,
@@ -603,6 +687,7 @@ impl PostsService for PostsServiceImpl {
                         organization_name: None,
                         has_urgent_notes: None,
                         urgent_notes: None,
+                        distance_miles: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -977,6 +1062,7 @@ impl PostsService for PostsServiceImpl {
                         organization_name: None,
                         has_urgent_notes: None,
                         urgent_notes: None,
+                        distance_miles: None,
                     }
                 })
                 .collect(),

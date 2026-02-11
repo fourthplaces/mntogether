@@ -3,14 +3,14 @@
 // This is DOMAIN LOGIC that uses infrastructure (AI) from the kernel.
 
 use anyhow::{Context, Result};
-use ai_client::OpenAi;
+use ai_client::{OpenAi, OpenRouter};
 use schemars::JsonSchema;
 use serde::Deserialize;
 
 use crate::common::extraction_types::ContactInfo;
 use crate::common::pii::{DetectionContext, RedactionStrategy};
 use crate::common::{ExtractedPost, ExtractedPostWithSource, ExtractedSchedule, TagEntry};
-use crate::kernel::BasePiiDetector;
+use crate::kernel::{BasePiiDetector, FRONTIER_MODEL};
 use std::collections::HashMap;
 
 // ============================================================================
@@ -170,7 +170,7 @@ fn validate_extracted_posts(posts: &[ExtractedPost]) -> Result<()> {
 /// This is the preferred entry point that handles PII scrubbing automatically.
 /// It scrubs PII from input before sending to AI, and from output after extraction.
 pub async fn extract_posts_with_pii_scrub(
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pii_detector: &dyn BasePiiDetector,
     website_domain: &str,
     website_content: &str,
@@ -261,7 +261,7 @@ pub async fn extract_posts_with_pii_scrub(
 ///
 /// NOTE: Prefer `extract_posts_with_pii_scrub` which handles PII automatically.
 pub async fn extract_posts_raw(
-    ai: &OpenAi,
+    ai: &OpenRouter,
     website_domain: &str,
     website_content: &str,
     source_url: &str,
@@ -322,7 +322,7 @@ Extract listings as a JSON array."#,
     );
 
     let response: ExtractionResponse = ai
-        .extract("gpt-4o", &system_prompt, user_message)
+        .extract(FRONTIER_MODEL, &system_prompt, user_message)
         .await
         .map_err(|e| anyhow::anyhow!("Post extraction failed: {}", e))
         .context("Failed to extract listings from content")?;
@@ -350,7 +350,7 @@ pub struct PageContent {
 /// This is more efficient than calling extract_posts_raw for each page.
 /// Returns a map from source_url to the listings extracted from that page.
 pub async fn extract_posts_batch(
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pii_detector: &dyn BasePiiDetector,
     website_domain: &str,
     pages: Vec<PageContent>,
@@ -444,7 +444,7 @@ Extract all listings from ALL pages as a single JSON array. Each listing must in
     );
 
     let response: BatchExtractionResponse = ai
-        .extract("gpt-4o", &system_prompt, user_message)
+        .extract(FRONTIER_MODEL, &system_prompt, user_message)
         .await
         .map_err(|e| anyhow::anyhow!("Batch extraction failed: {}", e))
         .context("Failed to batch extract listings")?;
@@ -583,7 +583,6 @@ Hi! I saw your English tutoring program and would love to help newly arrived fam
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kernel::OpenAi;
 
     const SAMPLE_CONTENT: &str = r#"
 # Volunteer Opportunities
@@ -601,10 +600,10 @@ No experience necessary. Contact Sarah at (612) 555-5678.
     #[tokio::test]
     #[ignore] // Requires API key
     async fn test_extract_posts() {
-        let api_key = std::env::var("OPENAI_API_KEY")
-            .expect("OPENAI_API_KEY must be set for integration tests");
+        let api_key = std::env::var("OPENROUTER_API_KEY")
+            .expect("OPENROUTER_API_KEY must be set for integration tests");
 
-        let ai = OpenAi::new(api_key, "gpt-4o");
+        let ai = OpenRouter::new(api_key, crate::kernel::FRONTIER_MODEL);
 
         let posts = extract_posts_raw(
             &ai,

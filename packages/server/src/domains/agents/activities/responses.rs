@@ -108,7 +108,7 @@ pub async fn generate_reply(
 
     let ai_messages = build_ai_messages(&messages);
 
-    let ai_agent = (*deps.ai).clone().tool(SearchPostsTool::new(
+    let ai_agent = (*deps.ai_next).clone().tool(SearchPostsTool::new(
         deps.db_pool.clone(),
         deps.embedding_service.clone(),
     ));

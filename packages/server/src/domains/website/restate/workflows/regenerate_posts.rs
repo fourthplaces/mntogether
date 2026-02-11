@@ -166,7 +166,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             "website",
             req.website_id,
             posts,
-            self.deps.ai.as_ref(),
+            self.deps.ai_next.as_ref(),
             pool,
         )
         .await

@@ -141,7 +141,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
 
         let phase1 = ctx
             .run(|| async {
-                find_duplicate_pending_posts(&pending_posts, self.deps.ai.as_ref())
+                find_duplicate_pending_posts(&pending_posts, self.deps.ai_next.as_ref())
                     .await
                     .map(|groups| Phase1Result { groups })
                     .map_err(Into::into)
@@ -188,7 +188,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                 match_pending_to_active_posts(
                     &remaining_posts_owned,
                     &active_posts,
-                    self.deps.ai.as_ref(),
+                    self.deps.ai_next.as_ref(),
                 )
                 .await
                 .map(|matches| Phase2Result { matches })

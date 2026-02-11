@@ -226,6 +226,8 @@ pub struct PostResult {
     pub has_urgent_notes: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub urgent_notes: Option<Vec<crate::domains::posts::restate::services::posts::UrgentNoteInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_miles: Option<f64>,
 }
 
 impl_restate_serde!(PostResult);
@@ -256,6 +258,7 @@ impl From<Post> for PostResult {
             organization_name: None,
             has_urgent_notes: None,
             urgent_notes: None,
+            distance_miles: None,
         }
     }
 }

@@ -63,7 +63,7 @@ pub async fn extract_posts_from_resource_link(
 
     // Delegate to domain function with PII scrubbing
     let extracted_posts = match post_extraction::extract_posts_with_pii_scrub(
-        deps.ai.as_ref(),
+        deps.ai_next.as_ref(),
         deps.pii_detector.as_ref(),
         &domain,
         &content_with_context,

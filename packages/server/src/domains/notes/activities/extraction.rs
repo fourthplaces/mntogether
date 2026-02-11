@@ -253,8 +253,8 @@ pub async fn extract_and_create_notes(
 
     // LLM extraction
     let extracted: ExtractedNotes = deps
-        .ai
-        .extract("gpt-4o", NOTE_EXTRACTION_PROMPT, &user_content)
+        .ai_next
+        .extract(crate::kernel::FRONTIER_MODEL, NOTE_EXTRACTION_PROMPT, &user_content)
         .await
         .map_err(|e| anyhow::anyhow!("Note extraction failed: {}", e))?;
 

@@ -101,9 +101,33 @@ pub struct PostWithDistance {
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
     pub zip_code: Option<String>,
     pub location_city: Option<String>,
     pub distance_miles: f64,
+}
+
+/// PostWithDistance plus total_count from COUNT(*) OVER() window function
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostWithDistanceAndCount {
+    pub id: PostId,
+    pub title: String,
+    pub description: String,
+    pub description_markdown: Option<String>,
+    pub summary: Option<String>,
+    pub post_type: String,
+    pub category: String,
+    pub status: String,
+    pub urgency: Option<String>,
+    pub location: Option<String>,
+    pub submission_type: Option<String>,
+    pub source_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
+    pub distance_miles: f64,
+    pub total_count: i64,
 }
 
 /// Search result with location info (for chat agent tool)
@@ -341,6 +365,21 @@ pub struct UpdatePostContent {
 }
 
 // =============================================================================
+// Filter params
+// =============================================================================
+
+/// Shared filter parameters for post listing queries.
+/// All fields are optional — default is no filtering.
+#[derive(Debug, Clone, Default)]
+pub struct PostFilters<'a> {
+    pub status: Option<&'a str>,
+    pub source_type: Option<&'a str>,
+    pub source_id: Option<Uuid>,
+    pub agent_id: Option<Uuid>,
+    pub search: Option<&'a str>,
+}
+
+// =============================================================================
 // SQL Queries - ALL queries must be in models/
 // =============================================================================
 
@@ -463,16 +502,12 @@ impl Post {
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn find_paginated(
-        status: Option<&str>,
-        source_type: Option<&str>,
-        source_id: Option<Uuid>,
-        agent_id: Option<Uuid>,
-        search: Option<&str>,
+        filters: &PostFilters<'_>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
         let fetch_limit = args.fetch_limit();
-        let search_pattern = search.map(|s| format!("%{}%", s));
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
 
         let results = match args.direction {
             PaginationDirection::Forward => {
@@ -494,12 +529,12 @@ impl Post {
                     LIMIT $3
                     "#,
                 )
-                .bind(status)
+                .bind(filters.status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(source_type)
-                .bind(source_id)
-                .bind(agent_id)
+                .bind(filters.source_type)
+                .bind(filters.source_id)
+                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?
@@ -524,12 +559,12 @@ impl Post {
                     LIMIT $3
                     "#,
                 )
-                .bind(status)
+                .bind(filters.status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(source_type)
-                .bind(source_id)
-                .bind(agent_id)
+                .bind(filters.source_type)
+                .bind(filters.source_id)
+                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?;
@@ -973,14 +1008,10 @@ impl Post {
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn count_by_status(
-        status: Option<&str>,
-        source_type: Option<&str>,
-        source_id: Option<Uuid>,
-        agent_id: Option<Uuid>,
-        search: Option<&str>,
+        filters: &PostFilters<'_>,
         pool: &PgPool,
     ) -> Result<i64> {
-        let search_pattern = search.map(|s| format!("%{}%", s));
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(DISTINCT p.id)
@@ -997,10 +1028,10 @@ impl Post {
               AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
             "#,
         )
-        .bind(status)
-        .bind(source_type)
-        .bind(source_id)
-        .bind(agent_id)
+        .bind(filters.status)
+        .bind(filters.source_type)
+        .bind(filters.source_id)
+        .bind(filters.agent_id)
         .bind(&search_pattern)
         .fetch_one(pool)
         .await?;
@@ -1282,7 +1313,7 @@ impl Post {
                    p.description_markdown, p.summary,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
-                   p.created_at,
+                   p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,
                    haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
             FROM posts p
@@ -1307,6 +1338,81 @@ impl Post {
             .fetch_all(pool)
             .await
             .map_err(Into::into)
+    }
+
+    /// Find posts near a zip code with composable filters and offset pagination.
+    /// Uses GROUP BY + MIN(haversine) for multi-location dedup, bounding box pre-filter,
+    /// and COUNT(*) OVER() for total count in a single query.
+    pub async fn find_paginated_near_zip(
+        center_zip: &str,
+        radius_miles: f64,
+        filters: &PostFilters<'_>,
+        limit: i32,
+        offset: i32,
+        pool: &PgPool,
+    ) -> Result<(Vec<PostWithDistanceAndCount>, bool)> {
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
+
+        let results = sqlx::query_as::<_, PostWithDistanceAndCount>(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT p.id, p.title, p.description,
+                   p.description_markdown, p.summary,
+                   p.post_type, p.category, p.status, p.urgency,
+                   p.location, p.submission_type, p.source_url,
+                   p.created_at, p.published_at, p.updated_at,
+                   MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) as distance_miles,
+                   COUNT(*) OVER() as total_count
+            FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+            LEFT JOIN post_sources ps ON ps.post_id = p.id
+            CROSS JOIN center c
+            WHERE p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND ($2::text IS NULL OR p.status = $2)
+              AND ($3::text IS NULL OR ps.source_type = $3)
+              AND ($4::uuid IS NULL OR ps.source_id = $4)
+              AND ($5::uuid IS NULL OR a.id = $5)
+              AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+              AND z.latitude BETWEEN c.latitude - ($7::float8 / 69.0)
+                                 AND c.latitude + ($7::float8 / 69.0)
+              AND z.longitude BETWEEN c.longitude - ($7::float8 / (69.0 * cos(radians(c.latitude))))
+                                  AND c.longitude + ($7::float8 / (69.0 * cos(radians(c.latitude))))
+            GROUP BY p.id, p.title, p.description, p.description_markdown, p.summary,
+                     p.post_type, p.category, p.status, p.urgency, p.location,
+                     p.submission_type, p.source_url, p.created_at, p.published_at, p.updated_at,
+                     c.latitude, c.longitude
+            HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $7
+            ORDER BY distance_miles ASC
+            LIMIT $8 OFFSET $9
+            "#,
+        )
+        .bind(center_zip)             // $1
+        .bind(filters.status)         // $2
+        .bind(filters.source_type)    // $3
+        .bind(filters.source_id)      // $4
+        .bind(filters.agent_id)       // $5
+        .bind(&search_pattern)        // $6
+        .bind(radius_miles)           // $7
+        .bind(limit + 1)        // $8 - fetch one extra to detect next page
+        .bind(offset)           // $9
+        .fetch_all(pool)
+        .await?;
+
+        let has_more = results.len() > limit as usize;
+        let results = if has_more {
+            results.into_iter().take(limit as usize).collect()
+        } else {
+            results
+        };
+
+        Ok((results, has_more))
     }
 
     /// Find revision for a specific post (if any)

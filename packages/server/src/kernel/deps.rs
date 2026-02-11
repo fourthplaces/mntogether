@@ -6,7 +6,7 @@
 use anyhow::Result;
 use apify_client::ApifyClient;
 use async_trait::async_trait;
-use ai_client::OpenAi;
+use ai_client::{OpenAi, OpenRouter};
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;
@@ -64,9 +64,12 @@ pub struct ServerDeps {
     /// This field is retained for backward compatibility with deprecated code paths.
     /// Use `extraction.ingest()` or `extraction.ingest_urls()` with FirecrawlIngestor/HttpIngestor.
     pub ingestor: Arc<dyn Ingestor>,
-    /// AI client for LLM operations. Use `extract<T>()` for structured JSON
-    /// output or `.complete()` for simple text completions.
+    /// AI client for LLM operations (GPT-4o). Used for embeddings, summaries,
+    /// greetings, and other hallucination-tolerant tasks.
     pub ai: Arc<OpenAi>,
+    /// Frontier AI client (DeepSeek V3.2-Speciale via OpenRouter). Used for
+    /// accuracy-critical tasks: extraction, dedup, sync, PII detection, agent replies.
+    pub ai_next: Arc<OpenRouter>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<dyn BaseTwilioService>,
@@ -92,6 +95,7 @@ impl ServerDeps {
         db_pool: PgPool,
         ingestor: Arc<dyn Ingestor>,
         ai: Arc<OpenAi>,
+        ai_next: Arc<OpenRouter>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<dyn BaseTwilioService>,
@@ -108,6 +112,7 @@ impl ServerDeps {
             db_pool,
             ingestor,
             ai,
+            ai_next,
             embedding_service,
             push_service,
             twilio,

@@ -337,8 +337,8 @@ pub async fn extract_and_create_organization(
     );
 
     // LLM extraction: org name + description (priority pages only)
-    let extracted: ExtractedOrganization = deps.ai
-        .extract("gpt-4o", ORG_EXTRACTION_PROMPT, &org_content)
+    let extracted: ExtractedOrganization = deps.ai_next
+        .extract(crate::kernel::FRONTIER_MODEL, ORG_EXTRACTION_PROMPT, &org_content)
         .await
         .map_err(|e| anyhow::anyhow!("Organization extraction failed: {}", e))?;
 

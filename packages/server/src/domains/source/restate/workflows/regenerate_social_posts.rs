@@ -165,7 +165,7 @@ impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
             &source.source_type,
             req.source_id,
             posts,
-            self.deps.ai.as_ref(),
+            self.deps.ai_next.as_ref(),
             pool,
         )
         .await

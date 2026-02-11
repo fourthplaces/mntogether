@@ -99,6 +99,7 @@ export interface PostResult {
   organization_name?: string;
   has_urgent_notes?: boolean;
   urgent_notes?: UrgentNoteInfo[];
+  distance_miles?: number;
 }
 
 export interface PostList {

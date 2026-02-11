@@ -10,7 +10,7 @@
 //! 4. Same service described differently = merge (LLM understands identity)
 
 use anyhow::Result;
-use ai_client::OpenAi;
+use ai_client::{OpenAi, OpenRouter};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -24,7 +24,7 @@ use crate::domains::source::models::Source;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
-use crate::kernel::ServerDeps;
+use crate::kernel::{ServerDeps, FRONTIER_MODEL};
 
 // ============================================================================
 // Types
@@ -83,7 +83,7 @@ pub struct DeduplicationRunResult {
 pub async fn deduplicate_posts_llm(
     source_type: &str,
     source_id: Uuid,
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this source
@@ -128,7 +128,7 @@ pub async fn deduplicate_posts_llm(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            FRONTIER_MODEL,
             DEDUP_SYSTEM_PROMPT,
             &format!("Analyze these posts for duplicates:\n\n{}", posts_json),
         )
@@ -368,7 +368,7 @@ pub async fn deduplicate_posts(
 
     for website in &websites {
         let dedup_result =
-            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
+            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai_next.as_ref(), &deps.db_pool).await {
                 Ok(r) => r,
                 Err(e) => {
                     warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
@@ -444,7 +444,7 @@ impl_restate_serde!(CrossSourceDedupResult);
 /// Detect cross-source duplicates for a single organization using LLM analysis.
 pub async fn detect_cross_source_duplicates(
     org_id: Uuid,
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     let posts = Post::find_active_pending_by_organization_with_source(org_id, pool).await?;
@@ -494,7 +494,7 @@ pub async fn detect_cross_source_duplicates(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            FRONTIER_MODEL,
             CROSS_SOURCE_DEDUP_SYSTEM_PROMPT,
             &format!(
                 "Analyze these posts from the same organization across different sources for cross-platform duplicates:\n\n{}",
@@ -518,7 +518,7 @@ pub async fn detect_cross_source_duplicates(
 /// Creates a sync batch with merge proposals for admin review.
 pub async fn stage_cross_source_dedup(
     org_id: Uuid,
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pool: &PgPool,
 ) -> Result<StageCrossSourceResult> {
     let analysis = detect_cross_source_duplicates(org_id, ai, pool).await?;
@@ -689,7 +689,7 @@ pub async fn deduplicate_cross_source_all_orgs(
     let mut total_proposals = 0;
 
     for org_id in &org_ids {
-        match stage_cross_source_dedup(org_id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
+        match stage_cross_source_dedup(org_id.into_uuid(), deps.ai_next.as_ref(), &deps.db_pool).await {
             Ok(result) => {
                 if result.batch_id.is_some() {
                     batches_created += 1;
@@ -801,7 +801,7 @@ impl_restate_serde!(Phase2Result);
 /// If < 2 pending posts, returns empty vec.
 pub async fn find_duplicate_pending_posts(
     pending_posts: &[Post],
-    ai: &OpenAi,
+    ai: &OpenRouter,
 ) -> Result<Vec<DuplicateGroup>> {
     if pending_posts.len() < 2 {
         return Ok(vec![]);
@@ -822,7 +822,7 @@ pub async fn find_duplicate_pending_posts(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            FRONTIER_MODEL,
             DEDUP_PENDING_SYSTEM_PROMPT,
             &format!("Analyze these draft posts for duplicates:\n\n{}", posts_json),
         )
@@ -845,7 +845,7 @@ pub async fn find_duplicate_pending_posts(
 pub async fn match_pending_to_active_posts(
     pending_posts: &[Post],
     active_posts: &[Post],
-    ai: &OpenAi,
+    ai: &OpenRouter,
 ) -> Result<Vec<PendingActiveMatch>> {
     if pending_posts.is_empty() || active_posts.is_empty() {
         return Ok(vec![]);
@@ -878,7 +878,7 @@ pub async fn match_pending_to_active_posts(
 
     let result: PendingActiveAnalysis = ai
         .extract(
-            "gpt-4o",
+            FRONTIER_MODEL,
             MATCH_PENDING_ACTIVE_SYSTEM_PROMPT,
             &format!(
                 "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",

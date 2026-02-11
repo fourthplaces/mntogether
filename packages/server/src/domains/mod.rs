@@ -5,6 +5,7 @@ pub mod chatrooms;
 pub mod contacts;
 pub mod crawling;
 pub mod extraction;
+pub mod heat_map;
 pub mod jobs;
 pub mod locations;
 pub mod member;

@@ -62,20 +62,20 @@ PostListResult { posts: Vec<PostResult>, ... }
 
 ## Acceptance Criteria
 
-- [ ] `ListPostsRequest` accepts optional `zip_code`, `radius_miles`, and `offset`
-- [ ] When zip is provided: posts are filtered by haversine distance, sorted by proximity, and include `distance_miles` in response
-- [ ] When zip is absent: existing behavior is completely unchanged
-- [ ] Zip filter composes with all existing filters (status, source_type, source_id, agent_id, search)
-- [ ] Posts without locations are excluded when zip filter is active (correct behavior)
-- [ ] Posts with multiple locations appear once at their closest matching location's distance
-- [ ] Invalid/non-MN zip codes return a clear error message
-- [ ] Default radius is 25 miles when zip provided without radius
-- [ ] `total_count` reflects the proximity-filtered count when zip is active
-- [ ] Offset pagination works for both zip and non-zip paths
-- [ ] Admin UI: zip text input + radius dropdown (5/10/25/50 mi) in filter bar
-- [ ] Admin UI: distance column visible when zip filter is active
-- [ ] Admin UI: filter chip shows "Near: 55401 (25 mi)" with clear button
-- [ ] Admin UI: pagination resets to page 1 when zip filter changes
+- [x] `ListPostsRequest` accepts optional `zip_code`, `radius_miles`, and `offset`
+- [x] When zip is provided: posts are filtered by haversine distance, sorted by proximity, and include `distance_miles` in response
+- [x] When zip is absent: existing behavior is completely unchanged
+- [x] Zip filter composes with all existing filters (status, source_type, source_id, agent_id, search)
+- [x] Posts without locations are excluded when zip filter is active (correct behavior)
+- [x] Posts with multiple locations appear once at their closest matching location's distance
+- [x] Invalid/non-MN zip codes return a clear error message
+- [x] Default radius is 25 miles when zip provided without radius
+- [x] `total_count` reflects the proximity-filtered count when zip is active
+- [x] Offset pagination works for both zip and non-zip paths
+- [x] Admin UI: zip text input + radius dropdown (5/10/25/50 mi) in filter bar
+- [x] Admin UI: distance column visible when zip filter is active
+- [x] Admin UI: filter chip shows "Near: 55401 (25 mi)" with clear button
+- [x] Admin UI: pagination resets to page 1 when zip filter changes
 
 ## Implementation Plan
 
