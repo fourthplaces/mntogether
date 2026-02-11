@@ -14,7 +14,7 @@ use uuid::Uuid;
 use crate::common::OrganizationId;
 use crate::domains::crawling::models::ExtractionPage;
 use crate::domains::notes::models::{Note, Noteable};
-use crate::domains::source::models::{Source, WebsiteSource};
+use crate::domains::source::models::Source;
 use crate::kernel::ServerDeps;
 
 // =============================================================================
@@ -43,43 +43,28 @@ pub struct ExtractedNote {
 // LLM Prompt
 // =============================================================================
 
-const NOTE_EXTRACTION_PROMPT: &str = r#"You are extracting noteworthy operational information from an organization's web pages and social media.
+const NOTE_EXTRACTION_PROMPT: &str = r#"You are extracting noteworthy announcements from an organization's web pages and social media.
 
-Look for information that would be important for someone trying to access this organization's services. Focus on:
+A human will review everything you extract, so when in doubt, include it.
 
-## URGENT severity (action needed / people should know before visiting)
-- Service pauses or shutdowns ("we are pausing all donations", "no longer accepting volunteers")
-- Capacity limits ("at capacity", "waitlist only")
-- Safety or fraud alerts
-- Permanent closures
+Extract anything a community member, volunteer, or donor would want to know about — urgent needs,
+appeals for help, service changes, events, capacity updates, safety alerts, etc.
 
-## NOTICE severity (worth knowing)
-- Temporary closures or holiday hours ("closed Dec 24-Jan 1")
-- Schedule changes ("new hours starting March")
-- Service modifications ("now offering virtual services only")
-- Eligibility changes
+Ignore evergreen boilerplate like mission statements, "about us" descriptions, and founding history.
 
-## INFO severity (general context)
-- Location changes ("we've moved to...")
-- New programs or services launching
-- Major organizational announcements
+## Severity
+- URGENT: Time-sensitive, action needed now
+- NOTICE: Worth knowing, not immediately critical
+- INFO: General context or announcements
 
-## CTA Text (cta_text)
-For each note, provide a concise summary that captures the core ask or awareness. The cta_text tone should match the severity:
-- URGENT: What is urgently needed or asked of people. E.g., "Emergency rent and food assistance needed for families facing eviction"
-- NOTICE: What people should be aware of. E.g., "Evening services no longer available starting March 15"
-- INFO: What has changed or is new. E.g., "Online applications now accepted"
-cta_text is required for all notes.
+## Output format
+For each note:
+- content: Concise factual statement (1-2 sentences max)
+- severity: urgent, notice, or info
+- source_url: Where you found it
+- cta_text: A concise call-to-action capturing the core ask or awareness (required)
 
-## Rules
-- Only extract genuinely noteworthy operational information
-- Do NOT extract marketing content, mission statements, or general descriptions
-- Do NOT extract historical information (e.g., "founded in 1995")
-- Each note should be a concise, factual statement (1-2 sentences max)
-- If nothing noteworthy is found, return an empty notes array
-- Prefer fewer, high-quality notes over many low-value ones
-- Set severity accurately based on the categories above
-- For each note, include the source_url of the page or post where you found the information
+Return an empty notes array if nothing noteworthy is found.
 "#;
 
 // =============================================================================
@@ -99,28 +84,32 @@ pub struct SourceContent {
 }
 
 // =============================================================================
-// Content Gathering (extensible per source type)
+// Content Gathering (all source types)
 // =============================================================================
 
-/// Gather content from all websites linked to an organization.
-async fn gather_website_content(
+/// Gather content from all sources (websites, social media) linked to an organization.
+async fn gather_all_content(
     org_id: OrganizationId,
     deps: &ServerDeps,
 ) -> Result<Vec<SourceContent>> {
-    let all_sources = Source::find_by_organization(org_id, &deps.db_pool).await?;
-    let website_sources: Vec<_> = all_sources.iter().filter(|s| s.source_type == "website").collect();
+    let pool = &deps.db_pool;
+    let all_sources = Source::find_by_organization(org_id, pool).await?;
+    let active_sources: Vec<_> = all_sources
+        .into_iter()
+        .filter(|s| s.status == "approved" && s.active)
+        .collect();
     let mut content = Vec::new();
 
-    for source in &website_sources {
-        let ws = match WebsiteSource::find_by_source_id(source.id, &deps.db_pool).await {
-            Ok(ws) => ws,
+    for source in &active_sources {
+        let site_url = match source.site_url(pool).await {
+            Ok(url) => url,
             Err(e) => {
-                warn!(source_id = %source.id, error = %e, "Failed to load website source details");
+                warn!(source_id = %source.id, source_type = %source.source_type, error = %e, "Failed to resolve site_url, skipping");
                 continue;
             }
         };
 
-        let pages = ExtractionPage::find_by_domain(&ws.domain, &deps.db_pool).await?;
+        let pages = ExtractionPage::find_by_domain(&site_url, pool).await?;
 
         for (page_id, url, text) in pages {
             if text.trim().is_empty() {
@@ -128,7 +117,7 @@ async fn gather_website_content(
             }
             content.push(SourceContent {
                 source_id: page_id,
-                source_type: "website".to_string(),
+                source_type: source.source_type.clone(),
                 source_url: url,
                 content: text,
             });
@@ -354,18 +343,17 @@ pub async fn generate_notes_for_organization(
     org_name: &str,
     deps: &ServerDeps,
 ) -> Result<GenerateNotesResult> {
-    // Gather content from website sources
-    let mut all_sources = Vec::new();
-
-    match gather_website_content(org_id, deps).await {
+    // Gather content from all sources (websites + social media)
+    let all_sources = match gather_all_content(org_id, deps).await {
         Ok(sources) => {
-            info!(org_id = %org_id, website_sources = sources.len(), "Gathered website content");
-            all_sources.extend(sources);
+            info!(org_id = %org_id, sources = sources.len(), "Gathered content from all sources");
+            sources
         }
         Err(e) => {
-            warn!(org_id = %org_id, error = %e, "Failed to gather website content");
+            warn!(org_id = %org_id, error = %e, "Failed to gather content");
+            Vec::new()
         }
-    }
+    };
 
     extract_and_create_notes(org_id, org_name, all_sources, deps).await
 }

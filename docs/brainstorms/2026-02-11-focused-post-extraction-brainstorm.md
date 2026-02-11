@@ -57,20 +57,69 @@ Two-part test, both must pass:
 - **Community support framing, not "resistance"**: Many orgs avoid terms like "resistance" and "political action." This is about community support first.
 - **Dropped "recipient" audience type**: With focus on events/drives, audiences are: participant, volunteer, donor.
 - **Standing services carve-out**: Standing services excluded UNLESS explicitly tied to immigrant families in crisis.
-- **No scoring system (yet)**: The LLM's binary extract/skip decision with a clear prompt is sufficient for now. Scoring is a Step 2 enhancement.
 - **GPT-5 Mini is fine**: The false positives were prompt-driven, not model-capability-driven.
 
-## Step 2: Relevance Scoring (future)
+## Step 2: Relevance Scoring
 
-Add `relevance_score` (1-10) and `relevance_reason` to extraction output. Surface in admin proposals UI so humans can filter: high-confidence posts auto-reviewed, low-confidence flagged as "likely noise, check these." This is a triage UX improvement, not needed until the prompt is proven.
+### Design
+
+**Standalone scoring pass** — separate from extraction, reusable on both new and existing posts.
+
+**Input:** post title + summary + description + org name
+
+**Output per post:**
+- `score` — composite 1-10 integer
+- `breakdown` — per-factor scores and reasoning
+
+**Composite score weighting:**
+
+| Factor | Weight | What it measures |
+|--------|--------|-----------------|
+| Immigration relevance | 50% | Connected to immigrant communities / ICE / the crisis |
+| Actionability | 30% | Specific event, drive, or action someone can take |
+| Completeness | 20% | Has date, location, contact info |
+
+**Breakdown format example:**
+> Relevance: 9/10 — ICE rapid response training. Actionability: 4/10 — no specific date. Completeness: 3/10 — missing contact info.
+
+### Thresholds
+
+| Score | Label | Behavior |
+|-------|-------|----------|
+| 8-10 | High confidence | Quick scan / near-auto-approve |
+| 5-7 | Review needed | Human reviews |
+| 1-4 | Likely noise | Flagged as "probably noise, check if you want" |
+
+### Two use cases
+
+**New posts:** Extract (Pass 1) → Dedupe (Pass 2) → Investigate (Pass 3) → **Score (Pass 4)** → Surface in proposals UI with score
+
+**Existing posts:** Batch score all posts in database → Flag low scorers (1-4) for human review. This cleans up posts that slipped through under the old broad prompt.
+
+### Why separate from extraction
+
+- Scorer is a different "judge" than the extractor — less likely to be generous with its own work
+- Reusable on existing posts without re-extracting
+- Scoring criteria can evolve independently of extraction prompt
+- One extra LLM call per post (GPT-5 Mini, small input — cheap)
 
 ## Implementation
 
+### Step 1 (done)
 Updated `NARRATIVE_EXTRACTION_PROMPT` in:
 `packages/server/src/domains/crawling/activities/post_extraction.rs`
 
+### Step 2 (next)
+- Build standalone scoring activity (`score_post` function)
+- Integrate into extraction pipeline as Pass 4
+- Add `relevance_score`, `relevance_breakdown` fields to post model
+- Build batch scoring for existing posts
+- Surface scores in admin proposals UI with filtering
+
 ## Next Steps
 
-1. Deploy updated prompt, monitor extraction quality
-2. If borderline false positives persist, add relevance scoring to extraction schema
-3. Build scoring filter into admin proposals UI
+1. Deploy updated extraction prompt, monitor quality
+2. Build scoring activity and integrate as Pass 4
+3. Add scoring fields to post schema (migration)
+4. Build batch scoring command for existing posts
+5. Update admin proposals UI with score filtering
