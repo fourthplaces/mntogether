@@ -371,7 +371,7 @@ pub async fn investigate_post(
         .agent("gpt-4o")
         .system(INVESTIGATION_PROMPT)
         .tool(WebSearchTool::new(deps.web_searcher.clone()))
-        .tool(FetchPageTool::new(deps.ingestor.clone()))
+        .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()))
         .max_iterations(5)
         .build()
         .chat(&user_message)
