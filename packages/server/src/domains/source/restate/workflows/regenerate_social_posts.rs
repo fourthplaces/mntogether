@@ -1,12 +1,13 @@
 //! Regenerate posts workflow for social sources
 //!
 //! Long-running workflow that scrapes a social media source via Apify,
-//! runs 3-pass LLM extraction, and syncs results via llm_sync_posts.
+//! preserves original captions verbatim, and extracts metadata via LLM.
 //!
 //! Flow:
-//! 1. Scrape social posts via Apify → Vec<CachedPage>
-//! 2. Extract with 3-pass LLM extraction
+//! 1. Scrape social posts via Apify → Vec<ScrapedSocialPost>
+//! 2. Extract metadata only (title, summary, contacts, etc.) — caption preserved as description
 //! 3. LLM sync proposals for admin review
+//! 4. Generate notes from social content
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,10 +16,10 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{EmptyRequest, OrganizationId};
-use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
 use crate::domains::notes::activities::{attach_notes_to_org_posts, extract_and_create_notes, SourceContent};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::activities::llm_sync::llm_sync_posts;
+use crate::domains::source::activities::extract_social::extract_posts_from_social;
 use crate::domains::source::activities::scrape_social::scrape_social_source;
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::impl_restate_serde;
@@ -86,7 +87,7 @@ impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
         // Phase 1: Scrape social source via Apify
         ctx.set("status", "Scraping social media posts...".to_string());
 
-        let pages = match scrape_social_source(req.source_id, &self.deps).await {
+        let social_posts = match scrape_social_source(req.source_id, &self.deps).await {
             Ok(p) => p,
             Err(e) => {
                 let msg = format!("Failed to scrape social source: {}", e);
@@ -99,7 +100,7 @@ impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
             }
         };
 
-        if pages.is_empty() {
+        if social_posts.is_empty() {
             ctx.set(
                 "status",
                 "No recent posts found for this social source.".to_string(),
@@ -110,21 +111,14 @@ impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
             });
         }
 
-        // Phase 2: Extract posts using 3-pass LLM extraction
+        // Phase 2: Extract metadata from social posts (caption preserved verbatim)
         ctx.set(
             "status",
-            format!("Extracting posts from {} social media posts...", pages.len()),
+            format!("Extracting metadata from {} social media posts...", social_posts.len()),
         );
 
-        // Use the source handle as the "domain" for extraction context
-        let domain = pages
-            .first()
-            .map(|p| p.site_url.as_str())
-            .unwrap_or("social");
-
-        let posts = match extract_posts_from_pages_with_tags(
-            &pages,
-            domain,
+        let posts = match extract_posts_from_social(
+            &social_posts,
             &tag_instructions,
             &self.deps,
         )
@@ -199,7 +193,8 @@ impl RegenerateSocialPostsWorkflow for RegenerateSocialPostsWorkflowImpl {
             ctx.set("status", "Generating notes...".to_string());
             match Organization::find_by_id(org_id, pool).await {
                 Ok(org) => {
-                    // Convert already-scraped CachedPages to SourceContent for note extraction
+                    // Convert ScrapedSocialPosts to CachedPages, then to SourceContent for note extraction
+                    let pages: Vec<_> = social_posts.iter().map(|p| p.to_cached_page()).collect();
                     let social_content: Vec<SourceContent> = pages.iter().map(|page| {
                         SourceContent {
                             source_id: uuid::Uuid::new_v4(),
