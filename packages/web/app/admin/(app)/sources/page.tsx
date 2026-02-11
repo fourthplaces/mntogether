@@ -21,6 +21,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   instagram: "Instagram",
   facebook: "Facebook",
   tiktok: "TikTok",
+  x: "X (Twitter)",
 };
 
 function SourcesContent() {

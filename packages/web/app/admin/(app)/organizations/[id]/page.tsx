@@ -14,13 +14,14 @@ import type {
   PostResult,
 } from "@/lib/restate/types";
 
-const PLATFORMS = ["instagram", "facebook", "tiktok"];
+const PLATFORMS = ["instagram", "facebook", "tiktok", "x"];
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   website: "Website",
   instagram: "Instagram",
   facebook: "Facebook",
   tiktok: "TikTok",
+  x: "X (Twitter)",
 };
 
 export default function OrganizationDetailPage() {
@@ -37,6 +38,7 @@ export default function OrganizationDetailPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [regeneratingPosts, setRegeneratingPosts] = useState(false);
   const [generatingNotes, setGeneratingNotes] = useState(false);
+  const [extractingOrgPosts, setExtractingOrgPosts] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -196,6 +198,23 @@ export default function OrganizationDetailPage() {
       alert(err.message || "Failed to regenerate posts");
     } finally {
       setRegeneratingPosts(false);
+    }
+  };
+
+  const handleExtractOrgPosts = async () => {
+    setMenuOpen(false);
+    setExtractingOrgPosts(true);
+    try {
+      await callService("Organizations", "extract_org_posts", { id: orgId });
+      invalidateService("Posts");
+      invalidateService("Organizations");
+      refetchPosts();
+      refetchOrg();
+    } catch (err: any) {
+      console.error("Failed to extract org posts:", err);
+      alert(err.message || "Failed to extract org posts");
+    } finally {
+      setExtractingOrgPosts(false);
     }
   };
 
@@ -373,10 +392,10 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes}
+                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes ? "..." : "\u22EF"}
+                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
@@ -400,6 +419,13 @@ export default function OrganizationDetailPage() {
                         className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                       >
                         {generatingNotes ? "Generating Notes..." : "Generate Notes"}
+                      </button>
+                      <button
+                        onClick={handleExtractOrgPosts}
+                        disabled={extractingOrgPosts || sources.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {extractingOrgPosts ? "Extracting Posts..." : "Extract Org Posts"}
                       </button>
                       {org.status === "approved" && (
                         <button
@@ -451,6 +477,15 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
+          {extractingOrgPosts && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Extracting posts across all sources...
+              </span>
+            </div>
+          )}
+
           <div className="grid grid-cols-4 gap-4 pt-4 mt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Websites</span>
@@ -493,6 +528,7 @@ export default function OrganizationDetailPage() {
                       source.source_type === "website" ? "bg-blue-100 text-blue-800" :
                       source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
                       source.source_type === "facebook" ? "bg-indigo-100 text-indigo-800" :
+                      source.source_type === "x" ? "bg-stone-800 text-white" :
                       "bg-stone-100 text-stone-800"
                     }`}>
                       {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
