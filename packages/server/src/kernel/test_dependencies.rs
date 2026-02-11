@@ -4,7 +4,7 @@
 
 use anyhow::Result;
 use async_trait::async_trait;
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
@@ -20,16 +20,16 @@ use extraction::{MockIngestor, MockWebSearcher};
 // Mock AI Client (for testing)
 // =============================================================================
 
-/// Create a mock OpenAIClient for testing.
+/// Create a mock OpenAi client for testing.
 ///
-/// This creates a real OpenAIClient with a dummy API key. In tests, you should
+/// This creates a real OpenAi with a dummy API key. In tests, you should
 /// use mockito or wiremock to intercept HTTP requests, or use integration tests
 /// with a real API key (ignored by default).
 ///
 /// For most unit tests, the AI calls should be abstracted behind service boundaries
 /// that can be mocked at a higher level.
-pub fn mock_openai_client() -> Arc<OpenAIClient> {
-    Arc::new(OpenAIClient::new("sk-test-mock-key-for-testing"))
+pub fn mock_openai_client() -> Arc<OpenAi> {
+    Arc::new(OpenAi::new("sk-test-mock-key-for-testing", "gpt-4o"))
 }
 
 /// Legacy MockAI for test compatibility.
@@ -277,7 +277,7 @@ impl BasePiiDetector for MockPiiDetector {
 #[derive(Clone)]
 pub struct TestDependencies {
     pub ingestor: Arc<MockIngestor>,
-    pub ai: Arc<OpenAIClient>,
+    pub ai: Arc<OpenAi>,
     pub embedding_service: Arc<MockEmbeddingService>,
     pub push_service: Arc<MockPushNotificationService>,
     pub web_searcher: Arc<MockWebSearcher>,
@@ -302,8 +302,8 @@ impl TestDependencies {
         self
     }
 
-    /// Set an OpenAI client (can be configured with a test server URL)
-    pub fn with_ai(mut self, ai: Arc<OpenAIClient>) -> Self {
+    /// Set an AI client (can be configured with a test server URL)
+    pub fn with_ai(mut self, ai: Arc<OpenAi>) -> Self {
         self.ai = ai;
         self
     }

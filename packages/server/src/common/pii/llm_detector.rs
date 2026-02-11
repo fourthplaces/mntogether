@@ -4,7 +4,7 @@
 //! catch unstructured PII like names and addresses that regex misses.
 
 use anyhow::Result;
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +55,7 @@ If no PII is detected, return an empty entities array."#;
 ///
 /// This detects unstructured PII like names, addresses, and medical info
 /// that regex patterns cannot reliably catch.
-pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<PiiEntity>> {
+pub async fn detect_pii_with_ai(text: &str, ai: &OpenAi) -> Result<Vec<PiiEntity>> {
     if text.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -75,7 +75,7 @@ pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<Pii
 /// Creates an OpenAI client internally. Prefer `detect_pii_with_ai` for
 /// better testability and consistency with the rest of the codebase.
 pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
-    let ai = OpenAIClient::new(openai_api_key.to_string());
+    let ai = OpenAi::new(openai_api_key.to_string(), "gpt-4o");
     detect_pii_with_ai(text, &ai).await
 }
 
@@ -157,7 +157,7 @@ pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFi
 }
 
 /// Hybrid detection with an OpenAIClient instance (preferred for testing)
-pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAIClient) -> Result<PiiFindings> {
+pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAi) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
     // Start with regex detection (fast, reliable for structured data)

@@ -78,24 +78,6 @@ pub struct NearbyPostType {
     pub city: Option<String>,
 }
 
-/// Contact information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactInfoGraphQL {
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub website: Option<String>,
-}
-
-impl From<crate::common::ContactInfo> for ContactInfoGraphQL {
-    fn from(c: crate::common::ContactInfo) -> Self {
-        Self {
-            phone: c.phone,
-            email: c.email,
-            website: c.website,
-        }
-    }
-}
-
 /// Post status
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum PostStatusData {

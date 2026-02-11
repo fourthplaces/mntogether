@@ -11,7 +11,7 @@
 //! - MERGE: Pre-existing duplicates in DB that should be consolidated
 
 use anyhow::Result;
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -234,7 +234,7 @@ pub async fn llm_sync_posts(
     source_type: &str,
     source_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     let existing_db_posts = Post::find_by_source(source_type, source_id, pool).await?;
@@ -894,7 +894,7 @@ Each operation object has an "operation" field plus relevant data:
 pub async fn llm_sync_posts_for_org(
     organization_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     let existing_db_posts = Post::find_by_organization_id(organization_id, pool).await?;
@@ -1032,7 +1032,7 @@ mod tests {
 
     #[test]
     fn test_sync_schema_generation() {
-        use openai_client::StructuredOutput;
+        use ai_client::openai::StructuredOutput;
         let schema = SyncAnalysisResponse::openai_schema();
         let schema_str = serde_json::to_string_pretty(&schema).unwrap();
         // Should be an object with operations and summary

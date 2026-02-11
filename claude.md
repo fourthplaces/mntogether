@@ -361,43 +361,7 @@ async fn handle_extract_posts(ctx: &EffectContext<...>) -> Result<()> {
 
 ---
 
-## GraphQL Mutation Pattern
-
-### Simple CRUD Mutations Call Activities Directly
-
-GraphQL mutations call activity functions directly — no framework needed for simple operations:
-
-```rust
-async fn approve_post(ctx: &GraphQLContext, post_id: Uuid) -> FieldResult<PostType> {
-    let user = ctx.auth_user.as_ref()
-        .ok_or_else(|| FieldError::new("Authentication required", juniper::Value::null()))?;
-
-    let id = post_activities::approve_post(post_id, user.member_id.into_uuid(), user.is_admin, ctx.deps())
-        .await
-        .map_err(to_field_error)?;
-
-    let post = Post::find_by_id(id, &ctx.db_pool).await.map_err(to_field_error)?;
-    Ok(PostType::from(post))
-}
-```
-
-### Multi-Step Operations Use Restate Workflows
-
-For operations that need durability or multi-step orchestration, invoke a Restate workflow:
-
-```rust
-async fn register_member(ctx: &GraphQLContext, ...) -> FieldResult<MemberType> {
-    let result: RegisterMemberResult = ctx.workflow_client
-        .invoke("RegisterMember", "run", RegisterMemberRequest { ... })
-        .await
-        .map_err(to_field_error)?;
-
-    let member = Member::find_by_id(result.member_id, &ctx.db_pool).await?;
-    Ok(MemberType::from(member))
-}
-```
-
-### Activities Are Pure Functions
+## Activities Are Pure Functions
 
 Activities take `&ServerDeps` explicitly and return simple values:
 
@@ -420,7 +384,7 @@ We use Restate for durable workflow execution. Restate provides:
 ### Architecture
 
 ```
-GraphQL API (port 8080)
+Next.js API / Server Actions (port 3000)
     ↓ HTTP
 WorkflowClient
     ↓ HTTP (port 9070)
@@ -515,26 +479,9 @@ HttpServer::new(endpoint)
 - Call `.serve()` on workflow instance - macro generates this method
 - Must import both trait and impl for `.serve()` to be in scope
 
-#### 4. Invoke from GraphQL
+#### 4. Invoke from API
 
-```rust
-// GraphQL mutation
-async fn send_verification_code(
-    ctx: &GraphQLContext,
-    phone_number: String,
-) -> FieldResult<bool> {
-    use crate::domains::auth::restate::SendOtpRequest;
-    use crate::domains::auth::types::OtpSent;
-
-    let result: OtpSent = ctx
-        .workflow_client
-        .invoke("SendOtp", "run", SendOtpRequest { phone_number })
-        .await
-        .map_err(to_field_error)?;
-
-    Ok(result.success)
-}
-```
+Workflows are invoked via HTTP calls to the Restate runtime:
 
 **Key points:**
 - WorkflowClient makes HTTP calls to Restate runtime

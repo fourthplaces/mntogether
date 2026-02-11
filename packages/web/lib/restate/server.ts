@@ -1,6 +1,5 @@
 // Server-side Restate client for Next.js Server Actions
 // Calls Restate ingress directly (no proxy needed server-side)
-// Replaces lib/graphql/server.ts
 
 import { cookies } from "next/headers";
 

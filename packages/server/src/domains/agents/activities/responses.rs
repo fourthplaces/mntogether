@@ -11,7 +11,8 @@ use crate::common::{ContainerId, MessageId};
 use crate::domains::agents::models::{Agent, AgentAssistantConfig};
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
-use crate::kernel::{CompletionExt, SearchPostsTool, ServerDeps};
+use ai_client::{Agent as AiAgent, Message as AiMessage, PromptBuilder};
+use crate::kernel::{SearchPostsTool, ServerDeps};
 
 // ============================================================================
 // Action: Generate Greeting
@@ -105,30 +106,28 @@ pub async fn generate_reply(
             anyhow::anyhow!("Failed to load conversation: {}", e)
         })?;
 
-    let oai_messages = build_oai_messages(&config.preamble, &messages);
+    let ai_messages = build_ai_messages(&messages);
 
-    let response = deps
-        .ai
-        .agent("gpt-4o")
-        .tool(SearchPostsTool::new(
-            deps.db_pool.clone(),
-            deps.embedding_service.clone(),
-        ))
-        .max_iterations(3)
-        .build()
-        .chat_with_history(oai_messages)
+    let ai_agent = (*deps.ai).clone().tool(SearchPostsTool::new(
+        deps.db_pool.clone(),
+        deps.embedding_service.clone(),
+    ));
+
+    let reply_text = ai_agent
+        .prompt("")
+        .preamble(&config.preamble)
+        .messages(ai_messages)
+        .multi_turn(3)
+        .send()
         .await
         .map_err(|e| {
             error!("Agent reply failed: {}", e);
             anyhow::anyhow!("AI reply generation failed: {}", e)
         })?;
 
-    let reply_text = response.content;
-
     info!(
         message_id = %message_id,
         reply_length = reply_text.len(),
-        tool_calls = ?response.tool_calls_made,
         "Agent reply generated, creating message"
     );
 
@@ -218,24 +217,14 @@ Your greeting:"#
     )
 }
 
-/// Build OpenAI message array from preamble + conversation history.
-fn build_oai_messages(preamble: &str, messages: &[Message]) -> Vec<serde_json::Value> {
-    let mut oai_messages = vec![serde_json::json!({
-        "role": "system",
-        "content": preamble
-    })];
-
-    for msg in messages {
-        let role = match msg.role.as_str() {
-            "user" => "user",
-            "assistant" => "assistant",
-            _ => continue,
-        };
-        oai_messages.push(serde_json::json!({
-            "role": role,
-            "content": msg.content
-        }));
-    }
-
-    oai_messages
+/// Build conversation history as ai_client::Message types.
+fn build_ai_messages(messages: &[Message]) -> Vec<AiMessage> {
+    messages
+        .iter()
+        .filter_map(|msg| match msg.role.as_str() {
+            "user" => Some(AiMessage::user(&msg.content)),
+            "assistant" => Some(AiMessage::assistant(&msg.content)),
+            _ => None,
+        })
+        .collect()
 }

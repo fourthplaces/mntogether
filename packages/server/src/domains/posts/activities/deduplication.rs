@@ -10,7 +10,7 @@
 //! 4. Same service described differently = merge (LLM understands identity)
 
 use anyhow::Result;
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -83,7 +83,7 @@ pub struct DeduplicationRunResult {
 pub async fn deduplicate_posts_llm(
     source_type: &str,
     source_id: Uuid,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this source
@@ -160,7 +160,7 @@ pub async fn deduplicate_posts_llm(
 /// Returns the count of posts soft-deleted.
 pub async fn apply_dedup_results(
     result: DuplicateAnalysis,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<usize> {
     let mut deleted_count = 0;
@@ -295,7 +295,7 @@ async fn generate_merge_reason(
     kept_title: &str,
     kept_id: PostId,
     reasoning: &str,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<String> {
     let prompt = format!(
         r#"Write a brief, friendly explanation (1-2 sentences) for why a listing was merged with another.
@@ -318,13 +318,11 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
 
     let reason: String = ai
         .chat_completion(
-            openai_client::ChatRequest::new("gpt-4o")
-                .message(openai_client::Message::system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters."))
-                .message(openai_client::Message::user(&prompt)),
+            "You write brief, user-friendly explanations for content merges. Keep responses under 200 characters.",
+            &prompt,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("Merge reason generation failed: {}", e))
-        .map(|r| r.content)?;
+        .map_err(|e| anyhow::anyhow!("Merge reason generation failed: {}", e))?;
 
     // Clean up response (remove quotes if AI wrapped it)
     let reason = reason.trim().trim_matches('"').to_string();
@@ -333,7 +331,7 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
 }
 
 // ============================================================================
-// Entry Point (GraphQL)
+// Entry Point
 // ============================================================================
 
 /// Deduplicate posts using LLM-based similarity (admin only)
@@ -446,7 +444,7 @@ impl_restate_serde!(CrossSourceDedupResult);
 /// Detect cross-source duplicates for a single organization using LLM analysis.
 pub async fn detect_cross_source_duplicates(
     org_id: Uuid,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     let posts = Post::find_active_pending_by_organization_with_source(org_id, pool).await?;
@@ -520,7 +518,7 @@ pub async fn detect_cross_source_duplicates(
 /// Creates a sync batch with merge proposals for admin review.
 pub async fn stage_cross_source_dedup(
     org_id: Uuid,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<StageCrossSourceResult> {
     let analysis = detect_cross_source_duplicates(org_id, ai, pool).await?;
@@ -803,7 +801,7 @@ impl_restate_serde!(Phase2Result);
 /// If < 2 pending posts, returns empty vec.
 pub async fn find_duplicate_pending_posts(
     pending_posts: &[Post],
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<Vec<DuplicateGroup>> {
     if pending_posts.len() < 2 {
         return Ok(vec![]);
@@ -847,7 +845,7 @@ pub async fn find_duplicate_pending_posts(
 pub async fn match_pending_to_active_posts(
     pending_posts: &[Post],
     active_posts: &[Post],
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<Vec<PendingActiveMatch>> {
     if pending_posts.is_empty() || active_posts.is_empty() {
         return Ok(vec![]);

@@ -19,12 +19,12 @@
 //! | `submit_url()` | Extraction | User submits a URL for extraction |
 //! | `trigger_extraction()` | Extraction | User runs extraction query on site |
 //! | `ingest_site()` | Extraction | Admin ingests entire site |
-//! | GraphQL types | Extraction | User-facing API data types |
+//! | API data types | Extraction | User-facing API data types |
 //!
 //! # Architecture
 //!
 //! ```text
-//! GraphQL → actions → ExtractionService → extraction library → results
+//! API → actions → ExtractionService → extraction library → results
 //! ```
 //!
 //! This is a **simple, direct path** - no event cascade, no background jobs.
@@ -33,7 +33,7 @@
 //! # Components
 //!
 //! - `actions`: Business logic for URL submission and extraction queries
-//! - `data`: GraphQL data types (Extraction, Gap, Source, etc.)
+//! - `data`: API data types (Extraction, Gap, Source, etc.)
 //!
 //! # See Also
 //!

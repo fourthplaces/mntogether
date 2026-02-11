@@ -1,7 +1,7 @@
 //! Provider query actions
 //!
 //! Query actions return data directly and are called without process().
-//! Auth checks are done at the GraphQL layer.
+//! Auth checks are done at the API layer.
 
 use anyhow::{Context, Result};
 use tracing::info;
@@ -12,7 +12,7 @@ use crate::domains::providers::models::Provider;
 use crate::kernel::ServerDeps;
 
 /// Get a single provider by ID
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_provider(provider_id: String, deps: &ServerDeps) -> Result<Option<Provider>> {
     let id = ProviderId::parse(&provider_id).context("Invalid provider ID")?;
 
@@ -22,7 +22,7 @@ pub async fn get_provider(provider_id: String, deps: &ServerDeps) -> Result<Opti
 }
 
 /// Get all providers with optional filters
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_providers(
     status: Option<String>,
     accepting_clients: Option<bool>,
@@ -47,7 +47,7 @@ pub async fn get_providers(
 }
 
 /// Get all pending providers (for admin approval queue)
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_pending_providers(deps: &ServerDeps) -> Result<Vec<Provider>> {
     info!("Getting pending providers");
 
@@ -62,7 +62,7 @@ pub async fn get_approved_providers(deps: &ServerDeps) -> Result<Vec<Provider>> 
 }
 
 /// Get paginated providers with cursor-based pagination (Relay spec)
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_providers_paginated(
     status: Option<&str>,
     args: &ValidatedPaginationArgs,

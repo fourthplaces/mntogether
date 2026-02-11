@@ -411,7 +411,7 @@ impl PostObject for PostObjectImpl {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let post_id = Self::parse_post_id(ctx.key())?;
 
-        // Bridge to the existing EditPostInput (which derives GraphQLInputObject)
+        // Bridge to the existing EditPostInput
         // by creating the activity-level type directly
         use crate::domains::posts::data::types::EditPostInput;
         let edit_input = EditPostInput {

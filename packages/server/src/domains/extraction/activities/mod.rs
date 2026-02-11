@@ -1,6 +1,6 @@
 //! Extraction domain actions - business logic functions
 //!
-//! These actions provide the interface between GraphQL and the extraction library.
+//! These actions provide the interface between the API and the extraction library.
 
 use anyhow::{Context, Result};
 use extraction::DiscoverConfig;

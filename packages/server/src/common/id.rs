@@ -120,7 +120,7 @@ impl<T, V> Id<T, V> {
 
     /// Parses an `Id` from a string.
     ///
-    /// This is the primary way to convert GraphQL string inputs to typed IDs.
+    /// This is the primary way to convert string inputs to typed IDs.
     ///
     /// # Errors
     ///

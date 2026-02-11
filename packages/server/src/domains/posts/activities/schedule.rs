@@ -8,7 +8,7 @@ use crate::common::ScheduleId;
 use crate::domains::schedules::models::Schedule;
 use crate::kernel::ServerDeps;
 
-/// Input for creating or updating a schedule (mirrors GraphQL ScheduleInput)
+/// Input for creating or updating a schedule
 pub struct ScheduleParams {
     pub dtstart: Option<String>,
     pub dtend: Option<String>,

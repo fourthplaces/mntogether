@@ -1,6 +1,6 @@
 //! Provider mutation actions
 //!
-//! Actions return plain data. GraphQL mutations call activities directly.
+//! Actions return plain data. Restate virtual objects call activities directly.
 
 use anyhow::{Context, Result};
 use tracing::info;

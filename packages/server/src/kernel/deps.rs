@@ -6,7 +6,7 @@
 use anyhow::Result;
 use apify_client::ApifyClient;
 use async_trait::async_trait;
-use openai_client::OpenAIClient;
+use ai_client::OpenAi;
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;
@@ -64,9 +64,9 @@ pub struct ServerDeps {
     /// This field is retained for backward compatibility with deprecated code paths.
     /// Use `extraction.ingest()` or `extraction.ingest_urls()` with FirecrawlIngestor/HttpIngestor.
     pub ingestor: Arc<dyn Ingestor>,
-    /// OpenAI client for LLM operations. Use `extract<T>()` for structured JSON
-    /// output or `CompletionExt` for simple text completions.
-    pub ai: Arc<OpenAIClient>,
+    /// AI client for LLM operations. Use `extract<T>()` for structured JSON
+    /// output or `.complete()` for simple text completions.
+    pub ai: Arc<OpenAi>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<dyn BaseTwilioService>,
@@ -91,7 +91,7 @@ impl ServerDeps {
     pub fn new(
         db_pool: PgPool,
         ingestor: Arc<dyn Ingestor>,
-        ai: Arc<OpenAIClient>,
+        ai: Arc<OpenAi>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<dyn BaseTwilioService>,

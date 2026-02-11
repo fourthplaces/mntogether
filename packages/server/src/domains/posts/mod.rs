@@ -4,13 +4,12 @@ pub mod loader;
 pub mod models;
 pub mod restate;
 
-// Re-export data types (GraphQL types)
+// Re-export data types
 pub use crate::domains::tag::TagData;
 pub use data::post::{PostData, ServicePostData};
 pub use data::types::{
-    BusinessInfo, ContactInfoGraphQL, ContactInfoInput, EditPostInput, PostConnection,
-    PostStatusData, PostType, ScrapeJobResult, SubmitPostInput, SubmitResourceLinkInput,
-    SubmitResourceLinkResult,
+    BusinessInfo, ContactInfoInput, EditPostInput, PostConnection, PostStatusData, PostType,
+    ScrapeJobResult, SubmitPostInput, SubmitResourceLinkInput, SubmitResourceLinkResult,
 };
 
 // Re-export models (domain models)

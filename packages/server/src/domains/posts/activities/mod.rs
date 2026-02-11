@@ -1,6 +1,6 @@
 //! Posts domain activities - entry-point business logic
 //!
-//! Called directly from GraphQL mutations via `process()`.
+//! Called from Restate virtual objects.
 //! Activities are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return final models/results.
 

@@ -1,7 +1,7 @@
 //! Member query actions
 //!
 //! Query actions return data directly and are called without process().
-//! Auth checks are done at the GraphQL layer.
+//! Auth checks are done at the API layer.
 
 use anyhow::Result;
 use tracing::info;
@@ -12,7 +12,7 @@ use crate::domains::member::models::member::Member;
 use crate::kernel::ServerDeps;
 
 /// Get paginated members with cursor-based pagination (Relay spec)
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_members_paginated(
     args: &ValidatedPaginationArgs,
     deps: &ServerDeps,

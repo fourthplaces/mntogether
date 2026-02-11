@@ -1,7 +1,7 @@
 //! Member domain actions - business logic functions
 //!
-//! Actions return events directly. GraphQL mutations call actions via `process()`
-//! and the returned event is dispatched through the engine.
+//! Actions return events directly. Restate workflows call actions via activities
+//! and orchestrate the execution flow.
 
 mod generate_embedding;
 mod queries;

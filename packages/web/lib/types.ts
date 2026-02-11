@@ -1,4 +1,4 @@
-// TypeScript types for GraphQL API responses
+// TypeScript types for API responses
 
 // ============================================================================
 // Common Types

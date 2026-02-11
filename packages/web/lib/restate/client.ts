@@ -1,7 +1,6 @@
 "use client";
 
 // Client-side Restate client with SWR support
-// Replaces lib/graphql/client.ts
 
 import useSWR, { SWRConfiguration, mutate as globalMutate } from "swr";
 
