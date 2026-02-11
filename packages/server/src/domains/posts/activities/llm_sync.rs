@@ -11,7 +11,8 @@
 //! - MERGE: Pre-existing duplicates in DB that should be consolidated
 
 use anyhow::Result;
-use ai_client::OpenAi;
+use ai_client::OpenRouter;
+use crate::kernel::FRONTIER_MODEL;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -234,7 +235,7 @@ pub async fn llm_sync_posts(
     source_type: &str,
     source_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     let existing_db_posts = Post::find_by_source(source_type, source_id, pool).await?;
@@ -270,7 +271,7 @@ pub async fn llm_sync_posts(
     let user_prompt = build_sync_prompt(&fresh, &existing)?;
 
     let response: SyncAnalysisResponse = ai
-        .extract("gpt-4o", SYNC_SYSTEM_PROMPT, &user_prompt)
+        .extract(FRONTIER_MODEL, SYNC_SYSTEM_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
 
@@ -894,7 +895,7 @@ Each operation object has an "operation" field plus relevant data:
 pub async fn llm_sync_posts_for_org(
     organization_id: Uuid,
     fresh_posts: Vec<ExtractedPost>,
-    ai: &OpenAi,
+    ai: &OpenRouter,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
     let existing_db_posts = Post::find_by_organization_id(organization_id, pool).await?;
@@ -929,7 +930,7 @@ pub async fn llm_sync_posts_for_org(
     let user_prompt = build_sync_prompt(&fresh, &existing)?;
 
     let response: SyncAnalysisResponse = ai
-        .extract("gpt-4o", SYNC_SYSTEM_PROMPT, &user_prompt)
+        .extract(FRONTIER_MODEL, SYNC_SYSTEM_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("LLM sync analysis failed: {}", e))?;
 

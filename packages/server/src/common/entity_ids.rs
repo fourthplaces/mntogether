@@ -104,6 +104,12 @@ pub struct Noteable;
 /// Marker type for PostSource entities (unified post source tracking).
 pub struct PostSource;
 
+/// Marker type for Locatable entities (polymorphic location associations).
+pub struct Locatable;
+
+/// Marker type for HeatMapPoint entities (heat map snapshot points).
+pub struct HeatMapPoint;
+
 // ============================================================================
 // Type aliases - the primary API
 // ============================================================================
@@ -188,3 +194,9 @@ pub type NoteableId = Id<Noteable>;
 
 /// Typed ID for PostSource entities.
 pub type PostSourceId = Id<PostSource>;
+
+/// Typed ID for Locatable entities.
+pub type LocatableId = Id<Locatable>;
+
+/// Typed ID for HeatMapPoint entities.
+pub type HeatMapPointId = Id<HeatMapPoint>;

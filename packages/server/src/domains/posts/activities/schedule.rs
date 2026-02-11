@@ -5,7 +5,10 @@ use chrono::{NaiveTime, Utc};
 use uuid::Uuid;
 
 use crate::common::ScheduleId;
-use crate::domains::schedules::models::Schedule;
+use crate::domains::schedules::models::{
+    CreateOneOffSchedule, CreateOperatingHoursSchedule, CreateRecurringSchedule, Schedule,
+    UpdateScheduleParams,
+};
 use crate::kernel::ServerDeps;
 
 /// Input for creating or updating a schedule
@@ -55,16 +58,18 @@ pub async fn add_post_schedule(
             .transpose()?;
 
         Schedule::create_recurring(
-            "post",
-            post_id,
-            dtstart.unwrap_or_else(Utc::now),
-            rrule,
-            input.duration_minutes,
-            opens_at,
-            closes_at,
-            input.day_of_week,
-            timezone,
-            input.notes.as_deref(),
+            &CreateRecurringSchedule::builder()
+                .schedulable_type("post")
+                .schedulable_id(post_id)
+                .dtstart(dtstart.unwrap_or_else(Utc::now))
+                .rrule(rrule.as_str())
+                .timezone(timezone)
+                .duration_minutes(input.duration_minutes)
+                .opens_at(opens_at)
+                .closes_at(closes_at)
+                .day_of_week(input.day_of_week)
+                .notes(input.notes.as_deref())
+                .build(),
             &deps.db_pool,
         )
         .await
@@ -83,13 +88,15 @@ pub async fn add_post_schedule(
             .transpose()?;
 
         Schedule::create_operating_hours(
-            "post",
-            post_id,
-            input.day_of_week.unwrap(),
-            opens_at,
-            closes_at,
-            timezone,
-            input.notes.as_deref(),
+            &CreateOperatingHoursSchedule::builder()
+                .schedulable_type("post")
+                .schedulable_id(post_id)
+                .day_of_week(input.day_of_week.unwrap())
+                .timezone(timezone)
+                .opens_at(opens_at)
+                .closes_at(closes_at)
+                .notes(input.notes.as_deref())
+                .build(),
             &deps.db_pool,
         )
         .await
@@ -110,13 +117,15 @@ pub async fn add_post_schedule(
         let is_all_day = input.is_all_day.unwrap_or(false);
 
         Schedule::create_one_off(
-            "post",
-            post_id,
-            dtstart,
-            dtend,
-            is_all_day,
-            timezone,
-            input.notes.as_deref(),
+            &CreateOneOffSchedule::builder()
+                .schedulable_type("post")
+                .schedulable_id(post_id)
+                .dtstart(dtstart)
+                .dtend(dtend)
+                .is_all_day(is_all_day)
+                .timezone(timezone)
+                .notes(input.notes.as_deref())
+                .build(),
             &deps.db_pool,
         )
         .await
@@ -155,17 +164,19 @@ pub async fn update_schedule(
 
     Schedule::update(
         schedule_id,
-        dtstart,
-        dtend,
-        input.rrule.as_deref(),
-        input.exdates.as_deref(),
-        opens_at,
-        closes_at,
-        input.day_of_week,
-        input.is_all_day,
-        input.duration_minutes,
-        input.timezone.as_deref(),
-        input.notes.as_deref(),
+        &UpdateScheduleParams {
+            dtstart,
+            dtend,
+            rrule: input.rrule.as_deref(),
+            exdates: input.exdates.as_deref(),
+            opens_at,
+            closes_at,
+            day_of_week: input.day_of_week,
+            is_all_day: input.is_all_day,
+            duration_minutes: input.duration_minutes,
+            timezone: input.timezone.as_deref(),
+            notes: input.notes.as_deref(),
+        },
         &deps.db_pool,
     )
     .await

@@ -16,6 +16,7 @@ use server_core::domains::chatrooms::restate::{
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
 use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
+use server_core::domains::heat_map::restate::{HeatMapService, HeatMapServiceImpl};
 use server_core::domains::organization::restate::{
     ExtractOrgPostsWorkflow, ExtractOrgPostsWorkflowImpl, OrganizationsService,
     OrganizationsServiceImpl,
@@ -47,7 +48,8 @@ use server_core::domains::website::restate::{
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
 };
 use server_core::kernel::{
-    create_extraction_service, sse::SseState, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
+    create_extraction_service, sse::SseState, OpenAi, OpenRouter, ServerDeps, StreamHub,
+    TwilioAdapter, FRONTIER_MODEL,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -105,6 +107,8 @@ async fn main() -> Result<()> {
 
     // Load configuration from environment
     let openai_api_key = std::env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?;
+    let openrouter_api_key =
+        std::env::var("OPENROUTER_API_KEY").context("OPENROUTER_API_KEY must be set")?;
     let tavily_api_key = std::env::var("TAVILY_API_KEY").context("TAVILY_API_KEY must be set")?;
     let firecrawl_api_key = std::env::var("FIRECRAWL_API_KEY").ok();
     let expo_access_token = std::env::var("EXPO_ACCESS_TOKEN").ok();
@@ -143,15 +147,20 @@ async fn main() -> Result<()> {
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create AI client
+    // Create AI clients
     let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
+    let openrouter_client = Arc::new(
+        OpenRouter::new(openrouter_api_key, FRONTIER_MODEL)
+            .with_app_name("MN Together")
+            .with_site_url("https://mntogether.org"),
+    );
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
     let pii_detector = server_core::kernel::pii::create_pii_detector(
         pii_scrubbing_enabled,
         pii_use_gpt_detection,
-        Some(openai_api_key),
+        Some(openrouter_client.clone()),
     );
 
     // Create ingestor with SSRF protection
@@ -200,6 +209,7 @@ async fn main() -> Result<()> {
         pool.clone(),
         ingestor,
         openai_client,
+        openrouter_client,
         Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(ExpoClient::new(expo_access_token)),
         Arc::new(TwilioAdapter::new(twilio)),
@@ -261,6 +271,8 @@ async fn main() -> Result<()> {
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Extraction domain
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
+        // Heat map domain
+        .bind(HeatMapServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs domain
         .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
         // Notes domain

@@ -14,7 +14,11 @@ pub mod traits;
 
 // Re-export AI client types
 pub use ai_client::OpenAi;
+pub use ai_client::OpenRouter;
 pub use ai_client::openai::StructuredOutput;
+
+/// The frontier model used for accuracy-critical tasks via OpenRouter.
+pub const FRONTIER_MODEL: &str = "deepseek/deepseek-v3.2-speciale";
 
 // Extraction library integration
 pub use extraction_service::{

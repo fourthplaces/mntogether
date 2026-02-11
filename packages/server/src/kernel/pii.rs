@@ -5,9 +5,10 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use crate::common::pii::{
-    detect_pii_contextual, detect_pii_hybrid, redact_pii, DetectionContext, PiiFindings,
+    detect_pii_contextual, redact_pii, DetectionContext, PiiFindings,
     RedactionStrategy,
 };
+use crate::common::pii::llm_detector::detect_pii_hybrid_with_ai;
 use crate::kernel::traits::{BasePiiDetector, PiiScrubResult};
 
 // =============================================================================
@@ -52,15 +53,15 @@ impl BasePiiDetector for RegexPiiDetector {
 // Hybrid PII Detector (Regex + GPT)
 // =============================================================================
 
-/// Hybrid PII detector using regex + GPT
-/// Detects structured PII (regex) + unstructured PII (names, addresses via GPT)
+/// Hybrid PII detector using regex + LLM
+/// Detects structured PII (regex) + unstructured PII (names, addresses via LLM)
 pub struct HybridPiiDetector {
-    openai_api_key: String,
+    ai: Arc<ai_client::OpenRouter>,
 }
 
 impl HybridPiiDetector {
-    pub fn new(openai_api_key: String) -> Self {
-        Self { openai_api_key }
+    pub fn new(ai: Arc<ai_client::OpenRouter>) -> Self {
+        Self { ai }
     }
 }
 
@@ -79,7 +80,7 @@ impl BasePiiDetector for HybridPiiDetector {
         // For now, only use GPT for personal messages to reduce costs
         if context == DetectionContext::PersonalMessage && !text.is_empty() {
             // Use hybrid detection on the REDACTED text
-            match detect_pii_hybrid(&redacted_text, &self.openai_api_key).await {
+            match detect_pii_hybrid_with_ai(&redacted_text, &self.ai).await {
                 Ok(llm_findings) => {
                     // Combine regex and LLM findings
                     let mut combined = regex_findings;
@@ -168,23 +169,23 @@ impl BasePiiDetector for NoopPiiDetector {
 /// Create PII detector based on configuration
 pub fn create_pii_detector(
     enabled: bool,
-    use_gpt: bool,
-    openai_api_key: Option<String>,
+    use_llm: bool,
+    ai: Option<Arc<ai_client::OpenRouter>>,
 ) -> Arc<dyn BasePiiDetector> {
     if !enabled {
         tracing::info!("PII scrubbing disabled");
         return Arc::new(NoopPiiDetector::new());
     }
 
-    if use_gpt {
-        match openai_api_key {
-            Some(key) => {
-                tracing::info!("PII scrubbing enabled with hybrid detection (regex + GPT)");
-                Arc::new(HybridPiiDetector::new(key))
+    if use_llm {
+        match ai {
+            Some(ai_client) => {
+                tracing::info!("PII scrubbing enabled with hybrid detection (regex + LLM)");
+                Arc::new(HybridPiiDetector::new(ai_client))
             }
             None => {
                 tracing::warn!(
-                    "PII_USE_GPT_DETECTION=true but no OpenAI API key, falling back to regex-only"
+                    "PII_USE_GPT_DETECTION=true but no AI client provided, falling back to regex-only"
                 );
                 Arc::new(RegexPiiDetector::new())
             }

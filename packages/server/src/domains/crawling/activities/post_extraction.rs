@@ -10,14 +10,14 @@
 use anyhow::Result;
 use extraction::types::page::CachedPage;
 use futures::future::join_all;
-use ai_client::{Agent, OpenAi, PromptBuilder};
+use ai_client::{Agent, OpenRouter, PromptBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
 
 use crate::common::{ExtractedPost, ExtractedPostInformation};
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
-use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool};
+use crate::kernel::{FetchPageTool, ServerDeps, WebSearchTool, FRONTIER_MODEL};
 
 //=============================================================================
 // BATCHING
@@ -160,6 +160,7 @@ Also create separate posts for:
 async fn extract_narrative_posts(
     content: &str,
     context: Option<&str>,
+    ai: &OpenRouter,
 ) -> Result<Vec<NarrativePost>> {
     if content.trim().is_empty() {
         return Ok(vec![]);
@@ -172,9 +173,8 @@ async fn extract_narrative_posts(
 
     let user_prompt = format!("## Content to Extract\n\n{}", content);
 
-    let client = OpenAi::from_env("gpt-4o")?;
-    let response: NarrativeExtractionResponse = client
-        .extract("gpt-4o", &system_prompt, &user_prompt)
+    let response: NarrativeExtractionResponse = ai
+        .extract(FRONTIER_MODEL, &system_prompt, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("Narrative extraction failed: {}", e))?;
 
@@ -226,6 +226,7 @@ Be aggressive about merging duplicates, but never merge posts that serve differe
 async fn dedupe_and_merge_posts(
     posts: Vec<NarrativePost>,
     domain: &str,
+    ai: &OpenRouter,
 ) -> Result<Vec<NarrativePost>> {
     if posts.len() <= 1 {
         return Ok(posts);
@@ -244,9 +245,8 @@ async fn dedupe_and_merge_posts(
         "Deduplicating posts"
     );
 
-    let client = OpenAi::from_env("gpt-4o")?;
-    let response: NarrativeExtractionResponse = client
-        .extract("gpt-4o", DEDUPE_PROMPT, &user_prompt)
+    let response: NarrativeExtractionResponse = ai
+        .extract(FRONTIER_MODEL, DEDUPE_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("Deduplication failed: {}", e))?;
 
@@ -362,12 +362,10 @@ pub async fn investigate_post(
         "Starting post investigation"
     );
 
-    let client = OpenAi::from_env("gpt-4o")?;
-
     // Step 1: Agent investigates with tools
     info!(title = %narrative.title, "Running agent with tools (web_search, fetch_page)");
 
-    let agent = client
+    let agent = (*deps.ai_next)
         .clone()
         .tool(WebSearchTool::new(deps.web_searcher.clone()))
         .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()));
@@ -404,8 +402,8 @@ pub async fn investigate_post(
     );
 
     let extraction_prompt = build_extraction_prompt(tag_instructions);
-    let result = client
-        .extract::<ExtractedPostInformation>("gpt-4o", &extraction_prompt, &extraction_input)
+    let result = deps.ai_next
+        .extract::<ExtractedPostInformation>(FRONTIER_MODEL, &extraction_prompt, &extraction_input)
         .await
         .map_err(|e| anyhow::anyhow!("Structured extraction failed: {}", e))?;
 
@@ -460,7 +458,7 @@ pub async fn extract_posts_from_content(
     let context = format!("Organization: {}\nSource URL: https://{}", domain, domain);
 
     // Pass 1: Extract narrative posts (title + summary + description)
-    let narratives = extract_narrative_posts(content, Some(&context)).await?;
+    let narratives = extract_narrative_posts(content, Some(&context), deps.ai_next.as_ref()).await?;
 
     if narratives.is_empty() {
         return Ok(vec![]);
@@ -473,7 +471,7 @@ pub async fn extract_posts_from_content(
     );
 
     // Pass 2: Deduplicate and merge
-    let deduplicated = dedupe_and_merge_posts(narratives, domain).await?;
+    let deduplicated = dedupe_and_merge_posts(narratives, domain, deps.ai_next.as_ref()).await?;
 
     info!(
         deduplicated_count = deduplicated.len(),
@@ -561,6 +559,7 @@ pub async fn extract_posts_from_pages_with_tags(
     );
 
     // Step 2: Extract narratives from each batch (in parallel)
+    let ai = deps.ai_next.as_ref();
     let batch_futures: Vec<_> = batches
         .iter()
         .enumerate()
@@ -583,7 +582,7 @@ pub async fn extract_posts_from_pages_with_tags(
                     "Extracting narratives from batch"
                 );
 
-                let result = extract_narrative_posts(&combined_content, Some(&context)).await;
+                let result = extract_narrative_posts(&combined_content, Some(&context), ai).await;
 
                 match &result {
                     Ok(narratives) => {
@@ -626,7 +625,7 @@ pub async fn extract_posts_from_pages_with_tags(
     );
 
     // Step 3: Deduplicate and merge posts
-    let deduplicated = dedupe_and_merge_posts(all_narratives, domain).await?;
+    let deduplicated = dedupe_and_merge_posts(all_narratives, domain, deps.ai_next.as_ref()).await?;
 
     info!(
         deduplicated_count = deduplicated.len(),

@@ -111,6 +111,7 @@ services:
 
       # API Keys (same as main API)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
 
@@ -139,9 +140,10 @@ services:
         condition: service_healthy
     volumes:
       - ./packages/server:/app/packages/server
+      - ./packages/ai-client:/app/packages/ai-client
       - ./packages/apify-client:/app/packages/apify-client
       - rust_target:/app/target
-    command: cargo watch -w /app/packages/server -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
+    command: cargo watch -w /app/packages/server -w /app/packages/ai-client -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
     networks:
       - mndigitalaid
 

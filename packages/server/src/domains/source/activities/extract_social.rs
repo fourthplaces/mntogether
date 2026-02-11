@@ -12,7 +12,7 @@ use tracing::{info, warn};
 
 use crate::common::extraction_types::ContactInfo;
 use crate::common::types::{ExtractedPost, ExtractedSchedule, TagEntry};
-use crate::kernel::ServerDeps;
+use crate::kernel::{ServerDeps, FRONTIER_MODEL};
 
 use super::scrape_social::ScrapedSocialPost;
 
@@ -156,11 +156,11 @@ pub async fn extract_posts_from_social(
             let user = build_user_prompt(post);
             let caption = post.caption.clone();
             let source_url = post.source_url.clone();
-            let ai = deps.ai.clone();
+            let ai = deps.ai_next.clone();
 
             async move {
                 let result = ai
-                    .extract::<SocialPostMetadata>("gpt-4o", &system, &user)
+                    .extract::<SocialPostMetadata>(FRONTIER_MODEL, &system, &user)
                     .await;
 
                 match result {

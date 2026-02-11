@@ -18,6 +18,9 @@ export default function PostsPage() {
   const [selectedSource, setSelectedSource] = useState<SourceFilter>("all");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [zipInput, setZipInput] = useState("");
+  const [zipCode, setZipCode] = useState("");
+  const [radiusMiles, setRadiusMiles] = useState<number>(25);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
@@ -26,7 +29,7 @@ export default function PostsPage() {
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [selectedStatus, selectedType, selectedSource, searchQuery]);
+  }, [selectedStatus, selectedType, selectedSource, searchQuery, zipCode, radiusMiles]);
 
   // Fetch stats
   const { data: statsData } = useRestate<PostStats>(
@@ -47,6 +50,8 @@ export default function PostsPage() {
       post_type: selectedType === "all" ? null : selectedType,
       submission_type: selectedSource === "all" ? null : selectedSource,
       search: searchQuery || null,
+      zip_code: zipCode || null,
+      radius_miles: zipCode ? radiusMiles : null,
       ...pagination.variables,
     },
     { revalidateOnFocus: false }
@@ -160,6 +165,59 @@ export default function PostsPage() {
           </form>
         </div>
 
+        {/* Zip Code Proximity Filter */}
+        <div className="mb-4">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              setZipCode(zipInput);
+            }}
+            className="flex gap-2 items-center"
+          >
+            <input
+              type="text"
+              placeholder="Zip code (e.g., 55401)"
+              value={zipInput}
+              onChange={(e) => setZipInput(e.target.value.replace(/\D/g, "").slice(0, 5))}
+              className="w-40 px-4 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              maxLength={5}
+            />
+            <select
+              value={radiusMiles}
+              onChange={(e) => {
+                setRadiusMiles(Number(e.target.value));
+                if (zipCode) pagination.reset();
+              }}
+              className="px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
+              disabled={!zipInput && !zipCode}
+            >
+              <option value={5}>5 miles</option>
+              <option value={10}>10 miles</option>
+              <option value={25}>25 miles</option>
+              <option value={50}>50 miles</option>
+            </select>
+            <button
+              type="submit"
+              disabled={!zipInput || zipInput.length < 5}
+              className="px-4 py-2 bg-stone-900 text-white rounded-lg text-sm font-medium hover:bg-stone-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Filter by Location
+            </button>
+            {zipCode && (
+              <button
+                type="button"
+                onClick={() => {
+                  setZipInput("");
+                  setZipCode("");
+                }}
+                className="px-4 py-2 bg-stone-100 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-200 transition-colors"
+              >
+                Clear
+              </button>
+            )}
+          </form>
+        </div>
+
         {/* Stats Dashboard - Post Types */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
           <button
@@ -246,7 +304,7 @@ export default function PostsPage() {
         </div>
 
         {/* Active Filters */}
-        {(selectedType !== "all" || selectedSource !== "all" || searchQuery) && (
+        {(selectedType !== "all" || selectedSource !== "all" || searchQuery || zipCode) && (
           <div className="mb-4 flex gap-2 flex-wrap">
             {searchQuery && (
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
@@ -268,6 +326,14 @@ export default function PostsPage() {
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-stone-200 text-stone-800 rounded-full text-sm">
                 Source: <span className="font-semibold">{selectedSource === "USER_SUBMITTED" ? "User" : "Scraped"}</span>
                 <button onClick={() => setSelectedSource("all")} className="hover:text-stone-900">
+                  {"\u2715"}
+                </button>
+              </span>
+            )}
+            {zipCode && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
+                Near: <span className="font-semibold">{zipCode} ({radiusMiles} mi)</span>
+                <button onClick={() => { setZipInput(""); setZipCode(""); }} className="hover:text-green-900">
                   {"\u2715"}
                 </button>
               </span>
@@ -309,7 +375,14 @@ export default function PostsPage() {
               {posts.map((post) => (
                 <div key={post.id} className="relative">
                   {/* Source badge overlay */}
-                  <div className="absolute top-2 right-2 z-10">
+                  <div className="absolute top-2 right-2 z-10 flex gap-1">
+                    {post.distance_miles != null && (
+                      <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
+                        {post.distance_miles < 1
+                          ? "< 1 mi"
+                          : `${post.distance_miles.toFixed(1)} mi`}
+                      </span>
+                    )}
                     <span className={`text-xs font-medium px-2 py-1 rounded ${
                       post.submission_type === "USER_SUBMITTED"
                         ? "bg-amber-100 text-amber-800"
