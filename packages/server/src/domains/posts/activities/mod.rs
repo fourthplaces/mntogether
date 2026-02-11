@@ -7,6 +7,7 @@
 pub mod backfill;
 pub mod core;
 pub mod create_post;
+pub mod expire_scheduled_posts;
 pub mod deduplication;
 pub mod llm_sync;
 pub mod post_discovery;

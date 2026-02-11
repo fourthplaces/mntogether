@@ -401,6 +401,18 @@ pub struct BackfillLocationsResult {
 
 impl_restate_serde!(BackfillLocationsResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpireStalePostsRequest {}
+
+impl_restate_serde!(ExpireStalePostsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpireStalePostsResult {
+    pub expired_count: u64,
+}
+
+impl_restate_serde!(ExpireStalePostsResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -436,6 +448,9 @@ pub trait PostsService {
     async fn deduplicate_cross_source(
         req: DeduplicateCrossSourceRequest,
     ) -> Result<DeduplicateCrossSourceResult, HandlerError>;
+    async fn expire_stale_posts(
+        req: ExpireStalePostsRequest,
+    ) -> Result<ExpireStalePostsResult, HandlerError>;
 }
 
 // =============================================================================
@@ -1107,5 +1122,21 @@ impl PostsService for PostsServiceImpl {
             .await?;
 
         Ok(result)
+    }
+
+    async fn expire_stale_posts(
+        &self,
+        ctx: Context<'_>,
+        _req: ExpireStalePostsRequest,
+    ) -> Result<ExpireStalePostsResult, HandlerError> {
+        let expired_count = ctx
+            .run(|| async {
+                activities::expire_scheduled_posts::expire_scheduled_posts(&self.deps)
+                    .await
+                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)
+            })
+            .await?;
+
+        Ok(ExpireStalePostsResult { expired_count })
     }
 }

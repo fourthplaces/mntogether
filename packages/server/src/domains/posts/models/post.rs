@@ -345,6 +345,30 @@ pub struct UpdatePostContent {
 // =============================================================================
 
 impl Post {
+    /// SQL predicate: filters out posts with all-expired schedules.
+    /// Posts without schedules (evergreen) always pass.
+    /// Posts with at least one active schedule pass.
+    ///
+    /// Schedule "active" means:
+    /// - One-off event: dtend (or dtstart if no dtend) is in the future
+    /// - Recurring/operating hours: valid_to is NULL (open-ended) or in the future
+    const SCHEDULE_ACTIVE_FILTER: &'static str = r#"
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = p.id
+            )
+            OR EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = p.id
+                AND (
+                    (NULLIF(s.rrule, '') IS NULL AND COALESCE(s.dtend, s.dtstart) > NOW())
+                    OR (NULLIF(s.rrule, '') IS NOT NULL AND (s.valid_to IS NULL OR s.valid_to >= CURRENT_DATE))
+                )
+            )
+        )
+    "#;
+
     /// Find all posts created by a specific agent (joins through agents.member_id).
     pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
@@ -536,17 +560,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.post_type = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(post_type)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(post_type)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -557,17 +584,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.category = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(category)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -578,17 +608,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.capacity_status = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(capacity_status)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(capacity_status)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -597,7 +630,7 @@ impl Post {
         organization_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Post>(
+        let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
             JOIN post_sources ps ON ps.post_id = p.id
@@ -607,9 +640,12 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              {}
             ORDER BY p.created_at DESC
             "#,
-        )
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, Post>(&sql)
         .bind(organization_id)
         .fetch_all(pool)
         .await
@@ -820,6 +856,32 @@ impl Post {
             "#,
         )
         .bind(post_ids)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
+    /// Mark posts as expired when all their schedules have passed.
+    /// Only affects posts that have schedules (evergreen posts are untouched).
+    pub async fn expire_by_schedule(pool: &PgPool) -> Result<u64> {
+        let result = sqlx::query(
+            r#"
+            UPDATE posts SET status = 'expired', updated_at = NOW()
+            WHERE status = 'active'
+              AND EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = posts.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = posts.id
+                AND (
+                  (NULLIF(s.rrule, '') IS NULL AND COALESCE(s.dtend, s.dtstart) > NOW())
+                  OR (NULLIF(s.rrule, '') IS NOT NULL AND (s.valid_to IS NULL OR s.valid_to >= CURRENT_DATE))
+                )
+              )
+            "#,
+        )
         .execute(pool)
         .await?;
         Ok(result.rows_affected())
@@ -1064,7 +1126,7 @@ impl Post {
 
         let vector = Vector::from(query_embedding.to_vec());
 
-        let results = sqlx::query_as::<_, PostSearchResult>(
+        let sql = format!(
             r#"
             SELECT
                 p.id as post_id,
@@ -1080,15 +1142,18 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
+              {}
             ORDER BY p.embedding <=> $1
             LIMIT $3
             "#,
-        )
-        .bind(&vector)
-        .bind(threshold)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let results = sqlx::query_as::<_, PostSearchResult>(&sql)
+            .bind(&vector)
+            .bind(threshold)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?;
 
         Ok(results)
     }
@@ -1104,7 +1169,7 @@ impl Post {
 
         let vector = Vector::from(query_embedding.to_vec());
 
-        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(
+        let sql = format!(
             r#"
             SELECT
                 p.id as post_id,
@@ -1123,15 +1188,18 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
+              {}
             ORDER BY p.embedding <=> $1
             LIMIT $3
             "#,
-        )
-        .bind(&vector)
-        .bind(threshold)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(&sql)
+            .bind(&vector)
+            .bind(threshold)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?;
 
         Ok(results)
     }
@@ -1205,7 +1273,7 @@ impl Post {
         limit: i32,
         pool: &PgPool,
     ) -> Result<Vec<PostWithDistance>> {
-        sqlx::query_as::<_, PostWithDistance>(
+        let sql = format!(
             r#"
             WITH center AS (
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
@@ -1226,16 +1294,19 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              {}
             ORDER BY distance_miles ASC
             LIMIT $3
             "#,
-        )
-        .bind(center_zip)
-        .bind(radius_miles)
-        .bind(limit)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, PostWithDistance>(&sql)
+            .bind(center_zip)
+            .bind(radius_miles)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find revision for a specific post (if any)
@@ -1442,7 +1513,7 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
+        let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
             LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
@@ -1455,17 +1526,20 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($1::text IS NULL OR t_pt.value = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
+              {}
             ORDER BY p.created_at DESC
             LIMIT $3 OFFSET $4
             "#,
-        )
-        .bind(post_type)
-        .bind(category)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, Self>(&sql)
+            .bind(post_type)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Count active posts matching the same filters as find_public_filtered
@@ -1474,7 +1548,7 @@ impl Post {
         category: Option<&str>,
         pool: &PgPool,
     ) -> Result<i64> {
-        sqlx::query_scalar::<_, i64>(
+        let sql = format!(
             r#"
             SELECT COUNT(DISTINCT p.id) FROM posts p
             LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
@@ -1487,13 +1561,16 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($1::text IS NULL OR t_pt.value = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
+              {}
             "#,
-        )
-        .bind(post_type)
-        .bind(category)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_scalar::<_, i64>(&sql)
+            .bind(post_type)
+            .bind(category)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find a translation of a post in a specific language
