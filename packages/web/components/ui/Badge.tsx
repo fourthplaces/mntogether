@@ -38,7 +38,7 @@ export function Badge({
   ...rest
 }: BadgeProps) {
   const classes = cn(
-    "inline-flex items-center font-medium",
+    "inline-flex items-center font-medium tracking-wide",
     pill ? "rounded-full" : "rounded-sm",
     !color && variantStyles[variant],
     !color && sizeStyles[size],

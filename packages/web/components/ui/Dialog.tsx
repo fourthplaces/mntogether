@@ -44,7 +44,7 @@ export function Dialog({
     <>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 z-40"
+        className="fixed inset-0 bg-black/40 z-40 animate-[fadeIn_200ms_ease-out]"
         onClick={onClose}
       />
 
@@ -52,7 +52,7 @@ export function Dialog({
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
         <div
           className={cn(
-            "bg-surface-raised rounded-xl shadow-dialog w-full max-w-md",
+            "bg-surface-raised rounded-xl shadow-dialog w-full max-w-md animate-[scaleIn_200ms_ease-out]",
             className,
           )}
           onClick={(e) => e.stopPropagation()}

@@ -14,7 +14,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             "w-full px-4 py-2.5 text-sm bg-surface-subtle border rounded-md",
             "placeholder:text-text-faint",
-            "focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
+            "focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-150",
             error
               ? "border-danger-hover focus:ring-danger-hover"
               : "border-border focus:ring-focus-ring",
@@ -46,7 +46,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           className={cn(
             "w-full px-4 py-3 text-sm bg-surface-subtle border rounded-md resize-none",
             "placeholder:text-text-faint",
-            "focus:outline-none focus:ring-2 focus:border-transparent transition-colors",
+            "focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-150",
             error
               ? "border-danger-hover focus:ring-danger-hover"
               : "border-border focus:ring-focus-ring",

@@ -5,7 +5,7 @@ const variantStyles = {
   default: "bg-surface-raised rounded-lg border border-border",
   elevated: "bg-surface-raised rounded-lg shadow-card",
   interactive:
-    "bg-surface-raised rounded-lg border border-border hover:shadow-card-hover transition-shadow cursor-pointer",
+    "bg-surface-raised rounded-lg border border-border hover:shadow-card-hover hover:-translate-y-[1px] transition-all duration-200 cursor-pointer",
 };
 
 const paddingStyles = {
