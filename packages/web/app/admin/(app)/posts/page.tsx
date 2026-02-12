@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRestate, callObject, invalidateService, invalidateObject } from "@/lib/restate/client";
+import { useState, useEffect, useRef } from "react";
+import { useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { PostReviewCard } from "@/components/admin/PostReviewCard";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import type { PostList, PostStats } from "@/lib/restate/types";
+
+type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
 
 type PostTypeFilter = "all" | "service" | "opportunity" | "business";
 type SourceFilter = "all" | "USER_SUBMITTED" | "SCRAPED";
@@ -23,6 +25,11 @@ export default function PostsPage() {
   const [radiusMiles, setRadiusMiles] = useState<number>(25);
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [scoring, setScoring] = useState(false);
+  const [scoreResult, setScoreResult] = useState<string | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   const pagination = useOffsetPagination({ pageSize: 10 });
 
@@ -30,6 +37,17 @@ export default function PostsPage() {
   useEffect(() => {
     pagination.reset();
   }, [selectedStatus, selectedType, selectedSource, searchQuery, zipCode, radiusMiles]);
+
+  // Close more menu on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
 
   // Fetch stats
   const { data: statsData } = useRestate<PostStats>(
@@ -87,7 +105,35 @@ export default function PostsPage() {
     }
   };
 
-  const posts = data?.posts || [];
+  const handleScoreAll = async () => {
+    setMoreMenuOpen(false);
+    setScoring(true);
+    setScoreResult(null);
+    try {
+      const result = await callService<{ scored: number; failed: number; remaining: number }>(
+        "Posts", "batch_score_posts", { limit: 200 }
+      );
+      setScoreResult(`Scored ${result.scored} posts${result.failed > 0 ? `, ${result.failed} failed` : ""}${result.remaining > 0 ? `, ${result.remaining} remaining` : ""}`);
+      refetch();
+    } catch (err: any) {
+      setScoreResult(`Error: ${err.message || "Failed to score posts"}`);
+    } finally {
+      setScoring(false);
+    }
+  };
+
+  const matchesScoreFilter = (post: { relevance_score?: number | null }) => {
+    if (scoreFilter === "all") return true;
+    if (scoreFilter === "unscored") return post.relevance_score == null;
+    if (post.relevance_score == null) return false;
+    if (scoreFilter === "high") return post.relevance_score >= 8;
+    if (scoreFilter === "review") return post.relevance_score >= 5 && post.relevance_score <= 7;
+    if (scoreFilter === "noise") return post.relevance_score <= 4;
+    return true;
+  };
+
+  const allPosts = data?.posts || [];
+  const posts = allPosts.filter(matchesScoreFilter);
   const totalCount = data?.total_count || 0;
   const hasNextPage = data?.has_next_page || false;
   const pageInfo = pagination.buildPageInfo(hasNextPage);
@@ -104,9 +150,43 @@ export default function PostsPage() {
   return (
     <div className="min-h-screen bg-stone-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* Score result banner */}
+        {scoreResult && (
+          <div className={`mb-4 px-4 py-3 rounded-lg text-sm ${scoreResult.startsWith("Error") ? "bg-red-50 text-red-700 border border-red-200" : "bg-green-50 text-green-700 border border-green-200"}`}>
+            {scoreResult}
+            <button onClick={() => setScoreResult(null)} className="ml-2 font-medium hover:underline">Dismiss</button>
+          </div>
+        )}
+
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-3xl font-bold text-stone-900 mb-2">Posts</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-3xl font-bold text-stone-900 mb-2">Posts</h1>
+            <div className="relative" ref={moreMenuRef}>
+              <button
+                onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                disabled={scoring}
+                className="p-2 rounded-lg text-stone-500 hover:bg-stone-100 hover:text-stone-700 transition-colors disabled:opacity-50"
+                title="More actions"
+              >
+                {scoring ? (
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><circle cx="4" cy="10" r="2" /><circle cx="10" cy="10" r="2" /><circle cx="16" cy="10" r="2" /></svg>
+                )}
+              </button>
+              {moreMenuOpen && (
+                <div className="absolute right-0 mt-1 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-20">
+                  <button
+                    onClick={handleScoreAll}
+                    className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
+                  >
+                    Score All Unscored Posts
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
           <div className="flex gap-2 mt-3">
             {([
               { key: "pending_approval", label: "Pending" },
@@ -269,8 +349,8 @@ export default function PostsPage() {
           </button>
         </div>
 
-        {/* Source Filter */}
-        <div className="flex gap-2 mb-6">
+        {/* Source Filter + Score Filter */}
+        <div className="flex gap-2 mb-6 flex-wrap items-center">
           <button
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               selectedSource === "all"
@@ -301,10 +381,24 @@ export default function PostsPage() {
           >
             Scraped ({stats.scraped})
           </button>
+
+          <div className="w-px h-6 bg-stone-300 mx-1" />
+
+          <select
+            value={scoreFilter}
+            onChange={(e) => setScoreFilter(e.target.value as ScoreFilter)}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-stone-300 bg-white text-stone-700 focus:outline-none focus:ring-2 focus:ring-amber-500"
+          >
+            <option value="all">All Scores</option>
+            <option value="high">High (8-10)</option>
+            <option value="review">Review (5-7)</option>
+            <option value="noise">Noise (1-4)</option>
+            <option value="unscored">Unscored</option>
+          </select>
         </div>
 
         {/* Active Filters */}
-        {(selectedType !== "all" || selectedSource !== "all" || searchQuery || zipCode) && (
+        {(selectedType !== "all" || selectedSource !== "all" || searchQuery || zipCode || scoreFilter !== "all") && (
           <div className="mb-4 flex gap-2 flex-wrap">
             {searchQuery && (
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
@@ -334,6 +428,16 @@ export default function PostsPage() {
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                 Near: <span className="font-semibold">{zipCode} ({radiusMiles} mi)</span>
                 <button onClick={() => { setZipInput(""); setZipCode(""); }} className="hover:text-green-900">
+                  {"\u2715"}
+                </button>
+              </span>
+            )}
+            {scoreFilter !== "all" && (
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm">
+                Score: <span className="font-semibold">
+                  {scoreFilter === "high" ? "High (8-10)" : scoreFilter === "review" ? "Review (5-7)" : scoreFilter === "noise" ? "Noise (1-4)" : "Unscored"}
+                </span>
+                <button onClick={() => setScoreFilter("all")} className="hover:text-indigo-900">
                   {"\u2715"}
                 </button>
               </span>
@@ -376,6 +480,17 @@ export default function PostsPage() {
                 <div key={post.id} className="relative">
                   {/* Source badge overlay */}
                   <div className="absolute top-2 right-2 z-10 flex gap-1">
+                    {post.relevance_score != null && (
+                      <span className={`text-xs font-bold px-2 py-1 rounded ${
+                        post.relevance_score >= 8
+                          ? "bg-green-100 text-green-800"
+                          : post.relevance_score >= 5
+                            ? "bg-amber-100 text-amber-800"
+                            : "bg-red-100 text-red-800"
+                      }`}>
+                        {post.relevance_score}/10
+                      </span>
+                    )}
                     {post.distance_miles != null && (
                       <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
                         {post.distance_miles < 1

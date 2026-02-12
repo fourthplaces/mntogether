@@ -7,6 +7,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import type { SyncBatch, SyncProposal } from "@/lib/restate/types";
 
 type StatusFilter = "pending" | "all";
+type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -38,6 +39,24 @@ function OperationBadge({ operation }: { operation: string }) {
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[operation] || "bg-stone-100 text-stone-600"}`}
     >
       {operation}
+    </span>
+  );
+}
+
+function ScoreBadge({ score }: { score: number | null | undefined }) {
+  if (score == null) return null;
+  const colors =
+    score >= 8
+      ? "bg-green-100 text-green-800"
+      : score >= 5
+        ? "bg-amber-100 text-amber-800"
+        : "bg-red-100 text-red-800";
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold ${colors}`}
+      title={`Relevance score: ${score}/10`}
+    >
+      {score}
     </span>
   );
 }
@@ -151,9 +170,11 @@ function timeAgo(dateStr: string | null | undefined): string {
 function BatchProposals({
   batchId,
   batchStatus,
+  scoreFilter = "all",
 }: {
   batchId: string;
   batchStatus: string;
+  scoreFilter?: ScoreFilter;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
 
@@ -161,7 +182,10 @@ function BatchProposals({
     "Sync", "list_proposals", { batch_id: batchId }, { revalidateOnFocus: false, keepPreviousData: true }
   );
 
-  const proposals = data?.proposals || [];
+  const allProposals = data?.proposals || [];
+  const proposals = allProposals.filter((p) =>
+    matchesScoreFilter(p.relevance_score, scoreFilter)
+  );
 
   const handleAction = async (
     proposalId: string,
@@ -197,6 +221,7 @@ function BatchProposals({
               <div className="flex items-center gap-2">
                 <OperationBadge operation={p.operation} />
                 <StatusBadge status={p.status} />
+                <ScoreBadge score={p.relevance_score} />
               </div>
               <ProposalDescription proposal={p} />
               {p.reason && (
@@ -230,7 +255,7 @@ function BatchProposals({
   );
 }
 
-function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: boolean; onToggle: () => void }) {
+function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: SyncBatch; expanded: boolean; onToggle: () => void; scoreFilter?: ScoreFilter }) {
   const [batchActionLoading, setBatchActionLoading] = useState(false);
 
   const proposalCount = batch.proposal_count || 0;
@@ -351,15 +376,26 @@ function BatchCard({ batch, expanded, onToggle }: { batch: SyncBatch; expanded: 
       </div>
       {expanded && (
         <div className="border-t border-stone-100 p-4">
-          <BatchProposals batchId={batch.id} batchStatus={batch.status} />
+          <BatchProposals batchId={batch.id} batchStatus={batch.status} scoreFilter={scoreFilter} />
         </div>
       )}
     </div>
   );
 }
 
+function matchesScoreFilter(score: number | null | undefined, filter: ScoreFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "unscored") return score == null;
+  if (score == null) return false;
+  if (filter === "high") return score >= 8;
+  if (filter === "review") return score >= 5 && score <= 7;
+  if (filter === "noise") return score <= 4;
+  return true;
+}
+
 export default function ProposalsPage() {
   const [filter, setFilter] = useState<StatusFilter>("pending");
+  const [scoreFilter, setScoreFilter] = useState<ScoreFilter>("all");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggleExpanded = (id: string) => {
@@ -420,27 +456,40 @@ export default function ProposalsPage() {
         </div>
 
         {/* Filter tabs */}
-        <div className="flex gap-1 mb-4">
-          <button
-            onClick={() => setFilter("pending")}
-            className={`px-3 py-1.5 text-sm font-medium rounded ${
-              filter === "pending"
-                ? "bg-amber-100 text-amber-800"
-                : "text-stone-600 hover:bg-stone-100"
-            }`}
+        <div className="flex items-center gap-4 mb-4">
+          <div className="flex gap-1">
+            <button
+              onClick={() => setFilter("pending")}
+              className={`px-3 py-1.5 text-sm font-medium rounded ${
+                filter === "pending"
+                  ? "bg-amber-100 text-amber-800"
+                  : "text-stone-600 hover:bg-stone-100"
+              }`}
+            >
+              Pending Review
+            </button>
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1.5 text-sm font-medium rounded ${
+                filter === "all"
+                  ? "bg-amber-100 text-amber-800"
+                  : "text-stone-600 hover:bg-stone-100"
+              }`}
+            >
+              All Batches
+            </button>
+          </div>
+          <select
+            value={scoreFilter}
+            onChange={(e) => setScoreFilter(e.target.value as ScoreFilter)}
+            className="px-2 py-1.5 text-sm border border-stone-300 rounded bg-white text-stone-700"
           >
-            Pending Review
-          </button>
-          <button
-            onClick={() => setFilter("all")}
-            className={`px-3 py-1.5 text-sm font-medium rounded ${
-              filter === "all"
-                ? "bg-amber-100 text-amber-800"
-                : "text-stone-600 hover:bg-stone-100"
-            }`}
-          >
-            All Batches
-          </button>
+            <option value="all">All scores</option>
+            <option value="high">High (8-10)</option>
+            <option value="review">Review (5-7)</option>
+            <option value="noise">Noise (1-4)</option>
+            <option value="unscored">Unscored</option>
+          </select>
         </div>
 
         {/* Batch list */}
@@ -462,6 +511,7 @@ export default function ProposalsPage() {
                 batch={batch}
                 expanded={expandedIds.has(batch.id)}
                 onToggle={() => toggleExpanded(batch.id)}
+                scoreFilter={scoreFilter}
               />
             ))}
           </div>

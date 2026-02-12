@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRestate } from "@/lib/restate/client";
 import { PostCard, PostCardSkeleton } from "@/components/public/PostCard";
@@ -25,6 +26,9 @@ export function PostFeed({
   showResultCount = false,
   skeletonCount = 6,
 }: PostFeedProps) {
+  const [zipInput, setZipInput] = useState("");
+  const [activeZip, setActiveZip] = useState<string | null>(null);
+
   const { data: filtersData } =
     useRestate<PublicFiltersResult>("Posts", "public_filters", {});
 
@@ -34,12 +38,29 @@ export function PostFeed({
   const effectivePostType =
     activePostType === "all" ? null : (activePostType ?? postTypes[0]?.value ?? null);
 
-  const requestBody = effectivePostType ? { post_type: effectivePostType } : {};
+  const requestBody: Record<string, unknown> = {};
+  if (effectivePostType) requestBody.post_type = effectivePostType;
+  if (activeZip) {
+    requestBody.zip_code = activeZip;
+    requestBody.radius_miles = 25;
+  }
 
   const { data: listData, isLoading } =
     useRestate<PublicListResult>("Posts", "public_list", requestBody);
 
   const posts = listData?.posts ?? [];
+
+  const handleZipSearch = () => {
+    const trimmed = zipInput.trim();
+    if (/^\d{5}$/.test(trimmed)) {
+      setActiveZip(trimmed);
+    }
+  };
+
+  const clearZip = () => {
+    setZipInput("");
+    setActiveZip(null);
+  };
 
   const tabClass = (isActive: boolean) =>
     `px-5 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${
@@ -50,9 +71,38 @@ export function PostFeed({
 
   return (
     <div>
-      {/* Title + Tabs */}
+      {/* Title + Zip + Tabs */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold text-[#3D3D3D]">{title}</h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-3xl font-bold text-[#3D3D3D]">{title}</h2>
+          <div className="relative flex items-center">
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Zip code"
+              value={zipInput}
+              onChange={(e) => {
+                const val = e.target.value.replace(/\D/g, "").slice(0, 5);
+                setZipInput(val);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleZipSearch();
+              }}
+              className={`w-28 px-4 py-2 rounded-full border text-sm text-[#3D3D3D] placeholder-[#9D9D9D] focus:outline-none focus:border-[#3D3D3D] transition-colors ${
+                activeZip ? "border-[#3D3D3D] bg-[#F5F1E8]" : "border-[#C4B8A0]"
+              }`}
+            />
+            {activeZip && (
+              <button
+                onClick={clearZip}
+                className="absolute right-3 text-[#9D9D9D] hover:text-[#3D3D3D] text-lg leading-none"
+                aria-label="Clear zip code"
+              >
+                &times;
+              </button>
+            )}
+          </div>
+        </div>
         <div className="flex gap-3 overflow-x-auto scrollbar-hide">
           {postTypes.map((pt) =>
             onFilterChange ? (
@@ -96,7 +146,11 @@ export function PostFeed({
           ))
         ) : posts.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-[#7D7D7D] text-sm">No resources found. Try a different filter.</p>
+            <p className="text-[#7D7D7D] text-sm">
+              {activeZip
+                ? `No resources found within 25 miles of ${activeZip}. Try a different zip code.`
+                : "No resources found. Try a different filter."}
+            </p>
           </div>
         ) : (
           <>

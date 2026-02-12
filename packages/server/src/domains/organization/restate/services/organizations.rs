@@ -285,6 +285,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: Vec::new(),
+                        distance_miles: None,
                     }
                 })
                 .collect(),

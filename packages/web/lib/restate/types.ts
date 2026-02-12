@@ -244,6 +244,7 @@ export interface SyncProposal {
   target_title: string | null;
   merge_source_ids: string[];
   merge_source_titles: string[];
+  relevance_score?: number | null;
 }
 
 export interface EntityProposal {
@@ -453,6 +454,8 @@ export interface PublicListRequest {
   category?: string;
   limit?: number;
   offset?: number;
+  zip_code?: string;
+  radius_miles?: number;
 }
 
 export interface PublicTagResult {
@@ -480,6 +483,7 @@ export interface PublicPostResult {
   published_at?: string | null;
   tags: PublicTagResult[];
   urgent_notes?: UrgentNoteInfo[];
+  distance_miles?: number;
 }
 
 export interface PublicListResult {

@@ -39,8 +39,17 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
             </button>
           )}
         </div>
-        {post.location && (
-          <p className="text-sm text-[#7D7D7D] mb-1">{post.location}</p>
+        {(post.location || post.distance_miles != null) && (
+          <p className="text-sm text-[#7D7D7D] mb-1">
+            {post.location}
+            {post.distance_miles != null && (
+              <span className="ml-2 text-[#5D8A68] font-medium">
+                {post.distance_miles < 1
+                  ? "< 1 mi"
+                  : `${Math.round(post.distance_miles)} mi`}
+              </span>
+            )}
+          </p>
         )}
         <p className="text-[#5D5D5D] text-[0.95rem] leading-relaxed mb-3">
           {post.summary || post.description}

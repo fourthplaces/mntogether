@@ -127,6 +127,8 @@ pub struct PublicListRequest {
     pub category: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+    pub zip_code: Option<String>,
+    pub radius_miles: Option<f64>,
 }
 
 impl_restate_serde!(PublicListRequest);
@@ -158,6 +160,7 @@ impl_restate_serde!(PostStatsRequest);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchScorePostsRequest {
     pub limit: Option<i32>,
+    pub organization_id: Option<Uuid>,
 }
 
 impl_restate_serde!(BatchScorePostsRequest);
@@ -360,6 +363,8 @@ pub struct PublicPostResult {
     pub tags: Vec<PublicTagResult>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub urgent_notes: Vec<UrgentNoteInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_miles: Option<f64>,
 }
 
 impl_restate_serde!(PublicPostResult);
@@ -507,6 +512,52 @@ pub struct PostsServiceImpl {
 impl PostsServiceImpl {
     pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
         Self { deps }
+    }
+
+    /// Batch-load public tags and urgent notes for a set of post IDs.
+    async fn load_tags_and_notes(
+        &self,
+        post_ids: &[uuid::Uuid],
+    ) -> Result<
+        (
+            std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>>,
+            std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>>,
+        ),
+        HandlerError,
+    > {
+        let tag_rows = Tag::find_public_for_post_ids(post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        use crate::domains::notes::models::note::Note;
+        let urgent_rows = Note::find_urgent_note_content_for_posts(post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
+            std::collections::HashMap::new();
+        for row in tag_rows {
+            tags_by_post
+                .entry(row.taggable_id)
+                .or_default()
+                .push(PublicTagResult {
+                    kind: row.tag.kind,
+                    value: row.tag.value,
+                    display_name: row.tag.display_name,
+                    color: row.tag.color,
+                });
+        }
+
+        let mut urgent_notes_by_post: std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>> =
+            std::collections::HashMap::new();
+        for (post_id, content, cta_text) in urgent_rows {
+            urgent_notes_by_post
+                .entry(post_id)
+                .or_default()
+                .push(UrgentNoteInfo { content, cta_text });
+        }
+
+        Ok((tags_by_post, urgent_notes_by_post))
     }
 }
 
@@ -1129,48 +1180,29 @@ impl PostsService for PostsServiceImpl {
         let post_type = req.post_type.as_deref();
         let category = req.category.as_deref();
 
-        let posts = Post::find_public_filtered(post_type, category, limit, offset, &self.deps.db_pool)
+        // Branch: zip-based proximity search vs normal list
+        let (post_items, total_count): (Vec<PublicPostResult>, i64) = if let Some(ref zip) = req.zip_code {
+            let radius = req.radius_miles.unwrap_or(25.0).min(100.0);
+
+            let nearby_posts = Post::find_public_filtered_near_zip(
+                zip, radius, post_type, category, limit, offset, &self.deps.db_pool,
+            )
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let total_count = Post::count_public_filtered(post_type, category, &self.deps.db_pool)
+            let count = Post::count_public_filtered_near_zip(
+                zip, radius, post_type, category, &self.deps.db_pool,
+            )
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch-load public tags for returned posts
-        let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
-        let tag_rows = Tag::find_public_for_post_ids(&post_ids, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+            let post_ids: Vec<uuid::Uuid> = nearby_posts.iter().map(|p| p.id.into_uuid()).collect();
+            let (tags_by_post, urgent_notes_by_post) =
+                self.load_tags_and_notes(&post_ids).await?;
+            let mut tags_by_post = tags_by_post;
+            let mut urgent_notes_by_post = urgent_notes_by_post;
 
-        // Batch-load urgent note content
-        use crate::domains::notes::models::note::Note;
-        let urgent_rows = Note::find_urgent_note_content_for_posts(&post_ids, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-        let mut urgent_notes_by_post: std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>> =
-            std::collections::HashMap::new();
-        for (post_id, content, cta_text) in urgent_rows {
-            urgent_notes_by_post.entry(post_id).or_default().push(UrgentNoteInfo { content, cta_text });
-        }
-
-        // Group tags by post id
-        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
-            std::collections::HashMap::new();
-        for row in tag_rows {
-            tags_by_post
-                .entry(row.taggable_id)
-                .or_default()
-                .push(PublicTagResult {
-                    kind: row.tag.kind,
-                    value: row.tag.value,
-                    display_name: row.tag.display_name,
-                    color: row.tag.color,
-                });
-        }
-
-        Ok(PublicListResult {
-            posts: posts
+            let items = nearby_posts
                 .into_iter()
                 .map(|p| {
                     let id = p.id.into_uuid();
@@ -1187,9 +1219,54 @@ impl PostsService for PostsServiceImpl {
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        distance_miles: Some(p.distance_miles),
                     }
                 })
-                .collect(),
+                .collect();
+
+            (items, count)
+        } else {
+            let posts = Post::find_public_filtered(post_type, category, limit, offset, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let count = Post::count_public_filtered(post_type, category, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+            let (tags_by_post, urgent_notes_by_post) =
+                self.load_tags_and_notes(&post_ids).await?;
+            let mut tags_by_post = tags_by_post;
+            let mut urgent_notes_by_post = urgent_notes_by_post;
+
+            let items = posts
+                .into_iter()
+                .map(|p| {
+                    let id = p.id.into_uuid();
+                    PublicPostResult {
+                        id,
+                        title: p.title,
+                        summary: p.summary,
+                        description: p.description,
+                        location: p.location,
+                        source_url: p.source_url,
+                        post_type: p.post_type,
+                        category: p.category,
+                        created_at: p.created_at.to_rfc3339(),
+                        published_at: p.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        distance_miles: None,
+                    }
+                })
+                .collect();
+
+            (items, count)
+        };
+
+        Ok(PublicListResult {
+            posts: post_items,
             total_count: total_count as i32,
         })
     }
@@ -1326,9 +1403,14 @@ impl PostsService for PostsServiceImpl {
 
         let result = ctx
             .run(|| async {
-                let unscored = Post::find_unscored_active(&self.deps.db_pool)
-                    .await
-                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
+                let unscored = match req.organization_id {
+                    Some(org_id) => Post::find_unscored_active_by_org(org_id, &self.deps.db_pool)
+                        .await
+                        .map_err(Into::<restate_sdk::errors::HandlerError>::into)?,
+                    None => Post::find_unscored_active(&self.deps.db_pool)
+                        .await
+                        .map_err(Into::<restate_sdk::errors::HandlerError>::into)?,
+                };
 
                 let total_remaining = unscored.len() as i32;
                 let batch: Vec<_> = unscored.into_iter().take(limit as usize).collect();
