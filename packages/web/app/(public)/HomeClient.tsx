@@ -13,15 +13,7 @@ export function HomeClient() {
   return (
     <div className="relative leading-relaxed">
       {/* Skyline background */}
-      <div
-        className="absolute inset-0 w-screen h-screen z-0 opacity-50 pointer-events-none"
-        style={{
-          backgroundImage: "url('/skyline.png')",
-          backgroundPosition: "center 100px",
-          backgroundRepeat: "no-repeat",
-          backgroundSize: "80%",
-        }}
-      />
+     
 
       {/* Hero */}
       <section className="px-6 md:px-12 pt-16 pb-8 max-w-[1200px] mx-auto relative z-10">
@@ -73,9 +65,19 @@ export function HomeClient() {
       </section>
 
       {/* Posts Section */}
-      <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-8 pb-16">
+      <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-8 pb-16" style={{ zIndex: 10, position: "relative" }}>
         <PostFeed title="Get Involved" showSeeMore />
       </section>
+
+      <div
+        className="absolute inset-0 w-screen h-screen z-0 opacity-50 pointer-events-none"
+        style={{
+          backgroundImage: "url('/skyline.png')",
+          backgroundPosition: "center 100px",
+          backgroundRepeat: "no-repeat",
+          backgroundSize: "80%",
+        }}
+      />
 
       {/* Bottom Sheets */}
       <SubmitSheet isOpen={activeSheet === "submit"} onClose={() => setActiveSheet(null)} />
