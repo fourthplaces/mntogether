@@ -25,7 +25,17 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
       >
         {post.organization_name && (
           <p className="text-xs font-medium text-[#7D7D7D] uppercase tracking-wide mb-0.5">
-            {post.organization_name}
+            {post.organization_id ? (
+              <Link
+                href={`/organizations/${post.organization_id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="hover:text-[#3D3D3D] transition-colors"
+              >
+                {post.organization_name}
+              </Link>
+            ) : (
+              post.organization_name
+            )}
           </p>
         )}
         <div className="flex items-center gap-2 mb-1">
