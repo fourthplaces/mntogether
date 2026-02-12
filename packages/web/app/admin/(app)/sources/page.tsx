@@ -6,7 +6,7 @@ import { useRestate, callService, invalidateService } from "@/lib/restate/client
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
-import type { SourceListResult, SourceResult } from "@/lib/restate/types";
+import type { SourceListResult, SourceResult, LightCrawlAllResult } from "@/lib/restate/types";
 
 export default function SourcesPage() {
   return (
@@ -44,19 +44,59 @@ function SourcesContent() {
 
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [aiSearch, setAiSearch] = useState(false);
+  const [aiResults, setAiResults] = useState<SourceListResult | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
+    if (aiSearch) return; // skip debounce when AI search is on
     const timer = setTimeout(() => {
       setDebouncedSearch(search);
       pagination.reset();
     }, 300);
     return () => clearTimeout(timer);
-  }, [search]);
+  }, [search, aiSearch]);
+
+  const runAiSearch = async () => {
+    if (!search.trim()) return;
+    setAiLoading(true);
+    try {
+      const result = await callService<SourceListResult>("Sources", "search_by_content", {
+        query: search.trim(),
+        limit: 100,
+      });
+      setAiResults(result);
+    } catch (err: any) {
+      setAiResults(null);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // Clear AI results when toggling off or clearing search
+  useEffect(() => {
+    if (!aiSearch) setAiResults(null);
+  }, [aiSearch]);
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUrl, setAddUrl] = useState("");
   const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [lightCrawlLoading, setLightCrawlLoading] = useState(false);
+  const [lightCrawlResult, setLightCrawlResult] = useState<string | null>(null);
+
+  const handleLightCrawlAll = async () => {
+    setLightCrawlLoading(true);
+    setLightCrawlResult(null);
+    try {
+      const result = await callService<LightCrawlAllResult>("Sources", "light_crawl_all", {});
+      setLightCrawlResult(`Queued ${result.sources_queued} sources for light crawl`);
+    } catch (err: any) {
+      setLightCrawlResult(`Error: ${err.message || "Failed to start light crawl"}`);
+    } finally {
+      setLightCrawlLoading(false);
+    }
+  };
 
   const handleAddWebsite = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -85,14 +125,15 @@ function SourcesContent() {
       ...pagination.variables,
       status: statusFilter,
       source_type: typeFilter,
-      search: debouncedSearch || undefined,
+      search: (!aiSearch && debouncedSearch) || undefined,
     },
     { revalidateOnFocus: false }
   );
 
-  const sources = data?.sources || [];
-  const totalCount = data?.total_count || 0;
-  const hasNextPage = data?.has_next_page || false;
+  const activeData = (aiSearch && aiResults) ? aiResults : data;
+  const sources = activeData?.sources || [];
+  const totalCount = activeData?.total_count || 0;
+  const hasNextPage = activeData?.has_next_page || false;
   const pageInfo = pagination.buildPageInfo(hasNextPage);
 
   const getStatusColor = (status: string) => {
@@ -126,8 +167,8 @@ function SourcesContent() {
     }
   };
 
-  if (isLoading && sources.length === 0) {
-    return <AdminLoader label="Loading sources..." />;
+  if ((isLoading || aiLoading) && sources.length === 0) {
+    return <AdminLoader label={aiLoading ? "Searching content..." : "Loading sources..."} />;
   }
 
   return (
@@ -140,9 +181,23 @@ function SourcesContent() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && aiSearch) runAiSearch();
+              }}
+              placeholder={aiSearch ? "AI search (press Enter)..." : "Search..."}
               className="px-3 py-1.5 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent w-48"
             />
+            <button
+              onClick={() => setAiSearch(!aiSearch)}
+              className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                aiSearch
+                  ? "bg-violet-600 text-white"
+                  : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+              }`}
+              title="Toggle AI semantic search"
+            >
+              AI
+            </button>
             {/* Type filter */}
             {["all", "website", "instagram", "facebook"].map((type) => (
               <button
@@ -173,8 +228,16 @@ function SourcesContent() {
               </button>
             ))}
             <button
+              onClick={handleLightCrawlAll}
+              disabled={lightCrawlLoading}
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors ml-2"
+              title="Light crawl all uncrawled sources (5 pages, depth 1)"
+            >
+              {lightCrawlLoading ? "Queuing..." : "Light Crawl All"}
+            </button>
+            <button
               onClick={() => setShowAddForm(!showAddForm)}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors ml-2"
+              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors"
             >
               + Add Website
             </button>
@@ -210,6 +273,13 @@ function SourcesContent() {
               <span className="text-red-600 text-sm">{addError}</span>
             )}
           </form>
+        )}
+
+        {lightCrawlResult && (
+          <div className="bg-violet-50 border border-violet-200 text-violet-700 px-4 py-3 rounded mb-6 flex items-center justify-between">
+            {lightCrawlResult}
+            <button onClick={() => setLightCrawlResult(null)} className="text-violet-400 hover:text-violet-600 text-sm ml-4">dismiss</button>
+          </div>
         )}
 
         {error && (

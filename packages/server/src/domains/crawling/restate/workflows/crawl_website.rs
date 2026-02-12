@@ -12,7 +12,11 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, WebsiteId};
+use crate::domains::curator::restate::workflows::curate_org::{
+    CurateOrgRequest, CurateOrgWorkflowClient,
+};
 use crate::domains::crawling::activities;
+use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -80,6 +84,25 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
                     .map_err(Into::into)
             })
             .await?;
+
+        // After crawl completes, trigger curator for the website's org
+        if let Ok(website) = Website::find_by_id(website_id_typed, &self.deps.db_pool).await {
+            if let Some(org_id) = website.organization_id {
+                let org_uuid: Uuid = org_id.into();
+                let curate_key = format!("curate-{}", org_uuid);
+                ctx.workflow_client::<CurateOrgWorkflowClient>(curate_key)
+                    .run(CurateOrgRequest {
+                        organization_id: org_uuid,
+                    })
+                    .send();
+
+                tracing::info!(
+                    website_id = %request.website_id,
+                    org_id = %org_uuid,
+                    "Triggered curator workflow after crawl"
+                );
+            }
+        }
 
         ctx.set(
             "status",

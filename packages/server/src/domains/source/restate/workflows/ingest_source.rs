@@ -17,7 +17,7 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::{EmptyRequest, SourceId};
-use crate::domains::crawling::activities::ingest_website;
+use crate::domains::crawling::activities::{ingest_website, ingest_website_with_config};
 use crate::domains::source::activities::ingest_social::ingest_social_source;
 use crate::domains::source::models::Source;
 use crate::impl_restate_serde;
@@ -30,6 +30,9 @@ use crate::kernel::ServerDeps;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IngestSourceRequest {
     pub source_id: Uuid,
+    /// When true, uses a light crawl (5 pages, depth 1) for triage.
+    #[serde(default)]
+    pub light: Option<bool>,
 }
 
 impl_restate_serde!(IngestSourceRequest);
@@ -89,19 +92,37 @@ impl IngestSourceWorkflow for IngestSourceWorkflowImpl {
             .await?;
 
         // Dispatch based on source type (durable)
+        let is_light = req.light.unwrap_or(false);
         let result = match source_type.as_str() {
             "website" => {
-                ctx.set("status", "Ingesting website pages...".to_string());
+                let status_msg = if is_light {
+                    "Light crawl: ingesting website pages..."
+                } else {
+                    "Ingesting website pages..."
+                };
+                ctx.set("status", status_msg.to_string());
 
                 let pages = ctx
                     .run(|| async {
-                        let r = ingest_website(
-                            req.source_id,
-                            Uuid::nil(), // system-initiated
-                            true,        // admin action
-                            &self.deps,
-                        )
-                        .await
+                        let r = if is_light {
+                            ingest_website_with_config(
+                                req.source_id,
+                                Uuid::nil(), // system-initiated
+                                true,        // admin action
+                                Some(5),     // light: 5 pages max
+                                Some(1),     // light: depth 1
+                                &self.deps,
+                            )
+                            .await
+                        } else {
+                            ingest_website(
+                                req.source_id,
+                                Uuid::nil(), // system-initiated
+                                true,        // admin action
+                                &self.deps,
+                            )
+                            .await
+                        }
                         .map_err(|e| restate_sdk::errors::TerminalError::new(e.to_string()))?;
                         Ok(r.pages_crawled as u64)
                     })

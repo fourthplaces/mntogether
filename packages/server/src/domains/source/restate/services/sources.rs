@@ -12,6 +12,9 @@ use crate::domains::posts::models::PostSource;
 use crate::domains::source::models::{
     find_or_create_social_source, find_or_create_website_source, Source, WebsiteSource,
 };
+use crate::domains::source::restate::workflows::ingest_source::{
+    IngestSourceRequest, IngestSourceWorkflowClient,
+};
 use crate::domains::website::activities;
 use crate::domains::website::models::SearchQuery;
 use crate::impl_restate_serde;
@@ -67,6 +70,14 @@ pub struct ListByOrganizationRequest {
 }
 
 impl_restate_serde!(ListByOrganizationRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchByContentRequest {
+    pub query: String,
+    pub limit: Option<i32>,
+}
+
+impl_restate_serde!(SearchByContentRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SearchSourcesRequest {
@@ -189,6 +200,12 @@ pub struct SearchQueryListResult {
 impl_restate_serde!(SearchQueryListResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LightCrawlAllResult {
+    pub sources_queued: i32,
+}
+impl_restate_serde!(LightCrawlAllResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EmptyResult {}
 impl_restate_serde!(EmptyResult);
 
@@ -207,6 +224,9 @@ pub trait SourcesService {
     async fn create_social(req: CreateSocialSourceRequest) -> Result<SourceResult, HandlerError>;
     async fn delete(req: DeleteSourceRequest) -> Result<EmptyRequest, HandlerError>;
     async fn search(req: SearchSourcesRequest) -> Result<SourceSearchResults, HandlerError>;
+    async fn search_by_content(req: SearchByContentRequest)
+        -> Result<SourceListResult, HandlerError>;
+    async fn light_crawl_all(req: EmptyRequest) -> Result<LightCrawlAllResult, HandlerError>;
     async fn run_scheduled_scrape(req: EmptyRequest)
         -> Result<ScheduledScrapeResult, HandlerError>;
 
@@ -444,6 +464,16 @@ impl SourcesService for SourcesServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Fire-and-forget light crawl for the new source
+        let source_id = source.id.into_uuid();
+        let key = format!("light-crawl-{}", source_id);
+        ctx.workflow_client::<IngestSourceWorkflowClient>(key)
+            .run(IngestSourceRequest {
+                source_id,
+                light: Some(true),
+            })
+            .send();
+
         source_to_result(source, &self.deps.db_pool).await
     }
 
@@ -521,6 +551,140 @@ impl SourcesService for SourcesServiceImpl {
                     similarity: r.similarity,
                 })
                 .collect(),
+        })
+    }
+
+    async fn search_by_content(
+        &self,
+        ctx: Context<'_>,
+        req: SearchByContentRequest,
+    ) -> Result<SourceListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let extraction = self
+            .deps
+            .extraction
+            .as_ref()
+            .ok_or_else(|| TerminalError::new("Extraction service not available"))?;
+
+        let limit = req.limit.unwrap_or(100) as usize;
+
+        let site_urls = extraction
+            .search_page_sites(&req.query, limit)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if site_urls.is_empty() {
+            return Ok(SourceListResult {
+                sources: vec![],
+                total_count: 0,
+                has_next_page: false,
+                has_previous_page: false,
+            });
+        }
+
+        // Strip protocols to get bare domains for matching against website_sources
+        let domains: Vec<String> = site_urls
+            .iter()
+            .map(|url| {
+                url.trim_start_matches("https://")
+                    .trim_start_matches("http://")
+                    .trim_start_matches("www.")
+                    .to_string()
+            })
+            .collect();
+
+        let sources = Source::find_by_domains(&domains, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        // Enrich with identifiers and post counts (same pattern as list)
+        let source_ids: Vec<Uuid> = sources.iter().map(|s| s.id.into_uuid()).collect();
+        let website_domains =
+            WebsiteSource::find_domains_by_source_ids(&source_ids, &self.deps.db_pool)
+                .await
+                .unwrap_or_default();
+        let domain_map: std::collections::HashMap<Uuid, String> =
+            website_domains.into_iter().collect();
+
+        let social_handles: Vec<(Uuid, String)> = sqlx::query_as::<_, (Uuid, String)>(
+            "SELECT source_id, handle FROM social_sources WHERE source_id = ANY($1)",
+        )
+        .bind(&source_ids)
+        .fetch_all(&self.deps.db_pool)
+        .await
+        .unwrap_or_default();
+        let handle_map: std::collections::HashMap<Uuid, String> =
+            social_handles.into_iter().collect();
+
+        let post_counts = PostSource::count_by_sources_any_type(&source_ids, &self.deps.db_pool)
+            .await
+            .unwrap_or_default();
+
+        let total = sources.len() as i32;
+        let results: Vec<SourceResult> = sources
+            .into_iter()
+            .map(|s| {
+                let sid = s.id.into_uuid();
+                let identifier = domain_map
+                    .get(&sid)
+                    .or_else(|| handle_map.get(&sid))
+                    .cloned()
+                    .unwrap_or_else(|| "unknown".to_string());
+
+                SourceResult {
+                    id: s.id.to_string(),
+                    source_type: s.source_type,
+                    identifier,
+                    url: s.url,
+                    status: s.status,
+                    active: s.active,
+                    organization_id: s.organization_id.map(|id| id.to_string()),
+                    organization_name: None,
+                    scrape_frequency_hours: s.scrape_frequency_hours,
+                    last_scraped_at: s.last_scraped_at.map(|dt| dt.to_rfc3339()),
+                    post_count: Some(*post_counts.get(&sid).unwrap_or(&0)),
+                    snapshot_count: None,
+                    created_at: s.created_at.to_rfc3339(),
+                    updated_at: s.updated_at.to_rfc3339(),
+                }
+            })
+            .collect();
+
+        Ok(SourceListResult {
+            sources: results,
+            total_count: total,
+            has_next_page: false,
+            has_previous_page: false,
+        })
+    }
+
+    async fn light_crawl_all(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<LightCrawlAllResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let uncrawled = Source::find_uncrawled_websites(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        tracing::info!("Light crawl: queuing {} uncrawled website sources", uncrawled.len());
+
+        for source in &uncrawled {
+            let source_id = source.id.into_uuid();
+            let key = format!("light-crawl-{}", source_id);
+            ctx.workflow_client::<IngestSourceWorkflowClient>(key)
+                .run(IngestSourceRequest {
+                    source_id,
+                    light: Some(true),
+                })
+                .send();
+        }
+
+        Ok(LightCrawlAllResult {
+            sources_queued: uncrawled.len() as i32,
         })
     }
 

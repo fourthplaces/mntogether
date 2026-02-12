@@ -1,3 +1,4 @@
+pub mod claude;
 pub mod error;
 pub mod openai;
 pub mod openrouter;
@@ -5,6 +6,7 @@ pub mod tool;
 pub mod traits;
 pub mod util;
 
+pub use claude::Claude;
 pub use error::AiError;
 pub use openai::OpenAi;
 pub use openrouter::OpenRouter;

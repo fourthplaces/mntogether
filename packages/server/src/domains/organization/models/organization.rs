@@ -219,6 +219,27 @@ impl Organization {
         .map_err(Into::into)
     }
 
+    /// Move an organization back to pending review
+    pub async fn move_to_pending(id: OrganizationId, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE organizations
+            SET
+                status = 'pending_review',
+                reviewed_by = NULL,
+                reviewed_at = NULL,
+                rejection_reason = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find or create an organization by name (exact match).
     /// If exists, updates description only if the new one is non-null.
     /// System-created orgs default to 'pending_review'.

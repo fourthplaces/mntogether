@@ -12,6 +12,7 @@ import type {
   NoteResult,
   PostList,
   PostResult,
+  ChecklistResult,
 } from "@/lib/restate/types";
 
 const PLATFORMS = ["instagram", "facebook", "tiktok", "x"];
@@ -40,8 +41,11 @@ export default function OrganizationDetailPage() {
   const [generatingNotes, setGeneratingNotes] = useState(false);
   const [extractingOrgPosts, setExtractingOrgPosts] = useState(false);
   const [cleaningUpPosts, setCleaningUpPosts] = useState(false);
+  const [runningCurator, setRunningCurator] = useState(false);
   const [crawlingAll, setCrawlingAll] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
+  const [removingAllPosts, setRemovingAllPosts] = useState(false);
+  const [removingAllNotes, setRemovingAllNotes] = useState(false);
   const [rewritingNarratives, setRewritingNarratives] = useState(false);
   const [rewriteResult, setRewriteResult] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
@@ -82,6 +86,11 @@ export default function OrganizationDetailPage() {
     useRestate<NoteListResult>("Notes", "list_for_entity", {
       noteable_type: "organization",
       noteable_id: orgId,
+    }, { revalidateOnFocus: false });
+
+  const { data: checklistData, mutate: refetchChecklist } =
+    useRestate<ChecklistResult>("Organizations", "get_checklist", {
+      id: orgId,
     }, { revalidateOnFocus: false });
 
   const sources = sourcesData?.sources || [];
@@ -237,6 +246,20 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const handleRunCurator = async () => {
+    setMenuOpen(false);
+    setRunningCurator(true);
+    try {
+      await callService("Organizations", "run_curator", { id: orgId });
+      invalidateService("Sync");
+    } catch (err: any) {
+      console.error("Failed to run curator:", err);
+      alert(err.message || "Failed to run curator");
+    } finally {
+      setRunningCurator(false);
+    }
+  };
+
   const handleCrawlAll = async () => {
     setMenuOpen(false);
     setCrawlingAll(true);
@@ -263,6 +286,42 @@ export default function OrganizationDetailPage() {
       alert(err.message || "Failed to crawl sources");
     } finally {
       setCrawlingAll(false);
+    }
+  };
+
+  const handleRemoveAllPosts = async () => {
+    if (!confirm(`Are you sure you want to delete ALL posts for "${org?.name}"? This cannot be undone.`)) return;
+    setMenuOpen(false);
+    setRemovingAllPosts(true);
+    try {
+      const result = await callService<{ websites_processed: number; status: string }>(
+        "Organizations", "remove_all_posts", { id: orgId }
+      );
+      invalidateService("Posts");
+      refetchPosts();
+    } catch (err: any) {
+      console.error("Failed to remove posts:", err);
+      alert(err.message || "Failed to remove posts");
+    } finally {
+      setRemovingAllPosts(false);
+    }
+  };
+
+  const handleRemoveAllNotes = async () => {
+    if (!confirm(`Are you sure you want to delete ALL notes for "${org?.name}"? This cannot be undone.`)) return;
+    setMenuOpen(false);
+    setRemovingAllNotes(true);
+    try {
+      const result = await callService<{ websites_processed: number; status: string }>(
+        "Organizations", "remove_all_notes", { id: orgId }
+      );
+      invalidateService("Notes");
+      refetchNotes();
+    } catch (err: any) {
+      console.error("Failed to remove notes:", err);
+      alert(err.message || "Failed to remove notes");
+    } finally {
+      setRemovingAllNotes(false);
     }
   };
 
@@ -298,6 +357,59 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const handleStatusChange = async (newStatus: string) => {
+    if (!org || newStatus === org.status) return;
+
+    // Confirm destructive transitions
+    if (newStatus === "rejected" || newStatus === "suspended") {
+      const reason = prompt(`Reason for ${newStatus === "rejected" ? "rejection" : "suspension"}:`);
+      if (!reason) return;
+      setActionInProgress("status");
+      try {
+        await callService("Organizations", "set_status", { id: orgId, status: newStatus, reason });
+        invalidateService("Organizations");
+        refetchOrg();
+        refetchChecklist();
+      } catch (err: any) {
+        alert(err.message || `Failed to change status to ${newStatus}`);
+      } finally {
+        setActionInProgress(null);
+      }
+      return;
+    }
+
+    // For approved, check that checklist is complete
+    if (newStatus === "approved" && !checklistData?.all_checked) {
+      alert("Complete the pre-launch checklist before approving.");
+      return;
+    }
+
+    setActionInProgress("status");
+    try {
+      await callService("Organizations", "set_status", { id: orgId, status: newStatus });
+      invalidateService("Organizations");
+      refetchOrg();
+      refetchChecklist();
+    } catch (err: any) {
+      alert(err.message || `Failed to change status to ${newStatus}`);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleToggleChecklist = async (key: string, checked: boolean) => {
+    try {
+      await callService("Organizations", "toggle_checklist_item", {
+        organization_id: orgId,
+        checklist_key: key,
+        checked,
+      });
+      refetchChecklist();
+    } catch (err: any) {
+      console.error("Failed to toggle checklist item:", err);
+    }
+  };
+
   const handleReject = async () => {
     if (!rejectReason.trim()) return;
     setActionInProgress("reject");
@@ -305,6 +417,7 @@ export default function OrganizationDetailPage() {
       await callService("Organizations", "reject", { id: orgId, reason: rejectReason.trim() });
       invalidateService("Organizations");
       refetchOrg();
+      refetchChecklist();
       setShowRejectDialog(false);
       setRejectReason("");
     } catch (err: any) {
@@ -413,8 +526,11 @@ export default function OrganizationDetailPage() {
               <div>
                 <div className="flex items-center gap-3 mb-1">
                   <h1 className="text-2xl font-bold text-stone-900">{org.name}</h1>
-                  <span
-                    className={`px-3 py-1 text-sm rounded-full font-medium ${
+                  <select
+                    value={org.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                    disabled={actionInProgress !== null}
+                    className={`px-3 py-1 text-sm rounded-full font-medium border-0 cursor-pointer appearance-none pr-6 ${
                       org.status === "approved"
                         ? "bg-green-100 text-green-800"
                         : org.status === "pending_review"
@@ -423,9 +539,13 @@ export default function OrganizationDetailPage() {
                             ? "bg-red-100 text-red-800"
                             : "bg-gray-100 text-gray-800"
                     }`}
+                    style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
                   >
-                    {org.status.replace(/_/g, " ")}
-                  </span>
+                    <option value="pending_review">pending review</option>
+                    <option value="approved">approved</option>
+                    <option value="rejected">rejected</option>
+                    <option value="suspended">suspended</option>
+                  </select>
                 </div>
                 {org.description && (
                   <p className="text-stone-600">{org.description}</p>
@@ -436,8 +556,9 @@ export default function OrganizationDetailPage() {
                   <>
                     <button
                       onClick={handleApprove}
-                      disabled={actionInProgress !== null}
-                      className="px-4 py-1.5 bg-emerald-400 text-white rounded-lg text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 transition-colors"
+                      disabled={actionInProgress !== null || !checklistData?.all_checked}
+                      title={!checklistData?.all_checked ? "Complete the pre-launch checklist first" : undefined}
+                      className="px-4 py-1.5 bg-emerald-400 text-white rounded-lg text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {actionInProgress === "approve" ? "..." : "Approve"}
                     </button>
@@ -459,10 +580,10 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives}
+                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives || runningCurator || removingAllPosts || removingAllNotes}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives ? "..." : "\u22EF"}
+                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives || runningCurator || removingAllPosts || removingAllNotes ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
@@ -503,6 +624,13 @@ export default function OrganizationDetailPage() {
                         {extractingOrgPosts ? "Extracting Posts..." : "Extract Org Posts"}
                       </button>
                       <button
+                        onClick={handleRunCurator}
+                        disabled={runningCurator || sources.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-medium"
+                      >
+                        {runningCurator ? "Curating..." : "Curate"}
+                      </button>
+                      <button
                         onClick={handleCleanUpPosts}
                         disabled={cleaningUpPosts}
                         className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
@@ -516,16 +644,21 @@ export default function OrganizationDetailPage() {
                       >
                         {rewritingNarratives ? "Rewriting..." : "Rewrite Narratives"}
                       </button>
-                      {org.status === "approved" && (
-                        <button
-                          onClick={() => { setMenuOpen(false); handleSuspend(); }}
-                          disabled={actionInProgress !== null}
-                          className="w-full text-left px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50"
-                        >
-                          Suspend Organization
-                        </button>
-                      )}
                       <div className="border-t border-stone-100 my-1" />
+                      <button
+                        onClick={handleRemoveAllPosts}
+                        disabled={removingAllPosts || posts.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {removingAllPosts ? "Removing Posts..." : "Remove All Posts"}
+                      </button>
+                      <button
+                        onClick={handleRemoveAllNotes}
+                        disabled={removingAllNotes || notes.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        {removingAllNotes ? "Removing Notes..." : "Remove All Notes"}
+                      </button>
                       <button
                         onClick={() => { setMenuOpen(false); handleDelete(); }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -584,6 +717,33 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
+          {runningCurator && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Running curator...
+              </span>
+            </div>
+          )}
+
+          {removingAllPosts && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-red-700">
+                Removing all posts...
+              </span>
+            </div>
+          )}
+
+          {removingAllNotes && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-red-700">
+                Removing all notes...
+              </span>
+            </div>
+          )}
+
           {cleaningUpPosts && (
             <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
               <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
@@ -628,6 +788,40 @@ export default function OrganizationDetailPage() {
               </p>
             </div>
           </div>
+
+          {org.status === "pending_review" && checklistData && (
+            <div className="pt-4 mt-4 border-t border-stone-200">
+              <h3 className="text-sm font-semibold text-stone-700 mb-3">Pre-Launch Checklist</h3>
+              <div className="space-y-2">
+                {checklistData.items.map((item) => (
+                  <label
+                    key={item.key}
+                    className="flex items-center gap-3 cursor-pointer group"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={item.checked}
+                      onChange={(e) => handleToggleChecklist(item.key, e.target.checked)}
+                      className="h-4 w-4 rounded border-stone-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <span className={`text-sm ${item.checked ? "text-stone-500 line-through" : "text-stone-700"}`}>
+                      {item.label}
+                    </span>
+                    {item.checked && item.checked_at && (
+                      <span className="text-xs text-stone-400">
+                        {new Date(item.checked_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </label>
+                ))}
+              </div>
+              {!checklistData.all_checked && (
+                <p className="text-xs text-amber-600 mt-3">
+                  Complete all items before approving this organization.
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sources */}

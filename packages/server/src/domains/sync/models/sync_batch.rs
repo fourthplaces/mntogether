@@ -160,6 +160,23 @@ impl SyncBatch {
         .map_err(Into::into)
     }
 
+    /// Update the proposal_count after staging is complete.
+    pub async fn update_proposal_count(id: SyncBatchId, count: i32, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE sync_batches
+            SET proposal_count = $2
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(count)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find stale pending/partially_reviewed batches for the same resource_type + source_id.
     /// Used by `stage_proposals` to expire old batches before creating a new one.
     pub async fn find_stale(

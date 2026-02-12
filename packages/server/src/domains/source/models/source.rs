@@ -281,6 +281,34 @@ impl Source {
         Ok(())
     }
 
+    /// Find website sources that have never been crawled.
+    pub async fn find_uncrawled_websites(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT s.* FROM sources s
+             JOIN website_sources ws ON ws.source_id = s.id
+             WHERE s.source_type = 'website'
+               AND s.last_scraped_at IS NULL
+             ORDER BY s.created_at DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find sources whose website_sources.domain matches any of the given domains.
+    pub async fn find_by_domains(domains: &[String], pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT DISTINCT s.* FROM sources s
+             JOIN website_sources ws ON ws.source_id = s.id
+             WHERE ws.domain = ANY($1)
+             ORDER BY s.created_at DESC",
+        )
+        .bind(domains)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find sources with cursor-based pagination
     pub async fn find_paginated(
         status: Option<&str>,

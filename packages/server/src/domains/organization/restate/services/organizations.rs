@@ -11,13 +11,18 @@ use crate::domains::crawling::activities::{
     create_social_profiles_for_org, extract_and_create_organization, extract_organization_info,
 };
 use crate::domains::crawling::models::ExtractionPage;
-use crate::domains::organization::models::Organization;
+use crate::domains::organization::models::{Organization, OrganizationChecklistItem};
+use crate::domains::organization::models::organization_checklist::{CHECKLIST_KEYS, CHECKLIST_LABELS};
 use crate::domains::organization::restate::workflows::clean_up_org_posts::{
     CleanUpOrgPostsRequest, CleanUpOrgPostsWorkflowClient,
+};
+use crate::domains::curator::restate::workflows::curate_org::{
+    CurateOrgRequest, CurateOrgWorkflowClient,
 };
 use crate::domains::organization::restate::workflows::extract_org_posts::{
     ExtractOrgPostsRequest, ExtractOrgPostsWorkflowClient,
 };
+use crate::domains::notes::models::Note;
 use crate::domains::posts::models::Post;
 use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
 use crate::domains::source::models::Source;
@@ -99,6 +104,41 @@ pub struct RegenerateOrganizationResult {
 }
 
 impl_restate_serde!(RegenerateOrganizationResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetStatusRequest {
+    pub id: Uuid,
+    pub status: String,
+    pub reason: Option<String>,
+}
+
+impl_restate_serde!(SetStatusRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToggleChecklistRequest {
+    pub organization_id: Uuid,
+    pub checklist_key: String,
+    pub checked: bool,
+}
+
+impl_restate_serde!(ToggleChecklistRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChecklistItemResult {
+    pub key: String,
+    pub label: String,
+    pub checked: bool,
+    pub checked_by: Option<String>,
+    pub checked_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChecklistResult {
+    pub items: Vec<ChecklistItemResult>,
+    pub all_checked: bool,
+}
+
+impl_restate_serde!(ChecklistResult);
 
 // =============================================================================
 // Response types
@@ -185,6 +225,22 @@ pub trait OrganizationsService {
     async fn clean_up_org_posts(
         req: RegenerateOrganizationRequest,
     ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn run_curator(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn remove_all_posts(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn remove_all_notes(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn set_status(req: SetStatusRequest) -> Result<OrganizationResult, HandlerError>;
+    async fn get_checklist(
+        req: GetOrganizationRequest,
+    ) -> Result<ChecklistResult, HandlerError>;
+    async fn toggle_checklist_item(
+        req: ToggleChecklistRequest,
+    ) -> Result<ChecklistResult, HandlerError>;
 }
 
 pub struct OrganizationsServiceImpl {
@@ -537,6 +593,11 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Reset checklist on rejection
+        OrganizationChecklistItem::reset(org.id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
         info!(org_id = %org.id, "Organization rejected");
 
         Ok(OrganizationResult {
@@ -753,8 +814,16 @@ impl OrganizationsService for OrganizationsServiceImpl {
 
         for org_id in &org_ids {
             let wf_key = org_id.into_uuid().to_string();
-            ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(wf_key)
+            ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(wf_key.clone())
                 .run(ExtractOrgPostsRequest {
+                    organization_id: org_id.into_uuid(),
+                })
+                .send();
+
+            // Also trigger curator workflow for this org
+            let curate_key = format!("curate-{}", org_id.into_uuid());
+            ctx.workflow_client::<CurateOrgWorkflowClient>(curate_key)
+                .run(CurateOrgRequest {
                     organization_id: org_id.into_uuid(),
                 })
                 .send();
@@ -796,5 +865,210 @@ impl OrganizationsService for OrganizationsServiceImpl {
             websites_processed: 0,
             status: format!("started:{}", workflow_id),
         })
+    }
+
+    async fn run_curator(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let workflow_id = format!("curate-org-{}-{}", org_id, chrono::Utc::now().timestamp());
+
+        ctx.workflow_client::<CurateOrgWorkflowClient>(workflow_id.clone())
+            .run(CurateOrgRequest {
+                organization_id: org_id,
+            })
+            .send();
+
+        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered curator workflow");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn remove_all_posts(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let deleted = Post::delete_all_for_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org_id, deleted = deleted, "Removed all posts for organization");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: deleted,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn remove_all_notes(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let deleted = Note::delete_all_for_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org_id, deleted = deleted, "Removed all notes for organization");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: deleted,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn set_status(
+        &self,
+        ctx: Context<'_>,
+        req: SetStatusRequest,
+    ) -> Result<OrganizationResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.id);
+        let pool = &self.deps.db_pool;
+
+        let org = match req.status.as_str() {
+            "pending_review" => {
+                let org = Organization::move_to_pending(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                // Clear checklist when moving back to pending
+                OrganizationChecklistItem::reset(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                org
+            }
+            "approved" => {
+                Organization::approve(org_id, user.member_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?
+            }
+            "rejected" => {
+                let reason = req.reason.unwrap_or_else(|| "Status changed by admin".to_string());
+                let org = Organization::reject(org_id, user.member_id, reason, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                OrganizationChecklistItem::reset(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                org
+            }
+            "suspended" => {
+                let reason = req.reason.unwrap_or_else(|| "Suspended by admin".to_string());
+                Organization::suspend(org_id, user.member_id, reason, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?
+            }
+            _ => {
+                return Err(TerminalError::new(format!("Invalid status: {}", req.status)).into());
+            }
+        };
+
+        info!(org_id = %org.id, new_status = %req.status, "Organization status changed");
+
+        Ok(OrganizationResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            status: org.status,
+            website_count: 0,
+            social_profile_count: 0,
+            snapshot_count: 0,
+            created_at: org.created_at.to_rfc3339(),
+            updated_at: org.updated_at.to_rfc3339(),
+        })
+    }
+
+    async fn get_checklist(
+        &self,
+        ctx: Context<'_>,
+        req: GetOrganizationRequest,
+    ) -> Result<ChecklistResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.id);
+
+        let checked_items = OrganizationChecklistItem::find_by_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let items: Vec<ChecklistItemResult> = CHECKLIST_LABELS
+            .iter()
+            .map(|(key, label)| {
+                let found = checked_items.iter().find(|ci| ci.checklist_key == *key);
+                ChecklistItemResult {
+                    key: key.to_string(),
+                    label: label.to_string(),
+                    checked: found.is_some(),
+                    checked_by: found.map(|ci| ci.checked_by.to_string()),
+                    checked_at: found.map(|ci| ci.checked_at.to_rfc3339()),
+                }
+            })
+            .collect();
+
+        let all_checked = items.iter().all(|i| i.checked);
+
+        Ok(ChecklistResult { items, all_checked })
+    }
+
+    async fn toggle_checklist_item(
+        &self,
+        ctx: Context<'_>,
+        req: ToggleChecklistRequest,
+    ) -> Result<ChecklistResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.organization_id);
+
+        if !CHECKLIST_KEYS.contains(&req.checklist_key.as_str()) {
+            return Err(TerminalError::new(format!("Invalid checklist key: {}", req.checklist_key)).into());
+        }
+
+        if req.checked {
+            OrganizationChecklistItem::check(org_id, &req.checklist_key, user.member_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        } else {
+            OrganizationChecklistItem::uncheck(org_id, &req.checklist_key, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
+
+        // Return updated checklist
+        let checked_items = OrganizationChecklistItem::find_by_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let items: Vec<ChecklistItemResult> = CHECKLIST_LABELS
+            .iter()
+            .map(|(key, label)| {
+                let found = checked_items.iter().find(|ci| ci.checklist_key == *key);
+                ChecklistItemResult {
+                    key: key.to_string(),
+                    label: label.to_string(),
+                    checked: found.is_some(),
+                    checked_by: found.map(|ci| ci.checked_by.to_string()),
+                    checked_at: found.map(|ci| ci.checked_at.to_rfc3339()),
+                }
+            })
+            .collect();
+
+        let all_checked = items.iter().all(|i| i.checked);
+
+        Ok(ChecklistResult { items, all_checked })
     }
 }

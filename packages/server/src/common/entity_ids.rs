@@ -80,6 +80,9 @@ pub struct SyncBatch;
 /// Marker type for SyncProposal entities (individual AI-proposed operations).
 pub struct SyncProposal;
 
+/// Marker type for ProposalComment entities (admin feedback on proposals).
+pub struct ProposalComment;
+
 /// Marker type for Organization entities (groups of related sources).
 pub struct Organization;
 
@@ -170,6 +173,9 @@ pub type SyncBatchId = Id<SyncBatch>;
 
 /// Typed ID for SyncProposal entities.
 pub type SyncProposalId = Id<SyncProposal>;
+
+/// Typed ID for ProposalComment entities.
+pub type ProposalCommentId = Id<ProposalComment>;
 
 /// Typed ID for Organization entities.
 pub type OrganizationId = Id<Organization>;

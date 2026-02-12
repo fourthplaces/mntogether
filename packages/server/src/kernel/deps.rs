@@ -3,7 +3,7 @@
 //! This module provides the central dependency container used by all domain effects.
 //! All external services use trait abstractions to enable testing.
 
-use ai_client::OpenAi;
+use ai_client::{Claude, OpenAi};
 use anyhow::Result;
 use apify_client::ApifyClient;
 use async_trait::async_trait;
@@ -13,6 +13,7 @@ use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
+use crate::domains::memo::MemoBuilder;
 use crate::kernel::{
     extraction_service::OpenAIExtractionService, stream_hub::StreamHub, BaseEmbeddingService,
     BasePiiDetector, BasePushNotificationService, BaseTwilioService,
@@ -67,6 +68,8 @@ pub struct ServerDeps {
     /// AI client for all LLM operations. Callers pass specific model constants
     /// (GPT_5_MINI, GPT_5, "gpt-4o") to select the model per-call.
     pub ai: Arc<OpenAi>,
+    /// Claude client for Anthropic models (optional — needs ANTHROPIC_API_KEY).
+    pub claude: Option<Arc<Claude>>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub push_service: Arc<dyn BasePushNotificationService>,
     pub twilio: Arc<dyn BaseTwilioService>,
@@ -92,6 +95,7 @@ impl ServerDeps {
         db_pool: PgPool,
         ingestor: Arc<dyn Ingestor>,
         ai: Arc<OpenAi>,
+        claude: Option<Arc<Claude>>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         push_service: Arc<dyn BasePushNotificationService>,
         twilio: Arc<dyn BaseTwilioService>,
@@ -108,6 +112,7 @@ impl ServerDeps {
             db_pool,
             ingestor,
             ai,
+            claude,
             embedding_service,
             push_service,
             twilio,
@@ -120,6 +125,24 @@ impl ServerDeps {
             test_identifier_enabled,
             admin_identifiers,
         }
+    }
+}
+
+impl ServerDeps {
+    /// Create a memoized computation builder.
+    ///
+    /// ```ignore
+    /// let result: MyType = deps.memo("my_func_v1", &input)
+    ///     .ttl(86_400_000) // optional, ms
+    ///     .get_or(|| async { expensive_call().await })
+    ///     .await?;
+    /// ```
+    pub fn memo<'a, K: serde::Serialize>(
+        &'a self,
+        function_name: &'a str,
+        key: K,
+    ) -> MemoBuilder<'a, K> {
+        MemoBuilder::new(function_name, key, &self.db_pool)
     }
 }
 

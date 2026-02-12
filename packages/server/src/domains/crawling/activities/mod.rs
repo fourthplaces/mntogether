@@ -15,7 +15,7 @@ pub mod website_context;
 pub use authorization::check_crawl_authorization;
 pub use crawl_full::crawl_website_full;
 pub use discovery::{discover_pages, DiscoveredPage};
-pub use ingest_website::{ingest_urls, ingest_website, IngestUrlsResult};
+pub use ingest_website::{ingest_urls, ingest_website, ingest_website_with_config, IngestUrlsResult};
 pub use org_extraction::{
     create_social_profiles_for_org, extract_and_create_organization, extract_organization_info,
 };

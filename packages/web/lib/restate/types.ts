@@ -246,6 +246,10 @@ export interface SyncProposal {
   merge_source_ids: string[];
   merge_source_titles: string[];
   relevance_score?: number | null;
+  curator_reasoning?: string | null;
+  confidence?: string | null;
+  source_urls?: string[] | null;
+  revision_count?: number;
 }
 
 export interface EntityProposal {
@@ -339,6 +343,19 @@ export interface OrganizationDetailResult {
   posts: PublicPostResult[];
 }
 
+export interface ChecklistItemResult {
+  key: string;
+  label: string;
+  checked: boolean;
+  checked_by: string | null;
+  checked_at: string | null;
+}
+
+export interface ChecklistResult {
+  items: ChecklistItemResult[];
+  all_checked: boolean;
+}
+
 // --- Notes ---
 
 export interface LinkedPostResult {
@@ -383,6 +400,15 @@ export interface SourceResult {
   snapshot_count: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface SearchByContentRequest {
+  query: string;
+  limit?: number;
+}
+
+export interface LightCrawlAllResult {
+  sources_queued: number;
 }
 
 export interface SourceListResult {
