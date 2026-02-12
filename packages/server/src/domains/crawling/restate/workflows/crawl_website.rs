@@ -10,6 +10,7 @@ use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, WebsiteId};
 use crate::domains::crawling::activities;
 use crate::impl_restate_serde;
@@ -19,7 +20,6 @@ use crate::kernel::ServerDeps;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrawlWebsiteRequest {
     pub website_id: Uuid,
-    pub visitor_id: Uuid,
 }
 
 impl_restate_serde!(CrawlWebsiteRequest);
@@ -58,13 +58,16 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
         ctx: WorkflowContext<'_>,
         request: CrawlWebsiteRequest,
     ) -> Result<CrawlWebsiteResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         tracing::info!(
             website_id = %request.website_id,
-            visitor_id = %request.visitor_id,
+            user_id = %user.member_id,
             "Starting crawl website workflow"
         );
 
         let website_id_typed = WebsiteId::from_uuid(request.website_id);
+        let member_id = user.member_id;
 
         ctx.set("status", "Crawling website...".to_string());
 
@@ -74,7 +77,7 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
                 // Call high-level crawl activity that orchestrates all steps
                 activities::crawl_website_full(
                     website_id_typed,
-                    request.visitor_id,
+                    member_id,
                     &self.deps,
                 )
                 .await

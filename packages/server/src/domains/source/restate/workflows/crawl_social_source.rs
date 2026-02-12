@@ -15,6 +15,7 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
+use crate::common::auth::restate_auth::require_admin;
 use crate::common::EmptyRequest;
 use crate::domains::source::activities::ingest_social::ingest_social_source;
 use crate::impl_restate_serde;
@@ -68,7 +69,9 @@ impl CrawlSocialSourceWorkflow for CrawlSocialSourceWorkflowImpl {
         ctx: WorkflowContext<'_>,
         req: CrawlSocialSourceRequest,
     ) -> Result<CrawlSocialSourceResult, HandlerError> {
-        info!(source_id = %req.source_id, "Starting crawl social source workflow");
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        info!(source_id = %req.source_id, user_id = %user.member_id, "Starting crawl social source workflow");
 
         // Scrape and store to extraction_pages (durable)
         ctx.set("status", "Scraping social media posts...".to_string());

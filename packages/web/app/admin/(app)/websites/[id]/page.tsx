@@ -168,7 +168,6 @@ export default function WebsiteDetailPage() {
       const workflowId = `crawl-${websiteId}-${Date.now()}`;
       await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
         website_id: websiteId,
-        visitor_id: "00000000-0000-0000-0000-000000000000",
       });
       refetchWebsite();
     } catch (err) {
