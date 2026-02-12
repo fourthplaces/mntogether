@@ -30,6 +30,14 @@ use crate::kernel::ServerDeps;
 // =============================================================================
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetPostRequest {
+    #[serde(default)]
+    pub show_private: bool,
+}
+
+impl_restate_serde!(GetPostRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovePostRequest {}
 
 impl_restate_serde!(ApprovePostRequest);
@@ -362,7 +370,7 @@ pub trait PostObject {
 
     // --- Reads (shared, concurrent) ---
     #[shared]
-    async fn get(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn get(req: GetPostRequest) -> Result<PostResult, HandlerError>;
 
     #[shared]
     async fn get_reports(req: EmptyRequest) -> Result<ReportListResult, HandlerError>;
@@ -896,7 +904,7 @@ impl PostObject for PostObjectImpl {
     async fn get(
         &self,
         ctx: SharedObjectContext<'_>,
-        _req: EmptyRequest,
+        req: GetPostRequest,
     ) -> Result<PostResult, HandlerError> {
         let post_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)))?;
@@ -913,8 +921,9 @@ impl PostObject for PostObjectImpl {
             return Err(TerminalError::new("Post not found").into());
         }
 
-        // Admins see all tags; public visitors see only public tags
-        let tags = if is_admin {
+        // Show private tags only if admin AND explicitly requested
+        let include_private = is_admin && req.show_private;
+        let tags = if include_private {
             Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?

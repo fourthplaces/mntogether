@@ -74,7 +74,7 @@ export default function PostDetailPage() {
   }, []);
 
   const { data: post, isLoading, error, mutate: refetch } = useRestateObject<PostDetail>(
-    "Post", postId, "get", {},
+    "Post", postId, "get", { show_private: true },
     { revalidateOnFocus: false }
   );
 
@@ -539,7 +539,7 @@ export default function PostDetailPage() {
                       <a href={`mailto:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
                     ) : c.contact_type === "phone" ? (
                       <a href={`tel:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
-                    ) : c.contact_type === "website" || c.contact_type === "intake_form_url" ? (
+                    ) : c.contact_type === "website" || c.contact_type === "booking_url" || c.contact_type === "social" || c.contact_type === "intake_form_url" ? (
                       <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 break-all">{c.contact_value}</a>
                     ) : (
                       <span>{c.contact_value}</span>

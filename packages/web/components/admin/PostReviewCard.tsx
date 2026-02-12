@@ -61,6 +61,12 @@ export function PostReviewCard({
     }
   };
 
+  const getScoreColor = (score: number) => {
+    if (score >= 8) return "bg-green-100 text-green-800";
+    if (score >= 5) return "bg-amber-100 text-amber-800";
+    return "bg-red-100 text-red-800";
+  };
+
 
   const tags = post.tags || [];
 
@@ -84,6 +90,11 @@ export function PostReviewCard({
               {post.category && (
                 <span className="px-2 py-1 text-xs bg-stone-100 text-stone-700 rounded">
                   {post.category}
+                </span>
+              )}
+              {post.relevance_score != null && (
+                <span className={`px-2 py-1 text-xs font-bold rounded ${getScoreColor(post.relevance_score)}`}>
+                  {post.relevance_score}/10
                 </span>
               )}
             </div>

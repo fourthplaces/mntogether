@@ -480,17 +480,6 @@ export default function PostsPage() {
                 <div key={post.id} className="relative">
                   {/* Source badge overlay */}
                   <div className="absolute top-2 right-2 z-10 flex gap-1">
-                    {post.relevance_score != null && (
-                      <span className={`text-xs font-bold px-2 py-1 rounded ${
-                        post.relevance_score >= 8
-                          ? "bg-green-100 text-green-800"
-                          : post.relevance_score >= 5
-                            ? "bg-amber-100 text-amber-800"
-                            : "bg-red-100 text-red-800"
-                      }`}>
-                        {post.relevance_score}/10
-                      </span>
-                    )}
                     {post.distance_miles != null && (
                       <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
                         {post.distance_miles < 1

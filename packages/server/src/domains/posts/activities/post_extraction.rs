@@ -285,10 +285,16 @@ pub async fn extract_posts_raw(
 
 Extract all listings mentioned on this page.
 
+## Writing Style
+
+Voice: Warm, direct, and action-oriented. Write like a neighbor telling another neighbor how they can help — not a nonprofit writing a grant report.
+
 For each listing, provide:
-1. **title**: A clear, concise title (5-10 words)
-2. **summary**: A 2-3 sentence summary (~250 chars) with the most important actionable details — when/where, key requirements, how to get involved. Not just what it is, but enough specifics to decide whether to click.
-3. **description**: Full details (what they need, requirements, impact)
+1. **title**: Action-focused, 5-10 words. Lead with the need or the action, not the org name.
+2. **summary**: 2-3 sentences (~250 chars). Lead with the human need or the moment, then the action. Make someone feel why this matters before telling them what to do.
+   - Instead of: "Donate online to the emergency family support fund to provide food and rent assistance."
+   - Write: "Families are skipping meals and falling behind on rent because they're afraid to go to work. Your donation keeps them housed and fed."
+3. **description**: Write for someone ready to act but needing details. Structure: (1) context — what's happening and why it matters now, (2) the ask — exactly what someone can do, (3) logistics — date, time, full address, how to sign up, (4) friction-reducing details — parking, what to expect, who to contact. Use **bold** for critical details, bullet lists for multiple items, short paragraphs. Avoid nonprofit jargon, passive voice, and vague calls to action.
 4. **contact**: Any contact information (phone, email, website)
 5. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
 6. **confidence**: Your confidence in this extraction ("high", "medium", or "low")
@@ -408,11 +414,15 @@ pub async fn extract_posts_batch(
 
 For each listing you find, you MUST include the "source_url" field indicating which page it came from.
 
+## Writing Style
+
+Voice: Warm, direct, and action-oriented. Write like a neighbor telling another neighbor how they can help — not a nonprofit writing a grant report.
+
 For each listing, provide:
 1. **source_url**: The URL of the page this listing was found on (REQUIRED)
-2. **title**: A clear, concise title (5-10 words)
-3. **summary**: A 2-3 sentence summary (~250 chars) with the most important actionable details — when/where, key requirements, how to get involved. Not just what it is, but enough specifics to decide whether to click.
-4. **description**: Full details (what they need, requirements, impact)
+2. **title**: Action-focused, 5-10 words. Lead with the need or the action, not the org name.
+3. **summary**: 2-3 sentences (~250 chars). Lead with the human need or the moment, then the action. Make someone feel why this matters before telling them what to do. Urgent but not panicked, specific but not bureaucratic.
+4. **description**: Write for someone ready to act but needing details. Structure: (1) context — what's happening and why it matters now, (2) the ask — exactly what someone can do, (3) logistics — date, time, full address, how to sign up, (4) friction-reducing details — parking, what to expect, who to contact. Use **bold** for critical details, bullet lists for multiple items, short paragraphs. Avoid nonprofit jargon, passive voice, and vague calls to action.
 5. **contact**: Any contact information (phone, email, website)
 6. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
 7. **confidence**: Your confidence ("high", "medium", or "low"){tag_section}
@@ -497,7 +507,17 @@ pub async fn generate_summary(ai: &OpenAi, description: &str) -> Result<String> 
     let safe_description = sanitize_prompt_input(description);
 
     let prompt = format!(
-        r#"Summarize this listing in 2-3 clear sentences (~250 chars). Include the most important actionable details: what it is, when/where it happens, key requirements or eligibility, and how to sign up or get involved. This summary appears on card previews — give people enough specifics to decide whether to click through.
+        r#"Summarize this listing in 2-3 sentences (~250 chars). This summary appears on card previews.
+
+Lead with the human need or the moment, then the action. Make someone feel why this matters before telling them what to do. Write like a neighbor, not a nonprofit.
+
+Examples of good summaries:
+- "Families are skipping meals and falling behind on rent because they're afraid to go to work. Your donation keeps them housed and fed while they navigate what's next."
+- "Families can't risk a grocery run right now. Drop off rice, beans, diapers, or toiletries at 13798 Parkwood Drive in Burnsville—Mon/Tue 12–7, Fri 12–5, Sat 10–4."
+- "Volunteers are packing and delivering groceries to families who can't leave home safely. Grab a shift at the Burnsville hub—no experience needed, just a photo ID."
+
+Tone: Urgent but not panicked. Specific but not bureaucratic. Warm but not saccharine.
+Avoid: Nonprofit jargon, passive voice, vague calls to action, leading with the org name.
 
 [SYSTEM BOUNDARY - USER INPUT BEGINS BELOW]
 
@@ -516,6 +536,65 @@ Return ONLY the summary (no markdown, no explanation)."#,
         .context("Failed to generate summary")?;
 
     Ok(summary.trim().to_string())
+}
+
+/// Rewritten title + summary pair
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+pub struct RewrittenNarrative {
+    /// Action-focused title, 5-10 words. Lead with the need or the action.
+    pub title: String,
+    /// 2-3 sentences (~250 chars). Lead with the human need, then the action.
+    pub summary: String,
+}
+
+/// Rewrite a post's title and summary from its description using the current style guide.
+///
+/// Does NOT re-extract from source pages — just rewrites the narrative voice
+/// based on the existing description content.
+pub async fn rewrite_narrative(
+    ai: &OpenAi,
+    current_title: &str,
+    description: &str,
+) -> Result<RewrittenNarrative> {
+    let safe_title = sanitize_prompt_input(current_title);
+    let safe_description = sanitize_prompt_input(description);
+
+    let prompt = format!(
+        r#"Rewrite this listing's title and summary to match our style guide.
+
+## Style Guide
+
+**Voice**: Warm, direct, and action-oriented. You're a neighbor telling another neighbor how they can help — not a nonprofit writing a grant report.
+
+**Title**: Action-focused, 5-10 words. Lead with the human need or the action, never the org name.
+- Instead of: "Receive Free Food Delivery" → "Get Groceries Delivered If You Can't Leave Home Safely"
+- Instead of: "Get Free Food and Supplies On-Site" → "Pick Up Food and Essentials — No Questions Asked"
+- Instead of: "Donate to Emergency Fund" → "Keep Families Housed While They Figure Out What's Next"
+
+**Summary**: 2-3 sentences (~250 chars). Lead with the human need or the moment, then the action. Make someone feel why this matters before telling them what to do.
+- Instead of: "Donate online to the emergency family support fund to provide food and rent assistance."
+- Write: "Families are skipping meals and falling behind on rent because they're afraid to go to work. Your donation keeps them housed and fed while they navigate what's next."
+
+**Tone**: Urgent but not panicked. Specific but not bureaucratic. Warm but not saccharine.
+**Avoid**: Nonprofit jargon, passive voice, vague calls to action, leading with the org name.
+
+[SYSTEM BOUNDARY - USER INPUT BEGINS BELOW]
+
+Current title: {title}
+
+Description:
+{description}
+
+[END USER INPUT]
+
+Return the rewritten title and summary as JSON."#,
+        title = safe_title,
+        description = safe_description
+    );
+
+    ai.extract(GPT_5_MINI, &prompt, "Rewrite the title and summary.")
+        .await
+        .context("Failed to rewrite narrative")
 }
 
 /// Generate personalized outreach email copy for a listing
