@@ -362,18 +362,18 @@ fn build_writer_prompt(
                     if !line.is_empty() {
                         line.push(' ');
                     }
-                    line.push_str(opens);
+                    line.push_str(&format_time_12h(opens));
                     if let Some(closes) = &s.closes_at {
-                        line.push_str(&format!("–{}", closes));
+                        line.push_str(&format!("–{}", format_time_12h(closes)));
                     }
                 }
                 if let Some(start) = &s.start_time {
                     if !line.is_empty() {
                         line.push(' ');
                     }
-                    line.push_str(start);
+                    line.push_str(&format_time_12h(start));
                     if let Some(end) = &s.end_time {
-                        line.push_str(&format!("–{}", end));
+                        line.push_str(&format!("–{}", format_time_12h(end)));
                     }
                 }
                 if line.is_empty() { None } else { Some(line) }
@@ -410,6 +410,30 @@ fn build_writer_prompt(
     prompt.push_str("Rewrite the title, summary, and description. Stay within this post's action — do not add info from the org document that belongs to a different post. Follow the style guide exactly.");
 
     prompt
+}
+
+/// Convert "16:00" → "4:00 PM", "09:30" → "9:30 AM", etc.
+fn format_time_12h(time_24h: &str) -> String {
+    let parts: Vec<&str> = time_24h.split(':').collect();
+    if parts.len() != 2 {
+        return time_24h.to_string();
+    }
+    let hour: u32 = match parts[0].parse() {
+        Ok(h) => h,
+        Err(_) => return time_24h.to_string(),
+    };
+    let minute = parts[1];
+    let (h12, period) = match hour {
+        0 => (12, "AM"),
+        1..=11 => (hour, "AM"),
+        12 => (12, "PM"),
+        _ => (hour - 12, "PM"),
+    };
+    if minute == "00" {
+        format!("{} {}", h12, period)
+    } else {
+        format!("{}:{} {}", h12, minute, period)
+    }
 }
 
 fn truncate_safe(s: &str, max_bytes: usize) -> &str {
