@@ -77,7 +77,7 @@ export default function PublicPostDetailPage() {
     "Post",
     postId,
     "get",
-    {}
+    { show_private: false }
   );
 
   const [isAdmin, setIsAdmin] = useState(false);
@@ -308,7 +308,7 @@ export default function PublicPostDetailPage() {
                   {post.contacts.map((c) => (
                     <div key={c.id} className="text-sm text-[#4D4D4D]">
                       {c.contact_label && <span className="text-xs text-[#A09A8D] block">{c.contact_label}</span>}
-                      {c.contact_type === "url" ? (
+                      {c.contact_type === "website" || c.contact_type === "booking_url" || c.contact_type === "social" ? (
                         <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-[#8B6D3F] hover:text-[#6D5530] underline break-all">{c.contact_value}</a>
                       ) : c.contact_type === "email" ? (
                         <a href={`mailto:${c.contact_value}`} className="text-[#8B6D3F] hover:text-[#6D5530] underline">{c.contact_value}</a>

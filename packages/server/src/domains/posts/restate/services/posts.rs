@@ -446,6 +446,22 @@ pub struct BatchScorePostsResult {
 impl_restate_serde!(BatchScorePostsResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RewriteNarrativesRequest {
+    pub organization_id: Uuid,
+}
+
+impl_restate_serde!(RewriteNarrativesRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RewriteNarrativesResult {
+    pub rewritten: i32,
+    pub failed: i32,
+    pub total: i32,
+}
+
+impl_restate_serde!(RewriteNarrativesResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExpireStalePostsRequest {}
 
 impl_restate_serde!(ExpireStalePostsRequest);
@@ -499,6 +515,9 @@ pub trait PostsService {
     async fn batch_score_posts(
         req: BatchScorePostsRequest,
     ) -> Result<BatchScorePostsResult, HandlerError>;
+    async fn rewrite_narratives(
+        req: RewriteNarrativesRequest,
+    ) -> Result<RewriteNarrativesResult, HandlerError>;
 }
 
 // =============================================================================
@@ -1441,6 +1460,73 @@ impl PostsService for PostsServiceImpl {
                     scored,
                     failed,
                     remaining,
+                })
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn rewrite_narratives(
+        &self,
+        ctx: Context<'_>,
+        req: RewriteNarrativesRequest,
+    ) -> Result<RewriteNarrativesResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                use crate::common::PostId;
+                use crate::domains::posts::models::post::UpdatePostContent;
+
+                let posts = Post::find_by_organization_id(req.organization_id, &self.deps.db_pool)
+                    .await
+                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
+
+                let total = posts.len() as i32;
+                let mut rewritten = 0i32;
+                let mut failed = 0i32;
+
+                for post in posts {
+                    let description = post.description_markdown.as_deref()
+                        .unwrap_or(&post.description);
+
+                    match activities::post_extraction::rewrite_narrative(
+                        &self.deps.ai,
+                        &post.title,
+                        description,
+                    )
+                    .await
+                    {
+                        Ok(narrative) => {
+                            match Post::update_content(
+                                UpdatePostContent::builder()
+                                    .id(post.id)
+                                    .title(Some(narrative.title))
+                                    .summary(Some(narrative.summary))
+                                    .build(),
+                                &self.deps.db_pool,
+                            )
+                            .await
+                            {
+                                Ok(_) => rewritten += 1,
+                                Err(e) => {
+                                    tracing::warn!(post_id = %post.id, error = %e, "Failed to update post content");
+                                    failed += 1;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(post_id = %post.id, error = %e, "Failed to rewrite narrative");
+                            failed += 1;
+                        }
+                    }
+                }
+
+                Ok(RewriteNarrativesResult {
+                    rewritten,
+                    failed,
+                    total,
                 })
             })
             .await?;

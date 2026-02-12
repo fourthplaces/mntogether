@@ -95,9 +95,15 @@ If BOTH yes → extract. Otherwise → skip.
 
 For each DISTINCT event, drive, or action you find, provide:
 
-1. **title** - Action-focused. Lead with what someone can DO, not the org name. (e.g., "Deliver Groceries to Immigrant Families", "Attend Know Your Rights Workshop", "Donate to Emergency Legal Defense Fund"). Never include organization names in titles.
-2. **summary** - 2-3 sentence summary (~250 chars) with when/where/how to participate. Include the details someone needs to decide whether to click.
-3. **description** - A rich markdown description for humans to read
+1. **title** - Action-focused, 5-10 words. Lead with the need or the action, not the org name. (e.g., "Deliver Groceries to Families Afraid to Leave Home", "Learn Your Rights Before ICE Comes to Your Door", "Keep Families Housed While They Figure Out What's Next"). Never include organization names in titles.
+2. **summary** - 2-3 sentences (~250 chars). Lead with the human need or the moment, then the action. Make someone feel why this matters before telling them what to do.
+   - Instead of: "Donate online to the emergency family support fund to provide food, rent assistance, and essential supplies for families affected by the immigration crisis in Minnesota."
+   - Write: "Families are skipping meals and falling behind on rent because they're afraid to go to work. Your donation keeps them housed and fed while they navigate what's next."
+   - Instead of: "Bring food and household supplies to support families in crisis. Drop off at 13798 Parkwood Drive, Burnsville during Mon/Tue 12–7, Fri 12–5, Sat 10–4."
+   - Write: "Families can't risk a grocery run right now. Drop off rice, beans, diapers, or toiletries at 13798 Parkwood Drive in Burnsville—Mon/Tue 12–7, Fri 12–5, Sat 10–4."
+   - Instead of: "Sign up to pack, load, or drive home deliveries for families in crisis."
+   - Write: "Volunteers are packing and delivering groceries to families who can't leave home safely. Grab a shift at the Burnsville hub—no experience needed, just a photo ID."
+3. **description** - A rich markdown description for someone who's ready to act but needs the details (see Writing the Description below)
 4. **source_url** - The URL where this content was found (from the Source header above the content)
 5. **audience** - Who this post is for: "participant" (attend/join events), "volunteer" (give time to help immigrants), or "donor" (give money/goods)
 
@@ -153,18 +159,32 @@ Ask: "Would someone supporting immigrant neighbors find this relevant and know e
 
 ## Writing the Description
 
-Write in well-formatted markdown that's easy to scan:
-- **Bold** for key terms (dates, deadlines, requirements)
-- Bullet lists for multiple items
-- Short paragraphs for narrative context
+Write for someone who's ready to act but needs the details. Structure it like this:
 
-Include all relevant details:
-- What this is and who it's for
-- Location and address (full street address for in-person events)
-- Date, time, and frequency
-- Contact information (phone, email, website, signup form)
-- What to bring or how to prepare
-- How to sign up or participate
+1. **Open with context** (1-2 sentences) — What's happening and why this matters right now
+2. **The ask** — Exactly what someone can do
+3. **Logistics** — Date, time, location (full address), what to bring, how to sign up
+4. **Details that reduce friction** — Parking, accessibility, what to expect, who to contact
+
+### Formatting
+- **Bold** for critical details (dates, deadlines, addresses, requirements)
+- Bullet lists only when listing multiple items (supplies needed, shift times)
+- Short paragraphs — dense blocks of text feel like homework
+
+### Tone Calibration
+- Urgent but not panicked
+- Specific but not bureaucratic
+- Warm but not saccharine
+- Assume good intent — people want to help, just make it easy
+
+### Voice
+Write like a neighbor telling another neighbor how they can help — not a nonprofit writing a grant report. Use active voice. Be direct.
+
+### Avoid
+- Nonprofit jargon ("wraparound services", "capacity building", "underserved communities")
+- Passive voice ("donations are being accepted" → "we're collecting donations")
+- Vague calls to action ("consider supporting" → "donate now" or "drop off supplies Saturday")
+- Leading with the organization name — lead with the action or the need
 
 ## Splitting Posts
 
@@ -222,9 +242,9 @@ Posts are duplicates if they describe the SAME opportunity, service, or program 
 ## Output
 
 Return the deduplicated list of posts. Each post should have:
-- title: The best title (action-focused, no org names)
-- summary: 2-3 sentence summary (~250 chars) with key actionable details (when, where, requirements, how to access)
-- description: Merged description with ALL details from duplicates
+- title: The best title (action-focused, 5-10 words, lead with the need or action, no org names)
+- summary: 2-3 sentences (~250 chars). Lead with the human need or the moment, then the action. Write like a neighbor, not a nonprofit. Urgent but not panicked, specific but not bureaucratic.
+- description: Merged description with ALL details from duplicates. Use active voice, avoid jargon.
 - source_url: The primary source URL (or comma-separated if merged from multiple)
 
 ## CRITICAL: Preserve Markdown Formatting

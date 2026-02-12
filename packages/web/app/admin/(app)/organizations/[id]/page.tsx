@@ -42,6 +42,8 @@ export default function OrganizationDetailPage() {
   const [cleaningUpPosts, setCleaningUpPosts] = useState(false);
   const [crawlingAll, setCrawlingAll] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
+  const [rewritingNarratives, setRewritingNarratives] = useState(false);
+  const [rewriteResult, setRewriteResult] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -264,6 +266,25 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const handleRewriteNarratives = async () => {
+    setMenuOpen(false);
+    setRewritingNarratives(true);
+    setRewriteResult(null);
+    try {
+      const result = await callService<{ rewritten: number; failed: number; total: number }>(
+        "Posts", "rewrite_narratives", { organization_id: orgId }
+      );
+      setRewriteResult(`Rewrote ${result.rewritten} of ${result.total} posts${result.failed > 0 ? ` (${result.failed} failed)` : ""}`);
+      invalidateService("Posts");
+      refetchPosts();
+    } catch (err: any) {
+      console.error("Failed to rewrite narratives:", err);
+      setRewriteResult(`Error: ${err.message || "Failed to rewrite narratives"}`);
+    } finally {
+      setRewritingNarratives(false);
+    }
+  };
+
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
@@ -438,10 +459,10 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll}
+                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll ? "..." : "\u22EF"}
+                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
@@ -487,6 +508,13 @@ export default function OrganizationDetailPage() {
                         className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                       >
                         {cleaningUpPosts ? "Cleaning Up..." : "Clean Up Posts"}
+                      </button>
+                      <button
+                        onClick={handleRewriteNarratives}
+                        disabled={rewritingNarratives || posts.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {rewritingNarratives ? "Rewriting..." : "Rewrite Narratives"}
                       </button>
                       {org.status === "approved" && (
                         <button
@@ -562,6 +590,21 @@ export default function OrganizationDetailPage() {
               <span className="text-sm font-medium text-amber-700">
                 Cleaning up duplicate and rejected posts...
               </span>
+            </div>
+          )}
+
+          {rewritingNarratives && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Rewriting titles and summaries...
+              </span>
+            </div>
+          )}
+
+          {rewriteResult && (
+            <div className={`mt-4 pt-4 border-t border-stone-200 text-sm font-medium ${rewriteResult.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
+              {rewriteResult}
             </div>
           )}
 
