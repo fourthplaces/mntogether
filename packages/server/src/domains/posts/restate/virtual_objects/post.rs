@@ -152,6 +152,13 @@ pub struct DeleteScheduleRequest {
 impl_restate_serde!(DeleteScheduleRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCapacityStatusRequest {
+    pub capacity_status: String,
+}
+
+impl_restate_serde!(UpdateCapacityStatusRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddCommentRequest {
     pub content: String,
     pub parent_message_id: Option<Uuid>,
@@ -202,6 +209,7 @@ pub struct PostResult {
     pub status: String,
     pub post_type: String,
     pub category: String,
+    pub capacity_status: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
     pub source_url: Option<String>,
@@ -247,6 +255,7 @@ impl From<Post> for PostResult {
             status: p.status,
             post_type: p.post_type,
             category: p.category,
+            capacity_status: p.capacity_status,
             urgency: p.urgency,
             location: p.location,
             source_url: p.source_url,
@@ -348,6 +357,7 @@ pub trait PostObject {
     async fn approve_revision(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn reject_revision(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn regenerate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn update_capacity_status(req: UpdateCapacityStatusRequest) -> Result<PostResult, HandlerError>;
     async fn add_comment(req: AddCommentRequest) -> Result<MessageResult, HandlerError>;
 
     // --- Reads (shared, concurrent) ---
@@ -898,6 +908,11 @@ impl PostObject for PostObjectImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found"))?;
 
+        // Non-admins can only see active, non-deleted posts
+        if !is_admin && (post.status != "active" || post.deleted_at.is_some()) {
+            return Err(TerminalError::new("Post not found").into());
+        }
+
         // Admins see all tags; public visitors see only public tags
         let tags = if is_admin {
             Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
@@ -1164,6 +1179,45 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found after regenerate"))?;
+
+        Ok(PostResult::from(post))
+    }
+
+    async fn update_capacity_status(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: UpdateCapacityStatusRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        // Validate the capacity status value
+        let valid = ["accepting", "paused", "at_capacity"];
+        if !valid.contains(&req.capacity_status.as_str()) {
+            return Err(TerminalError::new(format!(
+                "Invalid capacity status: {}. Must be one of: {}",
+                req.capacity_status,
+                valid.join(", ")
+            ))
+            .into());
+        }
+
+        ctx.run(|| async {
+            Post::update_capacity_status(
+                PostId::from_uuid(post_id),
+                &req.capacity_status,
+                &self.deps.db_pool,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after update_capacity_status"))?;
 
         Ok(PostResult::from(post))
     }

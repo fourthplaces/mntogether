@@ -848,12 +848,17 @@ function PostRow({
   onChanged: () => void;
 }) {
   const [status, setStatus] = useState(post.status);
+  const [capacityStatus, setCapacityStatus] = useState(post.capacity_status || "accepting");
   const [loading, setLoading] = useState(false);
 
   // Sync local state when server data changes
   useEffect(() => {
     setStatus(post.status);
   }, [post.status]);
+
+  useEffect(() => {
+    setCapacityStatus(post.capacity_status || "accepting");
+  }, [post.capacity_status]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === status) return;
@@ -875,6 +880,25 @@ function PostRow({
       console.error("Failed to update post status:", err);
       setStatus(previousStatus);
       alert(err.message || "Failed to update post status");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCapacityChange = async (newCapacity: string) => {
+    if (newCapacity === capacityStatus) return;
+    const previous = capacityStatus;
+    setCapacityStatus(newCapacity);
+    setLoading(true);
+
+    try {
+      await callObject("Post", post.id, "update_capacity_status", { capacity_status: newCapacity });
+      invalidateObject("Post", post.id);
+      onChanged();
+    } catch (err: any) {
+      console.error("Failed to update capacity status:", err);
+      setCapacityStatus(previous);
+      alert(err.message || "Failed to update capacity status");
     } finally {
       setLoading(false);
     }
@@ -906,6 +930,28 @@ function PostRow({
           <option value="active">active</option>
           <option value="rejected">rejected</option>
         </select>
+        {status === "active" && (
+          <select
+            value={capacityStatus}
+            disabled={loading}
+            onChange={(e) => handleCapacityChange(e.target.value)}
+            className={`px-2 py-0.5 text-xs rounded-full font-medium border-0 cursor-pointer appearance-none pr-5 shrink-0 ${
+              loading ? "opacity-50" :
+              capacityStatus === "accepting"
+                ? "bg-emerald-100 text-emerald-800"
+                : capacityStatus === "paused"
+                  ? "bg-orange-100 text-orange-800"
+                  : capacityStatus === "at_capacity"
+                    ? "bg-rose-100 text-rose-800"
+                    : "bg-stone-100 text-stone-600"
+            }`}
+            style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
+          >
+            <option value="accepting">accepting</option>
+            <option value="paused">paused</option>
+            <option value="at_capacity">at capacity</option>
+          </select>
+        )}
         <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${
           post.post_type === "service"
             ? "bg-blue-100 text-blue-800"

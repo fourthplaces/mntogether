@@ -84,6 +84,7 @@ export interface PostResult {
   status: string;
   post_type: string | null;
   category: string | null;
+  capacity_status: string | null;
   urgency: string | null;
   location: string | null;
   source_url: string | null;
