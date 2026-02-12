@@ -139,10 +139,16 @@ export default function SourceDetailPage() {
     setActionInProgress("crawl");
     try {
       const workflowId = `crawl-${sourceId}-${Date.now()}`;
-      await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
-        website_id: sourceId,
-        visitor_id: "00000000-0000-0000-0000-000000000000",
-      });
+      if (isWebsite) {
+        await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
+          website_id: sourceId,
+          visitor_id: "00000000-0000-0000-0000-000000000000",
+        });
+      } else {
+        await callObject("CrawlSocialSourceWorkflow", workflowId, "run", {
+          source_id: sourceId,
+        });
+      }
       refetchSource();
     } catch (err) {
       console.error("Failed to start crawl:", err);
@@ -399,23 +405,21 @@ export default function SourceDetailPage() {
                 </button>
                 {menuOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                    <button
+                      onClick={() => { setMenuOpen(false); handleCrawl(); }}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      Start Crawl
+                    </button>
                     {isWebsite && (
-                      <>
-                        <button
-                          onClick={() => { setMenuOpen(false); handleCrawl(); }}
-                          disabled={actionInProgress !== null}
-                          className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                        >
-                          Start Crawl
-                        </button>
-                        <button
-                          onClick={handleGenerateAssessment}
-                          disabled={actionInProgress !== null}
-                          className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                        >
-                          Generate AI Assessment
-                        </button>
-                      </>
+                      <button
+                        onClick={handleGenerateAssessment}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        Generate AI Assessment
+                      </button>
                     )}
                     <button
                       onClick={handleRegeneratePosts}

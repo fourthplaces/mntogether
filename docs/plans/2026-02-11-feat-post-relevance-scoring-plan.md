@@ -266,8 +266,8 @@ This is handled in the model layer — `approve_revision()` and any content-upda
 - [x] Batch scoring endpoint scores all unscored active posts
 - [x] Scores stored on post record with `scored_at` timestamp
 - [x] Scores cleared when post content changes
-- [ ] Admin proposals page shows color-coded score badges
-- [ ] Admin proposals page supports filtering by score threshold
+- [x] Admin proposals page shows color-coded score badges
+- [x] Admin proposals page supports filtering by score threshold
 - [x] Admin post detail page shows score and breakdown
 
 ### Non-Functional Requirements

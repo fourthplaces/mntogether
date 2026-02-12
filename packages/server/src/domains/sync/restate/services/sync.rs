@@ -142,6 +142,8 @@ pub struct ProposalResult {
     pub target_title: Option<String>,
     pub merge_source_ids: Vec<Uuid>,
     pub merge_source_titles: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_score: Option<i32>,
 }
 
 impl_restate_serde!(ProposalResult);
@@ -164,6 +166,7 @@ impl ProposalResult {
             target_title: None,
             merge_source_ids: vec![],
             merge_source_titles: vec![],
+            relevance_score: None,
         }
     }
 }
@@ -334,14 +337,19 @@ impl SyncService for SyncServiceImpl {
             merge_sources_by_proposal.insert(p.id.into_uuid(), source_ids);
         }
 
-        // Batch-load all post titles (includes soft-deleted posts for display)
+        // Batch-load all post titles + scores (includes soft-deleted posts for display)
         entity_ids.sort();
         entity_ids.dedup();
-        let title_rows = Post::find_titles_by_ids(&entity_ids, pool)
+        let title_score_rows = Post::find_titles_and_scores_by_ids(&entity_ids, pool)
             .await
             .unwrap_or_default();
-        let title_map: std::collections::HashMap<Uuid, String> = title_rows
+        let title_map: std::collections::HashMap<Uuid, String> = title_score_rows
+            .iter()
+            .map(|(id, title, _)| (*id, title.clone()))
+            .collect();
+        let score_map: std::collections::HashMap<Uuid, Option<i32>> = title_score_rows
             .into_iter()
+            .map(|(id, _, score)| (id, score))
             .collect();
 
         Ok(ProposalListResult {
@@ -357,6 +365,15 @@ impl SyncService for SyncServiceImpl {
                         .iter()
                         .filter_map(|id| title_map.get(id).cloned())
                         .collect();
+
+                    // Use draft entity score if available, otherwise target entity score
+                    let relevance_score = p
+                        .draft_entity_id
+                        .and_then(|id| score_map.get(&id).copied().flatten())
+                        .or_else(|| {
+                            p.target_entity_id
+                                .and_then(|id| score_map.get(&id).copied().flatten())
+                        });
 
                     ProposalResult {
                         id: pid,
@@ -374,6 +391,7 @@ impl SyncService for SyncServiceImpl {
                         target_title: p.target_entity_id.and_then(|id| title_map.get(&id).cloned()),
                         merge_source_ids: merge_ids,
                         merge_source_titles: merge_titles,
+                        relevance_score,
                     }
                 })
                 .collect(),

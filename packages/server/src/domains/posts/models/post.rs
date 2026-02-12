@@ -469,6 +469,20 @@ impl Post {
         .map_err(Into::into)
     }
 
+    /// Batch-load titles and relevance scores for a set of post IDs.
+    pub async fn find_titles_and_scores_by_ids(
+        ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<(Uuid, String, Option<i32>)>> {
+        sqlx::query_as::<_, (Uuid, String, Option<i32>)>(
+            "SELECT id, title, relevance_score FROM posts WHERE id = ANY($1)",
+        )
+        .bind(ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find listing by ID
     pub async fn find_by_id(id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = $1")
@@ -1724,6 +1738,111 @@ impl Post {
             .map_err(Into::into)
     }
 
+    /// Find active posts near a zip code with optional post_type and category tag filters.
+    /// Returns posts ordered by distance, with distance_miles included.
+    pub async fn find_public_filtered_near_zip(
+        zip_code: &str,
+        radius_miles: f64,
+        post_type: Option<&str>,
+        category: Option<&str>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<PostWithDistance>> {
+        let sql = format!(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT DISTINCT ON (p.id)
+                   p.id, p.title, p.description,
+                   p.description_markdown, p.summary,
+                   p.post_type, p.category, p.status, p.urgency,
+                   p.location, p.submission_type, p.source_url,
+                   p.created_at, p.published_at, p.updated_at,
+                   l.postal_code as zip_code, l.city as location_city,
+                   haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
+            FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            CROSS JOIN center c
+            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
+            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($4::text IS NULL OR t_cat.value = $4)
+              {}
+            ORDER BY p.id, distance_miles ASC
+            "#,
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        // Wrap in a subquery to sort by distance and apply limit/offset
+        let wrapped = format!(
+            "SELECT * FROM ({}) sub ORDER BY distance_miles ASC LIMIT $5 OFFSET $6",
+            sql
+        );
+        sqlx::query_as::<_, PostWithDistance>(&wrapped)
+            .bind(zip_code)
+            .bind(radius_miles)
+            .bind(post_type)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Count active posts near a zip code with optional post_type/category filters.
+    pub async fn count_public_filtered_near_zip(
+        zip_code: &str,
+        radius_miles: f64,
+        post_type: Option<&str>,
+        category: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        let sql = format!(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT COUNT(DISTINCT p.id) FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            CROSS JOIN center c
+            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
+            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($4::text IS NULL OR t_cat.value = $4)
+              {}
+            "#,
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_scalar::<_, i64>(&sql)
+            .bind(zip_code)
+            .bind(radius_miles)
+            .bind(post_type)
+            .bind(category)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
+    }
+
     /// Find a translation of a post in a specific language
     pub async fn find_translation(
         post_id: PostId,
@@ -1870,6 +1989,33 @@ impl Post {
             ORDER BY created_at DESC
             "#,
         )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find unscored active posts for a specific organization.
+    /// Joins through post_sources → sources to find org membership.
+    pub async fn find_unscored_active_by_org(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status = 'active'
+              AND p.relevance_score IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND p.duplicate_of_id IS NULL
+              AND p.deleted_at IS NULL
+            ORDER BY p.created_at DESC
+            "#,
+        )
+        .bind(organization_id)
         .fetch_all(pool)
         .await
         .map_err(Into::into)

@@ -40,6 +40,7 @@ export default function OrganizationDetailPage() {
   const [generatingNotes, setGeneratingNotes] = useState(false);
   const [extractingOrgPosts, setExtractingOrgPosts] = useState(false);
   const [cleaningUpPosts, setCleaningUpPosts] = useState(false);
+  const [crawlingAll, setCrawlingAll] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -234,6 +235,36 @@ export default function OrganizationDetailPage() {
     }
   };
 
+  const handleCrawlAll = async () => {
+    setMenuOpen(false);
+    setCrawlingAll(true);
+    try {
+      await Promise.all(
+        sources.map((source) => {
+          const workflowId = `crawl-${source.id}-${Date.now()}`;
+          if (source.source_type === "website") {
+            return callObject("CrawlWebsiteWorkflow", workflowId, "run", {
+              website_id: source.id,
+              visitor_id: "00000000-0000-0000-0000-000000000000",
+            });
+          } else {
+            return callObject("CrawlSocialSourceWorkflow", workflowId, "run", {
+              source_id: source.id,
+            });
+          }
+        })
+      );
+      invalidateService("Sources");
+      sources.forEach((source) => invalidateObject("Source", source.id));
+      refetchSources();
+    } catch (err: any) {
+      console.error("Failed to crawl sources:", err);
+      alert(err.message || "Failed to crawl sources");
+    } finally {
+      setCrawlingAll(false);
+    }
+  };
+
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
@@ -408,13 +439,21 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts}
+                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts ? "..." : "\u22EF"}
+                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
+                      <button
+                        onClick={handleCrawlAll}
+                        disabled={crawlingAll || sources.length === 0}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        {crawlingAll ? "Crawling..." : "Crawl All Sources"}
+                      </button>
+                      <div className="border-t border-stone-100 my-1" />
                       <button
                         onClick={handleRegenerate}
                         disabled={regenerating}
@@ -470,6 +509,15 @@ export default function OrganizationDetailPage() {
                   )}
                 </div>
               </div>
+            </div>
+          )}
+
+          {crawlingAll && (
+            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
+              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
+              <span className="text-sm font-medium text-amber-700">
+                Crawling {sources.length} source{sources.length !== 1 ? "s" : ""}...
+              </span>
             </div>
           )}
 
@@ -598,6 +646,7 @@ export default function OrganizationDetailPage() {
         {/* Posts */}
         <PostsSection
           posts={posts}
+          organizationId={orgId}
           onChanged={() => {
             invalidateService("Posts");
             refetchPosts();
@@ -699,12 +748,34 @@ const POST_STATUS_TABS: { value: PostStatusTab; label: string }[] = [
 
 function PostsSection({
   posts,
+  organizationId,
   onChanged,
 }: {
   posts: PostResult[];
+  organizationId: string;
   onChanged: () => void;
 }) {
   const [tab, setTab] = useState<PostStatusTab>("pending_approval");
+  const [scoring, setScoring] = useState(false);
+  const [scoreResult, setScoreResult] = useState<string | null>(null);
+
+  const handleScorePosts = async () => {
+    setScoring(true);
+    setScoreResult(null);
+    try {
+      const result = await callService<{ scored: number; failed: number; remaining: number }>(
+        "Posts", "batch_score_posts", { organization_id: organizationId, limit: 200 }
+      );
+      setScoreResult(`Scored ${result.scored} posts${result.failed > 0 ? `, ${result.failed} failed` : ""}${result.remaining > 0 ? `, ${result.remaining} remaining` : ""}`);
+      onChanged();
+    } catch (err: any) {
+      setScoreResult(`Error: ${err.message || "Failed to score posts"}`);
+    } finally {
+      setScoring(false);
+    }
+  };
+
+  const unscoredCount = posts.filter((p) => p.status === "active" && p.relevance_score == null).length;
 
   const counts = {
     pending_approval: posts.filter((p) => p.status === "pending_approval").length,
@@ -716,9 +787,25 @@ function PostsSection({
 
   return (
     <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-lg font-semibold text-stone-900 mb-4">
-        Posts {posts.length > 0 && <span className="text-stone-400 font-normal">({posts.length})</span>}
-      </h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-stone-900">
+          Posts {posts.length > 0 && <span className="text-stone-400 font-normal">({posts.length})</span>}
+        </h2>
+        {unscoredCount > 0 && (
+          <button
+            onClick={handleScorePosts}
+            disabled={scoring}
+            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
+          >
+            {scoring ? "Scoring..." : `Score ${unscoredCount} Unscored`}
+          </button>
+        )}
+      </div>
+      {scoreResult && (
+        <div className={`mb-3 px-3 py-2 rounded text-xs ${scoreResult.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
+          {scoreResult}
+        </div>
+      )}
       <div className="flex gap-1 mb-4">
         {POST_STATUS_TABS.map((t) => (
           <button
