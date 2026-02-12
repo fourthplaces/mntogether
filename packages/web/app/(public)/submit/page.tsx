@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { callService } from "@/lib/restate/client";
 import { Alert } from "@/components/ui/Alert";
+import { BackLink } from "@/components/ui/BackLink";
 import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
@@ -52,15 +53,10 @@ export default function SubmitResourcePage() {
   const canSubmit = url.trim() !== "" && isValidUrl(url);
 
   return (
-    <section className="max-w-3xl mx-auto px-6 md:px-12 pt-8 pb-16">
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-text-muted hover:text-text-primary mb-6"
-      >
-        &larr; Back to Home
-      </Link>
+    <section className="max-w-[800px] mx-auto px-6 md:px-12 pt-10 pb-20">
+      <BackLink href="/">Back to Home</BackLink>
 
-      <h1 className="text-3xl font-bold text-text-primary mb-2">Submit a Resource</h1>
+      <h1 className="text-3xl font-bold text-text-primary leading-tight tracking-tight mb-2">Submit a Resource</h1>
       <p className="text-text-secondary mb-8">
         Share a link to an organization or resource that needs help
       </p>

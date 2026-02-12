@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
+import { BackLink } from "@/components/ui/BackLink";
 import { PostFeed } from "@/components/public/PostFeed";
 
 export function PostsClient() {
@@ -20,14 +21,8 @@ export function PostsClient() {
   };
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-8 pb-16">
-      {/* Back link */}
-      <Link
-        href="/"
-        className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D] mb-6"
-      >
-        &larr; Back to Home
-      </Link>
+    <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-10 pb-20">
+      <BackLink href="/">Back to Home</BackLink>
 
       <PostFeed
         title="Community Resources"

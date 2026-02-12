@@ -36,18 +36,18 @@ export function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white border-t border-gray-200">
+    <div className="flex flex-col h-full bg-surface-raised border-t border-border">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+      <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 bg-green-400 rounded-full" />
-          <span className="text-xs font-medium text-gray-500">
+          <span className="text-xs font-medium text-text-muted">
             MN Together Guide
           </span>
         </div>
         <button
           onClick={onNewConversation}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-xs text-text-muted hover:text-text-primary transition-colors"
         >
           New conversation
         </button>
@@ -66,7 +66,7 @@ export function ChatPanel({
               className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
                 msg.sender_type === "user"
                   ? "bg-blue-600 text-white rounded-br-md"
-                  : "bg-gray-100 text-gray-800 rounded-bl-md"
+                  : "bg-surface-muted text-text-primary rounded-bl-md"
               }`}
             >
               {msg.content}
@@ -77,15 +77,15 @@ export function ChatPanel({
         {/* Waiting indicator */}
         {isWaitingForReply && (
           <div className="flex justify-start">
-            <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-md bg-gray-100 text-gray-800 text-sm">
+            <div className="max-w-[80%] px-3 py-2 rounded-2xl rounded-bl-md bg-surface-muted text-text-primary text-sm">
               <span className="inline-flex gap-1">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
+                <span className="w-1.5 h-1.5 bg-border-strong rounded-full animate-bounce" />
                 <span
-                  className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                  className="w-1.5 h-1.5 bg-border-strong rounded-full animate-bounce"
                   style={{ animationDelay: "0.1s" }}
                 />
                 <span
-                  className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+                  className="w-1.5 h-1.5 bg-border-strong rounded-full animate-bounce"
                   style={{ animationDelay: "0.2s" }}
                 />
               </span>
@@ -99,7 +99,7 @@ export function ChatPanel({
       {/* Input */}
       <form
         onSubmit={handleSubmit}
-        className="px-4 py-3 border-t border-gray-100"
+        className="px-4 py-3 border-t border-border"
       >
         <div className="flex items-center gap-2">
           <input
@@ -109,7 +109,7 @@ export function ChatPanel({
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask about services, housing, food help..."
             disabled={isSending || isWaitingForReply}
-            className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
+            className="flex-1 px-4 py-2.5 bg-surface-muted border border-border rounded-xl text-sm text-text-primary placeholder-text-muted focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
           />
           <button
             type="submit"

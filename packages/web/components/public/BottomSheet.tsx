@@ -50,7 +50,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
 
       {/* Panel */}
       <div
-        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-white rounded-t-2xl max-h-[90vh] flex flex-col transition-transform duration-300 ease-out ${
+        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-surface-raised rounded-t-2xl max-h-[90vh] flex flex-col transition-transform duration-300 ease-out ${
           visible ? "translate-y-0" : "translate-y-full"
         }`}
         onTransitionEnd={handleTransitionEnd}
@@ -58,11 +58,11 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
         {/* Drag handle + close */}
         <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
           <div className="flex-1" />
-          <div className="w-10 h-1 bg-gray-300 rounded-full" />
+          <div className="w-10 h-1 bg-border-strong rounded-full" />
           <div className="flex-1 flex justify-end">
             <button
               onClick={onClose}
-              className="p-1 text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-1 text-text-muted hover:text-text-primary transition-colors"
               aria-label="Close"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -75,7 +75,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
         {/* Optional title */}
         {title && (
           <div className="px-4 pb-3 flex-shrink-0">
-            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
           </div>
         )}
 

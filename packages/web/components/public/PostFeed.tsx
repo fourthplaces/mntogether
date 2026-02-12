@@ -43,9 +43,9 @@ export function PostFeed({
   const posts = listData?.posts ?? [];
 
   const tabClass = (isActive: boolean) =>
-    `px-5 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${
+    `px-5 py-2 rounded-full text-sm font-semibold border transition-all duration-200 whitespace-nowrap ${
       isActive
-        ? "bg-action text-text-on-action border-action"
+        ? "bg-action text-text-on-action border-action shadow-sm"
         : "bg-transparent text-text-secondary border-border-strong hover:border-action"
     }`;
 
@@ -53,7 +53,7 @@ export function PostFeed({
     <div>
       {/* Title + Tabs */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold text-text-primary">{title}</h2>
+        <h2 className="text-2xl font-bold text-text-primary leading-snug">{title}</h2>
         <div className="flex gap-3 overflow-x-auto scrollbar-hide">
           {postTypes.map((pt) =>
             onFilterChange ? (

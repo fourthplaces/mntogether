@@ -7,6 +7,7 @@ import { useRestateObject, callObject } from "@/lib/restate/client";
 import { useEffect, useState } from "react";
 import type { PostResult, TagResult, PostScheduleResult } from "@/lib/restate/types";
 import { isAuthenticated } from "@/lib/auth/actions";
+import { BackLink } from "@/components/ui/BackLink";
 import CommentsSection from "@/components/public/CommentsSection";
 
 function formatCategory(value: string): string {
@@ -100,16 +101,16 @@ export default function PublicPostDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-[800px] mx-auto px-6 md:px-12 pt-8 pb-16 animate-pulse">
-        <div className="h-4 w-24 bg-[#D4CEC1] rounded mb-8" />
-        <div className="bg-white rounded-lg border border-[#E8DED2] p-8">
-          <div className="h-8 w-3/4 bg-gray-200 rounded mb-4" />
-          <div className="h-4 w-1/3 bg-gray-200 rounded mb-6" />
-          <div className="h-16 w-full bg-gray-100 rounded mb-6" />
+      <div className="max-w-[1100px] mx-auto px-6 md:px-12 pt-10 pb-20 animate-pulse">
+        <div className="h-4 w-24 bg-border-strong rounded mb-8" />
+        <div className="bg-surface-raised rounded-lg border border-border p-8">
+          <div className="h-8 w-3/4 bg-border rounded mb-4" />
+          <div className="h-4 w-1/3 bg-border rounded mb-6" />
+          <div className="h-16 w-full bg-surface-muted rounded mb-6" />
           <div className="space-y-3">
-            <div className="h-4 w-full bg-gray-200 rounded" />
-            <div className="h-4 w-5/6 bg-gray-200 rounded" />
-            <div className="h-4 w-4/6 bg-gray-200 rounded" />
+            <div className="h-4 w-full bg-border rounded" />
+            <div className="h-4 w-5/6 bg-border rounded" />
+            <div className="h-4 w-4/6 bg-border rounded" />
           </div>
         </div>
       </div>
@@ -119,12 +120,10 @@ export default function PublicPostDetailPage() {
   if (!post) {
     return (
       <div className="max-w-[800px] mx-auto px-6 md:px-12 pt-16 text-center">
-        <h1 className="text-xl font-semibold text-[#3D3D3D] mb-2">
+        <h1 className="text-xl font-semibold text-text-primary mb-2">
           Post not found
         </h1>
-        <Link href="/" className="text-[#7D7D7D] hover:text-[#3D3D3D] text-sm">
-          Back to home
-        </Link>
+        <BackLink href="/" className="mb-0 justify-center">Back to Home</BackLink>
       </div>
     );
   }
@@ -136,19 +135,14 @@ export default function PublicPostDetailPage() {
   const hasDetails = (post.schedules && post.schedules.length > 0) || post.source_url || post.contacts && post.contacts.length > 0;
 
   return (
-    <section className="max-w-[1100px] mx-auto px-6 md:px-12 pt-8 pb-16">
+    <section className="max-w-[1100px] mx-auto px-6 md:px-12 pt-10 pb-20">
       {/* Back link */}
       <div className="flex items-center justify-between mb-8">
-        <Link
-          href="/posts"
-          className="inline-flex items-center text-sm text-[#7D7D7D] hover:text-[#3D3D3D]"
-        >
-          &larr; Back to Resources
-        </Link>
+        <BackLink href="/posts" className="mb-0">Back to Resources</BackLink>
         {isAdmin && (
           <Link
             href={`/admin/posts/${postId}`}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-[#7D7D7D] hover:text-[#3D3D3D] bg-white/60 hover:bg-white border border-[#E8DED2] rounded-lg px-3 py-1.5 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-text-primary bg-surface-raised/60 hover:bg-surface-raised border border-border rounded-lg px-3 py-1.5 transition-colors"
           >
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -162,7 +156,7 @@ export default function PublicPostDetailPage() {
       <div className={`grid gap-5 ${hasDetails ? "md:grid-cols-[1fr_280px]" : ""}`}>
         {/* Main content card */}
         <div className="order-1">
-          <div className="bg-white rounded-xl border border-[#E8DED2] p-6 sm:p-8 shadow-sm">
+          <div className="bg-surface-raised rounded-xl border border-border p-6 sm:p-8 shadow-sm">
             {/* Urgent notes */}
             {post.urgent_notes && post.urgent_notes.length > 0 && (
               <div className="mb-4 px-4 py-3 rounded-lg bg-red-50 border border-red-200">
@@ -183,12 +177,12 @@ export default function PublicPostDetailPage() {
             )}
 
             {/* Title */}
-            <h1 className="text-2xl sm:text-3xl font-bold text-[#3D3D3D] leading-tight mb-3">
+            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary leading-tight mb-3">
               {post.title}
             </h1>
 
             {/* Meta */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-[#7D7D7D] mb-3">
+            <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted mb-3">
               <span>{formatTimeAgo(post.published_at || post.created_at)}</span>
               {post.location && (
                 <span className="inline-flex items-center gap-1.5">
@@ -206,7 +200,7 @@ export default function PublicPostDetailPage() {
               <ReactMarkdown
                 components={{
                   p: ({ children }) => (
-                    <p className="mb-4 text-[#4D4D4D] leading-relaxed">{children}</p>
+                    <p className="mb-4 text-text-body leading-relaxed">{children}</p>
                   ),
                   ul: ({ children }) => (
                     <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>
@@ -215,15 +209,15 @@ export default function PublicPostDetailPage() {
                     <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>
                   ),
                   li: ({ children }) => (
-                    <li className="text-[#4D4D4D]">{children}</li>
+                    <li className="text-text-body">{children}</li>
                   ),
                   strong: ({ children }) => (
-                    <strong className="font-semibold text-[#3D3D3D]">{children}</strong>
+                    <strong className="font-semibold text-text-primary">{children}</strong>
                   ),
                   a: ({ href, children }) => (
                     <a
                       href={href}
-                      className="text-[#8B6D3F] hover:text-[#6D5530] underline"
+                      className="text-link hover:text-link-hover underline"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -231,13 +225,13 @@ export default function PublicPostDetailPage() {
                     </a>
                   ),
                   h1: ({ children }) => (
-                    <h2 className="text-xl font-bold text-[#3D3D3D] mt-6 mb-3">{children}</h2>
+                    <h2 className="text-xl font-bold text-text-primary mt-6 mb-3">{children}</h2>
                   ),
                   h2: ({ children }) => (
-                    <h3 className="text-lg font-bold text-[#3D3D3D] mt-5 mb-2">{children}</h3>
+                    <h3 className="text-lg font-bold text-text-primary mt-5 mb-2">{children}</h3>
                   ),
                   h3: ({ children }) => (
-                    <h4 className="text-base font-semibold text-[#3D3D3D] mt-4 mb-2">{children}</h4>
+                    <h4 className="text-base font-semibold text-text-primary mt-4 mb-2">{children}</h4>
                   ),
                 }}
               >
@@ -247,11 +241,11 @@ export default function PublicPostDetailPage() {
 
             {/* Tags */}
             {(postTypeTag || displayTags.length > 0) && (
-              <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-[#E8DED2]">
+              <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-border">
                 {postTypeTag && (
                   <span
                     title={`${postTypeTag.kind}: ${postTypeTag.value}`}
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${!postTypeTag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${!postTypeTag.color ? "bg-surface-muted text-text-secondary" : ""}`}
                     style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
                   >
                     {postTypeTag.display_name || formatCategory(postTypeTag.value)}
@@ -261,7 +255,7 @@ export default function PublicPostDetailPage() {
                   <span
                     key={tag.id}
                     title={`${tag.kind}: ${tag.value}`}
-                    className={`px-3 py-1 rounded-full text-xs font-medium ${!tag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
+                    className={`px-3 py-1 rounded-full text-xs font-medium ${!tag.color ? "bg-surface-muted text-text-secondary" : ""}`}
                     style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                   >
                     {tag.display_name || formatCategory(tag.value)}
@@ -280,20 +274,20 @@ export default function PublicPostDetailPage() {
               const oneOffSchedules = post.schedules!.filter((s: PostScheduleResult) => !s.rrule);
               const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
               return (
-                <div className="bg-white rounded-xl border border-[#E8DED2] p-5 shadow-sm">
-                  <h3 className="text-xs font-semibold text-[#A09A8D] uppercase tracking-wider mb-3">Schedule</h3>
+                <div className="bg-surface-raised rounded-xl border border-border p-5 shadow-sm">
+                  <h3 className="text-xs font-semibold text-text-label uppercase tracking-wider mb-3">Schedule</h3>
                   {allOneOffsExpired && (
-                    <div className="mb-3 px-3 py-2 bg-[#F5F1E8] border border-[#E8DED2] rounded-lg text-xs font-medium text-[#7D7D7D]">
+                    <div className="mb-3 px-3 py-2 bg-surface-muted border border-border rounded-lg text-xs font-medium text-text-muted">
                       This event has passed
                     </div>
                   )}
                   <div className="space-y-3">
                     {post.schedules!.map((s: PostScheduleResult) => (
                       <div key={s.id} className={`flex items-start gap-2.5 ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-[#C4B8A0]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-border-strong" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
-                        <span className="text-sm text-[#4D4D4D] leading-snug">{formatSchedule(s)}</span>
+                        <span className="text-sm text-text-body leading-snug">{formatSchedule(s)}</span>
                       </div>
                     ))}
                   </div>
@@ -303,18 +297,18 @@ export default function PublicPostDetailPage() {
 
             {/* Contacts card */}
             {post.contacts && post.contacts.length > 0 && (
-              <div className="bg-white rounded-xl border border-[#E8DED2] p-5 shadow-sm">
-                <h3 className="text-xs font-semibold text-[#A09A8D] uppercase tracking-wider mb-3">Contact</h3>
+              <div className="bg-surface-raised rounded-xl border border-border p-5 shadow-sm">
+                <h3 className="text-xs font-semibold text-text-label uppercase tracking-wider mb-3">Contact</h3>
                 <div className="space-y-2">
                   {post.contacts.map((c) => (
-                    <div key={c.id} className="text-sm text-[#4D4D4D]">
-                      {c.contact_label && <span className="text-xs text-[#A09A8D] block">{c.contact_label}</span>}
+                    <div key={c.id} className="text-sm text-text-body">
+                      {c.contact_label && <span className="text-xs text-text-label block">{c.contact_label}</span>}
                       {c.contact_type === "url" ? (
-                        <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-[#8B6D3F] hover:text-[#6D5530] underline break-all">{c.contact_value}</a>
+                        <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-link hover:text-link-hover underline break-all">{c.contact_value}</a>
                       ) : c.contact_type === "email" ? (
-                        <a href={`mailto:${c.contact_value}`} className="text-[#8B6D3F] hover:text-[#6D5530] underline">{c.contact_value}</a>
+                        <a href={`mailto:${c.contact_value}`} className="text-link hover:text-link-hover underline">{c.contact_value}</a>
                       ) : c.contact_type === "phone" ? (
-                        <a href={`tel:${c.contact_value}`} className="text-[#8B6D3F] hover:text-[#6D5530] underline">{c.contact_value}</a>
+                        <a href={`tel:${c.contact_value}`} className="text-link hover:text-link-hover underline">{c.contact_value}</a>
                       ) : (
                         <span>{c.contact_value}</span>
                       )}
@@ -335,7 +329,7 @@ export default function PublicPostDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleSourceClick}
-                className="flex items-center justify-center gap-2 bg-[#3D3D3D] text-white text-sm font-semibold rounded-xl px-5 py-3.5 hover:bg-[#2D2D2D] transition-colors shadow-sm"
+                className="flex items-center justify-center gap-2 bg-action text-surface text-sm font-semibold rounded-xl px-5 py-3.5 hover:bg-action-hover transition-colors shadow-sm"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />

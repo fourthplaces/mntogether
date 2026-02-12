@@ -43,7 +43,7 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
           {post.location && (
             <p className="text-sm text-text-muted mb-1">{post.location}</p>
           )}
-          <p className="text-text-secondary text-[0.95rem] leading-relaxed mb-3">
+          <p className="text-text-secondary text-base leading-relaxed mb-3">
             {post.summary || post.description}
           </p>
           <div className="flex flex-wrap gap-2">
@@ -104,11 +104,11 @@ export function PostCardSkeleton() {
   return (
     <Card variant="default">
       <div className="animate-pulse">
-        <div className="h-6 w-3/4 bg-gray-200 rounded mb-2" />
-        <div className="h-4 w-1/3 bg-gray-200 rounded mb-2" />
-        <div className="h-4 w-full bg-gray-200 rounded mb-1" />
-        <div className="h-4 w-5/6 bg-gray-200 rounded mb-3" />
-        <div className="h-6 w-20 bg-gray-200 rounded-full" />
+        <div className="h-6 w-3/4 bg-border rounded mb-2" />
+        <div className="h-4 w-1/3 bg-border rounded mb-2" />
+        <div className="h-4 w-full bg-border rounded mb-1" />
+        <div className="h-4 w-5/6 bg-border rounded mb-3" />
+        <div className="h-6 w-20 bg-border rounded-full" />
       </div>
     </Card>
   );
