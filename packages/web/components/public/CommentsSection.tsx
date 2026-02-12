@@ -95,25 +95,25 @@ function CommentForm({
 
   return (
     <form onSubmit={handleSubmit}>
-      <div className={`rounded-xl border border-[#E8DED2] bg-[#FDFCFA] overflow-hidden ${parentMessageId ? "" : "shadow-sm"} focus-within:border-[#C4B8A0] focus-within:ring-1 focus-within:ring-[#C4B8A0] transition-all`}>
+      <div className={`rounded-xl border border-border bg-surface-subtle overflow-hidden ${parentMessageId ? "" : "shadow-sm"} focus-within:border-border-strong focus-within:ring-1 focus-within:ring-focus-ring transition-all`}>
         <textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
           placeholder={parentMessageId ? "Write a reply..." : "Share your thoughts..."}
           rows={parentMessageId ? 2 : 3}
-          className="w-full bg-transparent px-4 pt-3 pb-2 text-sm text-[#3D3D3D] placeholder:text-[#B5AFA2] focus:outline-none resize-none"
+          className="w-full bg-transparent px-4 pt-3 pb-2 text-sm text-text-primary placeholder:text-text-faint focus:outline-none resize-none"
           disabled={submitting}
         />
         <div className="flex items-center justify-between px-3 pb-2">
           <div>
-            {error && <p className="text-xs text-red-600">{error}</p>}
+            {error && <p className="text-xs text-danger-text">{error}</p>}
           </div>
           <div className="flex items-center gap-2">
             {onCancel && (
               <button
                 type="button"
                 onClick={onCancel}
-                className="px-3 py-1 text-xs font-medium text-[#7D7D7D] hover:text-[#3D3D3D] transition-colors"
+                className="px-3 py-1 text-xs font-medium text-text-muted hover:text-text-primary transition-colors"
               >
                 Cancel
               </button>
@@ -121,7 +121,7 @@ function CommentForm({
             <button
               type="submit"
               disabled={submitting || !content.trim()}
-              className="px-4 py-1.5 text-xs font-semibold text-white bg-[#3D3D3D] rounded-full hover:bg-[#2D2D2D] disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+              className="px-4 py-1.5 text-xs font-semibold text-text-on-action bg-action rounded-full hover:bg-action-hover disabled:opacity-30 disabled:cursor-not-allowed transition-all"
             >
               {submitting ? "Posting..." : parentMessageId ? "Reply" : "Post"}
             </button>
@@ -153,15 +153,15 @@ function CommentThread({
   const { comment, children } = node;
 
   return (
-    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-5 pl-4 border-l-2 border-[#E8DED2]" : ""}>
+    <div className={depth > 0 && depth <= MAX_VISUAL_DEPTH ? "ml-5 pl-4 border-l-2 border-border" : ""}>
       <div className="py-3 group">
-        <p className="text-[0.9rem] text-[#3D3D3D] whitespace-pre-wrap leading-relaxed">{comment.content}</p>
+        <p className="text-[0.9rem] text-text-primary whitespace-pre-wrap leading-relaxed">{comment.content}</p>
         <div className="flex items-center gap-3 mt-1.5 px-1">
-          <span className="text-[0.7rem] text-[#B5AFA2]">{timeAgo(comment.created_at)}</span>
+          <span className="text-[0.7rem] text-text-faint">{timeAgo(comment.created_at)}</span>
           <button
             type="button"
             onClick={() => setReplying(!replying)}
-            className="text-[0.7rem] font-semibold text-[#B5AFA2] hover:text-[#5D5D5D] transition-colors"
+            className="text-[0.7rem] font-semibold text-text-faint hover:text-text-secondary transition-colors"
           >
             Reply
           </button>
@@ -215,17 +215,17 @@ export default function CommentsSection({ postId }: { postId: string }) {
 
   return (
     <div>
-      <div className="bg-white rounded-xl border border-[#E8DED2] p-6 shadow-sm">
-        <h2 className="text-base font-bold text-[#3D3D3D] mb-4">
-          Conversation{comments.length > 0 && <span className="ml-1.5 text-xs font-medium text-[#B5AFA2]">{comments.length}</span>}
+      <div className="bg-surface-raised rounded-xl border border-border p-6 shadow-sm">
+        <h2 className="text-base font-bold text-text-primary mb-4">
+          Conversation{comments.length > 0 && <span className="ml-1.5 text-xs font-medium text-text-faint">{comments.length}</span>}
         </h2>
 
         <CommentForm postId={postId} onSuccess={handleRefresh} />
 
         {comments.length === 0 ? (
           <div className="text-center py-8">
-            <p className="text-sm text-[#B5AFA2]">No comments yet</p>
-            <p className="text-xs text-[#C4BEB1] mt-1">Start the conversation above</p>
+            <p className="text-sm text-text-faint">No comments yet</p>
+            <p className="text-xs text-text-faint mt-1">Start the conversation above</p>
           </div>
         ) : (
           <div className="mt-5 space-y-1">

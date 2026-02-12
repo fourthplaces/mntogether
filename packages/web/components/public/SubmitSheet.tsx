@@ -3,6 +3,9 @@
 import { useState, useEffect, useTransition } from "react";
 import { BottomSheet } from "@/components/public/BottomSheet";
 import { callService } from "@/lib/restate/client";
+import { Alert } from "@/components/ui/Alert";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 import type { SubmitResourceLinkResult } from "@/lib/restate/types";
 
 interface SubmitSheetProps {
@@ -62,45 +65,44 @@ export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Share a Community Resource">
       <div className="px-4 pb-6">
         {result && (
-          <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
-            <p className="text-sm font-medium text-green-800">Submitted!</p>
-            <p className="text-sm text-green-700 mt-0.5">{result.message}</p>
-          </div>
+          <Alert variant="success" className="mb-4">
+            <p className="font-medium">Submitted!</p>
+            <p className="mt-0.5">{result.message}</p>
+          </Alert>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <p className="text-sm font-medium text-red-800">Error</p>
-            <p className="text-sm text-red-700 mt-0.5">{error}</p>
-          </div>
+          <Alert variant="error" className="mb-4">
+            <p className="font-medium">Error</p>
+            <p className="mt-0.5">{error}</p>
+          </Alert>
         )}
 
         <form onSubmit={handleSubmit}>
-          <p className="text-sm text-gray-500 mb-3">
+          <p className="text-sm text-text-muted mb-3">
             Know someone who needs help, a place to volunteer, or a community update? Paste the link and we'll add it to the directory.
           </p>
-          <label htmlFor="submit-url" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <label htmlFor="submit-url" className="block text-sm font-medium text-text-secondary mb-1.5">
             Link
           </label>
-          <input
+          <Input
             id="submit-url"
             type="url"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             placeholder="https://..."
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            error={url && !isValidUrl(url) ? "Enter a valid URL" : undefined}
           />
-          {url && !isValidUrl(url) && (
-            <p className="mt-1 text-xs text-red-600">Enter a valid URL</p>
-          )}
 
-          <button
+          <Button
             type="submit"
+            variant="primary"
+            className="mt-3 w-full"
             disabled={!canSubmit || isPending}
-            className="mt-3 w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isPending}
           >
             {isPending ? "Submitting..." : "Submit"}
-          </button>
+          </Button>
         </form>
       </div>
     </BottomSheet>

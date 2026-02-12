@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRestate } from "@/lib/restate/client";
 import { PostCard, PostCardSkeleton } from "@/components/public/PostCard";
+import { Button } from "@/components/ui/Button";
 import type {
   PublicListResult,
   PublicFiltersResult,
@@ -44,15 +45,15 @@ export function PostFeed({
   const tabClass = (isActive: boolean) =>
     `px-5 py-2 rounded-full text-sm font-semibold border transition-all whitespace-nowrap ${
       isActive
-        ? "bg-[#3D3D3D] text-white border-[#3D3D3D]"
-        : "bg-transparent text-[#5D5D5D] border-[#C4B8A0] hover:border-[#3D3D3D]"
+        ? "bg-action text-text-on-action border-action"
+        : "bg-transparent text-text-secondary border-border-strong hover:border-action"
     }`;
 
   return (
     <div>
       {/* Title + Tabs */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold text-[#3D3D3D]">{title}</h2>
+        <h2 className="text-3xl font-bold text-text-primary">{title}</h2>
         <div className="flex gap-3 overflow-x-auto scrollbar-hide">
           {postTypes.map((pt) =>
             onFilterChange ? (
@@ -96,7 +97,7 @@ export function PostFeed({
           ))
         ) : posts.length === 0 ? (
           <div className="py-16 text-center">
-            <p className="text-[#7D7D7D] text-sm">No resources found. Try a different filter.</p>
+            <p className="text-text-muted text-sm">No resources found. Try a different filter.</p>
           </div>
         ) : (
           <>
@@ -105,12 +106,9 @@ export function PostFeed({
             ))}
             {showSeeMore && (
               <div className="text-center pt-4">
-                <Link
-                  href="/posts"
-                  className="inline-block px-6 py-3 rounded-full border border-[#C4B8A0] text-[#5D5D5D] font-semibold text-sm hover:border-[#3D3D3D] hover:text-[#3D3D3D] transition-all"
-                >
+                <Button variant="secondary" pill href="/posts">
                   See More
-                </Link>
+                </Button>
               </div>
             )}
           </>
@@ -119,7 +117,7 @@ export function PostFeed({
 
       {/* Result count */}
       {showResultCount && !isLoading && posts.length > 0 && (
-        <p className="text-center text-sm text-[#7D7D7D] mt-6">
+        <p className="text-center text-sm text-text-muted mt-6">
           Showing {posts.length} of {listData?.total_count ?? posts.length} results
         </p>
       )}

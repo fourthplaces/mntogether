@@ -3,6 +3,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { PublicPostResult, PostTypeOption } from "@/lib/restate/types";
+import { Badge } from "@/components/ui/Badge";
+import { Card } from "@/components/ui/Card";
+import { Dialog } from "@/components/ui/Dialog";
 
 function formatCategory(value: string): string {
   return value
@@ -19,111 +22,94 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
 
   return (
     <>
-      <Link
-        href={`/posts/${post.id}`}
-        className="bg-white p-6 rounded-lg border border-[#E8DED2] hover:shadow-md transition-shadow block"
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-xl font-bold text-[#3D3D3D]">{post.title}</h3>
-          {urgentNotes.length > 0 && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setShowUrgent(true);
-              }}
-              className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800 shrink-0 hover:bg-red-200 transition-colors"
-            >
-              Urgent
-            </button>
+      <Link href={`/posts/${post.id}`} className="block">
+        <Card variant="interactive">
+          <div className="flex items-center gap-2 mb-1">
+            <h3 className="text-xl font-bold text-text-primary">{post.title}</h3>
+            {urgentNotes.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowUrgent(true);
+                }}
+                className="shrink-0"
+              >
+                <Badge variant="danger" size="sm">Urgent</Badge>
+              </button>
+            )}
+          </div>
+          {post.location && (
+            <p className="text-sm text-text-muted mb-1">{post.location}</p>
           )}
-        </div>
-        {post.location && (
-          <p className="text-sm text-[#7D7D7D] mb-1">{post.location}</p>
-        )}
-        <p className="text-[#5D5D5D] text-[0.95rem] leading-relaxed mb-3">
-          {post.summary || post.description}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          {postTypeTag && (
-            <span
-              title={`${postTypeTag.kind}: ${postTypeTag.value}`}
-              className={`px-3 py-1 rounded-full text-xs font-medium ${!postTypeTag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
-              style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
-            >
-              {postTypeTag.display_name || formatCategory(postTypeTag.value)}
-            </span>
-          )}
-          {displayTags.map((tag) => (
-            <span
-              key={tag.value}
-              title={`${tag.kind}: ${tag.value}`}
-              className={`px-3 py-1 rounded-full text-xs font-medium ${!tag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
-              style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
-            >
-              {tag.display_name || formatCategory(tag.value)}
-            </span>
-          ))}
-        </div>
+          <p className="text-text-secondary text-[0.95rem] leading-relaxed mb-3">
+            {post.summary || post.description}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {postTypeTag && (
+              <Badge
+                color={postTypeTag.color || undefined}
+                variant="default"
+                size="md"
+                title={`${postTypeTag.kind}: ${postTypeTag.value}`}
+              >
+                {postTypeTag.display_name || formatCategory(postTypeTag.value)}
+              </Badge>
+            )}
+            {displayTags.map((tag) => (
+              <Badge
+                key={tag.value}
+                color={tag.color || undefined}
+                variant="default"
+                size="md"
+                title={`${tag.kind}: ${tag.value}`}
+              >
+                {tag.display_name || formatCategory(tag.value)}
+              </Badge>
+            ))}
+          </div>
+        </Card>
       </Link>
 
-      {showUrgent && (
-        <>
-          <div
-            className="fixed inset-0 bg-black/40 z-40"
+      <Dialog
+        isOpen={showUrgent}
+        onClose={() => setShowUrgent(false)}
+        title="Urgent Notes"
+        footer={
+          <button
             onClick={() => setShowUrgent(false)}
-          />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-md">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 text-xs font-medium rounded-full bg-red-100 text-red-800">
-                    Urgent
-                  </span>
-                  <h2 className="text-lg font-semibold text-stone-900">Notes</h2>
-                </div>
-                <button
-                  onClick={() => setShowUrgent(false)}
-                  className="text-stone-400 hover:text-stone-600 text-xl leading-none"
-                >
-                  &times;
-                </button>
-              </div>
-              <div className="p-5 space-y-3 max-h-80 overflow-y-auto">
-                {urgentNotes.map((note, i) => (
-                  <div key={i}>
-                    {note.cta_text && (
-                      <p className="text-sm font-semibold text-red-900">{note.cta_text}</p>
-                    )}
-                    <p className="text-sm text-stone-700 leading-relaxed">{note.content}</p>
-                  </div>
-                ))}
-              </div>
-              <div className="px-5 py-3 border-t border-stone-200 flex justify-end">
-                <button
-                  onClick={() => setShowUrgent(false)}
-                  className="px-4 py-2 text-sm font-medium text-stone-600 hover:text-stone-800"
-                >
-                  Close
-                </button>
-              </div>
+            className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
+          >
+            Close
+          </button>
+        }
+      >
+        <div className="space-y-3 max-h-80 overflow-y-auto">
+          {urgentNotes.map((note, i) => (
+            <div key={i}>
+              {note.cta_text && (
+                <p className="text-sm font-semibold text-danger-text">{note.cta_text}</p>
+              )}
+              <p className="text-sm text-text-body leading-relaxed">{note.content}</p>
             </div>
-          </div>
-        </>
-      )}
+          ))}
+        </div>
+      </Dialog>
     </>
   );
 }
 
 export function PostCardSkeleton() {
   return (
-    <div className="bg-white p-6 rounded-lg border border-[#E8DED2] animate-pulse">
-      <div className="h-6 w-3/4 bg-gray-200 rounded mb-2" />
-      <div className="h-4 w-1/3 bg-gray-200 rounded mb-2" />
-      <div className="h-4 w-full bg-gray-200 rounded mb-1" />
-      <div className="h-4 w-5/6 bg-gray-200 rounded mb-3" />
-      <div className="h-6 w-20 bg-gray-200 rounded-full" />
-    </div>
+    <Card variant="default">
+      <div className="animate-pulse">
+        <div className="h-6 w-3/4 bg-gray-200 rounded mb-2" />
+        <div className="h-4 w-1/3 bg-gray-200 rounded mb-2" />
+        <div className="h-4 w-full bg-gray-200 rounded mb-1" />
+        <div className="h-4 w-5/6 bg-gray-200 rounded mb-3" />
+        <div className="h-6 w-20 bg-gray-200 rounded-full" />
+      </div>
+    </Card>
   );
 }
