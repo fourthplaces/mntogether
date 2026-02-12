@@ -195,7 +195,15 @@ Create separate posts for:
 
 Do NOT split when:
 - The same event serves both donor and participant roles (e.g., a fundraiser dinner, a benefit concert, a tattoo flash event where attending IS donating — this is ONE post, not two)
-- The same action serves multiple purposes (e.g., "drop off supplies" is one post even if it helps families AND gives the donor a way to contribute)"#;
+- The same action serves multiple purposes (e.g., "drop off supplies" is one post even if it helps families AND gives the donor a way to contribute)
+- Multiple ways to help the SAME cause (e.g., "donate money online" AND "drop off supplies in person" for the same crisis response — this is ONE post describing all the ways someone can help, not separate posts per giving channel)
+
+### Example: Same Cause, Different Channels = ONE Post
+If an org has a supply drive AND a donation page for the same families in crisis, merge into ONE post:
+- Open with the need (families can't leave home, need food and rent help)
+- List ways to help: donate online (link), drop off supplies (address + hours), volunteer to deliver
+- Include the specific items needed AND the donation link
+Do NOT create separate "Give Money" and "Drop Off Supplies" posts for the same cause."#;
 
 /// Pass 1: Extract narrative posts (title + summary + comprehensive description)
 async fn extract_narrative_posts(
@@ -263,7 +271,16 @@ Do NOT strip formatting or convert to plain text. The output descriptions should
 
 Be aggressive about merging duplicates. Merge posts that describe the same event or opportunity even if worded for different audiences. Only keep posts separate when they describe genuinely different services or programs — not the same event described from different angles.
 
-For example: "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" are the SAME fundraiser event — merge them. But "Volunteer at the Food Shelf" and "Get Food at the Food Shelf" are different because they serve different roles — keep them separate."#;
+## Merge Rules
+
+### Same event, different angles → MERGE
+"Get a Flash Tattoo to Feed Neighbors" + "Book a Tattoo to Keep Families Housed" → Same fundraiser event, merge.
+
+### Same cause, different giving channels → MERGE
+"Donate online to keep families housed" + "Drop off groceries and supplies at our hub" → Same crisis response, merge into ONE post that lists all ways to help (donate money, drop off supplies, volunteer to deliver).
+
+### Different roles → KEEP SEPARATE
+"Volunteer at the Food Shelf" + "Get Food at the Food Shelf" → Different roles (helper vs recipient), keep separate."#;
 
 /// Deduplicate and merge posts using LLM.
 async fn dedupe_and_merge_posts(

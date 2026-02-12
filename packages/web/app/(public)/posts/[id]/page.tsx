@@ -181,6 +181,22 @@ export default function PublicPostDetailPage() {
               </div>
             )}
 
+            {/* Organization */}
+            {post.organization_name && (
+              <p className="text-xs font-medium text-[#7D7D7D] uppercase tracking-wide mb-1">
+                {post.organization_id ? (
+                  <Link
+                    href={`/organizations/${post.organization_id}`}
+                    className="hover:text-[#3D3D3D] transition-colors"
+                  >
+                    {post.organization_name}
+                  </Link>
+                ) : (
+                  post.organization_name
+                )}
+              </p>
+            )}
+
             {/* Title */}
             <h1 className="text-2xl sm:text-3xl font-bold text-[#3D3D3D] leading-tight mb-3">
               {post.title}

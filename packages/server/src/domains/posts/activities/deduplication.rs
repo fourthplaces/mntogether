@@ -782,6 +782,10 @@ When merging:
 ### Same Event, Different Angle = DUPLICATES
 - "Get a flash tattoo at our fundraiser" + "Donate by booking a tattoo" → DUPLICATES (same event)
 
+### Same Cause, Different Giving Channels = DUPLICATES
+- "Donate online to keep families housed" + "Drop off groceries and supplies at our hub" → DUPLICATES (same crisis response, different ways to help — merge into one post listing all options)
+- "Ship Essentials to Families" + "Keep Families Housed and Fed — Give Now" → DUPLICATES (same org's emergency response, one asks for supplies, one asks for money)
+
 ### Published Posts ("active") Preferred as Canonical
 - If one is "active" and another "pending_approval", the active one is canonical
 
@@ -958,6 +962,10 @@ Two posts are DUPLICATES only if they describe:
 - "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
 - "Attend the Benefit Dinner" and "Donate at the Benefit Dinner" → Same event, merge
 
+### Same Cause, Different Giving Channels = Duplicates (SHOULD merge)
+- "Donate online to keep families housed" + "Drop off groceries at our hub" → Same crisis response, merge into one post listing all ways to help
+- "Ship Essentials to Families" + "Give Now to Keep Families Fed" → Same emergency response, one asks for supplies, one for money — merge
+
 ### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing, merge them
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge them
@@ -998,6 +1006,10 @@ Two posts are DUPLICATES only if they describe:
 - A fundraiser described as "attend" AND "donate" is ONE event — merge
 - "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
 
+### Same Cause, Different Giving Channels = Duplicates (SHOULD merge)
+- "Donate online to keep families housed" + "Drop off groceries at our hub" → Same crisis response, merge
+- "Ship Essentials to Families" + "Give Now to Keep Families Fed" → Same emergency response, merge
+
 ### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge
@@ -1029,6 +1041,7 @@ A draft MATCHES a published post only if:
 
 - Different role = NOT a match (volunteer vs recipient = different posts)
 - Same event described from different angles (participant vs donor) = MATCH (fundraiser events are one post)
+- Same cause with different giving channels = MATCH (donate money + drop off supplies for same families = one post)
 - Same service described differently = MATCH
 - A draft that adds genuinely new information to a published post IS a match (it's an update)
 - A draft about a completely different service = NOT a match

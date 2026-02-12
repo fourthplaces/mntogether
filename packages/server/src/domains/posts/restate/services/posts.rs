@@ -366,6 +366,8 @@ pub struct PublicPostResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_miles: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub organization_name: Option<String>,
 }
 
@@ -1236,7 +1238,7 @@ impl PostsService for PostsServiceImpl {
             let (tags_by_post, urgent_notes_by_post) = self.load_tags_and_notes(&post_ids).await?;
             let mut tags_by_post = tags_by_post;
             let mut urgent_notes_by_post = urgent_notes_by_post;
-            let mut org_names = Post::find_org_names_for_posts(&post_ids, &self.deps.db_pool)
+            let mut org_info = Post::find_org_info_for_posts(&post_ids, &self.deps.db_pool)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -1244,6 +1246,7 @@ impl PostsService for PostsServiceImpl {
                 .into_iter()
                 .map(|p| {
                     let id = p.id.into_uuid();
+                    let (org_id, org_name) = org_info.remove(&id).map(|(oid, name)| (Some(oid), Some(name))).unwrap_or((None, None));
                     PublicPostResult {
                         id,
                         title: p.title,
@@ -1258,7 +1261,8 @@ impl PostsService for PostsServiceImpl {
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
                         distance_miles: Some(p.distance_miles),
-                        organization_name: org_names.remove(&id),
+                        organization_id: org_id,
+                        organization_name: org_name,
                     }
                 })
                 .collect();
@@ -1278,7 +1282,7 @@ impl PostsService for PostsServiceImpl {
             let (tags_by_post, urgent_notes_by_post) = self.load_tags_and_notes(&post_ids).await?;
             let mut tags_by_post = tags_by_post;
             let mut urgent_notes_by_post = urgent_notes_by_post;
-            let mut org_names = Post::find_org_names_for_posts(&post_ids, &self.deps.db_pool)
+            let mut org_info = Post::find_org_info_for_posts(&post_ids, &self.deps.db_pool)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?;
 
@@ -1286,6 +1290,7 @@ impl PostsService for PostsServiceImpl {
                 .into_iter()
                 .map(|p| {
                     let id = p.id.into_uuid();
+                    let (org_id, org_name) = org_info.remove(&id).map(|(oid, name)| (Some(oid), Some(name))).unwrap_or((None, None));
                     PublicPostResult {
                         id,
                         title: p.title,
@@ -1300,7 +1305,8 @@ impl PostsService for PostsServiceImpl {
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
                         distance_miles: None,
-                        organization_name: org_names.remove(&id),
+                        organization_id: org_id,
+                        organization_name: org_name,
                     }
                 })
                 .collect();

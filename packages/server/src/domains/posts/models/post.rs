@@ -2011,13 +2011,15 @@ impl Post {
 
     /// Find organization names for multiple posts (via post_sources → sources → organizations).
     /// Returns a map of post_id → organization name.
-    pub async fn find_org_names_for_posts(
+    /// Find organization id and name for multiple posts (via post_sources → sources → organizations).
+    /// Returns a map of post_id → (org_id, org_name).
+    pub async fn find_org_info_for_posts(
         post_ids: &[Uuid],
         pool: &PgPool,
-    ) -> Result<std::collections::HashMap<Uuid, String>> {
-        let rows = sqlx::query_as::<_, (Uuid, String)>(
+    ) -> Result<std::collections::HashMap<Uuid, (Uuid, String)>> {
+        let rows = sqlx::query_as::<_, (Uuid, Uuid, String)>(
             r#"
-            SELECT DISTINCT ON (p.id) p.id, o.name
+            SELECT DISTINCT ON (p.id) p.id, o.id, o.name
             FROM posts p
             JOIN post_sources ps ON ps.post_id = p.id
             JOIN sources s ON ps.source_id = s.id
@@ -2030,7 +2032,7 @@ impl Post {
         .fetch_all(pool)
         .await?;
 
-        Ok(rows.into_iter().collect())
+        Ok(rows.into_iter().map(|(post_id, org_id, org_name)| (post_id, (org_id, org_name))).collect())
     }
 
     /// Find organization name for a post (via post_sources → sources → organizations).

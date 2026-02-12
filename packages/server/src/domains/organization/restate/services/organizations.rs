@@ -264,9 +264,10 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 });
         }
 
+        let org_uuid = org.id.into_uuid();
         let org_name = org.name.clone();
         Ok(OrganizationDetailResult {
-            id: org.id.to_string(),
+            id: org_uuid.to_string(),
             name: org.name,
             description: org.description,
             posts: posts
@@ -287,6 +288,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: Vec::new(),
                         distance_miles: None,
+                        organization_id: Some(org_uuid),
                         organization_name: Some(org_name.clone()),
                     }
                 })

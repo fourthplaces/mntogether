@@ -880,10 +880,15 @@ IMPORTANT: A single event described from different angles (participant vs donor)
 - A fundraiser where attending IS donating = ONE post, not two
 - "Get a Flash Tattoo to Feed Neighbors" ↔ "Book a Tattoo to Keep Families Housed" = SAME event
 
+IMPORTANT: Multiple ways to help the SAME cause are the SAME post:
+- "Donate money online" ↔ "Drop off supplies in person" for the same families = SAME post (merge into one listing all ways to help)
+- "Ship Essentials to Families" ↔ "Keep Families Housed and Fed — Give Now" = SAME crisis response
+
 Examples of MATCHES:
 - "Food Shelf" ↔ "Food Pantry" (same service, different names)
 - "Mardi Gras Fundraiser Event" ↔ "Mardi Gras Fundraising Event" (same event)
 - "Attend the Benefit Dinner" ↔ "Donate at the Benefit Dinner" (same event, attending IS donating)
+- "Donate to Emergency Fund" ↔ "Drop Off Supplies for Families" (same cause, different giving channels)
 
 Examples of NON-MATCHES:
 - "Food Shelf" ↔ "Food Shelf - Volunteer" (different roles: getting food vs helping)
