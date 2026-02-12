@@ -20,7 +20,9 @@ use uuid::Uuid;
 
 use crate::common::{EmptyRequest, OrganizationId};
 use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
-use crate::domains::notes::activities::{attach_notes_to_org_posts, generate_notes_for_organization};
+use crate::domains::notes::activities::{
+    attach_notes_to_org_posts, generate_notes_for_organization,
+};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::activities::llm_sync::llm_sync_posts_for_org;
 use crate::domains::source::models::Source;
@@ -100,7 +102,10 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
             .collect();
 
         if active_sources.is_empty() {
-            ctx.set("status", "No active sources for this organization.".to_string());
+            ctx.set(
+                "status",
+                "No active sources for this organization.".to_string(),
+            );
             return Ok(ExtractOrgPostsResult {
                 proposals_staged: 0,
                 pages_pooled: 0,
@@ -117,9 +122,11 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
             format!("Pooling content from {} sources...", sources_count),
         );
 
-        let extraction = self.deps.extraction.as_ref().ok_or_else(|| {
-            TerminalError::new("Extraction service not configured")
-        })?;
+        let extraction = self
+            .deps
+            .extraction
+            .as_ref()
+            .ok_or_else(|| TerminalError::new("Extraction service not configured"))?;
 
         let mut all_pages = Vec::new();
         for source in &active_sources {
@@ -157,9 +164,7 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
         );
 
         // Phase 3: Build tag instructions
-        let tag_instructions = build_tag_instructions(pool)
-            .await
-            .unwrap_or_default();
+        let tag_instructions = build_tag_instructions(pool).await.unwrap_or_default();
 
         // Phase 4: Run 3-pass extraction pipeline (durable — this is the expensive step)
         ctx.set(
@@ -200,32 +205,25 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
         }
 
         // Phase 5: LLM sync at org level
-        ctx.set(
-            "status",
-            format!("Analyzing {} posts...", posts.len()),
-        );
+        ctx.set("status", format!("Analyzing {} posts...", posts.len()));
 
-        let sync_result = match llm_sync_posts_for_org(
-            req.organization_id,
-            posts,
-            self.deps.ai.as_ref(),
-            pool,
-        )
-        .await
-        {
-            Ok(r) => r,
-            Err(e) => {
-                let msg = format!("LLM sync failed: {}", e);
-                warn!(organization_id = %req.organization_id, error = %e, "LLM sync failed");
-                ctx.set("status", msg);
-                return Ok(ExtractOrgPostsResult {
-                    proposals_staged: 0,
-                    pages_pooled: pages_count,
-                    sources_included: sources_count,
-                    status: "failed".to_string(),
-                });
-            }
-        };
+        let sync_result =
+            match llm_sync_posts_for_org(req.organization_id, posts, self.deps.ai.as_ref(), pool)
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    let msg = format!("LLM sync failed: {}", e);
+                    warn!(organization_id = %req.organization_id, error = %e, "LLM sync failed");
+                    ctx.set("status", msg);
+                    return Ok(ExtractOrgPostsResult {
+                        proposals_staged: 0,
+                        pages_pooled: pages_count,
+                        sources_included: sources_count,
+                        status: "failed".to_string(),
+                    });
+                }
+            };
 
         let total_proposals = (sync_result.staged_inserts
             + sync_result.staged_updates
@@ -246,7 +244,9 @@ impl ExtractOrgPostsWorkflow for ExtractOrgPostsWorkflowImpl {
                     warn!(organization_id = %req.organization_id, error = %e, "Failed to attach notes to posts");
                 }
             }
-            Err(e) => warn!(organization_id = %req.organization_id, error = %e, "Note generation failed (non-blocking)"),
+            Err(e) => {
+                warn!(organization_id = %req.organization_id, error = %e, "Note generation failed (non-blocking)")
+            }
         }
 
         let result = ExtractOrgPostsResult {

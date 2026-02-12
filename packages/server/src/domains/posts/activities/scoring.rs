@@ -8,8 +8,8 @@
 //! Returns a composite 1-10 score + human-readable breakdown.
 //! Works on both newly extracted posts and existing posts (batch scoring).
 
-use anyhow::Result;
 use ai_client::OpenAi;
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use tracing::{info, warn};

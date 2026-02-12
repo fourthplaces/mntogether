@@ -8,8 +8,8 @@ use sqlx::PgPool;
 use tracing::{info, warn};
 
 use crate::common::PostId;
-use uuid::Uuid;
 use crate::domains::posts::models::{Post, UpdatePostContent};
+use uuid::Uuid;
 
 /// Approve revision: copy revision fields to original, delete revision
 ///
@@ -93,7 +93,9 @@ pub async fn get_pending_revisions(
     pool: &PgPool,
 ) -> Result<Vec<Post>> {
     match source {
-        Some((source_type, source_id)) => Post::find_revisions_by_source(source_type, source_id, pool).await,
+        Some((source_type, source_id)) => {
+            Post::find_revisions_by_source(source_type, source_id, pool).await
+        }
         None => Post::find_pending_revisions(pool).await,
     }
 }

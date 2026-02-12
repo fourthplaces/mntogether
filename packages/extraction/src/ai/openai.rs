@@ -35,8 +35,8 @@ impl OpenAI {
 
     /// Create from environment variable `OPENAI_API_KEY`.
     pub fn from_env() -> Result<Self> {
-        let client =
-            OpenAi::from_env("gpt-4o").map_err(|e| ExtractionError::Config(e.to_string().into()))?;
+        let client = OpenAi::from_env("gpt-4o")
+            .map_err(|e| ExtractionError::Config(e.to_string().into()))?;
         Ok(Self { client })
     }
 

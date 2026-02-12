@@ -75,13 +75,9 @@ impl CrawlWebsiteWorkflow for CrawlWebsiteWorkflowImpl {
         let result = ctx
             .run(|| async {
                 // Call high-level crawl activity that orchestrates all steps
-                activities::crawl_website_full(
-                    website_id_typed,
-                    member_id,
-                    &self.deps,
-                )
-                .await
-                .map_err(Into::into)
+                activities::crawl_website_full(website_id_typed, member_id, &self.deps)
+                    .await
+                    .map_err(Into::into)
             })
             .await?;
 

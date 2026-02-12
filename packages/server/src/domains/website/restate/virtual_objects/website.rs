@@ -136,21 +136,15 @@ pub trait WebsiteObject {
     async fn generate_assessment(
         req: EmptyRequest,
     ) -> Result<GenerateAssessmentResult, HandlerError>;
-    async fn regenerate_posts(
-        req: EmptyRequest,
-    ) -> Result<RegeneratePostsResult, HandlerError>;
-    async fn deduplicate_posts(
-        req: EmptyRequest,
-    ) -> Result<DeduplicatePostsResult, HandlerError>;
+    async fn regenerate_posts(req: EmptyRequest) -> Result<RegeneratePostsResult, HandlerError>;
+    async fn deduplicate_posts(req: EmptyRequest) -> Result<DeduplicatePostsResult, HandlerError>;
     async fn extract_organization(
         req: EmptyRequest,
     ) -> Result<ExtractOrganizationResult, HandlerError>;
     async fn assign_organization(
         req: AssignOrganizationRequest,
     ) -> Result<WebsiteResult, HandlerError>;
-    async fn unassign_organization(
-        req: EmptyRequest,
-    ) -> Result<WebsiteResult, HandlerError>;
+    async fn unassign_organization(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
 
     #[shared]
     async fn get(req: EmptyRequest) -> Result<WebsiteResult, HandlerError>;
@@ -332,12 +326,10 @@ impl WebsiteObject for WebsiteObjectImpl {
         let website_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid website ID: {}", e)))?;
 
-        let assessment = WebsiteAssessment::find_latest_by_website_id(
-            website_id,
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let assessment =
+            WebsiteAssessment::find_latest_by_website_id(website_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(OptionalAssessmentResult {
             assessment: assessment.map(|a| AssessmentResult {
@@ -413,9 +405,9 @@ impl WebsiteObject for WebsiteObjectImpl {
                 organization_id: Some(org_id.into_uuid().to_string()),
                 status: "completed".to_string(),
             }),
-            Err(e) => Err(
-                TerminalError::new(format!("Organization extraction failed: {}", e)).into(),
-            ),
+            Err(e) => {
+                Err(TerminalError::new(format!("Organization extraction failed: {}", e)).into())
+            }
         }
     }
 
@@ -446,12 +438,10 @@ impl WebsiteObject for WebsiteObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let website_id = Self::parse_website_id(ctx.key())?;
 
-        let website = Website::unset_organization_id(
-            WebsiteId::from_uuid(website_id),
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let website =
+            Website::unset_organization_id(WebsiteId::from_uuid(website_id), &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(WebsiteResult::from(website))
     }

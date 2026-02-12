@@ -49,7 +49,8 @@ pub async fn stage_proposals(
     for batch in &stale {
         let pending = SyncProposal::find_pending_by_batch(batch.id, pool).await?;
         for proposal in &pending {
-            let merge_sources = SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
+            let merge_sources =
+                SyncProposalMergeSource::find_by_proposal(proposal.id, pool).await?;
             if let Err(e) = handler.reject(proposal, &merge_sources, pool).await {
                 warn!(proposal_id = %proposal.id, error = %e, "Draft cleanup failed during expiry");
             }

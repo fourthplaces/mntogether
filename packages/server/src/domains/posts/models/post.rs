@@ -5,9 +5,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{
-    ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs,
-};
+use crate::common::{ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
 /// Listing - a service, opportunity, or business listing
@@ -446,27 +444,20 @@ impl Post {
 
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL",
-        )
-        .bind(ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL")
+            .bind(ids)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Batch-load post titles by IDs (includes soft-deleted posts, for display purposes)
-    pub async fn find_titles_by_ids(
-        ids: &[Uuid],
-        pool: &PgPool,
-    ) -> Result<Vec<(Uuid, String)>> {
-        sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, title FROM posts WHERE id = ANY($1)",
-        )
-        .bind(ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+    pub async fn find_titles_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<(Uuid, String)>> {
+        sqlx::query_as::<_, (Uuid, String)>("SELECT id, title FROM posts WHERE id = ANY($1)")
+            .bind(ids)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Batch-load titles and relevance scores for a set of post IDs.
@@ -700,10 +691,10 @@ impl Post {
             Self::SCHEDULE_ACTIVE_FILTER
         );
         sqlx::query_as::<_, Post>(&sql)
-        .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+            .bind(organization_id)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find ALL posts for an organization (joins through post_sources → sources), regardless of status.
@@ -1043,10 +1034,7 @@ impl Post {
     /// When agent_id is provided, filters via JOIN through agents.member_id.
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
-    pub async fn count_by_status(
-        filters: &PostFilters<'_>,
-        pool: &PgPool,
-    ) -> Result<i64> {
+    pub async fn count_by_status(filters: &PostFilters<'_>, pool: &PgPool) -> Result<i64> {
         let search_pattern = filters.search.map(|s| format!("%{}%", s));
         let count = sqlx::query_scalar::<_, i64>(
             r#"
@@ -2019,6 +2007,30 @@ impl Post {
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+    }
+
+    /// Find organization names for multiple posts (via post_sources → sources → organizations).
+    /// Returns a map of post_id → organization name.
+    pub async fn find_org_names_for_posts(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<std::collections::HashMap<Uuid, String>> {
+        let rows = sqlx::query_as::<_, (Uuid, String)>(
+            r#"
+            SELECT DISTINCT ON (p.id) p.id, o.name
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            JOIN organizations o ON s.organization_id = o.id
+            WHERE p.id = ANY($1)
+            ORDER BY p.id
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().collect())
     }
 
     /// Find organization name for a post (via post_sources → sources → organizations).

@@ -72,20 +72,13 @@ impl OpenRouterClient {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await?;
-            return Err(anyhow!(
-                "OpenRouter API error ({}): {}",
-                status,
-                error_text
-            ));
+            return Err(anyhow!("OpenRouter API error ({}): {}", status, error_text));
         }
 
         Ok(response.json().await?)
     }
 
-    pub async fn structured_output(
-        &self,
-        request: &ChatRequest,
-    ) -> Result<String> {
+    pub async fn structured_output(&self, request: &ChatRequest) -> Result<String> {
         let url = format!("{}/chat/completions", OPENROUTER_API_URL);
 
         debug!(model = %request.model, "OpenRouter structured output request");

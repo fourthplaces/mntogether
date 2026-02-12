@@ -18,8 +18,8 @@ use crate::common::{EmptyRequest, PostId};
 use crate::domains::posts::activities::deduplication::{
     find_duplicate_pending_posts, match_pending_to_active_posts, Phase1Result, Phase2Result,
 };
-use crate::domains::posts::models::Post;
 use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
+use crate::domains::posts::models::Post;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -103,13 +103,15 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
         // Step 1: Load posts
         ctx.set("status", "Loading posts...".to_string());
 
-        let pending_posts = Post::find_pending_by_source(source_type, source_id, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(format!("Failed to load pending posts: {}", e)))?;
+        let pending_posts =
+            Post::find_pending_by_source(source_type, source_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(format!("Failed to load pending posts: {}", e)))?;
 
-        let active_posts = Post::find_active_only_by_source(source_type, source_id, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(format!("Failed to load active posts: {}", e)))?;
+        let active_posts =
+            Post::find_active_only_by_source(source_type, source_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(format!("Failed to load active posts: {}", e)))?;
 
         info!(
             source_type = %source_type,
@@ -278,53 +280,52 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
             }
 
             // If LLM provided merged content, create a revision for the canonical post
-            let draft_id =
-                if group.merged_title.is_some() || group.merged_description.is_some() {
-                    let canonical_post = pending_posts
-                        .iter()
-                        .find(|p| p.id.into_uuid() == canonical_uuid);
-                    if let Some(canonical) = canonical_post {
-                        let mut source = canonical.clone();
-                        if let Some(ref t) = group.merged_title {
-                            source.title = t.clone();
-                        }
-                        if let Some(ref d) = group.merged_description {
-                            source.description = d.clone();
-                        }
+            let draft_id = if group.merged_title.is_some() || group.merged_description.is_some() {
+                let canonical_post = pending_posts
+                    .iter()
+                    .find(|p| p.id.into_uuid() == canonical_uuid);
+                if let Some(canonical) = canonical_post {
+                    let mut source = canonical.clone();
+                    if let Some(ref t) = group.merged_title {
+                        source.title = t.clone();
+                    }
+                    if let Some(ref d) = group.merged_description {
+                        source.description = d.clone();
+                    }
 
-                        match ctx
-                            .run(|| async {
-                                let rev = Post::create_revision_from(
-                                    &source,
-                                    PostId::from(canonical_uuid),
-                                    &self.deps.db_pool,
-                                )
-                                .await
-                                .map_err(|e| -> HandlerError {
-                                    TerminalError::new(format!(
-                                        "Failed to create merge revision: {}",
-                                        e
-                                    ))
-                                    .into()
-                                })?;
-                                Ok(CreatedRevision {
-                                    id: rev.id.into_uuid(),
-                                })
-                            })
+                    match ctx
+                        .run(|| async {
+                            let rev = Post::create_revision_from(
+                                &source,
+                                PostId::from(canonical_uuid),
+                                &self.deps.db_pool,
+                            )
                             .await
-                        {
-                            Ok(rev) => Some(rev.id),
-                            Err(e) => {
-                                warn!(error = %e, "Failed to create merge revision, continuing");
-                                None
-                            }
+                            .map_err(|e| -> HandlerError {
+                                TerminalError::new(format!(
+                                    "Failed to create merge revision: {}",
+                                    e
+                                ))
+                                .into()
+                            })?;
+                            Ok(CreatedRevision {
+                                id: rev.id.into_uuid(),
+                            })
+                        })
+                        .await
+                    {
+                        Ok(rev) => Some(rev.id),
+                        Err(e) => {
+                            warn!(error = %e, "Failed to create merge revision, continuing");
+                            None
                         }
-                    } else {
-                        None
                     }
                 } else {
                     None
-                };
+                }
+            } else {
+                None
+            };
 
             proposed_ops.push(ProposedOperation {
                 operation: "merge".to_string(),
@@ -349,9 +350,7 @@ impl DeduplicatePostsWorkflow for DeduplicatePostsWorkflowImpl {
                         .matches
                         .iter()
                         .find(|m| Uuid::parse_str(&m.pending_id).ok().as_ref() == Some(pending_id))
-                        .map(|m| {
-                            format!("Pending post duplicates active post: {}", m.reasoning)
-                        })
+                        .map(|m| format!("Pending post duplicates active post: {}", m.reasoning))
                         .unwrap_or_else(|| "Pending post duplicates active post".to_string()),
                 ),
                 merge_source_ids: vec![],

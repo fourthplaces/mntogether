@@ -16,7 +16,9 @@ use uuid::Uuid;
 
 use crate::common::{EmptyRequest, SourceId};
 use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
-use crate::domains::notes::activities::{attach_notes_to_org_posts, generate_notes_for_organization};
+use crate::domains::notes::activities::{
+    attach_notes_to_org_posts, generate_notes_for_organization,
+};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::activities::llm_sync::llm_sync_posts;
 use crate::domains::source::models::Source;
@@ -50,8 +52,9 @@ impl_restate_serde!(RegeneratePostsWorkflowResult);
 #[restate_sdk::workflow]
 #[name = "RegeneratePostsWorkflow"]
 pub trait RegeneratePostsWorkflow {
-    async fn run(req: RegeneratePostsRequest)
-        -> Result<RegeneratePostsWorkflowResult, HandlerError>;
+    async fn run(
+        req: RegeneratePostsRequest,
+    ) -> Result<RegeneratePostsWorkflowResult, HandlerError>;
 
     #[shared]
     async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
@@ -78,10 +81,9 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         let pool = &self.deps.db_pool;
         let source_id = SourceId::from_uuid(req.source_id);
 
-        let source =
-            Source::find_by_id(source_id, pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let source = Source::find_by_id(source_id, pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let site_url = source
             .site_url(pool)
@@ -89,21 +91,18 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Build tag instructions from all active tag kinds
-        let tag_instructions = build_tag_instructions(pool)
-            .await
-            .unwrap_or_default();
+        let tag_instructions = build_tag_instructions(pool).await.unwrap_or_default();
 
         // Phase 1: Search for pages using the extraction service
         ctx.set("status", "Searching for pages...".to_string());
 
-        let extraction = self.deps.extraction.as_ref().ok_or_else(|| {
-            TerminalError::new("Extraction service not configured")
-        })?;
+        let extraction = self
+            .deps
+            .extraction
+            .as_ref()
+            .ok_or_else(|| TerminalError::new("Extraction service not configured"))?;
 
-        let pages = match extraction
-            .get_pages_for_site(&site_url)
-            .await
-        {
+        let pages = match extraction.get_pages_for_site(&site_url).await {
             Ok(p) => p,
             Err(e) => {
                 let msg = format!("Failed to load pages: {}", e);
@@ -159,10 +158,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         }
 
         // Phase 3: LLM sync — creates proposals for admin review
-        ctx.set(
-            "status",
-            format!("Analyzing {} posts...", posts.len()),
-        );
+        ctx.set("status", format!("Analyzing {} posts...", posts.len()));
 
         let sync_result = match llm_sync_posts(
             &source.source_type,
@@ -202,10 +198,14 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                                 warn!(org_id = %org_id, error = %e, "Failed to attach notes to posts");
                             }
                         }
-                        Err(e) => warn!(org_id = %org_id, error = %e, "Note generation failed (non-blocking)"),
+                        Err(e) => {
+                            warn!(org_id = %org_id, error = %e, "Note generation failed (non-blocking)")
+                        }
                     }
                 }
-                Err(e) => warn!(org_id = %org_id, error = %e, "Failed to load org for note generation"),
+                Err(e) => {
+                    warn!(org_id = %org_id, error = %e, "Failed to load org for note generation")
+                }
             }
         }
 

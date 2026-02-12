@@ -147,13 +147,9 @@ impl ExtractionService for ExtractionServiceImpl {
         _ctx: Context<'_>,
         req: SubmitUrlRequest,
     ) -> Result<SubmitUrlResult, HandlerError> {
-        let results = extraction_activities::submit_url(
-            &req.url,
-            req.query.as_deref(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let results = extraction_activities::submit_url(&req.url, req.query.as_deref(), &self.deps)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(SubmitUrlResult {
             extractions_count: results.len() as i32,
@@ -167,13 +163,10 @@ impl ExtractionService for ExtractionServiceImpl {
     ) -> Result<TriggerResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let results = extraction_activities::trigger_extraction(
-            &req.query,
-            req.site.as_deref(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let results =
+            extraction_activities::trigger_extraction(&req.query, req.site.as_deref(), &self.deps)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(TriggerResult {
             extractions_count: results.len() as i32,
@@ -223,10 +216,9 @@ impl ExtractionService for ExtractionServiceImpl {
         req: ListPagesRequest,
     ) -> Result<PageListResult, HandlerError> {
         let limit = req.limit.unwrap_or(50);
-        let pages =
-            ExtractionPageData::find_by_domain(&req.domain, limit, &self.deps.db_pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let pages = ExtractionPageData::find_by_domain(&req.domain, limit, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(PageListResult {
             pages: pages
@@ -248,6 +240,8 @@ impl ExtractionService for ExtractionServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        Ok(CountResult { count: count as i64 })
+        Ok(CountResult {
+            count: count as i64,
+        })
     }
 }

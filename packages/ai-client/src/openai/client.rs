@@ -110,7 +110,11 @@ impl OpenAiClient {
         if !response.status().is_success() {
             let status = response.status();
             let error_text = response.text().await?;
-            return Err(anyhow!("OpenAI embedding error ({}): {}", status, error_text));
+            return Err(anyhow!(
+                "OpenAI embedding error ({}): {}",
+                status,
+                error_text
+            ));
         }
 
         let embed_response: EmbeddingResponse = response.json().await?;

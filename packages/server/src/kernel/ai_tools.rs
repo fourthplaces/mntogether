@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
+use ai_client::{Tool, ToolDefinition};
 use async_trait::async_trait;
 use extraction::{Ingestor, WebSearcher};
-use ai_client::{Tool, ToolDefinition};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -128,13 +128,12 @@ impl FetchPageTool {
 
     /// Look up a URL in the extraction_pages cache.
     async fn cached_page(&self, url: &str) -> Option<FetchPageOutput> {
-        let row: Option<(String, Option<String>)> = sqlx::query_as(
-            "SELECT content, title FROM extraction_pages WHERE url = $1",
-        )
-        .bind(url)
-        .fetch_optional(&self.db_pool)
-        .await
-        .ok()?;
+        let row: Option<(String, Option<String>)> =
+            sqlx::query_as("SELECT content, title FROM extraction_pages WHERE url = $1")
+                .bind(url)
+                .fetch_optional(&self.db_pool)
+                .await
+                .ok()?;
 
         row.map(|(content, title)| FetchPageOutput {
             url: url.to_string(),

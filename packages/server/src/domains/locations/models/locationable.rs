@@ -125,13 +125,11 @@ impl Locationable {
         locatable_id: Uuid,
         pool: &PgPool,
     ) -> Result<()> {
-        sqlx::query(
-            "DELETE FROM locationables WHERE locatable_type = $1 AND locatable_id = $2",
-        )
-        .bind(locatable_type)
-        .bind(locatable_id)
-        .execute(pool)
-        .await?;
+        sqlx::query("DELETE FROM locationables WHERE locatable_type = $1 AND locatable_id = $2")
+            .bind(locatable_type)
+            .bind(locatable_id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 }

@@ -4,7 +4,9 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, OrganizationId, PaginationDirection, SourceId, ValidatedPaginationArgs};
+use crate::common::{
+    MemberId, OrganizationId, PaginationDirection, SourceId, ValidatedPaginationArgs,
+};
 use crate::domains::source::activities::ingest_social::build_profile_url;
 use crate::domains::source::models::website_source::WebsiteSource;
 
@@ -93,7 +95,8 @@ impl Source {
                 if let Some(url) = &self.url {
                     return Ok(url.clone());
                 }
-                let ss = super::social_source::SocialSource::find_by_source_id(self.id, pool).await?;
+                let ss =
+                    super::social_source::SocialSource::find_by_source_id(self.id, pool).await?;
                 Ok(build_profile_url(&self.source_type, &ss.handle))
             }
             other => anyhow::bail!("Unknown source type for site_url: {}", other),
@@ -354,9 +357,7 @@ impl Source {
     }
 
     /// Find organization IDs that have >= 2 approved sources (candidates for cross-source dedup)
-    pub async fn find_org_ids_with_multiple_sources(
-        pool: &PgPool,
-    ) -> Result<Vec<OrganizationId>> {
+    pub async fn find_org_ids_with_multiple_sources(pool: &PgPool) -> Result<Vec<OrganizationId>> {
         sqlx::query_scalar::<_, OrganizationId>(
             r#"
             SELECT organization_id

@@ -61,9 +61,7 @@ async fn stream_handler(
                 .unwrap_or("message");
 
             Some(Ok::<_, Infallible>(
-                Event::default()
-                    .event(event_type)
-                    .data(value.to_string()),
+                Event::default().event(event_type).data(value.to_string()),
             ))
         }
         Err(tokio_stream::wrappers::errors::BroadcastStreamRecvError::Lagged(_)) => {

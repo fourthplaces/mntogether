@@ -54,10 +54,7 @@ impl Location {
         Ok(location)
     }
 
-    pub async fn create(
-        params: &CreateLocation<'_>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(params: &CreateLocation<'_>, pool: &PgPool) -> Result<Self> {
         let location = sqlx::query_as::<_, Self>(
             r#"
             INSERT INTO locations (name, address_line_1, city, state, postal_code, latitude, longitude, location_type)
@@ -100,12 +97,11 @@ impl Location {
 
         // Try to find existing location by postal_code
         if !postal_code.is_empty() {
-            let existing = sqlx::query_as::<_, Self>(
-                "SELECT * FROM locations WHERE postal_code = $1 LIMIT 1",
-            )
-            .bind(postal_code)
-            .fetch_optional(pool)
-            .await?;
+            let existing =
+                sqlx::query_as::<_, Self>("SELECT * FROM locations WHERE postal_code = $1 LIMIT 1")
+                    .bind(postal_code)
+                    .fetch_optional(pool)
+                    .await?;
 
             if let Some(loc) = existing {
                 return Ok(loc);
@@ -114,13 +110,14 @@ impl Location {
 
         // Look up lat/lng from zip_codes reference table
         let (lat, lng) = if !postal_code.is_empty() {
-            let coords: Option<(f64, f64)> = sqlx::query_as(
-                "SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1",
-            )
-            .bind(postal_code)
-            .fetch_optional(pool)
-            .await?;
-            coords.map(|(la, lo)| (Some(la), Some(lo))).unwrap_or((None, None))
+            let coords: Option<(f64, f64)> =
+                sqlx::query_as("SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1")
+                    .bind(postal_code)
+                    .fetch_optional(pool)
+                    .await?;
+            coords
+                .map(|(la, lo)| (Some(la), Some(lo)))
+                .unwrap_or((None, None))
         } else {
             (None, None)
         };

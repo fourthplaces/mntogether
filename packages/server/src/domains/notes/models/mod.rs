@@ -1,3 +1,3 @@
 pub mod note;
 
-pub use note::{Note, Noteable, NoteLinkedPost};
+pub use note::{Note, NoteLinkedPost, Noteable};

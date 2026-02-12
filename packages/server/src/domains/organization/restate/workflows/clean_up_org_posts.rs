@@ -98,14 +98,9 @@ impl CleanUpOrgPostsWorkflow for CleanUpOrgPostsWorkflowImpl {
 
         let dedup_result = match ctx
             .run(|| async {
-                stage_cross_source_dedup(
-                    req.organization_id,
-                    GPT_5,
-                    self.deps.ai.as_ref(),
-                    pool,
-                )
-                .await
-                .map_err(Into::into)
+                stage_cross_source_dedup(req.organization_id, GPT_5, self.deps.ai.as_ref(), pool)
+                    .await
+                    .map_err(Into::into)
             })
             .await
         {

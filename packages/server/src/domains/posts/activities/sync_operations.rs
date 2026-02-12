@@ -76,10 +76,7 @@ pub async fn apply_insert(
         fresh,
         Some(source_type),
         Some(source_id),
-        fresh
-            .source_url
-            .clone()
-            .or(default_url),
+        fresh.source_url.clone().or(default_url),
         None,
         pool,
     )

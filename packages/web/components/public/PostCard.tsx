@@ -23,6 +23,11 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
         href={`/posts/${post.id}`}
         className="bg-white p-6 rounded-lg border border-[#E8DED2] hover:shadow-md transition-shadow block"
       >
+        {post.organization_name && (
+          <p className="text-xs font-medium text-[#7D7D7D] uppercase tracking-wide mb-0.5">
+            {post.organization_name}
+          </p>
+        )}
         <div className="flex items-center gap-2 mb-1">
           <h3 className="text-xl font-bold text-[#3D3D3D]">{post.title}</h3>
           {urgentNotes.length > 0 && (

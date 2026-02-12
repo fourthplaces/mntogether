@@ -7,8 +7,8 @@
 pub mod backfill;
 pub mod core;
 pub mod create_post;
-pub mod expire_scheduled_posts;
 pub mod deduplication;
+pub mod expire_scheduled_posts;
 pub mod llm_sync;
 pub mod post_discovery;
 pub mod post_extraction;
@@ -36,9 +36,9 @@ pub use deduplication::{
     deduplicate_cross_source_all_orgs, deduplicate_posts, CrossSourceDedupResult,
     DeduplicationRunResult,
 };
-pub use reports::ReportCreated;
 pub use llm_sync::{llm_sync_posts, LlmSyncResult};
 pub use post_sync_handler::PostProposalHandler;
+pub use reports::ReportCreated;
 pub use reports::*;
 pub use revision_actions::{
     approve_revision, count_pending_revisions, get_pending_revisions, get_revision_for_post,

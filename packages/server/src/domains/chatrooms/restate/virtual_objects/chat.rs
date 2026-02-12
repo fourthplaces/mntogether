@@ -8,8 +8,8 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::optional_auth;
-use crate::common::EmptyRequest;
 use crate::common::ContainerId;
+use crate::common::EmptyRequest;
 use crate::domains::agents::activities as agent_activities;
 use crate::domains::chatrooms::activities as chatroom_activities;
 use crate::domains::chatrooms::models::{Container, Message};

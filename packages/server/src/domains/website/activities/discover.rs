@@ -111,10 +111,7 @@ pub async fn run_discovery(deps: &ServerDeps) -> Result<DiscoveryResult> {
 
     info!(
         queries_executed,
-        total_results,
-        websites_created,
-        websites_skipped,
-        "Discovery completed"
+        total_results, websites_created, websites_skipped, "Discovery completed"
     );
 
     Ok(DiscoveryResult {

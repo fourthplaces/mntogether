@@ -107,9 +107,7 @@ pub struct Tweet {
 impl Tweet {
     /// Returns whichever text field is populated, preferring `full_text`.
     pub fn content(&self) -> Option<&str> {
-        self.full_text
-            .as_deref()
-            .or(self.text.as_deref())
+        self.full_text.as_deref().or(self.text.as_deref())
     }
 }
 

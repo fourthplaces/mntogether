@@ -11,13 +11,13 @@ use crate::domains::crawling::activities::{
     create_social_profiles_for_org, extract_and_create_organization, extract_organization_info,
 };
 use crate::domains::crawling::models::ExtractionPage;
+use crate::domains::organization::models::Organization;
 use crate::domains::organization::restate::workflows::clean_up_org_posts::{
     CleanUpOrgPostsRequest, CleanUpOrgPostsWorkflowClient,
 };
 use crate::domains::organization::restate::workflows::extract_org_posts::{
     ExtractOrgPostsRequest, ExtractOrgPostsWorkflowClient,
 };
-use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::Post;
 use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
 use crate::domains::source::models::Source;
@@ -264,6 +264,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 });
         }
 
+        let org_name = org.name.clone();
         Ok(OrganizationDetailResult {
             id: org.id.to_string(),
             name: org.name,
@@ -286,6 +287,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: Vec::new(),
                         distance_miles: None,
+                        organization_name: Some(org_name.clone()),
                     }
                 })
                 .collect(),
@@ -373,7 +375,9 @@ impl OrganizationsService for OrganizationsServiceImpl {
             .unwrap_or_default();
         for source in &sources {
             if let Ok(site_url) = source.site_url(&self.deps.db_pool).await {
-                if let Ok(count) = ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool).await {
+                if let Ok(count) =
+                    ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool).await
+                {
                     snapshot_count += count as i64;
                 }
             }
@@ -399,9 +403,14 @@ impl OrganizationsService for OrganizationsServiceImpl {
     ) -> Result<OrganizationResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let org = Organization::create(&req.name, req.description.as_deref(), "admin", &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+        let org = Organization::create(
+            &req.name,
+            req.description.as_deref(),
+            "admin",
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Admin-created orgs are auto-approved
         let org = Organization::approve(org.id, user.member_id, &self.deps.db_pool)
@@ -673,7 +682,10 @@ impl OrganizationsService for OrganizationsServiceImpl {
             }
         }
 
-        info!(processed, succeeded, failed, "Organization backfill complete");
+        info!(
+            processed,
+            succeeded, failed, "Organization backfill complete"
+        );
 
         Ok(BackfillResult {
             processed,
@@ -732,7 +744,10 @@ impl OrganizationsService for OrganizationsServiceImpl {
             });
         }
 
-        info!(count = org_ids.len(), "Triggering extraction for organizations");
+        info!(
+            count = org_ids.len(),
+            "Triggering extraction for organizations"
+        );
 
         for org_id in &org_ids {
             let wf_key = org_id.into_uuid().to_string();

@@ -200,11 +200,7 @@ impl ProviderObject for ProviderObjectImpl {
         Ok(ProviderResult::from(provider))
     }
 
-    async fn delete(
-        &self,
-        ctx: ObjectContext<'_>,
-        _req: EmptyRequest,
-    ) -> Result<(), HandlerError> {
+    async fn delete(&self, ctx: ObjectContext<'_>, _req: EmptyRequest) -> Result<(), HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let provider_id = ctx.key().to_string();
 
@@ -218,11 +214,7 @@ impl ProviderObject for ProviderObjectImpl {
         Ok(())
     }
 
-    async fn add_tag(
-        &self,
-        ctx: ObjectContext<'_>,
-        req: TagRequest,
-    ) -> Result<(), HandlerError> {
+    async fn add_tag(&self, ctx: ObjectContext<'_>, req: TagRequest) -> Result<(), HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let provider_id = ctx.key().to_string();
 
@@ -252,13 +244,9 @@ impl ProviderObject for ProviderObjectImpl {
         let provider_id = ctx.key().to_string();
 
         ctx.run(|| async {
-            activities::remove_provider_tag(
-                provider_id.clone(),
-                req.tag_id.clone(),
-                &self.deps,
-            )
-            .await
-            .map_err(Into::into)
+            activities::remove_provider_tag(provider_id.clone(), req.tag_id.clone(), &self.deps)
+                .await
+                .map_err(Into::into)
         })
         .await?;
 

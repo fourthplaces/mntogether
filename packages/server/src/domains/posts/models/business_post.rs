@@ -45,13 +45,11 @@ pub struct BusinessPost {
 impl BusinessPost {
     /// Batch-load business posts by post IDs (for DataLoader)
     pub async fn find_by_post_ids(post_ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM business_posts WHERE post_id = ANY($1)",
-        )
-        .bind(post_ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM business_posts WHERE post_id = ANY($1)")
+            .bind(post_ids)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find business listing by listing ID

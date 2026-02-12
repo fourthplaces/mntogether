@@ -11,8 +11,8 @@ use crate::common::{ContainerId, MessageId};
 use crate::domains::agents::models::{Agent, AgentAssistantConfig};
 use crate::domains::chatrooms::models::{Container, Message};
 use crate::domains::tag::Tag;
-use ai_client::{Agent as AiAgent, Message as AiMessage, PromptBuilder};
 use crate::kernel::{SearchPostsTool, ServerDeps};
+use ai_client::{Agent as AiAgent, Message as AiMessage, PromptBuilder};
 
 // ============================================================================
 // Action: Generate Greeting

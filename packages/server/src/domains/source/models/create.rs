@@ -96,17 +96,15 @@ pub async fn create_social_source(
     organization_id: Option<OrganizationId>,
     pool: &PgPool,
 ) -> Result<(Source, SocialSource)> {
-    let resolved_url = url
-        .map(|u| u.to_string())
-        .unwrap_or_else(|| {
-            let clean_handle = handle.trim_start_matches('@');
-            match platform {
-                "instagram" => format!("https://instagram.com/{}", clean_handle),
-                "facebook" => format!("https://facebook.com/{}", clean_handle),
-                "tiktok" => format!("https://tiktok.com/@{}", clean_handle),
-                _ => format!("https://{}.com/{}", platform, clean_handle),
-            }
-        });
+    let resolved_url = url.map(|u| u.to_string()).unwrap_or_else(|| {
+        let clean_handle = handle.trim_start_matches('@');
+        match platform {
+            "instagram" => format!("https://instagram.com/{}", clean_handle),
+            "facebook" => format!("https://facebook.com/{}", clean_handle),
+            "tiktok" => format!("https://tiktok.com/@{}", clean_handle),
+            _ => format!("https://{}.com/{}", platform, clean_handle),
+        }
+    });
 
     let mut tx = pool.begin().await?;
 
@@ -168,5 +166,8 @@ pub async fn get_source_identifier(source_id: SourceId, pool: &PgPool) -> Result
     if let Some(ss) = SocialSource::find_by_source_id_optional(source_id, pool).await? {
         return Ok(ss.handle);
     }
-    Err(anyhow::anyhow!("No website_source or social_source found for source {}", source_id))
+    Err(anyhow::anyhow!(
+        "No website_source or social_source found for source {}",
+        source_id
+    ))
 }

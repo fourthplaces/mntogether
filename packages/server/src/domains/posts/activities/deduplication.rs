@@ -9,8 +9,8 @@
 //! 3. Different audience = different post (volunteer vs recipient = 2 posts)
 //! 4. Same service described differently = merge (LLM understands identity)
 
-use anyhow::Result;
 use ai_client::OpenAi;
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -19,9 +19,9 @@ use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, MemberId, PostId, SyncBatchId};
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::source::models::Source;
-use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
@@ -368,14 +368,20 @@ pub async fn deduplicate_posts(
     let mut total_groups = 0;
 
     for website in &websites {
-        let dedup_result =
-            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
-                    continue;
-                }
-            };
+        let dedup_result = match deduplicate_posts_llm(
+            "website",
+            website.id.into_uuid(),
+            deps.ai.as_ref(),
+            &deps.db_pool,
+        )
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
+                continue;
+            }
+        };
 
         total_groups += dedup_result.duplicate_groups.len();
 
@@ -659,10 +665,7 @@ pub async fn stage_cross_source_dedup(
 
 /// Soft-delete all rejected posts for an organization.
 /// Returns count of posts purged.
-pub async fn purge_rejected_posts_for_org(
-    org_id: Uuid,
-    pool: &PgPool,
-) -> Result<usize> {
+pub async fn purge_rejected_posts_for_org(org_id: Uuid, pool: &PgPool) -> Result<usize> {
     let rejected = Post::find_rejected_by_organization(org_id, pool).await?;
     let count = rejected.len();
 
@@ -702,7 +705,14 @@ pub async fn deduplicate_cross_source_all_orgs(
     let mut total_proposals = 0;
 
     for org_id in &org_ids {
-        match stage_cross_source_dedup(org_id.into_uuid(), GPT_5_MINI, deps.ai.as_ref(), &deps.db_pool).await {
+        match stage_cross_source_dedup(
+            org_id.into_uuid(),
+            GPT_5_MINI,
+            deps.ai.as_ref(),
+            &deps.db_pool,
+        )
+        .await
+        {
             Ok(result) => {
                 if result.batch_id.is_some() {
                     batches_created += 1;
@@ -766,8 +776,11 @@ When merging:
 ### Different Services = NOT Duplicates
 - "Food Shelf" from website + "Legal Aid Clinic" from Instagram → NOT duplicates (different services)
 
-### Different Audience = NOT Duplicates
-- "Volunteer at our food shelf" + "Get free groceries" → NOT duplicates (different audiences)
+### Different Role = NOT Duplicates
+- "Volunteer at our food shelf" + "Get free groceries" → NOT duplicates (different roles)
+
+### Same Event, Different Angle = DUPLICATES
+- "Get a flash tattoo at our fundraiser" + "Donate by booking a tattoo" → DUPLICATES (same event)
 
 ### Published Posts ("active") Preferred as Canonical
 - If one is "active" and another "pending_approval", the active one is canonical
@@ -837,7 +850,10 @@ pub async fn find_duplicate_pending_posts(
         .extract(
             GPT_5_MINI,
             DEDUP_PENDING_SYSTEM_PROMPT,
-            &format!("Analyze these draft posts for duplicates:\n\n{}", posts_json),
+            &format!(
+                "Analyze these draft posts for duplicates:\n\n{}",
+                posts_json
+            ),
         )
         .await
         .map_err(|e| anyhow::anyhow!("Pending deduplication failed: {}", e))?;
@@ -932,12 +948,17 @@ Two posts are DUPLICATES only if they describe:
 
 ## Key Rules
 
-### Different Audience = Different Post (NOT duplicates)
+### Different Role = Different Post (NOT duplicates)
 - "Food Shelf" (for recipients getting food) ≠ "Food Shelf - Volunteer" (for people helping)
-- "Donate to X" (for donors) ≠ "Get Help from X" (for recipients)
-- These serve DIFFERENT user needs and should remain separate
+- "Get Help from X" (for recipients) ≠ "Volunteer at X" (for helpers)
+- These serve DIFFERENT user roles and should remain separate
 
-### Same Service + Same Audience = Duplicates (should merge)
+### Same Event from Different Angles = Duplicates (SHOULD merge)
+- A fundraiser event described as "attend" AND "donate" is ONE event — merge
+- "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
+- "Attend the Benefit Dinner" and "Donate at the Benefit Dinner" → Same event, merge
+
+### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing, merge them
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge them
 
@@ -969,11 +990,15 @@ Two posts are DUPLICATES only if they describe:
 
 ## Key Rules
 
-### Different Audience = Different Post (NOT duplicates)
+### Different Role = Different Post (NOT duplicates)
 - "Food Shelf" (for recipients) ≠ "Food Shelf - Volunteer" (for helpers)
-- These serve DIFFERENT user needs and should remain separate
+- These serve DIFFERENT user roles and should remain separate
 
-### Same Service + Same Audience = Duplicates (should merge)
+### Same Event from Different Angles = Duplicates (SHOULD merge)
+- A fundraiser described as "attend" AND "donate" is ONE event — merge
+- "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
+
+### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge
 
@@ -1002,7 +1027,8 @@ A draft MATCHES a published post only if:
 
 ## Key Rules
 
-- Different audience = NOT a match (volunteer vs recipient = different posts)
+- Different role = NOT a match (volunteer vs recipient = different posts)
+- Same event described from different angles (participant vs donor) = MATCH (fundraiser events are one post)
 - Same service described differently = MATCH
 - A draft that adds genuinely new information to a published post IS a match (it's an update)
 - A draft about a completely different service = NOT a match

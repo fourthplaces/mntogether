@@ -12,26 +12,27 @@ pub struct AgentAssistantConfig {
 
 impl AgentAssistantConfig {
     pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM agent_assistant_configs WHERE agent_id = $1",
-        )
-        .bind(agent_id)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM agent_assistant_configs WHERE agent_id = $1")
+            .bind(agent_id)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn find_by_config_name(config_name: &str, pool: &PgPool) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM agent_assistant_configs WHERE config_name = $1",
-        )
-        .bind(config_name)
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM agent_assistant_configs WHERE config_name = $1")
+            .bind(config_name)
+            .fetch_optional(pool)
+            .await
+            .map_err(Into::into)
     }
 
-    pub async fn create(agent_id: Uuid, preamble: &str, config_name: &str, pool: &PgPool) -> Result<Self> {
+    pub async fn create(
+        agent_id: Uuid,
+        preamble: &str,
+        config_name: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "INSERT INTO agent_assistant_configs (agent_id, preamble, config_name) VALUES ($1, $2, $3) RETURNING *",
         )

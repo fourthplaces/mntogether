@@ -172,21 +172,14 @@ impl_restate_serde!(EmptyResult);
 #[name = "Websites"]
 pub trait WebsitesService {
     async fn list(req: ListWebsitesRequest) -> Result<WebsiteListResult, HandlerError>;
-    async fn list_pending(
-        req: ListWebsitesRequest,
-    ) -> Result<PendingWebsitesResult, HandlerError>;
-    async fn search(
-        req: SearchWebsitesRequest,
-    ) -> Result<WebsiteSearchResults, HandlerError>;
-    async fn run_scheduled_scrape(
-        req: EmptyRequest,
-    ) -> Result<ScheduledScrapeResult, HandlerError>;
+    async fn list_pending(req: ListWebsitesRequest) -> Result<PendingWebsitesResult, HandlerError>;
+    async fn search(req: SearchWebsitesRequest) -> Result<WebsiteSearchResults, HandlerError>;
+    async fn run_scheduled_scrape(req: EmptyRequest)
+        -> Result<ScheduledScrapeResult, HandlerError>;
     async fn submit(req: SubmitWebsiteRequest) -> Result<WebsiteResult, HandlerError>;
 
     // Search query CRUD
-    async fn list_search_queries(
-        req: EmptyRequest,
-    ) -> Result<SearchQueryListResult, HandlerError>;
+    async fn list_search_queries(req: EmptyRequest) -> Result<SearchQueryListResult, HandlerError>;
     async fn create_search_query(
         req: CreateSearchQueryRequest,
     ) -> Result<SearchQueryResult, HandlerError>;
@@ -243,10 +236,15 @@ impl WebsitesService for WebsitesServiceImpl {
             .validate()
             .map_err(|e| TerminalError::new(e))?;
 
-        let connection =
-            activities::get_websites_paginated(req.status.as_deref(), req.search.as_deref(), req.organization_id, &validated, &self.deps)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let connection = activities::get_websites_paginated(
+            req.status.as_deref(),
+            req.search.as_deref(),
+            req.organization_id,
+            &validated,
+            &self.deps,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Collect website IDs for batch post count query
         let website_ids: Vec<Uuid> = connection
@@ -265,16 +263,18 @@ impl WebsitesService for WebsitesServiceImpl {
                 .edges
                 .into_iter()
                 .filter_map(|e| {
-                    uuid::Uuid::parse_str(&e.node.id).ok().map(|id| WebsiteResult {
-                        id,
-                        domain: e.node.domain,
-                        status: e.node.status,
-                        active: e.node.active,
-                        created_at: Some(e.node.created_at),
-                        last_crawled_at: e.node.last_scraped_at,
-                        post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
-                        organization_id: e.node.organization_id,
-                    })
+                    uuid::Uuid::parse_str(&e.node.id)
+                        .ok()
+                        .map(|id| WebsiteResult {
+                            id,
+                            domain: e.node.domain,
+                            status: e.node.status,
+                            active: e.node.active,
+                            created_at: Some(e.node.created_at),
+                            last_crawled_at: e.node.last_scraped_at,
+                            post_count: Some(*post_counts.get(&id).unwrap_or(&0)),
+                            organization_id: e.node.organization_id,
+                        })
                 })
                 .collect(),
             total_count: connection.total_count,
@@ -368,14 +368,9 @@ impl WebsitesService for WebsitesServiceImpl {
                 .run(|| {
                     let deps = &self.deps;
                     async move {
-                        ingest_website(
-                            website_id,
-                            MemberId::nil().into_uuid(),
-                            true,
-                            deps,
-                        )
-                        .await
-                        .map_err(Into::into)
+                        ingest_website(website_id, MemberId::nil().into_uuid(), true, deps)
+                            .await
+                            .map_err(Into::into)
                     }
                 })
                 .await;

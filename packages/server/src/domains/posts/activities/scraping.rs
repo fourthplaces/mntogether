@@ -20,9 +20,7 @@ pub fn extract_domain(url: &str) -> Option<String> {
 #[derive(Debug, Clone)]
 pub enum ResourceLinkSubmission {
     /// Website is pending admin approval (new or unapproved)
-    PendingApproval {
-        url: String,
-    },
+    PendingApproval { url: String },
     /// Website is approved, processing can begin
     Processing {
         job_id: JobId,

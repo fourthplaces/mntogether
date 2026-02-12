@@ -112,11 +112,13 @@ impl ProvidersService for ProvidersServiceImpl {
                 .edges
                 .into_iter()
                 .filter_map(|e| {
-                    uuid::Uuid::parse_str(&e.node.id).ok().map(|id| ProviderResult {
-                        id,
-                        name: e.node.name,
-                        status: e.node.status,
-                    })
+                    uuid::Uuid::parse_str(&e.node.id)
+                        .ok()
+                        .map(|id| ProviderResult {
+                            id,
+                            name: e.node.name,
+                            status: e.node.status,
+                        })
                 })
                 .collect(),
             total_count: connection.total_count,

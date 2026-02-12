@@ -227,10 +227,7 @@ impl Container {
     }
 
     /// Create a new container
-    pub async fn create(
-        language: String,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(language: String, pool: &PgPool) -> Result<Self> {
         let container = sqlx::query_as::<_, Container>(
             r#"
             INSERT INTO containers (language)

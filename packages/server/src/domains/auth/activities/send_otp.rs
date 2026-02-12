@@ -3,10 +3,10 @@
 use anyhow::Result;
 use tracing::{error, info};
 
-use crate::domains::auth::types::OtpSent;
 use crate::domains::auth::models::{
     hash_phone_number, is_admin_identifier, is_test_identifier, Identifier,
 };
+use crate::domains::auth::types::OtpSent;
 use crate::kernel::ServerDeps;
 
 /// Error returned when identifier is not authorized

@@ -36,7 +36,10 @@ pub async fn ingest_website(
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
     let job_id = JobId::new();
-    let use_firecrawl = std::env::var("FIRECRAWL_API_KEY").ok().filter(|k| !k.is_empty()).is_some();
+    let use_firecrawl = std::env::var("FIRECRAWL_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .is_some();
 
     info!(
         website_id = %website_id_typed,

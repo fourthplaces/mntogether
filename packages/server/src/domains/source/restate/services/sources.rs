@@ -10,8 +10,7 @@ use crate::domains::crawling::activities::ingest_website;
 use crate::domains::crawling::models::ExtractionPage;
 use crate::domains::posts::models::PostSource;
 use crate::domains::source::models::{
-    find_or_create_social_source, find_or_create_website_source, Source,
-    WebsiteSource,
+    find_or_create_social_source, find_or_create_website_source, Source, WebsiteSource,
 };
 use crate::domains::website::activities;
 use crate::domains::website::models::SearchQuery;
@@ -205,19 +204,14 @@ pub trait SourcesService {
         req: ListByOrganizationRequest,
     ) -> Result<SourceListResult, HandlerError>;
     async fn submit_website(req: SubmitWebsiteRequest) -> Result<SourceResult, HandlerError>;
-    async fn create_social(
-        req: CreateSocialSourceRequest,
-    ) -> Result<SourceResult, HandlerError>;
+    async fn create_social(req: CreateSocialSourceRequest) -> Result<SourceResult, HandlerError>;
     async fn delete(req: DeleteSourceRequest) -> Result<EmptyRequest, HandlerError>;
     async fn search(req: SearchSourcesRequest) -> Result<SourceSearchResults, HandlerError>;
-    async fn run_scheduled_scrape(
-        req: EmptyRequest,
-    ) -> Result<ScheduledScrapeResult, HandlerError>;
+    async fn run_scheduled_scrape(req: EmptyRequest)
+        -> Result<ScheduledScrapeResult, HandlerError>;
 
     // Search query CRUD
-    async fn list_search_queries(
-        req: EmptyRequest,
-    ) -> Result<SearchQueryListResult, HandlerError>;
+    async fn list_search_queries(req: EmptyRequest) -> Result<SearchQueryListResult, HandlerError>;
     async fn create_search_query(
         req: CreateSearchQueryRequest,
     ) -> Result<SearchQueryResult, HandlerError>;
@@ -257,7 +251,10 @@ fn search_query_result(q: SearchQuery) -> SearchQueryResult {
 }
 
 /// Build a SourceResult from a Source, looking up the identifier from extension tables
-async fn source_to_result(source: Source, pool: &sqlx::PgPool) -> Result<SourceResult, HandlerError> {
+async fn source_to_result(
+    source: Source,
+    pool: &sqlx::PgPool,
+) -> Result<SourceResult, HandlerError> {
     let identifier = crate::domains::source::models::get_source_identifier(source.id, pool)
         .await
         .unwrap_or_else(|_| "unknown".to_string());
@@ -331,9 +328,10 @@ impl SourcesService for SourcesServiceImpl {
 
         // Batch lookup identifiers
         let source_ids: Vec<Uuid> = sources.iter().map(|s| s.id.into_uuid()).collect();
-        let website_domains = WebsiteSource::find_domains_by_source_ids(&source_ids, &self.deps.db_pool)
-            .await
-            .unwrap_or_default();
+        let website_domains =
+            WebsiteSource::find_domains_by_source_ids(&source_ids, &self.deps.db_pool)
+                .await
+                .unwrap_or_default();
         let domain_map: std::collections::HashMap<Uuid, String> =
             website_domains.into_iter().collect();
 
@@ -564,14 +562,9 @@ impl SourcesService for SourcesServiceImpl {
                         .run(|| {
                             let deps = &self.deps;
                             async move {
-                                ingest_website(
-                                    source_id,
-                                    MemberId::nil().into_uuid(),
-                                    true,
-                                    deps,
-                                )
-                                .await
-                                .map_err(Into::into)
+                                ingest_website(source_id, MemberId::nil().into_uuid(), true, deps)
+                                    .await
+                                    .map_err(Into::into)
                             }
                         })
                         .await;
@@ -650,9 +643,13 @@ impl SourcesService for SourcesServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let result = ctx
             .run(|| async {
-                let q = SearchQuery::create(&req.query_text, req.sort_order.unwrap_or(0), &self.deps.db_pool)
-                    .await
-                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                let q = SearchQuery::create(
+                    &req.query_text,
+                    req.sort_order.unwrap_or(0),
+                    &self.deps.db_pool,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
                 Ok(search_query_result(q))
             })
             .await?;
@@ -667,9 +664,14 @@ impl SourcesService for SourcesServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let result = ctx
             .run(|| async {
-                let q = SearchQuery::update(req.id, &req.query_text, req.sort_order.unwrap_or(0), &self.deps.db_pool)
-                    .await
-                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                let q = SearchQuery::update(
+                    req.id,
+                    &req.query_text,
+                    req.sort_order.unwrap_or(0),
+                    &self.deps.db_pool,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
                 Ok(search_query_result(q))
             })
             .await?;

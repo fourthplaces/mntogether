@@ -10,9 +10,9 @@
 //! - DELETE: DB posts that no longer exist in fresh extraction
 //! - MERGE: Pre-existing duplicates in DB that should be consolidated
 
-use anyhow::Result;
-use ai_client::OpenAi;
 use crate::kernel::GPT_5_MINI;
+use ai_client::OpenAi;
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -22,8 +22,8 @@ use uuid::Uuid;
 
 use crate::common::{ExtractedPost, PostId, SyncBatchId};
 use crate::domains::contacts::Contact;
-use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
+use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 
 /// A fresh post from extraction, with a temporary ID for matching
@@ -121,9 +121,7 @@ fn convert_fresh_posts(fresh_posts: &[ExtractedPost]) -> Vec<FreshPost> {
 async fn convert_existing_posts(existing_posts: &[Post], pool: &PgPool) -> Vec<ExistingPost> {
     let mut existing = Vec::with_capacity(existing_posts.len());
     for p in existing_posts {
-        let contacts = Contact::find_by_post(p.id, pool)
-            .await
-            .unwrap_or_default();
+        let contacts = Contact::find_by_post(p.id, pool).await.unwrap_or_default();
         let contact_phone = contacts
             .iter()
             .find(|c| c.contact_type == "phone")
@@ -306,7 +304,10 @@ pub async fn llm_sync_posts(
         let missing_titles: Vec<&str> = missing
             .iter()
             .filter_map(|id| {
-                fresh.iter().find(|f| &f.temp_id == *id).map(|f| f.title.as_str())
+                fresh
+                    .iter()
+                    .find(|f| &f.temp_id == *id)
+                    .map(|f| f.title.as_str())
             })
             .collect();
         tracing::warn!(
@@ -361,7 +362,9 @@ async fn stage_sync_operations(
     ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<LlmSyncResult> {
-    use crate::domains::posts::activities::create_post::{create_extracted_post, sync_schedules_for_post};
+    use crate::domains::posts::activities::create_post::{
+        create_extracted_post, sync_schedules_for_post,
+    };
     use crate::domains::posts::activities::scoring::score_post_by_id;
     use crate::domains::website::models::Website;
 
@@ -422,10 +425,7 @@ async fn stage_sync_operations(
                         fresh,
                         Some(source_type),
                         Some(source_id),
-                        fresh
-                            .source_url
-                            .clone()
-                            .or(default_url.clone()),
+                        fresh.source_url.clone().or(default_url.clone()),
                         submitted_by_id,
                         pool,
                     )
@@ -463,7 +463,15 @@ async fn stage_sync_operations(
                 let existing_post = existing_by_id.get(&existing_id);
 
                 if let (Some(fresh), Some(existing)) = (fresh_post, existing_post) {
-                    match update_post_with_owner(existing.id, fresh, merge_description, submitted_by_id, pool).await {
+                    match update_post_with_owner(
+                        existing.id,
+                        fresh,
+                        merge_description,
+                        submitted_by_id,
+                        pool,
+                    )
+                    .await
+                    {
                         Ok(()) => {
                             let revision = Post::find_revision_for_post(existing.id, pool).await;
                             let revision_id = revision.ok().flatten().map(|r| r.id.into_uuid());
@@ -508,11 +516,12 @@ async fn stage_sync_operations(
                         fresh,
                         Some(source_type),
                         Some(source_id),
-                        fresh.source_url.clone()
-                            .or(default_url),
+                        fresh.source_url.clone().or(default_url),
                         submitted_by_id,
                         pool,
-                    ).await {
+                    )
+                    .await
+                    {
                         Ok(post) => {
                             // Best-effort relevance scoring (Pass 4)
                             score_post_by_id(post.id, ai, pool).await;
@@ -522,7 +531,10 @@ async fn stage_sync_operations(
                                 entity_type: "post".to_string(),
                                 draft_entity_id: Some(post.id.into_uuid()),
                                 target_entity_id: None,
-                                reason: Some(format!("New post (update fallback): {}", fresh.title)),
+                                reason: Some(format!(
+                                    "New post (update fallback): {}",
+                                    fresh.title
+                                )),
                                 merge_source_ids: vec![],
                             });
                             staged_inserts += 1;
@@ -541,7 +553,10 @@ async fn stage_sync_operations(
                     );
                     errors.push(format!(
                         "Update: fresh_id={} (found={}), existing_id={} (found={})",
-                        fresh_id, fresh_post.is_some(), existing_id, existing_post.is_some()
+                        fresh_id,
+                        fresh_post.is_some(),
+                        existing_id,
+                        existing_post.is_some()
                     ));
                 }
             }
@@ -589,9 +604,12 @@ async fn stage_sync_operations(
                     let draft_id = if merged_title.is_some() || merged_description.is_some() {
                         // Merge produces combined content — create a revision for review
                         let fake_fresh = ExtractedPost {
-                            title: merged_title.clone().unwrap_or_else(|| canonical.title.clone()),
+                            title: merged_title
+                                .clone()
+                                .unwrap_or_else(|| canonical.title.clone()),
                             summary: canonical.summary.clone().unwrap_or_default(),
-                            description: merged_description.clone()
+                            description: merged_description
+                                .clone()
                                 .unwrap_or_else(|| canonical.description.clone()),
                             location: canonical.location.clone(),
                             contact: None,
@@ -605,7 +623,15 @@ async fn stage_sync_operations(
                             tags: HashMap::new(),
                             schedule: Vec::new(),
                         };
-                        match update_post_with_owner(canonical.id, &fake_fresh, false, submitted_by_id, pool).await {
+                        match update_post_with_owner(
+                            canonical.id,
+                            &fake_fresh,
+                            false,
+                            submitted_by_id,
+                            pool,
+                        )
+                        .await
+                        {
                             Ok(()) => Post::find_revision_for_post(canonical.id, pool)
                                 .await
                                 .ok()
@@ -649,7 +675,10 @@ async fn stage_sync_operations(
                         available_ids = ?existing_by_id.keys().collect::<Vec<_>>(),
                         "Merge canonical_id not found in existing posts, skipping"
                     );
-                    errors.push(format!("Merge canonical_id {} not found in existing posts", canonical_id));
+                    errors.push(format!(
+                        "Merge canonical_id {} not found in existing posts",
+                        canonical_id
+                    ));
                 }
             }
 
@@ -843,16 +872,21 @@ Determine which operations are needed:
 ## Matching Rules
 
 Two posts MATCH (same identity) if they:
-- Describe the SAME program/service
-- Target the SAME audience (recipient vs volunteer vs donor = DIFFERENT posts)
+- Describe the SAME program/service/event
+- Serve the SAME role (recipient vs volunteer = DIFFERENT posts)
 - Have semantically similar titles (ignore minor wording differences)
+
+IMPORTANT: A single event described from different angles (participant vs donor) is STILL the same event:
+- A fundraiser where attending IS donating = ONE post, not two
+- "Get a Flash Tattoo to Feed Neighbors" ↔ "Book a Tattoo to Keep Families Housed" = SAME event
 
 Examples of MATCHES:
 - "Food Shelf" ↔ "Food Pantry" (same service, different names)
 - "Mardi Gras Fundraiser Event" ↔ "Mardi Gras Fundraising Event" (same event)
+- "Attend the Benefit Dinner" ↔ "Donate at the Benefit Dinner" (same event, attending IS donating)
 
 Examples of NON-MATCHES:
-- "Food Shelf" ↔ "Food Shelf - Volunteer" (different audiences)
+- "Food Shelf" ↔ "Food Shelf - Volunteer" (different roles: getting food vs helping)
 - "Legal Aid" ↔ "Housing Assistance" (different services)
 
 ## MERGE Content Rules

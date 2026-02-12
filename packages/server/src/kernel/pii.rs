@@ -4,11 +4,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use crate::common::pii::{
-    detect_pii_contextual, redact_pii, DetectionContext, PiiFindings,
-    RedactionStrategy,
-};
 use crate::common::pii::llm_detector::detect_pii_hybrid_with_ai;
+use crate::common::pii::{
+    detect_pii_contextual, redact_pii, DetectionContext, PiiFindings, RedactionStrategy,
+};
 use crate::kernel::traits::{BasePiiDetector, PiiScrubResult};
 
 // =============================================================================

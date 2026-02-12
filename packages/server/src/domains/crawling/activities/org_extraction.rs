@@ -242,8 +242,22 @@ static RE_TWITTER: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Non-profile path segments to skip per platform.
-const INSTAGRAM_SKIP: &[&str] = &["p", "reel", "reels", "stories", "explore", "accounts", "tv", "s", "share"];
-const FACEBOOK_SKIP: &[&str] = &["photo", "photos", "sharer", "share", "events", "groups", "watch", "marketplace", "login", "dialog", "plugins"];
+const INSTAGRAM_SKIP: &[&str] = &[
+    "p", "reel", "reels", "stories", "explore", "accounts", "tv", "s", "share",
+];
+const FACEBOOK_SKIP: &[&str] = &[
+    "photo",
+    "photos",
+    "sharer",
+    "share",
+    "events",
+    "groups",
+    "watch",
+    "marketplace",
+    "login",
+    "dialog",
+    "plugins",
+];
 const TWITTER_SKIP: &[&str] = &["intent", "share", "hashtag", "search", "i", "home"];
 
 struct SocialPattern {
@@ -253,15 +267,26 @@ struct SocialPattern {
 }
 
 const SOCIAL_PATTERNS: &[SocialPattern] = &[
-    SocialPattern { platform: "instagram", regex: &RE_INSTAGRAM, skip_segments: INSTAGRAM_SKIP },
-    SocialPattern { platform: "facebook", regex: &RE_FACEBOOK, skip_segments: FACEBOOK_SKIP },
-    SocialPattern { platform: "twitter", regex: &RE_TWITTER, skip_segments: TWITTER_SKIP },
+    SocialPattern {
+        platform: "instagram",
+        regex: &RE_INSTAGRAM,
+        skip_segments: INSTAGRAM_SKIP,
+    },
+    SocialPattern {
+        platform: "facebook",
+        regex: &RE_FACEBOOK,
+        skip_segments: FACEBOOK_SKIP,
+    },
+    SocialPattern {
+        platform: "twitter",
+        regex: &RE_TWITTER,
+        skip_segments: TWITTER_SKIP,
+    },
 ];
 
 /// Scan all page content for social media profile URLs using regex.
 /// Returns deduplicated profiles found across all pages.
 fn scan_social_profiles(pages: &[(Uuid, String, String)]) -> Vec<ExtractedSocialLink> {
-
     let mut seen = std::collections::HashSet::new();
     let mut profiles = Vec::new();
 
@@ -331,8 +356,13 @@ pub async fn extract_organization_info(
     );
 
     // LLM extraction: org name + description (priority pages only)
-    let extracted: ExtractedOrganization = deps.ai
-        .extract(crate::kernel::GPT_5_MINI, ORG_EXTRACTION_PROMPT, &org_content)
+    let extracted: ExtractedOrganization = deps
+        .ai
+        .extract(
+            crate::kernel::GPT_5_MINI,
+            ORG_EXTRACTION_PROMPT,
+            &org_content,
+        )
         .await
         .map_err(|e| anyhow::anyhow!("Organization extraction failed: {}", e))?;
 
@@ -345,7 +375,10 @@ pub async fn extract_organization_info(
     }
 
     let org_name = extracted.name.trim().to_string();
-    let org_desc = extracted.description.as_deref().map(|d| d.trim().to_string());
+    let org_desc = extracted
+        .description
+        .as_deref()
+        .map(|d| d.trim().to_string());
 
     // Regex extraction: social profiles across ALL pages
     info!(
@@ -353,10 +386,7 @@ pub async fn extract_organization_info(
         "REGEX SCAN: scanning all pages for social media URLs"
     );
     let social_result = scan_social_profiles(&pages);
-    info!(
-        found = social_result.len(),
-        "REGEX SCAN: complete"
-    );
+    info!(found = social_result.len(), "REGEX SCAN: complete");
     for p in &social_result {
         info!(
             platform = %p.platform,
@@ -397,14 +427,8 @@ pub async fn create_social_profiles_for_org(
             continue;
         }
 
-        match SocialProfile::find_or_create(
-            org_id,
-            platform,
-            &handle,
-            link.url.as_deref(),
-            pool,
-        )
-        .await
+        match SocialProfile::find_or_create(org_id, platform, &handle, link.url.as_deref(), pool)
+            .await
         {
             Ok(profile) => {
                 info!(
@@ -496,15 +520,24 @@ Follow us on [Twitter](https://x.com/canaboretum)
         println!("Found profiles: {:?}", profiles);
 
         assert!(platforms.contains(&"instagram"), "Should find instagram");
-        assert!(handles.contains(&"communityaidnetworkmn"), "Should find communityaidnetworkmn handle");
+        assert!(
+            handles.contains(&"communityaidnetworkmn"),
+            "Should find communityaidnetworkmn handle"
+        );
 
         assert!(platforms.contains(&"facebook"), "Should find facebook");
-        assert!(handles.contains(&"communityaidnetworkmn"), "Should find CommunityAidNetworkMN handle (lowercased)");
+        assert!(
+            handles.contains(&"communityaidnetworkmn"),
+            "Should find CommunityAidNetworkMN handle (lowercased)"
+        );
 
         assert!(platforms.contains(&"twitter"), "Should find twitter/x");
 
         // Should NOT include post URLs
-        assert!(!handles.contains(&"p"), "Should skip instagram.com/p/ (post URL)");
+        assert!(
+            !handles.contains(&"p"),
+            "Should skip instagram.com/p/ (post URL)"
+        );
     }
 
     #[test]
@@ -540,6 +573,10 @@ Visit us at https://instagram.com/myhandle and https://facebook.com/mypage
         ];
 
         let profiles = scan_social_profiles(&pages);
-        assert_eq!(profiles.len(), 1, "Should deduplicate same handle across pages");
+        assert_eq!(
+            profiles.len(),
+            1,
+            "Should deduplicate same handle across pages"
+        );
     }
 }

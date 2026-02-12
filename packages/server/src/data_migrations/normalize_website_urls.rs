@@ -26,7 +26,12 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
         Ok(0)
     }
 
-    async fn find_work(&self, _cursor: Option<Uuid>, _limit: i64, _db: &PgPool) -> Result<Vec<Uuid>> {
+    async fn find_work(
+        &self,
+        _cursor: Option<Uuid>,
+        _limit: i64,
+        _db: &PgPool,
+    ) -> Result<Vec<Uuid>> {
         Ok(vec![])
     }
 

@@ -39,10 +39,7 @@ pub async fn get_upcoming_events(limit: usize, deps: &ServerDeps) -> Result<Vec<
     let loaded = Post::find_by_ids(&post_ids, pool).await?;
 
     // Index by ID to preserve sort order
-    let post_map: HashMap<Uuid, Post> = loaded
-        .into_iter()
-        .map(|p| (p.id.into_uuid(), p))
-        .collect();
+    let post_map: HashMap<Uuid, Post> = loaded.into_iter().map(|p| (p.id.into_uuid(), p)).collect();
 
     // Batch-load business info for business-type posts
     let business_post_ids: Vec<Uuid> = post_map
