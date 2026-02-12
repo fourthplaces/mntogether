@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import type { PostResult } from "@/lib/restate/types";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 
 interface PostReviewCardProps {
   post: PostResult;
@@ -11,6 +13,19 @@ interface PostReviewCardProps {
   isApproving?: boolean;
   isRejecting?: boolean;
 }
+
+const TYPE_VARIANTS: Record<string, "info" | "success" | "business" | "default"> = {
+  service: "info",
+  opportunity: "success",
+  business: "business",
+};
+
+const URGENCY_VARIANTS: Record<string, "danger" | "warning" | "success" | "default"> = {
+  urgent: "danger",
+  high: "warning",
+  medium: "warning",
+  low: "success",
+};
 
 export function PostReviewCard({
   post,
@@ -33,35 +48,6 @@ export function PostReviewCard({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const getTypeColor = (type?: string | null) => {
-    switch (type) {
-      case "service":
-        return "bg-blue-100 text-blue-800";
-      case "opportunity":
-        return "bg-green-100 text-green-800";
-      case "business":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-  const getUrgencyColor = (urgency?: string | null) => {
-    switch (urgency?.toLowerCase()) {
-      case "urgent":
-        return "bg-red-100 text-red-800";
-      case "high":
-        return "bg-orange-100 text-orange-800";
-      case "medium":
-        return "bg-yellow-100 text-yellow-800";
-      case "low":
-        return "bg-green-100 text-green-800";
-      default:
-        return "bg-gray-100 text-gray-800";
-    }
-  };
-
-
   const tags = post.tags || [];
 
   return (
@@ -71,20 +57,24 @@ export function PostReviewCard({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.post_type)}`}>
+              <Badge
+                variant={TYPE_VARIANTS[post.post_type ?? ""] ?? "default"}
+                pill={false}
+              >
                 {post.post_type || "post"}
-              </span>
+              </Badge>
               {post.urgency && (
-                <span
-                  className={`px-2 py-1 text-xs font-medium rounded ${getUrgencyColor(post.urgency)}`}
+                <Badge
+                  variant={URGENCY_VARIANTS[post.urgency.toLowerCase()] ?? "default"}
+                  pill={false}
                 >
                   {post.urgency}
-                </span>
+                </Badge>
               )}
               {post.category && (
-                <span className="px-2 py-1 text-xs bg-stone-100 text-stone-700 rounded">
+                <Badge variant="default" pill={false}>
                   {post.category}
-                </span>
+                </Badge>
               )}
             </div>
             <Link href={`/admin/posts/${post.id}`} className="text-lg font-semibold text-stone-900 hover:text-amber-700 transition-colors">
@@ -120,12 +110,9 @@ export function PostReviewCard({
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1.5 mb-2">
             {tags.map((tag) => (
-              <span
-                key={tag.id}
-                className="px-2 py-0.5 text-xs rounded-full bg-stone-100 text-stone-600"
-              >
+              <Badge key={tag.id} variant="default" size="sm">
                 <span className="text-stone-400">{tag.kind}:</span> {tag.display_name || tag.value}
-              </span>
+              </Badge>
             ))}
           </div>
         )}
@@ -173,22 +160,26 @@ export function PostReviewCard({
         {(onApprove || onReject) && (
           <div className="flex gap-2 mt-4 pt-3 border-t border-stone-200">
             {onApprove && (
-              <button
+              <Button
+                variant="success"
+                size="md"
+                className="flex-1"
                 onClick={() => onApprove(post.id)}
                 disabled={isApproving}
-                className="flex-1 px-4 py-2 bg-emerald-400 text-white rounded hover:bg-emerald-500 transition-colors font-medium disabled:opacity-50"
               >
                 {isApproving ? "..." : "Approve"}
-              </button>
+              </Button>
             )}
             {onReject && (
-              <button
+              <Button
+                variant="danger"
+                size="md"
+                className="flex-1"
                 onClick={() => onReject(post.id)}
                 disabled={isRejecting}
-                className="flex-1 px-4 py-2 bg-rose-400 text-white rounded hover:bg-rose-500 transition-colors font-medium disabled:opacity-50"
               >
                 {isRejecting ? "..." : "Reject"}
-              </button>
+              </Button>
             )}
           </div>
         )}
