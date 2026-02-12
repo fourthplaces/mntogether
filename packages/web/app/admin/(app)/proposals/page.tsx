@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRestate, callService, invalidateService } from "@/lib/restate/client";
+import { useRestate, callService, callObject, invalidateService } from "@/lib/restate/client";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import type { SyncBatch, SyncProposal } from "@/lib/restate/types";
 
@@ -61,6 +61,35 @@ function ScoreBadge({ score }: { score: number | null | undefined }) {
   );
 }
 
+function ConfidenceBadge({ confidence }: { confidence: string | null | undefined }) {
+  if (!confidence) return null;
+  const colors: Record<string, string> = {
+    high: "bg-green-100 text-green-700",
+    medium: "bg-yellow-100 text-yellow-700",
+    low: "bg-orange-100 text-orange-700",
+  };
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${colors[confidence] || "bg-stone-100 text-stone-600"}`}
+      title={`AI confidence: ${confidence}`}
+    >
+      {confidence}
+    </span>
+  );
+}
+
+function EntityTypeBadge({ entityType }: { entityType: string }) {
+  if (entityType === "post") return null;
+  const colors: Record<string, string> = {
+    note: "bg-indigo-100 text-indigo-800",
+  };
+  return (
+    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${colors[entityType] || "bg-stone-100 text-stone-600"}`}>
+      {entityType}
+    </span>
+  );
+}
+
 function PostLink({ id, label }: { id: string | null; label: string }) {
   if (!id) return <span>{label}</span>;
   return (
@@ -83,8 +112,12 @@ function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
       return (
         <div className="mt-1">
           <p className="text-sm text-stone-800">
-            <span className="font-medium">New post:</span>{" "}
-            <PostLink id={p.draft_entity_id} label={draftLabel || "untitled"} />
+            <span className="font-medium">New {p.entity_type}:</span>{" "}
+            {p.entity_type === "note" ? (
+              <span>{draftLabel || "untitled note"}</span>
+            ) : (
+              <PostLink id={p.draft_entity_id} label={draftLabel || "untitled"} />
+            )}
           </p>
         </div>
       );
@@ -167,6 +200,58 @@ function timeAgo(dateStr: string | null | undefined): string {
   return `${diffDays}d ago`;
 }
 
+function ProposalComment({
+  proposalId,
+  onSubmitted,
+}: {
+  proposalId: string;
+  onSubmitted: () => void;
+}) {
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!comment.trim() || submitting) return;
+    setSubmitting(true);
+    try {
+      const workflowId = `refine-${proposalId}-${Date.now()}`;
+      await callObject("RefineProposalWorkflow", workflowId, "run", {
+        proposal_id: proposalId,
+        comment: comment.trim(),
+        author_id: "00000000-0000-0000-0000-000000000000", // TODO: get from auth context
+      });
+      setComment("");
+      invalidateService("Sync");
+      onSubmitted();
+    } catch (err) {
+      console.error("Failed to submit comment:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="flex gap-2 mt-2">
+      <input
+        type="text"
+        value={comment}
+        onChange={(e) => setComment(e.target.value)}
+        placeholder="Comment for AI refinement..."
+        className="flex-1 px-2 py-1 text-xs border border-stone-200 rounded bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+        disabled={submitting}
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!comment.trim() || submitting}
+        className="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded hover:bg-amber-200 disabled:opacity-50"
+      >
+        {submitting ? "Refining..." : "Refine"}
+      </button>
+    </div>
+  );
+}
+
 function BatchProposals({
   batchId,
   batchStatus,
@@ -177,8 +262,9 @@ function BatchProposals({
   scoreFilter?: ScoreFilter;
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
 
-  const { data, isLoading } = useRestate<{ proposals: SyncProposal[] }>(
+  const { data, isLoading, mutate } = useRestate<{ proposals: SyncProposal[] }>(
     "Sync", "list_proposals", { batch_id: batchId }, { revalidateOnFocus: false, keepPreviousData: true }
   );
 
@@ -187,15 +273,29 @@ function BatchProposals({
     matchesScoreFilter(p.relevance_score, scoreFilter)
   );
 
+  const toggleReasoning = (id: string) => {
+    setExpandedReasoning((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const [actionError, setActionError] = useState<string | null>(null);
+
   const handleAction = async (
     proposalId: string,
     action: "approve" | "reject"
   ) => {
     setActionLoading(proposalId);
+    setActionError(null);
     try {
       await callService("Sync", `${action}_proposal`, { proposal_id: proposalId });
       invalidateService("Sync");
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setActionError(`Failed to ${action} proposal: ${message}`);
       console.error(`Failed to ${action} proposal:`, err);
     } finally {
       setActionLoading(null);
@@ -211,6 +311,11 @@ function BatchProposals({
 
   return (
     <div className="space-y-2">
+      {actionError && (
+        <div className="px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+          {actionError}
+        </div>
+      )}
       {proposals.map((p) => (
         <div
           key={p.id}
@@ -218,16 +323,78 @@ function BatchProposals({
         >
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <OperationBadge operation={p.operation} />
+                <EntityTypeBadge entityType={p.entity_type} />
                 <StatusBadge status={p.status} />
                 <ScoreBadge score={p.relevance_score} />
+                <ConfidenceBadge confidence={p.confidence} />
+                {(p.revision_count ?? 0) > 0 && (
+                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700" title={`Revised ${p.revision_count} time(s)`}>
+                    rev {p.revision_count}
+                  </span>
+                )}
               </div>
               <ProposalDescription proposal={p} />
-              {p.reason && (
+
+              {/* Source URLs */}
+              {p.source_urls && p.source_urls.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {p.source_urls.map((url, i) => (
+                    <a
+                      key={i}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-xs text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500"
+                    >
+                      {new URL(url).hostname.replace("www.", "")}{"\u2197"}
+                    </a>
+                  ))}
+                </div>
+              )}
+
+              {/* Curator reasoning (expandable) */}
+              {p.curator_reasoning && (
+                <div className="mt-2">
+                  <button
+                    onClick={() => toggleReasoning(p.id)}
+                    className="text-xs text-stone-400 hover:text-stone-600 transition-colors"
+                  >
+                    {expandedReasoning.has(p.id) ? "\u25B2 Hide reasoning" : "\u25BC AI reasoning"}
+                  </button>
+                  {expandedReasoning.has(p.id) && (
+                    <p className="text-xs text-stone-600 mt-1 leading-relaxed bg-stone-100 rounded px-2 py-1.5">
+                      {p.curator_reasoning}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Legacy reason field (non-curator proposals) */}
+              {!p.curator_reasoning && p.reason && (
                 <p className="text-xs text-stone-500 mt-2 leading-relaxed bg-stone-100 rounded px-2 py-1">
                   {p.reason}
                 </p>
+              )}
+
+              {/* Direct edit link */}
+              {p.status === "pending" && p.draft_entity_id && p.entity_type === "post" && (
+                <div className="mt-1.5">
+                  <Link
+                    href={`/admin/posts/${p.draft_entity_id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs text-amber-600 hover:text-amber-800 font-medium"
+                  >
+                    Edit draft {"\u2192"}
+                  </Link>
+                </div>
+              )}
+
+              {/* Comment input for refinement */}
+              {p.status === "pending" && batchStatus !== "expired" && (
+                <ProposalComment proposalId={p.id} onSubmitted={() => mutate()} />
               )}
             </div>
             {p.status === "pending" && batchStatus !== "expired" && (
@@ -267,12 +434,17 @@ function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: 
     batch.status !== "expired" &&
     batch.status !== "completed";
 
+  const [batchError, setBatchError] = useState<string | null>(null);
+
   const handleBatchAction = async (action: "approve" | "reject") => {
     setBatchActionLoading(true);
+    setBatchError(null);
     try {
       await callService("Sync", `${action}_batch`, { batch_id: batch.id });
       invalidateService("Sync");
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      setBatchError(`Failed to ${action} batch: ${message}`);
       console.error(`Failed to ${action} batch:`, err);
     } finally {
       setBatchActionLoading(false);
@@ -374,6 +546,11 @@ function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: 
           </div>
         </div>
       </div>
+      {batchError && (
+        <div className="mx-4 mb-3 px-3 py-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+          {batchError}
+        </div>
+      )}
       {expanded && (
         <div className="border-t border-stone-100 p-4">
           <BatchProposals batchId={batch.id} batchStatus={batch.status} scoreFilter={scoreFilter} />

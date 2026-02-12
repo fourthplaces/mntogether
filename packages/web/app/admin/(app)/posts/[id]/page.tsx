@@ -30,8 +30,7 @@ function formatSchedule(s: PostScheduleResult): string {
     const timeStr = s.opens_at && s.closes_at
       ? `${formatTime12h(s.opens_at)} – ${formatTime12h(s.closes_at)}`
       : s.opens_at ? formatTime12h(s.opens_at) : "";
-    const parts = [dateStr, timeStr].filter(Boolean).join("  ");
-    return s.notes ? `${parts} (${s.notes})` : parts;
+    return [dateStr, timeStr].filter(Boolean).join("  ");
   }
 
   const dayName = s.day_of_week != null ? DAY_NAMES[s.day_of_week] : "";
@@ -42,7 +41,6 @@ function formatSchedule(s: PostScheduleResult): string {
   let suffix = "";
   if (s.rrule?.includes("INTERVAL=2")) suffix = " (every other week)";
   if (s.rrule?.includes("FREQ=MONTHLY")) suffix = " (monthly)";
-  if (s.notes) suffix = ` (${s.notes})`;
 
   return [dayName, timeStr, suffix].filter(Boolean).join("  ");
 }

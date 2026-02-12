@@ -355,6 +355,7 @@ impl TestDependencies {
             db_pool,
             self.ingestor,
             self.ai,
+            None, // No Claude client in tests
             self.embedding_service,
             self.push_service,
             Arc::new(TwilioAdapter::new(twilio)),

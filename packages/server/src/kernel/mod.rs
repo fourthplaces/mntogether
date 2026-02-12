@@ -14,10 +14,14 @@ pub mod traits;
 
 // Re-export AI client types
 pub use ai_client::openai::StructuredOutput;
+pub use ai_client::Claude;
 pub use ai_client::OpenAi;
 
 /// GPT-5 Mini — cost-effective frontier model for extraction, dedup, sync, PII.
 pub const GPT_5_MINI: &str = "gpt-5-mini";
+
+/// Claude Sonnet 4.5 — best instruction-following for writer pass.
+pub const CLAUDE_SONNET: &str = "claude-sonnet-4-5-20250929";
 
 /// GPT-5 — full frontier model for highest-accuracy tasks.
 pub const GPT_5: &str = "gpt-5";

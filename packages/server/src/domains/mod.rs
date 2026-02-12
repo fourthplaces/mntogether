@@ -2,6 +2,7 @@
 pub mod agents;
 pub mod auth;
 pub mod chatrooms;
+pub mod curator;
 pub mod contacts;
 pub mod crawling;
 pub mod extraction;
@@ -9,6 +10,7 @@ pub mod heat_map;
 pub mod jobs;
 pub mod locations;
 pub mod member;
+pub mod memo;
 pub mod notes;
 pub mod organization;
 pub mod posts;

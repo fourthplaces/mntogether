@@ -22,6 +22,7 @@ pub struct Note {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub embedding: Option<pgvector::Vector>,
+    pub status: String, // 'draft' or 'active'
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -64,6 +65,46 @@ impl Note {
         .bind(is_public)
         .bind(created_by)
         .bind(cta_text)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Create a draft note (status = 'draft') for curator proposals.
+    /// Draft notes are not visible until approved.
+    pub async fn create_draft(
+        content: &str,
+        severity: &str,
+        source_url: Option<&str>,
+        source_id: Option<Uuid>,
+        source_type: Option<&str>,
+        cta_text: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO notes (content, severity, source_url, source_id, source_type, is_public, created_by, cta_text, status)
+            VALUES ($1, $2, $3, $4, $5, true, 'curator', $6, 'draft')
+            RETURNING *
+            "#,
+        )
+        .bind(content)
+        .bind(severity)
+        .bind(source_url)
+        .bind(source_id)
+        .bind(source_type)
+        .bind(cta_text)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Activate a draft note (draft → active).
+    pub async fn activate(id: NoteId, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "UPDATE notes SET status = 'active', updated_at = NOW() WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
         .fetch_one(pool)
         .await
         .map_err(Into::into)
@@ -291,6 +332,29 @@ impl Note {
         .fetch_all(pool)
         .await
         .map_err(Into::into)
+    }
+
+    /// Delete all notes linked to an organization (via noteables).
+    /// Returns the number of notes deleted.
+    pub async fn delete_all_for_organization(org_id: Uuid, pool: &PgPool) -> Result<i64> {
+        let result = sqlx::query_scalar::<_, i64>(
+            r#"
+            WITH deleted AS (
+                DELETE FROM notes
+                WHERE id IN (
+                    SELECT n.id FROM notes n
+                    INNER JOIN noteables nb ON nb.note_id = n.id
+                    WHERE nb.noteable_type = 'organization' AND nb.noteable_id = $1
+                )
+                RETURNING id
+            )
+            SELECT COUNT(*) FROM deleted
+            "#,
+        )
+        .bind(org_id)
+        .fetch_one(pool)
+        .await?;
+        Ok(result)
     }
 
     /// Find notes by source (for deduplication and refresh).

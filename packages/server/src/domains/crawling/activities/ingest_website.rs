@@ -33,6 +33,21 @@ pub async fn ingest_website(
     is_admin: bool,
     deps: &ServerDeps,
 ) -> Result<WebsiteIngested> {
+    ingest_website_with_config(website_id, visitor_id, is_admin, None, None, deps).await
+}
+
+/// Ingest a website with configurable page/depth limits.
+///
+/// When `max_pages_override` or `max_depth_override` is None, uses defaults
+/// (40 pages, website.max_crawl_depth).
+pub async fn ingest_website_with_config(
+    website_id: Uuid,
+    visitor_id: Uuid,
+    is_admin: bool,
+    max_pages_override: Option<usize>,
+    max_depth_override: Option<usize>,
+    deps: &ServerDeps,
+) -> Result<WebsiteIngested> {
     let website_id_typed = WebsiteId::from_uuid(website_id);
     let requested_by = MemberId::from_uuid(visitor_id);
     let job_id = JobId::new();
@@ -69,8 +84,8 @@ pub async fn ingest_website(
         .ok_or_else(|| anyhow::anyhow!("Extraction service not available"))?;
 
     // 5. Configure discovery
-    let max_pages = 40usize;
-    let max_depth = website.max_crawl_depth as usize;
+    let max_pages = max_pages_override.unwrap_or(40);
+    let max_depth = max_depth_override.unwrap_or(website.max_crawl_depth as usize);
 
     debug!(
         website_id = %website_id_typed,

@@ -5,6 +5,7 @@
 
 use std::sync::Arc;
 
+
 use anyhow::{Context, Result};
 use restate_sdk::prelude::*;
 use server_core::common::utils::{EmbeddingService, ExpoClient};
@@ -13,6 +14,11 @@ use server_core::domains::auth::JwtService;
 use server_core::domains::chatrooms::restate::{
     ChatObject, ChatObjectImpl, ChatsService, ChatsServiceImpl,
 };
+use server_core::domains::curator::restate::{
+    CurateOrgWorkflow, CurateOrgWorkflowImpl, RefineProposalWorkflow,
+    RefineProposalWorkflowImpl,
+};
+
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
 use server_core::domains::heat_map::restate::{HeatMapService, HeatMapServiceImpl};
@@ -37,8 +43,8 @@ use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
 };
 use server_core::domains::source::restate::{
-    CrawlSocialSourceWorkflow, CrawlSocialSourceWorkflowImpl, SourceObject, SourceObjectImpl,
-    SourcesService, SourcesServiceImpl,
+    CrawlSocialSourceWorkflow, CrawlSocialSourceWorkflowImpl, IngestSourceWorkflow,
+    IngestSourceWorkflowImpl, SourceObject, SourceObjectImpl, SourcesService, SourcesServiceImpl,
 };
 use server_core::domains::sync::restate::{SyncService, SyncServiceImpl};
 use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
@@ -47,7 +53,7 @@ use server_core::domains::website::restate::{
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
 };
 use server_core::kernel::{
-    create_extraction_service, sse::SseState, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
+    create_extraction_service, sse::SseState, Claude, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -107,6 +113,7 @@ async fn main() -> Result<()> {
         "ADMIN_IDENTIFIERS",
         "RESTATE_ADMIN_URL",
         "RESTATE_SELF_URL",
+        "ANTHROPIC_API_KEY",
         "RESTATE_AUTH_TOKEN",
     ] {
         mask_env(name);
@@ -160,8 +167,12 @@ async fn main() -> Result<()> {
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create AI client
+    // Create AI clients
     let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
+    let claude_client = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .map(|key| Arc::new(Claude::new(key, "claude-sonnet-4-5-20250929")));
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
@@ -217,6 +228,7 @@ async fn main() -> Result<()> {
         pool.clone(),
         ingestor,
         openai_client,
+        claude_client,
         Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(ExpoClient::new(expo_access_token)),
         Arc::new(TwilioAdapter::new(twilio)),
@@ -274,6 +286,9 @@ async fn main() -> Result<()> {
         // Chatrooms domain
         .bind(ChatObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ChatsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Curator domain
+        .bind(CurateOrgWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(RefineProposalWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Extraction domain
@@ -303,6 +318,7 @@ async fn main() -> Result<()> {
         .bind(SourceObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
         .bind(CrawlSocialSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(IngestSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())

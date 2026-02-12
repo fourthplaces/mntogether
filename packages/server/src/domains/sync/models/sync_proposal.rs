@@ -22,6 +22,11 @@ pub struct SyncProposal {
     pub reviewed_by: Option<Uuid>,
     pub reviewed_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
+    // Curator fields (DB column is consultant_reasoning for migration compat)
+    pub consultant_reasoning: Option<String>,
+    pub revision_count: i32,
+    pub confidence: Option<String>,
+    pub source_urls: Option<Vec<String>>,
 }
 
 impl_restate_serde!(SyncProposal);
@@ -51,6 +56,49 @@ impl SyncProposal {
         .bind(input.draft_entity_id)
         .bind(input.target_entity_id)
         .bind(&input.reason)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Create a proposal with curator-specific fields (reasoning, confidence, source URLs).
+    pub async fn create_with_curator_fields(
+        batch_id: SyncBatchId,
+        operation: &str,
+        entity_type: &str,
+        draft_entity_id: Option<Uuid>,
+        target_entity_id: Option<Uuid>,
+        reasoning: &str,
+        confidence: &str,
+        source_urls: &[String],
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO sync_proposals (batch_id, operation, entity_type, draft_entity_id, target_entity_id, reason, consultant_reasoning, confidence, source_urls)
+            VALUES ($1, $2, $3, $4, $5, $6, $6, $7, $8)
+            RETURNING *
+            "#,
+        )
+        .bind(batch_id)
+        .bind(operation)
+        .bind(entity_type)
+        .bind(draft_entity_id)
+        .bind(target_entity_id)
+        .bind(reasoning)
+        .bind(confidence)
+        .bind(source_urls)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Increment the revision count after an AI-driven revision from a comment.
+    pub async fn increment_revision(id: SyncProposalId, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "UPDATE sync_proposals SET revision_count = revision_count + 1 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
         .fetch_one(pool)
         .await
         .map_err(Into::into)

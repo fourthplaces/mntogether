@@ -1096,6 +1096,26 @@ impl Post {
         Ok(())
     }
 
+    /// Delete all posts for an organization (hard delete via post_sources → sources join).
+    /// Returns the count of deleted posts.
+    pub async fn delete_all_for_organization(organization_id: Uuid, pool: &PgPool) -> Result<i64> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM posts
+            WHERE id IN (
+                SELECT DISTINCT p.id FROM posts p
+                JOIN post_sources ps ON ps.post_id = p.id
+                JOIN sources s ON ps.source_id = s.id
+                WHERE s.organization_id = $1
+            )
+            "#,
+        )
+        .bind(organization_id)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected() as i64)
+    }
+
     /// Delete a listing by ID (hard delete - use soft_delete instead for link preservation)
     pub async fn delete(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM posts WHERE id = $1")
