@@ -79,7 +79,10 @@ pub async fn search_websites_semantic(
     limit: i32,
     deps: &ServerDeps,
 ) -> Result<Vec<crate::domains::website::models::WebsiteSearchResult>> {
-    let query_embedding = deps.ai.create_embedding(query, "text-embedding-3-small").await?;
+    let query_embedding = deps
+        .ai
+        .create_embedding(query, "text-embedding-3-small")
+        .await?;
 
     crate::domains::website::models::WebsiteAssessment::search_by_similarity(
         &query_embedding,
@@ -108,10 +111,12 @@ pub async fn get_websites_paginated(
     let pool = &deps.db_pool;
 
     // Fetch websites with cursor pagination
-    let (websites, has_more) = Website::find_paginated(status, search, organization_id, args, pool).await?;
+    let (websites, has_more) =
+        Website::find_paginated(status, search, organization_id, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Website::count_with_filters(status, search, organization_id, pool).await? as i32;
+    let total_count =
+        Website::count_with_filters(status, search, organization_id, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<WebsiteEdge> = websites

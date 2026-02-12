@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use ai_client::OpenAi;
+use anyhow::{Context, Result};
 use server_core::config::Config;
 use server_core::domains::website::models::WebsiteAssessment;
 use sqlx::PgPool;

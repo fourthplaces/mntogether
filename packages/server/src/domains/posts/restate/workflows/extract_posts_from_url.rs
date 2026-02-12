@@ -46,7 +46,9 @@ impl_restate_serde!(ExtractPostsFromUrlResult);
 
 #[restate_sdk::workflow]
 pub trait ExtractPostsFromUrlWorkflow {
-    async fn run(request: ExtractPostsFromUrlRequest) -> Result<ExtractPostsFromUrlResult, HandlerError>;
+    async fn run(
+        request: ExtractPostsFromUrlRequest,
+    ) -> Result<ExtractPostsFromUrlResult, HandlerError>;
 
     #[shared]
     async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
@@ -114,10 +116,7 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
         let posts_count = extraction.posts.len();
 
         // Step 3: Create posts — if this fails, steps 1+2 are replayed from journal
-        ctx.set(
-            "status",
-            format!("Creating {} posts...", posts_count),
-        );
+        ctx.set("status", format!("Creating {} posts...", posts_count));
 
         let created = ctx
             .run(|| async {
@@ -134,10 +133,7 @@ impl ExtractPostsFromUrlWorkflow for ExtractPostsFromUrlWorkflowImpl {
             })
             .await?;
 
-        ctx.set(
-            "status",
-            format!("Completed: {} created", created.count),
-        );
+        ctx.set("status", format!("Completed: {} created", created.count));
 
         Ok(ExtractPostsFromUrlResult {
             posts_created: created.count,

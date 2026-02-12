@@ -24,7 +24,10 @@ pub struct IngestSocialResult {
 ///
 /// This is the new social pipeline entry point. Instead of extracting posts inline,
 /// content is stored uniformly in extraction_pages for later org-level extraction.
-pub async fn ingest_social_source(source_id: Uuid, deps: &ServerDeps) -> Result<IngestSocialResult> {
+pub async fn ingest_social_source(
+    source_id: Uuid,
+    deps: &ServerDeps,
+) -> Result<IngestSocialResult> {
     let pool = &deps.db_pool;
     let source = Source::find_by_id(SourceId::from_uuid(source_id), pool)
         .await
@@ -82,7 +85,9 @@ pub async fn ingest_social_source(source_id: Uuid, deps: &ServerDeps) -> Result<
         "Social source ingested"
     );
 
-    Ok(IngestSocialResult { pages_stored: stored })
+    Ok(IngestSocialResult {
+        pages_stored: stored,
+    })
 }
 
 pub fn build_profile_url(source_type: &str, handle: &str) -> String {

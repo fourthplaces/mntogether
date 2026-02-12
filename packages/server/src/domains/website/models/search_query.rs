@@ -15,10 +15,12 @@ pub struct SearchQuery {
 
 impl SearchQuery {
     pub async fn find_all(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>("SELECT * FROM search_queries ORDER BY sort_order ASC, created_at ASC")
-            .fetch_all(pool)
-            .await
-            .map_err(Into::into)
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM search_queries ORDER BY sort_order ASC, created_at ASC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
@@ -49,7 +51,12 @@ impl SearchQuery {
         .map_err(Into::into)
     }
 
-    pub async fn update(id: Uuid, query_text: &str, sort_order: i32, pool: &PgPool) -> Result<Self> {
+    pub async fn update(
+        id: Uuid,
+        query_text: &str,
+        sort_order: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             "UPDATE search_queries SET query_text = $2, sort_order = $3 WHERE id = $1 RETURNING *",
         )

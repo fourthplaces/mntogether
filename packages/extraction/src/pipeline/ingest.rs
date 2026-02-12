@@ -567,7 +567,10 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/", "Content with enough text to pass the minimum content length filter for summarization"));
+        ingestor.add_page(RawPage::new(
+            "https://example.com/",
+            "Content with enough text to pass the minimum content length filter for summarization",
+        ));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
         let config = IngestorConfig::default();
@@ -614,7 +617,10 @@ mod tests {
         let store = MemoryStore::new();
         let ai = MockAI::new();
         let ingestor = MockIngestor::new();
-        ingestor.add_page(RawPage::new("https://example.com/", "Content with enough text to pass the minimum content length filter for summarization"));
+        ingestor.add_page(RawPage::new(
+            "https://example.com/",
+            "Content with enough text to pass the minimum content length filter for summarization",
+        ));
 
         let discover = DiscoverConfig::new("https://example.com").with_limit(10);
 

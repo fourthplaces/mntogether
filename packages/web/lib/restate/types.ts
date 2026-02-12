@@ -485,6 +485,7 @@ export interface PublicPostResult {
   tags: PublicTagResult[];
   urgent_notes?: UrgentNoteInfo[];
   distance_miles?: number;
+  organization_name?: string | null;
 }
 
 export interface PublicListResult {

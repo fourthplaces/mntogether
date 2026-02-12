@@ -4,9 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{
-    ContainerId, PostId, ProviderId, TagId, TaggableId, WebsiteId,
-};
+use crate::common::{ContainerId, PostId, ProviderId, TagId, TaggableId, WebsiteId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -111,7 +109,10 @@ impl Tag {
 
     /// Batch-load only public tags for multiple posts.
     /// Filters by tag_kinds.is_public = true.
-    pub async fn find_public_for_post_ids(post_ids: &[Uuid], pool: &PgPool) -> Result<Vec<TagWithPostId>> {
+    pub async fn find_public_for_post_ids(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<TagWithPostId>> {
         sqlx::query_as::<_, TagWithPostId>(
             r#"
             SELECT tg.taggable_id, t.*
@@ -139,19 +140,13 @@ impl Tag {
     }
 
     /// Update tag display name
-    pub async fn update_display_name(
-        id: TagId,
-        display_name: &str,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        sqlx::query_as::<_, Tag>(
-            "UPDATE tags SET display_name = $2 WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .bind(display_name)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+    pub async fn update_display_name(id: TagId, display_name: &str, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Tag>("UPDATE tags SET display_name = $2 WHERE id = $1 RETURNING *")
+            .bind(id)
+            .bind(display_name)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Update tag description
@@ -160,46 +155,32 @@ impl Tag {
         description: Option<&str>,
         pool: &PgPool,
     ) -> Result<Self> {
-        sqlx::query_as::<_, Tag>(
-            "UPDATE tags SET description = $2 WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .bind(description)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Tag>("UPDATE tags SET description = $2 WHERE id = $1 RETURNING *")
+            .bind(id)
+            .bind(description)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Update tag emoji
-    pub async fn update_emoji(
-        id: TagId,
-        emoji: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        sqlx::query_as::<_, Tag>(
-            "UPDATE tags SET emoji = $2 WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .bind(emoji)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+    pub async fn update_emoji(id: TagId, emoji: Option<&str>, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Tag>("UPDATE tags SET emoji = $2 WHERE id = $1 RETURNING *")
+            .bind(id)
+            .bind(emoji)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Update tag color
-    pub async fn update_color(
-        id: TagId,
-        color: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        sqlx::query_as::<_, Tag>(
-            "UPDATE tags SET color = $2 WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .bind(color)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+    pub async fn update_color(id: TagId, color: Option<&str>, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Tag>("UPDATE tags SET color = $2 WHERE id = $1 RETURNING *")
+            .bind(id)
+            .bind(color)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find tag by ID
@@ -469,7 +450,6 @@ impl Tag {
         .await?;
         Ok(tags)
     }
-
 }
 
 // =============================================================================

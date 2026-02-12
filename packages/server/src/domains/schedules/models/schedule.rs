@@ -205,17 +205,16 @@ impl Schedule {
             .into_iter()
             .filter(|dt| {
                 let utc_dt: DateTime<Utc> = dt.with_timezone(&Utc);
-                !exdates.iter().any(|ex| ex.date_naive() == utc_dt.date_naive())
+                !exdates
+                    .iter()
+                    .any(|ex| ex.date_naive() == utc_dt.date_naive())
             })
             .map(|d| d.with_timezone(&Utc))
             .collect()
     }
 
     /// Create a one-off event schedule (e.g. workshop on Mar 15 2-4pm)
-    pub async fn create_one_off(
-        params: &CreateOneOffSchedule<'_>,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create_one_off(params: &CreateOneOffSchedule<'_>, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
             INSERT INTO schedules (
@@ -282,7 +281,12 @@ impl Schedule {
             4 => "TH",
             5 => "FR",
             6 => "SA",
-            _ => return Err(anyhow::anyhow!("Invalid day_of_week: {}", params.day_of_week)),
+            _ => {
+                return Err(anyhow::anyhow!(
+                    "Invalid day_of_week: {}",
+                    params.day_of_week
+                ))
+            }
         };
         let rrule = format!("FREQ=WEEKLY;BYDAY={}", day_abbr);
 
@@ -384,14 +388,11 @@ fn parse_exdates(exdates: &Option<String>) -> Vec<DateTime<Utc>> {
             if trimmed.is_empty() {
                 return None;
             }
-            trimmed
-                .parse::<DateTime<Utc>>()
-                .ok()
-                .or_else(|| {
-                    chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
-                        .ok()
-                        .and_then(|d| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc()))
-                })
+            trimmed.parse::<DateTime<Utc>>().ok().or_else(|| {
+                chrono::NaiveDate::parse_from_str(trimmed, "%Y-%m-%d")
+                    .ok()
+                    .and_then(|d| d.and_hms_opt(0, 0, 0).map(|dt| dt.and_utc()))
+            })
         })
         .collect()
 }

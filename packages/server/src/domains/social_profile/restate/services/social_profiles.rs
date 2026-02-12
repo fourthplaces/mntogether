@@ -95,16 +95,13 @@ impl_restate_serde!(ScheduledScrapeResult);
 #[restate_sdk::service]
 #[name = "SocialProfiles"]
 pub trait SocialProfilesService {
-    async fn create(
-        req: CreateSocialProfileRequest,
-    ) -> Result<SocialProfileResult, HandlerError>;
+    async fn create(req: CreateSocialProfileRequest) -> Result<SocialProfileResult, HandlerError>;
     async fn list_by_organization(
         req: ListByOrganizationRequest,
     ) -> Result<SocialProfileListResult, HandlerError>;
     async fn delete(req: DeleteSocialProfileRequest) -> Result<EmptyRequest, HandlerError>;
-    async fn run_scheduled_scrape(
-        req: EmptyRequest,
-    ) -> Result<ScheduledScrapeResult, HandlerError>;
+    async fn run_scheduled_scrape(req: EmptyRequest)
+        -> Result<ScheduledScrapeResult, HandlerError>;
 }
 
 pub struct SocialProfilesServiceImpl {
@@ -153,7 +150,10 @@ impl SocialProfilesService for SocialProfilesServiceImpl {
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(SocialProfileListResult {
-            profiles: profiles.into_iter().map(SocialProfileResult::from).collect(),
+            profiles: profiles
+                .into_iter()
+                .map(SocialProfileResult::from)
+                .collect(),
         })
     }
 

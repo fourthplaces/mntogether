@@ -162,7 +162,11 @@ impl SyncBatch {
 
     /// Find stale pending/partially_reviewed batches for the same resource_type + source_id.
     /// Used by `stage_proposals` to expire old batches before creating a new one.
-    pub async fn find_stale(resource_type: &str, source_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
+    pub async fn find_stale(
+        resource_type: &str,
+        source_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             r#"
             SELECT * FROM sync_batches

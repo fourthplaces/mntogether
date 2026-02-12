@@ -23,10 +23,9 @@ impl InstagramIngestor {
 #[async_trait]
 impl Ingestor for InstagramIngestor {
     async fn discover(&self, config: &DiscoverConfig) -> CrawlResult<Vec<RawPage>> {
-        let handle = config
-            .options
-            .get("handle")
-            .ok_or_else(|| CrawlError::Http("Instagram ingestor requires 'handle' option".into()))?;
+        let handle = config.options.get("handle").ok_or_else(|| {
+            CrawlError::Http("Instagram ingestor requires 'handle' option".into())
+        })?;
         let limit = config.limit.min(50) as u32;
 
         info!(handle = %handle, limit = limit, "Scraping Instagram posts via Apify");

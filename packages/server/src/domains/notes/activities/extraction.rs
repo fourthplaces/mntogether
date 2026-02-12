@@ -140,7 +140,10 @@ fn build_extraction_content(sources: &[&SourceContent], org_name: &str) -> Strin
     let mut total = content.len();
 
     for source in sources {
-        let header = format!("### Source ({}) — {}\n\n", source.source_type, source.source_url);
+        let header = format!(
+            "### Source ({}) — {}\n\n",
+            source.source_type, source.source_url
+        );
         let entry_size = header.len() + source.content.len() + 10;
 
         if total + entry_size > MAX_CONTENT_CHARS {
@@ -171,7 +174,9 @@ async fn is_duplicate_for_org(
 ) -> Result<bool> {
     let existing = Note::find_active_for_entity("organization", org_id.into_uuid(), pool).await?;
     let normalized = content.trim().to_lowercase();
-    Ok(existing.iter().any(|n| n.content.trim().to_lowercase() == normalized))
+    Ok(existing
+        .iter()
+        .any(|n| n.content.trim().to_lowercase() == normalized))
 }
 
 /// Resolve a source URL from the extracted note or fall back to source list.
@@ -192,7 +197,11 @@ fn resolve_source_attribution<'a>(
 
     // Fall back to the first source
     match all_sources.first() {
-        Some(s) => (Some(s.source_id), Some(s.source_type.as_str()), Some(s.source_url.as_str())),
+        Some(s) => (
+            Some(s.source_id),
+            Some(s.source_type.as_str()),
+            Some(s.source_url.as_str()),
+        ),
         None => (None, None, None),
     }
 }
@@ -229,12 +238,8 @@ pub async fn extract_and_create_notes(
 
     // Snapshot model: delete old system-generated notes before creating fresh ones.
     // Manual/admin notes are preserved.
-    let deleted = Note::delete_system_notes_for_entity(
-        "organization",
-        org_id.into_uuid(),
-        pool,
-    )
-    .await?;
+    let deleted =
+        Note::delete_system_notes_for_entity("organization", org_id.into_uuid(), pool).await?;
     if deleted > 0 {
         info!(org_id = %org_id, deleted, "Deleted stale system notes");
     }
@@ -255,7 +260,11 @@ pub async fn extract_and_create_notes(
     // LLM extraction
     let extracted: ExtractedNotes = deps
         .ai
-        .extract(crate::kernel::GPT_5_MINI, NOTE_EXTRACTION_PROMPT, &user_content)
+        .extract(
+            crate::kernel::GPT_5_MINI,
+            NOTE_EXTRACTION_PROMPT,
+            &user_content,
+        )
         .await
         .map_err(|e| anyhow::anyhow!("Note extraction failed: {}", e))?;
 
@@ -281,10 +290,8 @@ pub async fn extract_and_create_notes(
         }
 
         // Resolve source attribution from LLM-provided URL or fall back
-        let (source_id, source_type, source_url) = resolve_source_attribution(
-            extracted_note.source_url.as_deref(),
-            &all_sources,
-        );
+        let (source_id, source_type, source_url) =
+            resolve_source_attribution(extracted_note.source_url.as_deref(), &all_sources);
 
         let note = Note::create(
             &extracted_note.content,
@@ -300,7 +307,11 @@ pub async fn extract_and_create_notes(
         .await?;
 
         // Generate embedding for semantic matching against posts
-        if let Ok(emb) = deps.embedding_service.generate(&extracted_note.content).await {
+        if let Ok(emb) = deps
+            .embedding_service
+            .generate(&extracted_note.content)
+            .await
+        {
             if let Err(e) = Note::update_embedding(note.id, &emb, pool).await {
                 warn!(note_id = %note.id, error = %e, "Failed to store note embedding");
             }

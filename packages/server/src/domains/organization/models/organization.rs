@@ -263,10 +263,12 @@ impl Organization {
     }
 
     pub async fn update_last_extracted(id: OrganizationId, pool: &PgPool) -> Result<()> {
-        sqlx::query("UPDATE organizations SET last_extracted_at = NOW(), updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .execute(pool)
-            .await?;
+        sqlx::query(
+            "UPDATE organizations SET last_extracted_at = NOW(), updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
         Ok(())
     }
 

@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::{optional_auth, require_admin};
 use crate::common::EmptyRequest;
 use crate::common::{MessageId, PostId, ScheduleId};
+use crate::domains::agents::models::Agent;
 use crate::domains::chatrooms::activities as chatroom_activities;
 use crate::domains::chatrooms::models::Message;
 use crate::domains::chatrooms::restate::virtual_objects::{MessageListResult, MessageResult};
@@ -19,7 +20,6 @@ use crate::domains::posts::activities;
 use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
 use crate::domains::posts::models::post_report::PostReportRecord;
-use crate::domains::agents::models::Agent;
 use crate::domains::posts::models::Post;
 use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
@@ -365,7 +365,9 @@ pub trait PostObject {
     async fn approve_revision(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn reject_revision(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn regenerate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
-    async fn update_capacity_status(req: UpdateCapacityStatusRequest) -> Result<PostResult, HandlerError>;
+    async fn update_capacity_status(
+        req: UpdateCapacityStatusRequest,
+    ) -> Result<PostResult, HandlerError>;
     async fn add_comment(req: AddCommentRequest) -> Result<MessageResult, HandlerError>;
 
     // --- Reads (shared, concurrent) ---
@@ -396,7 +398,8 @@ impl PostObjectImpl {
     }
 
     fn parse_post_id(key: &str) -> Result<Uuid, HandlerError> {
-        Uuid::parse_str(key).map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)).into())
+        Uuid::parse_str(key)
+            .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)).into())
     }
 }
 
@@ -501,11 +504,7 @@ impl PostObject for PostObjectImpl {
         Ok(PostResult::from(post))
     }
 
-    async fn delete(
-        &self,
-        ctx: ObjectContext<'_>,
-        _req: EmptyRequest,
-    ) -> Result<(), HandlerError> {
+    async fn delete(&self, ctx: ObjectContext<'_>, _req: EmptyRequest) -> Result<(), HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let post_id = Self::parse_post_id(ctx.key())?;
 
@@ -562,10 +561,14 @@ impl PostObject for PostObjectImpl {
         let post_id = Self::parse_post_id(ctx.key())?;
 
         ctx.run(|| async {
-            Post::update_status(PostId::from_uuid(post_id), "pending_approval", &self.deps.db_pool)
-                .await
-                .map(|_| ())
-                .map_err(Into::into)
+            Post::update_status(
+                PostId::from_uuid(post_id),
+                "pending_approval",
+                &self.deps.db_pool,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
         })
         .await?;
 
@@ -988,7 +991,10 @@ impl PostObject for PostObjectImpl {
         let urgent_rows = Note::find_urgent_note_content_for_posts(&[post_id], &self.deps.db_pool)
             .await
             .unwrap_or_default();
-        let urgent_note_texts: Vec<UrgentNoteInfo> = urgent_rows.into_iter().map(|(_, content, cta_text)| UrgentNoteInfo { content, cta_text }).collect();
+        let urgent_note_texts: Vec<UrgentNoteInfo> = urgent_rows
+            .into_iter()
+            .map(|(_, content, cta_text)| UrgentNoteInfo { content, cta_text })
+            .collect();
 
         let mut result = PostResult::from(post);
         if let Some((org_id, org_name)) = org_row {
@@ -996,7 +1002,11 @@ impl PostObject for PostObjectImpl {
             result.organization_name = Some(org_name);
         }
         result.has_urgent_notes = Some(!urgent_note_texts.is_empty());
-        result.urgent_notes = if urgent_note_texts.is_empty() { None } else { Some(urgent_note_texts) };
+        result.urgent_notes = if urgent_note_texts.is_empty() {
+            None
+        } else {
+            Some(urgent_note_texts)
+        };
         result.submitted_by = submitted_by;
         result.tags = Some(
             tags.into_iter()
@@ -1287,16 +1297,13 @@ impl PostObject for PostObjectImpl {
         let container_id = match post.get_comments_container_id() {
             Some(id) => id,
             None => {
-                return Ok(MessageListResult {
-                    messages: vec![],
-                });
+                return Ok(MessageListResult { messages: vec![] });
             }
         };
 
-        let messages =
-            Message::find_approved_by_container(container_id, &self.deps.db_pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let messages = Message::find_approved_by_container(container_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(MessageListResult {
             messages: messages.into_iter().map(MessageResult::from).collect(),

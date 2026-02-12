@@ -6,7 +6,9 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{MemberId, OrganizationId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId};
+use crate::common::{
+    MemberId, OrganizationId, PaginationDirection, Readable, ValidatedPaginationArgs, WebsiteId,
+};
 
 /// Builder for creating a new Website
 #[derive(TypedBuilder)]
@@ -131,28 +133,24 @@ impl Website {
 
     /// Find all active websites
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
-        let q = Self::base_query("WHERE s.active = true AND s.status = 'approved' ORDER BY s.created_at");
-        let websites = sqlx::query_as::<_, Website>(&q)
-            .fetch_all(pool)
-            .await?;
+        let q = Self::base_query(
+            "WHERE s.active = true AND s.status = 'approved' ORDER BY s.created_at",
+        );
+        let websites = sqlx::query_as::<_, Website>(&q).fetch_all(pool).await?;
         Ok(websites)
     }
 
     /// Find all approved websites (ready for crawling)
     pub async fn find_approved(pool: &PgPool) -> Result<Vec<Self>> {
         let q = Self::base_query("WHERE s.status = 'approved' ORDER BY s.created_at");
-        let websites = sqlx::query_as::<_, Website>(&q)
-            .fetch_all(pool)
-            .await?;
+        let websites = sqlx::query_as::<_, Website>(&q).fetch_all(pool).await?;
         Ok(websites)
     }
 
     /// Find websites pending review
     pub async fn find_pending_review(pool: &PgPool) -> Result<Vec<Self>> {
         let q = Self::base_query("WHERE s.status = 'pending_review' ORDER BY s.created_at DESC");
-        let websites = sqlx::query_as::<_, Website>(&q)
-            .fetch_all(pool)
-            .await?;
+        let websites = sqlx::query_as::<_, Website>(&q).fetch_all(pool).await?;
         Ok(websites)
     }
 
@@ -165,9 +163,7 @@ impl Website {
                    OR s.last_scraped_at < NOW() - (s.scrape_frequency_hours || ' hours')::INTERVAL)
             ORDER BY s.last_scraped_at NULLS FIRST"#,
         );
-        let websites = sqlx::query_as::<_, Website>(&q)
-            .fetch_all(pool)
-            .await?;
+        let websites = sqlx::query_as::<_, Website>(&q).fetch_all(pool).await?;
         Ok(websites)
     }
 

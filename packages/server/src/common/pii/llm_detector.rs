@@ -3,9 +3,9 @@
 //! Uses the OpenAIClient for context-aware PII detection that can
 //! catch unstructured PII like names and addresses that regex misses.
 
-use anyhow::Result;
-use ai_client::OpenAi;
 use crate::kernel::GPT_5_MINI;
+use ai_client::OpenAi;
+use anyhow::Result;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 

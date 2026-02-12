@@ -1,12 +1,12 @@
-use crate::common::PostId;
-use uuid::Uuid;
 use crate::common::utils::generate_summary;
-use crate::domains::posts::activities::tag_post_from_extracted;
+use crate::common::PostId;
 use crate::domains::contacts::Contact;
+use crate::domains::posts::activities::tag_post_from_extracted;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use anyhow::Result;
 use sqlx::PgPool;
 use std::collections::HashMap;
+use uuid::Uuid;
 
 /// Valid urgency values per database constraint
 const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
@@ -82,7 +82,8 @@ pub async fn sync_posts(
 
     for post_input in extracted_posts {
         // Check for exact title match
-        let existing = Post::find_by_source_and_title(source_type, source_id, &post_input.title, pool).await?;
+        let existing =
+            Post::find_by_source_and_title(source_type, source_id, &post_input.title, pool).await?;
 
         if let Some(existing_post) = existing {
             // Post exists by title - check if content changed
@@ -152,9 +153,14 @@ pub async fn sync_posts(
                     // Link to source via post_sources
                     use crate::domains::posts::models::PostSource;
                     if let Err(e) = PostSource::create(
-                        created.id, source_type, source_id,
-                        post_input.source_url.as_deref(), pool,
-                    ).await {
+                        created.id,
+                        source_type,
+                        source_id,
+                        post_input.source_url.as_deref(),
+                        pool,
+                    )
+                    .await
+                    {
                         tracing::warn!(
                             post_id = %created.id,
                             error = %e,
@@ -303,7 +309,10 @@ mod tests {
     #[test]
     fn test_extracted_post_input_with_tags() {
         let mut tags = HashMap::new();
-        tags.insert("audience_role".to_string(), vec!["volunteer".to_string(), "donor".to_string()]);
+        tags.insert(
+            "audience_role".to_string(),
+            vec!["volunteer".to_string(), "donor".to_string()],
+        );
 
         let input = ExtractedPostInput {
             title: "Volunteer Opportunity".to_string(),

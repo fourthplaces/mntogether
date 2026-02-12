@@ -14,21 +14,24 @@ use server_core::domains::chatrooms::restate::{
     ChatObject, ChatObjectImpl, ChatsService, ChatsServiceImpl,
 };
 use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
-use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
 use server_core::domains::heat_map::restate::{HeatMapService, HeatMapServiceImpl};
-use server_core::domains::organization::restate::{
-    CleanUpOrgPostsWorkflow, CleanUpOrgPostsWorkflowImpl, ExtractOrgPostsWorkflow,
-    ExtractOrgPostsWorkflowImpl, OrganizationsService, OrganizationsServiceImpl,
-};
-use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
+use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
     RegisterMemberWorkflowImpl,
 };
+use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
+use server_core::domains::organization::restate::{
+    CleanUpOrgPostsWorkflow, CleanUpOrgPostsWorkflowImpl, ExtractOrgPostsWorkflow,
+    ExtractOrgPostsWorkflowImpl, OrganizationsService, OrganizationsServiceImpl,
+};
 use server_core::domains::posts::restate::{
     DeduplicatePostsWorkflow, DeduplicatePostsWorkflowImpl, ExtractPostsFromUrlWorkflow,
     ExtractPostsFromUrlWorkflowImpl, PostObject, PostObjectImpl, PostsService, PostsServiceImpl,
+};
+use server_core::domains::providers::restate::{
+    ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
 };
 use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
@@ -36,9 +39,6 @@ use server_core::domains::social_profile::restate::{
 use server_core::domains::source::restate::{
     CrawlSocialSourceWorkflow, CrawlSocialSourceWorkflowImpl, SourceObject, SourceObjectImpl,
     SourcesService, SourcesServiceImpl,
-};
-use server_core::domains::providers::restate::{
-    ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
 };
 use server_core::domains::sync::restate::{SyncService, SyncServiceImpl};
 use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
@@ -79,18 +79,35 @@ async fn main() -> Result<()> {
             Ok(val) if val.is_empty() => tracing::info!("  {}: (empty)", name),
             Ok(val) => {
                 let show = std::cmp::min(4, val.len());
-                tracing::info!("  {}: {}{}  ({} chars)", name, &val[..show], "*".repeat(val.len().saturating_sub(show)), val.len());
+                tracing::info!(
+                    "  {}: {}{}  ({} chars)",
+                    name,
+                    &val[..show],
+                    "*".repeat(val.len().saturating_sub(show)),
+                    val.len()
+                );
             }
             Err(_) => tracing::warn!("  {}: NOT SET", name),
         }
     }
     tracing::info!("Environment variables:");
     for name in &[
-        "DATABASE_URL", "OPENAI_API_KEY", "TAVILY_API_KEY", "FIRECRAWL_API_KEY",
-        "EXPO_ACCESS_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
-        "TWILIO_VERIFY_SERVICE_SID", "JWT_SECRET", "JWT_ISSUER",
-        "SERVER_PORT", "SSE_SERVER_PORT", "ADMIN_IDENTIFIERS",
-        "RESTATE_ADMIN_URL", "RESTATE_SELF_URL", "RESTATE_AUTH_TOKEN",
+        "DATABASE_URL",
+        "OPENAI_API_KEY",
+        "TAVILY_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "EXPO_ACCESS_TOKEN",
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_VERIFY_SERVICE_SID",
+        "JWT_SECRET",
+        "JWT_ISSUER",
+        "SERVER_PORT",
+        "SSE_SERVER_PORT",
+        "ADMIN_IDENTIFIERS",
+        "RESTATE_ADMIN_URL",
+        "RESTATE_SELF_URL",
+        "RESTATE_AUTH_TOKEN",
     ] {
         mask_env(name);
     }
@@ -315,12 +332,13 @@ async fn main() -> Result<()> {
                 "Auto-registering with Restate"
             );
             let client = reqwest::Client::new();
-            let mut request = client
-                .post(format!("{}/deployments", admin_url))
-                .json(&serde_json::json!({
-                    "uri": self_url,
-                    "force": true
-                }));
+            let mut request =
+                client
+                    .post(format!("{}/deployments", admin_url))
+                    .json(&serde_json::json!({
+                        "uri": self_url,
+                        "force": true
+                    }));
             if let Some(token) = &auth_token {
                 request = request.bearer_auth(token);
             }

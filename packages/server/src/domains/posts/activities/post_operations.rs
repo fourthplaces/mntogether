@@ -3,17 +3,17 @@
 // These functions contain the business logic for listing CRUD operations,
 // separated from the thin Effect orchestrator.
 
-use anyhow::{Context, Result};
 use ai_client::OpenAi;
+use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::{MemberId, PostId};
-use uuid::Uuid;
 use crate::common::utils::generate_summary;
+use crate::common::{MemberId, PostId};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
+use uuid::Uuid;
 
 /// Input for updating and approving a post
 #[derive(Debug, Clone, TypedBuilder)]

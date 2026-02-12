@@ -94,11 +94,10 @@ impl HeatMapPoint {
 
     /// When was the last snapshot generated?
     pub async fn latest_generated_at(pool: &PgPool) -> Result<Option<DateTime<Utc>>> {
-        let row = sqlx::query_as::<_, (DateTime<Utc>,)>(
-            "SELECT MAX(generated_at) FROM heat_map_points",
-        )
-        .fetch_optional(pool)
-        .await?;
+        let row =
+            sqlx::query_as::<_, (DateTime<Utc>,)>("SELECT MAX(generated_at) FROM heat_map_points")
+                .fetch_optional(pool)
+                .await?;
         Ok(row.map(|(ts,)| ts))
     }
 }

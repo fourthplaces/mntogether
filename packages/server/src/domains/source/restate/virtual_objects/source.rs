@@ -144,18 +144,12 @@ pub trait SourceObject {
     async fn assign_organization(
         req: AssignOrganizationRequest,
     ) -> Result<SourceObjectResult, HandlerError>;
-    async fn unassign_organization(
-        req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError>;
+    async fn unassign_organization(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
     async fn generate_assessment(
         req: EmptyRequest,
     ) -> Result<GenerateAssessmentResult, HandlerError>;
-    async fn regenerate_posts(
-        req: EmptyRequest,
-    ) -> Result<RegeneratePostsResult, HandlerError>;
-    async fn deduplicate_posts(
-        req: EmptyRequest,
-    ) -> Result<DeduplicatePostsResult, HandlerError>;
+    async fn regenerate_posts(req: EmptyRequest) -> Result<RegeneratePostsResult, HandlerError>;
+    async fn deduplicate_posts(req: EmptyRequest) -> Result<DeduplicatePostsResult, HandlerError>;
     async fn extract_organization(
         req: EmptyRequest,
     ) -> Result<ExtractOrganizationResult, HandlerError>;
@@ -187,7 +181,10 @@ impl SourceObjectImpl {
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)).into())
     }
 
-    async fn build_result(source: Source, pool: &sqlx::PgPool) -> Result<SourceObjectResult, HandlerError> {
+    async fn build_result(
+        source: Source,
+        pool: &sqlx::PgPool,
+    ) -> Result<SourceObjectResult, HandlerError> {
         let identifier = get_source_identifier(source.id, pool)
             .await
             .unwrap_or_else(|_| "unknown".to_string());
@@ -317,12 +314,10 @@ impl SourceObject for SourceObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
-        let source = Source::unset_organization_id(
-            SourceId::from_uuid(source_id),
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let source =
+            Source::unset_organization_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Self::build_result(source, &self.deps.db_pool).await
     }
@@ -336,17 +331,17 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Self::parse_source_id(ctx.key())?;
 
         // Only websites have assessments
-        let _ws = WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|_| TerminalError::new("Assessments are only available for website sources"))?;
+        let _ws =
+            WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|_| {
+                    TerminalError::new("Assessments are only available for website sources")
+                })?;
 
-        let result = activities::approval::assess_website(
-            source_id,
-            user.member_id.into_uuid(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let result =
+            activities::approval::assess_website(source_id, user.member_id.into_uuid(), &self.deps)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         if result.status == "completed" {
             Ok(GenerateAssessmentResult {
@@ -441,9 +436,14 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Self::parse_source_id(ctx.key())?;
 
         // Only websites support org extraction
-        let _ws = WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|_| TerminalError::new("Organization extraction is only available for website sources"))?;
+        let _ws =
+            WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|_| {
+                    TerminalError::new(
+                        "Organization extraction is only available for website sources",
+                    )
+                })?;
 
         match crate::domains::crawling::activities::extract_and_create_organization(
             WebsiteId::from_uuid(source_id),
@@ -455,9 +455,9 @@ impl SourceObject for SourceObjectImpl {
                 organization_id: Some(org_id.into_uuid().to_string()),
                 status: "completed".to_string(),
             }),
-            Err(e) => Err(
-                TerminalError::new(format!("Organization extraction failed: {}", e)).into(),
-            ),
+            Err(e) => {
+                Err(TerminalError::new(format!("Organization extraction failed: {}", e)).into())
+            }
         }
     }
 
@@ -486,12 +486,10 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)))?;
 
-        let assessment = WebsiteAssessment::find_latest_by_website_id(
-            source_id,
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let assessment =
+            WebsiteAssessment::find_latest_by_website_id(source_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(OptionalAssessmentResult {
             assessment: assessment.map(|a| AssessmentResult {

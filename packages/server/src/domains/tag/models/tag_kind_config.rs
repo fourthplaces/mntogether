@@ -170,10 +170,7 @@ async fn build_tag_instructions_from_kinds(
         }
 
         let values: Vec<&str> = tags.iter().map(|t| t.value.as_str()).collect();
-        let description = kind
-            .description
-            .as_deref()
-            .unwrap_or(&kind.display_name);
+        let description = kind.description.as_deref().unwrap_or(&kind.display_name);
         let required_marker = if kind.required { " (required)" } else { "" };
 
         lines.push(format!(

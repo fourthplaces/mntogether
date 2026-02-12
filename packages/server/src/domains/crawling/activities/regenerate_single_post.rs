@@ -8,9 +8,9 @@ use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::PostId;
+use crate::domains::contacts::Contact;
 use crate::domains::extraction::data::ExtractionPageData;
 use crate::domains::posts::activities::create_post::{save_contact_info, tag_post_from_extracted};
-use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::tag::models::Taggable;
 use crate::domains::website::models::Website;

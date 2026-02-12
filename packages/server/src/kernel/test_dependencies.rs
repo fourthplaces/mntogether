@@ -2,9 +2,9 @@
 //
 // Provides mock services that can be injected into ServerDeps for tests.
 
+use ai_client::OpenAi;
 use anyhow::Result;
 use async_trait::async_trait;
-use ai_client::OpenAi;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
@@ -363,7 +363,7 @@ impl TestDependencies {
             None, // No extraction service in tests
             jwt_service,
             StreamHub::new(),
-            None, // No Apify client in tests
+            None,   // No Apify client in tests
             true,   // test_identifier_enabled
             vec![], // admin_identifiers
         )

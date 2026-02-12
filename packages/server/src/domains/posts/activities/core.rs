@@ -8,10 +8,10 @@ use anyhow::Result;
 use tracing::info;
 use uuid::Uuid;
 
+use super::post_operations::{self, UpdateAndApprovePost};
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{MemberId, PostId};
 use crate::domains::posts::data::{EditPostInput, SubmitPostInput};
-use super::post_operations::{self, UpdateAndApprovePost};
 use crate::kernel::ServerDeps;
 
 /// Submit a post from user input (public, goes to pending_approval)
@@ -295,15 +295,8 @@ pub async fn get_posts_near_zip(
             )
         })?;
 
-    let (results, has_more) = Post::find_paginated_near_zip(
-        zip_code,
-        radius_miles,
-        filters,
-        limit,
-        offset,
-        pool,
-    )
-    .await?;
+    let (results, has_more) =
+        Post::find_paginated_near_zip(zip_code, radius_miles, filters, limit, offset, pool).await?;
 
     let total_count = results.first().map(|r| r.total_count as i32).unwrap_or(0);
 

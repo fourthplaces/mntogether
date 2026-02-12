@@ -1,6 +1,5 @@
 mod builder;
 mod capability;
-pub mod restate_auth;
 /// Authorization module for MN Digital Aid
 ///
 /// Provides a fluent API for authorization checks in effect code:
@@ -21,6 +20,7 @@ pub mod restate_auth;
 /// This pattern keeps authorization logic in the effect layer where it belongs,
 /// not in the API handler layer.
 mod errors;
+pub mod restate_auth;
 
 pub use builder::{Actor, CapabilityBuilder, HasAuthContext};
 pub use capability::AdminCapability;

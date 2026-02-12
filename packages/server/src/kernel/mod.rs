@@ -13,8 +13,8 @@ pub mod test_dependencies;
 pub mod traits;
 
 // Re-export AI client types
-pub use ai_client::OpenAi;
 pub use ai_client::openai::StructuredOutput;
+pub use ai_client::OpenAi;
 
 /// GPT-5 Mini — cost-effective frontier model for extraction, dedup, sync, PII.
 pub const GPT_5_MINI: &str = "gpt-5-mini";

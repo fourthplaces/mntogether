@@ -3,10 +3,10 @@
 //! This module provides the central dependency container used by all domain effects.
 //! All external services use trait abstractions to enable testing.
 
+use ai_client::OpenAi;
 use anyhow::Result;
 use apify_client::ApifyClient;
 use async_trait::async_trait;
-use ai_client::OpenAi;
 use sqlx::PgPool;
 use std::sync::Arc;
 use twilio::TwilioService;

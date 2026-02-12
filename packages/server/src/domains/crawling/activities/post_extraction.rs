@@ -7,10 +7,10 @@
 //! This approach handles large content by batching, deduplicates across batches,
 //! then enriches the unique posts with contact information.
 
+use ai_client::{Agent, OpenAi, PromptBuilder};
 use anyhow::Result;
 use extraction::types::page::CachedPage;
 use futures::future::join_all;
-use ai_client::{Agent, OpenAi, PromptBuilder};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info, warn};
@@ -189,9 +189,13 @@ Write like a neighbor telling another neighbor how they can help — not a nonpr
 ## Splitting Posts
 
 Create separate posts for:
-- Different audience types (participant vs volunteer vs donor)
 - Different events (a rally on Saturday vs a workshop on Tuesday)
-- Different programs (rapid response training vs accompaniment signup)"#;
+- Different programs (rapid response training vs accompaniment signup)
+- A service with distinct roles: one post for people who NEED help (participant) and one for people who GIVE help (volunteer)
+
+Do NOT split when:
+- The same event serves both donor and participant roles (e.g., a fundraiser dinner, a benefit concert, a tattoo flash event where attending IS donating — this is ONE post, not two)
+- The same action serves multiple purposes (e.g., "drop off supplies" is one post even if it helps families AND gives the donor a way to contribute)"#;
 
 /// Pass 1: Extract narrative posts (title + summary + comprehensive description)
 async fn extract_narrative_posts(
@@ -257,7 +261,9 @@ The input descriptions contain rich markdown formatting. You MUST preserve this 
 
 Do NOT strip formatting or convert to plain text. The output descriptions should be as well-formatted as the inputs.
 
-Be aggressive about merging duplicates, but never merge posts that serve different audiences (participant vs volunteer vs donor) or different services."#;
+Be aggressive about merging duplicates. Merge posts that describe the same event or opportunity even if worded for different audiences. Only keep posts separate when they describe genuinely different services or programs — not the same event described from different angles.
+
+For example: "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" are the SAME fundraiser event — merge them. But "Volunteer at the Food Shelf" and "Get Food at the Food Shelf" are different because they serve different roles — keep them separate."#;
 
 /// Deduplicate and merge posts using LLM.
 async fn dedupe_and_merge_posts(
@@ -405,7 +411,10 @@ pub async fn investigate_post(
     let agent = (*deps.ai)
         .clone()
         .tool(WebSearchTool::new(deps.web_searcher.clone()))
-        .tool(FetchPageTool::new(deps.ingestor.clone(), deps.db_pool.clone()));
+        .tool(FetchPageTool::new(
+            deps.ingestor.clone(),
+            deps.db_pool.clone(),
+        ));
 
     let findings = agent
         .prompt(&user_message)
@@ -439,7 +448,8 @@ pub async fn investigate_post(
     );
 
     let extraction_prompt = build_extraction_prompt(tag_instructions);
-    let result = deps.ai
+    let result = deps
+        .ai
         .extract::<ExtractedPostInformation>(GPT_5_MINI, &extraction_prompt, &extraction_input)
         .await
         .map_err(|e| anyhow::anyhow!("Structured extraction failed: {}", e))?;

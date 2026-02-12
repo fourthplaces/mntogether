@@ -209,9 +209,7 @@ impl_restate_serde!(EntityProposalListResult);
 pub trait SyncService {
     async fn list_batches(req: ListBatchesRequest) -> Result<BatchListResult, HandlerError>;
     async fn get_batch(req: GetBatchRequest) -> Result<BatchResult, HandlerError>;
-    async fn list_proposals(
-        req: ListProposalsRequest,
-    ) -> Result<ProposalListResult, HandlerError>;
+    async fn list_proposals(req: ListProposalsRequest) -> Result<ProposalListResult, HandlerError>;
     async fn list_entity_proposals(
         req: ListEntityProposalsRequest,
     ) -> Result<EntityProposalListResult, HandlerError>;
@@ -253,7 +251,9 @@ impl SyncService for SyncServiceImpl {
         for b in &batches {
             if let Some(source_id) = b.source_id {
                 if !source_name_map.contains_key(&source_id) {
-                    if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
+                    if let Ok(website) =
+                        Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await
+                    {
                         source_name_map.insert(source_id, website.domain);
                     } else if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
                         source_name_map.insert(source_id, agent.display_name);
@@ -309,10 +309,9 @@ impl SyncService for SyncServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let pool = &self.deps.db_pool;
 
-        let proposals =
-            SyncProposal::find_by_batch(SyncBatchId::from_uuid(req.batch_id), pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let proposals = SyncProposal::find_by_batch(SyncBatchId::from_uuid(req.batch_id), pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Collect all entity IDs we need titles for
         let mut entity_ids: Vec<Uuid> = Vec::new();
@@ -388,7 +387,9 @@ impl SyncService for SyncServiceImpl {
                         reviewed_at: p.reviewed_at.map(|t| t.to_rfc3339()),
                         created_at: p.created_at.to_rfc3339(),
                         draft_title: p.draft_entity_id.and_then(|id| title_map.get(&id).cloned()),
-                        target_title: p.target_entity_id.and_then(|id| title_map.get(&id).cloned()),
+                        target_title: p
+                            .target_entity_id
+                            .and_then(|id| title_map.get(&id).cloned()),
                         merge_source_ids: merge_ids,
                         merge_source_titles: merge_titles,
                         relevance_score,
@@ -497,12 +498,18 @@ impl SyncService for SyncServiceImpl {
             .await?;
 
         let source_name = if let Some(source_id) = batch.source_id {
-            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
+            if let Ok(website) =
+                Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await
+            {
                 Some(website.domain)
             } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
                 Some(agent.display_name)
-            } else { None }
-        } else { None };
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         Ok(BatchResult::from_model(batch, source_name))
     }
 
@@ -528,12 +535,18 @@ impl SyncService for SyncServiceImpl {
             .await?;
 
         let source_name = if let Some(source_id) = batch.source_id {
-            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
+            if let Ok(website) =
+                Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await
+            {
                 Some(website.domain)
             } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
                 Some(agent.display_name)
-            } else { None }
-        } else { None };
+            } else {
+                None
+            }
+        } else {
+            None
+        };
         Ok(BatchResult::from_model(batch, source_name))
     }
 }
