@@ -365,6 +365,7 @@ pub trait PostObject {
     async fn approve_revision(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn reject_revision(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn regenerate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn regenerate_tags(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn update_capacity_status(
         req: UpdateCapacityStatusRequest,
     ) -> Result<PostResult, HandlerError>;
@@ -1198,6 +1199,30 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found after regenerate"))?;
+
+        Ok(PostResult::from(post))
+    }
+
+    async fn regenerate_tags(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        ctx.run(|| async {
+            activities::tags::regenerate_post_tags(post_id, &self.deps)
+                .await
+                .map(|_| ())
+                .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after regenerate_tags"))?;
 
         Ok(PostResult::from(post))
     }

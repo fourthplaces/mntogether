@@ -221,7 +221,7 @@ impl Tag {
         value: &str,
         pool: &PgPool,
     ) -> Result<Option<Self>> {
-        let tag = sqlx::query_as::<_, Tag>("SELECT * FROM tags WHERE kind = $1 AND value = $2")
+        let tag = sqlx::query_as::<_, Tag>("SELECT * FROM tags WHERE LOWER(kind) = LOWER($1) AND LOWER(value) = LOWER($2)")
             .bind(kind)
             .bind(value)
             .fetch_optional(pool)

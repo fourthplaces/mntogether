@@ -180,6 +180,20 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleRegenerateTags = async () => {
+    setActionInProgress("regenerate_tags");
+    setMenuOpen(false);
+    try {
+      await callObject("Post", postId, "regenerate_tags", {});
+      invalidateObject("Post", postId);
+      refetch();
+    } catch (err) {
+      console.error("Failed to regenerate tags:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   const handleArchive = async () => {
     setActionInProgress("archive");
     setMenuOpen(false);
@@ -391,6 +405,13 @@ export default function PostDetailPage() {
                       className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
                     >
                       Edit Tags
+                    </button>
+                    <button
+                      onClick={handleRegenerateTags}
+                      disabled={actionInProgress !== null}
+                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      {actionInProgress === "regenerate_tags" ? "Regenerating..." : "Regenerate Tags"}
                     </button>
                     <button
                       onClick={handleRegenerate}
