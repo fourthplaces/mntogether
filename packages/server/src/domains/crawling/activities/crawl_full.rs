@@ -4,9 +4,8 @@
 
 use anyhow::Result;
 use tracing::{info, warn};
-use uuid::Uuid;
 
-use crate::common::WebsiteId;
+use crate::common::{MemberId, WebsiteId};
 use crate::domains::crawling::restate::CrawlWebsiteResult;
 use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
@@ -14,22 +13,23 @@ use crate::kernel::ServerDeps;
 /// Crawl a website end-to-end: ingest → extract → investigate → sync
 ///
 /// This is a high-level orchestration activity that performs all crawl steps.
+/// Authorization is checked at the workflow layer via require_admin.
 /// Returns simple result data for the workflow.
 pub async fn crawl_website_full(
     website_id: WebsiteId,
-    visitor_id: Uuid,
+    requested_by: MemberId,
     deps: &ServerDeps,
 ) -> Result<CrawlWebsiteResult> {
     info!(
         website_id = %website_id,
-        visitor_id = %visitor_id,
+        requested_by = %requested_by,
         "Starting full website crawl"
     );
 
     // Step 1: Ingest website pages
     let ingest_result = super::ingest_website(
         website_id.into_uuid(),
-        visitor_id,
+        requested_by.into_uuid(),
         true, // Authorization checked at workflow layer
         deps,
     )

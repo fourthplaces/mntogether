@@ -142,7 +142,6 @@ export default function SourceDetailPage() {
       if (isWebsite) {
         await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
           website_id: sourceId,
-          visitor_id: "00000000-0000-0000-0000-000000000000",
         });
       } else {
         await callObject("CrawlSocialSourceWorkflow", workflowId, "run", {

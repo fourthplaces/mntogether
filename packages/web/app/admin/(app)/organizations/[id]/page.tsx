@@ -245,7 +245,6 @@ export default function OrganizationDetailPage() {
           if (source.source_type === "website") {
             return callObject("CrawlWebsiteWorkflow", workflowId, "run", {
               website_id: source.id,
-              visitor_id: "00000000-0000-0000-0000-000000000000",
             });
           } else {
             return callObject("CrawlSocialSourceWorkflow", workflowId, "run", {
