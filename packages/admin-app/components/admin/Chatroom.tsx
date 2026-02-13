@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { callService, useRestate, useRestateObject } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { useChatStream } from "@/lib/hooks/useChatStream";
-import type { ChatMessage, ChatroomResult } from "@/lib/restate/types";
+import {
+  RecentChatsQuery,
+  ChatMessagesQuery,
+  CreateChatMutation,
+  SendChatMessageMutation,
+} from "@/lib/graphql/chat";
 
 interface ChatroomProps {
   isOpen: boolean;
@@ -21,18 +26,24 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch recent chats to restore session
-  const { data: recentChatsData, isLoading: loadingRecent } = useRestate<{ chats: ChatroomResult[] }>(
-    "Chats", "list_recent", { limit: 1 },
-    { revalidateOnFocus: false }
-  );
-  const recentChats = recentChatsData?.chats;
+  const [{ data: recentChatsData, fetching: loadingRecent }] = useQuery({
+    query: RecentChatsQuery,
+    variables: { limit: 1 },
+    pause: !isOpen,
+  });
+  const recentChats = recentChatsData?.recentChats;
 
-  // Fetch messages when container is selected (no polling — streaming replaces it)
-  const { data: messagesData, mutate: refetchMessages } = useRestateObject<{ messages: ChatMessage[] }>(
-    "Chat", containerId, "get_messages", {},
-    { revalidateOnFocus: false }
-  );
-  const messages = messagesData?.messages;
+  // Fetch messages when container is selected
+  const [{ data: messagesData }, reexecuteMessages] = useQuery({
+    query: ChatMessagesQuery,
+    variables: { chatroomId: containerId! },
+    pause: !containerId,
+  });
+  const messages = messagesData?.chatMessages;
+
+  const refetchMessages = useCallback(() => {
+    reexecuteMessages({ requestPolicy: "network-only" });
+  }, [reexecuteMessages]);
 
   // SSE connection — notifies when assistant reply is ready
   useChatStream(containerId, {
@@ -43,23 +54,26 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
     onLagged: () => refetchMessages(),
   });
 
+  const [, executeCreateChat] = useMutation(CreateChatMutation);
+  const [, executeSendMessage] = useMutation(SendChatMessageMutation);
+
   // Start new chat with agent
   const handleStartNewChat = useCallback(async () => {
     setIsCreating(true);
     try {
-      const data = await callService<ChatroomResult>("Chats", "create", {
-        language: "en",
-        with_agent: withAgent || undefined,
-      });
-      if (data?.id) {
-        setContainerId(data.id);
+      const result = await executeCreateChat(
+        { language: "en", withAgent: withAgent || undefined },
+        { additionalTypenames: ["ChatroomInfo"] }
+      );
+      if (result.data?.createChat?.id) {
+        setContainerId(result.data.createChat.id);
       }
     } catch (error) {
       console.error("Failed to create chat:", error);
     } finally {
       setIsCreating(false);
     }
-  }, [withAgent]);
+  }, [withAgent, executeCreateChat]);
 
   // Restore last chat session or auto-start new one when panel opens
   useEffect(() => {
@@ -96,10 +110,10 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
     setIsSending(true);
 
     try {
-      await callService<ChatMessage>("Chat", "send_message", {
-        chatroom_id: containerId,
-        content: messageContent,
-      });
+      await executeSendMessage(
+        { chatroomId: containerId, content: messageContent },
+        { additionalTypenames: ["ChatMessage"] }
+      );
       setIsWaitingForReply(true);
       refetchMessages();
     } catch (error) {
@@ -173,11 +187,11 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
             {messageList.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${message.sender_type === "user" ? "justify-end" : "justify-start"}`}
+                className={`flex ${message.senderType === "user" ? "justify-end" : "justify-start"}`}
               >
                 <div
                   className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                    message.sender_type === "user"
+                    message.senderType === "user"
                       ? "bg-amber-500 text-white"
                       : "bg-stone-100 text-stone-900"
                   }`}
@@ -185,10 +199,10 @@ export function Chatroom({ isOpen, onClose, withAgent = "admin" }: ChatroomProps
                   <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                   <p
                     className={`text-xs mt-1 ${
-                      message.sender_type === "user" ? "text-amber-200" : "text-stone-400"
+                      message.senderType === "user" ? "text-amber-200" : "text-stone-400"
                     }`}
                   >
-                    {formatTime(message.created_at)}
+                    {formatTime(message.createdAt)}
                   </p>
                 </div>
               </div>
