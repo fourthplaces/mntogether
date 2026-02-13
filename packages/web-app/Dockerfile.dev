@@ -6,9 +6,14 @@ WORKDIR /app
 # Install dependencies globally for faster startup
 RUN corepack enable && corepack prepare yarn@4.1.0 --activate
 
-# Copy package files
+# Copy workspace root files
 COPY package.json yarn.lock .yarnrc.yml ./
-COPY .yarn ./.yarn
+
+# Copy shared package
+COPY packages/shared ./packages/shared
+
+# Copy app package
+COPY packages/web-app/package.json ./packages/web-app/
 
 # Install dependencies
 RUN yarn install
@@ -21,6 +26,8 @@ ENV NODE_ENV=development
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3001
 ENV HOSTNAME="0.0.0.0"
+
+WORKDIR /app/packages/web-app
 
 # Start dev server with hot-reload
 CMD ["yarn", "dev"]
