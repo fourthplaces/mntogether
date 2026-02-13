@@ -154,8 +154,8 @@ services:
   # ========================================
   admin-app:
     build:
-      context: ./packages/admin-app
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: packages/admin-app/Dockerfile.dev
     labels:
       dev.description: "Next.js admin app (SSR)"
     container_name: mndigitalaid_admin_app
@@ -175,11 +175,12 @@ services:
       - server
     volumes:
       # Mount source for hot-reload
-      - ./packages/admin-app:/app
+      - ./packages/admin-app:/app/packages/admin-app
+      - ./packages/shared:/app/packages/shared
       # Prevent overwriting generated files
       - /app/node_modules
-      - /app/.next
-      - /app/.yarn
+      - /app/packages/admin-app/node_modules
+      - /app/packages/admin-app/.next
     networks:
       - mndigitalaid
     restart: unless-stopped
@@ -189,8 +190,8 @@ services:
   # ========================================
   web-app:
     build:
-      context: ./packages/web-app
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: packages/web-app/Dockerfile.dev
     labels:
       dev.description: "Next.js public web app (SSR)"
     container_name: mndigitalaid_web_app
@@ -204,10 +205,11 @@ services:
     depends_on:
       - server
     volumes:
-      - ./packages/web-app:/app
+      - ./packages/web-app:/app/packages/web-app
+      - ./packages/shared:/app/packages/shared
       - /app/node_modules
-      - /app/.next
-      - /app/.yarn
+      - /app/packages/web-app/node_modules
+      - /app/packages/web-app/.next
     networks:
       - mndigitalaid
     restart: unless-stopped
@@ -217,8 +219,8 @@ services:
   # ========================================
   search-app:
     build:
-      context: ./packages/search-app
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: packages/search-app/Dockerfile.dev
     labels:
       dev.description: "Next.js search app (SSR)"
     container_name: mndigitalaid_search_app
@@ -232,10 +234,11 @@ services:
     depends_on:
       - server
     volumes:
-      - ./packages/search-app:/app
+      - ./packages/search-app:/app/packages/search-app
+      - ./packages/shared:/app/packages/shared
       - /app/node_modules
-      - /app/.next
-      - /app/.yarn
+      - /app/packages/search-app/node_modules
+      - /app/packages/search-app/.next
     networks:
       - mndigitalaid
     restart: unless-stopped
