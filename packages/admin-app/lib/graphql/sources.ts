@@ -80,6 +80,26 @@ export const SourceDetailFullQuery = graphql(`
         id
         name
       }
+      newsletterSource {
+        id
+        sourceId
+        ingestEmail
+        signupFormUrl
+        subscriptionStatus
+        confirmationLink
+        expectedSenderDomain
+        lastNewsletterReceivedAt
+        newslettersReceivedCount
+      }
+      detectedNewsletterForms {
+        id
+        websiteSourceId
+        formUrl
+        formType
+        requiresExtraFields
+        extraFieldsDetected
+        status
+      }
     }
     organizations {
       id
@@ -219,6 +239,42 @@ export const UnassignSourceOrganizationMutation = graphql(`
     unassignSourceOrganization(id: $id) {
       id
       organizationId
+    }
+  }
+`);
+
+export const SubscribeNewsletterMutation = graphql(`
+  mutation SubscribeNewsletter($formId: ID!, $organizationId: ID) {
+    subscribeNewsletter(formId: $formId, organizationId: $organizationId) {
+      workflowId
+      status
+    }
+  }
+`);
+
+export const ConfirmNewsletterMutation = graphql(`
+  mutation ConfirmNewsletter($sourceId: ID!) {
+    confirmNewsletter(sourceId: $sourceId) {
+      workflowId
+      status
+    }
+  }
+`);
+
+export const DeactivateNewsletterMutation = graphql(`
+  mutation DeactivateNewsletter($sourceId: ID!) {
+    deactivateNewsletter(sourceId: $sourceId) {
+      id
+      status
+    }
+  }
+`);
+
+export const ReactivateNewsletterMutation = graphql(`
+  mutation ReactivateNewsletter($sourceId: ID!) {
+    reactivateNewsletter(sourceId: $sourceId) {
+      id
+      status
     }
   }
 `);

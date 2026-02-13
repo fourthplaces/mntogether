@@ -184,6 +184,17 @@ impl IngestSourceWorkflow for IngestSourceWorkflowImpl {
                     }
                 }
             }
+            "newsletter" => {
+                // Newsletters are push-based (via Postmark webhook), not pull-based.
+                // Ingestion is handled by the webhook handler, not this workflow.
+                let msg = "Newsletter sources are push-based — content arrives via email webhook".to_string();
+                info!(source_id = %req.source_id, "Skipping ingestion for newsletter source");
+                ctx.set("status", msg);
+                IngestSourceResult {
+                    pages_stored: 0,
+                    status: "skipped".to_string(),
+                }
+            }
             other => {
                 let msg = format!("Unsupported source type for ingestion: {}", other);
                 warn!(source_id = %req.source_id, source_type = %other, "Unsupported source type");

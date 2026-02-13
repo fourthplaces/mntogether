@@ -4,7 +4,8 @@ enum PostType { service opportunity business }
 enum OrganizationStatus { pending_review approved rejected suspended }
 enum SourceStatus { pending_review approved rejected suspended }
 enum WebsiteStatus { pending_review approved rejected suspended }
-enum SourceType { website instagram facebook tiktok x }
+enum SourceType { website instagram facebook tiktok x newsletter }
+enum NewsletterSubscriptionStatus { detected subscribing pending_confirmation active inactive failed confirmation_failed }
 
 type Query {
   publicPosts(
@@ -154,6 +155,10 @@ type Mutation {
   approveSource(id: ID!): Source!
   rejectSource(id: ID!, reason: String!): Source!
   crawlSource(id: ID!): Boolean!
+  subscribeNewsletter(formId: ID!, organizationId: ID): WorkflowStartResult!
+  confirmNewsletter(sourceId: ID!): WorkflowStartResult!
+  deactivateNewsletter(sourceId: ID!): Source!
+  reactivateNewsletter(sourceId: ID!): Source!
   generateSourceAssessment(id: ID!): Boolean!
   regenerateSourcePosts(id: ID!): WorkflowStartResult!
   deduplicateSourcePosts(id: ID!): WorkflowStartResult!
@@ -408,6 +413,30 @@ type Source {
   pageCount: Int!
   assessment: Assessment
   organization: Organization
+  newsletterSource: NewsletterSource
+  detectedNewsletterForms: [DetectedNewsletterForm!]!
+}
+
+type NewsletterSource {
+  id: ID!
+  sourceId: ID!
+  ingestEmail: String!
+  signupFormUrl: String!
+  subscriptionStatus: NewsletterSubscriptionStatus!
+  confirmationLink: String
+  expectedSenderDomain: String
+  lastNewsletterReceivedAt: String
+  newslettersReceivedCount: Int!
+}
+
+type DetectedNewsletterForm {
+  id: ID!
+  websiteSourceId: ID!
+  formUrl: String!
+  formType: String!
+  requiresExtraFields: Boolean!
+  extraFieldsDetected: [String!]!
+  status: String!
 }
 
 type SourceConnection {

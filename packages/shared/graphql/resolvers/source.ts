@@ -161,6 +161,10 @@ export const sourceResolvers = {
         "get",
         {}
       );
+      if (source.sourceType === "newsletter") {
+        // Newsletters are push-based, no crawl needed
+        return true;
+      }
       const workflowId = `crawl-${args.id}-${Date.now()}`;
       if (source.sourceType === "website") {
         await ctx.restate.callObject(
@@ -262,6 +266,67 @@ export const sourceResolvers = {
       );
       return ctx.restate.callObject("Source", args.id, "get", {});
     },
+
+    subscribeNewsletter: async (
+      _parent: unknown,
+      args: { formId: string; organizationId?: string },
+      ctx: GraphQLContext
+    ) => {
+      const workflowId = `subscribe-newsletter-${args.formId}-${Date.now()}`;
+      await ctx.restate.callObject(
+        "SubscribeNewsletterWorkflow",
+        workflowId,
+        "run",
+        {
+          form_id: args.formId,
+          organization_id: args.organizationId ?? null,
+        }
+      );
+      return { workflowId, status: "started" };
+    },
+
+    confirmNewsletter: async (
+      _parent: unknown,
+      args: { sourceId: string },
+      ctx: GraphQLContext
+    ) => {
+      const workflowId = `confirm-newsletter-${args.sourceId}-${Date.now()}`;
+      await ctx.restate.callObject(
+        "ConfirmNewsletterWorkflow",
+        workflowId,
+        "run",
+        { source_id: args.sourceId }
+      );
+      return { workflowId, status: "started" };
+    },
+
+    deactivateNewsletter: async (
+      _parent: unknown,
+      args: { sourceId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.restate.callObject(
+        "Source",
+        args.sourceId,
+        "deactivate_newsletter",
+        {}
+      );
+      return ctx.restate.callObject("Source", args.sourceId, "get", {});
+    },
+
+    reactivateNewsletter: async (
+      _parent: unknown,
+      args: { sourceId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.restate.callObject(
+        "Source",
+        args.sourceId,
+        "reactivate_newsletter",
+        {}
+      );
+      return ctx.restate.callObject("Source", args.sourceId, "get", {});
+    },
   },
 
   Source: {
@@ -313,6 +378,30 @@ export const sourceResolvers = {
       return ctx.restate.callService("Organizations", "get", {
         id: parent.organizationId,
       });
+    },
+
+    newsletterSource: async (
+      parent: { id: string; sourceType: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      if (parent.sourceType !== "newsletter") return null;
+      const result = await ctx.restate.callObject<{
+        newsletter_source: unknown | null;
+      }>("Source", parent.id, "get_newsletter_source", {});
+      return result.newsletter_source;
+    },
+
+    detectedNewsletterForms: async (
+      parent: { id: string; sourceType: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      if (parent.sourceType !== "website") return [];
+      const result = await ctx.restate.callObject<{
+        forms: unknown[];
+      }>("Source", parent.id, "get_detected_newsletter_forms", {});
+      return result.forms;
     },
   },
 };

@@ -51,6 +51,11 @@ use server_core::domains::website::restate::{
     RegeneratePostsWorkflow, RegeneratePostsWorkflowImpl, WebsiteObject, WebsiteObjectImpl,
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
 };
+use server_core::domains::newsletter::restate::{
+    ConfirmNewsletterWorkflow, ConfirmNewsletterWorkflowImpl, SubscribeNewsletterWorkflow,
+    SubscribeNewsletterWorkflowImpl,
+};
+use server_core::domains::newsletter::webhook::WebhookState;
 use server_core::kernel::{
     create_extraction_service, sse::SseState, Claude, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
 };
@@ -268,6 +273,24 @@ async fn main() -> Result<()> {
         axum::serve(sse_listener, sse_router).await.unwrap();
     });
 
+    // Start webhook server for Postmark inbound emails
+    let webhook_port = std::env::var("WEBHOOK_SERVER_PORT")
+        .unwrap_or_else(|_| "8082".to_string())
+        .parse::<u16>()
+        .context("Invalid WEBHOOK_SERVER_PORT")?;
+    let webhook_router =
+        server_core::domains::newsletter::webhook::router(WebhookState {
+            deps: server_deps.clone(),
+        });
+    let webhook_addr = format!("0.0.0.0:{}", webhook_port);
+    tracing::info!("Webhook server listening on {}", webhook_addr);
+    let webhook_listener = tokio::net::TcpListener::bind(&webhook_addr)
+        .await
+        .context("Failed to bind webhook server")?;
+    tokio::spawn(async move {
+        axum::serve(webhook_listener, webhook_router).await.unwrap();
+    });
+
     // Build Restate endpoint with all domain services, objects, and workflows
     let mut builder = Endpoint::builder();
 
@@ -318,6 +341,9 @@ async fn main() -> Result<()> {
         .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
         .bind(CrawlSocialSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
         .bind(IngestSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Newsletter domain
+        .bind(SubscribeNewsletterWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(ConfirmNewsletterWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())
