@@ -184,6 +184,62 @@ services:
       - mndigitalaid
     restart: unless-stopped
 
+  # ========================================
+  # Web App (Public Frontend)
+  # ========================================
+  web-app:
+    build:
+      context: ./packages/web-app
+      dockerfile: Dockerfile.dev
+    labels:
+      dev.description: "Next.js public web app (SSR)"
+    container_name: mndigitalaid_web_app
+    environment:
+      RESTATE_INGRESS_URL: http://restate:8080
+      NODE_ENV: development
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3001:3001"
+    depends_on:
+      - server
+    volumes:
+      - ./packages/web-app:/app
+      - /app/node_modules
+      - /app/.next
+      - /app/.yarn
+    networks:
+      - mndigitalaid
+    restart: unless-stopped
+
+  # ========================================
+  # Search App (Search Frontend)
+  # ========================================
+  search-app:
+    build:
+      context: ./packages/search-app
+      dockerfile: Dockerfile.dev
+    labels:
+      dev.description: "Next.js search app (SSR)"
+    container_name: mndigitalaid_search_app
+    environment:
+      RESTATE_INGRESS_URL: http://restate:8080
+      NODE_ENV: development
+      PORT: 3002
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3002:3002"
+    depends_on:
+      - server
+    volumes:
+      - ./packages/search-app:/app
+      - /app/node_modules
+      - /app/.next
+      - /app/.yarn
+    networks:
+      - mndigitalaid
+    restart: unless-stopped
+
 # ========================================
 # Volumes for data persistence
 # ========================================
