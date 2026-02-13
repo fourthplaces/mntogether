@@ -1,7 +1,4 @@
-import { createSchema } from "graphql-yoga";
-import { resolvers } from "./resolvers";
-
-const typeDefs = /* GraphQL */ `
+export const typeDefs = /* GraphQL */ `
 type Query {
   publicPosts(
     postType: String
@@ -164,5 +161,3 @@ type Comment {
   createdAt: String!
 }
 `;
-
-export const schema = createSchema({ typeDefs, resolvers });
