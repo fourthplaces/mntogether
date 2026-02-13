@@ -2,12 +2,57 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRestate, callService, callObject, invalidateService } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { SyncBatch, SyncProposal } from "@/lib/restate/types";
+import {
+  SyncBatchesQuery,
+  SyncProposalsQuery,
+  ApproveProposalMutation,
+  RejectProposalMutation,
+  ApproveBatchMutation,
+  RejectBatchMutation,
+  RefineProposalMutation,
+} from "@/lib/graphql/sync";
 
 type StatusFilter = "pending" | "all";
 type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
+
+type SyncBatch = {
+  id: string;
+  resourceType: string;
+  sourceId: string | null;
+  sourceName: string | null;
+  status: string;
+  summary: string | null;
+  proposalCount: number;
+  approvedCount: number;
+  rejectedCount: number;
+  createdAt: string;
+  reviewedAt: string | null;
+};
+
+type SyncProposal = {
+  id: string;
+  batchId: string;
+  operation: string;
+  status: string;
+  entityType: string;
+  draftEntityId: string | null;
+  targetEntityId: string | null;
+  reason: string | null;
+  reviewedBy: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  draftTitle: string | null;
+  targetTitle: string | null;
+  mergeSourceIds: string[];
+  mergeSourceTitles: string[];
+  relevanceScore: number | null;
+  curatorReasoning: string | null;
+  confidence: string | null;
+  sourceUrls: string[] | null;
+  revisionCount: number | null;
+};
 
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -22,7 +67,7 @@ function StatusBadge({ status }: { status: string }) {
     <span
       className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${colors[status] || "bg-stone-100 text-stone-600"}`}
     >
-      {status?.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) || "Unknown"}
+      {status?.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) || "Unknown"}
     </span>
   );
 }
@@ -84,7 +129,9 @@ function EntityTypeBadge({ entityType }: { entityType: string }) {
     note: "bg-indigo-100 text-indigo-800",
   };
   return (
-    <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${colors[entityType] || "bg-stone-100 text-stone-600"}`}>
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${colors[entityType] || "bg-stone-100 text-stone-600"}`}
+    >
       {entityType}
     </span>
   );
@@ -104,19 +151,21 @@ function PostLink({ id, label }: { id: string | null; label: string }) {
 }
 
 function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
-  const targetLabel = p.target_title || (p.target_entity_id ? `ID: ${p.target_entity_id.slice(0, 8)}...` : "untitled");
-  const draftLabel = p.draft_title || (p.draft_entity_id ? `ID: ${p.draft_entity_id.slice(0, 8)}...` : null);
+  const targetLabel =
+    p.targetTitle || (p.targetEntityId ? `ID: ${p.targetEntityId.slice(0, 8)}...` : "untitled");
+  const draftLabel =
+    p.draftTitle || (p.draftEntityId ? `ID: ${p.draftEntityId.slice(0, 8)}...` : null);
 
   switch (p.operation) {
     case "insert":
       return (
         <div className="mt-1">
           <p className="text-sm text-stone-800">
-            <span className="font-medium">New {p.entity_type}:</span>{" "}
-            {p.entity_type === "note" ? (
+            <span className="font-medium">New {p.entityType}:</span>{" "}
+            {p.entityType === "note" ? (
               <span>{draftLabel || "untitled note"}</span>
             ) : (
-              <PostLink id={p.draft_entity_id} label={draftLabel || "untitled"} />
+              <PostLink id={p.draftEntityId} label={draftLabel || "untitled"} />
             )}
           </p>
         </div>
@@ -126,11 +175,16 @@ function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
         <div className="mt-1">
           <p className="text-sm text-stone-800">
             <span className="font-medium">Update:</span>{" "}
-            <PostLink id={p.target_entity_id} label={targetLabel} />
+            <PostLink id={p.targetEntityId} label={targetLabel} />
           </p>
-          {p.draft_title && p.draft_title !== p.target_title && (
+          {p.draftTitle && p.draftTitle !== p.targetTitle && (
             <p className="text-xs text-stone-500 mt-0.5">
-              Revision: {p.draft_entity_id ? <PostLink id={p.draft_entity_id} label={p.draft_title} /> : p.draft_title}
+              Revision:{" "}
+              {p.draftEntityId ? (
+                <PostLink id={p.draftEntityId} label={p.draftTitle} />
+              ) : (
+                p.draftTitle
+              )}
             </p>
           )}
         </div>
@@ -140,13 +194,13 @@ function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
         <div className="mt-1">
           <p className="text-sm text-stone-800">
             <span className="font-medium">Delete:</span>{" "}
-            <PostLink id={p.target_entity_id} label={targetLabel} />
+            <PostLink id={p.targetEntityId} label={targetLabel} />
           </p>
         </div>
       );
     case "merge": {
-      const sourceIds = p.merge_source_ids || [];
-      const sourceTitles = p.merge_source_titles || [];
+      const sourceIds = p.mergeSourceIds || [];
+      const sourceTitles = p.mergeSourceTitles || [];
       const sources = sourceIds.map((id, i) => ({
         id,
         label: sourceTitles[i] || `ID: ${id.slice(0, 8)}...`,
@@ -155,7 +209,7 @@ function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
         <div className="mt-1">
           <p className="text-sm text-stone-800">
             <span className="font-medium">Merge into:</span>{" "}
-            <PostLink id={p.target_entity_id} label={targetLabel} />
+            <PostLink id={p.targetEntityId} label={targetLabel} />
           </p>
           {sources.length > 0 && (
             <p className="text-xs text-stone-600 mt-0.5">
@@ -170,7 +224,7 @@ function ProposalDescription({ proposal: p }: { proposal: SyncProposal }) {
           )}
           {draftLabel && (
             <p className="text-xs text-stone-500 mt-0.5">
-              Merged revision: <PostLink id={p.draft_entity_id} label={draftLabel} />
+              Merged revision: <PostLink id={p.draftEntityId} label={draftLabel} />
             </p>
           )}
         </div>
@@ -208,25 +262,21 @@ function ProposalComment({
   onSubmitted: () => void;
 }) {
   const [comment, setComment] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const [{ fetching: submitting }, refineProposal] = useMutation(RefineProposalMutation);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const handleSubmit = async () => {
     if (!comment.trim() || submitting) return;
-    setSubmitting(true);
-    try {
-      const workflowId = `refine-${proposalId}-${Date.now()}`;
-      await callObject("RefineProposalWorkflow", workflowId, "run", {
-        proposal_id: proposalId,
-        comment: comment.trim(),
-        author_id: "00000000-0000-0000-0000-000000000000", // TODO: get from auth context
-      });
+    setSubmitError(null);
+    const result = await refineProposal(
+      { proposalId, comment: comment.trim() },
+      { additionalTypenames: ["SyncBatch", "SyncProposal", "SyncBatchConnection", "SyncProposalConnection"] }
+    );
+    if (result.error) {
+      setSubmitError(result.error.message);
+    } else {
       setComment("");
-      invalidateService("Sync");
       onSubmitted();
-    } catch (err) {
-      console.error("Failed to submit comment:", err);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -248,8 +298,19 @@ function ProposalComment({
       >
         {submitting ? "Refining..." : "Refine"}
       </button>
+      {submitError && <span className="text-xs text-red-600">{submitError}</span>}
     </div>
   );
+}
+
+function matchesScoreFilter(score: number | null | undefined, filter: ScoreFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "unscored") return score == null;
+  if (score == null) return false;
+  if (filter === "high") return score >= 8;
+  if (filter === "review") return score >= 5 && score <= 7;
+  if (filter === "noise") return score <= 4;
+  return true;
 }
 
 function BatchProposals({
@@ -263,15 +324,22 @@ function BatchProposals({
 }) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [expandedReasoning, setExpandedReasoning] = useState<Set<string>>(new Set());
+  const [actionError, setActionError] = useState<string | null>(null);
 
-  const { data, isLoading, mutate } = useRestate<{ proposals: SyncProposal[] }>(
-    "Sync", "list_proposals", { batch_id: batchId }, { revalidateOnFocus: false, keepPreviousData: true }
-  );
+  const [{ data, fetching: isLoading }, reexecuteQuery] = useQuery({
+    query: SyncProposalsQuery,
+    variables: { batchId },
+  });
 
-  const allProposals = data?.proposals || [];
-  const proposals = allProposals.filter((p) =>
-    matchesScoreFilter(p.relevance_score, scoreFilter)
-  );
+  const [, approveProposal] = useMutation(ApproveProposalMutation);
+  const [, rejectProposal] = useMutation(RejectProposalMutation);
+
+  const mutationContext = {
+    additionalTypenames: ["SyncBatch", "SyncProposal", "SyncBatchConnection", "SyncProposalConnection"],
+  };
+
+  const allProposals = (data?.syncProposals?.proposals || []) as SyncProposal[];
+  const proposals = allProposals.filter((p) => matchesScoreFilter(p.relevanceScore, scoreFilter));
 
   const toggleReasoning = (id: string) => {
     setExpandedReasoning((prev) => {
@@ -282,21 +350,20 @@ function BatchProposals({
     });
   };
 
-  const [actionError, setActionError] = useState<string | null>(null);
-
-  const handleAction = async (
-    proposalId: string,
-    action: "approve" | "reject"
-  ) => {
+  const handleAction = async (proposalId: string, action: "approve" | "reject") => {
     setActionLoading(proposalId);
     setActionError(null);
     try {
-      await callService("Sync", `${action}_proposal`, { proposal_id: proposalId });
-      invalidateService("Sync");
+      const result =
+        action === "approve"
+          ? await approveProposal({ id: proposalId }, mutationContext)
+          : await rejectProposal({ id: proposalId }, mutationContext);
+      if (result.error) {
+        setActionError(`Failed to ${action} proposal: ${result.error.message}`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setActionError(`Failed to ${action} proposal: ${message}`);
-      console.error(`Failed to ${action} proposal:`, err);
     } finally {
       setActionLoading(null);
     }
@@ -304,9 +371,7 @@ function BatchProposals({
 
   if (isLoading && proposals.length === 0) return <AdminLoader />;
   if (!isLoading && proposals.length === 0) {
-    return (
-      <p className="text-sm text-stone-500 py-2">No proposals in this batch</p>
-    );
+    return <p className="text-sm text-stone-500 py-2">No proposals in this batch</p>;
   }
 
   return (
@@ -317,30 +382,30 @@ function BatchProposals({
         </div>
       )}
       {proposals.map((p) => (
-        <div
-          key={p.id}
-          className="p-3 bg-stone-50 rounded-lg border border-stone-100"
-        >
+        <div key={p.id} className="p-3 bg-stone-50 rounded-lg border border-stone-100">
           <div className="flex items-start justify-between gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <OperationBadge operation={p.operation} />
-                <EntityTypeBadge entityType={p.entity_type} />
+                <EntityTypeBadge entityType={p.entityType} />
                 <StatusBadge status={p.status} />
-                <ScoreBadge score={p.relevance_score} />
+                <ScoreBadge score={p.relevanceScore} />
                 <ConfidenceBadge confidence={p.confidence} />
-                {(p.revision_count ?? 0) > 0 && (
-                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700" title={`Revised ${p.revision_count} time(s)`}>
-                    rev {p.revision_count}
+                {(p.revisionCount ?? 0) > 0 && (
+                  <span
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-violet-100 text-violet-700"
+                    title={`Revised ${p.revisionCount} time(s)`}
+                  >
+                    rev {p.revisionCount}
                   </span>
                 )}
               </div>
               <ProposalDescription proposal={p} />
 
               {/* Source URLs */}
-              {p.source_urls && p.source_urls.length > 0 && (
+              {p.sourceUrls && p.sourceUrls.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {p.source_urls.map((url, i) => (
+                  {p.sourceUrls.map((url, i) => (
                     <a
                       key={i}
                       href={url}
@@ -349,14 +414,15 @@ function BatchProposals({
                       onClick={(e) => e.stopPropagation()}
                       className="text-xs text-blue-600 hover:text-blue-800 underline decoration-blue-300 hover:decoration-blue-500"
                     >
-                      {new URL(url).hostname.replace("www.", "")}{"\u2197"}
+                      {new URL(url).hostname.replace("www.", "")}
+                      {"\u2197"}
                     </a>
                   ))}
                 </div>
               )}
 
               {/* Curator reasoning (expandable) */}
-              {p.curator_reasoning && (
+              {p.curatorReasoning && (
                 <div className="mt-2">
                   <button
                     onClick={() => toggleReasoning(p.id)}
@@ -366,24 +432,24 @@ function BatchProposals({
                   </button>
                   {expandedReasoning.has(p.id) && (
                     <p className="text-xs text-stone-600 mt-1 leading-relaxed bg-stone-100 rounded px-2 py-1.5">
-                      {p.curator_reasoning}
+                      {p.curatorReasoning}
                     </p>
                   )}
                 </div>
               )}
 
               {/* Legacy reason field (non-curator proposals) */}
-              {!p.curator_reasoning && p.reason && (
+              {!p.curatorReasoning && p.reason && (
                 <p className="text-xs text-stone-500 mt-2 leading-relaxed bg-stone-100 rounded px-2 py-1">
                   {p.reason}
                 </p>
               )}
 
               {/* Direct edit link */}
-              {p.status === "pending" && p.draft_entity_id && p.entity_type === "post" && (
+              {p.status === "pending" && p.draftEntityId && p.entityType === "post" && (
                 <div className="mt-1.5">
                   <Link
-                    href={`/admin/posts/${p.draft_entity_id}`}
+                    href={`/admin/posts/${p.draftEntityId}`}
                     onClick={(e) => e.stopPropagation()}
                     className="text-xs text-amber-600 hover:text-amber-800 font-medium"
                   >
@@ -394,7 +460,10 @@ function BatchProposals({
 
               {/* Comment input for refinement */}
               {p.status === "pending" && batchStatus !== "expired" && (
-                <ProposalComment proposalId={p.id} onSubmitted={() => mutate()} />
+                <ProposalComment
+                  proposalId={p.id}
+                  onSubmitted={() => reexecuteQuery({ requestPolicy: "network-only" })}
+                />
               )}
             </div>
             {p.status === "pending" && batchStatus !== "expired" && (
@@ -422,36 +491,54 @@ function BatchProposals({
   );
 }
 
-function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: SyncBatch; expanded: boolean; onToggle: () => void; scoreFilter?: ScoreFilter }) {
+function BatchCard({
+  batch,
+  expanded,
+  onToggle,
+  scoreFilter = "all",
+}: {
+  batch: SyncBatch;
+  expanded: boolean;
+  onToggle: () => void;
+  scoreFilter?: ScoreFilter;
+}) {
   const [batchActionLoading, setBatchActionLoading] = useState(false);
+  const [batchError, setBatchError] = useState<string | null>(null);
 
-  const proposalCount = batch.proposal_count || 0;
-  const approvedCount = batch.approved_count || 0;
-  const rejectedCount = batch.rejected_count || 0;
+  const [, approveBatch] = useMutation(ApproveBatchMutation);
+  const [, rejectBatch] = useMutation(RejectBatchMutation);
+
+  const mutationContext = {
+    additionalTypenames: ["SyncBatch", "SyncProposal", "SyncBatchConnection", "SyncProposalConnection"],
+  };
+
+  const proposalCount = batch.proposalCount || 0;
+  const approvedCount = batch.approvedCount || 0;
+  const rejectedCount = batch.rejectedCount || 0;
   const pendingCount = proposalCount - approvedCount - rejectedCount;
   const hasPending =
-    pendingCount > 0 &&
-    batch.status !== "expired" &&
-    batch.status !== "completed";
-
-  const [batchError, setBatchError] = useState<string | null>(null);
+    pendingCount > 0 && batch.status !== "expired" && batch.status !== "completed";
 
   const handleBatchAction = async (action: "approve" | "reject") => {
     setBatchActionLoading(true);
     setBatchError(null);
     try {
-      await callService("Sync", `${action}_batch`, { batch_id: batch.id });
-      invalidateService("Sync");
+      const result =
+        action === "approve"
+          ? await approveBatch({ id: batch.id }, mutationContext)
+          : await rejectBatch({ id: batch.id }, mutationContext);
+      if (result.error) {
+        setBatchError(`Failed to ${action} batch: ${result.error.message}`);
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setBatchError(`Failed to ${action} batch: ${message}`);
-      console.error(`Failed to ${action} batch:`, err);
     } finally {
       setBatchActionLoading(false);
     }
   };
 
-  const createdAgo = timeAgo(batch.created_at);
+  const createdAgo = timeAgo(batch.createdAt);
 
   return (
     <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
@@ -463,42 +550,26 @@ function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: 
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <StatusBadge status={batch.status} />
-              {batch.source_name && (
-                <span className="text-xs font-medium text-stone-700">
-                  {batch.source_name}
-                </span>
+              {batch.sourceName && (
+                <span className="text-xs font-medium text-stone-700">{batch.sourceName}</span>
               )}
-              {createdAgo && (
-                <span className="text-xs text-stone-400">
-                  {createdAgo}
-                </span>
-              )}
+              {createdAgo && <span className="text-xs text-stone-400">{createdAgo}</span>}
             </div>
-            {batch.summary && (
-              <p className="text-sm text-stone-700 mt-1">{batch.summary}</p>
-            )}
+            {batch.summary && <p className="text-sm text-stone-700 mt-1">{batch.summary}</p>}
             <div className="flex items-center gap-3 mt-2 text-xs text-stone-500">
               {proposalCount === 0 ? (
-                <span className="text-stone-400 italic">
-                  No actionable proposals
-                </span>
+                <span className="text-stone-400 italic">No actionable proposals</span>
               ) : (
                 <>
                   <span>{proposalCount} proposals</span>
                   {approvedCount > 0 && (
-                    <span className="text-green-600">
-                      {approvedCount} approved
-                    </span>
+                    <span className="text-green-600">{approvedCount} approved</span>
                   )}
                   {rejectedCount > 0 && (
-                    <span className="text-red-600">
-                      {rejectedCount} rejected
-                    </span>
+                    <span className="text-red-600">{rejectedCount} rejected</span>
                   )}
                   {pendingCount > 0 && (
-                    <span className="text-yellow-600">
-                      {pendingCount} pending
-                    </span>
+                    <span className="text-yellow-600">{pendingCount} pending</span>
                   )}
                 </>
               )}
@@ -528,21 +599,22 @@ function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: 
                   {batchActionLoading ? "..." : "Reject All"}
                 </button>
               </>
-            ) : batch.status !== "completed" && batch.status !== "expired" && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBatchAction("approve");
-                }}
-                disabled={batchActionLoading}
-                className="px-3 py-1.5 text-xs font-medium bg-stone-400 text-white rounded hover:bg-stone-500 disabled:opacity-50"
-              >
-                {batchActionLoading ? "..." : "Dismiss"}
-              </button>
+            ) : (
+              batch.status !== "completed" &&
+              batch.status !== "expired" && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBatchAction("approve");
+                  }}
+                  disabled={batchActionLoading}
+                  className="px-3 py-1.5 text-xs font-medium bg-stone-400 text-white rounded hover:bg-stone-500 disabled:opacity-50"
+                >
+                  {batchActionLoading ? "..." : "Dismiss"}
+                </button>
+              )
             )}
-            <span className="text-stone-400 text-sm">
-              {expanded ? "\u25B2" : "\u25BC"}
-            </span>
+            <span className="text-stone-400 text-sm">{expanded ? "\u25B2" : "\u25BC"}</span>
           </div>
         </div>
       </div>
@@ -553,21 +625,15 @@ function BatchCard({ batch, expanded, onToggle, scoreFilter = "all" }: { batch: 
       )}
       {expanded && (
         <div className="border-t border-stone-100 p-4">
-          <BatchProposals batchId={batch.id} batchStatus={batch.status} scoreFilter={scoreFilter} />
+          <BatchProposals
+            batchId={batch.id}
+            batchStatus={batch.status}
+            scoreFilter={scoreFilter}
+          />
         </div>
       )}
     </div>
   );
-}
-
-function matchesScoreFilter(score: number | null | undefined, filter: ScoreFilter): boolean {
-  if (filter === "all") return true;
-  if (filter === "unscored") return score == null;
-  if (score == null) return false;
-  if (filter === "high") return score >= 8;
-  if (filter === "review") return score >= 5 && score <= 7;
-  if (filter === "noise") return score <= 4;
-  return true;
 }
 
 export default function ProposalsPage() {
@@ -589,11 +655,12 @@ export default function ProposalsPage() {
       ? { status: "pending", limit: 50 }
       : { limit: 50 };
 
-  const { data, isLoading } = useRestate<{ batches: SyncBatch[] }>(
-    "Sync", "list_batches", variables, { revalidateOnFocus: false, keepPreviousData: true }
-  );
+  const [{ data, fetching: isLoading }] = useQuery({
+    query: SyncBatchesQuery,
+    variables,
+  });
 
-  const batches = data?.batches || [];
+  const batches = (data?.syncBatches?.batches || []) as SyncBatch[];
 
   const pendingCount = batches.filter(
     (b) => b.status === "pending" || b.status === "partially_reviewed"
@@ -605,28 +672,24 @@ export default function ProposalsPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-stone-900">AI Proposals</h1>
           <p className="text-sm text-stone-600 mt-1">
-            Review AI-proposed changes before they go live. Each batch contains
-            proposals from a single sync operation.
+            Review AI-proposed changes before they go live. Each batch contains proposals from a
+            single sync operation.
           </p>
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-stone-900">
-              {pendingCount}
-            </div>
+            <div className="text-2xl font-bold text-stone-900">{pendingCount}</div>
             <div className="text-xs text-stone-500">Pending batches</div>
           </div>
           <div className="bg-white border border-stone-200 rounded-lg p-4">
-            <div className="text-2xl font-bold text-stone-900">
-              {batches.length}
-            </div>
+            <div className="text-2xl font-bold text-stone-900">{batches.length}</div>
             <div className="text-xs text-stone-500">Total batches shown</div>
           </div>
           <div className="bg-white border border-stone-200 rounded-lg p-4">
             <div className="text-2xl font-bold text-stone-900">
-              {batches.reduce((sum, b) => sum + (b.proposal_count || 0), 0)}
+              {batches.reduce((sum, b) => sum + (b.proposalCount || 0), 0)}
             </div>
             <div className="text-xs text-stone-500">Total proposals</div>
           </div>

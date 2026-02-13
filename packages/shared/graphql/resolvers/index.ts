@@ -4,6 +4,7 @@ import { tagResolvers } from "./tag";
 import { organizationResolvers } from "./organization";
 import { sourceResolvers } from "./source";
 import { websiteResolvers } from "./website";
+import { syncResolvers } from "./sync";
 
 export const resolvers = mergeResolvers([
   postResolvers,
@@ -11,4 +12,5 @@ export const resolvers = mergeResolvers([
   organizationResolvers,
   sourceResolvers,
   websiteResolvers,
+  syncResolvers,
 ]);
