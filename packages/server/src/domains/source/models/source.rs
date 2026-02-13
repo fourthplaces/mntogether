@@ -99,6 +99,7 @@ impl Source {
                     super::social_source::SocialSource::find_by_source_id(self.id, pool).await?;
                 Ok(build_profile_url(&self.source_type, &ss.handle))
             }
+            "newsletter" => Ok(format!("newsletter:{}", self.id)),
             other => anyhow::bail!("Unknown source type for site_url: {}", other),
         }
     }
@@ -136,6 +137,7 @@ impl Source {
             SELECT * FROM sources
             WHERE status = 'approved'
               AND active = true
+              AND source_type != 'newsletter'
               AND (last_scraped_at IS NULL
                    OR last_scraped_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
             ORDER BY last_scraped_at NULLS FIRST
@@ -327,9 +329,10 @@ impl Source {
                     SELECT s.* FROM sources s
                     LEFT JOIN website_sources ws ON ws.source_id = s.id
                     LEFT JOIN social_sources ss ON ss.source_id = s.id
+                    LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
                     WHERE ($1::text IS NULL OR s.status = $1)
                       AND ($2::uuid IS NULL OR s.id > $2)
-                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%')
+                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%' OR ns.ingest_email ILIKE '%' || $4 || '%')
                       AND ($5::uuid IS NULL OR s.organization_id = $5)
                       AND ($6::text IS NULL OR s.source_type = $6)
                     ORDER BY s.id ASC
@@ -351,9 +354,10 @@ impl Source {
                     SELECT s.* FROM sources s
                     LEFT JOIN website_sources ws ON ws.source_id = s.id
                     LEFT JOIN social_sources ss ON ss.source_id = s.id
+                    LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
                     WHERE ($1::text IS NULL OR s.status = $1)
                       AND ($2::uuid IS NULL OR s.id < $2)
-                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%')
+                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%' OR ns.ingest_email ILIKE '%' || $4 || '%')
                       AND ($5::uuid IS NULL OR s.organization_id = $5)
                       AND ($6::text IS NULL OR s.source_type = $6)
                     ORDER BY s.id DESC
@@ -413,8 +417,9 @@ impl Source {
             SELECT COUNT(*) FROM sources s
             LEFT JOIN website_sources ws ON ws.source_id = s.id
             LEFT JOIN social_sources ss ON ss.source_id = s.id
+            LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
             WHERE ($1::text IS NULL OR s.status = $1)
-              AND ($2::text IS NULL OR ws.domain ILIKE '%' || $2 || '%' OR ss.handle ILIKE '%' || $2 || '%')
+              AND ($2::text IS NULL OR ws.domain ILIKE '%' || $2 || '%' OR ss.handle ILIKE '%' || $2 || '%' OR ns.ingest_email ILIKE '%' || $2 || '%')
               AND ($3::uuid IS NULL OR s.organization_id = $3)
               AND ($4::text IS NULL OR s.source_type = $4)
             "#,

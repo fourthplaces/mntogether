@@ -11,6 +11,7 @@ pub mod jobs;
 pub mod locations;
 pub mod member;
 pub mod memo;
+pub mod newsletter;
 pub mod notes;
 pub mod organization;
 pub mod posts;

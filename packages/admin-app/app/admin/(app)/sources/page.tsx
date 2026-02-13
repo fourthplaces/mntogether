@@ -27,6 +27,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   x: "X (Twitter)",
+  newsletter: "Newsletter",
 };
 
 function SourcesContent() {
@@ -156,6 +157,8 @@ function SourcesContent() {
         return "bg-indigo-100 text-indigo-800";
       case "tiktok":
         return "bg-pink-100 text-pink-800";
+      case "newsletter":
+        return "bg-emerald-100 text-emerald-800";
       default:
         return "bg-stone-100 text-stone-800";
     }
@@ -192,7 +195,7 @@ function SourcesContent() {
             >
               AI
             </button>
-            {["all", "website", "instagram", "facebook"].map((type) => (
+            {["all", "website", "instagram", "facebook", "newsletter"].map((type) => (
               <button
                 key={type}
                 onClick={() => setFilter("type", type === "all" ? null : type)}

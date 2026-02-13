@@ -98,6 +98,12 @@ pub struct WebsiteSource;
 /// Marker type for SocialSource entities (social-media-specific source details).
 pub struct SocialSource;
 
+/// Marker type for NewsletterSource entities (newsletter subscription source details).
+pub struct NewsletterSource;
+
+/// Marker type for DetectedNewsletterForm entities (detected newsletter signup forms).
+pub struct DetectedNewsletterForm;
+
 /// Marker type for Note entities (attachable alerts and context).
 pub struct Note;
 
@@ -191,6 +197,12 @@ pub type WebsiteSourceId = Id<WebsiteSource>;
 
 /// Typed ID for SocialSource entities.
 pub type SocialSourceId = Id<SocialSource>;
+
+/// Typed ID for NewsletterSource entities.
+pub type NewsletterSourceId = Id<NewsletterSource>;
+
+/// Typed ID for DetectedNewsletterForm entities.
+pub type DetectedNewsletterFormId = Id<DetectedNewsletterForm>;
 
 /// Typed ID for Note entities.
 pub type NoteId = Id<Note>;

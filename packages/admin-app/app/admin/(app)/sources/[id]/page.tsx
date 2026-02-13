@@ -18,9 +18,11 @@ import {
   ExtractSourceOrganizationMutation,
   AssignSourceOrganizationMutation,
   UnassignSourceOrganizationMutation,
+  DeactivateNewsletterMutation,
+  ReactivateNewsletterMutation,
 } from "@/lib/graphql/sources";
 
-type TabType = "snapshots" | "assessment";
+type TabType = "snapshots" | "assessment" | "newsletter";
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {
   website: "Website",
@@ -28,6 +30,7 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   facebook: "Facebook",
   tiktok: "TikTok",
   x: "X (Twitter)",
+  newsletter: "Newsletter",
 };
 
 export default function SourceDetailPage() {
@@ -62,6 +65,7 @@ export default function SourceDetailPage() {
 
   const source = data?.source;
   const isWebsite = source?.sourceType === "website";
+  const isNewsletter = source?.sourceType === "newsletter";
 
   // Workflow status polling
   const regenWorkflowName = isWebsite ? "RegeneratePostsWorkflow" : "RegenerateSocialPostsWorkflow";
@@ -134,6 +138,8 @@ export default function SourceDetailPage() {
   const [, extractOrg] = useMutation(ExtractSourceOrganizationMutation);
   const [, assignOrg] = useMutation(AssignSourceOrganizationMutation);
   const [, unassignOrg] = useMutation(UnassignSourceOrganizationMutation);
+  const [, deactivateNewsletter] = useMutation(DeactivateNewsletterMutation);
+  const [, reactivateNewsletter] = useMutation(ReactivateNewsletterMutation);
 
   // --- Actions ---
 
@@ -254,6 +260,32 @@ export default function SourceDetailPage() {
     }
   };
 
+  const handleDeactivateNewsletter = async () => {
+    setActionInProgress("deactivate_newsletter");
+    setMenuOpen(false);
+    try {
+      await deactivateNewsletter({ sourceId: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
+    } catch (err) {
+      console.error("Failed to deactivate newsletter:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleReactivateNewsletter = async () => {
+    setActionInProgress("reactivate_newsletter");
+    setMenuOpen(false);
+    try {
+      await reactivateNewsletter({ sourceId: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
+    } catch (err) {
+      console.error("Failed to reactivate newsletter:", err);
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   // --- Helpers ---
 
   const getStatusColor = (status: string) => {
@@ -271,7 +303,9 @@ export default function SourceDetailPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  const tabs: TabType[] = isWebsite
+  const tabs: TabType[] = isNewsletter
+    ? ["snapshots", "newsletter"]
+    : isWebsite
     ? ["snapshots", "assessment"]
     : ["snapshots"];
 
@@ -329,6 +363,7 @@ export default function SourceDetailPage() {
                   source.sourceType === "instagram" ? "bg-purple-100 text-purple-800" :
                   source.sourceType === "facebook" ? "bg-indigo-100 text-indigo-800" :
                   source.sourceType === "x" ? "bg-stone-800 text-white" :
+                  source.sourceType === "newsletter" ? "bg-emerald-100 text-emerald-800" :
                   "bg-stone-100 text-stone-800"
                 }`}>
                   {SOURCE_TYPE_LABELS[source.sourceType] || source.sourceType}
@@ -407,6 +442,24 @@ export default function SourceDetailPage() {
                     >
                       Deduplicate Posts
                     </button>
+                    {isNewsletter && source.newsletterSource?.subscriptionStatus === "active" && (
+                      <button
+                        onClick={handleDeactivateNewsletter}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                      >
+                        Deactivate Newsletter
+                      </button>
+                    )}
+                    {isNewsletter && source.newsletterSource?.subscriptionStatus === "inactive" && (
+                      <button
+                        onClick={handleReactivateNewsletter}
+                        disabled={actionInProgress !== null}
+                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                      >
+                        Reactivate Newsletter
+                      </button>
+                    )}
                     <div className="border-t border-stone-100 my-1" />
                     {isWebsite && !source.organizationId && (
                       <button
@@ -552,6 +605,81 @@ export default function SourceDetailPage() {
                       )}
                     </Link>
                   ))
+                )}
+              </div>
+            )}
+
+            {/* Newsletter Tab */}
+            {activeTab === "newsletter" && isNewsletter && source.newsletterSource && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Subscription Status</h3>
+                    <span className={`px-3 py-1 text-sm rounded-full font-medium ${
+                      source.newsletterSource.subscriptionStatus === "active" ? "bg-green-100 text-green-800" :
+                      source.newsletterSource.subscriptionStatus === "pending_confirmation" ? "bg-yellow-100 text-yellow-800" :
+                      source.newsletterSource.subscriptionStatus === "inactive" ? "bg-stone-100 text-stone-800" :
+                      source.newsletterSource.subscriptionStatus === "failed" || source.newsletterSource.subscriptionStatus === "confirmation_failed" ? "bg-red-100 text-red-800" :
+                      "bg-blue-100 text-blue-800"
+                    }`}>
+                      {source.newsletterSource.subscriptionStatus.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                    </span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Ingest Email</h3>
+                    <code className="text-sm bg-stone-100 px-2 py-1 rounded font-mono">
+                      {source.newsletterSource.ingestEmail}
+                    </code>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Signup Form</h3>
+                    <a
+                      href={source.newsletterSource.signupFormUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:text-blue-800 break-all"
+                    >
+                      {source.newsletterSource.signupFormUrl}
+                    </a>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Expected Sender</h3>
+                    <p className="text-sm text-stone-700">
+                      {source.newsletterSource.expectedSenderDomain || <span className="text-stone-400">{"\u2014"}</span>}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6">
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Newsletters Received</h3>
+                    <p className="text-lg font-semibold text-stone-900">{source.newsletterSource.newslettersReceivedCount}</p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Last Received</h3>
+                    <p className="text-sm text-stone-700">
+                      {source.newsletterSource.lastNewsletterReceivedAt
+                        ? formatDate(source.newsletterSource.lastNewsletterReceivedAt)
+                        : "Never"}
+                    </p>
+                  </div>
+                </div>
+
+                {source.newsletterSource.confirmationLink && (
+                  <div>
+                    <h3 className="text-sm font-medium text-stone-500 uppercase mb-2">Confirmation Link</h3>
+                    <a
+                      href={source.newsletterSource.confirmationLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-blue-600 hover:text-blue-800 break-all"
+                    >
+                      {source.newsletterSource.confirmationLink}
+                    </a>
+                  </div>
                 )}
               </div>
             )}
