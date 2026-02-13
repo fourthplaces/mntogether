@@ -1,9 +1,16 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRestate, callService, invalidateService } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { SearchQueryResult, SearchQueryListResult } from "@/lib/restate/types";
+import {
+  SearchQueriesListQuery,
+  CreateSearchQueryMutation,
+  UpdateSearchQueryMutation,
+  ToggleSearchQueryMutation,
+  DeleteSearchQueryMutation,
+  RunScheduledDiscoveryMutation,
+} from "@/lib/graphql/search-queries";
 
 export default function SearchQueriesPage() {
   return (
@@ -14,37 +21,31 @@ export default function SearchQueriesPage() {
 }
 
 function SearchQueriesContent() {
-  const { data, isLoading } = useRestate<SearchQueryListResult>(
-    "Websites", "list_search_queries", {}, { revalidateOnFocus: false }
-  );
+  const [{ data, fetching: isLoading }] = useQuery({
+    query: SearchQueriesListQuery,
+  });
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [runningDiscovery, setRunningDiscovery] = useState(false);
 
-  const handleToggle = async (query: SearchQueryResult) => {
-    try {
-      await callService("Websites", "toggle_search_query", { id: query.id });
-      invalidateService("Websites");
-    } catch (err) {
-      console.error("Failed to toggle query:", err);
-    }
+  const [, toggleQuery] = useMutation(ToggleSearchQueryMutation);
+  const [, deleteQuery] = useMutation(DeleteSearchQueryMutation);
+  const [, runDiscovery] = useMutation(RunScheduledDiscoveryMutation);
+
+  const mutationContext = { additionalTypenames: ["SearchQuery"] };
+
+  const handleToggle = async (queryId: string) => {
+    await toggleQuery({ id: queryId }, mutationContext);
   };
 
   const handleDelete = async (id: string) => {
-    try {
-      await callService("Websites", "delete_search_query", { id });
-      invalidateService("Websites");
-    } catch (err) {
-      console.error("Failed to delete query:", err);
-    }
+    await deleteQuery({ id }, mutationContext);
   };
 
   const handleRunDiscovery = async () => {
     setRunningDiscovery(true);
     try {
-      await callService("Websites", "run_scheduled_discovery", {});
-    } catch (err) {
-      console.error("Failed to run discovery:", err);
+      await runDiscovery({});
     } finally {
       setRunningDiscovery(false);
     }
@@ -54,7 +55,7 @@ function SearchQueriesContent() {
     return <AdminLoader label="Loading search queries..." />;
   }
 
-  const queries = data?.queries || [];
+  const queries = data?.searchQueries || [];
 
   return (
     <div className="min-h-screen bg-stone-50 p-6">
@@ -83,9 +84,7 @@ function SearchQueriesContent() {
           </div>
         </div>
 
-        {showAdd && (
-          <AddQueryForm onClose={() => setShowAdd(false)} />
-        )}
+        {showAdd && <AddQueryForm onClose={() => setShowAdd(false)} />}
 
         <div className="space-y-2">
           {queries.map((query) => (
@@ -99,23 +98,23 @@ function SearchQueriesContent() {
                 <div className="bg-white rounded-lg shadow px-4 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     <button
-                      onClick={() => handleToggle(query)}
+                      onClick={() => handleToggle(query.id)}
                       className={`shrink-0 w-9 h-5 rounded-full transition-colors ${
-                        query.is_active ? "bg-green-500" : "bg-stone-300"
+                        query.isActive ? "bg-green-500" : "bg-stone-300"
                       }`}
                     >
                       <div
                         className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                          query.is_active ? "translate-x-4" : "translate-x-0.5"
+                          query.isActive ? "translate-x-4" : "translate-x-0.5"
                         }`}
                       />
                     </button>
                     <span
                       className={`text-sm font-medium truncate ${
-                        query.is_active ? "text-stone-900" : "text-stone-400"
+                        query.isActive ? "text-stone-900" : "text-stone-400"
                       }`}
                     >
-                      {query.query_text}
+                      {query.queryText}
                     </span>
                   </div>
                   <div className="flex items-center gap-1 shrink-0 ml-3">
@@ -148,30 +147,23 @@ function SearchQueriesContent() {
   );
 }
 
-// =============================================================================
-// Add Query Form
-// =============================================================================
-
 function AddQueryForm({ onClose }: { onClose: () => void }) {
   const [queryText, setQueryText] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching: loading }, createQuery] = useMutation(CreateSearchQueryMutation);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!queryText.trim()) return;
-    setLoading(true);
     setError(null);
-    try {
-      await callService("Websites", "create_search_query", {
-        query_text: queryText.trim(),
-      });
-      invalidateService("Websites");
+    const result = await createQuery(
+      { queryText: queryText.trim() },
+      { additionalTypenames: ["SearchQuery"] }
+    );
+    if (result.error) {
+      setError(result.error.message || "Failed to create query");
+    } else {
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to create query");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -211,37 +203,29 @@ function AddQueryForm({ onClose }: { onClose: () => void }) {
   );
 }
 
-// =============================================================================
-// Edit Query Form
-// =============================================================================
-
 function EditQueryForm({
   query,
   onClose,
 }: {
-  query: SearchQueryResult;
+  query: { id: string; queryText: string };
   onClose: () => void;
 }) {
-  const [queryText, setQueryText] = useState(query.query_text);
-  const [loading, setLoading] = useState(false);
+  const [queryText, setQueryText] = useState(query.queryText);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching: loading }, updateQuery] = useMutation(UpdateSearchQueryMutation);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!queryText.trim()) return;
-    setLoading(true);
     setError(null);
-    try {
-      await callService("Websites", "update_search_query", {
-        id: query.id,
-        query_text: queryText.trim(),
-      });
-      invalidateService("Websites");
+    const result = await updateQuery(
+      { id: query.id, queryText: queryText.trim() },
+      { additionalTypenames: ["SearchQuery"] }
+    );
+    if (result.error) {
+      setError(result.error.message || "Failed to update query");
+    } else {
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to update query");
-    } finally {
-      setLoading(false);
     }
   };
 
