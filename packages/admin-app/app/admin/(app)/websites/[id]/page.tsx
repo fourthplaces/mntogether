@@ -556,9 +556,9 @@ export default function WebsiteDetailPage() {
                             </Link>
                             <span
                               className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                                post.status === "active" || post.status === "Active"
+                                post.status === "active"
                                   ? "bg-green-100 text-green-800"
-                                  : post.status === "pending_approval" || post.status === "PendingApproval"
+                                  : post.status === "pending_approval"
                                     ? "bg-amber-100 text-amber-800"
                                     : "bg-stone-100 text-stone-600"
                               }`}
@@ -582,7 +582,7 @@ export default function WebsiteDetailPage() {
                             </div>
                           )}
                         </div>
-                        {(post.status === "pending_approval" || post.status === "PendingApproval") && (
+                        {post.status === "pending_approval" && (
                           <div className="flex items-center gap-2 ml-4 shrink-0">
                             <button
                               onClick={() => handleApprovePost(post.id)}

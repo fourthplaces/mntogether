@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const totalPosts = allPosts.length;
   const pendingPostsCount = pendingPosts.length;
   const approvedPosts = allPosts.filter(
-    (l) => l.status === "active" || l.status === "approved"
+    (l) => l.status === "active"
   ).length;
   const totalPostsFromWebsites = websites.reduce(
     (sum, d) => sum + (d.postCount || 0),
