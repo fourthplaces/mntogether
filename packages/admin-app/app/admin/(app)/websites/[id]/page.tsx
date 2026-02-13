@@ -5,16 +5,30 @@ import { useState, useRef, useEffect } from "react";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
-import type {
-  WebsiteResult,
-  OptionalAssessmentResult,
-  PostList,
-  ExtractionPageListResult,
-  ExtractionPageCount,
-  OrganizationResult,
-  OrganizationListResult,
-} from "@/lib/restate/types";
+import { useQuery, useMutation } from "urql";
+import {
+  WebsiteDetailQuery,
+  WebsitePagesQuery,
+  WebsitePageCountQuery,
+  WebsiteAssessmentQuery,
+  WebsitePostsQuery,
+  ApproveWebsiteMutation,
+  RejectWebsiteMutation,
+  CrawlWebsiteMutation,
+  GenerateWebsiteAssessmentMutation,
+  RegenerateWebsitePostsMutation,
+  DeduplicateWebsitePostsMutation,
+  ExtractWebsiteOrganizationMutation,
+  AssignWebsiteOrganizationMutation,
+  UnassignWebsiteOrganizationMutation,
+  ApprovePostInlineMutation,
+  RejectPostInlineMutation,
+} from "@/lib/graphql/websites";
+import { WorkflowStatusQuery } from "@/lib/graphql/sources";
+import {
+  OrganizationDetailQuery,
+  OrganizationsListQuery,
+} from "@/lib/graphql/organizations";
 
 type TabType = "posts" | "snapshots" | "assessment";
 
@@ -33,7 +47,6 @@ export default function WebsiteDetailPage() {
   const [showOrgPicker, setShowOrgPicker] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -44,75 +57,130 @@ export default function WebsiteDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- Data hooks ---
+  const mutationContext = { additionalTypenames: ["Website", "WebsiteConnection", "Post", "PostConnection"] };
 
-  const {
-    data: website,
-    isLoading: websiteLoading,
-    error: websiteError,
-    mutate: refetchWebsite,
-  } = useRestateObject<WebsiteResult>("Website", websiteId, "get", {}, { revalidateOnFocus: false });
+  // --- Data queries ---
 
-  const {
-    data: postsData,
-    mutate: refetchPosts,
-  } = useRestate<PostList>(
-    "Posts", "list",
-    { source_type: "website", source_id: websiteId, first: 100 },
-    { revalidateOnFocus: false }
-  );
+  const [{ data: websiteData, fetching: websiteLoading, error: websiteError }, refetchWebsite] =
+    useQuery({ query: WebsiteDetailQuery, variables: { id: websiteId } });
 
-  const {
-    data: pagesData,
-  } = useRestate<ExtractionPageListResult>(
-    website?.domain ? "Extraction" : null,
-    "list_pages",
-    { domain: website?.domain, limit: 50 },
-    { revalidateOnFocus: false }
-  );
+  const website = websiteData?.website;
 
-  const {
-    data: pageCount,
-  } = useRestate<ExtractionPageCount>(
-    website?.domain ? "Extraction" : null,
-    "count_pages",
-    { domain: website?.domain },
-    { revalidateOnFocus: false }
-  );
+  const [{ data: postsData }, refetchPosts] = useQuery({
+    query: WebsitePostsQuery,
+    variables: { websiteId, limit: 100 },
+    pause: !website,
+  });
 
-  const {
-    data: assessmentData,
-    mutate: refetchAssessment,
-  } = useRestateObject<OptionalAssessmentResult>("Website", websiteId, "get_assessment", {}, { revalidateOnFocus: false });
+  const [{ data: pagesData }] = useQuery({
+    query: WebsitePagesQuery,
+    variables: { domain: website?.domain || "", limit: 50 },
+    pause: !website?.domain,
+  });
 
-  const { data: orgData } = useRestate<OrganizationResult>(
-    website?.organization_id ? "Organizations" : null,
-    "get",
-    { id: website?.organization_id },
-    { revalidateOnFocus: false }
-  );
+  const [{ data: pageCountData }] = useQuery({
+    query: WebsitePageCountQuery,
+    variables: { domain: website?.domain || "" },
+    pause: !website?.domain,
+  });
 
-  const { data: orgsListData } = useRestate<OrganizationListResult>(
-    showOrgPicker ? "Organizations" : null,
-    "list",
-    {},
-    { revalidateOnFocus: false }
-  );
+  const [{ data: assessmentData }, refetchAssessment] = useQuery({
+    query: WebsiteAssessmentQuery,
+    variables: { websiteId },
+  });
 
-  const assessment = assessmentData?.assessment ?? null;
+  const [{ data: orgData }] = useQuery({
+    query: OrganizationDetailQuery,
+    variables: { id: website?.organizationId || "" },
+    pause: !website?.organizationId,
+  });
 
-  const posts = postsData?.posts || [];
-  const pages = pagesData?.pages || [];
+  const [{ data: orgsListData }] = useQuery({
+    query: OrganizationsListQuery,
+    pause: !showOrgPicker,
+  });
+
+  // Workflow status polling
+  const [{ data: regenStatusData }] = useQuery({
+    query: WorkflowStatusQuery,
+    variables: { workflowName: "RegeneratePostsWorkflow", workflowId: regenWorkflowId || "" },
+    pause: !regenWorkflowId,
+    requestPolicy: "network-only",
+  });
+
+  const [{ data: dedupStatusData }] = useQuery({
+    query: WorkflowStatusQuery,
+    variables: { workflowName: "DeduplicatePostsWorkflow", workflowId: dedupWorkflowId || "" },
+    pause: !dedupWorkflowId,
+    requestPolicy: "network-only",
+  });
+
+  useEffect(() => {
+    if (!regenWorkflowId) return;
+    const interval = setInterval(() => {
+      refetchWebsite({ requestPolicy: "network-only" });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [regenWorkflowId]);
+
+  useEffect(() => {
+    if (regenStatusData?.workflowStatus != null) {
+      const status = regenStatusData.workflowStatus;
+      setRegenStatus(status);
+      if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
+        setRegenWorkflowId(null);
+        setActionInProgress(null);
+        refetchPosts({ requestPolicy: "network-only" });
+      }
+    }
+  }, [regenStatusData]);
+
+  useEffect(() => {
+    if (!dedupWorkflowId) return;
+    const interval = setInterval(() => {
+      refetchWebsite({ requestPolicy: "network-only" });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dedupWorkflowId]);
+
+  useEffect(() => {
+    if (dedupStatusData?.workflowStatus != null) {
+      const status = dedupStatusData.workflowStatus;
+      setDedupStatus(status);
+      if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
+        setDedupWorkflowId(null);
+        setActionInProgress(null);
+        refetchPosts({ requestPolicy: "network-only" });
+      }
+    }
+  }, [dedupStatusData]);
+
+  const assessment = assessmentData?.websiteAssessment ?? null;
+  const posts = postsData?.websitePosts?.posts || [];
+  const pages = pagesData?.websitePages || [];
+  const pageCount = pageCountData?.websitePageCount ?? 0;
+
+  // --- Mutations ---
+
+  const [, approveWebsite] = useMutation(ApproveWebsiteMutation);
+  const [, rejectWebsite] = useMutation(RejectWebsiteMutation);
+  const [, crawlWebsite] = useMutation(CrawlWebsiteMutation);
+  const [, generateAssessment] = useMutation(GenerateWebsiteAssessmentMutation);
+  const [, regeneratePosts] = useMutation(RegenerateWebsitePostsMutation);
+  const [, deduplicatePosts] = useMutation(DeduplicateWebsitePostsMutation);
+  const [, extractOrg] = useMutation(ExtractWebsiteOrganizationMutation);
+  const [, assignOrg] = useMutation(AssignWebsiteOrganizationMutation);
+  const [, unassignOrg] = useMutation(UnassignWebsiteOrganizationMutation);
+  const [, approvePost] = useMutation(ApprovePostInlineMutation);
+  const [, rejectPost] = useMutation(RejectPostInlineMutation);
 
   // --- Actions ---
 
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
-      await callObject("Website", websiteId, "approve", {});
-      invalidateService("Websites");
-      invalidateObject("Website", websiteId);
-      refetchWebsite();
+      await approveWebsite({ id: websiteId }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to approve:", err);
     } finally {
@@ -123,10 +191,8 @@ export default function WebsiteDetailPage() {
   const handleReject = async () => {
     setActionInProgress("reject");
     try {
-      await callObject("Website", websiteId, "reject", { reason: "Rejected" });
-      invalidateService("Websites");
-      invalidateObject("Website", websiteId);
-      refetchWebsite();
+      await rejectWebsite({ id: websiteId, reason: "Rejected" }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to reject:", err);
     } finally {
@@ -137,10 +203,8 @@ export default function WebsiteDetailPage() {
   const handleApprovePost = async (postId: string) => {
     setApprovingPostId(postId);
     try {
-      await callObject("Post", postId, "approve", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetchPosts();
+      await approvePost({ id: postId }, mutationContext);
+      refetchPosts({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to approve post:", err);
     } finally {
@@ -151,10 +215,8 @@ export default function WebsiteDetailPage() {
   const handleRejectPost = async (postId: string) => {
     setRejectingPostId(postId);
     try {
-      await callObject("Post", postId, "reject", { reason: "Rejected by admin" });
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetchPosts();
+      await rejectPost({ id: postId, reason: "Rejected by admin" }, mutationContext);
+      refetchPosts({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to reject post:", err);
     } finally {
@@ -165,11 +227,8 @@ export default function WebsiteDetailPage() {
   const handleCrawl = async () => {
     setActionInProgress("crawl");
     try {
-      const workflowId = `crawl-${websiteId}-${Date.now()}`;
-      await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
-        website_id: websiteId,
-      });
-      refetchWebsite();
+      await crawlWebsite({ id: websiteId }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to start crawl:", err);
     } finally {
@@ -181,8 +240,8 @@ export default function WebsiteDetailPage() {
     setActionInProgress("assessment");
     setMenuOpen(false);
     try {
-      await callObject("Website", websiteId, "generate_assessment", {});
-      refetchAssessment();
+      await generateAssessment({ id: websiteId }, mutationContext);
+      refetchAssessment({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to generate assessment:", err);
     } finally {
@@ -194,11 +253,11 @@ export default function WebsiteDetailPage() {
     setActionInProgress("regenerate");
     setMenuOpen(false);
     try {
-      const result = await callObject<{ status: string }>("Website", websiteId, "regenerate_posts", {});
-      // status is "started:{workflow_id}"
-      const workflowId = result.status.replace("started:", "");
-      setRegenWorkflowId(workflowId);
-      setRegenStatus("Starting...");
+      const result = await regeneratePosts({ id: websiteId }, mutationContext);
+      if (result.data?.regenerateWebsitePosts?.workflowId) {
+        setRegenWorkflowId(result.data.regenerateWebsitePosts.workflowId);
+        setRegenStatus("Starting...");
+      }
     } catch (err) {
       console.error("Failed to start regeneration:", err);
       setActionInProgress(null);
@@ -209,10 +268,11 @@ export default function WebsiteDetailPage() {
     setActionInProgress("deduplicate");
     setMenuOpen(false);
     try {
-      const result = await callObject<{ status: string }>("Website", websiteId, "deduplicate_posts", {});
-      const workflowId = result.status.replace("started:", "");
-      setDedupWorkflowId(workflowId);
-      setDedupStatus("Starting...");
+      const result = await deduplicatePosts({ id: websiteId }, mutationContext);
+      if (result.data?.deduplicateWebsitePosts?.workflowId) {
+        setDedupWorkflowId(result.data.deduplicateWebsitePosts.workflowId);
+        setDedupStatus("Starting...");
+      }
     } catch (err) {
       console.error("Failed to start deduplication:", err);
       setActionInProgress(null);
@@ -223,13 +283,8 @@ export default function WebsiteDetailPage() {
     setActionInProgress("extract_org");
     setMenuOpen(false);
     try {
-      const result = await callObject<{ organization_id: string | null; status: string }>(
-        "Website", websiteId, "extract_organization", {}
-      );
-      invalidateObject("Website", websiteId);
-      invalidateService("Websites");
-      invalidateService("Organizations");
-      refetchWebsite();
+      await extractOrg({ id: websiteId }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to extract organization:", err);
     } finally {
@@ -240,11 +295,8 @@ export default function WebsiteDetailPage() {
   const handleAssignOrganization = async (orgId: string) => {
     setActionInProgress("assign_org");
     try {
-      await callObject("Website", websiteId, "assign_organization", { organization_id: orgId });
-      invalidateObject("Website", websiteId);
-      invalidateService("Websites");
-      invalidateService("Organizations");
-      refetchWebsite();
+      await assignOrg({ id: websiteId, organizationId: orgId }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
       setShowOrgPicker(false);
     } catch (err) {
       console.error("Failed to assign organization:", err);
@@ -256,11 +308,8 @@ export default function WebsiteDetailPage() {
   const handleUnassignOrganization = async () => {
     setActionInProgress("unassign_org");
     try {
-      await callObject("Website", websiteId, "unassign_organization", {});
-      invalidateObject("Website", websiteId);
-      invalidateService("Websites");
-      invalidateService("Organizations");
-      refetchWebsite();
+      await unassignOrg({ id: websiteId }, mutationContext);
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to unassign organization:", err);
     } finally {
@@ -268,88 +317,26 @@ export default function WebsiteDetailPage() {
     }
   };
 
-  // Poll regenerate posts workflow status
-  useEffect(() => {
-    if (!regenWorkflowId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const status = await callObject<string>(
-          "RegeneratePostsWorkflow", regenWorkflowId, "get_status", {}
-        );
-        setRegenStatus(status);
-
-        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
-          clearInterval(interval);
-          setRegenWorkflowId(null);
-          setActionInProgress(null);
-          refetchPosts();
-        }
-      } catch {
-        // Workflow may not be ready yet, keep polling
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [regenWorkflowId, refetchPosts]);
-
-  // Poll deduplicate posts workflow status
-  useEffect(() => {
-    if (!dedupWorkflowId) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const status = await callObject<string>(
-          "DeduplicatePostsWorkflow", dedupWorkflowId, "get_status", {}
-        );
-        setDedupStatus(status);
-
-        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
-          clearInterval(interval);
-          setDedupWorkflowId(null);
-          setActionInProgress(null);
-          refetchPosts();
-        }
-      } catch {
-        // Workflow may not be ready yet, keep polling
-      }
-    }, 3000);
-
-    return () => clearInterval(interval);
-  }, [dedupWorkflowId, refetchPosts]);
-
   // --- Helpers ---
 
   const getStatusColor = (status: string) => {
     switch (status?.toLowerCase()) {
-      case "approved":
-        return "bg-green-100 text-green-800";
-      case "pending_review":
-      case "pending":
-        return "bg-yellow-100 text-yellow-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      case "suspended":
-        return "bg-gray-100 text-gray-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+      case "approved": return "bg-green-100 text-green-800";
+      case "pending_review": case "pending": return "bg-yellow-100 text-yellow-800";
+      case "rejected": return "bg-red-100 text-red-800";
+      case "suspended": return "bg-gray-100 text-gray-800";
+      default: return "bg-gray-100 text-gray-800";
     }
   };
 
   const formatStatus = (status: string) => {
     const map: Record<string, string> = {
-      Active: "Active",
-      active: "Active",
-      PendingApproval: "Pending Approval",
-      pending_approval: "Pending Approval",
-      Rejected: "Rejected",
-      rejected: "Rejected",
-      Expired: "Expired",
-      expired: "Expired",
-      Filled: "Filled",
-      filled: "Filled",
-      Archived: "Archived",
-      archived: "Archived",
+      Active: "Active", active: "Active",
+      PendingApproval: "Pending Approval", pending_approval: "Pending Approval",
+      Rejected: "Rejected", rejected: "Rejected",
+      Expired: "Expired", expired: "Expired",
+      Filled: "Filled", filled: "Filled",
+      Archived: "Archived", archived: "Archived",
     };
     return map[status] || status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
   };
@@ -368,14 +355,12 @@ export default function WebsiteDetailPage() {
   if (websiteError) {
     return (
       <div className="min-h-screen bg-stone-50 p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Website</h1>
-            <p className="text-stone-600 mb-4">{websiteError.message}</p>
-            <Link href="/admin/websites" className="text-blue-600 hover:text-blue-800">
-              Back to Websites
-            </Link>
-          </div>
+        <div className="max-w-6xl mx-auto text-center py-12">
+          <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Website</h1>
+          <p className="text-stone-600 mb-4">{websiteError.message}</p>
+          <Link href="/admin/websites" className="text-blue-600 hover:text-blue-800">
+            Back to Websites
+          </Link>
         </div>
       </div>
     );
@@ -384,13 +369,11 @@ export default function WebsiteDetailPage() {
   if (!website) {
     return (
       <div className="min-h-screen bg-stone-50 p-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-stone-900 mb-4">Website Not Found</h1>
-            <Link href="/admin/websites" className="text-blue-600 hover:text-blue-800">
-              Back to Websites
-            </Link>
-          </div>
+        <div className="max-w-6xl mx-auto text-center py-12">
+          <h1 className="text-2xl font-bold text-stone-900 mb-4">Website Not Found</h1>
+          <Link href="/admin/websites" className="text-blue-600 hover:text-blue-800">
+            Back to Websites
+          </Link>
         </div>
       </div>
     );
@@ -399,7 +382,6 @@ export default function WebsiteDetailPage() {
   return (
     <div className="min-h-screen bg-stone-50 p-6">
       <div className="max-w-6xl mx-auto">
-        {/* Back Button */}
         <Link
           href="/admin/websites"
           className="inline-flex items-center text-stone-600 hover:text-stone-900 mb-6"
@@ -445,7 +427,6 @@ export default function WebsiteDetailPage() {
                   </button>
                 </>
               )}
-              {/* More Actions Dropdown */}
               <div className="relative" ref={menuRef}>
                 <button
                   onClick={() => setMenuOpen(!menuOpen)}
@@ -485,7 +466,7 @@ export default function WebsiteDetailPage() {
                       Deduplicate Posts
                     </button>
                     <div className="border-t border-stone-100 my-1" />
-                    {!website.organization_id && (
+                    {!website.organizationId && (
                       <button
                         onClick={handleExtractOrganization}
                         disabled={actionInProgress !== null}
@@ -501,7 +482,7 @@ export default function WebsiteDetailPage() {
                     >
                       Assign Organization
                     </button>
-                    {website.organization_id && (
+                    {website.organizationId && (
                       <button
                         onClick={() => { setMenuOpen(false); handleUnassignOrganization(); }}
                         disabled={actionInProgress !== null}
@@ -520,12 +501,12 @@ export default function WebsiteDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Organization</span>
-              {orgData ? (
+              {orgData?.organization ? (
                 <Link
-                  href={`/admin/organizations/${orgData.id}`}
+                  href={`/admin/organizations/${orgData.organization.id}`}
                   className="block text-sm font-medium text-amber-700 hover:text-amber-900"
                 >
-                  {orgData.name}
+                  {orgData.organization.name}
                 </Link>
               ) : actionInProgress === "extract_org" ? (
                 <div className="flex items-center gap-2 mt-0.5">
@@ -544,19 +525,18 @@ export default function WebsiteDetailPage() {
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Posts</span>
-              <p className="text-lg font-semibold text-stone-900">{postsData?.total_count ?? website.post_count ?? 0}</p>
+              <p className="text-lg font-semibold text-stone-900">{postsData?.websitePosts?.totalCount ?? website.postCount ?? 0}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
-              <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
+              <p className="text-lg font-semibold text-stone-900">{pageCount}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Last Crawled</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(website.last_crawled_at)}</p>
+              <p className="text-sm font-medium text-stone-900">{formatDate(website.lastCrawledAt)}</p>
             </div>
           </div>
 
-          {/* Regeneration Progress */}
           {regenStatus && actionInProgress === "regenerate" && (
             <div className="mt-4 pt-4 border-t border-stone-200">
               <div className="flex items-center gap-3">
@@ -566,7 +546,6 @@ export default function WebsiteDetailPage() {
             </div>
           )}
 
-          {/* Deduplication Progress */}
           {dedupStatus && actionInProgress === "deduplicate" && (
             <div className="mt-4 pt-4 border-t border-stone-200">
               <div className="flex items-center gap-3">
@@ -592,8 +571,8 @@ export default function WebsiteDetailPage() {
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  {tab === "posts" && ` (${postsData?.total_count ?? posts.length})`}
-                  {tab === "snapshots" && ` (${pageCount?.count ?? pages.length})`}
+                  {tab === "posts" && ` (${postsData?.websitePosts?.totalCount ?? posts.length})`}
+                  {tab === "snapshots" && ` (${pageCount})`}
                 </button>
               ))}
             </nav>
@@ -639,7 +618,7 @@ export default function WebsiteDetailPage() {
                                   key={`${tag.kind}:${tag.value}`}
                                   className="text-xs px-2 py-1 rounded bg-stone-100 text-stone-600"
                                 >
-                                  {tag.kind}: {tag.display_name || tag.value}
+                                  {tag.kind}: {tag.displayName || tag.value}
                                 </span>
                               ))}
                             </div>
@@ -683,9 +662,7 @@ export default function WebsiteDetailPage() {
                       className="block border border-stone-200 rounded-lg p-4 hover:border-stone-300 hover:shadow-sm transition-all"
                     >
                       <div className="mb-2">
-                        <span className="text-sm text-blue-600">
-                          {page.url}
-                        </span>
+                        <span className="text-sm text-blue-600">{page.url}</span>
                       </div>
                       {page.content && (
                         <div className="text-sm text-stone-600 line-clamp-3">
@@ -716,9 +693,9 @@ export default function WebsiteDetailPage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-start">
                       <h3 className="font-semibold text-stone-900">Assessment</h3>
-                      {assessment.confidence_score != null && (
+                      {assessment.confidenceScore != null && (
                         <span className="px-3 py-1 text-sm rounded-full font-medium bg-blue-100 text-blue-800">
-                          Confidence: {Math.round(assessment.confidence_score * 100)}%
+                          Confidence: {Math.round(assessment.confidenceScore * 100)}%
                         </span>
                       )}
                     </div>
@@ -740,7 +717,7 @@ export default function WebsiteDetailPage() {
                           ),
                         }}
                       >
-                        {assessment.assessment_markdown}
+                        {assessment.assessmentMarkdown}
                       </ReactMarkdown>
                     </div>
                   </div>
@@ -800,7 +777,7 @@ export default function WebsiteDetailPage() {
                         onClick={() => handleAssignOrganization(org.id)}
                         disabled={actionInProgress !== null}
                         className={`w-full text-left px-4 py-3 rounded-lg transition-colors disabled:opacity-50 ${
-                          website?.organization_id === org.id
+                          website?.organizationId === org.id
                             ? "bg-amber-100 text-amber-900"
                             : "hover:bg-stone-50 text-stone-800"
                         }`}
@@ -812,7 +789,7 @@ export default function WebsiteDetailPage() {
                           </div>
                         )}
                         <div className="text-xs text-stone-400 mt-1">
-                          {org.website_count} websites · {org.social_profile_count} social profiles
+                          {org.websiteCount} websites · {org.socialProfileCount} social profiles
                         </div>
                       </button>
                     ))}
