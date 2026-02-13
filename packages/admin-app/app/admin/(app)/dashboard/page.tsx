@@ -1,20 +1,37 @@
 "use client";
 
 import Link from "next/link";
-import { useRestate } from "@/lib/restate/client";
+import { useQuery } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { WebsiteList, PostList } from "@/lib/restate/types";
+import { WebsitesListQuery } from "@/lib/graphql/websites";
+import { graphql } from "@/gql";
+
+const DashboardPostsQuery = graphql(`
+  query DashboardPosts($status: String, $limit: Int) {
+    posts(status: $status, limit: $limit) {
+      posts {
+        id
+        status
+        createdAt
+      }
+      totalCount
+    }
+  }
+`);
 
 export default function DashboardPage() {
-  const { data: websiteData, isLoading: websitesLoading } = useRestate<WebsiteList>(
-    "Websites", "list", {}, { revalidateOnFocus: false }
-  );
-  const { data: postData, isLoading: postsLoading } = useRestate<PostList>(
-    "Posts", "list", { status: "pending_approval" }, { revalidateOnFocus: false }
-  );
-  const { data: allPostData, isLoading: allPostsLoading } = useRestate<PostList>(
-    "Posts", "list", {}, { revalidateOnFocus: false }
-  );
+  const [{ data: websiteData, fetching: websitesLoading }] = useQuery({
+    query: WebsitesListQuery,
+    variables: { limit: 1000 },
+  });
+  const [{ data: pendingPostData, fetching: postsLoading }] = useQuery({
+    query: DashboardPostsQuery,
+    variables: { status: "pending_approval", limit: 1000 },
+  });
+  const [{ data: allPostData, fetching: allPostsLoading }] = useQuery({
+    query: DashboardPostsQuery,
+    variables: { limit: 1000 },
+  });
 
   const isLoading = websitesLoading || postsLoading || allPostsLoading;
 
@@ -22,9 +39,9 @@ export default function DashboardPage() {
     return <AdminLoader label="Loading dashboard..." />;
   }
 
-  const websites = websiteData?.websites || [];
-  const pendingPosts = postData?.posts || [];
-  const allPosts = allPostData?.posts || [];
+  const websites = websiteData?.websites?.websites || [];
+  const pendingPosts = pendingPostData?.posts?.posts || [];
+  const allPosts = allPostData?.posts?.posts || [];
 
   // Calculate stats
   const totalWebsites = websites.length;
@@ -32,17 +49,22 @@ export default function DashboardPage() {
   const pendingWebsites = websites.filter((d) => d.status === "pending_review").length;
   const totalPosts = allPosts.length;
   const pendingPostsCount = pendingPosts.length;
-  const approvedPosts = allPosts.filter((l) => l.status === "active" || l.status === "approved").length;
-  const totalPostsFromWebsites = websites.reduce((sum, d) => sum + (d.post_count || 0), 0);
+  const approvedPosts = allPosts.filter(
+    (l) => l.status === "active" || l.status === "approved"
+  ).length;
+  const totalPostsFromWebsites = websites.reduce(
+    (sum, d) => sum + (d.postCount || 0),
+    0
+  );
 
   // Recent activity (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const recentWebsites = websites.filter(
-    (d) => d.created_at && new Date(d.created_at) > sevenDaysAgo
+    (d) => d.lastCrawledAt && new Date(d.lastCrawledAt) > sevenDaysAgo
   ).length;
   const recentPosts = allPosts.filter(
-    (l) => new Date(l.created_at) > sevenDaysAgo
+    (l) => new Date(l.createdAt) > sevenDaysAgo
   ).length;
 
   const stats = [

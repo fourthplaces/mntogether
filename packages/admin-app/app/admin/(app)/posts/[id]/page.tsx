@@ -5,9 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useQuery, useMutation } from "urql";
-import { useRestate, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useState, useRef, useEffect } from "react";
-import type { EntityProposalListResult, EntityProposal, NoteListResult, NoteResult } from "@/lib/restate/types";
 import {
   PostDetailQuery,
   ApprovePostMutation,
@@ -21,6 +19,8 @@ import {
   RegeneratePostTagsMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
+import { EntityProposalsQuery, EntityNotesQuery } from "@/lib/graphql/notes";
+import { ApproveProposalMutation, RejectProposalMutation } from "@/lib/graphql/sync";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -105,22 +105,20 @@ export default function PostDetailPage() {
   });
   const post = postData?.post;
 
-  // Restate: proposals (Sync domain — will migrate in Phase 7)
-  const { data: proposalsData, mutate: refetchProposals } = useRestate<EntityProposalListResult>(
-    "Sync", "list_entity_proposals",
-    { entity_id: postId },
-    { revalidateOnFocus: false }
-  );
+  // GraphQL: proposals
+  const [{ data: proposalsData }] = useQuery({
+    query: EntityProposalsQuery,
+    variables: { entityId: postId },
+  });
 
-  // Restate: notes (Notes domain — will migrate in a later phase)
-  const { data: notesData } = useRestate<NoteListResult>(
-    "Notes", "list_for_entity",
-    { noteable_type: "post", noteable_id: postId },
-    { revalidateOnFocus: false }
-  );
+  // GraphQL: notes
+  const [{ data: notesData }] = useQuery({
+    query: EntityNotesQuery,
+    variables: { noteableType: "post", noteableId: postId },
+  });
 
-  const proposals = proposalsData?.proposals || [];
-  const notes = notesData?.notes || [];
+  const proposals = proposalsData?.entityProposals || [];
+  const notes = notesData?.entityNotes || [];
 
   // GraphQL mutations
   const [, approvePost] = useMutation(ApprovePostMutation);
@@ -288,13 +286,13 @@ export default function PostDetailPage() {
     }
   };
 
-  // Proposals still use Restate (Phase 7)
+  const [, approveProposalMut] = useMutation(ApproveProposalMutation);
+  const [, rejectProposalMut] = useMutation(RejectProposalMutation);
+  const proposalMutationContext = { additionalTypenames: ["EntityProposal", "Post", "PostConnection"] };
+
   const handleApproveProposal = async (proposalId: string) => {
     try {
-      await callService("Sync", "approve_proposal", { proposal_id: proposalId });
-      invalidateService("Sync");
-      invalidateObject("Post", postId);
-      refetchProposals();
+      await approveProposalMut({ id: proposalId }, proposalMutationContext);
     } catch (err) {
       console.error("Failed to approve proposal:", err);
     }
@@ -302,9 +300,7 @@ export default function PostDetailPage() {
 
   const handleRejectProposal = async (proposalId: string) => {
     try {
-      await callService("Sync", "reject_proposal", { proposal_id: proposalId });
-      invalidateService("Sync");
-      refetchProposals();
+      await rejectProposalMut({ id: proposalId }, proposalMutationContext);
     } catch (err) {
       console.error("Failed to reject proposal:", err);
     }
@@ -598,14 +594,14 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Review: pending proposals — still uses Restate (Phase 7) */}
+        {/* Review: pending proposals */}
         {proposals.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-amber-400">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
               Pending Changes ({proposals.length})
             </h2>
             <div className="space-y-3">
-                {proposals.map((proposal: EntityProposal) => (
+                {proposals.map((proposal) => (
                   <div
                     key={proposal.id}
                     className="flex items-center justify-between border border-stone-200 rounded-lg p-4"
@@ -628,7 +624,7 @@ export default function PostDetailPage() {
                           {proposal.operation}
                         </span>
                         <span className="text-xs text-stone-400">
-                          {new Date(proposal.created_at).toLocaleDateString()}
+                          {new Date(proposal.createdAt).toLocaleDateString()}
                         </span>
                       </div>
                       {proposal.reason && (
@@ -740,15 +736,15 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Notes — still uses Restate (later phase) */}
+        {/* Notes */}
         {notes.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
               Notes ({notes.length})
             </h2>
             <div className="space-y-2">
-              {notes.map((note: NoteResult) => {
-                const isExpired = !!note.expired_at;
+              {notes.map((note) => {
+                const isExpired = !!note.expiredAt;
                 const severityStyle =
                   note.severity === "urgent" ? "bg-red-100 text-red-800" :
                   note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
@@ -765,7 +761,7 @@ export default function PostDetailPage() {
                       <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${severityStyle}`}>
                         {note.severity}
                       </span>
-                      {note.is_public && (
+                      {note.isPublic && (
                         <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
                           public
                         </span>
@@ -775,17 +771,17 @@ export default function PostDetailPage() {
                           expired
                         </span>
                       )}
-                      {note.source_type && (
-                        <span className="text-xs text-stone-400">via {note.source_type}</span>
+                      {note.sourceType && (
+                        <span className="text-xs text-stone-400">via {note.sourceType}</span>
                       )}
                       <span className="text-xs text-stone-400">
-                        {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
+                        {note.createdBy} &middot; {new Date(note.createdAt).toLocaleDateString()}
                       </span>
                     </div>
                     <p className="text-sm text-stone-700">{note.content}</p>
-                    {note.source_url && (
+                    {note.sourceUrl && (
                       <a
-                        href={note.source_url}
+                        href={note.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
@@ -793,10 +789,10 @@ export default function PostDetailPage() {
                         Source {"\u2197"}
                       </a>
                     )}
-                    {note.linked_posts && note.linked_posts.filter(p => p.id !== postId).length > 0 && (
+                    {note.linkedPosts && note.linkedPosts.filter(p => p.id !== postId).length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 mt-1.5">
                         <span className="text-xs text-stone-400">Also on:</span>
-                        {note.linked_posts.filter(p => p.id !== postId).map((p) => (
+                        {note.linkedPosts.filter(p => p.id !== postId).map((p) => (
                           <Link
                             key={p.id}
                             href={`/admin/posts/${p.id}`}

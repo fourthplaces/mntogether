@@ -70,6 +70,20 @@ type Query {
   # Sync/Proposals (admin)
   syncBatches(status: String, limit: Int): SyncBatchConnection!
   syncProposals(batchId: ID!): SyncProposalConnection!
+
+  # Search Queries (admin)
+  searchQueries: [SearchQuery!]!
+
+  # Jobs (admin)
+  jobs(status: String, limit: Int): [Job!]!
+
+  # Entity Proposals & Notes (admin)
+  entityProposals(entityId: ID!): [EntityProposal!]!
+  entityNotes(noteableType: String!, noteableId: ID!): [Note!]!
+
+  # Organization detail queries (admin)
+  organizationSources(organizationId: ID!): [Source!]!
+  organizationPosts(organizationId: ID!, limit: Int): PostConnection!
 }
 
 type Mutation {
@@ -149,6 +163,25 @@ type Mutation {
   approveBatch(id: ID!): Boolean!
   rejectBatch(id: ID!): Boolean!
   refineProposal(proposalId: ID!, comment: String!): Boolean!
+
+  # Search Queries (admin)
+  createSearchQuery(queryText: String!): SearchQuery!
+  updateSearchQuery(id: ID!, queryText: String!): SearchQuery!
+  toggleSearchQuery(id: ID!): SearchQuery!
+  deleteSearchQuery(id: ID!): Boolean!
+  runScheduledDiscovery: Boolean!
+
+  # Notes (admin)
+  createNote(noteableType: String!, noteableId: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String): Note!
+  updateNote(id: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String, expiredAt: String): Note!
+  deleteNote(id: ID!): Boolean!
+  unlinkNote(noteId: ID!, postId: ID!): Boolean!
+  generateNotesFromSources(organizationId: ID!): GenerateNotesResult!
+  autoAttachNotes(organizationId: ID!): AutoAttachNotesResult!
+
+  # Organization source operations (admin)
+  createSocialSource(organizationId: ID!, platform: String!, identifier: String!): Source!
+  crawlAllOrgSources(organizationId: ID!): Boolean!
 }
 
 type PublicFilters {
@@ -462,6 +495,72 @@ type SyncProposal {
 
 type SyncProposalConnection {
   proposals: [SyncProposal!]!
+}
+
+type EntityProposal {
+  id: ID!
+  batchId: ID!
+  operation: String!
+  status: String!
+  entityType: String!
+  draftEntityId: ID
+  targetEntityId: ID
+  reason: String
+  createdAt: String!
+}
+
+type Note {
+  id: ID!
+  content: String!
+  ctaText: String
+  severity: String!
+  sourceUrl: String
+  sourceId: String
+  sourceType: String
+  isPublic: Boolean!
+  createdBy: String!
+  expiredAt: String
+  createdAt: String!
+  updatedAt: String!
+  linkedPosts: [LinkedPost!]
+}
+
+type LinkedPost {
+  id: ID!
+  title: String!
+}
+
+type GenerateNotesResult {
+  notesCreated: Int!
+  sourcesScanned: Int!
+  postsAttached: Int!
+}
+
+type AutoAttachNotesResult {
+  notesCount: Int!
+  postsCount: Int!
+  noteablesCreated: Int!
+}
+
+type SearchQuery {
+  id: ID!
+  queryText: String!
+  isActive: Boolean!
+  sortOrder: Int!
+}
+
+type Job {
+  id: ID!
+  workflowName: String!
+  workflowKey: String!
+  status: String!
+  progress: String
+  createdAt: String
+  modifiedAt: String
+  completedAt: String
+  completionResult: String
+  websiteDomain: String
+  websiteId: String
 }
 `;
 

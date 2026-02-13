@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRestate } from "@/lib/restate/client";
+import { useQuery } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { JobListResult, JobResult } from "@/lib/restate/types";
+import { JobsListQuery } from "@/lib/graphql/jobs";
 
 type StatusFilter = "running" | "completed" | "backing-off" | null;
 
@@ -18,7 +18,13 @@ const WORKFLOW_LABELS: Record<string, string> = {
 };
 
 function workflowLabel(name: string): string {
-  return WORKFLOW_LABELS[name] || name.replace(/Workflow$/, "").replace(/([A-Z])/g, " $1").trim();
+  return (
+    WORKFLOW_LABELS[name] ||
+    name
+      .replace(/Workflow$/, "")
+      .replace(/([A-Z])/g, " $1")
+      .trim()
+  );
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -52,7 +58,10 @@ function timeAgo(dateStr: string | null | undefined): string {
   return `${diffDays}d ago`;
 }
 
-function duration(startStr: string | null | undefined, endStr: string | null | undefined): string {
+function duration(
+  startStr: string | null | undefined,
+  endStr: string | null | undefined
+): string {
   if (!startStr) return "";
   const start = new Date(startStr);
   const end = endStr ? new Date(endStr) : new Date();
@@ -69,22 +78,36 @@ function duration(startStr: string | null | undefined, endStr: string | null | u
   return `${hours}h ${remainingMin}m`;
 }
 
-function JobRow({ job }: { job: JobResult }) {
+type Job = {
+  id: string;
+  workflowName: string;
+  workflowKey: string;
+  status: string;
+  progress: string | null;
+  createdAt: string | null;
+  modifiedAt: string | null;
+  completedAt: string | null;
+  completionResult: string | null;
+  websiteDomain: string | null;
+  websiteId: string | null;
+};
+
+function JobRow({ job }: { job: Job }) {
   return (
     <tr className="hover:bg-stone-50">
       <td className="px-6 py-4 whitespace-nowrap">
         <StatusBadge status={job.status} />
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">
-        {workflowLabel(job.workflow_name)}
+        {workflowLabel(job.workflowName)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-        {job.website_id ? (
+        {job.websiteId ? (
           <Link
-            href={`/admin/websites/${job.website_id}`}
+            href={`/admin/websites/${job.websiteId}`}
             className="underline decoration-stone-300 hover:decoration-stone-600 hover:text-stone-900 transition-colors"
           >
-            {job.website_domain || job.website_id.slice(0, 8) + "..."}
+            {job.websiteDomain || job.websiteId.slice(0, 8) + "..."}
           </Link>
         ) : (
           <span className="text-stone-400">-</span>
@@ -94,10 +117,10 @@ function JobRow({ job }: { job: JobResult }) {
         {job.progress || <span className="text-stone-400">-</span>}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
-        {timeAgo(job.created_at)}
+        {timeAgo(job.createdAt)}
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-500">
-        {duration(job.created_at, job.completed_at || job.modified_at)}
+        {duration(job.createdAt, job.completedAt || job.modifiedAt)}
       </td>
     </tr>
   );
@@ -106,29 +129,21 @@ function JobRow({ job }: { job: JobResult }) {
 export default function JobsPage() {
   const [filter, setFilter] = useState<StatusFilter>(null);
 
-  const variables: Record<string, unknown> = { limit: 100 };
-  if (filter) {
-    variables.status = filter;
-  }
-
   const isRunningView = filter === "running";
 
-  const { data, isLoading } = useRestate<JobListResult>(
-    "Jobs",
-    "list",
-    variables,
-    {
-      revalidateOnFocus: false,
-      keepPreviousData: true,
-      ...(isRunningView ? { refreshInterval: 5000 } : {}),
-    }
-  );
+  const [{ data, fetching: isLoading }] = useQuery({
+    query: JobsListQuery,
+    variables: {
+      status: filter || undefined,
+      limit: 100,
+    },
+    requestPolicy: isRunningView ? "network-only" : "cache-first",
+  });
 
-  const jobs = data?.jobs || [];
+  const jobs = (data?.jobs || []) as Job[];
 
-  const runningCount = filter === null
-    ? jobs.filter((j) => j.status === "running").length
-    : undefined;
+  const runningCount =
+    filter === null ? jobs.filter((j) => j.status === "running").length : undefined;
 
   const filters: { label: string; value: StatusFilter }[] = [
     { label: "All", value: null },
@@ -145,7 +160,7 @@ export default function JobsPage() {
           <p className="text-sm text-stone-600 mt-1">
             All workflow invocations with live progress.
             {isRunningView && (
-              <span className="text-blue-600 ml-2">Auto-refreshing every 5s</span>
+              <span className="text-blue-600 ml-2">Showing running jobs</span>
             )}
           </p>
         </div>
@@ -157,7 +172,9 @@ export default function JobsPage() {
               {runningCount !== undefined ? runningCount : jobs.length}
             </div>
             <div className="text-xs text-stone-500">
-              {runningCount !== undefined ? "Currently running" : `${filter || "all"} jobs shown`}
+              {runningCount !== undefined
+                ? "Currently running"
+                : `${filter || "all"} jobs shown`}
             </div>
           </div>
           <div className="bg-white border border-stone-200 rounded-lg p-4">
@@ -166,7 +183,7 @@ export default function JobsPage() {
           </div>
           <div className="bg-white border border-stone-200 rounded-lg p-4">
             <div className="text-2xl font-bold text-stone-900">
-              {new Set(jobs.map((j) => j.workflow_name)).size}
+              {new Set(jobs.map((j) => j.workflowName)).size}
             </div>
             <div className="text-xs text-stone-500">Workflow types</div>
           </div>
@@ -195,9 +212,7 @@ export default function JobsPage() {
         ) : jobs.length === 0 ? (
           <div className="bg-white border border-stone-200 rounded-lg p-12 text-center">
             <p className="text-stone-500">
-              {filter
-                ? `No ${filter} jobs found.`
-                : "No workflow jobs found."}
+              {filter ? `No ${filter} jobs found.` : "No workflow jobs found."}
             </p>
           </div>
         ) : (
