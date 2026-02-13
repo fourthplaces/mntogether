@@ -150,15 +150,15 @@ services:
       - mndigitalaid
 
   # ========================================
-  # Next.js Web (Primary Frontend)
+  # Admin App (Primary Admin Frontend)
   # ========================================
-  web:
+  admin-app:
     build:
-      context: ./packages/web
+      context: ./packages/admin-app
       dockerfile: Dockerfile.dev
     labels:
-      dev.description: "Next.js web app (SSR)"
-    container_name: mndigitalaid_web
+      dev.description: "Next.js admin app (SSR)"
+    container_name: mndigitalaid_admin_app
     environment:
       # Server-side: container uses Docker network to reach Restate
       RESTATE_INGRESS_URL: http://restate:8080
@@ -175,7 +175,7 @@ services:
       - server
     volumes:
       # Mount source for hot-reload
-      - ./packages/web:/app
+      - ./packages/admin-app:/app
       # Prevent overwriting generated files
       - /app/node_modules
       - /app/.next

@@ -88,15 +88,15 @@ services:
           memory: 512M
 
   # ========================================
-  # Next.js Web (Production Build)
+  # Admin App (Production Build)
   # ========================================
-  web:
+  admin-app:
     build:
-      context: ./packages/web
+      context: ./packages/admin-app
       dockerfile: Dockerfile
       args:
         RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
-    container_name: mndigitalaid_web_prod
+    container_name: mndigitalaid_admin_app_prod
     environment:
       NODE_ENV: production
       PORT: 3000
