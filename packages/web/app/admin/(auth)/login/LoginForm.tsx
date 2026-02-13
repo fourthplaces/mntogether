@@ -7,7 +7,11 @@ import { sendVerificationCode, verifyCode } from "@/lib/auth/actions";
 export function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectUrl = searchParams.get("redirect") || "/admin/dashboard";
+  const rawRedirect = searchParams.get("redirect");
+  const redirectUrl =
+    rawRedirect && rawRedirect.startsWith("/admin/") && !rawRedirect.includes("//")
+      ? rawRedirect
+      : "/admin/dashboard";
 
   const [identifier, setIdentifier] = useState("");
   const [code, setCode] = useState("");
