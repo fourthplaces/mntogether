@@ -27,6 +27,10 @@ pub struct PageBriefExtraction {
     pub populations_mentioned: Vec<String>,
     /// Current capacity status if mentioned
     pub capacity_info: Option<String>,
+    /// How relevant this page is to our crisis-response platform.
+    /// "high", "medium", "low", or "none".
+    #[serde(default)]
+    pub platform_relevance: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]

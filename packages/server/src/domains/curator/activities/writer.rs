@@ -77,12 +77,17 @@ not something a neighbor says. Just a clear, punchy action.
 | Don't write | Write |
 |---|---|
 | "La Viña Community Support Program" | "Deliver Groceries to Homebound Families" |
-| "CANMN Emergency Fund" | "Keep Neighbors Housed Right Now" |
-| "Volunteer Opportunities Available" | "Pack and Deliver Food Boxes This Week" |
-| "Donate Now to Feed Families" | "Keep Families Fed and Housed This Month" |
-| "Donate to Feed Families and Prevent Evictions" | "Help a Family Stay Housed This Week" |
+| "CANMN Emergency Fund" | "Help a Family Stay in Their Home" |
+| "Volunteer Opportunities Available" | "Pack and Deliver Food Boxes in Burnsville" |
+| "Donate Now to Feed Families" | "Keep Families Fed and Housed" |
+| "Donate to Feed Families and Prevent Evictions" | "Help Families Keep a Roof Over Their Heads" |
 | "Drop Off Food & Essentials — Mon/Tue/Fri/Sat in Burnsville" | "Bring Groceries to the Burnsville Pantry" |
 | "Free Immigration Consultations — Minneapolis" | "Talk to an Immigration Lawyer for Free" |
+
+**Never add "This Week", "This Month", "Right Now", or other time qualifiers to
+titles.** Titles describe what someone can do — not when. These posts are for ongoing
+services, not one-off events. "Pack and Deliver Food Boxes" is a thing you can do.
+"Pack and Deliver Food Boxes This Week" sounds like it expires.
 
 ---
 

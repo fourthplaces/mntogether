@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use crate::domains::curator::models::CuratorResponse;
+use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
 use crate::kernel::{ServerDeps, GPT_5_MINI};
 
 const CURATOR_SYSTEM_PROMPT: &str = r#"
@@ -66,13 +67,9 @@ the website. Do NOT create or maintain posts that contradict the org's own socia
    - **schedule_notes** (optional): One short note that applies to the whole schedule.
      Only for genuine exceptions: "closed holidays", "by appointment only", "hours vary — check Instagram"
    - **service_areas**: Geographic coverage (county, city, state, zip, custom)
-   - **tags**: Classify using available tag kinds:
-     - audience_role: "participant", "volunteer", "donor"
-     - population: "refugees", "seniors", "youth", "families", etc.
-     - community_served: Cultural communities (e.g., "somali", "hmong", "latino")
-     - service_offered: "legal-aid", "food-assistance", "housing", etc.
-     - service_language: Languages offered (e.g., "spanish", "somali", "karen")
-   - **post_type**: "service", "opportunity", "business", "professional"
+   - **tags**: Classify using available tag kinds. ALL tags go inside the `tags` HashMap.
+     Required tags MUST be included for every create_post action.
+{{TAG_INSTRUCTIONS}}
    - **category**: "food-assistance", "legal-aid", "housing", "education", etc.
    - **urgency**: "low", "medium", "high", "urgent"
    - **capacity_status**: "accepting", "paused", "at_capacity" (if mentioned in source)
@@ -126,17 +123,25 @@ giving money. It does NOT say "or drop off groceries" — that's the supplies po
 A volunteer post contains ONLY signup and shift info. Each post is self-contained
 for its own action and does not mention the other posts' actions.
 
-## Deduplication
+## Deduplication — CRITICAL
 
-Before creating a post, check the existing feed. Do NOT create a post if:
-- An existing post already covers the same action from the same org
+**After drafting ALL your actions, review the full list and remove duplicates.**
+
+Do NOT create a post if:
+- An existing post (in the "Existing Posts" section) already covers the same action
 - Another action in your CURRENT batch already covers the same action
+- You already have a post about the same service, even if worded differently
 
-Two posts about "food" are not duplicates if one is "drop off groceries" (giving)
-and the other is "get groceries delivered" (receiving). But two posts about
-"drop off groceries at Burnsville" are duplicates.
+**Same service = same post, regardless of wording.** "Get Free Groceries Delivered
+to Your Home" and "Get Groceries Delivered to Your Door" are the SAME post.
+"Pack Food Boxes Weekday Mornings" appearing twice is an obvious duplicate.
+Pick the best version and drop the rest.
 
-If details have changed, use update_post instead of create_post.
+Two posts about "food" are NOT duplicates if one is "drop off groceries" (giving)
+and the other is "get groceries delivered" (receiving). The test is whether the
+call-to-action is the same, not whether the topic is the same.
+
+If details have changed on an existing post, use update_post instead of create_post.
 
 ## Rules
 
@@ -167,9 +172,16 @@ pub async fn run_curator(
     org_document: &str,
     deps: &ServerDeps,
 ) -> Result<CuratorResponse> {
+    // Build dynamic tag instructions from the database
+    let tag_instructions = build_tag_instructions(&deps.db_pool)
+        .await
+        .unwrap_or_default();
+    let system_prompt =
+        CURATOR_SYSTEM_PROMPT.replace("{{TAG_INSTRUCTIONS}}", &tag_instructions);
+
     let response = deps
         .ai
-        .extract::<CuratorResponse>(GPT_5_MINI, CURATOR_SYSTEM_PROMPT, org_document)
+        .extract::<CuratorResponse>(GPT_5_MINI, &system_prompt, org_document)
         .await
         .map_err(|e| anyhow::anyhow!("Curator reasoning failed: {}", e))?;
 

@@ -5,7 +5,6 @@
 
 use std::sync::Arc;
 
-
 use anyhow::{Context, Result};
 use restate_sdk::prelude::*;
 use server_core::common::utils::{EmbeddingService, ExpoClient};
