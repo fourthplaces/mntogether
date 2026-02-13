@@ -2,11 +2,12 @@
 
 import { Suspense, useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useRestate, callService, invalidateService } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
-import type { WebsiteList, WebsiteResult, OrganizationListResult } from "@/lib/restate/types";
+import { WebsitesListQuery, SubmitNewWebsiteMutation } from "@/lib/graphql/websites";
+import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 
 export default function WebsitesPage() {
   return (
@@ -46,43 +47,41 @@ function WebsitesContent() {
 
   const [showAddForm, setShowAddForm] = useState(false);
   const [addUrl, setAddUrl] = useState("");
-  const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const [{ fetching: addLoading }, submitWebsite] = useMutation(SubmitNewWebsiteMutation);
+  const mutationContext = { additionalTypenames: ["Website", "WebsiteConnection"] };
 
   const handleAddWebsite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addUrl.trim()) return;
 
-    setAddLoading(true);
     setAddError(null);
-    try {
-      const result = await callService<WebsiteResult>("Websites", "submit", { url: addUrl.trim() });
-      invalidateService("Websites");
+    const result = await submitWebsite({ url: addUrl.trim() }, mutationContext);
+    if (result.error) {
+      setAddError(result.error.message || "Failed to add website");
+    } else {
       setAddUrl("");
       setShowAddForm(false);
-      if (result?.id) {
-        router.push(`/admin/websites/${result.id}`);
+      if (result.data?.submitNewWebsite?.id) {
+        router.push(`/admin/websites/${result.data.submitNewWebsite.id}`);
       }
-    } catch (err: any) {
-      setAddError(err.message || "Failed to add website");
-    } finally {
-      setAddLoading(false);
     }
   };
 
-  const { data, isLoading, error } = useRestate<WebsiteList>(
-    "Websites", "list",
-    {
-      ...pagination.variables,
+  const [{ data, fetching: isLoading, error }] = useQuery({
+    query: WebsitesListQuery,
+    variables: {
       status: statusFilter,
-      search: debouncedSearch || undefined,
+      search: debouncedSearch || null,
+      limit: pagination.variables.first ?? 20,
+      offset: pagination.variables.offset ?? 0,
     },
-    { revalidateOnFocus: false }
-  );
+  });
 
-  const { data: orgsData } = useRestate<OrganizationListResult>(
-    "Organizations", "list", {}, { revalidateOnFocus: false }
-  );
+  const [{ data: orgsData }] = useQuery({
+    query: OrganizationsListQuery,
+  });
 
   const orgMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -92,9 +91,9 @@ function WebsitesContent() {
     return map;
   }, [orgsData]);
 
-  const websites = data?.websites || [];
-  const totalCount = data?.total_count || 0;
-  const hasNextPage = data?.has_next_page || false;
+  const websites = data?.websites?.websites || [];
+  const totalCount = data?.websites?.totalCount || 0;
+  const hasNextPage = data?.websites?.hasNextPage || false;
   const pageInfo = pagination.buildPageInfo(hasNextPage);
 
   const getStatusColor = (status: string) => {
@@ -225,10 +224,10 @@ function WebsitesContent() {
                       {website.domain}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-                      {website.organization_id ? (
-                        orgMap[website.organization_id] || "\u2014"
+                      {website.organizationId ? (
+                        orgMap[website.organizationId] || "\u2014"
                       ) : (
-                        <span className="text-stone-300">\u2014</span>
+                        <span className="text-stone-300">{"\u2014"}</span>
                       )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -237,11 +236,11 @@ function WebsitesContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-600">
-                      {website.post_count || 0}
+                      {website.postCount || 0}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-500 text-sm">
-                      {website.last_crawled_at
-                        ? new Date(website.last_crawled_at).toLocaleDateString()
+                      {website.lastCrawledAt
+                        ? new Date(website.lastCrawledAt).toLocaleDateString()
                         : "Never"}
                     </td>
                   </tr>

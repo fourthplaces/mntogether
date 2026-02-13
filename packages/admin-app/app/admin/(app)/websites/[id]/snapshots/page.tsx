@@ -5,12 +5,8 @@ import { useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import { useRestate } from "@/lib/restate/client";
-import type { ExtractionPageResult } from "@/lib/restate/types";
-
-interface OptionalPageResult {
-  page: ExtractionPageResult | null;
-}
+import { useQuery } from "urql";
+import { ExtractionPageQuery } from "@/lib/graphql/sources";
 
 export default function SnapshotDetailPage() {
   const { id: websiteId } = useParams<{ id: string }>();
@@ -19,14 +15,13 @@ export default function SnapshotDetailPage() {
 
   const [showRaw, setShowRaw] = useState(false);
 
-  const { data, isLoading, error } = useRestate<OptionalPageResult>(
-    "Extraction",
-    "get_page",
-    { url: url || "" },
-    { revalidateOnFocus: false }
-  );
+  const [{ data, fetching: isLoading, error }] = useQuery({
+    query: ExtractionPageQuery,
+    variables: { url: url || "" },
+    pause: !url,
+  });
 
-  const page = data?.page;
+  const page = data?.extractionPage;
 
   if (!url) {
     return (

@@ -47,6 +47,22 @@ type Query {
   extractionPage(url: String!): ExtractionPage
   workflowStatus(workflowName: String!, workflowId: String!): String
 
+  # Websites (admin, legacy)
+  websites(
+    status: String
+    search: String
+    limit: Int
+    offset: Int
+  ): WebsiteConnection!
+  website(id: ID!): Website
+  websitePages(domain: String!, limit: Int): [ExtractionPage!]!
+  websitePageCount(domain: String!): Int!
+  websiteAssessment(websiteId: ID!): Assessment
+  websitePosts(
+    websiteId: ID!
+    limit: Int
+  ): PostConnection!
+
   # Tags (admin)
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
@@ -87,6 +103,20 @@ type Mutation {
   removeAllOrgPosts(id: ID!): Boolean!
   removeAllOrgNotes(id: ID!): Boolean!
   rewriteNarratives(organizationId: ID!): RewriteNarrativesResult!
+
+  # Websites (admin, legacy)
+  submitNewWebsite(url: String!): Website!
+  approveWebsite(id: ID!): Website!
+  rejectWebsite(id: ID!, reason: String!): Website!
+  crawlWebsite(id: ID!): Boolean!
+  generateWebsiteAssessment(id: ID!): Boolean!
+  regenerateWebsitePosts(id: ID!): WorkflowStartResult!
+  deduplicateWebsitePosts(id: ID!): WorkflowStartResult!
+  extractWebsiteOrganization(id: ID!): Website!
+  assignWebsiteOrganization(id: ID!, organizationId: ID!): Website!
+  unassignWebsiteOrganization(id: ID!): Website!
+  approvePostInline(id: ID!): Post!
+  rejectPostInline(id: ID!, reason: String): Post!
 
   # Sources (admin)
   submitWebsite(url: String!): Source!
@@ -261,6 +291,24 @@ type RewriteNarrativesResult {
   rewritten: Int!
   failed: Int!
   total: Int!
+}
+
+type Website {
+  id: ID!
+  domain: String!
+  status: String!
+  active: Boolean!
+  crawlCount: Int
+  postCount: Int
+  lastCrawledAt: String
+  organizationId: ID
+  createdAt: String
+}
+
+type WebsiteConnection {
+  websites: [Website!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
 }
 
 type Source {

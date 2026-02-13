@@ -3,10 +3,12 @@ import { postResolvers } from "./post";
 import { tagResolvers } from "./tag";
 import { organizationResolvers } from "./organization";
 import { sourceResolvers } from "./source";
+import { websiteResolvers } from "./website";
 
 export const resolvers = mergeResolvers([
   postResolvers,
   tagResolvers,
   organizationResolvers,
   sourceResolvers,
+  websiteResolvers,
 ]);
