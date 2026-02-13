@@ -592,9 +592,11 @@ impl PostsServiceImpl {
 impl PostsService for PostsServiceImpl {
     async fn list(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: ListPostsRequest,
     ) -> Result<PostListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let filters = PostFilters {
             status: req.status.as_deref(),
             source_type: req.source_type.as_deref(),
@@ -1401,9 +1403,11 @@ impl PostsService for PostsServiceImpl {
 
     async fn stats(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: PostStatsRequest,
     ) -> Result<PostStatsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let rows = Post::stats_by_status(req.status.as_deref(), &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;

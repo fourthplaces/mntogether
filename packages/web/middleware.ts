@@ -53,7 +53,11 @@ export function middleware(request: NextRequest) {
   // Redirect authenticated users from login page to dashboard
   if (isPublicAdminRoute && isAuthenticated) {
     const redirectUrl = request.nextUrl.searchParams.get("redirect");
-    const destination = redirectUrl || "/admin/dashboard";
+    const isValidRedirect =
+      redirectUrl &&
+      redirectUrl.startsWith("/admin/") &&
+      !redirectUrl.includes("//");
+    const destination = isValidRedirect ? redirectUrl : "/admin/dashboard";
     return NextResponse.redirect(new URL(destination, request.url));
   }
 

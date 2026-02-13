@@ -4,6 +4,21 @@ const RESTATE_INGRESS_URL =
   process.env.RESTATE_INGRESS_URL || "http://localhost:8180";
 const RESTATE_AUTH_TOKEN = process.env.RESTATE_AUTH_TOKEN || "";
 
+// Internal-only paths that cannot be called through the proxy.
+// These are scheduled/cron handlers invoked by Restate's send_after(),
+// which bypasses the proxy entirely (direct to port 9080).
+const INTERNAL_ONLY_PATHS = [
+  "Posts/expire_stale_posts",
+  "Websites/run_scheduled_scrape",
+  "Websites/run_scheduled_discovery",
+  "Sources/run_scheduled_scrape",
+  "Sources/run_scheduled_discovery",
+  "Organizations/run_scheduled_extraction",
+  "Members/run_weekly_reset",
+  "HeatMap/compute_snapshot",
+  "SocialProfiles/run_scheduled_scrape",
+];
+
 // Routes that don't require authentication
 const PUBLIC_PATHS = [
   "Auth/send_otp",
@@ -30,6 +45,16 @@ export async function POST(
 ) {
   const { path } = await params;
   const restatePath = path.join("/");
+  // Block internal-only paths (scheduled/cron handlers) from external access
+  const isInternal = INTERNAL_ONLY_PATHS.some((p) => restatePath.startsWith(p));
+  if (isInternal) {
+    console.log(`[restate-proxy] 403 internal-only path: ${restatePath}`);
+    return NextResponse.json(
+      { message: "This endpoint is not externally accessible" },
+      { status: 403 }
+    );
+  }
+
   const isPublic = PUBLIC_PATHS.some((p) => restatePath.startsWith(p)) ||
     PUBLIC_OBJECT_PATTERNS.some((r) => r.test(restatePath));
 
