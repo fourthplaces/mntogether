@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation } from "urql";
-import { SubmitResourceLinkMutation } from "@/lib/graphql/posts";
+import { SubmitResourceLinkMutation } from "@/lib/graphql/public";
 
 export default function SubmitResourcePage() {
   const [url, setUrl] = useState("");

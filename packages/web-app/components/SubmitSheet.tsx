@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useMutation } from "urql";
 import { BottomSheet } from "@/components/BottomSheet";
-import { SubmitResourceLinkMutation } from "@/lib/graphql/posts";
+import { SubmitResourceLinkMutation } from "@/lib/graphql/public";
 
 interface SubmitSheetProps {
   isOpen: boolean;

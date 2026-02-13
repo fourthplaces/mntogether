@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { useQuery, useMutation } from "urql";
-import { PostDetailQuery, AddCommentMutation } from "@/lib/graphql/posts";
+import { PostDetailPublicQuery, AddCommentMutation } from "@/lib/graphql/public";
 
 // ---------------------------------------------------------------------------
 // Tree builder
@@ -213,7 +213,7 @@ function CommentThread({
 
 export default function CommentsSection({ postId }: { postId: string }) {
   const [{ data }, reexecuteQuery] = useQuery({
-    query: PostDetailQuery,
+    query: PostDetailPublicQuery,
     variables: { id: postId },
   });
 
