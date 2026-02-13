@@ -26,6 +26,11 @@ type Query {
 
   postStats(status: String): PostStats!
 
+  # Organizations (admin)
+  organizations: [Organization!]!
+  organization(id: ID!): Organization
+  organizationChecklist(id: ID!): Checklist!
+
   # Tags (admin)
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
@@ -49,6 +54,23 @@ type Mutation {
   batchScorePosts(limit: Int): BatchScoreResult!
   submitResourceLink(url: String!, context: String, submitterContact: String): SubmitResourceResult!
   addComment(postId: ID!, content: String!, parentMessageId: String): Comment!
+
+  # Organizations (admin)
+  createOrganization(name: String!, description: String): Organization!
+  updateOrganization(id: ID!, name: String!, description: String): Organization!
+  deleteOrganization(id: ID!): Boolean!
+  approveOrganization(id: ID!): Organization!
+  rejectOrganization(id: ID!, reason: String!): Organization!
+  suspendOrganization(id: ID!, reason: String!): Organization!
+  setOrganizationStatus(id: ID!, status: String!, reason: String): Organization!
+  toggleChecklistItem(organizationId: ID!, checklistKey: String!, checked: Boolean!): Checklist!
+  regenerateOrganization(id: ID!): RegenerateOrgResult!
+  extractOrgPosts(id: ID!): Boolean!
+  cleanUpOrgPosts(id: ID!): Boolean!
+  runCurator(id: ID!): Boolean!
+  removeAllOrgPosts(id: ID!): Boolean!
+  removeAllOrgNotes(id: ID!): Boolean!
+  rewriteNarratives(organizationId: ID!): RewriteNarrativesResult!
 
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -174,6 +196,42 @@ type BatchScoreResult {
 type SubmitResourceResult {
   message: String!
   jobId: String
+}
+
+type Organization {
+  id: ID!
+  name: String!
+  description: String
+  status: String!
+  websiteCount: Int!
+  socialProfileCount: Int!
+  snapshotCount: Int!
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Checklist {
+  items: [ChecklistItem!]!
+  allChecked: Boolean!
+}
+
+type ChecklistItem {
+  key: String!
+  label: String!
+  checked: Boolean!
+  checkedBy: String
+  checkedAt: String
+}
+
+type RegenerateOrgResult {
+  organizationId: ID
+  status: String!
+}
+
+type RewriteNarrativesResult {
+  rewritten: Int!
+  failed: Int!
+  total: Int!
 }
 
 type TagKind {
