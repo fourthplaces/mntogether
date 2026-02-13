@@ -16,9 +16,15 @@ type Query {
   posts(
     status: String
     search: String
+    postType: String
+    submissionType: String
+    zipCode: String
+    radiusMiles: Float
     limit: Int
     offset: Int
   ): PostConnection!
+
+  postStats(status: String): PostStats!
 
   # Tags (admin)
   tagKinds: [TagKind!]!
@@ -28,6 +34,21 @@ type Query {
 type Mutation {
   trackPostView(postId: ID!): Boolean
   trackPostClick(postId: ID!): Boolean
+
+  # Posts (admin)
+  approvePost(id: ID!): Post!
+  rejectPost(id: ID!, reason: String): Post!
+  archivePost(id: ID!): Post!
+  deletePost(id: ID!): Boolean!
+  reactivatePost(id: ID!): Post!
+  addPostTag(postId: ID!, tagKind: String!, tagValue: String!, displayName: String): Post!
+  removePostTag(postId: ID!, tagId: ID!): Post!
+  regeneratePost(id: ID!): Post!
+  regeneratePostTags(id: ID!): Post!
+  updatePostCapacity(id: ID!, capacityStatus: String!): Post!
+  batchScorePosts(limit: Int): BatchScoreResult!
+  submitResourceLink(url: String!, context: String, submitterContact: String): SubmitResourceResult!
+  addComment(postId: ID!, content: String!, parentMessageId: String): Comment!
 
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -133,6 +154,26 @@ type Tag {
   color: String
   description: String
   emoji: String
+}
+
+type PostStats {
+  total: Int!
+  services: Int!
+  opportunities: Int!
+  businesses: Int!
+  userSubmitted: Int!
+  scraped: Int!
+}
+
+type BatchScoreResult {
+  scored: Int!
+  failed: Int!
+  remaining: Int!
+}
+
+type SubmitResourceResult {
+  message: String!
+  jobId: String
 }
 
 type TagKind {

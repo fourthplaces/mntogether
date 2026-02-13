@@ -4,9 +4,23 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
+import { useRestate, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
 import { useState, useRef, useEffect } from "react";
-import type { PostDetail, TagResult, TagKindListResult, TagListResult, EntityProposalListResult, EntityProposal, PostScheduleResult, PostContactResult, NoteListResult, NoteResult } from "@/lib/restate/types";
+import type { EntityProposalListResult, EntityProposal, NoteListResult, NoteResult } from "@/lib/restate/types";
+import {
+  PostDetailQuery,
+  ApprovePostMutation,
+  RejectPostMutation,
+  ArchivePostMutation,
+  DeletePostMutation,
+  ReactivatePostMutation,
+  AddPostTagMutation,
+  RemovePostTagMutation,
+  RegeneratePostMutation,
+  RegeneratePostTagsMutation,
+} from "@/lib/graphql/posts";
+import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -17,26 +31,40 @@ function formatTime12h(time24: string): string {
   return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
 
-function isScheduleExpired(s: PostScheduleResult): boolean {
+interface ScheduleItem {
+  id: string;
+  dayOfWeek?: number | null;
+  opensAt?: string | null;
+  closesAt?: string | null;
+  timezone: string;
+  notes?: string | null;
+  rrule?: string | null;
+  dtstart?: string | null;
+  dtend?: string | null;
+  isAllDay: boolean;
+  durationMinutes?: number | null;
+}
+
+function isScheduleExpired(s: ScheduleItem): boolean {
   if (s.dtend && !s.rrule) return new Date(s.dtend) < new Date();
   if (s.dtstart && !s.rrule && !s.dtend) return new Date(s.dtstart) < new Date();
   return false;
 }
 
-function formatSchedule(s: PostScheduleResult): string {
-  if (s.dtstart && s.day_of_week == null) {
+function formatSchedule(s: ScheduleItem): string {
+  if (s.dtstart && s.dayOfWeek == null) {
     const date = new Date(s.dtstart);
     const dateStr = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const timeStr = s.opens_at && s.closes_at
-      ? `${formatTime12h(s.opens_at)} – ${formatTime12h(s.closes_at)}`
-      : s.opens_at ? formatTime12h(s.opens_at) : "";
+    const timeStr = s.opensAt && s.closesAt
+      ? `${formatTime12h(s.opensAt)} – ${formatTime12h(s.closesAt)}`
+      : s.opensAt ? formatTime12h(s.opensAt) : "";
     return [dateStr, timeStr].filter(Boolean).join("  ");
   }
 
-  const dayName = s.day_of_week != null ? DAY_NAMES[s.day_of_week] : "";
-  const timeStr = s.opens_at && s.closes_at
-    ? `${formatTime12h(s.opens_at)} – ${formatTime12h(s.closes_at)}`
-    : s.opens_at ? formatTime12h(s.opens_at) : "";
+  const dayName = s.dayOfWeek != null ? DAY_NAMES[s.dayOfWeek] : "";
+  const timeStr = s.opensAt && s.closesAt
+    ? `${formatTime12h(s.opensAt)} – ${formatTime12h(s.closesAt)}`
+    : s.opensAt ? formatTime12h(s.opensAt) : "";
 
   let suffix = "";
   if (s.rrule?.includes("INTERVAL=2")) suffix = " (every other week)";
@@ -50,7 +78,6 @@ export default function PostDetailPage() {
   const router = useRouter();
   const postId = params.id as string;
   const [isUpdating, setIsUpdating] = useState(false);
-  const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [showTagModal, setShowTagModal] = useState(false);
@@ -71,17 +98,21 @@ export default function PostDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const { data: post, isLoading, error, mutate: refetch } = useRestateObject<PostDetail>(
-    "Post", postId, "get", { show_private: true },
-    { revalidateOnFocus: false }
-  );
+  // GraphQL: fetch post detail
+  const [{ data: postData, fetching: isLoading, error }] = useQuery({
+    query: PostDetailQuery,
+    variables: { id: postId },
+  });
+  const post = postData?.post;
 
+  // Restate: proposals (Sync domain — will migrate in Phase 7)
   const { data: proposalsData, mutate: refetchProposals } = useRestate<EntityProposalListResult>(
     "Sync", "list_entity_proposals",
     { entity_id: postId },
     { revalidateOnFocus: false }
   );
 
+  // Restate: notes (Notes domain — will migrate in a later phase)
   const { data: notesData } = useRestate<NoteListResult>(
     "Notes", "list_for_entity",
     { noteable_type: "post", noteable_id: postId },
@@ -90,6 +121,32 @@ export default function PostDetailPage() {
 
   const proposals = proposalsData?.proposals || [];
   const notes = notesData?.notes || [];
+
+  // GraphQL mutations
+  const [, approvePost] = useMutation(ApprovePostMutation);
+  const [, rejectPost] = useMutation(RejectPostMutation);
+  const [, archivePost] = useMutation(ArchivePostMutation);
+  const [, deletePost] = useMutation(DeletePostMutation);
+  const [, reactivatePost] = useMutation(ReactivatePostMutation);
+  const [, addPostTag] = useMutation(AddPostTagMutation);
+  const [, removePostTag] = useMutation(RemovePostTagMutation);
+  const [, regeneratePost] = useMutation(RegeneratePostMutation);
+  const [, regeneratePostTags] = useMutation(RegeneratePostTagsMutation);
+
+  // Tag modal: load kinds and tags
+  const [{ data: kindsData }] = useQuery({
+    query: TagKindsQuery,
+    pause: !showTagModal,
+  });
+  const [{ data: kindTagsData }] = useQuery({
+    query: TagsQuery,
+    pause: !showTagModal || !selectedKind,
+  });
+
+  const availableKinds = kindsData?.tagKinds || [];
+  const availableTags = (kindTagsData?.tags || []).filter(
+    (t) => t.kind === selectedKind
+  );
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -111,38 +168,26 @@ export default function PostDetailPage() {
   const tags = post?.tags || [];
 
   // Group tags by kind for display
-  const tagsByKind: Record<string, TagResult[]> = {};
+  const tagsByKind: Record<string, typeof tags> = {};
   for (const tag of tags) {
     if (!tagsByKind[tag.kind]) tagsByKind[tag.kind] = [];
     tagsByKind[tag.kind].push(tag);
   }
 
-  // Load tag kinds and tags for the selected kind in the modal
-  const { data: kindsData } = useRestate<TagKindListResult>(
-    showTagModal ? "Tags" : null, "list_kinds", {}
-  );
-  const { data: kindTagsData } = useRestate<TagListResult>(
-    showTagModal && selectedKind ? "Tags" : null,
-    "list_tags",
-    { kind: selectedKind }
-  );
-
-  const availableKinds = kindsData?.kinds || [];
-  const availableTags = kindTagsData?.tags || [];
+  const mutationContext = { additionalTypenames: ["Post", "PostConnection", "PostStats"] };
 
   const handleAddTag = async () => {
     if (!postId || !selectedKind || !tagValue) return;
     setIsUpdating(true);
     try {
-      await callObject("Post", postId, "add_tag", {
-        tag_kind: selectedKind,
-        tag_value: tagValue,
-        display_name: tagDisplayName || tagValue,
-      });
+      await addPostTag({
+        postId,
+        tagKind: selectedKind,
+        tagValue: tagValue,
+        displayName: tagDisplayName || tagValue,
+      }, mutationContext);
       setTagValue("");
       setTagDisplayName("");
-      invalidateObject("Post", postId);
-      refetch();
     } catch (err) {
       console.error("Failed to add tag:", err);
     } finally {
@@ -154,9 +199,7 @@ export default function PostDetailPage() {
     if (!postId) return;
     setIsUpdating(true);
     try {
-      await callObject("Post", postId, "remove_tag", { tag_id: tagId });
-      invalidateObject("Post", postId);
-      refetch();
+      await removePostTag({ postId, tagId }, mutationContext);
     } catch (err) {
       console.error("Failed to remove tag:", err);
     } finally {
@@ -168,9 +211,7 @@ export default function PostDetailPage() {
     setActionInProgress("regenerate");
     setMenuOpen(false);
     try {
-      await callObject("Post", postId, "regenerate", {});
-      invalidateObject("Post", postId);
-      refetch();
+      await regeneratePost({ id: postId }, mutationContext);
     } catch (err) {
       console.error("Failed to regenerate post:", err);
     } finally {
@@ -182,9 +223,7 @@ export default function PostDetailPage() {
     setActionInProgress("regenerate_tags");
     setMenuOpen(false);
     try {
-      await callObject("Post", postId, "regenerate_tags", {});
-      invalidateObject("Post", postId);
-      refetch();
+      await regeneratePostTags({ id: postId }, mutationContext);
     } catch (err) {
       console.error("Failed to regenerate tags:", err);
     } finally {
@@ -196,10 +235,7 @@ export default function PostDetailPage() {
     setActionInProgress("archive");
     setMenuOpen(false);
     try {
-      await callObject("Post", postId, "archive", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await archivePost({ id: postId }, mutationContext);
     } catch (err) {
       console.error("Failed to archive post:", err);
     } finally {
@@ -211,7 +247,7 @@ export default function PostDetailPage() {
     setActionInProgress("delete");
     setMenuOpen(false);
     try {
-      await callObject("Post", postId, "delete", {});
+      await deletePost({ id: postId }, mutationContext);
       router.push("/admin/posts");
     } catch (err) {
       console.error("Failed to delete post:", err);
@@ -222,10 +258,7 @@ export default function PostDetailPage() {
   const handleReactivate = async () => {
     setActionInProgress("reactivate");
     try {
-      await callObject("Post", postId, "reactivate", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await reactivatePost({ id: postId }, mutationContext);
     } catch (err) {
       console.error("Failed to reactivate post:", err);
     } finally {
@@ -236,10 +269,7 @@ export default function PostDetailPage() {
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
-      await callObject("Post", postId, "approve", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await approvePost({ id: postId }, mutationContext);
     } catch (err) {
       console.error("Failed to approve post:", err);
     } finally {
@@ -250,10 +280,7 @@ export default function PostDetailPage() {
   const handleReject = async () => {
     setActionInProgress("reject");
     try {
-      await callObject("Post", postId, "reject", { reason: "Rejected by admin" });
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await rejectPost({ id: postId, reason: "Rejected by admin" }, mutationContext);
     } catch (err) {
       console.error("Failed to reject post:", err);
     } finally {
@@ -261,13 +288,13 @@ export default function PostDetailPage() {
     }
   };
 
+  // Proposals still use Restate (Phase 7)
   const handleApproveProposal = async (proposalId: string) => {
     try {
       await callService("Sync", "approve_proposal", { proposal_id: proposalId });
       invalidateService("Sync");
       invalidateObject("Post", postId);
       refetchProposals();
-      refetch();
     } catch (err) {
       console.error("Failed to approve proposal:", err);
     }
@@ -319,7 +346,7 @@ export default function PostDetailPage() {
   }
 
   const missingFields: string[] = [];
-  if (!post.source_url) missingFields.push("source URL");
+  if (!post.sourceUrl) missingFields.push("source URL");
   if (!post.location) missingFields.push("location");
   if (tags.length === 0) missingFields.push("tags");
   if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
@@ -372,9 +399,9 @@ export default function PostDetailPage() {
                 </Link>
               )}
 
-              {post.source_url && (
+              {post.sourceUrl && (
                 <a
-                  href={post.source_url.startsWith("http") ? post.source_url : `https://${post.source_url}`}
+                  href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg"
@@ -450,27 +477,27 @@ export default function PostDetailPage() {
           )}
 
           {/* Relevance Score */}
-          {post.relevance_score != null && (
+          {post.relevanceScore != null && (
             <div className="mb-4 p-3 rounded-lg border border-stone-200 bg-stone-50">
               <div className="flex items-center gap-2 mb-1">
                 <span className="text-xs text-stone-500 uppercase font-medium">Relevance Score</span>
                 <span
                   className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                    post.relevance_score >= 8
+                    post.relevanceScore >= 8
                       ? "bg-green-100 text-green-800"
-                      : post.relevance_score >= 5
+                      : post.relevanceScore >= 5
                         ? "bg-amber-100 text-amber-800"
                         : "bg-red-100 text-red-800"
                   }`}
                 >
-                  {post.relevance_score}/10
+                  {post.relevanceScore}/10
                 </span>
                 <span className="text-xs text-stone-400">
-                  {post.relevance_score >= 8 ? "High confidence" : post.relevance_score >= 5 ? "Review needed" : "Likely noise"}
+                  {post.relevanceScore >= 8 ? "High confidence" : post.relevanceScore >= 5 ? "Review needed" : "Likely noise"}
                 </span>
               </div>
-              {post.relevance_breakdown && (
-                <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line mt-1">{post.relevance_breakdown}</p>
+              {post.relevanceBreakdown && (
+                <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line mt-1">{post.relevanceBreakdown}</p>
               )}
             </div>
           )}
@@ -479,7 +506,7 @@ export default function PostDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Type</span>
-              <p className="text-sm font-medium text-stone-900">{post.post_type}</p>
+              <p className="text-sm font-medium text-stone-900">{post.postType}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Category</span>
@@ -498,20 +525,20 @@ export default function PostDetailPage() {
               </div>
             )}
             <div>
-              <span className="text-xs text-stone-500 uppercase">{post.published_at ? "Published" : "Created"}</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(post.published_at || post.created_at)}</p>
+              <span className="text-xs text-stone-500 uppercase">{post.publishedAt ? "Published" : "Created"}</span>
+              <p className="text-sm font-medium text-stone-900">{formatDate(post.publishedAt || post.createdAt)}</p>
             </div>
-            {post.source_url && (
+            {post.sourceUrl && (
               <div className="col-span-2">
                 <span className="text-xs text-stone-500 uppercase">Source URL</span>
                 <p className="text-sm font-medium truncate">
                   <a
-                    href={post.source_url.startsWith("http") ? post.source_url : `https://${post.source_url}`}
+                    href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800"
                   >
-                    {post.source_url}
+                    {post.sourceUrl}
                   </a>
                 </p>
               </div>
@@ -519,9 +546,9 @@ export default function PostDetailPage() {
             <div>
               <span className="text-xs text-stone-500 uppercase">Organization</span>
               <p className="text-sm font-medium text-stone-900">
-                {post.organization_id ? (
-                  <Link href={`/admin/organizations/${post.organization_id}`} className="text-amber-700 hover:text-amber-900">
-                    {post.organization_name}
+                {post.organizationId ? (
+                  <Link href={`/admin/organizations/${post.organizationId}`} className="text-amber-700 hover:text-amber-900">
+                    {post.organizationName}
                   </Link>
                 ) : (
                   <span className="text-stone-400">None</span>
@@ -531,11 +558,11 @@ export default function PostDetailPage() {
             <div>
               <span className="text-xs text-stone-500 uppercase">Submitted By</span>
               <p className="text-sm font-medium text-stone-900">
-                {post.submitted_by?.submitter_type === "agent" && post.submitted_by.agent_id ? (
-                  <Link href={`/admin/agents/${post.submitted_by.agent_id}`} className="text-purple-600 hover:text-purple-800">
-                    {post.submitted_by.agent_name || "Agent"} (AI)
+                {post.submittedBy?.submitterType === "agent" && post.submittedBy.agentId ? (
+                  <Link href={`/admin/agents/${post.submittedBy.agentId}`} className="text-purple-600 hover:text-purple-800">
+                    {post.submittedBy.agentName || "Agent"} (AI)
                   </Link>
-                ) : post.submitted_by?.submitter_type === "member" ? (
+                ) : post.submittedBy?.submitterType === "member" ? (
                   <span>Member</span>
                 ) : (
                   <span className="text-stone-400">Unknown</span>
@@ -550,20 +577,20 @@ export default function PostDetailPage() {
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">Contact Info</h2>
             <div className="space-y-2">
-              {post.contacts.map((c: PostContactResult) => (
+              {post.contacts.map((c) => (
                 <div key={c.id} className="flex items-start gap-3">
-                  <span className="text-xs text-stone-500 uppercase w-20 flex-shrink-0 pt-0.5">{c.contact_type}</span>
+                  <span className="text-xs text-stone-500 uppercase w-20 flex-shrink-0 pt-0.5">{c.contactType}</span>
                   <span className="text-sm text-stone-700">
-                    {c.contact_type === "email" ? (
-                      <a href={`mailto:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
-                    ) : c.contact_type === "phone" ? (
-                      <a href={`tel:${c.contact_value}`} className="text-blue-600 hover:text-blue-800">{c.contact_value}</a>
-                    ) : c.contact_type === "website" || c.contact_type === "booking_url" || c.contact_type === "social" || c.contact_type === "intake_form_url" ? (
-                      <a href={c.contact_value.startsWith("http") ? c.contact_value : `https://${c.contact_value}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 break-all">{c.contact_value}</a>
+                    {c.contactType === "email" ? (
+                      <a href={`mailto:${c.contactValue}`} className="text-blue-600 hover:text-blue-800">{c.contactValue}</a>
+                    ) : c.contactType === "phone" ? (
+                      <a href={`tel:${c.contactValue}`} className="text-blue-600 hover:text-blue-800">{c.contactValue}</a>
+                    ) : c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social" || c.contactType === "intake_form_url" ? (
+                      <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 break-all">{c.contactValue}</a>
                     ) : (
-                      <span>{c.contact_value}</span>
+                      <span>{c.contactValue}</span>
                     )}
-                    {c.contact_label && <span className="text-stone-400 ml-2">({c.contact_label})</span>}
+                    {c.contactLabel && <span className="text-stone-400 ml-2">({c.contactLabel})</span>}
                   </span>
                 </div>
               ))}
@@ -571,7 +598,7 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Review: pending proposals — approving proposals auto-updates post status */}
+        {/* Review: pending proposals — still uses Restate (Phase 7) */}
         {proposals.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-amber-400">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
@@ -646,7 +673,7 @@ export default function PostDetailPage() {
                 <div key={kind}>
                   <span className="text-xs text-stone-500 uppercase">{kind.replace(/_/g, " ")}</span>
                   <div className="flex flex-wrap gap-2 mt-1">
-                    {kindTags.map((tag: TagResult) => (
+                    {kindTags.map((tag) => (
                       <span
                         key={tag.id}
                         className={`px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
@@ -666,7 +693,7 @@ export default function PostDetailPage() {
 
         {/* Schedule */}
         {post.schedules && post.schedules.length > 0 && (() => {
-          const oneOffSchedules = post.schedules!.filter((s: PostScheduleResult) => !s.rrule);
+          const oneOffSchedules = post.schedules!.filter((s) => !s.rrule);
           const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
           return (
             <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -677,7 +704,7 @@ export default function PostDetailPage() {
                 </div>
               )}
               <div className="space-y-2">
-                {post.schedules!.map((s: PostScheduleResult) => (
+                {post.schedules!.map((s) => (
                   <div key={s.id} className={`flex items-start gap-2 text-stone-700 ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
                     <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -689,82 +716,6 @@ export default function PostDetailPage() {
             </div>
           );
         })()}
-
-        {/* Source Pages */}
-        {post.source_pages && post.source_pages.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Source Pages ({post.source_pages.length})
-            </h2>
-            <p className="text-sm text-stone-500 mb-4">
-              Pages from which this post was extracted.
-            </p>
-            <div className="space-y-3">
-              {post.source_pages.map((page) => {
-                const isExpanded = expandedPages.has(page.url);
-                return (
-                  <div key={page.url} className="border border-stone-200 rounded-lg">
-                    <div className="flex items-center justify-between p-4">
-                      <div className="flex-1 min-w-0">
-                        <a
-                          href={page.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-blue-600 hover:text-blue-800 truncate block"
-                        >
-                          {page.title || page.url}
-                        </a>
-                        <p className="text-xs text-stone-400 truncate mt-1">{page.url}</p>
-                        <p className="text-xs text-stone-400 mt-1">
-                          Fetched {formatDate(page.fetched_at)}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          const next = new Set(expandedPages);
-                          if (isExpanded) {
-                            next.delete(page.url);
-                          } else {
-                            next.add(page.url);
-                          }
-                          setExpandedPages(next);
-                        }}
-                        className="ml-4 px-3 py-1 text-xs text-stone-500 hover:text-stone-700 border border-stone-200 rounded hover:bg-stone-50"
-                      >
-                        {isExpanded ? "Hide content" : "Show content"}
-                      </button>
-                    </div>
-                    {isExpanded && (
-                      <div className="border-t border-stone-200 p-4 bg-stone-50 max-h-96 overflow-y-auto">
-                        <div className="prose prose-sm prose-stone max-w-none">
-                          <ReactMarkdown
-                            components={{
-                              p: ({ children }) => <p className="mb-2 text-stone-600 text-sm">{children}</p>,
-                              ul: ({ children }) => <ul className="list-disc pl-5 mb-2 space-y-0.5">{children}</ul>,
-                              ol: ({ children }) => <ol className="list-decimal pl-5 mb-2 space-y-0.5">{children}</ol>,
-                              li: ({ children }) => <li className="text-stone-600 text-sm">{children}</li>,
-                              strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                              a: ({ href, children }) => (
-                                <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
-                                  {children}
-                                </a>
-                              ),
-                              h1: ({ children }) => <h1 className="text-base font-bold text-stone-800 mt-3 mb-1">{children}</h1>,
-                              h2: ({ children }) => <h2 className="text-sm font-bold text-stone-800 mt-3 mb-1">{children}</h2>,
-                              h3: ({ children }) => <h3 className="text-sm font-semibold text-stone-700 mt-2 mb-1">{children}</h3>,
-                            }}
-                          >
-                            {page.content}
-                          </ReactMarkdown>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {/* Description */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -784,12 +735,12 @@ export default function PostDetailPage() {
                 ),
               }}
             >
-              {post.description_markdown || post.description || ""}
+              {post.descriptionMarkdown || post.description || ""}
             </ReactMarkdown>
           </div>
         </div>
 
-        {/* Notes */}
+        {/* Notes — still uses Restate (later phase) */}
         {notes.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
@@ -886,7 +837,7 @@ export default function PostDetailPage() {
                   <div key={kind}>
                     <span className="text-xs text-stone-500 uppercase font-medium">{kind.replace(/_/g, " ")}</span>
                     <div className="flex flex-wrap gap-2 mt-1">
-                      {kindTags.map((tag: TagResult) => (
+                      {kindTags.map((tag) => (
                         <span
                           key={tag.id}
                           className={`inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
@@ -923,7 +874,6 @@ export default function PostDetailPage() {
                       setSelectedKind(e.target.value);
                       setTagValue("");
                       setTagDisplayName("");
-
                       setIsCreatingNewTag(false);
                     }}
                     className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -931,7 +881,7 @@ export default function PostDetailPage() {
                     <option value="">Select a kind...</option>
                     {availableKinds.map((kind) => (
                       <option key={kind.id} value={kind.slug}>
-                        {kind.display_name}
+                        {kind.displayName}
                       </option>
                     ))}
                   </select>
@@ -964,7 +914,6 @@ export default function PostDetailPage() {
                               setIsCreatingNewTag(false);
                               setTagValue("");
                               setTagDisplayName("");
-        
                             }}
                             className="text-xs text-stone-500 hover:text-stone-700"
                           >
@@ -981,12 +930,11 @@ export default function PostDetailPage() {
                                 setIsCreatingNewTag(true);
                                 setTagValue("");
                                 setTagDisplayName("");
-          
                                 return;
                               }
                               setTagValue(val);
                               const match = availableTags.find((t) => t.value === val);
-                              setTagDisplayName(match?.display_name || val);
+                              setTagDisplayName(match?.displayName || val);
                             }}
                             className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                           >

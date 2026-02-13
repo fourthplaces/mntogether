@@ -1,12 +1,18 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { PostReviewCard } from "@/components/admin/PostReviewCard";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { PostList, PostStats } from "@/lib/restate/types";
+import {
+  PostStatsQuery,
+  PostsListQuery,
+  ApprovePostMutation,
+  RejectPostMutation,
+  BatchScorePostsMutation,
+} from "@/lib/graphql/posts";
 
 type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
 
@@ -50,38 +56,34 @@ export default function PostsPage() {
   }, []);
 
   // Fetch stats
-  const { data: statsData } = useRestate<PostStats>(
-    "Posts", "stats", { status: selectedStatus },
-    { revalidateOnFocus: false }
-  );
+  const [{ data: statsData }] = useQuery({
+    query: PostStatsQuery,
+    variables: { status: selectedStatus },
+  });
 
   // Fetch posts with offset pagination and filters
-  const {
-    data,
-    isLoading,
-    error,
-    mutate: refetch,
-  } = useRestate<PostList>(
-    "Posts", "list",
-    {
+  const [{ data, fetching: isLoading, error }, reexecutePostsQuery] = useQuery({
+    query: PostsListQuery,
+    variables: {
       status: selectedStatus,
-      post_type: selectedType === "all" ? null : selectedType,
-      submission_type: selectedSource === "all" ? null : selectedSource,
+      postType: selectedType === "all" ? null : selectedType,
+      submissionType: selectedSource === "all" ? null : selectedSource,
       search: searchQuery || null,
-      zip_code: zipCode || null,
-      radius_miles: zipCode ? radiusMiles : null,
-      ...pagination.variables,
+      zipCode: zipCode || null,
+      radiusMiles: zipCode ? radiusMiles : null,
+      limit: pagination.variables.first,
+      offset: pagination.variables.offset,
     },
-    { revalidateOnFocus: false }
-  );
+  });
+
+  const [, approvePost] = useMutation(ApprovePostMutation);
+  const [, rejectPost] = useMutation(RejectPostMutation);
+  const [, batchScore] = useMutation(BatchScorePostsMutation);
 
   const handleApprove = async (postId: string) => {
     setApprovingId(postId);
     try {
-      await callObject("Post", postId, "approve", {});
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await approvePost({ id: postId }, { additionalTypenames: ["Post", "PostConnection", "PostStats"] });
     } catch (err) {
       console.error("Failed to approve post:", err);
     } finally {
@@ -92,12 +94,10 @@ export default function PostsPage() {
   const handleReject = async (postId: string, reason?: string) => {
     setRejectingId(postId);
     try {
-      await callObject("Post", postId, "reject", {
-        reason: reason || "Rejected by admin",
-      });
-      invalidateService("Posts");
-      invalidateObject("Post", postId);
-      refetch();
+      await rejectPost(
+        { id: postId, reason: reason || "Rejected by admin" },
+        { additionalTypenames: ["Post", "PostConnection", "PostStats"] }
+      );
     } catch (err) {
       console.error("Failed to reject post:", err);
     } finally {
@@ -110,11 +110,14 @@ export default function PostsPage() {
     setScoring(true);
     setScoreResult(null);
     try {
-      const result = await callService<{ scored: number; failed: number; remaining: number }>(
-        "Posts", "batch_score_posts", { limit: 200 }
+      const result = await batchScore(
+        { limit: 200 },
+        { additionalTypenames: ["Post", "PostConnection"] }
       );
-      setScoreResult(`Scored ${result.scored} posts${result.failed > 0 ? `, ${result.failed} failed` : ""}${result.remaining > 0 ? `, ${result.remaining} remaining` : ""}`);
-      refetch();
+      if (result.data?.batchScorePosts) {
+        const { scored, failed, remaining } = result.data.batchScorePosts;
+        setScoreResult(`Scored ${scored} posts${failed > 0 ? `, ${failed} failed` : ""}${remaining > 0 ? `, ${remaining} remaining` : ""}`);
+      }
     } catch (err: any) {
       setScoreResult(`Error: ${err.message || "Failed to score posts"}`);
     } finally {
@@ -122,29 +125,29 @@ export default function PostsPage() {
     }
   };
 
-  const matchesScoreFilter = (post: { relevance_score?: number | null }) => {
+  const matchesScoreFilter = (post: { relevanceScore?: number | null }) => {
     if (scoreFilter === "all") return true;
-    if (scoreFilter === "unscored") return post.relevance_score == null;
-    if (post.relevance_score == null) return false;
-    if (scoreFilter === "high") return post.relevance_score >= 8;
-    if (scoreFilter === "review") return post.relevance_score >= 5 && post.relevance_score <= 7;
-    if (scoreFilter === "noise") return post.relevance_score <= 4;
+    if (scoreFilter === "unscored") return post.relevanceScore == null;
+    if (post.relevanceScore == null) return false;
+    if (scoreFilter === "high") return post.relevanceScore >= 8;
+    if (scoreFilter === "review") return post.relevanceScore >= 5 && post.relevanceScore <= 7;
+    if (scoreFilter === "noise") return post.relevanceScore <= 4;
     return true;
   };
 
-  const allPosts = data?.posts || [];
+  const allPosts = data?.posts?.posts || [];
   const posts = allPosts.filter(matchesScoreFilter);
-  const totalCount = data?.total_count || 0;
-  const hasNextPage = data?.has_next_page || false;
+  const totalCount = data?.posts?.totalCount || 0;
+  const hasNextPage = data?.posts?.hasNextPage || false;
   const pageInfo = pagination.buildPageInfo(hasNextPage);
 
   const stats = {
-    total: statsData?.total || 0,
-    services: statsData?.services || 0,
-    opportunities: statsData?.opportunities || 0,
-    businesses: statsData?.businesses || 0,
-    userSubmitted: statsData?.user_submitted || 0,
-    scraped: statsData?.scraped || 0,
+    total: statsData?.postStats?.total || 0,
+    services: statsData?.postStats?.services || 0,
+    opportunities: statsData?.postStats?.opportunities || 0,
+    businesses: statsData?.postStats?.businesses || 0,
+    userSubmitted: statsData?.postStats?.userSubmitted || 0,
+    scraped: statsData?.postStats?.scraped || 0,
   };
 
   return (
@@ -480,19 +483,19 @@ export default function PostsPage() {
                 <div key={post.id} className="relative">
                   {/* Source badge overlay */}
                   <div className="absolute top-2 right-2 z-10 flex gap-1">
-                    {post.distance_miles != null && (
+                    {post.distanceMiles != null && (
                       <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
-                        {post.distance_miles < 1
+                        {post.distanceMiles < 1
                           ? "< 1 mi"
-                          : `${post.distance_miles.toFixed(1)} mi`}
+                          : `${post.distanceMiles.toFixed(1)} mi`}
                       </span>
                     )}
                     <span className={`text-xs font-medium px-2 py-1 rounded ${
-                      post.submission_type === "USER_SUBMITTED"
+                      post.submissionType === "USER_SUBMITTED"
                         ? "bg-amber-100 text-amber-800"
                         : "bg-stone-100 text-stone-700"
                     }`}>
-                      {post.submission_type === "USER_SUBMITTED" ? "User" : "Scraped"}
+                      {post.submissionType === "USER_SUBMITTED" ? "User" : "Scraped"}
                     </span>
                   </div>
                   <PostReviewCard

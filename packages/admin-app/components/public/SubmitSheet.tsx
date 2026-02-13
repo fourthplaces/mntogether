@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useEffect, useTransition } from "react";
+import { useState, useEffect } from "react";
+import { useMutation } from "urql";
 import { BottomSheet } from "@/components/public/BottomSheet";
-import { callService } from "@/lib/restate/client";
-import type { SubmitResourceLinkResult } from "@/lib/restate/types";
+import { SubmitResourceLinkMutation } from "@/lib/graphql/posts";
 
 interface SubmitSheetProps {
   isOpen: boolean;
@@ -12,15 +12,15 @@ interface SubmitSheetProps {
 
 export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
   const [url, setUrl] = useState("");
-  const [isPending, startTransition] = useTransition();
-  const [result, setResult] = useState<SubmitResourceLinkResult | null>(null);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching }, submitResource] = useMutation(SubmitResourceLinkMutation);
 
   // Reset form state when sheet closes
   useEffect(() => {
     if (!isOpen) {
       setUrl("");
-      setResult(null);
+      setSubmitted(false);
       setError(null);
     }
   }, [isOpen]);
@@ -36,35 +36,30 @@ export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
 
   const canSubmit = url.trim() !== "" && isValidUrl(url);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
 
     setError(null);
-    setResult(null);
+    setSubmitted(false);
 
-    startTransition(async () => {
-      try {
-        const data = await callService<SubmitResourceLinkResult>(
-          "Posts",
-          "submit_resource_link",
-          { url }
-        );
-        setResult(data);
-        setUrl("");
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to submit");
-      }
-    });
+    try {
+      const result = await submitResource({ url });
+      if (result.error) throw result.error;
+      setSubmitted(true);
+      setUrl("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to submit");
+    }
   };
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose} title="Share a Community Resource">
       <div className="px-4 pb-6">
-        {result && (
+        {submitted && (
           <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg">
             <p className="text-sm font-medium text-green-800">Submitted!</p>
-            <p className="text-sm text-green-700 mt-0.5">{result.message}</p>
+            <p className="text-sm text-green-700 mt-0.5">Thanks for sharing! We'll review it shortly.</p>
           </div>
         )}
 
@@ -96,10 +91,10 @@ export function SubmitSheet({ isOpen, onClose }: SubmitSheetProps) {
 
           <button
             type="submit"
-            disabled={!canSubmit || isPending}
+            disabled={!canSubmit || fetching}
             className="mt-3 w-full py-2.5 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isPending ? "Submitting..." : "Submit"}
+            {fetching ? "Submitting..." : "Submit"}
           </button>
         </form>
       </div>
