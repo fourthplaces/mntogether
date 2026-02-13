@@ -1,5 +1,4 @@
 import type { GraphQLContext } from "../context";
-import { requireAdmin } from "../auth";
 
 export const tagResolvers = {
   Query: {
@@ -8,7 +7,6 @@ export const tagResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{ kinds: unknown[] }>(
         "Tags",
         "list_kinds",
@@ -22,7 +20,6 @@ export const tagResolvers = {
       args: { kind?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{ tags: unknown[] }>(
         "Tags",
         "list_tags",
@@ -45,7 +42,6 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Tags", "create_kind", {
         slug: args.slug,
         display_name: args.displayName,
@@ -68,7 +64,6 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Tags", "update_kind", {
         id: args.id,
         display_name: args.displayName,
@@ -84,7 +79,6 @@ export const tagResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Tags", "delete_kind", { id: args.id });
       return true;
     },
@@ -101,7 +95,6 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Tags", "create_tag", {
         kind: args.kind,
         value: args.value,
@@ -123,7 +116,6 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Tags", "update_tag", {
         id: args.id,
         display_name: args.displayName,
@@ -138,7 +130,6 @@ export const tagResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Tags", "delete_tag", { id: args.id });
       return true;
     },

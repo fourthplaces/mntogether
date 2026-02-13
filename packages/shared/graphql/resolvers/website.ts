@@ -1,5 +1,4 @@
 import type { GraphQLContext } from "../context";
-import { requireAdmin } from "../auth";
 
 export const websiteResolvers = {
   Query: {
@@ -13,7 +12,6 @@ export const websiteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Websites", "list", {
         status: args.status ?? null,
         search: args.search ?? null,
@@ -27,7 +25,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callObject("Website", args.id, "get", {});
     },
 
@@ -36,7 +33,6 @@ export const websiteResolvers = {
       args: { domain: string; limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{ pages: unknown[] }>(
         "Extraction",
         "list_pages",
@@ -50,7 +46,6 @@ export const websiteResolvers = {
       args: { domain: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{ count: number }>(
         "Extraction",
         "count_pages",
@@ -64,7 +59,6 @@ export const websiteResolvers = {
       args: { websiteId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callObject<{
         assessment: unknown | null;
       }>("Website", args.websiteId, "get_assessment", {});
@@ -76,7 +70,6 @@ export const websiteResolvers = {
       args: { websiteId: string; limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Posts", "list", {
         source_type: "website",
         source_id: args.websiteId,
@@ -91,7 +84,6 @@ export const websiteResolvers = {
       args: { url: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Websites", "submit", {
         url: args.url,
       });
@@ -102,7 +94,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Website", args.id, "approve", {});
       return ctx.restate.callObject("Website", args.id, "get", {});
     },
@@ -112,7 +103,6 @@ export const websiteResolvers = {
       args: { id: string; reason: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Website", args.id, "reject", {
         reason: args.reason,
       });
@@ -124,7 +114,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const workflowId = `crawl-${args.id}-${Date.now()}`;
       await ctx.restate.callObject("CrawlWebsiteWorkflow", workflowId, "run", {
         website_id: args.id,
@@ -137,7 +126,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject(
         "Website",
         args.id,
@@ -152,7 +140,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callObject<{ status: string }>(
         "Website",
         args.id,
@@ -168,7 +155,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callObject<{ status: string }>(
         "Website",
         args.id,
@@ -184,7 +170,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject(
         "Website",
         args.id,
@@ -199,7 +184,6 @@ export const websiteResolvers = {
       args: { id: string; organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject(
         "Website",
         args.id,
@@ -214,7 +198,6 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject(
         "Website",
         args.id,
@@ -229,8 +212,8 @@ export const websiteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "approve", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -239,11 +222,73 @@ export const websiteResolvers = {
       args: { id: string; reason?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "reject", {
         reason: args.reason ?? "Rejected by admin",
       });
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
+    },
+  },
+
+  Website: {
+    posts: async (
+      parent: { id: string },
+      args: { limit?: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Posts", "list", {
+        source_type: "website",
+        source_id: parent.id,
+        first: args.limit ?? 100,
+      });
+    },
+
+    pages: async (
+      parent: { domain: string },
+      args: { limit?: number },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{ pages: unknown[] }>(
+        "Extraction",
+        "list_pages",
+        { domain: parent.domain, limit: args.limit ?? 50 }
+      );
+      return result.pages;
+    },
+
+    pageCount: async (
+      parent: { domain: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{ count: number }>(
+        "Extraction",
+        "count_pages",
+        { domain: parent.domain }
+      );
+      return result.count;
+    },
+
+    assessment: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callObject<{
+        assessment: unknown | null;
+      }>("Website", parent.id, "get_assessment", {});
+      return result.assessment;
+    },
+
+    organization: async (
+      parent: { organizationId?: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      if (!parent.organizationId) return null;
+      return ctx.restate.callService("Organizations", "get", {
+        id: parent.organizationId,
+      });
     },
   },
 };
