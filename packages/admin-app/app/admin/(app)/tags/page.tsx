@@ -1,14 +1,19 @@
 "use client";
 
 import { Suspense, useState, useMemo } from "react";
-import { useRestate, callService, invalidateService } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type {
-  TagKindListResult,
-  TagKindResult,
-  TagListResult,
-  TagResult,
-} from "@/lib/restate/types";
+import {
+  TagKindsQuery,
+  TagsQuery,
+  CreateTagKindMutation,
+  UpdateTagKindMutation,
+  DeleteTagKindMutation,
+  CreateTagMutation,
+  UpdateTagMutation,
+  DeleteTagMutation,
+} from "@/lib/graphql/tags";
+import type { TagKind, Tag } from "@/gql/graphql";
 
 const RESOURCE_TYPES = [
   "post",
@@ -27,16 +32,14 @@ export default function TagsPage() {
 }
 
 function TagsContent() {
-  const { data: kindsData, isLoading: kindsLoading } =
-    useRestate<TagKindListResult>("Tags", "list_kinds", {});
-  const { data: tagsData, isLoading: tagsLoading } =
-    useRestate<TagListResult>("Tags", "list_tags", {});
+  const [{ data: kindsData, fetching: kindsLoading }] = useQuery({ query: TagKindsQuery });
+  const [{ data: tagsData, fetching: tagsLoading }] = useQuery({ query: TagsQuery });
 
   const [showAddKind, setShowAddKind] = useState(false);
   const [expandedKinds, setExpandedKinds] = useState<Set<string>>(new Set());
 
   const tagsByKind = useMemo(() => {
-    const map: Record<string, TagResult[]> = {};
+    const map: Record<string, Tag[]> = {};
     for (const tag of tagsData?.tags || []) {
       if (!map[tag.kind]) map[tag.kind] = [];
       map[tag.kind].push(tag);
@@ -57,7 +60,7 @@ function TagsContent() {
     return <AdminLoader label="Loading tags..." />;
   }
 
-  const kinds = kindsData?.kinds || [];
+  const kinds = kindsData?.tagKinds || [];
 
   return (
     <div className="min-h-screen bg-stone-50 p-6">
@@ -109,8 +112,8 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
   const [resourceTypes, setResourceTypes] = useState<string[]>([]);
   const [required, setRequired] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching: loading }, createKind] = useMutation(CreateTagKindMutation);
 
   const toggleResource = (rt: string) => {
     setResourceTypes((prev) =>
@@ -121,23 +124,22 @@ function AddKindForm({ onClose }: { onClose: () => void }) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!slug.trim() || !displayName.trim()) return;
-    setLoading(true);
     setError(null);
-    try {
-      await callService("Tags", "create_kind", {
+    const result = await createKind(
+      {
         slug: slug.trim(),
-        display_name: displayName.trim(),
+        displayName: displayName.trim(),
         description: description.trim() || null,
-        allowed_resource_types: resourceTypes,
+        allowedResourceTypes: resourceTypes,
         required,
-        is_public: isPublic,
-      });
-      invalidateService("Tags");
+        isPublic,
+      },
+      { additionalTypenames: ["TagKind"] }
+    );
+    if (result.error) {
+      setError(result.error.message || "Failed to create kind");
+    } else {
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to create kind");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -249,21 +251,17 @@ function KindSection({
   expanded,
   onToggle,
 }: {
-  kind: TagKindResult;
-  tags: TagResult[];
+  kind: TagKind;
+  tags: Tag[];
   expanded: boolean;
   onToggle: () => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [showAddTag, setShowAddTag] = useState(false);
+  const [, deleteKind] = useMutation(DeleteTagKindMutation);
 
   const handleDeleteKind = async () => {
-    try {
-      await callService("Tags", "delete_kind", { id: kind.id });
-      invalidateService("Tags");
-    } catch (err: any) {
-      console.error("Failed to delete kind:", err);
-    }
+    await deleteKind({ id: kind.id }, { additionalTypenames: ["TagKind", "Tag"] });
   };
 
   return (
@@ -277,7 +275,7 @@ function KindSection({
           <span className="text-stone-400 text-sm">{expanded ? "▼" : "▶"}</span>
           <div>
             <span className="font-medium text-stone-900">
-              {kind.display_name}
+              {kind.displayName}
             </span>
             <span className="text-stone-400 text-sm ml-2">({kind.slug})</span>
           </div>
@@ -286,13 +284,13 @@ function KindSection({
               Required
             </span>
           )}
-          {kind.is_public && (
+          {kind.isPublic && (
             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
               Public
             </span>
           )}
           <span className="text-xs bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">
-            {kind.tag_count} tags
+            {kind.tagCount} tags
           </span>
         </div>
         <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -325,9 +323,9 @@ function KindSection({
           )}
 
           {/* Resource types */}
-          {!editing && kind.allowed_resource_types.length > 0 && (
+          {!editing && kind.allowedResourceTypes.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
-              {kind.allowed_resource_types.map((rt) => (
+              {kind.allowedResourceTypes.map((rt) => (
                 <span
                   key={rt}
                   className="text-xs bg-amber-50 text-amber-700 px-2 py-0.5 rounded"
@@ -379,18 +377,18 @@ function EditKindForm({
   kind,
   onClose,
 }: {
-  kind: TagKindResult;
+  kind: TagKind;
   onClose: () => void;
 }) {
-  const [displayName, setDisplayName] = useState(kind.display_name);
+  const [displayName, setDisplayName] = useState(kind.displayName);
   const [description, setDescription] = useState(kind.description || "");
   const [resourceTypes, setResourceTypes] = useState<string[]>(
-    kind.allowed_resource_types
+    [...kind.allowedResourceTypes]
   );
   const [required, setRequired] = useState(kind.required);
-  const [isPublic, setIsPublic] = useState(kind.is_public);
-  const [loading, setLoading] = useState(false);
+  const [isPublic, setIsPublic] = useState(kind.isPublic);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching: loading }, updateKind] = useMutation(UpdateTagKindMutation);
 
   const toggleResource = (rt: string) => {
     setResourceTypes((prev) =>
@@ -400,23 +398,22 @@ function EditKindForm({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
     setError(null);
-    try {
-      await callService("Tags", "update_kind", {
+    const result = await updateKind(
+      {
         id: kind.id,
-        display_name: displayName.trim(),
+        displayName: displayName.trim(),
         description: description.trim() || null,
-        allowed_resource_types: resourceTypes,
+        allowedResourceTypes: resourceTypes,
         required,
-        is_public: isPublic,
-      });
-      invalidateService("Tags");
+        isPublic,
+      },
+      { additionalTypenames: ["TagKind"] }
+    );
+    if (result.error) {
+      setError(result.error.message || "Failed to update kind");
+    } else {
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to update kind");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -521,28 +518,27 @@ function AddTagForm({
 }) {
   const [value, setValue] = useState("");
   const [displayName, setDisplayName] = useState("");
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [{ fetching: loading }, createTag] = useMutation(CreateTagMutation);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!value.trim()) return;
-    setLoading(true);
     setError(null);
-    try {
-      await callService("Tags", "create_tag", {
+    const result = await createTag(
+      {
         kind: kindSlug,
         value: value.trim(),
-        display_name: displayName.trim() || null,
-      });
-      invalidateService("Tags");
+        displayName: displayName.trim() || null,
+      },
+      { additionalTypenames: ["Tag", "TagKind"] }
+    );
+    if (result.error) {
+      setError(result.error.message || "Failed to create tag");
+    } else {
       setValue("");
       setDisplayName("");
       onClose();
-    } catch (err: any) {
-      setError(err.message || "Failed to create tag");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -591,40 +587,33 @@ function AddTagForm({
 // Tag Row
 // =============================================================================
 
-function TagRow({ tag }: { tag: TagResult }) {
+function TagRow({ tag }: { tag: Tag }) {
   const [editing, setEditing] = useState(false);
-  const [displayName, setDisplayName] = useState(tag.display_name || "");
+  const [displayName, setDisplayName] = useState(tag.displayName || "");
   const [color, setColor] = useState(tag.color || "");
   const [description, setDescription] = useState(tag.description || "");
   const [emoji, setEmoji] = useState(tag.emoji || "");
-  const [loading, setLoading] = useState(false);
+  const [{ fetching: loading }, updateTag] = useMutation(UpdateTagMutation);
+  const [, deleteTag] = useMutation(DeleteTagMutation);
 
   const handleSave = async () => {
-    setLoading(true);
-    try {
-      await callService("Tags", "update_tag", {
+    const result = await updateTag(
+      {
         id: tag.id,
-        display_name: displayName.trim(),
+        displayName: displayName.trim(),
         color: color.trim() || null,
         description: description.trim() || null,
         emoji: emoji.trim() || null,
-      });
-      invalidateService("Tags");
+      },
+      { additionalTypenames: ["Tag"] }
+    );
+    if (!result.error) {
       setEditing(false);
-    } catch (err: any) {
-      console.error("Failed to update tag:", err);
-    } finally {
-      setLoading(false);
     }
   };
 
   const handleDelete = async () => {
-    try {
-      await callService("Tags", "delete_tag", { id: tag.id });
-      invalidateService("Tags");
-    } catch (err: any) {
-      console.error("Failed to delete tag:", err);
-    }
+    await deleteTag({ id: tag.id }, { additionalTypenames: ["Tag", "TagKind"] });
   };
 
   if (editing) {
@@ -718,7 +707,7 @@ function TagRow({ tag }: { tag: TagResult }) {
           <button
             onClick={() => {
               setEditing(false);
-              setDisplayName(tag.display_name || "");
+              setDisplayName(tag.displayName || "");
               setColor(tag.color || "");
               setDescription(tag.description || "");
               setEmoji(tag.emoji || "");
@@ -754,11 +743,11 @@ function TagRow({ tag }: { tag: TagResult }) {
             className="px-2 py-0.5 text-xs rounded-full font-medium"
             style={{ backgroundColor: tag.color + "20", color: tag.color }}
           >
-            {tag.display_name || tag.value}
+            {tag.displayName || tag.value}
           </span>
         ) : (
           <span className="text-stone-500">
-            {tag.display_name || <span className="italic text-stone-300">no display name</span>}
+            {tag.displayName || <span className="italic text-stone-300">no display name</span>}
           </span>
         )}
         {tag.description && (
