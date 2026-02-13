@@ -6,6 +6,7 @@ use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::common::auth::restate_auth::require_admin;
 use crate::domains::chatrooms::models::Container;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
@@ -57,9 +58,11 @@ impl ChatsServiceImpl {
 impl ChatsService for ChatsServiceImpl {
     async fn list_recent(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: ListRecentChatsRequest,
     ) -> Result<ChatListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let limit = req.limit.unwrap_or(20) as i64;
 
         let containers = Container::find_recent(limit, &self.deps.db_pool)
