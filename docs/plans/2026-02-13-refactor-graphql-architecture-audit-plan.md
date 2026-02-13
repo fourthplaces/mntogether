@@ -132,7 +132,7 @@ This is the core architectural fix. Add field resolvers so detail pages can use 
 
 Define reusable fragments to eliminate field duplication across queries.
 
-- [ ] Create `packages/admin-app/lib/graphql/fragments.ts`:
+- [x] Create `packages/admin-app/lib/graphql/fragments.ts`:
   - `PostListFields` — fields used in list views (id, title, summary, status, postType, category, tags, etc.)
   - `PostDetailFields` — full fields for detail view (includes schedules, contacts, submittedBy, comments)
   - `PublicPostFields` — fields for public post cards
@@ -140,22 +140,22 @@ Define reusable fragments to eliminate field duplication across queries.
   - `SourceFields` — basic source fields
   - `NoteFields` — full note with linkedPosts
 
-- [ ] Refactor `packages/admin-app/lib/graphql/posts.ts` — use `PostListFields` and `PostDetailFields` fragments
-- [ ] Refactor `packages/admin-app/lib/graphql/organizations.ts` — use `OrganizationFields` fragment
-- [ ] Refactor `packages/admin-app/lib/graphql/sources.ts` — use `SourceFields` fragment
+- [x] Refactor `packages/admin-app/lib/graphql/posts.ts` — use `PostListFields` and `PostDetailFields` fragments
+- [x] Refactor `packages/admin-app/lib/graphql/organizations.ts` — use `OrganizationFields` fragment
+- [x] Refactor `packages/admin-app/lib/graphql/sources.ts` — use `SourceFields` fragment
 
-- [ ] Create `packages/web-app/lib/graphql/fragments.ts`:
+- [x] Create `packages/web-app/lib/graphql/fragments.ts`:
   - `PublicPostFields` — fields for public post cards
   - `PostDetailFields` — full fields (same as admin minus admin-only fields)
 
-- [ ] Refactor web-app query files to use fragments
+- [x] Refactor web-app query files to use fragments
 
 ### Phase 5: Consolidate to single queries per detail page
 
 Replace multi-query patterns with single nested queries. This depends on Phase 3 (type resolvers).
 
 **Admin org detail** (`packages/admin-app/lib/graphql/organizations.ts`):
-- [ ] Create `OrganizationDetailFullQuery`:
+- [x] Create `OrganizationDetailFullQuery`:
   ```graphql
   query OrganizationDetailFull($id: ID!) {
     organization(id: $id) {
@@ -167,10 +167,10 @@ Replace multi-query patterns with single nested queries. This depends on Phase 3
     }
   }
   ```
-- [ ] Update `admin-app/app/admin/(app)/organizations/[id]/page.tsx` — replace 5 `useQuery` calls with 1
+- [x] Update `admin-app/app/admin/(app)/organizations/[id]/page.tsx` — replace 5 `useQuery` calls with 1
 
 **Admin source detail** (`packages/admin-app/lib/graphql/sources.ts`):
-- [ ] Create `SourceDetailFullQuery`:
+- [x] Create `SourceDetailFullQuery`:
   ```graphql
   query SourceDetailFull($id: ID!) {
     source(id: $id) {
@@ -183,35 +183,36 @@ Replace multi-query patterns with single nested queries. This depends on Phase 3
     organizations { id name }
   }
   ```
-- [ ] Update `admin-app/app/admin/(app)/sources/[id]/page.tsx` — replace 6 `useQuery` calls with 1 (keep workflow status queries separate since they poll)
+- [x] Update `admin-app/app/admin/(app)/sources/[id]/page.tsx` — replace 6 `useQuery` calls with 1 (keep workflow status queries separate since they poll)
 
 **Admin website detail** (`packages/admin-app/lib/graphql/websites.ts`):
-- [ ] Create `WebsiteDetailFullQuery` (same pattern as source)
-- [ ] Update `admin-app/app/admin/(app)/websites/[id]/page.tsx` — replace 7 `useQuery` calls with 1 (keep workflow polls separate)
+- [x] Create `WebsiteDetailFullQuery` (same pattern as source)
+- [x] Update `admin-app/app/admin/(app)/websites/[id]/page.tsx` — replace 7 `useQuery` calls with 1 (keep workflow polls separate)
 
 **Admin post detail** (`packages/admin-app/lib/graphql/posts.ts`):
-- [ ] Create `PostDetailFullQuery`:
+- [x] Create `PostDetailFullQuery` (combines post + entityProposals + entityNotes in single query):
   ```graphql
   query PostDetailFull($id: ID!) {
     post(id: $id) {
       ...PostDetailFields
       organization { id name }
     }
-    tagKinds { id slug displayName }
+    entityProposals(entityId: $id) { ... }
+    entityNotes(noteableType: "post", noteableId: $id) { ...NoteFields }
   }
   ```
-- [ ] Update `admin-app/app/admin/(app)/posts/[id]/page.tsx` — replace 5 `useQuery` calls with 1 (notes and proposals can be nested or kept as separate tabs)
+- [x] Update `admin-app/app/admin/(app)/posts/[id]/page.tsx` — replace 3 always-running `useQuery` calls with 1 (keep tag modal queries paused/deferred)
 
-**Admin dashboard** (`packages/admin-app/lib/graphql/`):
-- [ ] Create `DashboardQuery`:
+**Admin dashboard** (`packages/admin-app/lib/graphql/dashboard.ts`):
+- [x] Create `DashboardQuery` using aliases:
   ```graphql
   query Dashboard {
-    websites(limit: 5) { totalCount }
-    posts(status: "pending", limit: 5) { posts { id title } totalCount }
-    postStats { total services opportunities businesses }
+    websites(limit: 1000) { websites { id domain status ... } totalCount hasNextPage }
+    pendingPosts: posts(status: "pending_approval", limit: 1000) { posts { id status createdAt } totalCount }
+    allPosts: posts(limit: 1000) { posts { id status createdAt } totalCount }
   }
   ```
-- [ ] Update `admin-app/app/admin/(app)/dashboard/page.tsx` — replace 3 `useQuery` calls with 1
+- [x] Update `admin-app/app/admin/(app)/dashboard/page.tsx` — replace 3 `useQuery` calls with 1
 
 ### Phase 6: Clean up public query over-fetching
 

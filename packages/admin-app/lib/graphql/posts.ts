@@ -1,4 +1,5 @@
 import { graphql } from "@/gql";
+import "./fragments";
 
 export const PostStatsQuery = graphql(`
   query PostStats($status: String) {
@@ -35,30 +36,7 @@ export const PostsListQuery = graphql(`
       offset: $offset
     ) {
       posts {
-        id
-        title
-        description
-        summary
-        status
-        postType
-        category
-        capacityStatus
-        urgency
-        location
-        sourceUrl
-        submissionType
-        createdAt
-        publishedAt
-        distanceMiles
-        relevanceScore
-        relevanceBreakdown
-        tags {
-          id
-          kind
-          value
-          displayName
-          color
-        }
+        ...PostListFields
       }
       totalCount
       hasNextPage
@@ -70,73 +48,33 @@ export const PostsListQuery = graphql(`
 export const PostDetailQuery = graphql(`
   query PostDetail($id: ID!) {
     post(id: $id) {
+      ...PostDetailFields
+    }
+  }
+`);
+
+export const PostDetailFullQuery = graphql(`
+  query PostDetailFull($id: ID!) {
+    post(id: $id) {
+      ...PostDetailFields
+      organization {
+        id
+        name
+      }
+    }
+    entityProposals(entityId: $id) {
       id
-      title
-      description
-      descriptionMarkdown
-      summary
+      batchId
+      operation
       status
-      postType
-      category
-      capacityStatus
-      urgency
-      location
-      sourceUrl
-      submissionType
+      entityType
+      draftEntityId
+      targetEntityId
+      reason
       createdAt
-      updatedAt
-      publishedAt
-      organizationId
-      organizationName
-      distanceMiles
-      relevanceScore
-      relevanceBreakdown
-      hasUrgentNotes
-      tags {
-        id
-        kind
-        value
-        displayName
-        color
-        description
-        emoji
-      }
-      schedules {
-        id
-        dayOfWeek
-        opensAt
-        closesAt
-        timezone
-        notes
-        rrule
-        dtstart
-        dtend
-        isAllDay
-        durationMinutes
-      }
-      contacts {
-        id
-        contactType
-        contactValue
-        contactLabel
-      }
-      submittedBy {
-        submitterType
-        agentId
-        agentName
-      }
-      urgentNotes {
-        content
-        ctaText
-      }
-      comments {
-        id
-        containerId
-        role
-        content
-        parentMessageId
-        createdAt
-      }
+    }
+    entityNotes(noteableType: "post", noteableId: $id) {
+      ...NoteFields
     }
   }
 `);

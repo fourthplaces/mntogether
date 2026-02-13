@@ -7,11 +7,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useQuery, useMutation } from "urql";
 import {
-  WebsiteDetailQuery,
-  WebsitePagesQuery,
-  WebsitePageCountQuery,
-  WebsiteAssessmentQuery,
-  WebsitePostsQuery,
+  WebsiteDetailFullQuery,
   ApproveWebsiteMutation,
   RejectWebsiteMutation,
   CrawlWebsiteMutation,
@@ -25,10 +21,6 @@ import {
   RejectPostInlineMutation,
 } from "@/lib/graphql/websites";
 import { WorkflowStatusQuery } from "@/lib/graphql/sources";
-import {
-  OrganizationDetailQuery,
-  OrganizationsListQuery,
-} from "@/lib/graphql/organizations";
 
 type TabType = "posts" | "snapshots" | "assessment";
 
@@ -59,46 +51,12 @@ export default function WebsiteDetailPage() {
 
   const mutationContext = { additionalTypenames: ["Website", "WebsiteConnection", "Post", "PostConnection"] };
 
-  // --- Data queries ---
+  // --- Data query (single consolidated query) ---
 
-  const [{ data: websiteData, fetching: websiteLoading, error: websiteError }, refetchWebsite] =
-    useQuery({ query: WebsiteDetailQuery, variables: { id: websiteId } });
+  const [{ data, fetching: websiteLoading, error: websiteError }, refetchWebsite] =
+    useQuery({ query: WebsiteDetailFullQuery, variables: { id: websiteId } });
 
-  const website = websiteData?.website;
-
-  const [{ data: postsData }, refetchPosts] = useQuery({
-    query: WebsitePostsQuery,
-    variables: { websiteId, limit: 100 },
-    pause: !website,
-  });
-
-  const [{ data: pagesData }] = useQuery({
-    query: WebsitePagesQuery,
-    variables: { domain: website?.domain || "", limit: 50 },
-    pause: !website?.domain,
-  });
-
-  const [{ data: pageCountData }] = useQuery({
-    query: WebsitePageCountQuery,
-    variables: { domain: website?.domain || "" },
-    pause: !website?.domain,
-  });
-
-  const [{ data: assessmentData }, refetchAssessment] = useQuery({
-    query: WebsiteAssessmentQuery,
-    variables: { websiteId },
-  });
-
-  const [{ data: orgData }] = useQuery({
-    query: OrganizationDetailQuery,
-    variables: { id: website?.organizationId || "" },
-    pause: !website?.organizationId,
-  });
-
-  const [{ data: orgsListData }] = useQuery({
-    query: OrganizationsListQuery,
-    pause: !showOrgPicker,
-  });
+  const website = data?.website;
 
   // Workflow status polling
   const [{ data: regenStatusData }] = useQuery({
@@ -130,7 +88,7 @@ export default function WebsiteDetailPage() {
       if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
         setRegenWorkflowId(null);
         setActionInProgress(null);
-        refetchPosts({ requestPolicy: "network-only" });
+        refetchWebsite({ requestPolicy: "network-only" });
       }
     }
   }, [regenStatusData]);
@@ -150,15 +108,15 @@ export default function WebsiteDetailPage() {
       if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
         setDedupWorkflowId(null);
         setActionInProgress(null);
-        refetchPosts({ requestPolicy: "network-only" });
+        refetchWebsite({ requestPolicy: "network-only" });
       }
     }
   }, [dedupStatusData]);
 
-  const assessment = assessmentData?.websiteAssessment ?? null;
-  const posts = postsData?.websitePosts?.posts || [];
-  const pages = pagesData?.websitePages || [];
-  const pageCount = pageCountData?.websitePageCount ?? 0;
+  const assessment = website?.assessment ?? null;
+  const posts = website?.posts?.posts || [];
+  const pages = website?.pages || [];
+  const pageCount = website?.pageCount ?? 0;
 
   // --- Mutations ---
 
@@ -204,7 +162,7 @@ export default function WebsiteDetailPage() {
     setApprovingPostId(postId);
     try {
       await approvePost({ id: postId }, mutationContext);
-      refetchPosts({ requestPolicy: "network-only" });
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to approve post:", err);
     } finally {
@@ -216,7 +174,7 @@ export default function WebsiteDetailPage() {
     setRejectingPostId(postId);
     try {
       await rejectPost({ id: postId, reason: "Rejected by admin" }, mutationContext);
-      refetchPosts({ requestPolicy: "network-only" });
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to reject post:", err);
     } finally {
@@ -241,7 +199,7 @@ export default function WebsiteDetailPage() {
     setMenuOpen(false);
     try {
       await generateAssessment({ id: websiteId }, mutationContext);
-      refetchAssessment({ requestPolicy: "network-only" });
+      refetchWebsite({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to generate assessment:", err);
     } finally {
@@ -501,12 +459,12 @@ export default function WebsiteDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Organization</span>
-              {orgData?.organization ? (
+              {website?.organization ? (
                 <Link
-                  href={`/admin/organizations/${orgData.organization.id}`}
+                  href={`/admin/organizations/${website.organization.id}`}
                   className="block text-sm font-medium text-amber-700 hover:text-amber-900"
                 >
-                  {orgData.organization.name}
+                  {website.organization.name}
                 </Link>
               ) : actionInProgress === "extract_org" ? (
                 <div className="flex items-center gap-2 mt-0.5">
@@ -525,7 +483,7 @@ export default function WebsiteDetailPage() {
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Posts</span>
-              <p className="text-lg font-semibold text-stone-900">{postsData?.websitePosts?.totalCount ?? website.postCount ?? 0}</p>
+              <p className="text-lg font-semibold text-stone-900">{website?.posts?.totalCount ?? website?.postCount ?? 0}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
@@ -571,7 +529,7 @@ export default function WebsiteDetailPage() {
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  {tab === "posts" && ` (${postsData?.websitePosts?.totalCount ?? posts.length})`}
+                  {tab === "posts" && ` (${website?.posts?.totalCount ?? posts.length})`}
                   {tab === "snapshots" && ` (${pageCount})`}
                 </button>
               ))}
@@ -758,7 +716,7 @@ export default function WebsiteDetailPage() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-5">
-                {(orgsListData?.organizations || []).length === 0 ? (
+                {(data?.organizations || []).length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-stone-500 mb-3">No organizations yet.</p>
                     <Link
@@ -771,7 +729,7 @@ export default function WebsiteDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {(orgsListData?.organizations || []).map((org) => (
+                    {(data?.organizations || []).map((org) => (
                       <button
                         key={org.id}
                         onClick={() => handleAssignOrganization(org.id)}

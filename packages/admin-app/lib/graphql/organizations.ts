@@ -1,15 +1,10 @@
 import { graphql } from "@/gql";
+import "./fragments";
 
 export const OrganizationsListQuery = graphql(`
   query OrganizationsList {
     organizations {
-      id
-      name
-      description
-      status
-      websiteCount
-      socialProfileCount
-      createdAt
+      ...OrganizationFields
     }
   }
 `);
@@ -17,15 +12,54 @@ export const OrganizationsListQuery = graphql(`
 export const OrganizationDetailQuery = graphql(`
   query OrganizationDetail($id: ID!) {
     organization(id: $id) {
-      id
-      name
-      description
-      status
-      websiteCount
-      socialProfileCount
-      snapshotCount
-      createdAt
-      updatedAt
+      ...OrganizationFields
+    }
+  }
+`);
+
+export const OrganizationDetailFullQuery = graphql(`
+  query OrganizationDetailFull($id: ID!) {
+    organization(id: $id) {
+      ...OrganizationFields
+      sources {
+        ...SourceFields
+      }
+      posts {
+        posts {
+          id
+          title
+          status
+          postType
+          capacityStatus
+          relevanceScore
+          createdAt
+          organizationId
+          organizationName
+          tags {
+            id
+            kind
+            value
+            displayName
+            color
+          }
+        }
+        totalCount
+        hasNextPage
+        hasPreviousPage
+      }
+      notes {
+        ...NoteFields
+      }
+      checklist {
+        items {
+          key
+          label
+          checked
+          checkedBy
+          checkedAt
+        }
+        allChecked
+      }
     }
   }
 `);

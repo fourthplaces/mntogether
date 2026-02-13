@@ -37,6 +37,60 @@ export const WebsiteDetailQuery = graphql(`
   }
 `);
 
+export const WebsiteDetailFullQuery = graphql(`
+  query WebsiteDetailFull($id: ID!) {
+    website(id: $id) {
+      id
+      domain
+      status
+      active
+      organizationId
+      postCount
+      lastCrawledAt
+      createdAt
+      posts(limit: 100) {
+        posts {
+          id
+          title
+          summary
+          status
+          postType
+          tags {
+            id
+            kind
+            value
+            displayName
+          }
+        }
+        totalCount
+        hasNextPage
+      }
+      pages(limit: 50) {
+        url
+        content
+      }
+      pageCount
+      assessment {
+        id
+        websiteId
+        assessmentMarkdown
+        confidenceScore
+      }
+      organization {
+        id
+        name
+      }
+    }
+    organizations {
+      id
+      name
+      description
+      websiteCount
+      socialProfileCount
+    }
+  }
+`);
+
 export const WebsitePagesQuery = graphql(`
   query WebsitePages($domain: String!, $limit: Int) {
     websitePages(domain: $domain, limit: $limit) {

@@ -7,10 +7,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useQuery, useMutation } from "urql";
 import {
-  SourceDetailQuery,
-  SourcePagesQuery,
-  SourcePageCountQuery,
-  SourceAssessmentQuery,
+  SourceDetailFullQuery,
   WorkflowStatusQuery,
   ApproveSourceMutation,
   RejectSourceMutation,
@@ -22,10 +19,6 @@ import {
   AssignSourceOrganizationMutation,
   UnassignSourceOrganizationMutation,
 } from "@/lib/graphql/sources";
-import {
-  OrganizationDetailQuery,
-  OrganizationsListQuery,
-} from "@/lib/graphql/organizations";
 
 type TabType = "snapshots" | "assessment";
 
@@ -62,42 +55,13 @@ export default function SourceDetailPage() {
 
   const mutationContext = { additionalTypenames: ["Source", "SourceConnection"] };
 
-  // --- Data queries ---
+  // --- Data query (single consolidated query) ---
 
-  const [{ data: sourceData, fetching: sourceLoading, error: sourceError }, refetchSource] =
-    useQuery({ query: SourceDetailQuery, variables: { id: sourceId } });
+  const [{ data, fetching: sourceLoading, error: sourceError }, refetchSource] =
+    useQuery({ query: SourceDetailFullQuery, variables: { id: sourceId } });
 
-  const source = sourceData?.source;
+  const source = data?.source;
   const isWebsite = source?.sourceType === "website";
-
-  const [{ data: pagesData }] = useQuery({
-    query: SourcePagesQuery,
-    variables: { sourceId },
-    pause: !source,
-  });
-
-  const [{ data: pageCountData }] = useQuery({
-    query: SourcePageCountQuery,
-    variables: { sourceId },
-    pause: !source,
-  });
-
-  const [{ data: assessmentData }, refetchAssessment] = useQuery({
-    query: SourceAssessmentQuery,
-    variables: { sourceId },
-    pause: !isWebsite,
-  });
-
-  const [{ data: orgData }] = useQuery({
-    query: OrganizationDetailQuery,
-    variables: { id: source?.organizationId || "" },
-    pause: !source?.organizationId,
-  });
-
-  const [{ data: orgsListData }] = useQuery({
-    query: OrganizationsListQuery,
-    pause: !showOrgPicker,
-  });
 
   // Workflow status polling
   const regenWorkflowName = isWebsite ? "RegeneratePostsWorkflow" : "RegenerateSocialPostsWorkflow";
@@ -155,9 +119,9 @@ export default function SourceDetailPage() {
     }
   }, [dedupStatusData]);
 
-  const assessment = assessmentData?.sourceAssessment ?? null;
-  const pages = pagesData?.sourcePages || [];
-  const pageCount = pageCountData?.sourcePageCount ?? 0;
+  const assessment = source?.assessment ?? null;
+  const pages = source?.pages || [];
+  const pageCount = source?.pageCount ?? 0;
 
   // --- Mutations ---
 
@@ -214,7 +178,7 @@ export default function SourceDetailPage() {
     setMenuOpen(false);
     try {
       await generateAssessment({ id: sourceId }, mutationContext);
-      refetchAssessment({ requestPolicy: "network-only" });
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to generate assessment:", err);
     } finally {
@@ -479,12 +443,12 @@ export default function SourceDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Organization</span>
-              {orgData?.organization ? (
+              {source?.organization ? (
                 <Link
-                  href={`/admin/organizations/${orgData.organization.id}`}
+                  href={`/admin/organizations/${source.organization.id}`}
                   className="block text-sm font-medium text-amber-700 hover:text-amber-900"
                 >
-                  {orgData.organization.name}
+                  {source.organization.name}
                 </Link>
               ) : actionInProgress === "extract_org" ? (
                 <div className="flex items-center gap-2 mt-0.5">
@@ -665,7 +629,7 @@ export default function SourceDetailPage() {
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-5">
-                {(orgsListData?.organizations || []).length === 0 ? (
+                {(data?.organizations || []).length === 0 ? (
                   <div className="text-center py-8">
                     <p className="text-stone-500 mb-3">No organizations yet.</p>
                     <Link
@@ -678,7 +642,7 @@ export default function SourceDetailPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {(orgsListData?.organizations || []).map((org) => (
+                    {(data?.organizations || []).map((org) => (
                       <button
                         key={org.id}
                         onClick={() => handleAssignOrganization(org.id)}

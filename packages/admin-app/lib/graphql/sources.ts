@@ -1,4 +1,5 @@
 import { graphql } from "@/gql";
+import "./fragments";
 
 export const SourcesListQuery = graphql(`
   query SourcesList(
@@ -55,16 +56,35 @@ export const SearchSourcesByContentQuery = graphql(`
 export const SourceDetailQuery = graphql(`
   query SourceDetail($id: ID!) {
     source(id: $id) {
+      ...SourceFields
+    }
+  }
+`);
+
+export const SourceDetailFullQuery = graphql(`
+  query SourceDetailFull($id: ID!) {
+    source(id: $id) {
+      ...SourceFields
+      pages {
+        url
+        content
+      }
+      pageCount
+      assessment {
+        id
+        websiteId
+        assessmentMarkdown
+        confidenceScore
+      }
+      organization {
+        id
+        name
+      }
+    }
+    organizations {
       id
-      sourceType
-      identifier
-      url
-      status
-      active
-      organizationId
-      lastScrapedAt
-      createdAt
-      updatedAt
+      name
+      description
     }
   }
 `);
