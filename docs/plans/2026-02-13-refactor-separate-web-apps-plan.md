@@ -137,11 +137,11 @@ Not part of this initial plan. Once the skeleton apps are running:
 
 ## Acceptance Criteria
 
-- [ ] `packages/admin-app` exists, renamed from `packages/web` with git history preserved
-- [ ] `packages/web-app` exists with working GraphQL endpoint at `/api/graphql`
-- [ ] `packages/search-app` exists with working GraphQL endpoint at `/api/graphql`
-- [ ] Root `package.json` workspaces lists all four packages
-- [ ] `yarn install` succeeds from root
+- [x] `packages/admin-app` exists, renamed from `packages/web` with git history preserved
+- [x] `packages/web-app` exists with working GraphQL endpoint at `/api/graphql`
+- [x] `packages/search-app` exists with working GraphQL endpoint at `/api/graphql`
+- [x] Root workspaces: N/A — each package is standalone with `file:../shared` references
+- [x] `yarn install` succeeds in each package independently
 - [ ] `admin-app` starts on port 3000 and works identically to the old `packages/web`
 - [ ] `web-app` starts on port 3001 and renders placeholder page
 - [ ] `search-app` starts on port 3002 and renders placeholder page
