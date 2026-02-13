@@ -1,0 +1,47 @@
+type Query {
+  # Public
+  publicPosts(
+    postType: String
+    category: String
+    limit: Int
+    offset: Int
+    zipCode: String
+    radiusMiles: Float
+  ): PublicPostConnection!
+  publicFilters: PublicFilters!
+  post(id: ID!): Post
+
+  # Admin (auth required)
+  posts(
+    status: String
+    search: String
+    limit: Int
+    offset: Int
+  ): PostConnection!
+}
+
+type Mutation {
+  # Public
+  trackPostView(postId: ID!): Boolean
+  trackPostClick(postId: ID!): Boolean
+}
+
+# Shared types
+type PublicFilters {
+  categories: [FilterOption!]!
+  postTypes: [PostTypeOption!]!
+}
+
+type FilterOption {
+  value: String!
+  displayName: String!
+  count: Int!
+}
+
+type PostTypeOption {
+  value: String!
+  displayName: String!
+  description: String
+  color: String
+  emoji: String
+}

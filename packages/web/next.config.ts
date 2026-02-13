@@ -8,6 +8,20 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Transpile shared package
+  transpilePackages: ["@mntogether/shared"],
+
+  // Keep GraphQL server packages as external (Node.js runtime, not bundled)
+  serverExternalPackages: [
+    "graphql-yoga",
+    "graphql",
+    "@graphql-tools/schema",
+    "@graphql-tools/merge",
+    "@graphql-tools/utils",
+    "@graphql-tools/load-files",
+    "dataloader",
+  ],
+
   // Optimize images
   images: {
     domains: [],
