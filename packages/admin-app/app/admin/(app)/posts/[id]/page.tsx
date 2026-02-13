@@ -7,7 +7,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useQuery, useMutation } from "urql";
 import { useState, useRef, useEffect } from "react";
 import {
-  PostDetailQuery,
+  PostDetailFullQuery,
   ApprovePostMutation,
   RejectPostMutation,
   ArchivePostMutation,
@@ -19,7 +19,6 @@ import {
   RegeneratePostTagsMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
-import { EntityProposalsQuery, EntityNotesQuery } from "@/lib/graphql/notes";
 import { ApproveProposalMutation, RejectProposalMutation } from "@/lib/graphql/sync";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -98,27 +97,14 @@ export default function PostDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // GraphQL: fetch post detail
+  // GraphQL: fetch post detail + proposals + notes in single query
   const [{ data: postData, fetching: isLoading, error }] = useQuery({
-    query: PostDetailQuery,
+    query: PostDetailFullQuery,
     variables: { id: postId },
   });
   const post = postData?.post;
-
-  // GraphQL: proposals
-  const [{ data: proposalsData }] = useQuery({
-    query: EntityProposalsQuery,
-    variables: { entityId: postId },
-  });
-
-  // GraphQL: notes
-  const [{ data: notesData }] = useQuery({
-    query: EntityNotesQuery,
-    variables: { noteableType: "post", noteableId: postId },
-  });
-
-  const proposals = proposalsData?.entityProposals || [];
-  const notes = notesData?.entityNotes || [];
+  const proposals = postData?.entityProposals || [];
+  const notes = postData?.entityNotes || [];
 
   // GraphQL mutations
   const [, approvePost] = useMutation(ApprovePostMutation);

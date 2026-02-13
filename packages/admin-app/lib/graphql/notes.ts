@@ -1,4 +1,5 @@
 import { graphql } from "@/gql";
+import "./fragments";
 
 export const EntityProposalsQuery = graphql(`
   query EntityProposals($entityId: ID!) {
@@ -19,22 +20,7 @@ export const EntityProposalsQuery = graphql(`
 export const EntityNotesQuery = graphql(`
   query EntityNotes($noteableType: String!, $noteableId: ID!) {
     entityNotes(noteableType: $noteableType, noteableId: $noteableId) {
-      id
-      content
-      ctaText
-      severity
-      sourceUrl
-      sourceId
-      sourceType
-      isPublic
-      createdBy
-      expiredAt
-      createdAt
-      updatedAt
-      linkedPosts {
-        id
-        title
-      }
+      ...NoteFields
     }
   }
 `);
@@ -146,20 +132,7 @@ export const CrawlAllOrgSourcesMutation = graphql(`
 export const OrganizationSourcesQuery = graphql(`
   query OrganizationSources($organizationId: ID!) {
     organizationSources(organizationId: $organizationId) {
-      id
-      sourceType
-      identifier
-      url
-      status
-      active
-      organizationId
-      organizationName
-      scrapeFrequencyHours
-      lastScrapedAt
-      postCount
-      snapshotCount
-      createdAt
-      updatedAt
+      ...SourceFields
     }
   }
 `);

@@ -3,45 +3,20 @@
 import Link from "next/link";
 import { useQuery } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import { WebsitesListQuery } from "@/lib/graphql/websites";
-import { graphql } from "@/gql";
-
-const DashboardPostsQuery = graphql(`
-  query DashboardPosts($status: String, $limit: Int) {
-    posts(status: $status, limit: $limit) {
-      posts {
-        id
-        status
-        createdAt
-      }
-      totalCount
-    }
-  }
-`);
+import { DashboardQuery } from "@/lib/graphql/dashboard";
 
 export default function DashboardPage() {
-  const [{ data: websiteData, fetching: websitesLoading }] = useQuery({
-    query: WebsitesListQuery,
-    variables: { limit: 1000 },
-  });
-  const [{ data: pendingPostData, fetching: postsLoading }] = useQuery({
-    query: DashboardPostsQuery,
-    variables: { status: "pending_approval", limit: 1000 },
-  });
-  const [{ data: allPostData, fetching: allPostsLoading }] = useQuery({
-    query: DashboardPostsQuery,
-    variables: { limit: 1000 },
+  const [{ data, fetching }] = useQuery({
+    query: DashboardQuery,
   });
 
-  const isLoading = websitesLoading || postsLoading || allPostsLoading;
-
-  if (isLoading) {
+  if (fetching) {
     return <AdminLoader label="Loading dashboard..." />;
   }
 
-  const websites = websiteData?.websites?.websites || [];
-  const pendingPosts = pendingPostData?.posts?.posts || [];
-  const allPosts = allPostData?.posts?.posts || [];
+  const websites = data?.websites?.websites || [];
+  const pendingPosts = data?.pendingPosts?.posts || [];
+  const allPosts = data?.allPosts?.posts || [];
 
   // Calculate stats
   const totalWebsites = websites.length;

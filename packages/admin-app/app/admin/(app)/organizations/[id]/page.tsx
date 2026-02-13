@@ -6,8 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import {
-  OrganizationDetailQuery,
-  OrganizationChecklistQuery,
+  OrganizationDetailFullQuery,
   UpdateOrganizationMutation,
   DeleteOrganizationMutation,
   ApproveOrganizationMutation,
@@ -24,9 +23,6 @@ import {
   RewriteNarrativesMutation,
 } from "@/lib/graphql/organizations";
 import {
-  OrganizationSourcesQuery,
-  OrganizationPostsQuery,
-  EntityNotesQuery,
   CreateNoteMutation,
   UpdateNoteMutation,
   DeleteNoteMutation,
@@ -100,39 +96,18 @@ export default function OrganizationDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- Data queries ---
+  // --- Data query (single consolidated query) ---
 
   const [{ data: orgData, fetching: orgLoading, error: orgError }] = useQuery({
-    query: OrganizationDetailQuery,
+    query: OrganizationDetailFullQuery,
     variables: { id: orgId },
   });
 
   const org = orgData?.organization;
-
-  const [{ data: sourcesData }] = useQuery({
-    query: OrganizationSourcesQuery,
-    variables: { organizationId: orgId },
-  });
-
-  const [{ data: postsData }] = useQuery({
-    query: OrganizationPostsQuery,
-    variables: { organizationId: orgId },
-  });
-
-  const [{ data: notesData }] = useQuery({
-    query: EntityNotesQuery,
-    variables: { noteableType: "organization", noteableId: orgId },
-  });
-
-  const [{ data: checklistData }] = useQuery({
-    query: OrganizationChecklistQuery,
-    variables: { id: orgId },
-  });
-
-  const sources = sourcesData?.organizationSources || [];
-  const posts = postsData?.organizationPosts?.posts || [];
-  const notes = notesData?.entityNotes || [];
-  const checklist = checklistData?.organizationChecklist;
+  const sources = org?.sources || [];
+  const posts = org?.posts?.posts || [];
+  const notes = org?.notes || [];
+  const checklist = org?.checklist;
 
   // --- Mutations ---
 

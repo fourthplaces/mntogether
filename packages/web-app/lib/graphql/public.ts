@@ -1,4 +1,5 @@
 import { graphql } from "@/gql";
+import "./fragments";
 
 export const PublicPostsQuery = graphql(`
   query PublicPosts(
@@ -18,29 +19,7 @@ export const PublicPostsQuery = graphql(`
       radiusMiles: $radiusMiles
     ) {
       posts {
-        id
-        title
-        summary
-        description
-        location
-        sourceUrl
-        postType
-        category
-        createdAt
-        publishedAt
-        distanceMiles
-        organizationId
-        organizationName
-        tags {
-          kind
-          value
-          displayName
-          color
-        }
-        urgentNotes {
-          content
-          ctaText
-        }
+        ...PublicPostFields
       }
       totalCount
     }
@@ -85,29 +64,7 @@ export const PublicOrganizationQuery = graphql(`
       description
       status
       posts {
-        id
-        title
-        summary
-        description
-        location
-        sourceUrl
-        postType
-        category
-        createdAt
-        publishedAt
-        distanceMiles
-        organizationId
-        organizationName
-        tags {
-          kind
-          value
-          displayName
-          color
-        }
-        urgentNotes {
-          content
-          ctaText
-        }
+        ...PublicPostFields
       }
     }
   }
@@ -116,71 +73,7 @@ export const PublicOrganizationQuery = graphql(`
 export const PostDetailPublicQuery = graphql(`
   query PostDetailPublic($id: ID!) {
     post(id: $id) {
-      id
-      title
-      description
-      descriptionMarkdown
-      summary
-      status
-      postType
-      category
-      capacityStatus
-      urgency
-      location
-      sourceUrl
-      submissionType
-      createdAt
-      updatedAt
-      publishedAt
-      organizationId
-      organizationName
-      distanceMiles
-      hasUrgentNotes
-      tags {
-        id
-        kind
-        value
-        displayName
-        color
-        description
-        emoji
-      }
-      schedules {
-        id
-        dayOfWeek
-        opensAt
-        closesAt
-        timezone
-        notes
-        rrule
-        dtstart
-        dtend
-        isAllDay
-        durationMinutes
-      }
-      contacts {
-        id
-        contactType
-        contactValue
-        contactLabel
-      }
-      submittedBy {
-        submitterType
-        agentId
-        agentName
-      }
-      urgentNotes {
-        content
-        ctaText
-      }
-      comments {
-        id
-        containerId
-        role
-        content
-        parentMessageId
-        createdAt
-      }
+      ...PostDetailPublicFields
     }
   }
 `);
