@@ -8,6 +8,7 @@ import { syncResolvers } from "./sync";
 import { searchQueryResolvers } from "./search-query";
 import { jobResolvers } from "./job";
 import { noteResolvers } from "./note";
+import { chatResolvers } from "./chat";
 
 export const resolvers = mergeResolvers([
   postResolvers,
@@ -19,4 +20,5 @@ export const resolvers = mergeResolvers([
   searchQueryResolvers,
   jobResolvers,
   noteResolvers,
+  chatResolvers,
 ]);

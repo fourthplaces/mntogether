@@ -84,6 +84,10 @@ type Query {
   # Organization detail queries (admin)
   organizationSources(organizationId: ID!): [Source!]!
   organizationPosts(organizationId: ID!, limit: Int): PostConnection!
+
+  # Chat (admin)
+  recentChats(limit: Int): [ChatroomInfo!]!
+  chatMessages(chatroomId: ID!): [ChatMessage!]!
 }
 
 type Mutation {
@@ -182,6 +186,10 @@ type Mutation {
   # Organization source operations (admin)
   createSocialSource(organizationId: ID!, platform: String!, identifier: String!): Source!
   crawlAllOrgSources(organizationId: ID!): Boolean!
+
+  # Chat (admin)
+  createChat(language: String, withAgent: String): ChatroomInfo!
+  sendChatMessage(chatroomId: ID!, content: String!): ChatMessage!
 }
 
 type PublicFilters {
@@ -561,6 +569,21 @@ type Job {
   completionResult: String
   websiteDomain: String
   websiteId: String
+}
+
+type ChatroomInfo {
+  id: ID!
+  title: String
+  createdAt: String!
+  messageCount: Int!
+}
+
+type ChatMessage {
+  id: ID!
+  chatroomId: String!
+  senderType: String!
+  content: String!
+  createdAt: String!
 }
 `;
 
