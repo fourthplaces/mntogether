@@ -1,21 +1,10 @@
 import { NextRequest } from "next/server";
-import { createYoga, createSchema } from "graphql-yoga";
-
-const schema = createSchema({
-  typeDefs: /* GraphQL */ `
-    type Query {
-      hello: String!
-    }
-  `,
-  resolvers: {
-    Query: {
-      hello: () => "Hello from GraphQL!",
-    },
-  },
-});
+import { createYoga } from "graphql-yoga";
+import { schema, createContext } from "@mntogether/shared";
 
 const yoga = createYoga({
   schema,
+  context: createContext,
   graphqlEndpoint: "/api/graphql",
   fetchAPI: { Response },
 });
