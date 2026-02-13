@@ -1,11 +1,5 @@
 import type { GraphQLContext } from "../context";
 
-function requireAdmin(ctx: GraphQLContext) {
-  if (!ctx.user?.isAdmin) {
-    throw new Error("Unauthorized: admin access required");
-  }
-}
-
 export const syncResolvers = {
   Query: {
     syncBatches: async (
@@ -13,7 +7,6 @@ export const syncResolvers = {
       args: { status?: string; limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const body: Record<string, unknown> = {};
       if (args.status) body.status = args.status;
       if (args.limit) body.limit = args.limit;
@@ -29,7 +22,6 @@ export const syncResolvers = {
       args: { batchId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService<{ proposals: unknown[] }>(
         "Sync",
         "list_proposals",
@@ -44,7 +36,6 @@ export const syncResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Sync", "approve_proposal", {
         proposal_id: args.id,
       });
@@ -56,7 +47,6 @@ export const syncResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Sync", "reject_proposal", {
         proposal_id: args.id,
       });
@@ -68,7 +58,6 @@ export const syncResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Sync", "approve_batch", {
         batch_id: args.id,
       });
@@ -80,7 +69,6 @@ export const syncResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Sync", "reject_batch", {
         batch_id: args.id,
       });
@@ -92,7 +80,6 @@ export const syncResolvers = {
       args: { proposalId: string; comment: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const workflowId = `refine-${args.proposalId}-${Date.now()}`;
       await ctx.restate.callObject(
         "RefineProposalWorkflow",
@@ -101,8 +88,6 @@ export const syncResolvers = {
         {
           proposal_id: args.proposalId,
           comment: args.comment,
-          author_id:
-            ctx.user?.memberId || "00000000-0000-0000-0000-000000000000",
         }
       );
       return true;

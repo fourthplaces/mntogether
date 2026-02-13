@@ -1,7 +1,6 @@
 export { typeDefs } from "./schema";
 export { resolvers } from "./resolvers";
 export { createContext, type GraphQLContext } from "./context";
-export { RestateClient, type AuthUser } from "./restate-client";
-export { requireAuth, requireAdmin } from "./auth";
+export { RestateClient } from "./restate-client";
 export { createLoaders, type DataLoaders } from "./dataloaders";
 export { snakeToCamel, parseCookie } from "./util";

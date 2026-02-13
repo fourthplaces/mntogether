@@ -1,5 +1,4 @@
 import type { GraphQLContext } from "../context";
-import { requireAuth, requireAdmin } from "../auth";
 
 export const postResolvers = {
   Query: {
@@ -55,7 +54,6 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Posts", "list", {
         status: args.status,
         search: args.search,
@@ -73,7 +71,6 @@ export const postResolvers = {
       args: { status?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Posts", "stats", {
         status: args.status,
       });
@@ -122,8 +119,8 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "approve", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -132,10 +129,10 @@ export const postResolvers = {
       args: { id: string; reason?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "reject", {
         reason: args.reason ?? "Rejected by admin",
       });
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -144,8 +141,8 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "archive", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -154,7 +151,6 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "delete", {});
       return true;
     },
@@ -164,8 +160,8 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "reactivate", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -179,12 +175,12 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.postId, "add_tag", {
         tag_kind: args.tagKind,
         tag_value: args.tagValue,
         display_name: args.displayName ?? args.tagValue,
       });
+      ctx.loaders.postById.clear(args.postId);
       return ctx.loaders.postById.load(args.postId);
     },
 
@@ -193,10 +189,10 @@ export const postResolvers = {
       args: { postId: string; tagId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.postId, "remove_tag", {
         tag_id: args.tagId,
       });
+      ctx.loaders.postById.clear(args.postId);
       return ctx.loaders.postById.load(args.postId);
     },
 
@@ -205,8 +201,8 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "regenerate", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -215,8 +211,8 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "regenerate_tags", {});
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -225,10 +221,10 @@ export const postResolvers = {
       args: { id: string; capacityStatus: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callObject("Post", args.id, "update_capacity", {
         capacity_status: args.capacityStatus,
       });
+      ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
 
@@ -237,7 +233,6 @@ export const postResolvers = {
       args: { limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Posts", "batch_score_posts", {
         limit: args.limit,
       });
@@ -270,6 +265,17 @@ export const postResolvers = {
   Post: {
     comments: (parent: { id: string }, _args: unknown, ctx: GraphQLContext) => {
       return ctx.loaders.commentsByPostId.load(parent.id);
+    },
+
+    organization: async (
+      parent: { organizationId?: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      if (!parent.organizationId) return null;
+      return ctx.restate.callService("Organizations", "get", {
+        id: parent.organizationId,
+      });
     },
   },
 };

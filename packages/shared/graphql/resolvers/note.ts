@@ -1,11 +1,5 @@
 import type { GraphQLContext } from "../context";
 
-function requireAdmin(ctx: GraphQLContext) {
-  if (!ctx.user?.isAdmin) {
-    throw new Error("Unauthorized: admin access required");
-  }
-}
-
 export const noteResolvers = {
   Query: {
     entityProposals: async (
@@ -13,7 +7,6 @@ export const noteResolvers = {
       args: { entityId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{
         proposals: unknown[];
       }>("Sync", "list_entity_proposals", {
@@ -27,7 +20,6 @@ export const noteResolvers = {
       args: { noteableType: string; noteableId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{
         notes: unknown[];
       }>("Notes", "list_for_entity", {
@@ -42,7 +34,6 @@ export const noteResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{
         sources: unknown[];
       }>("Sources", "list_by_organization", {
@@ -56,7 +47,6 @@ export const noteResolvers = {
       args: { organizationId: string; limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService(
         "Posts",
         "list_by_organization",
@@ -82,7 +72,6 @@ export const noteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Notes", "create", {
         noteable_type: args.noteableType,
         noteable_id: args.noteableId,
@@ -107,7 +96,6 @@ export const noteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Notes", "update", {
         id: args.id,
         content: args.content,
@@ -124,7 +112,6 @@ export const noteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Notes", "delete", {
         id: args.id,
       });
@@ -136,7 +123,6 @@ export const noteResolvers = {
       args: { noteId: string; postId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Notes", "unlink", {
         note_id: args.noteId,
         noteable_type: "post",
@@ -150,7 +136,6 @@ export const noteResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService(
         "Notes",
         "generate_from_sources",
@@ -163,7 +148,6 @@ export const noteResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService(
         "Notes",
         "auto_attach_notes",
@@ -180,7 +164,6 @@ export const noteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Sources", "create_social", {
         organization_id: args.organizationId,
         platform: args.platform,
@@ -193,15 +176,12 @@ export const noteResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
-      // Get org sources first
       const sourcesResult = await ctx.restate.callService<{
         sources: Array<{ id: string; sourceType: string }>;
       }>("Sources", "list_by_organization", {
         organization_id: args.organizationId,
       });
 
-      // Crawl each source
       await Promise.all(
         sourcesResult.sources.map((source) => {
           const workflowId = `crawl-${source.id}-${Date.now()}`;

@@ -1,5 +1,4 @@
 import type { GraphQLContext } from "../context";
-import { requireAdmin } from "../auth";
 
 export const organizationResolvers = {
   Query: {
@@ -8,7 +7,6 @@ export const organizationResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       const result = await ctx.restate.callService<{
         organizations: unknown[];
       }>("Organizations", "list", {});
@@ -20,7 +18,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Organizations", "get", {
         id: args.id,
       });
@@ -52,7 +49,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Organizations", "get_checklist", {
         id: args.id,
       });
@@ -65,7 +61,6 @@ export const organizationResolvers = {
       args: { name: string; description?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Organizations", "create", {
         name: args.name,
         description: args.description ?? null,
@@ -77,7 +72,6 @@ export const organizationResolvers = {
       args: { id: string; name: string; description?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "update", {
         id: args.id,
         name: args.name,
@@ -93,7 +87,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "delete", {
         id: args.id,
       });
@@ -105,7 +98,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "approve", {
         id: args.id,
       });
@@ -119,7 +111,6 @@ export const organizationResolvers = {
       args: { id: string; reason: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "reject", {
         id: args.id,
         reason: args.reason,
@@ -134,7 +125,6 @@ export const organizationResolvers = {
       args: { id: string; reason: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "suspend", {
         id: args.id,
         reason: args.reason,
@@ -149,7 +139,6 @@ export const organizationResolvers = {
       args: { id: string; status: string; reason?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "set_status", {
         id: args.id,
         status: args.status,
@@ -169,7 +158,6 @@ export const organizationResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService(
         "Organizations",
         "toggle_checklist_item",
@@ -189,7 +177,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Organizations", "regenerate", {
         id: args.id,
       });
@@ -200,7 +187,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "extract_org_posts", {
         id: args.id,
       });
@@ -212,7 +198,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "clean_up_org_posts", {
         id: args.id,
       });
@@ -224,7 +209,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "run_curator", {
         id: args.id,
       });
@@ -236,7 +220,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "remove_all_posts", {
         id: args.id,
       });
@@ -248,7 +231,6 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       await ctx.restate.callService("Organizations", "remove_all_notes", {
         id: args.id,
       });
@@ -260,10 +242,64 @@ export const organizationResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
       return ctx.restate.callService("Posts", "rewrite_narratives", {
         organization_id: args.organizationId,
       });
+    },
+  },
+
+  Organization: {
+    sources: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{ sources: unknown[] }>(
+        "Sources",
+        "list_by_organization",
+        { organization_id: parent.id }
+      );
+      return result.sources;
+    },
+
+    posts: async (
+      parent: { id: string },
+      args: { limit?: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService(
+        "Posts",
+        "list_by_organization",
+        {
+          organization_id: parent.id,
+          ...(args.limit ? { limit: args.limit } : {}),
+        }
+      );
+    },
+
+    notes: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{ notes: unknown[] }>(
+        "Notes",
+        "list_for_entity",
+        { noteable_type: "organization", noteable_id: parent.id }
+      );
+      return result.notes;
+    },
+
+    checklist: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService(
+        "Organizations",
+        "get_checklist",
+        { id: parent.id }
+      );
     },
   },
 };

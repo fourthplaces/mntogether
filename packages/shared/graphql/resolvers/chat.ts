@@ -1,5 +1,4 @@
 import type { GraphQLContext } from "../context";
-import { requireAuth } from "../auth";
 
 export const chatResolvers = {
   Query: {
@@ -8,7 +7,6 @@ export const chatResolvers = {
       args: { limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAuth(ctx);
       const result = await ctx.restate.callService<{
         chats: unknown[];
       }>("Chats", "list_recent", {
@@ -22,7 +20,6 @@ export const chatResolvers = {
       args: { chatroomId: string },
       ctx: GraphQLContext
     ) => {
-      requireAuth(ctx);
       const result = await ctx.restate.callObject<{
         messages: unknown[];
       }>("Chat", args.chatroomId, "get_messages", {});
@@ -36,7 +33,6 @@ export const chatResolvers = {
       args: { language?: string; withAgent?: string },
       ctx: GraphQLContext
     ) => {
-      requireAuth(ctx);
       return ctx.restate.callService("Chats", "create", {
         language: args.language || "en",
         with_agent: args.withAgent || undefined,
@@ -48,7 +44,6 @@ export const chatResolvers = {
       args: { chatroomId: string; content: string },
       ctx: GraphQLContext
     ) => {
-      requireAuth(ctx);
       return ctx.restate.callService("Chat", "send_message", {
         chatroom_id: args.chatroomId,
         content: args.content,

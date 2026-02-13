@@ -241,6 +241,7 @@ type Post {
   submittedBy: SubmittedByInfo
   urgentNotes: [UrgentNote!]!
   comments: [Comment!]!
+  organization: Organization
 }
 
 type PostConnection {
@@ -320,6 +321,10 @@ type Organization {
   snapshotCount: Int!
   createdAt: String!
   updatedAt: String!
+  sources: [Source!]!
+  posts(limit: Int): PostConnection!
+  notes: [Note!]!
+  checklist: Checklist!
 }
 
 type PublicOrganization {
@@ -364,6 +369,11 @@ type Website {
   lastCrawledAt: String
   organizationId: ID
   createdAt: String
+  posts(limit: Int): PostConnection!
+  pages(limit: Int): [ExtractionPage!]!
+  pageCount: Int!
+  assessment: Assessment
+  organization: Organization
 }
 
 type WebsiteConnection {
@@ -387,6 +397,10 @@ type Source {
   snapshotCount: Int
   createdAt: String!
   updatedAt: String!
+  pages: [ExtractionPage!]!
+  pageCount: Int!
+  assessment: Assessment
+  organization: Organization
 }
 
 type SourceConnection {
