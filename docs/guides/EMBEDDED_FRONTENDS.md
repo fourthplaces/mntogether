@@ -1,245 +1,88 @@
-# Embedded Frontends in Server
+# Frontend Architecture (Separate Services)
 
-The server embeds both the admin panel and public web app as static assets at compile time.
+> **Note**: The frontends are NO LONGER embedded in the server binary. They run as separate services. This document describes the current architecture.
 
 ## Architecture
 
-Both frontends are built into the server binary using `rust-embed`:
+The server and frontends run independently:
 
 ```
-Server Binary
-├── Admin Panel (/admin/*)      → packages/admin-spa/dist
-└── Web App (/)                 → packages/web-app/dist
+packages/web/          → Next.js App Router (port 3000)
+packages/admin-app/    → Next.js Admin Panel
+packages/server/       → Rust Restate Server (port 9080) + SSE (port 8081)
 ```
 
-## Routes
-
-### Admin Panel
-- **URL:** `http://localhost:8080/admin`
-- **Source:** `packages/admin-spa/`
-- **Protected:** Yes (requires JWT authentication)
-- **Purpose:** Approve/reject needs, manage content
-
-### Web App
-- **URL:** `http://localhost:8080/`
-- **Source:** `packages/web-app/`
-- **Protected:** No (public access)
-- **Purpose:** Browse published needs, view organizations
-
-## Build Process
-
-### Automatic Build (build.rs)
-
-When you build the server, both frontends are automatically built:
-
-```bash
-cargo build --bin server
+The `build.rs` in `packages/server/` confirms this:
+```rust
+// Frontend apps are now built and served separately
+// via Docker Compose or standalone, not embedded in the server binary
+fn main() {
+    println!("cargo:warning=Frontend apps are served separately (see docker-compose.yml)");
+}
 ```
 
-The `build.rs` script:
-1. Detects yarn/npm
-2. Builds `packages/admin-spa/` → `dist/`
-3. Builds `packages/web-app/` → `dist/`
-4. Embeds both `dist/` folders into the server binary
+## Services
 
-### Development Mode (dev-watch.sh)
+### Web App (`packages/web/`)
+- **Framework**: Next.js with App Router
+- **Port**: 3000
+- **Purpose**: Public-facing web app (browse posts, view organizations, chat)
+- **Communicates with**: Restate runtime (port 9070) via HTTP, SSE server (port 8081) for real-time
 
-When Docker starts, the dev-watch script:
-1. Builds admin-spa on startup
-2. Builds web-app on startup
-3. Starts cargo-watch (rebuilds on Rust changes)
+### Admin Panel (`packages/admin-app/`)
+- **Framework**: Next.js
+- **Purpose**: Content moderation (approve/reject posts, manage sources, review proposals)
+- **Protected**: Yes (JWT authentication)
 
-### Skip Frontend Builds
+### Rust Server (`packages/server/`)
+- **Port 9080**: Restate workflow endpoint (services, workflows, virtual objects)
+- **Port 8081**: SSE server for real-time streaming events
+- **No frontend serving** — the server does not serve any static assets
 
-To skip frontend builds (faster Rust-only iteration):
+### Shared (`packages/shared/`)
+- GraphQL schema definitions
+- Shared TypeScript types
+- Used by both web and admin-app
 
-```bash
-SKIP_FRONTEND_BUILD=1 cargo build --bin server
+## Communication Flow
+
+```
+Web App (3000) ──→ Restate Runtime (9070) ──→ Rust Server (9080)
+     ↑                                              │
+     └──────────── SSE (8081) ←─────────────────────┘
 ```
 
-## File Structure
-
-```
-packages/
-├── server/
-│   ├── build.rs                    # Builds both frontends
-│   ├── dev-watch.sh                # Dev container startup
-│   └── src/server/
-│       ├── static_files.rs         # Embed & serve logic
-│       │   ├── AdminAssets         # ../admin-spa/dist
-│       │   ├── WebAppAssets        # ../web-app/dist
-│       │   ├── serve_admin()       # /admin handler
-│       │   └── serve_web_app()     # / handler
-│       └── app.rs                  # Route registration
-│           ├── /admin → serve_admin
-│           ├── /admin/*path → serve_admin
-│           ├── / → serve_web_app
-│           └── /*path → serve_web_app (catch-all)
-│
-├── admin-spa/
-│   ├── src/                        # React source
-│   ├── dist/                       # Build output (embedded)
-│   └── package.json
-│
-└── web-app/
-    ├── src/                        # React source
-    ├── dist/                       # Build output (embedded)
-    └── package.json
-```
-
-## Route Priority
-
-Routes are matched in order:
-
-1. `/graphql` - GraphQL API
-2. `/health` - Health check
-3. `/admin`, `/admin/*path` - Admin panel (protected)
-4. `/`, `/*path` - Web app (catch-all, must be last)
-
-The catch-all `/*path` ensures client-side routing works for both SPAs.
+1. **Web app** makes HTTP calls to Restate runtime for data operations
+2. **Restate runtime** routes to the appropriate service/workflow/object
+3. **SSE server** pushes real-time updates back to the frontend
 
 ## Development Workflow
 
 ### Separate Dev Servers (Recommended)
 
-For fastest development with HMR:
-
 ```bash
-# Terminal 1: Start server
+# Terminal 1: Infrastructure
+docker-compose up -d postgres redis nats restate
+
+# Terminal 2: Rust server
 cd packages/server
-docker-compose up
+cargo run --bin server
+# Listening on ports 9080 (Restate) and 8081 (SSE)
 
-# Terminal 2: Start web-app dev server
-cd packages/web-app
-yarn dev
-# Visit: http://localhost:3001
-
-# Terminal 3: Start admin-spa dev server (if needed)
-cd packages/admin-spa
+# Terminal 3: Web app
+cd packages/web
 yarn dev
 # Visit: http://localhost:3000
+
+# Terminal 4: Admin panel (if needed)
+cd packages/admin-app
+yarn dev
 ```
 
-### Embedded Mode
+### Docker Compose
 
-To test the embedded builds:
+For production-like setup, use Docker Compose which runs all services together.
 
-```bash
-# Build frontends
-cd packages/web-app && yarn build
-cd packages/admin-spa && yarn build
+## Historical Note
 
-# Rebuild server (embeds the dist folders)
-cd packages/server
-cargo build --bin server
-
-# Run server
-docker-compose up --build
-
-# Visit:
-# - http://localhost:8080 (web app - embedded)
-# - http://localhost:8080/admin (admin panel - embedded)
-```
-
-## Production Deployment
-
-In production, the server binary contains both frontends:
-
-1. Build frontends: `yarn build` in each package
-2. Build server: `cargo build --release --bin server`
-3. Deploy single binary
-4. Access both apps through single domain:
-   - `https://yourdomain.com/` → Web app
-   - `https://yourdomain.com/admin` → Admin panel
-
-## Benefits
-
-### Single Binary Deployment
-- No separate static hosting needed
-- Single deployment process
-- Easier SSL/HTTPS setup
-
-### Consistent CORS
-- Both frontends on same domain
-- No cross-origin issues
-- Simplified authentication
-
-### Simple Routing
-- No reverse proxy configuration needed
-- Server handles all routes
-- SPA fallback built-in
-
-## Updating Frontends
-
-### After Frontend Changes
-
-```bash
-# Rebuild specific frontend
-cd packages/web-app
-yarn build
-
-# Rebuild server to embed new build
-cd packages/server
-cargo build
-```
-
-### In Docker Development
-
-```bash
-# Restart server container (rebuilds frontends)
-docker-compose restart api
-```
-
-## Debugging
-
-### Check Embedded Assets
-
-```bash
-# Build server in verbose mode
-cargo build --bin server --verbose
-
-# Look for:
-# "cargo:warning=Building admin-spa..."
-# "cargo:warning=admin-spa built successfully"
-# "cargo:warning=Building web-app..."
-# "cargo:warning=web-app built successfully"
-```
-
-### Verify Routes
-
-```bash
-# Test web app (should return HTML)
-curl http://localhost:8080/
-
-# Test admin panel (should return HTML)
-curl http://localhost:8080/admin
-
-# Test API (should return GraphQL playground)
-curl http://localhost:8080/graphql
-```
-
-### Common Issues
-
-**"404 Not Found" on admin or web app:**
-- Check that `dist/` folders exist in both packages
-- Rebuild frontends: `yarn build`
-- Rebuild server: `cargo build`
-
-**Frontend not updating:**
-- Clear dist folders and rebuild
-- Restart Docker container
-- Check build.rs warnings
-
-**Assets not loading:**
-- Check browser console for 404s
-- Verify Vite `base` path in vite.config.ts
-- Admin: `base: '/admin/'`
-- Web app: `base: '/'` (default)
-
-## Performance Notes
-
-- Embedded assets are served from memory (very fast)
-- Gzip compression applied automatically by tower-http
-- No disk I/O on each request
-- Cache headers set appropriately
-- SPA fallback adds negligible overhead
+The server previously embedded both frontends using `rust-embed`, serving them from the binary at `/` (web app) and `/admin` (admin panel). This was replaced with separate services for faster development iteration and standard Next.js deployment.
