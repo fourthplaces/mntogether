@@ -1,10 +1,17 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import type { PublicChatMessage } from "@/lib/restate/types";
+
+interface ChatMessage {
+  id: string;
+  chatroomId: string;
+  senderType: string;
+  content: string;
+  createdAt: string;
+}
 
 interface ChatPanelProps {
-  messages: PublicChatMessage[];
+  messages: ChatMessage[];
   isWaitingForReply: boolean;
   onSendMessage: (content: string) => void;
   onNewConversation: () => void;
@@ -59,12 +66,12 @@ export function ChatPanel({
           <div
             key={msg.id}
             className={`flex ${
-              msg.sender_type === "user" ? "justify-end" : "justify-start"
+              msg.senderType === "user" ? "justify-end" : "justify-start"
             }`}
           >
             <div
               className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
-                msg.sender_type === "user"
+                msg.senderType === "user"
                   ? "bg-blue-600 text-white rounded-br-md"
                   : "bg-gray-100 text-gray-800 rounded-bl-md"
               }`}

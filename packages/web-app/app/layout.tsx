@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import GraphQLProvider from "@/lib/urql-provider";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -18,7 +20,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <GraphQLProvider>{children}</GraphQLProvider>
+        <GraphQLProvider>
+          <div className="min-h-screen bg-[#E8E2D5] text-[#3D3D3D]">
+            <Header />
+            <main>{children}</main>
+            <Footer />
+          </div>
+        </GraphQLProvider>
       </body>
     </html>
   );

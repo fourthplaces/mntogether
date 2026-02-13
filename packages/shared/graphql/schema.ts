@@ -85,6 +85,10 @@ type Query {
   organizationSources(organizationId: ID!): [Source!]!
   organizationPosts(organizationId: ID!, limit: Int): PostConnection!
 
+  # Public organizations
+  publicOrganizations: [PublicOrganization!]!
+  publicOrganization(id: ID!): PublicOrganization
+
   # Chat (admin)
   recentChats(limit: Int): [ChatroomInfo!]!
   chatMessages(chatroomId: ID!): [ChatMessage!]!
@@ -319,6 +323,14 @@ type Organization {
   snapshotCount: Int!
   createdAt: String!
   updatedAt: String!
+}
+
+type PublicOrganization {
+  id: ID!
+  name: String!
+  description: String
+  status: String!
+  posts: [PublicPost!]!
 }
 
 type Checklist {

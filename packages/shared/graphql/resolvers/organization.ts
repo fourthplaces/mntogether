@@ -26,6 +26,27 @@ export const organizationResolvers = {
       });
     },
 
+    publicOrganizations: async (
+      _parent: unknown,
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{
+        organizations: unknown[];
+      }>("Organizations", "public_list", {});
+      return result.organizations;
+    },
+
+    publicOrganization: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Organizations", "public_get", {
+        id: args.id,
+      });
+    },
+
     organizationChecklist: async (
       _parent: unknown,
       args: { id: string },
