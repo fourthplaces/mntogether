@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use anyhow::Result;
 use chrono::{NaiveDate, NaiveTime, Utc};
 use tracing::{info, warn};
@@ -79,7 +81,23 @@ pub async fn stage_curator_actions(
     )
     .await?;
 
+    let mut seen_titles: Vec<Vec<String>> = Vec::new();
     for action in actions {
+        // Deduplicate create_post actions by title similarity.
+        // Catches cases where the LLM generates the same service with different wording
+        // (e.g. "Get Free Groceries Delivered to Your Home" and "Get Groceries Delivered to Your Door").
+        if action.action_type == "create_post" {
+            let title_words = normalize_title_words(action.title.as_deref().unwrap_or(""));
+            if seen_titles.iter().any(|seen| titles_overlap(seen, &title_words)) {
+                info!(
+                    title = action.title.as_deref().unwrap_or("?"),
+                    "Skipping duplicate create_post action"
+                );
+                continue;
+            }
+            seen_titles.push(title_words);
+        }
+
         let result = match action.action_type.as_str() {
             "create_post" => stage_create_post(action, org_id, &batch, source_url_map, deps).await,
             "update_post" => stage_update_post(action, &batch, pool).await,
@@ -144,7 +162,13 @@ async fn stage_create_post(
             .title(action.title.clone().unwrap_or_else(|| "Untitled".into()))
             .description(action.description.clone().unwrap_or_default())
             .summary(action.summary.clone())
-            .post_type(action.post_type.clone().unwrap_or_else(|| "opportunity".into()))
+            .post_type(
+                action.post_type.clone()
+                    .or_else(|| action.tags.as_ref()
+                        .and_then(|t| t.get("post_type"))
+                        .and_then(|v| v.first().cloned()))
+                    .unwrap_or_else(|| "opportunity".into())
+            )
             .category(action.category.clone().unwrap_or_else(|| "general".into()))
             .capacity_status(action.capacity_status.clone())
             .urgency(action.urgency.clone())
@@ -673,6 +697,35 @@ fn parse_time(s: &str) -> Option<NaiveTime> {
     NaiveTime::parse_from_str(s, "%H:%M")
         .or_else(|_| NaiveTime::parse_from_str(s, "%I:%M %p"))
         .ok()
+}
+
+/// Extract meaningful words from a title, stripping stop words and lowercasing.
+fn normalize_title_words(title: &str) -> Vec<String> {
+    const STOP_WORDS: &[&str] = &[
+        "a", "an", "the", "to", "and", "or", "for", "in", "at", "of",
+        "your", "this", "that", "with", "from", "by", "on", "is", "are",
+    ];
+    title
+        .to_lowercase()
+        .split_whitespace()
+        .filter(|w| !STOP_WORDS.contains(w))
+        .map(|w| w.to_string())
+        .collect()
+}
+
+/// Check if two normalized title word lists overlap enough to be duplicates.
+/// Uses the ratio of shared words to the smaller title's word count.
+fn titles_overlap(a: &[String], b: &[String]) -> bool {
+    let set_a: HashSet<&str> = a.iter().map(|s| s.as_str()).collect();
+    let set_b: HashSet<&str> = b.iter().map(|s| s.as_str()).collect();
+    let intersection = set_a.intersection(&set_b).count();
+    let smaller = set_a.len().min(set_b.len());
+    if smaller == 0 {
+        return false;
+    }
+    // If 70%+ of the shorter title's meaningful words appear in the longer one,
+    // they're almost certainly describing the same thing.
+    intersection as f64 / smaller as f64 > 0.7
 }
 
 fn build_rrule_from_frequency(data: &crate::domains::curator::models::ScheduleData) -> String {

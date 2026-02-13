@@ -44,10 +44,17 @@ pub async fn compile_org_document(
         briefs_count += 1;
     }
 
-    // Section 2: Social media briefs (recent first)
+    // Section 2: Social media briefs — only those with actionable content.
+    // Worship announcements, devotionals, sermon recaps, etc. get filtered out
+    // to avoid consuming budget that should go to actionable content.
     doc.push_str("\n## Social Media\n\n");
+    let mut social_skipped = 0;
     for (url, brief) in briefs {
         if !is_social_url(url) {
+            continue;
+        }
+        if !has_platform_relevant_content(brief) {
+            social_skipped += 1;
             continue;
         }
         let section = format_brief(url, brief);
@@ -57,6 +64,13 @@ pub async fn compile_org_document(
         doc.push_str(&section);
         budget = budget.saturating_sub(section.len());
         briefs_count += 1;
+    }
+    if social_skipped > 0 {
+        tracing::info!(
+            org = org_name,
+            skipped = social_skipped,
+            "Skipped social briefs with no actionable content"
+        );
     }
 
     // Section 3: Existing posts in the system
@@ -110,6 +124,21 @@ pub async fn compile_org_document(
         posts_included: posts_count,
         notes_included: notes_count,
     })
+}
+
+/// Check if a social media brief is relevant to the platform's scope.
+///
+/// Uses the `platform_relevance` field scored by the extraction LLM during
+/// brief extraction. Only "high" and "medium" briefs are included for social
+/// media; "low" (worship services, youth groups) and "none" (sermon recaps,
+/// devotionals) are filtered out.
+///
+/// If the field is missing (old cached briefs), defaults to include.
+fn has_platform_relevant_content(brief: &PageBriefExtraction) -> bool {
+    match brief.platform_relevance.as_deref() {
+        Some("low") | Some("none") => false,
+        _ => true, // "high", "medium", or missing (backwards compat)
+    }
 }
 
 fn is_social_url(url: &str) -> bool {

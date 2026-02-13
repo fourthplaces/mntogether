@@ -54,6 +54,20 @@ Extract ONLY factual information present on the page. Do not infer or fabricate.
 - **capacity_info**: Current capacity status if mentioned — "accepting new clients",
   "waitlist", "at capacity", "not accepting donations at this time", etc.
 
+- **platform_relevance**: How relevant is this page to a crisis-response platform
+  serving immigrant communities in Minnesota? Score as ONE of:
+  - **"high"** — Direct crisis services: food distribution, grocery delivery,
+    legal aid for deportation/detention, housing assistance, emergency funds,
+    donation links for these services, volunteer sign-ups for these services,
+    know-your-rights resources, mutual aid operations, immigration enforcement updates.
+  - **"medium"** — Useful supporting context: general org contact info, capacity
+    updates that affect crisis services, organizational news about crisis operations.
+  - **"low"** — General community programming that exists regardless of crisis:
+    worship services, youth groups, educational enrichment, cultural events,
+    English classes, citizenship workshops.
+  - **"none"** — No relevance: sermon recaps, devotionals, Bible lessons, holiday
+    greetings, birthday celebrations, past events with no current actionability.
+
 If a field has no relevant information on the page, return an empty list/null.
 Be concise but thorough. Capture all specifics, especially for schedules and contacts.
 "#;
