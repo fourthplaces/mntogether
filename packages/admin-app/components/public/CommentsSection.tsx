@@ -1,19 +1,27 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { useRestateObject, callObject, invalidateObject } from "@/lib/restate/client";
-import type { CommentListResult, CommentMessage } from "@/lib/restate/types";
+import { useQuery, useMutation } from "urql";
+import { PostDetailQuery, AddCommentMutation } from "@/lib/graphql/posts";
 
 // ---------------------------------------------------------------------------
 // Tree builder
 // ---------------------------------------------------------------------------
 
+interface CommentData {
+  id: string;
+  content: string;
+  parentMessageId?: string | null;
+  createdAt: string;
+  role: string;
+}
+
 interface CommentNode {
-  comment: CommentMessage;
+  comment: CommentData;
   children: CommentNode[];
 }
 
-function buildCommentTree(comments: CommentMessage[]): CommentNode[] {
+function buildCommentTree(comments: CommentData[]): CommentNode[] {
   const map = new Map<string, CommentNode>();
   const roots: CommentNode[] = [];
 
@@ -23,8 +31,8 @@ function buildCommentTree(comments: CommentMessage[]): CommentNode[] {
 
   for (const c of comments) {
     const node = map.get(c.id)!;
-    if (c.parent_message_id) {
-      const parent = map.get(c.parent_message_id);
+    if (c.parentMessageId) {
+      const parent = map.get(c.parentMessageId);
       if (parent) {
         parent.children.push(node);
         continue;
@@ -70,6 +78,7 @@ function CommentForm({
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [, addComment] = useMutation(AddCommentMutation);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -80,10 +89,15 @@ function CommentForm({
     setError(null);
 
     try {
-      await callObject("Post", postId, "add_comment", {
-        content: trimmed,
-        parent_message_id: parentMessageId ?? null,
-      });
+      const result = await addComment(
+        {
+          postId,
+          content: trimmed,
+          parentMessageId: parentMessageId ?? null,
+        },
+        { additionalTypenames: ["Comment", "Post"] }
+      );
+      if (result.error) throw result.error;
       setContent("");
       onSuccess();
     } catch (err) {
@@ -157,7 +171,7 @@ function CommentThread({
       <div className="py-3 group">
         <p className="text-[0.9rem] text-[#3D3D3D] whitespace-pre-wrap leading-relaxed">{comment.content}</p>
         <div className="flex items-center gap-3 mt-1.5 px-1">
-          <span className="text-[0.7rem] text-[#B5AFA2]">{timeAgo(comment.created_at)}</span>
+          <span className="text-[0.7rem] text-[#B5AFA2]">{timeAgo(comment.createdAt)}</span>
           <button
             type="button"
             onClick={() => setReplying(!replying)}
@@ -198,19 +212,16 @@ function CommentThread({
 // ---------------------------------------------------------------------------
 
 export default function CommentsSection({ postId }: { postId: string }) {
-  const { data, mutate } = useRestateObject<CommentListResult>(
-    "Post",
-    postId,
-    "get_comments",
-    {}
-  );
+  const [{ data }, reexecuteQuery] = useQuery({
+    query: PostDetailQuery,
+    variables: { id: postId },
+  });
 
-  const comments = data?.messages ?? [];
+  const comments = data?.post?.comments ?? [];
   const tree = buildCommentTree(comments);
 
   const handleRefresh = () => {
-    invalidateObject("Post", postId);
-    mutate();
+    reexecuteQuery({ requestPolicy: "network-only" });
   };
 
   return (

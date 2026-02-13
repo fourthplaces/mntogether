@@ -2,10 +2,31 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import type { PostResult } from "@/lib/restate/types";
+
+interface PostReviewCardPost {
+  id: string;
+  title: string;
+  description: string;
+  summary?: string | null;
+  postType?: string | null;
+  category?: string | null;
+  urgency?: string | null;
+  location?: string | null;
+  sourceUrl?: string | null;
+  submissionType?: string | null;
+  relevanceScore?: number | null;
+  distanceMiles?: number | null;
+  tags: Array<{
+    id: string;
+    kind: string;
+    value: string;
+    displayName?: string | null;
+    color?: string | null;
+  }>;
+}
 
 interface PostReviewCardProps {
-  post: PostResult;
+  post: PostReviewCardPost;
   onApprove?: (id: string) => void;
   onReject?: (id: string, reason?: string) => void;
   isApproving?: boolean;
@@ -77,8 +98,8 @@ export function PostReviewCard({
         <div className="flex items-start justify-between mb-2">
           <div className="flex-1">
             <div className="flex items-center gap-2 mb-1">
-              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.post_type)}`}>
-                {post.post_type || "post"}
+              <span className={`px-2 py-1 text-xs font-medium rounded ${getTypeColor(post.postType)}`}>
+                {post.postType || "post"}
               </span>
               {post.urgency && (
                 <span
@@ -92,9 +113,9 @@ export function PostReviewCard({
                   {post.category}
                 </span>
               )}
-              {post.relevance_score != null && (
-                <span className={`px-2 py-1 text-xs font-bold rounded ${getScoreColor(post.relevance_score)}`}>
-                  {post.relevance_score}/10
+              {post.relevanceScore != null && (
+                <span className={`px-2 py-1 text-xs font-bold rounded ${getScoreColor(post.relevanceScore)}`}>
+                  {post.relevanceScore}/10
                 </span>
               )}
             </div>
@@ -135,7 +156,7 @@ export function PostReviewCard({
                 key={tag.id}
                 className="px-2 py-0.5 text-xs rounded-full bg-stone-100 text-stone-600"
               >
-                <span className="text-stone-400">{tag.kind}:</span> {tag.display_name || tag.value}
+                <span className="text-stone-400">{tag.kind}:</span> {tag.displayName || tag.value}
               </span>
             ))}
           </div>
@@ -164,16 +185,16 @@ export function PostReviewCard({
             )}
 
             {/* Source URL */}
-            {post.source_url && (
+            {post.sourceUrl && (
               <div>
                 <span className="font-semibold text-sm text-stone-700">Source:</span>{" "}
                 <a
-                  href={post.source_url}
+                  href={post.sourceUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm text-amber-600 hover:text-amber-800 break-all"
                 >
-                  {post.source_url}
+                  {post.sourceUrl}
                 </a>
               </div>
             )}
