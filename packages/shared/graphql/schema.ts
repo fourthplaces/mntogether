@@ -19,11 +19,23 @@ type Query {
     limit: Int
     offset: Int
   ): PostConnection!
+
+  # Tags (admin)
+  tagKinds: [TagKind!]!
+  tags(kind: String): [Tag!]!
 }
 
 type Mutation {
   trackPostView(postId: ID!): Boolean
   trackPostClick(postId: ID!): Boolean
+
+  # Tags (admin)
+  createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
+  updateTagKind(id: ID!, displayName: String, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
+  deleteTagKind(id: ID!): Boolean!
+  createTag(kind: String!, value: String!, displayName: String, color: String, description: String, emoji: String): Tag!
+  updateTag(id: ID!, displayName: String, color: String, description: String, emoji: String): Tag!
+  deleteTag(id: ID!): Boolean!
 }
 
 type PublicFilters {
@@ -121,6 +133,17 @@ type Tag {
   color: String
   description: String
   emoji: String
+}
+
+type TagKind {
+  id: ID!
+  slug: String!
+  displayName: String!
+  description: String
+  allowedResourceTypes: [String!]!
+  required: Boolean!
+  isPublic: Boolean!
+  tagCount: Int!
 }
 
 type PostSchedule {
