@@ -3,17 +3,49 @@
 import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useRestate, callService, callObject, invalidateService, invalidateObject } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type {
-  OrganizationResult,
-  SourceListResult,
-  NoteListResult,
-  NoteResult,
-  PostList,
-  PostResult,
-  ChecklistResult,
-} from "@/lib/restate/types";
+import {
+  OrganizationDetailQuery,
+  OrganizationChecklistQuery,
+  UpdateOrganizationMutation,
+  DeleteOrganizationMutation,
+  ApproveOrganizationMutation,
+  RejectOrganizationMutation,
+  SuspendOrganizationMutation,
+  SetOrganizationStatusMutation,
+  ToggleChecklistItemMutation,
+  RegenerateOrganizationMutation,
+  ExtractOrgPostsMutation,
+  CleanUpOrgPostsMutation,
+  RunCuratorMutation,
+  RemoveAllOrgPostsMutation,
+  RemoveAllOrgNotesMutation,
+  RewriteNarrativesMutation,
+} from "@/lib/graphql/organizations";
+import {
+  OrganizationSourcesQuery,
+  OrganizationPostsQuery,
+  EntityNotesQuery,
+  CreateNoteMutation,
+  UpdateNoteMutation,
+  DeleteNoteMutation,
+  UnlinkNoteMutation,
+  GenerateNotesFromSourcesMutation,
+  AutoAttachNotesMutation,
+  CreateSocialSourceMutation,
+  CrawlAllOrgSourcesMutation,
+} from "@/lib/graphql/notes";
+import {
+  RegenerateSourcePostsMutation,
+} from "@/lib/graphql/sources";
+import {
+  ApprovePostMutation,
+  RejectPostMutation,
+  ReactivatePostMutation,
+  UpdatePostCapacityMutation,
+  BatchScorePostsMutation,
+} from "@/lib/graphql/posts";
 
 const PLATFORMS = ["instagram", "facebook", "tiktok", "x"];
 
@@ -24,6 +56,11 @@ const SOURCE_TYPE_LABELS: Record<string, string> = {
   tiktok: "TikTok",
   x: "X (Twitter)",
 };
+
+const orgMutationContext = { additionalTypenames: ["Organization", "Checklist"] };
+const postMutationContext = { additionalTypenames: ["Post", "PostConnection"] };
+const noteMutationContext = { additionalTypenames: ["Note"] };
+const sourceMutationContext = { additionalTypenames: ["Source", "SourceConnection"] };
 
 export default function OrganizationDetailPage() {
   const params = useParams();
@@ -63,39 +100,62 @@ export default function OrganizationDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const {
-    data: org,
-    isLoading: orgLoading,
-    error: orgError,
-    mutate: refetchOrg,
-  } = useRestate<OrganizationResult>("Organizations", "get", { id: orgId }, {
-    revalidateOnFocus: false,
+  // --- Data queries ---
+
+  const [{ data: orgData, fetching: orgLoading, error: orgError }] = useQuery({
+    query: OrganizationDetailQuery,
+    variables: { id: orgId },
   });
 
-  const { data: sourcesData, mutate: refetchSources } =
-    useRestate<SourceListResult>("Sources", "list_by_organization", {
-      organization_id: orgId,
-    }, { revalidateOnFocus: false });
+  const org = orgData?.organization;
 
-  const { data: postsData, mutate: refetchPosts } =
-    useRestate<PostList>("Posts", "list_by_organization", {
-      organization_id: orgId,
-    }, { revalidateOnFocus: false });
+  const [{ data: sourcesData }] = useQuery({
+    query: OrganizationSourcesQuery,
+    variables: { organizationId: orgId },
+  });
 
-  const { data: notesData, mutate: refetchNotes } =
-    useRestate<NoteListResult>("Notes", "list_for_entity", {
-      noteable_type: "organization",
-      noteable_id: orgId,
-    }, { revalidateOnFocus: false });
+  const [{ data: postsData }] = useQuery({
+    query: OrganizationPostsQuery,
+    variables: { organizationId: orgId },
+  });
 
-  const { data: checklistData, mutate: refetchChecklist } =
-    useRestate<ChecklistResult>("Organizations", "get_checklist", {
-      id: orgId,
-    }, { revalidateOnFocus: false });
+  const [{ data: notesData }] = useQuery({
+    query: EntityNotesQuery,
+    variables: { noteableType: "organization", noteableId: orgId },
+  });
 
-  const sources = sourcesData?.sources || [];
-  const posts = postsData?.posts || [];
-  const notes = notesData?.notes || [];
+  const [{ data: checklistData }] = useQuery({
+    query: OrganizationChecklistQuery,
+    variables: { id: orgId },
+  });
+
+  const sources = sourcesData?.organizationSources || [];
+  const posts = postsData?.organizationPosts?.posts || [];
+  const notes = notesData?.entityNotes || [];
+  const checklist = checklistData?.organizationChecklist;
+
+  // --- Mutations ---
+
+  const [, updateOrg] = useMutation(UpdateOrganizationMutation);
+  const [, deleteOrg] = useMutation(DeleteOrganizationMutation);
+  const [, approveOrg] = useMutation(ApproveOrganizationMutation);
+  const [, rejectOrg] = useMutation(RejectOrganizationMutation);
+  const [, suspendOrg] = useMutation(SuspendOrganizationMutation);
+  const [, setOrgStatus] = useMutation(SetOrganizationStatusMutation);
+  const [, toggleChecklistItem] = useMutation(ToggleChecklistItemMutation);
+  const [, regenerateOrg] = useMutation(RegenerateOrganizationMutation);
+  const [, extractOrgPosts] = useMutation(ExtractOrgPostsMutation);
+  const [, cleanUpOrgPosts] = useMutation(CleanUpOrgPostsMutation);
+  const [, runCurator] = useMutation(RunCuratorMutation);
+  const [, removeAllOrgPosts] = useMutation(RemoveAllOrgPostsMutation);
+  const [, removeAllOrgNotes] = useMutation(RemoveAllOrgNotesMutation);
+  const [, rewriteNarratives] = useMutation(RewriteNarrativesMutation);
+  const [, generateNotesFromSources] = useMutation(GenerateNotesFromSourcesMutation);
+  const [, autoAttachNotes] = useMutation(AutoAttachNotesMutation);
+  const [, regenerateSourcePosts] = useMutation(RegenerateSourcePostsMutation);
+  const [, crawlAllOrgSources] = useMutation(CrawlAllOrgSourcesMutation);
+
+  // --- Actions ---
 
   const startEditing = () => {
     if (!org) return;
@@ -112,13 +172,11 @@ export default function OrganizationDetailPage() {
     setEditLoading(true);
     setEditError(null);
     try {
-      await callService("Organizations", "update", {
-        id: orgId,
-        name: editName.trim(),
-        description: editDescription.trim() || null,
-      });
-      invalidateService("Organizations");
-      refetchOrg();
+      const result = await updateOrg(
+        { id: orgId, name: editName.trim(), description: editDescription.trim() || null },
+        orgMutationContext,
+      );
+      if (result.error) throw result.error;
       setEditing(false);
     } catch (err: any) {
       setEditError(err.message || "Failed to update organization");
@@ -130,8 +188,8 @@ export default function OrganizationDetailPage() {
   const handleDelete = async () => {
     if (!confirm("Are you sure you want to delete this organization?")) return;
     try {
-      await callService("Organizations", "delete", { id: orgId });
-      invalidateService("Organizations");
+      const result = await deleteOrg({ id: orgId }, orgMutationContext);
+      if (result.error) throw result.error;
       router.push("/admin/organizations");
     } catch (err: any) {
       alert(err.message || "Failed to delete organization");
@@ -142,16 +200,11 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setRegenerating(true);
     try {
-      const result = await callService<{ organization_id: string | null; status: string }>(
-        "Organizations", "regenerate", { id: orgId }
-      );
-      invalidateService("Organizations");
-      invalidateService("Sources");
-      if (result.organization_id && result.organization_id !== orgId) {
-        router.push(`/admin/organizations/${result.organization_id}`);
-      } else {
-        refetchOrg();
-        refetchSources();
+      const result = await regenerateOrg({ id: orgId }, orgMutationContext);
+      if (result.error) throw result.error;
+      const data = result.data?.regenerateOrganization;
+      if (data?.organizationId && data.organizationId !== orgId) {
+        router.push(`/admin/organizations/${data.organizationId}`);
       }
     } catch (err: any) {
       console.error("Failed to regenerate:", err);
@@ -165,11 +218,11 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setGeneratingNotes(true);
     try {
-      await callService<{ notes_created: number; sources_scanned: number; posts_attached: number }>(
-        "Notes", "generate_notes", { organization_id: orgId }
+      const result = await generateNotesFromSources(
+        { organizationId: orgId },
+        noteMutationContext,
       );
-      invalidateService("Notes");
-      refetchNotes();
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to generate notes:", err);
       alert(err.message || "Failed to generate notes");
@@ -181,11 +234,11 @@ export default function OrganizationDetailPage() {
   const handleAutoAttach = async () => {
     setAutoAttaching(true);
     try {
-      await callService<{ notes_count: number; posts_count: number; noteables_created: number }>(
-        "Notes", "attach_notes", { organization_id: orgId }
+      const result = await autoAttachNotes(
+        { organizationId: orgId },
+        noteMutationContext,
       );
-      invalidateService("Notes");
-      refetchNotes();
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to auto-attach notes:", err);
       alert(err.message || "Failed to auto-attach notes");
@@ -200,12 +253,9 @@ export default function OrganizationDetailPage() {
     try {
       await Promise.all(
         sources.map((source) =>
-          callObject("Source", source.id, "regenerate_posts", {})
+          regenerateSourcePosts({ id: source.id }, sourceMutationContext)
         )
       );
-      invalidateService("Posts");
-      invalidateService("Sources");
-      sources.forEach((source) => invalidateObject("Source", source.id));
     } catch (err: any) {
       console.error("Failed to regenerate posts:", err);
       alert(err.message || "Failed to regenerate posts");
@@ -218,11 +268,11 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setExtractingOrgPosts(true);
     try {
-      await callService("Organizations", "extract_org_posts", { id: orgId });
-      invalidateService("Posts");
-      invalidateService("Organizations");
-      refetchPosts();
-      refetchOrg();
+      const result = await extractOrgPosts(
+        { id: orgId },
+        { additionalTypenames: ["Post", "PostConnection", "Organization"] },
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to extract org posts:", err);
       alert(err.message || "Failed to extract org posts");
@@ -235,9 +285,8 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setCleaningUpPosts(true);
     try {
-      await callService("Organizations", "clean_up_org_posts", { id: orgId });
-      invalidateService("Posts");
-      refetchPosts();
+      const result = await cleanUpOrgPosts({ id: orgId }, postMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to clean up posts:", err);
       alert(err.message || "Failed to clean up posts");
@@ -250,8 +299,8 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setRunningCurator(true);
     try {
-      await callService("Organizations", "run_curator", { id: orgId });
-      invalidateService("Sync");
+      const result = await runCurator({ id: orgId }, orgMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to run curator:", err);
       alert(err.message || "Failed to run curator");
@@ -264,23 +313,11 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setCrawlingAll(true);
     try {
-      await Promise.all(
-        sources.map((source) => {
-          const workflowId = `crawl-${source.id}-${Date.now()}`;
-          if (source.source_type === "website") {
-            return callObject("CrawlWebsiteWorkflow", workflowId, "run", {
-              website_id: source.id,
-            });
-          } else {
-            return callObject("CrawlSocialSourceWorkflow", workflowId, "run", {
-              source_id: source.id,
-            });
-          }
-        })
+      const result = await crawlAllOrgSources(
+        { organizationId: orgId },
+        sourceMutationContext,
       );
-      invalidateService("Sources");
-      sources.forEach((source) => invalidateObject("Source", source.id));
-      refetchSources();
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to crawl sources:", err);
       alert(err.message || "Failed to crawl sources");
@@ -294,11 +331,8 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setRemovingAllPosts(true);
     try {
-      const result = await callService<{ websites_processed: number; status: string }>(
-        "Organizations", "remove_all_posts", { id: orgId }
-      );
-      invalidateService("Posts");
-      refetchPosts();
+      const result = await removeAllOrgPosts({ id: orgId }, postMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to remove posts:", err);
       alert(err.message || "Failed to remove posts");
@@ -312,11 +346,8 @@ export default function OrganizationDetailPage() {
     setMenuOpen(false);
     setRemovingAllNotes(true);
     try {
-      const result = await callService<{ websites_processed: number; status: string }>(
-        "Organizations", "remove_all_notes", { id: orgId }
-      );
-      invalidateService("Notes");
-      refetchNotes();
+      const result = await removeAllOrgNotes({ id: orgId }, noteMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to remove notes:", err);
       alert(err.message || "Failed to remove notes");
@@ -330,12 +361,15 @@ export default function OrganizationDetailPage() {
     setRewritingNarratives(true);
     setRewriteResult(null);
     try {
-      const result = await callService<{ rewritten: number; failed: number; total: number }>(
-        "Posts", "rewrite_narratives", { organization_id: orgId }
+      const result = await rewriteNarratives(
+        { organizationId: orgId },
+        postMutationContext,
       );
-      setRewriteResult(`Rewrote ${result.rewritten} of ${result.total} posts${result.failed > 0 ? ` (${result.failed} failed)` : ""}`);
-      invalidateService("Posts");
-      refetchPosts();
+      if (result.error) throw result.error;
+      const data = result.data?.rewriteNarratives;
+      if (data) {
+        setRewriteResult(`Rewrote ${data.rewritten} of ${data.total} posts${data.failed > 0 ? ` (${data.failed} failed)` : ""}`);
+      }
     } catch (err: any) {
       console.error("Failed to rewrite narratives:", err);
       setRewriteResult(`Error: ${err.message || "Failed to rewrite narratives"}`);
@@ -347,9 +381,8 @@ export default function OrganizationDetailPage() {
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
-      await callService("Organizations", "approve", { id: orgId });
-      invalidateService("Organizations");
-      refetchOrg();
+      const result = await approveOrg({ id: orgId }, orgMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       alert(err.message || "Failed to approve organization");
     } finally {
@@ -366,10 +399,11 @@ export default function OrganizationDetailPage() {
       if (!reason) return;
       setActionInProgress("status");
       try {
-        await callService("Organizations", "set_status", { id: orgId, status: newStatus, reason });
-        invalidateService("Organizations");
-        refetchOrg();
-        refetchChecklist();
+        const result = await setOrgStatus(
+          { id: orgId, status: newStatus, reason },
+          orgMutationContext,
+        );
+        if (result.error) throw result.error;
       } catch (err: any) {
         alert(err.message || `Failed to change status to ${newStatus}`);
       } finally {
@@ -379,17 +413,18 @@ export default function OrganizationDetailPage() {
     }
 
     // For approved, check that checklist is complete
-    if (newStatus === "approved" && !checklistData?.all_checked) {
+    if (newStatus === "approved" && !checklist?.allChecked) {
       alert("Complete the pre-launch checklist before approving.");
       return;
     }
 
     setActionInProgress("status");
     try {
-      await callService("Organizations", "set_status", { id: orgId, status: newStatus });
-      invalidateService("Organizations");
-      refetchOrg();
-      refetchChecklist();
+      const result = await setOrgStatus(
+        { id: orgId, status: newStatus },
+        orgMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       alert(err.message || `Failed to change status to ${newStatus}`);
     } finally {
@@ -399,12 +434,11 @@ export default function OrganizationDetailPage() {
 
   const handleToggleChecklist = async (key: string, checked: boolean) => {
     try {
-      await callService("Organizations", "toggle_checklist_item", {
-        organization_id: orgId,
-        checklist_key: key,
-        checked,
-      });
-      refetchChecklist();
+      const result = await toggleChecklistItem(
+        { organizationId: orgId, checklistKey: key, checked },
+        orgMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to toggle checklist item:", err);
     }
@@ -414,10 +448,11 @@ export default function OrganizationDetailPage() {
     if (!rejectReason.trim()) return;
     setActionInProgress("reject");
     try {
-      await callService("Organizations", "reject", { id: orgId, reason: rejectReason.trim() });
-      invalidateService("Organizations");
-      refetchOrg();
-      refetchChecklist();
+      const result = await rejectOrg(
+        { id: orgId, reason: rejectReason.trim() },
+        orgMutationContext,
+      );
+      if (result.error) throw result.error;
       setShowRejectDialog(false);
       setRejectReason("");
     } catch (err: any) {
@@ -432,9 +467,11 @@ export default function OrganizationDetailPage() {
     if (!reason) return;
     setActionInProgress("suspend");
     try {
-      await callService("Organizations", "suspend", { id: orgId, reason });
-      invalidateService("Organizations");
-      refetchOrg();
+      const result = await suspendOrg(
+        { id: orgId, reason },
+        orgMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       alert(err.message || "Failed to suspend organization");
     } finally {
@@ -556,8 +593,8 @@ export default function OrganizationDetailPage() {
                   <>
                     <button
                       onClick={handleApprove}
-                      disabled={actionInProgress !== null || !checklistData?.all_checked}
-                      title={!checklistData?.all_checked ? "Complete the pre-launch checklist first" : undefined}
+                      disabled={actionInProgress !== null || !checklist?.allChecked}
+                      title={!checklist?.allChecked ? "Complete the pre-launch checklist first" : undefined}
                       className="px-4 py-1.5 bg-emerald-400 text-white rounded-lg text-sm font-medium hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {actionInProgress === "approve" ? "..." : "Approve"}
@@ -771,29 +808,29 @@ export default function OrganizationDetailPage() {
           <div className="grid grid-cols-4 gap-4 pt-4 mt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Websites</span>
-              <p className="text-lg font-semibold text-stone-900">{org.website_count}</p>
+              <p className="text-lg font-semibold text-stone-900">{org.websiteCount}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Social</span>
-              <p className="text-lg font-semibold text-stone-900">{org.social_profile_count}</p>
+              <p className="text-lg font-semibold text-stone-900">{org.socialProfileCount}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Snapshots</span>
-              <p className="text-lg font-semibold text-stone-900">{org.snapshot_count}</p>
+              <p className="text-lg font-semibold text-stone-900">{org.snapshotCount}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Created</span>
               <p className="text-sm font-medium text-stone-900">
-                {new Date(org.created_at).toLocaleDateString()}
+                {new Date(org.createdAt).toLocaleDateString()}
               </p>
             </div>
           </div>
 
-          {org.status === "pending_review" && checklistData && (
+          {org.status === "pending_review" && checklist && (
             <div className="pt-4 mt-4 border-t border-stone-200">
               <h3 className="text-sm font-semibold text-stone-700 mb-3">Pre-Launch Checklist</h3>
               <div className="space-y-2">
-                {checklistData.items.map((item) => (
+                {checklist.items.map((item) => (
                   <label
                     key={item.key}
                     className="flex items-center gap-3 cursor-pointer group"
@@ -807,15 +844,15 @@ export default function OrganizationDetailPage() {
                     <span className={`text-sm ${item.checked ? "text-stone-500 line-through" : "text-stone-700"}`}>
                       {item.label}
                     </span>
-                    {item.checked && item.checked_at && (
+                    {item.checked && item.checkedAt && (
                       <span className="text-xs text-stone-400">
-                        {new Date(item.checked_at).toLocaleDateString()}
+                        {new Date(item.checkedAt).toLocaleDateString()}
                       </span>
                     )}
                   </label>
                 ))}
               </div>
-              {!checklistData.all_checked && (
+              {!checklist.allChecked && (
                 <p className="text-xs text-amber-600 mt-3">
                   Complete all items before approving this organization.
                 </p>
@@ -841,13 +878,13 @@ export default function OrganizationDetailPage() {
                 >
                   <div className="flex items-center gap-3">
                     <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                      source.source_type === "website" ? "bg-blue-100 text-blue-800" :
-                      source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
-                      source.source_type === "facebook" ? "bg-indigo-100 text-indigo-800" :
-                      source.source_type === "x" ? "bg-stone-800 text-white" :
+                      source.sourceType === "website" ? "bg-blue-100 text-blue-800" :
+                      source.sourceType === "instagram" ? "bg-purple-100 text-purple-800" :
+                      source.sourceType === "facebook" ? "bg-indigo-100 text-indigo-800" :
+                      source.sourceType === "x" ? "bg-stone-800 text-white" :
                       "bg-stone-100 text-stone-800"
                     }`}>
-                      {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
+                      {SOURCE_TYPE_LABELS[source.sourceType] || source.sourceType}
                     </span>
                     <span className="font-medium text-stone-900">{source.identifier}</span>
                     <span
@@ -863,7 +900,7 @@ export default function OrganizationDetailPage() {
                     </span>
                   </div>
                   <span className="text-sm text-stone-500">
-                    {source.snapshot_count || 0} snapshots
+                    {source.snapshotCount || 0} snapshots
                   </span>
                 </Link>
               ))}
@@ -872,10 +909,7 @@ export default function OrganizationDetailPage() {
 
           <div className="mt-4 pt-4 border-t border-stone-200">
             <h3 className="text-sm font-medium text-stone-700 mb-2">Add Social Profile</h3>
-            <AddSocialProfileForm orgId={orgId} onAdded={() => {
-              refetchSources();
-              refetchOrg();
-            }} />
+            <AddSocialProfileForm orgId={orgId} />
           </div>
         </div>
 
@@ -883,10 +917,6 @@ export default function OrganizationDetailPage() {
         <PostsSection
           posts={posts}
           organizationId={orgId}
-          onChanged={() => {
-            invalidateService("Posts");
-            refetchPosts();
-          }}
         />
 
         {/* Notes */}
@@ -907,7 +937,6 @@ export default function OrganizationDetailPage() {
           <AddNoteForm
             noteableType="organization"
             noteableId={orgId}
-            onAdded={() => refetchNotes()}
           />
 
           {notes.length === 0 ? (
@@ -920,7 +949,6 @@ export default function OrganizationDetailPage() {
                   note={note}
                   noteableType="organization"
                   noteableId={orgId}
-                  onChanged={() => refetchNotes()}
                 />
               ))}
             </div>
@@ -982,28 +1010,39 @@ const POST_STATUS_TABS: { value: PostStatusTab; label: string }[] = [
   { value: "rejected", label: "Rejected" },
 ];
 
+type PostData = {
+  id: string;
+  title: string;
+  status: string;
+  postType?: string | null;
+  capacityStatus?: string | null;
+  relevanceScore?: number | null;
+  createdAt: string;
+};
+
 function PostsSection({
   posts,
   organizationId,
-  onChanged,
 }: {
-  posts: PostResult[];
+  posts: PostData[];
   organizationId: string;
-  onChanged: () => void;
 }) {
   const [tab, setTab] = useState<PostStatusTab>("pending_approval");
   const [scoring, setScoring] = useState(false);
   const [scoreResult, setScoreResult] = useState<string | null>(null);
 
+  const [, batchScorePosts] = useMutation(BatchScorePostsMutation);
+
   const handleScorePosts = async () => {
     setScoring(true);
     setScoreResult(null);
     try {
-      const result = await callService<{ scored: number; failed: number; remaining: number }>(
-        "Posts", "batch_score_posts", { organization_id: organizationId, limit: 200 }
-      );
-      setScoreResult(`Scored ${result.scored} posts${result.failed > 0 ? `, ${result.failed} failed` : ""}${result.remaining > 0 ? `, ${result.remaining} remaining` : ""}`);
-      onChanged();
+      const result = await batchScorePosts({ limit: 200 }, postMutationContext);
+      if (result.error) throw result.error;
+      const data = result.data?.batchScorePosts;
+      if (data) {
+        setScoreResult(`Scored ${data.scored} posts${data.failed > 0 ? `, ${data.failed} failed` : ""}${data.remaining > 0 ? `, ${data.remaining} remaining` : ""}`);
+      }
     } catch (err: any) {
       setScoreResult(`Error: ${err.message || "Failed to score posts"}`);
     } finally {
@@ -1011,7 +1050,7 @@ function PostsSection({
     }
   };
 
-  const unscoredCount = posts.filter((p) => p.status === "active" && p.relevance_score == null).length;
+  const unscoredCount = posts.filter((p) => p.status === "active" && p.relevanceScore == null).length;
 
   const counts = {
     pending_approval: posts.filter((p) => p.status === "pending_approval").length,
@@ -1069,7 +1108,7 @@ function PostsSection({
       ) : (
         <div className="space-y-2">
           {filtered.map((post) => (
-            <PostRow key={post.id} post={post} onChanged={onChanged} />
+            <PostRow key={post.id} post={post} />
           ))}
         </div>
       )}
@@ -1079,14 +1118,17 @@ function PostsSection({
 
 function PostRow({
   post,
-  onChanged,
 }: {
-  post: PostResult;
-  onChanged: () => void;
+  post: PostData;
 }) {
   const [status, setStatus] = useState(post.status);
-  const [capacityStatus, setCapacityStatus] = useState(post.capacity_status || "accepting");
+  const [capacityStatus, setCapacityStatus] = useState(post.capacityStatus || "accepting");
   const [loading, setLoading] = useState(false);
+
+  const [, approvePost] = useMutation(ApprovePostMutation);
+  const [, rejectPost] = useMutation(RejectPostMutation);
+  const [, reactivatePost] = useMutation(ReactivatePostMutation);
+  const [, updatePostCapacity] = useMutation(UpdatePostCapacityMutation);
 
   // Sync local state when server data changes
   useEffect(() => {
@@ -1094,8 +1136,8 @@ function PostRow({
   }, [post.status]);
 
   useEffect(() => {
-    setCapacityStatus(post.capacity_status || "accepting");
-  }, [post.capacity_status]);
+    setCapacityStatus(post.capacityStatus || "accepting");
+  }, [post.capacityStatus]);
 
   const handleStatusChange = async (newStatus: string) => {
     if (newStatus === status) return;
@@ -1104,15 +1146,15 @@ function PostRow({
     setLoading(true);
 
     try {
+      let result;
       if (newStatus === "active") {
-        await callObject("Post", post.id, "approve", {});
+        result = await approvePost({ id: post.id }, postMutationContext);
       } else if (newStatus === "rejected") {
-        await callObject("Post", post.id, "reject", { reason: "Rejected by admin" });
+        result = await rejectPost({ id: post.id, reason: "Rejected by admin" }, postMutationContext);
       } else if (newStatus === "pending_approval") {
-        await callObject("Post", post.id, "reactivate", {});
+        result = await reactivatePost({ id: post.id }, postMutationContext);
       }
-      invalidateObject("Post", post.id);
-      onChanged();
+      if (result?.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to update post status:", err);
       setStatus(previousStatus);
@@ -1129,9 +1171,11 @@ function PostRow({
     setLoading(true);
 
     try {
-      await callObject("Post", post.id, "update_capacity_status", { capacity_status: newCapacity });
-      invalidateObject("Post", post.id);
-      onChanged();
+      const result = await updatePostCapacity(
+        { id: post.id, capacityStatus: newCapacity },
+        postMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to update capacity status:", err);
       setCapacityStatus(previous);
@@ -1190,30 +1234,30 @@ function PostRow({
           </select>
         )}
         <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${
-          post.post_type === "service"
+          post.postType === "service"
             ? "bg-blue-100 text-blue-800"
-            : post.post_type === "opportunity"
+            : post.postType === "opportunity"
               ? "bg-purple-100 text-purple-800"
-              : post.post_type === "business"
+              : post.postType === "business"
                 ? "bg-amber-100 text-amber-800"
                 : "bg-stone-100 text-stone-600"
         }`}>
-          {post.post_type}
+          {post.postType}
         </span>
-        {post.relevance_score != null && (
+        {post.relevanceScore != null && (
           <span className={`px-1.5 py-0.5 text-xs rounded font-bold shrink-0 ${
-            post.relevance_score >= 8
+            post.relevanceScore >= 8
               ? "bg-green-100 text-green-800"
-              : post.relevance_score >= 5
+              : post.relevanceScore >= 5
                 ? "bg-amber-100 text-amber-800"
                 : "bg-red-100 text-red-800"
           }`}>
-            {post.relevance_score}
+            {post.relevanceScore}
           </span>
         )}
       </div>
       <span className="text-sm text-stone-500 shrink-0 ml-3">
-        {new Date(post.created_at).toLocaleDateString()}
+        {new Date(post.createdAt).toLocaleDateString()}
       </span>
     </div>
   );
@@ -1221,16 +1265,16 @@ function PostRow({
 
 function AddSocialProfileForm({
   orgId,
-  onAdded,
 }: {
   orgId: string;
-  onAdded: () => void;
 }) {
   const [platform, setPlatform] = useState("instagram");
   const [handle, setHandle] = useState("");
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [, createSocialSource] = useMutation(CreateSocialSourceMutation);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1239,16 +1283,17 @@ function AddSocialProfileForm({
     setLoading(true);
     setError(null);
     try {
-      await callService("Sources", "create_social", {
-        organization_id: orgId,
-        platform: platform,
-        handle: handle.trim(),
-        url: url.trim() || null,
-      });
-      invalidateService("Sources");
+      const result = await createSocialSource(
+        {
+          organizationId: orgId,
+          platform: platform,
+          identifier: handle.trim(),
+        },
+        { additionalTypenames: ["Source", "SourceConnection", "Organization"] },
+      );
+      if (result.error) throw result.error;
       setHandle("");
       setUrl("");
-      onAdded();
     } catch (err: any) {
       setError(err.message || "Failed to add profile");
     } finally {
@@ -1304,11 +1349,9 @@ function AddSocialProfileForm({
 function AddNoteForm({
   noteableType,
   noteableId,
-  onAdded,
 }: {
   noteableType: string;
   noteableId: string;
-  onAdded: () => void;
 }) {
   const [content, setContent] = useState("");
   const [ctaText, setCtaText] = useState("");
@@ -1317,6 +1360,8 @@ function AddNoteForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [, createNote] = useMutation(CreateNoteMutation);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
@@ -1324,20 +1369,22 @@ function AddNoteForm({
     setLoading(true);
     setError(null);
     try {
-      await callService("Notes", "create", {
-        content: content.trim(),
-        severity,
-        is_public: isPublic,
-        cta_text: ctaText.trim() || null,
-        noteable_type: noteableType,
-        noteable_id: noteableId,
-      });
-      invalidateService("Notes");
+      const result = await createNote(
+        {
+          content: content.trim(),
+          severity,
+          isPublic,
+          ctaText: ctaText.trim() || null,
+          noteableType,
+          noteableId,
+        },
+        noteMutationContext,
+      );
+      if (result.error) throw result.error;
       setContent("");
       setCtaText("");
       setSeverity("info");
       setIsPublic(false);
-      onAdded();
     } catch (err: any) {
       setError(err.message || "Failed to add note");
     } finally {
@@ -1405,30 +1452,48 @@ const SEVERITY_STYLES: Record<string, string> = {
 
 const SEVERITY_OPTIONS = ["info", "notice", "urgent"] as const;
 
+type NoteData = {
+  id: string;
+  content: string;
+  ctaText?: string | null;
+  severity: string;
+  sourceUrl?: string | null;
+  sourceType?: string | null;
+  isPublic: boolean;
+  createdBy: string;
+  expiredAt?: string | null;
+  createdAt: string;
+  linkedPosts?: { id: string; title: string }[] | null;
+};
+
 function NoteRow({
   note,
   noteableType,
   noteableId,
-  onChanged,
 }: {
-  note: NoteResult;
+  note: NoteData;
   noteableType: string;
   noteableId: string;
-  onChanged: () => void;
 }) {
-  const isExpired = !!note.expired_at;
+  const isExpired = !!note.expiredAt;
+
+  const [, updateNote] = useMutation(UpdateNoteMutation);
+  const [, deleteNote] = useMutation(DeleteNoteMutation);
+  const [, unlinkNote] = useMutation(UnlinkNoteMutation);
 
   const handleTogglePublic = async () => {
     try {
-      await callService("Notes", "update", {
-        id: note.id,
-        content: note.content,
-        severity: note.severity,
-        is_public: !note.is_public,
-        cta_text: note.cta_text,
-      });
-      invalidateService("Notes");
-      onChanged();
+      const result = await updateNote(
+        {
+          id: note.id,
+          content: note.content,
+          severity: note.severity,
+          isPublic: !note.isPublic,
+          ctaText: note.ctaText,
+        },
+        noteMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to toggle visibility:", err);
     }
@@ -1436,15 +1501,17 @@ function NoteRow({
 
   const handleSeverityChange = async (newSeverity: string) => {
     try {
-      await callService("Notes", "update", {
-        id: note.id,
-        content: note.content,
-        severity: newSeverity,
-        is_public: note.is_public,
-        cta_text: note.cta_text,
-      });
-      invalidateService("Notes");
-      onChanged();
+      const result = await updateNote(
+        {
+          id: note.id,
+          content: note.content,
+          severity: newSeverity,
+          isPublic: note.isPublic,
+          ctaText: note.ctaText,
+        },
+        noteMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to update severity:", err);
     }
@@ -1452,9 +1519,8 @@ function NoteRow({
 
   const handleDelete = async () => {
     try {
-      await callService("Notes", "delete", { id: note.id });
-      invalidateService("Notes");
-      onChanged();
+      const result = await deleteNote({ id: note.id }, noteMutationContext);
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to delete note:", err);
     }
@@ -1462,13 +1528,11 @@ function NoteRow({
 
   const handleUnlink = async () => {
     try {
-      await callService("Notes", "unlink", {
-        note_id: note.id,
-        noteable_type: noteableType,
-        noteable_id: noteableId,
-      });
-      invalidateService("Notes");
-      onChanged();
+      const result = await unlinkNote(
+        { noteId: note.id, postId: noteableId },
+        noteMutationContext,
+      );
+      if (result.error) throw result.error;
     } catch (err: any) {
       console.error("Failed to unlink note:", err);
     }
@@ -1497,34 +1561,34 @@ function NoteRow({
           <button
             onClick={handleTogglePublic}
             className={`px-2 py-0.5 text-xs rounded-full font-medium cursor-pointer transition-colors ${
-              note.is_public
+              note.isPublic
                 ? "bg-green-100 text-green-800 hover:bg-green-200"
                 : "bg-stone-100 text-stone-500 hover:bg-stone-200"
             }`}
           >
-            {note.is_public ? "public" : "internal"}
+            {note.isPublic ? "public" : "internal"}
           </button>
           {isExpired && (
             <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
               expired
             </span>
           )}
-          {note.source_type && (
+          {note.sourceType && (
             <span className="text-xs text-stone-400">
-              via {note.source_type}
+              via {note.sourceType}
             </span>
           )}
           <span className="text-xs text-stone-400">
-            {note.created_by} &middot; {new Date(note.created_at).toLocaleDateString()}
+            {note.createdBy} &middot; {new Date(note.createdAt).toLocaleDateString()}
           </span>
         </div>
         <p className="text-sm text-stone-700">{note.content}</p>
-        {note.cta_text && (
-          <p className="text-xs italic text-stone-500 mt-0.5">{note.cta_text}</p>
+        {note.ctaText && (
+          <p className="text-xs italic text-stone-500 mt-0.5">{note.ctaText}</p>
         )}
-        {note.source_url && (
+        {note.sourceUrl && (
           <a
-            href={note.source_url}
+            href={note.sourceUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
@@ -1532,10 +1596,10 @@ function NoteRow({
             Source {"\u2197"}
           </a>
         )}
-        {note.linked_posts && note.linked_posts.length > 0 && (
+        {note.linkedPosts && note.linkedPosts.length > 0 && (
           <div className="flex flex-wrap items-center gap-1 mt-1.5">
             <span className="text-xs text-stone-400">Attached to:</span>
-            {note.linked_posts.map((post) => (
+            {note.linkedPosts.map((post) => (
               <Link
                 key={post.id}
                 href={`/admin/posts/${post.id}`}
@@ -1567,4 +1631,3 @@ function NoteRow({
     </div>
   );
 }
-

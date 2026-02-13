@@ -250,6 +250,15 @@ export const BatchScorePostsMutation = graphql(`
   }
 `);
 
+export const UpdatePostCapacityMutation = graphql(`
+  mutation UpdatePostCapacity($id: ID!, $capacityStatus: String!) {
+    updatePostCapacity(id: $id, capacityStatus: $capacityStatus) {
+      id
+      capacityStatus
+    }
+  }
+`);
+
 export const SubmitResourceLinkMutation = graphql(`
   mutation SubmitResourceLink($url: String!, $context: String, $submitterContact: String) {
     submitResourceLink(url: $url, context: $context, submitterContact: $submitterContact) {
