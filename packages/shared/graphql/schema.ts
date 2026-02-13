@@ -1,4 +1,11 @@
 export const typeDefs = /* GraphQL */ `
+enum PostStatus { pending_approval active rejected archived }
+enum PostType { service opportunity business }
+enum OrganizationStatus { pending_review approved rejected suspended }
+enum SourceStatus { pending_review approved rejected suspended }
+enum WebsiteStatus { pending_review approved rejected suspended }
+enum SourceType { website instagram facebook tiktok x }
+
 type Query {
   publicPosts(
     postType: String
@@ -218,8 +225,8 @@ type Post {
   description: String!
   descriptionMarkdown: String
   summary: String
-  status: String!
-  postType: String
+  status: PostStatus!
+  postType: PostType
   category: String
   capacityStatus: String
   urgency: String
@@ -263,7 +270,7 @@ type PublicPost {
   description: String!
   location: String
   sourceUrl: String
-  postType: String!
+  postType: PostType!
   category: String!
   createdAt: String!
   publishedAt: String
@@ -315,7 +322,7 @@ type Organization {
   id: ID!
   name: String!
   description: String
-  status: String!
+  status: OrganizationStatus!
   websiteCount: Int!
   socialProfileCount: Int!
   snapshotCount: Int!
@@ -331,7 +338,7 @@ type PublicOrganization {
   id: ID!
   name: String!
   description: String
-  status: String!
+  status: OrganizationStatus!
   posts: [PublicPost!]!
 }
 
@@ -362,7 +369,7 @@ type RewriteNarrativesResult {
 type Website {
   id: ID!
   domain: String!
-  status: String!
+  status: WebsiteStatus!
   active: Boolean!
   crawlCount: Int
   postCount: Int
@@ -384,10 +391,10 @@ type WebsiteConnection {
 
 type Source {
   id: ID!
-  sourceType: String!
+  sourceType: SourceType!
   identifier: String!
   url: String
-  status: String!
+  status: SourceStatus!
   active: Boolean!
   organizationId: ID
   organizationName: String

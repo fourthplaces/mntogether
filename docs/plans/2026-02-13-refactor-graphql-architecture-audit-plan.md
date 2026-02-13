@@ -237,33 +237,35 @@ The web-app still has copies of admin-app query files that were copied during th
 
 Replace `String!` with enums for compile-time validation.
 
-- [ ] Add to schema:
+- [x] Add to schema (using lowercase values matching Restate output):
   ```graphql
-  enum PostStatus { DRAFT PENDING APPROVED REJECTED ARCHIVED }
-  enum PostType { SERVICE OPPORTUNITY BUSINESS EVENT }
-  enum OrganizationStatus { PENDING APPROVED REJECTED SUSPENDED }
-  enum SourceStatus { PENDING APPROVED REJECTED }
-  enum SourceType { WEBSITE INSTAGRAM FACEBOOK TIKTOK X }
+  enum PostStatus { pending_approval active rejected archived }
+  enum PostType { service opportunity business }
+  enum OrganizationStatus { pending_review approved rejected suspended }
+  enum SourceStatus { pending_review approved rejected suspended }
+  enum WebsiteStatus { pending_review approved rejected suspended }
+  enum SourceType { website instagram facebook tiktok x }
   ```
-- [ ] Update type definitions: `Post.status: PostStatus!`, `Post.postType: PostType`, etc.
-- [ ] Update resolvers where enum values are passed to Restate (lowercase the enum values)
-- [ ] Update frontend queries to use new enum types
-- [ ] Run codegen — generated types will now use enums
+- [x] Update type definitions: `Post.status: PostStatus!`, `Post.postType: PostType`, `Organization.status: OrganizationStatus!`, `Source.status: SourceStatus!`, `Source.sourceType: SourceType!`, `Website.status: WebsiteStatus!`, `PublicPost.postType: PostType!`, `PublicOrganization.status: OrganizationStatus!`
+- [x] No resolver changes needed — enum values match Restate's lowercase snake_case output exactly
+- [x] Add `enumsAsTypes: true` to codegen configs — generates string literal unions instead of TypeScript enums, so existing string comparisons work without changes
+- [x] Fixed stale status comparisons caught by new types: removed `"approved"` check on post status (dashboard), removed PascalCase `"Active"`/`"PendingApproval"` checks (website detail)
+- [x] Run codegen + type-check — both apps pass
 
 ## Verification
 
-- [ ] `yarn workspace admin-app graphql-codegen` passes
-- [ ] `yarn workspace web-app graphql-codegen` passes
-- [ ] `npx tsc --noEmit --project packages/admin-app/tsconfig.json` passes
-- [ ] `npx tsc --noEmit --project packages/web-app/tsconfig.json` passes
-- [ ] Organization detail page: 1 primary query (was 5)
-- [ ] Source detail page: 1 primary query + polling queries (was 8)
-- [ ] Website detail page: 1 primary query + polling queries (was 9)
-- [ ] Post detail page: 1-2 queries (was 5)
-- [ ] Dashboard: 1 query (was 3)
-- [ ] Zero `requireAdmin` or `requireAuth` calls in any resolver
-- [ ] `auth.ts` deleted, no auth exports from `packages/shared/graphql/index.ts`
-- [ ] No duplicate query files between apps
+- [x] `yarn workspace admin-app graphql-codegen` passes
+- [x] `yarn workspace web-app graphql-codegen` passes
+- [x] `npx tsc --noEmit --project packages/admin-app/tsconfig.json` passes
+- [x] `npx tsc --noEmit --project packages/web-app/tsconfig.json` passes
+- [x] Organization detail page: 1 primary query (was 5)
+- [x] Source detail page: 1 primary query + polling queries (was 8)
+- [x] Website detail page: 1 primary query + polling queries (was 9)
+- [x] Post detail page: 1-2 queries (was 5)
+- [x] Dashboard: 1 query (was 3)
+- [x] Zero `requireAdmin` or `requireAuth` calls in any resolver
+- [x] `auth.ts` deleted, no auth exports from `packages/shared/graphql/index.ts`
+- [x] No duplicate query files between apps
 
 ## Key Decisions
 

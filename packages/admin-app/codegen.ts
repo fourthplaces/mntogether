@@ -17,6 +17,7 @@ const config: CodegenConfig = {
       presetConfig: { fragmentMasking: false },
       config: {
         scalars: { DateTime: "string", UUID: "string" },
+        enumsAsTypes: true,
       },
     },
   },
