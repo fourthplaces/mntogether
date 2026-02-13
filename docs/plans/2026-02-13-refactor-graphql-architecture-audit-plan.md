@@ -216,21 +216,22 @@ Replace multi-query patterns with single nested queries. This depends on Phase 3
 
 ### Phase 6: Clean up public query over-fetching
 
-- [ ] Create separate `PublicPostDetailQuery` in web-app that excludes admin fields:
+- [x] Create separate `PublicPostDetailQuery` in web-app that excludes admin fields:
   - Remove: `relevanceScore`, `relevanceBreakdown`, `submittedBy`
   - Keep: `comments` (public feature)
   - Keep: `schedules`, `contacts`, `urgentNotes` (public info)
+  - Done in Phase 4 via `PostDetailPublicFields` fragment
 
-- [ ] Remove `admin-app/lib/graphql/public.ts` — admin-app no longer has public pages (they moved to web-app)
+- [x] Remove `admin-app/lib/graphql/public.ts` — admin-app no longer has public pages (they moved to web-app)
 
 ### Phase 7: Deduplicate shared operations
 
 The web-app still has copies of admin-app query files that were copied during the public pages migration.
 
-- [ ] Remove `web-app/lib/graphql/posts.ts` — web-app doesn't use admin post operations. It only uses `PublicPostsQuery` and `PostDetailPublicQuery` from `public.ts`, plus `SubmitResourceLinkMutation` and `AddCommentMutation`.
-- [ ] Move needed post mutations (`SubmitResourceLinkMutation`, `AddCommentMutation`) into `web-app/lib/graphql/public.ts`
-- [ ] Verify no web-app files import from `lib/graphql/posts.ts`
-- [ ] Run codegen + type-check
+- [x] Remove `web-app/lib/graphql/posts.ts` — web-app doesn't use admin post operations. It only uses `PublicPostsQuery` and `PostDetailPublicQuery` from `public.ts`, plus `SubmitResourceLinkMutation` and `AddCommentMutation`.
+- [x] Move needed post mutations (`SubmitResourceLinkMutation`, `AddCommentMutation`) into `web-app/lib/graphql/public.ts`
+- [x] Verify no web-app files import from `lib/graphql/posts.ts`
+- [x] Run codegen + type-check
 
 ### Phase 8: Add enums for key status fields
 
