@@ -66,6 +66,10 @@ type Query {
   # Tags (admin)
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
+
+  # Sync/Proposals (admin)
+  syncBatches(status: String, limit: Int): SyncBatchConnection!
+  syncProposals(batchId: ID!): SyncProposalConnection!
 }
 
 type Mutation {
@@ -138,6 +142,13 @@ type Mutation {
   createTag(kind: String!, value: String!, displayName: String, color: String, description: String, emoji: String): Tag!
   updateTag(id: ID!, displayName: String, color: String, description: String, emoji: String): Tag!
   deleteTag(id: ID!): Boolean!
+
+  # Sync/Proposals (admin)
+  approveProposal(id: ID!): Boolean!
+  rejectProposal(id: ID!): Boolean!
+  approveBatch(id: ID!): Boolean!
+  rejectBatch(id: ID!): Boolean!
+  refineProposal(proposalId: ID!, comment: String!): Boolean!
 }
 
 type PublicFilters {
@@ -406,6 +417,51 @@ type Comment {
   content: String!
   parentMessageId: String
   createdAt: String!
+}
+
+type SyncBatch {
+  id: ID!
+  resourceType: String!
+  sourceId: ID
+  sourceName: String
+  status: String!
+  summary: String
+  proposalCount: Int!
+  approvedCount: Int!
+  rejectedCount: Int!
+  createdAt: String!
+  reviewedAt: String
+}
+
+type SyncBatchConnection {
+  batches: [SyncBatch!]!
+}
+
+type SyncProposal {
+  id: ID!
+  batchId: ID!
+  operation: String!
+  status: String!
+  entityType: String!
+  draftEntityId: ID
+  targetEntityId: ID
+  reason: String
+  reviewedBy: String
+  reviewedAt: String
+  createdAt: String!
+  draftTitle: String
+  targetTitle: String
+  mergeSourceIds: [String!]!
+  mergeSourceTitles: [String!]!
+  relevanceScore: Float
+  curatorReasoning: String
+  confidence: String
+  sourceUrls: [String!]
+  revisionCount: Int
+}
+
+type SyncProposalConnection {
+  proposals: [SyncProposal!]!
 }
 `;
 
