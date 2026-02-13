@@ -5,19 +5,27 @@ import { useState, useRef, useEffect } from "react";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
-import { useRestateObject, useRestate, callObject, callService, invalidateService, invalidateObject } from "@/lib/restate/client";
-import type {
-  SourceObjectResult,
-  OptionalAssessmentResult,
-  ExtractionPageListResult,
-  ExtractionPageCount,
-  OrganizationResult,
-  OrganizationListResult,
-} from "@/lib/restate/types";
-
-// Source object returns same shape as Extraction service
-type SourcePageListResult = ExtractionPageListResult;
-type SourcePageCountResult = ExtractionPageCount;
+import { useQuery, useMutation } from "urql";
+import {
+  SourceDetailQuery,
+  SourcePagesQuery,
+  SourcePageCountQuery,
+  SourceAssessmentQuery,
+  WorkflowStatusQuery,
+  ApproveSourceMutation,
+  RejectSourceMutation,
+  CrawlSourceMutation,
+  GenerateSourceAssessmentMutation,
+  RegenerateSourcePostsMutation,
+  DeduplicateSourcePostsMutation,
+  ExtractSourceOrganizationMutation,
+  AssignSourceOrganizationMutation,
+  UnassignSourceOrganizationMutation,
+} from "@/lib/graphql/sources";
+import {
+  OrganizationDetailQuery,
+  OrganizationsListQuery,
+} from "@/lib/graphql/organizations";
 
 type TabType = "snapshots" | "assessment";
 
@@ -52,68 +60,124 @@ export default function SourceDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- Data hooks ---
+  const mutationContext = { additionalTypenames: ["Source", "SourceConnection"] };
 
-  const {
-    data: source,
-    isLoading: sourceLoading,
-    error: sourceError,
-    mutate: refetchSource,
-  } = useRestateObject<SourceObjectResult>("Source", sourceId, "get", {}, { revalidateOnFocus: false });
+  // --- Data queries ---
 
-  const isWebsite = source?.source_type === "website";
+  const [{ data: sourceData, fetching: sourceLoading, error: sourceError }, refetchSource] =
+    useQuery({ query: SourceDetailQuery, variables: { id: sourceId } });
 
-  const {
-    data: pagesData,
-  } = useRestateObject<SourcePageListResult>(
-    "Source", source ? sourceId : null, "list_pages", {},
-    { revalidateOnFocus: false }
-  );
+  const source = sourceData?.source;
+  const isWebsite = source?.sourceType === "website";
 
-  const {
-    data: pageCount,
-  } = useRestateObject<SourcePageCountResult>(
-    "Source", source ? sourceId : null, "count_pages", {},
-    { revalidateOnFocus: false }
-  );
+  const [{ data: pagesData }] = useQuery({
+    query: SourcePagesQuery,
+    variables: { sourceId },
+    pause: !source,
+  });
 
-  const {
-    data: assessmentData,
-    mutate: refetchAssessment,
-  } = useRestateObject<OptionalAssessmentResult>(
-    "Source",
-    isWebsite ? sourceId : null,
-    "get_assessment",
-    {},
-    { revalidateOnFocus: false }
-  );
+  const [{ data: pageCountData }] = useQuery({
+    query: SourcePageCountQuery,
+    variables: { sourceId },
+    pause: !source,
+  });
 
-  const { data: orgData } = useRestate<OrganizationResult>(
-    source?.organization_id ? "Organizations" : null,
-    "get",
-    { id: source?.organization_id },
-    { revalidateOnFocus: false }
-  );
+  const [{ data: assessmentData }, refetchAssessment] = useQuery({
+    query: SourceAssessmentQuery,
+    variables: { sourceId },
+    pause: !isWebsite,
+  });
 
-  const { data: orgsListData } = useRestate<OrganizationListResult>(
-    showOrgPicker ? "Organizations" : null,
-    "list",
-    {},
-    { revalidateOnFocus: false }
-  );
+  const [{ data: orgData }] = useQuery({
+    query: OrganizationDetailQuery,
+    variables: { id: source?.organizationId || "" },
+    pause: !source?.organizationId,
+  });
 
-  const assessment = assessmentData?.assessment ?? null;
-  const pages = pagesData?.pages || [];
+  const [{ data: orgsListData }] = useQuery({
+    query: OrganizationsListQuery,
+    pause: !showOrgPicker,
+  });
+
+  // Workflow status polling
+  const regenWorkflowName = isWebsite ? "RegeneratePostsWorkflow" : "RegenerateSocialPostsWorkflow";
+
+  const [{ data: regenStatusData }] = useQuery({
+    query: WorkflowStatusQuery,
+    variables: { workflowName: regenWorkflowName, workflowId: regenWorkflowId || "" },
+    pause: !regenWorkflowId,
+    requestPolicy: "network-only",
+  });
+
+  const [{ data: dedupStatusData }] = useQuery({
+    query: WorkflowStatusQuery,
+    variables: { workflowName: "DeduplicatePostsWorkflow", workflowId: dedupWorkflowId || "" },
+    pause: !dedupWorkflowId,
+    requestPolicy: "network-only",
+  });
+
+  // Poll workflow statuses
+  useEffect(() => {
+    if (!regenWorkflowId) return;
+    const interval = setInterval(() => {
+      refetchSource({ requestPolicy: "network-only" });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [regenWorkflowId]);
+
+  useEffect(() => {
+    if (regenStatusData?.workflowStatus != null) {
+      const status = regenStatusData.workflowStatus;
+      setRegenStatus(status);
+      if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
+        setRegenWorkflowId(null);
+        setActionInProgress(null);
+      }
+    }
+  }, [regenStatusData]);
+
+  useEffect(() => {
+    if (!dedupWorkflowId) return;
+    const interval = setInterval(() => {
+      refetchSource({ requestPolicy: "network-only" });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [dedupWorkflowId]);
+
+  useEffect(() => {
+    if (dedupStatusData?.workflowStatus != null) {
+      const status = dedupStatusData.workflowStatus;
+      setDedupStatus(status);
+      if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
+        setDedupWorkflowId(null);
+        setActionInProgress(null);
+      }
+    }
+  }, [dedupStatusData]);
+
+  const assessment = assessmentData?.sourceAssessment ?? null;
+  const pages = pagesData?.sourcePages || [];
+  const pageCount = pageCountData?.sourcePageCount ?? 0;
+
+  // --- Mutations ---
+
+  const [, approveSource] = useMutation(ApproveSourceMutation);
+  const [, rejectSource] = useMutation(RejectSourceMutation);
+  const [, crawlSource] = useMutation(CrawlSourceMutation);
+  const [, generateAssessment] = useMutation(GenerateSourceAssessmentMutation);
+  const [, regeneratePosts] = useMutation(RegenerateSourcePostsMutation);
+  const [, deduplicatePosts] = useMutation(DeduplicateSourcePostsMutation);
+  const [, extractOrg] = useMutation(ExtractSourceOrganizationMutation);
+  const [, assignOrg] = useMutation(AssignSourceOrganizationMutation);
+  const [, unassignOrg] = useMutation(UnassignSourceOrganizationMutation);
 
   // --- Actions ---
 
   const handleApprove = async () => {
     setActionInProgress("approve");
     try {
-      await callObject("Source", sourceId, "approve", {});
-      invalidateService("Sources");
-      invalidateObject("Source", sourceId);
-      refetchSource();
+      await approveSource({ id: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to approve:", err);
     } finally {
@@ -124,10 +188,8 @@ export default function SourceDetailPage() {
   const handleReject = async () => {
     setActionInProgress("reject");
     try {
-      await callObject("Source", sourceId, "reject", { reason: "Rejected" });
-      invalidateService("Sources");
-      invalidateObject("Source", sourceId);
-      refetchSource();
+      await rejectSource({ id: sourceId, reason: "Rejected" }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to reject:", err);
     } finally {
@@ -138,17 +200,8 @@ export default function SourceDetailPage() {
   const handleCrawl = async () => {
     setActionInProgress("crawl");
     try {
-      const workflowId = `crawl-${sourceId}-${Date.now()}`;
-      if (isWebsite) {
-        await callObject("CrawlWebsiteWorkflow", workflowId, "run", {
-          website_id: sourceId,
-        });
-      } else {
-        await callObject("CrawlSocialSourceWorkflow", workflowId, "run", {
-          source_id: sourceId,
-        });
-      }
-      refetchSource();
+      await crawlSource({ id: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to start crawl:", err);
     } finally {
@@ -160,8 +213,8 @@ export default function SourceDetailPage() {
     setActionInProgress("assessment");
     setMenuOpen(false);
     try {
-      await callObject("Source", sourceId, "generate_assessment", {});
-      refetchAssessment();
+      await generateAssessment({ id: sourceId }, mutationContext);
+      refetchAssessment({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to generate assessment:", err);
     } finally {
@@ -173,10 +226,11 @@ export default function SourceDetailPage() {
     setActionInProgress("regenerate");
     setMenuOpen(false);
     try {
-      const result = await callObject<{ status: string }>("Source", sourceId, "regenerate_posts", {});
-      const workflowId = result.status.replace("started:", "");
-      setRegenWorkflowId(workflowId);
-      setRegenStatus("Starting...");
+      const result = await regeneratePosts({ id: sourceId }, mutationContext);
+      if (result.data?.regenerateSourcePosts?.workflowId) {
+        setRegenWorkflowId(result.data.regenerateSourcePosts.workflowId);
+        setRegenStatus("Starting...");
+      }
     } catch (err) {
       console.error("Failed to start regeneration:", err);
       setActionInProgress(null);
@@ -187,26 +241,23 @@ export default function SourceDetailPage() {
     setActionInProgress("deduplicate");
     setMenuOpen(false);
     try {
-      const result = await callObject<{ status: string }>("Source", sourceId, "deduplicate_posts", {});
-      const workflowId = result.status.replace("started:", "");
-      setDedupWorkflowId(workflowId);
-      setDedupStatus("Starting...");
+      const result = await deduplicatePosts({ id: sourceId }, mutationContext);
+      if (result.data?.deduplicateSourcePosts?.workflowId) {
+        setDedupWorkflowId(result.data.deduplicateSourcePosts.workflowId);
+        setDedupStatus("Starting...");
+      }
     } catch (err) {
       console.error("Failed to start deduplication:", err);
       setActionInProgress(null);
     }
   };
 
-
   const handleExtractOrganization = async () => {
     setActionInProgress("extract_org");
     setMenuOpen(false);
     try {
-      await callObject("Source", sourceId, "extract_organization", {});
-      invalidateObject("Source", sourceId);
-      invalidateService("Sources");
-      invalidateService("Organizations");
-      refetchSource();
+      await extractOrg({ id: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to extract organization:", err);
     } finally {
@@ -217,11 +268,8 @@ export default function SourceDetailPage() {
   const handleAssignOrganization = async (orgId: string) => {
     setActionInProgress("assign_org");
     try {
-      await callObject("Source", sourceId, "assign_organization", { organization_id: orgId });
-      invalidateObject("Source", sourceId);
-      invalidateService("Sources");
-      invalidateService("Organizations");
-      refetchSource();
+      await assignOrg({ id: sourceId, organizationId: orgId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
       setShowOrgPicker(false);
     } catch (err) {
       console.error("Failed to assign organization:", err);
@@ -233,52 +281,14 @@ export default function SourceDetailPage() {
   const handleUnassignOrganization = async () => {
     setActionInProgress("unassign_org");
     try {
-      await callObject("Source", sourceId, "unassign_organization", {});
-      invalidateObject("Source", sourceId);
-      invalidateService("Sources");
-      invalidateService("Organizations");
-      refetchSource();
+      await unassignOrg({ id: sourceId }, mutationContext);
+      refetchSource({ requestPolicy: "network-only" });
     } catch (err) {
       console.error("Failed to unassign organization:", err);
     } finally {
       setActionInProgress(null);
     }
   };
-
-  // Poll regenerate posts workflow status
-  const regenWorkflowName = isWebsite ? "RegeneratePostsWorkflow" : "RegenerateSocialPostsWorkflow";
-  useEffect(() => {
-    if (!regenWorkflowId) return;
-    const interval = setInterval(async () => {
-      try {
-        const status = await callObject<string>(regenWorkflowName, regenWorkflowId, "get_status", {});
-        setRegenStatus(status);
-        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
-          clearInterval(interval);
-          setRegenWorkflowId(null);
-          setActionInProgress(null);
-        }
-      } catch { /* keep polling */ }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [regenWorkflowId, regenWorkflowName]);
-
-  // Poll deduplicate posts workflow status
-  useEffect(() => {
-    if (!dedupWorkflowId) return;
-    const interval = setInterval(async () => {
-      try {
-        const status = await callObject<string>("DeduplicatePostsWorkflow", dedupWorkflowId, "get_status", {});
-        setDedupStatus(status);
-        if (status.startsWith("Completed:") || status.startsWith("Completed ") || status.startsWith("Failed:")) {
-          clearInterval(interval);
-          setDedupWorkflowId(null);
-          setActionInProgress(null);
-        }
-      } catch { /* keep polling */ }
-    }, 3000);
-    return () => clearInterval(interval);
-  }, [dedupWorkflowId]);
 
   // --- Helpers ---
 
@@ -297,7 +307,6 @@ export default function SourceDetailPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  // Determine available tabs — all sources have snapshots, assessment is website-only
   const tabs: TabType[] = isWebsite
     ? ["snapshots", "assessment"]
     : ["snapshots"];
@@ -352,13 +361,13 @@ export default function SourceDetailPage() {
               <div className="flex items-center gap-3 mb-2">
                 <h1 className="text-2xl font-bold text-stone-900">{source.identifier}</h1>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                  source.source_type === "website" ? "bg-blue-100 text-blue-800" :
-                  source.source_type === "instagram" ? "bg-purple-100 text-purple-800" :
-                  source.source_type === "facebook" ? "bg-indigo-100 text-indigo-800" :
-                  source.source_type === "x" ? "bg-stone-800 text-white" :
+                  source.sourceType === "website" ? "bg-blue-100 text-blue-800" :
+                  source.sourceType === "instagram" ? "bg-purple-100 text-purple-800" :
+                  source.sourceType === "facebook" ? "bg-indigo-100 text-indigo-800" :
+                  source.sourceType === "x" ? "bg-stone-800 text-white" :
                   "bg-stone-100 text-stone-800"
                 }`}>
-                  {SOURCE_TYPE_LABELS[source.source_type] || source.source_type}
+                  {SOURCE_TYPE_LABELS[source.sourceType] || source.sourceType}
                 </span>
                 {source.url && (
                   <a
@@ -435,7 +444,7 @@ export default function SourceDetailPage() {
                       Deduplicate Posts
                     </button>
                     <div className="border-t border-stone-100 my-1" />
-                    {isWebsite && !source.organization_id && (
+                    {isWebsite && !source.organizationId && (
                       <button
                         onClick={handleExtractOrganization}
                         disabled={actionInProgress !== null}
@@ -451,7 +460,7 @@ export default function SourceDetailPage() {
                     >
                       Assign Organization
                     </button>
-                    {source.organization_id && (
+                    {source.organizationId && (
                       <button
                         onClick={() => { setMenuOpen(false); handleUnassignOrganization(); }}
                         disabled={actionInProgress !== null}
@@ -470,12 +479,12 @@ export default function SourceDetailPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Organization</span>
-              {orgData ? (
+              {orgData?.organization ? (
                 <Link
-                  href={`/admin/organizations/${orgData.id}`}
+                  href={`/admin/organizations/${orgData.organization.id}`}
                   className="block text-sm font-medium text-amber-700 hover:text-amber-900"
                 >
-                  {orgData.name}
+                  {orgData.organization.name}
                 </Link>
               ) : actionInProgress === "extract_org" ? (
                 <div className="flex items-center gap-2 mt-0.5">
@@ -496,11 +505,11 @@ export default function SourceDetailPage() {
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Pages Crawled</span>
-              <p className="text-lg font-semibold text-stone-900">{pageCount?.count ?? 0}</p>
+              <p className="text-lg font-semibold text-stone-900">{pageCount}</p>
             </div>
             <div>
               <span className="text-xs text-stone-500 uppercase">Last Scraped</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(source.last_scraped_at)}</p>
+              <p className="text-sm font-medium text-stone-900">{formatDate(source.lastScrapedAt)}</p>
             </div>
           </div>
 
@@ -523,7 +532,7 @@ export default function SourceDetailPage() {
           )}
         </div>
 
-        {/* Tabs (website only) */}
+        {/* Tabs */}
         {tabs.length > 0 && (
         <div className="bg-white rounded-lg shadow-md overflow-hidden">
           <div className="border-b border-stone-200">
@@ -539,7 +548,7 @@ export default function SourceDetailPage() {
                   }`}
                 >
                   {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  {tab === "snapshots" && ` (${pageCount?.count ?? pages.length})`}
+                  {tab === "snapshots" && ` (${pageCount})`}
                 </button>
               ))}
             </nav>
@@ -590,9 +599,9 @@ export default function SourceDetailPage() {
                   <div className="space-y-4">
                     <div className="flex justify-between items-start">
                       <h3 className="font-semibold text-stone-900">Assessment</h3>
-                      {assessment.confidence_score != null && (
+                      {assessment.confidenceScore != null && (
                         <span className="px-3 py-1 text-sm rounded-full font-medium bg-blue-100 text-blue-800">
-                          Confidence: {Math.round(assessment.confidence_score * 100)}%
+                          Confidence: {Math.round(assessment.confidenceScore * 100)}%
                         </span>
                       )}
                     </div>
@@ -614,7 +623,7 @@ export default function SourceDetailPage() {
                           ),
                         }}
                       >
-                        {assessment.assessment_markdown}
+                        {assessment.assessmentMarkdown}
                       </ReactMarkdown>
                     </div>
                   </div>
@@ -675,7 +684,7 @@ export default function SourceDetailPage() {
                         onClick={() => handleAssignOrganization(org.id)}
                         disabled={actionInProgress !== null}
                         className={`w-full text-left px-4 py-3 rounded-lg transition-colors disabled:opacity-50 ${
-                          source?.organization_id === org.id
+                          source?.organizationId === org.id
                             ? "bg-amber-100 text-amber-900"
                             : "hover:bg-stone-50 text-stone-800"
                         }`}

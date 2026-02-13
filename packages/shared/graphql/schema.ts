@@ -31,6 +31,22 @@ type Query {
   organization(id: ID!): Organization
   organizationChecklist(id: ID!): Checklist!
 
+  # Sources (admin)
+  sources(
+    status: String
+    sourceType: String
+    search: String
+    limit: Int
+    offset: Int
+  ): SourceConnection!
+  source(id: ID!): Source
+  sourcePages(sourceId: ID!): [ExtractionPage!]!
+  sourcePageCount(sourceId: ID!): Int!
+  sourceAssessment(sourceId: ID!): Assessment
+  searchSourcesByContent(query: String!, limit: Int): SourceConnection!
+  extractionPage(url: String!): ExtractionPage
+  workflowStatus(workflowName: String!, workflowId: String!): String
+
   # Tags (admin)
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
@@ -71,6 +87,19 @@ type Mutation {
   removeAllOrgPosts(id: ID!): Boolean!
   removeAllOrgNotes(id: ID!): Boolean!
   rewriteNarratives(organizationId: ID!): RewriteNarrativesResult!
+
+  # Sources (admin)
+  submitWebsite(url: String!): Source!
+  lightCrawlAll: LightCrawlAllResult!
+  approveSource(id: ID!): Source!
+  rejectSource(id: ID!, reason: String!): Source!
+  crawlSource(id: ID!): Boolean!
+  generateSourceAssessment(id: ID!): Boolean!
+  regenerateSourcePosts(id: ID!): WorkflowStartResult!
+  deduplicateSourcePosts(id: ID!): WorkflowStartResult!
+  extractSourceOrganization(id: ID!): Source!
+  assignSourceOrganization(id: ID!, organizationId: ID!): Source!
+  unassignSourceOrganization(id: ID!): Source!
 
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -232,6 +261,51 @@ type RewriteNarrativesResult {
   rewritten: Int!
   failed: Int!
   total: Int!
+}
+
+type Source {
+  id: ID!
+  sourceType: String!
+  identifier: String!
+  url: String
+  status: String!
+  active: Boolean!
+  organizationId: ID
+  organizationName: String
+  scrapeFrequencyHours: Int!
+  lastScrapedAt: String
+  postCount: Int
+  snapshotCount: Int
+  createdAt: String!
+  updatedAt: String!
+}
+
+type SourceConnection {
+  sources: [Source!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+}
+
+type ExtractionPage {
+  url: String!
+  content: String
+}
+
+type Assessment {
+  id: ID!
+  websiteId: ID!
+  assessmentMarkdown: String!
+  confidenceScore: Float
+}
+
+type LightCrawlAllResult {
+  sourcesQueued: Int!
+}
+
+type WorkflowStartResult {
+  workflowId: String!
+  status: String!
 }
 
 type TagKind {
