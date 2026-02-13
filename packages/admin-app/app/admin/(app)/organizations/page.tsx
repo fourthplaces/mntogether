@@ -2,9 +2,12 @@
 
 import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useRestate, callService, invalidateService } from "@/lib/restate/client";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import type { OrganizationListResult } from "@/lib/restate/types";
+import {
+  OrganizationsListQuery,
+  CreateOrganizationMutation,
+} from "@/lib/graphql/organizations";
 
 export default function OrganizationsPage() {
   return (
@@ -19,15 +22,13 @@ function OrganizationsContent() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
   const [addDescription, setAddDescription] = useState("");
-  const [addLoading, setAddLoading] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const { data, isLoading, error } = useRestate<OrganizationListResult>(
-    "Organizations",
-    "list",
-    {},
-    { revalidateOnFocus: false }
-  );
+  const [{ data, fetching: isLoading, error }] = useQuery({
+    query: OrganizationsListQuery,
+  });
+
+  const [{ fetching: addLoading }, createOrg] = useMutation(CreateOrganizationMutation);
 
   const organizations = data?.organizations || [];
 
@@ -35,24 +36,24 @@ function OrganizationsContent() {
     e.preventDefault();
     if (!addName.trim()) return;
 
-    setAddLoading(true);
     setAddError(null);
     try {
-      const result = await callService<{ id: string }>("Organizations", "create", {
-        name: addName.trim(),
-        description: addDescription.trim() || null,
-      });
-      invalidateService("Organizations");
+      const result = await createOrg(
+        {
+          name: addName.trim(),
+          description: addDescription.trim() || null,
+        },
+        { additionalTypenames: ["Organization"] }
+      );
+      if (result.error) throw result.error;
       setAddName("");
       setAddDescription("");
       setShowAddForm(false);
-      if (result?.id) {
-        router.push(`/admin/organizations/${result.id}`);
+      if (result.data?.createOrganization?.id) {
+        router.push(`/admin/organizations/${result.data.createOrganization.id}`);
       }
     } catch (err: any) {
       setAddError(err.message || "Failed to create organization");
-    } finally {
-      setAddLoading(false);
     }
   };
 
@@ -183,13 +184,13 @@ function OrganizationsContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-600">
-                      {org.website_count}
+                      {org.websiteCount}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-600">
-                      {org.social_profile_count}
+                      {org.socialProfileCount}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-500 text-sm">
-                      {new Date(org.created_at).toLocaleDateString()}
+                      {new Date(org.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}
