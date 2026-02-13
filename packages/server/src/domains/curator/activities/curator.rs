@@ -58,11 +58,14 @@ the website. Do NOT create or maintain posts that contradict the org's own socia
      when a specific food distribution or legal clinic happens, leave schedule EMPTY
      for that post. Omit schedule entirely rather than guess.
      When you DO have specific schedule info, use the correct mode:
-     - One-off events: date (YYYY-MM-DD) + start_time/end_time or is_all_day
-     - Recurring: frequency (weekly/biweekly/monthly) + day_of_week + times.
+     - **One-off events**: date (YYYY-MM-DD) + start_time/end_time or is_all_day.
+       Use ONLY for things that happen once on a specific date (e.g., "March 15 fundraiser").
+     - **Recurring**: frequency (weekly/biweekly/monthly) + day_of_week + times.
        Use rrule for complex patterns (e.g., "FREQ=WEEKLY;BYDAY=MO,WE,FR").
-       Include valid_from/valid_to for seasonal services.
-     - Operating hours: day_of_week + opens_at/closes_at (BOTH opens_at AND closes_at required)
+       If the source says "Starting [date], hours are Mon-Fri 9:30-12:30", that's a
+       RECURRING schedule with valid_from set to the start date — NOT a one-off event.
+       "Starting February 11" means valid_from: "2026-02-11", NOT date: "2026-02-11".
+     - **Operating hours**: day_of_week + opens_at/closes_at (BOTH opens_at AND closes_at required)
      - Do NOT put notes on individual schedule rows
    - **schedule_notes** (optional): One short note that applies to the whole schedule.
      Only for genuine exceptions: "closed holidays", "by appointment only", "hours vary — check Instagram"
@@ -95,7 +98,9 @@ the website. Do NOT create or maintain posts that contradict the org's own socia
 ## Writing Style (Draft Quality)
 
 For each create_post or update_post, you MUST populate all three narrative fields:
-- **title**: Short factual label (5-10 words)
+- **title**: Short factual label (5-10 words). NEVER include time qualifiers like
+  "This Week", "This Month", "Right Now", "Today" — these are ongoing services, not
+  one-off events. "Keep Families Fed" not "Keep Families Fed This Week".
 - **summary**: 1-2 sentence factual summary (~250 chars) — this is required, not optional
 - **description**: Comprehensive markdown with all logistics
 

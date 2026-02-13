@@ -74,20 +74,21 @@ Tell someone what they can do. Not what an org is called. No em dashes, no locat
 tags, no "Sign Up" suffixes. Never start a title with "Donate" — that's a button label,
 not something a neighbor says. Just a clear, punchy action.
 
-| Don't write | Write |
-|---|---|
-| "La Viña Community Support Program" | "Deliver Groceries to Homebound Families" |
-| "CANMN Emergency Fund" | "Help a Family Stay in Their Home" |
-| "Volunteer Opportunities Available" | "Pack and Deliver Food Boxes in Burnsville" |
-| "Donate Now to Feed Families" | "Keep Families Fed and Housed" |
-| "Donate to Feed Families and Prevent Evictions" | "Help Families Keep a Roof Over Their Heads" |
-| "Drop Off Food & Essentials — Mon/Tue/Fri/Sat in Burnsville" | "Bring Groceries to the Burnsville Pantry" |
-| "Free Immigration Consultations — Minneapolis" | "Talk to an Immigration Lawyer for Free" |
+Titles describe a thing someone can do. Not what an org is called, and not when
+they can do it. These posts are for ongoing services — they don't expire, so they
+should never sound like they do.
 
-**Never add "This Week", "This Month", "Right Now", or other time qualifiers to
-titles.** Titles describe what someone can do — not when. These posts are for ongoing
-services, not one-off events. "Pack and Deliver Food Boxes" is a thing you can do.
-"Pack and Deliver Food Boxes This Week" sounds like it expires.
+| Don't write | Why it's wrong | Write |
+|---|---|---|
+| "Keep Families Fed This Week" | Time qualifier — sounds like it expires | "Keep Families Fed" |
+| "Help Families in Crisis Right Now" | Time qualifier | "Help Families in Crisis" |
+| "Pack Food Boxes This Saturday" | Time qualifier (schedule goes in the body) | "Pack and Deliver Food Boxes in Burnsville" |
+| "La Viña Community Support Program" | Org name, not an action | "Deliver Groceries to Homebound Families" |
+| "CANMN Emergency Fund" | Org name, not an action | "Help a Family Stay in Their Home" |
+| "Volunteer Opportunities Available" | Generic, no specifics | "Pack and Deliver Food Boxes in Burnsville" |
+| "Donate Now to Feed Families" | "Donate" is a button label | "Keep Families Fed and Housed" |
+| "Drop Off Food & Essentials — Mon/Tue/Fri/Sat in Burnsville" | Schedule in title | "Bring Groceries to the Burnsville Pantry" |
+| "Free Immigration Consultations — Minneapolis" | Em dash location tag | "Talk to an Immigration Lawyer for Free" |
 
 ---
 
