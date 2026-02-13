@@ -1,11 +1,19 @@
 "use client";
 
 import { useState, useCallback, useEffect, useRef } from "react";
-import { BottomSheet } from "@/components/public/BottomSheet";
-import { ChatPanel } from "@/components/public/ChatPanel";
+import { BottomSheet } from "@/components/BottomSheet";
+import { ChatPanel } from "@/components/ChatPanel";
 import { usePublicChatStream } from "@/lib/hooks/usePublicChatStream";
-import { callService } from "@/lib/restate/client";
-import type { PublicChatMessage, ChatroomResult, ChatMessage } from "@/lib/restate/types";
+import { useMutation, useClient } from "urql";
+import { CreateChatMutation, SendChatMessageMutation, ChatMessagesQuery } from "@/lib/graphql/chat";
+
+interface ChatMessage {
+  id: string;
+  chatroomId: string;
+  senderType: string;
+  content: string;
+  createdAt: string;
+}
 
 interface ChatSheetProps {
   isOpen: boolean;
@@ -14,21 +22,24 @@ interface ChatSheetProps {
 
 export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
   const [containerId, setContainerId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<PublicChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isWaitingForReply, setIsWaitingForReply] = useState(false);
   const initRef = useRef(false);
+  const client = useClient();
+  const [, createChatMut] = useMutation(CreateChatMutation);
+  const [, sendMessageMut] = useMutation(SendChatMessageMutation);
 
   const loadMessages = useCallback(async (cid: string) => {
     try {
-      const data = await callService<PublicChatMessage[]>("Chat", "get_messages", {
-        chatroom_id: cid,
-      });
-      setMessages(data || []);
+      const result = await client.query(ChatMessagesQuery, { chatroomId: cid }).toPromise();
+      if (result.data?.chatMessages) {
+        setMessages(result.data.chatMessages);
+      }
     } catch {
       // Silently fail
     }
-  }, []);
+  }, [client]);
 
   // SSE stream — reload messages when assistant replies
   usePublicChatStream(containerId, {
@@ -52,18 +63,16 @@ export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
 
     const create = async () => {
       try {
-        const data = await callService<ChatroomResult>("Chats", "create", {
-          language: "en",
-          with_agent: "public",
-        });
-        setContainerId(data.id);
+        const result = await createChatMut({ language: "en", withAgent: "public" });
+        if (result.error) throw result.error;
+        setContainerId(result.data!.createChat.id);
       } catch {
         // Creation failed — user can still see the sheet
       }
     };
 
     create();
-  }, [isOpen, containerId]);
+  }, [isOpen, containerId, createChatMut]);
 
   // Reset everything when sheet closes
   useEffect(() => {
@@ -80,23 +89,25 @@ export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
     async (content: string) => {
       if (!containerId || isSending) return;
 
-      const optimistic: PublicChatMessage = {
+      const optimistic: ChatMessage = {
         id: `optimistic-${Date.now()}`,
-        chatroom_id: containerId,
-        sender_type: "user",
+        chatroomId: containerId,
+        senderType: "user",
         content,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimistic]);
       setIsSending(true);
 
       try {
-        const data = await callService<ChatMessage>("Chat", "send_message", {
-          chatroom_id: containerId,
+        const result = await sendMessageMut({
+          chatroomId: containerId,
           content,
         });
+        if (result.error) throw result.error;
+        const msg = result.data!.sendChatMessage;
         setMessages((prev) =>
-          prev.map((m) => (m.id === optimistic.id ? data : m))
+          prev.map((m) => (m.id === optimistic.id ? msg : m))
         );
         setIsWaitingForReply(true);
       } catch {
@@ -105,7 +116,7 @@ export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
         setIsSending(false);
       }
     },
-    [containerId, isSending]
+    [containerId, isSending, sendMessageMut]
   );
 
   const handleNewConversation = useCallback(async () => {
@@ -114,16 +125,14 @@ export function ChatSheet({ isOpen, onClose }: ChatSheetProps) {
     initRef.current = false;
 
     try {
-      const data = await callService<ChatroomResult>("Chats", "create", {
-        language: "en",
-        with_agent: "public",
-      });
-      setContainerId(data.id);
+      const result = await createChatMut({ language: "en", withAgent: "public" });
+      if (result.error) throw result.error;
+      setContainerId(result.data!.createChat.id);
       initRef.current = true;
     } catch {
       // Silently fail
     }
-  }, []);
+  }, [createChatMut]);
 
   return (
     <BottomSheet isOpen={isOpen} onClose={onClose}>

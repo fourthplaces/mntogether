@@ -1,10 +1,5 @@
 import type { GraphQLContext } from "../context";
-
-function requireAdmin(ctx: GraphQLContext) {
-  if (!ctx.user?.isAdmin) {
-    throw new Error("Unauthorized: admin access required");
-  }
-}
+import { requireAuth } from "../auth";
 
 export const chatResolvers = {
   Query: {
@@ -13,7 +8,7 @@ export const chatResolvers = {
       args: { limit?: number },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
+      requireAuth(ctx);
       const result = await ctx.restate.callService<{
         chats: unknown[];
       }>("Chats", "list_recent", {
@@ -27,7 +22,7 @@ export const chatResolvers = {
       args: { chatroomId: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
+      requireAuth(ctx);
       const result = await ctx.restate.callObject<{
         messages: unknown[];
       }>("Chat", args.chatroomId, "get_messages", {});
@@ -41,7 +36,7 @@ export const chatResolvers = {
       args: { language?: string; withAgent?: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
+      requireAuth(ctx);
       return ctx.restate.callService("Chats", "create", {
         language: args.language || "en",
         with_agent: args.withAgent || undefined,
@@ -53,7 +48,7 @@ export const chatResolvers = {
       args: { chatroomId: string; content: string },
       ctx: GraphQLContext
     ) => {
-      requireAdmin(ctx);
+      requireAuth(ctx);
       return ctx.restate.callService("Chat", "send_message", {
         chatroom_id: args.chatroomId,
         content: args.content,

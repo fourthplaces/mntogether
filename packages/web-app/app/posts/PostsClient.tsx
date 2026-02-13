@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { PostFeed } from "@/components/public/PostFeed";
+import { PostFeed } from "@/components/PostFeed";
 
 export function PostsClient() {
   const searchParams = useSearchParams();

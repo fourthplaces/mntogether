@@ -1,17 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRestate } from "@/lib/restate/client";
-import type { OrganizationListResult } from "@/lib/restate/types";
+import { useQuery } from "urql";
+import { PublicOrganizationsQuery } from "@/lib/graphql/public";
 
 export default function OrganizationsPage() {
-  const { data, isLoading } = useRestate<OrganizationListResult>(
-    "Organizations",
-    "public_list",
-    {}
-  );
+  const [{ data, fetching: isLoading }] = useQuery({
+    query: PublicOrganizationsQuery,
+  });
 
-  const organizations = data?.organizations ?? [];
+  const organizations = data?.publicOrganizations ?? [];
 
   return (
     <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-8 pb-16">

@@ -1,21 +1,32 @@
 "use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { ContentPanel } from "@/components/public/ContentPanel";
-import { ChatPanel } from "@/components/public/ChatPanel";
+import { ContentPanel } from "@/components/ContentPanel";
+import { ChatPanel } from "@/components/ChatPanel";
 import { usePublicChatStream } from "@/lib/hooks/usePublicChatStream";
-import { callService } from "@/lib/restate/client";
-import type { PublicChatMessage, ChatroomResult, ChatMessage } from "@/lib/restate/types";
+import { useMutation, useClient } from "urql";
+import { CreateChatMutation, SendChatMessageMutation, ChatMessagesQuery } from "@/lib/graphql/chat";
+
+interface ChatMessage {
+  id: string;
+  chatroomId: string;
+  senderType: string;
+  content: string;
+  createdAt: string;
+}
 
 const STORAGE_KEY = "mnt_public_chat_container_id";
 
 export function PublicChatClient() {
   const [containerId, setContainerId] = useState<string | null>(null);
-  const [messages, setMessages] = useState<PublicChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isSending, setIsSending] = useState(false);
   const [isWaitingForReply, setIsWaitingForReply] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const initRef = useRef(false);
+  const client = useClient();
+  const [, createChatMut] = useMutation(CreateChatMutation);
+  const [, sendMessageMut] = useMutation(SendChatMessageMutation);
 
   // Connect to public SSE stream — notifies when assistant reply is ready
   usePublicChatStream(containerId, {
@@ -34,24 +45,22 @@ export function PublicChatClient() {
 
   const loadMessages = useCallback(async (cid: string) => {
     try {
-      const data = await callService<PublicChatMessage[]>("Chat", "get_messages", {
-        chatroom_id: cid,
-      });
-      setMessages(data || []);
+      const result = await client.query(ChatMessagesQuery, { chatroomId: cid }).toPromise();
+      if (result.data?.chatMessages) {
+        setMessages(result.data.chatMessages);
+      }
     } catch {
       // Silently fail — user can still send new messages
     }
-  }, []);
+  }, [client]);
 
   const createChat = useCallback(async (): Promise<string> => {
-    const data = await callService<ChatroomResult>("Chats", "create", {
-      language: "en",
-      with_agent: "public",
-    });
-    const id = data.id;
+    const result = await createChatMut({ language: "en", withAgent: "public" });
+    if (result.error) throw result.error;
+    const id = result.data!.createChat.id;
     localStorage.setItem(STORAGE_KEY, id);
     return id;
-  }, []);
+  }, [createChatMut]);
 
   // Initialize session
   useEffect(() => {
@@ -89,24 +98,26 @@ export function PublicChatClient() {
       if (!containerId || isSending) return;
 
       // Optimistic local message
-      const optimistic: PublicChatMessage = {
+      const optimistic: ChatMessage = {
         id: `optimistic-${Date.now()}`,
-        chatroom_id: containerId,
-        sender_type: "user",
+        chatroomId: containerId,
+        senderType: "user",
         content,
-        created_at: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
       };
       setMessages((prev) => [...prev, optimistic]);
       setIsSending(true);
 
       try {
-        const data = await callService<ChatMessage>(
-          "Chat", "send_message",
-          { chatroom_id: containerId, content }
-        );
+        const result = await sendMessageMut({
+          chatroomId: containerId,
+          content,
+        });
+        if (result.error) throw result.error;
+        const msg = result.data!.sendChatMessage;
         // Replace optimistic with real message
         setMessages((prev) =>
-          prev.map((m) => (m.id === optimistic.id ? data : m))
+          prev.map((m) => (m.id === optimistic.id ? msg : m))
         );
         setIsWaitingForReply(true);
       } catch {
@@ -116,7 +127,7 @@ export function PublicChatClient() {
         setIsSending(false);
       }
     },
-    [containerId, isSending]
+    [containerId, isSending, sendMessageMut]
   );
 
   const handleNewConversation = useCallback(async () => {

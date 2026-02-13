@@ -1,6 +1,6 @@
 "use client";
 
-import { SuggestedPrompts } from "@/components/public/SuggestedPrompts";
+import { SuggestedPrompts } from "@/components/SuggestedPrompts";
 
 interface ContentPanelProps {
   onSuggestedPrompt: (query: string) => void;

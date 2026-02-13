@@ -2,12 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRestate } from "@/lib/restate/client";
-import { PostCard, PostCardSkeleton } from "@/components/public/PostCard";
-import type {
-  PublicListResult,
-  PublicFiltersResult,
-} from "@/lib/restate/types";
+import { useQuery } from "urql";
+import { PublicPostsQuery, PublicFiltersQuery } from "@/lib/graphql/public";
+import { PostCard, PostCardSkeleton } from "@/components/PostCard";
 
 interface PostFeedProps {
   title: string;
@@ -29,26 +26,24 @@ export function PostFeed({
   const [zipInput, setZipInput] = useState("");
   const [activeZip, setActiveZip] = useState<string | null>(null);
 
-  const { data: filtersData } =
-    useRestate<PublicFiltersResult>("Posts", "public_filters", {});
+  const [{ data: filtersData }] = useQuery({ query: PublicFiltersQuery });
 
-  const postTypes = filtersData?.post_types ?? [];
+  const postTypes = filtersData?.publicFilters?.postTypes ?? [];
 
   // "all" means user explicitly chose All; null/undefined means default to first tab
   const effectivePostType =
     activePostType === "all" ? null : (activePostType ?? postTypes[0]?.value ?? null);
 
-  const requestBody: Record<string, unknown> = {};
-  if (effectivePostType) requestBody.post_type = effectivePostType;
-  if (activeZip) {
-    requestBody.zip_code = activeZip;
-    requestBody.radius_miles = 25;
-  }
+  const [{ data: listData, fetching: isLoading }] = useQuery({
+    query: PublicPostsQuery,
+    variables: {
+      postType: effectivePostType,
+      zipCode: activeZip,
+      radiusMiles: activeZip ? 25 : undefined,
+    },
+  });
 
-  const { data: listData, isLoading } =
-    useRestate<PublicListResult>("Posts", "public_list", requestBody);
-
-  const posts = listData?.posts ?? [];
+  const posts = listData?.publicPosts?.posts ?? [];
 
   const handleZipSearch = () => {
     const trimmed = zipInput.trim();
@@ -111,7 +106,7 @@ export function PostFeed({
                 onClick={() => onFilterChange(effectivePostType === pt.value ? null : pt.value)}
                 className={tabClass(effectivePostType === pt.value)}
               >
-                {pt.display_name}
+                {pt.displayName}
               </button>
             ) : (
               <Link
@@ -119,7 +114,7 @@ export function PostFeed({
                 href={`/posts?post_type=${pt.value}`}
                 className={tabClass(effectivePostType === pt.value)}
               >
-                {pt.display_name}
+                {pt.displayName}
               </Link>
             )
           )}
@@ -174,7 +169,7 @@ export function PostFeed({
       {/* Result count */}
       {showResultCount && !isLoading && posts.length > 0 && (
         <p className="text-center text-sm text-[#7D7D7D] mt-6">
-          Showing {posts.length} of {listData?.total_count ?? posts.length} results
+          Showing {posts.length} of {listData?.publicPosts?.totalCount ?? posts.length} results
         </p>
       )}
     </div>

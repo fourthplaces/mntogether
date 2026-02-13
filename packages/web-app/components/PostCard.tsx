@@ -2,7 +2,11 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import type { PublicPostResult, PostTypeOption } from "@/lib/restate/types";
+import type { PublicPostsQuery } from "@/lib/graphql/public";
+import type { ResultOf } from "@graphql-typed-document-node/core";
+
+type PublicPostsResult = ResultOf<typeof PublicPostsQuery>;
+type PublicPost = PublicPostsResult["publicPosts"]["posts"][number];
 
 function formatCategory(value: string): string {
   return value
@@ -11,11 +15,11 @@ function formatCategory(value: string): string {
     .join(" ");
 }
 
-export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTypeOption[] }) {
+export function PostCard({ post }: { post: PublicPost }) {
   const [showUrgent, setShowUrgent] = useState(false);
   const postTypeTag = post.tags.find((t) => t.kind === "post_type");
   const displayTags = post.tags.filter((t) => t.kind !== "post_type");
-  const urgentNotes = post.urgent_notes ?? [];
+  const urgentNotes = post.urgentNotes ?? [];
 
   return (
     <>
@@ -23,18 +27,18 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
         href={`/posts/${post.id}`}
         className="bg-white p-6 rounded-lg border border-[#E8DED2] hover:shadow-md transition-shadow block"
       >
-        {post.organization_name && (
+        {post.organizationName && (
           <p className="text-xs font-medium text-[#7D7D7D] uppercase tracking-wide mb-0.5">
-            {post.organization_id ? (
+            {post.organizationId ? (
               <Link
-                href={`/organizations/${post.organization_id}`}
+                href={`/organizations/${post.organizationId}`}
                 onClick={(e) => e.stopPropagation()}
                 className="hover:text-[#3D3D3D] transition-colors"
               >
-                {post.organization_name}
+                {post.organizationName}
               </Link>
             ) : (
-              post.organization_name
+              post.organizationName
             )}
           </p>
         )}
@@ -54,14 +58,14 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
             </button>
           )}
         </div>
-        {(post.location || post.distance_miles != null) && (
+        {(post.location || post.distanceMiles != null) && (
           <p className="text-sm text-[#7D7D7D] mb-1">
             {post.location}
-            {post.distance_miles != null && (
+            {post.distanceMiles != null && (
               <span className="ml-2 text-[#5D8A68] font-medium">
-                {post.distance_miles < 1
+                {post.distanceMiles < 1
                   ? "< 1 mi"
-                  : `${Math.round(post.distance_miles)} mi`}
+                  : `${Math.round(post.distanceMiles)} mi`}
               </span>
             )}
           </p>
@@ -76,7 +80,7 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
               className={`px-3 py-1 rounded-full text-xs font-medium ${!postTypeTag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
               style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
             >
-              {postTypeTag.display_name || formatCategory(postTypeTag.value)}
+              {postTypeTag.displayName || formatCategory(postTypeTag.value)}
             </span>
           )}
           {displayTags.map((tag) => (
@@ -86,7 +90,7 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
               className={`px-3 py-1 rounded-full text-xs font-medium ${!tag.color ? "bg-[#F5F1E8] text-[#5D5D5D]" : ""}`}
               style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
             >
-              {tag.display_name || formatCategory(tag.value)}
+              {tag.displayName || formatCategory(tag.value)}
             </span>
           ))}
         </div>
@@ -117,8 +121,8 @@ export function PostCard({ post }: { post: PublicPostResult; postTypes?: PostTyp
               <div className="p-5 space-y-3 max-h-80 overflow-y-auto">
                 {urgentNotes.map((note, i) => (
                   <div key={i}>
-                    {note.cta_text && (
-                      <p className="text-sm font-semibold text-red-900">{note.cta_text}</p>
+                    {note.ctaText && (
+                      <p className="text-sm font-semibold text-red-900">{note.ctaText}</p>
                     )}
                     <p className="text-sm text-stone-700 leading-relaxed">{note.content}</p>
                   </div>

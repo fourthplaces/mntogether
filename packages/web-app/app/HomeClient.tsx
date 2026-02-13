@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { SubmitSheet } from "@/components/public/SubmitSheet";
-import { PostFeed } from "@/components/public/PostFeed";
+import { SubmitSheet } from "@/components/SubmitSheet";
+import { PostFeed } from "@/components/PostFeed";
 
 type ActiveSheet = "search" | "submit" | null;
 
