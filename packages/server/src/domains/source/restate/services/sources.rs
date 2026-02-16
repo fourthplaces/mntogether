@@ -271,7 +271,7 @@ fn search_query_result(q: SearchQuery) -> SearchQueryResult {
 }
 
 /// Build a SourceResult from a Source, looking up the identifier from extension tables
-async fn source_to_result(
+pub async fn source_to_result(
     source: Source,
     pool: &sqlx::PgPool,
 ) -> Result<SourceResult, HandlerError> {

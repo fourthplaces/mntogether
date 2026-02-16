@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, SourceId, WebsiteId};
 use crate::domains::crawling::models::ExtractionPage;
-use crate::domains::source::models::{get_source_identifier, Source, WebsiteSource};
+use crate::domains::source::models::{Source, WebsiteSource};
+use crate::domains::source::restate::services::sources::{source_to_result, SourceResult};
 use crate::domains::website::activities;
 use crate::domains::website::models::WebsiteAssessment;
 use crate::impl_restate_serde;
@@ -44,21 +45,6 @@ impl_restate_serde!(AssignOrganizationRequest);
 // =============================================================================
 // Response types
 // =============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SourceObjectResult {
-    pub id: Uuid,
-    pub source_type: String,
-    pub identifier: String,
-    pub url: Option<String>,
-    pub status: String,
-    pub active: bool,
-    pub created_at: Option<String>,
-    pub last_scraped_at: Option<String>,
-    pub organization_id: Option<String>,
-}
-
-impl_restate_serde!(SourceObjectResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssessmentResult {
@@ -138,13 +124,13 @@ impl_restate_serde!(SourcePageCountResult);
 #[restate_sdk::object]
 #[name = "Source"]
 pub trait SourceObject {
-    async fn approve(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
-    async fn reject(req: RejectSourceRequest) -> Result<SourceObjectResult, HandlerError>;
-    async fn suspend(req: SuspendSourceRequest) -> Result<SourceObjectResult, HandlerError>;
+    async fn approve(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
+    async fn reject(req: RejectSourceRequest) -> Result<SourceResult, HandlerError>;
+    async fn suspend(req: SuspendSourceRequest) -> Result<SourceResult, HandlerError>;
     async fn assign_organization(
         req: AssignOrganizationRequest,
-    ) -> Result<SourceObjectResult, HandlerError>;
-    async fn unassign_organization(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
+    ) -> Result<SourceResult, HandlerError>;
+    async fn unassign_organization(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
     async fn generate_assessment(
         req: EmptyRequest,
     ) -> Result<GenerateAssessmentResult, HandlerError>;
@@ -155,7 +141,7 @@ pub trait SourceObject {
     ) -> Result<ExtractOrganizationResult, HandlerError>;
 
     #[shared]
-    async fn get(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
+    async fn get(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
 
     #[shared]
     async fn get_assessment(req: EmptyRequest) -> Result<OptionalAssessmentResult, HandlerError>;
@@ -184,22 +170,8 @@ impl SourceObjectImpl {
     async fn build_result(
         source: Source,
         pool: &sqlx::PgPool,
-    ) -> Result<SourceObjectResult, HandlerError> {
-        let identifier = get_source_identifier(source.id, pool)
-            .await
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        Ok(SourceObjectResult {
-            id: source.id.into_uuid(),
-            source_type: source.source_type,
-            identifier,
-            url: source.url,
-            status: source.status,
-            active: source.active,
-            created_at: Some(source.created_at.to_rfc3339()),
-            last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
-            organization_id: source.organization_id.map(|id| id.to_string()),
-        })
+    ) -> Result<SourceResult, HandlerError> {
+        source_to_result(source, pool).await
     }
 }
 
@@ -208,7 +180,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -235,7 +207,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: RejectSourceRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -263,7 +235,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: SuspendSourceRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -291,7 +263,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: AssignOrganizationRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -310,7 +282,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -465,7 +437,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: SharedObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)))?;

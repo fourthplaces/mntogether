@@ -727,7 +727,7 @@ impl PostsService for PostsServiceImpl {
                             description: e.node.description,
                             description_markdown: e.node.description_markdown,
                             summary: e.node.summary,
-                            status: format!("{:?}", e.node.status),
+                            status: e.node.status.to_string(),
                             post_type: e.node.post_type,
                             category: e.node.category,
                             capacity_status: None,
@@ -1056,7 +1056,7 @@ impl PostsService for PostsServiceImpl {
                     id: e.id,
                     title: e.title,
                     description: e.description,
-                    status: format!("{:?}", e.status),
+                    status: e.status.to_string(),
                     location: e.location,
                     source_url: e.source_url,
                 })

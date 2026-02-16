@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -14,11 +14,7 @@ import {
 } from "@/lib/graphql/sources";
 
 export default function SourcesPage() {
-  return (
-    <Suspense fallback={<AdminLoader label="Loading sources..." />}>
-      <SourcesContent />
-    </Suspense>
-  );
+  return <SourcesContent />;
 }
 
 const SOURCE_TYPE_LABELS: Record<string, string> = {

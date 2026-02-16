@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import {
@@ -24,11 +24,7 @@ const RESOURCE_TYPES = [
 ];
 
 export default function TagsPage() {
-  return (
-    <Suspense fallback={<AdminLoader label="Loading tags..." />}>
-      <TagsContent />
-    </Suspense>
-  );
+  return <TagsContent />;
 }
 
 function TagsContent() {
