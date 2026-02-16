@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -10,11 +10,7 @@ import {
 } from "@/lib/graphql/organizations";
 
 export default function OrganizationsPage() {
-  return (
-    <Suspense fallback={<AdminLoader label="Loading organizations..." />}>
-      <OrganizationsContent />
-    </Suspense>
-  );
+  return <OrganizationsContent />;
 }
 
 function OrganizationsContent() {

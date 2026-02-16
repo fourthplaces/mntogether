@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import {
@@ -13,11 +13,7 @@ import {
 } from "@/lib/graphql/search-queries";
 
 export default function SearchQueriesPage() {
-  return (
-    <Suspense fallback={<AdminLoader label="Loading search queries..." />}>
-      <SearchQueriesContent />
-    </Suspense>
-  );
+  return <SearchQueriesContent />;
 }
 
 function SearchQueriesContent() {

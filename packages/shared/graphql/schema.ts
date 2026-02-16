@@ -403,7 +403,7 @@ type Source {
   active: Boolean!
   organizationId: ID
   organizationName: String
-  scrapeFrequencyHours: Int!
+  scrapeFrequencyHours: Int
   lastScrapedAt: String
   postCount: Int
   snapshotCount: Int

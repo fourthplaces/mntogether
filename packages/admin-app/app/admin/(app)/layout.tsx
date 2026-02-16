@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { Chatroom } from "@/components/admin/Chatroom";
+import { GraphQLErrorBoundary } from "@/components/admin/GraphQLErrorBoundary";
 
 const COLLAPSED_KEY = "admin-sidebar-collapsed";
 
@@ -52,7 +53,9 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
           </span>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20">{children}</main>
+        <main className="flex-1 overflow-y-auto pb-20">
+          <GraphQLErrorBoundary>{children}</GraphQLErrorBoundary>
+        </main>
       </div>
 
       {/* Chat FAB */}

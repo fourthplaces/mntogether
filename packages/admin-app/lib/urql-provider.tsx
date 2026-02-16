@@ -21,7 +21,7 @@ export default function GraphQLProvider({
     const client = createClient({
       url: "/api/graphql",
       exchanges: [cacheExchange, ssr, fetchExchange],
-      suspense: true,
+      suspense: false,
       fetchOptions: { credentials: "same-origin" },
     });
     return [client, ssr] as const;

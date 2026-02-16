@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -10,11 +10,7 @@ import { WebsitesListQuery, SubmitNewWebsiteMutation } from "@/lib/graphql/websi
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 
 export default function WebsitesPage() {
-  return (
-    <Suspense fallback={<AdminLoader label="Loading websites..." />}>
-      <WebsitesContent />
-    </Suspense>
-  );
+  return <WebsitesContent />;
 }
 
 function WebsitesContent() {

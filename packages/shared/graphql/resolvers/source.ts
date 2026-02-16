@@ -386,10 +386,14 @@ export const sourceResolvers = {
       ctx: GraphQLContext
     ) => {
       if (parent.sourceType !== "newsletter") return null;
-      const result = await ctx.restate.callObject<{
-        newsletter_source: unknown | null;
-      }>("Source", parent.id, "get_newsletter_source", {});
-      return result.newsletter_source;
+      try {
+        const result = await ctx.restate.callObject<{
+          newsletter_source: unknown | null;
+        }>("Source", parent.id, "get_newsletter_source", {});
+        return result.newsletter_source;
+      } catch {
+        return null;
+      }
     },
 
     detectedNewsletterForms: async (
@@ -398,10 +402,14 @@ export const sourceResolvers = {
       ctx: GraphQLContext
     ) => {
       if (parent.sourceType !== "website") return [];
-      const result = await ctx.restate.callObject<{
-        forms: unknown[];
-      }>("Source", parent.id, "get_detected_newsletter_forms", {});
-      return result.forms;
+      try {
+        const result = await ctx.restate.callObject<{
+          forms: unknown[];
+        }>("Source", parent.id, "get_detected_newsletter_forms", {});
+        return result.forms;
+      } catch {
+        return [];
+      }
     },
   },
 };
