@@ -18,10 +18,15 @@ export default function GraphQLProvider({
     const ssr = ssrExchange({
       isClient: typeof window !== "undefined",
     });
+    const isServer = typeof window === "undefined";
+    const url = isServer
+      ? `http://localhost:${process.env.PORT || 3001}/api/graphql`
+      : "/api/graphql";
+
     const client = createClient({
-      url: "/api/graphql",
+      url,
       exchanges: [cacheExchange, ssr, fetchExchange],
-      suspense: true,
+      suspense: false,
       fetchOptions: { credentials: "same-origin" },
     });
     return [client, ssr] as const;

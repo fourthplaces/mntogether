@@ -262,7 +262,17 @@ export const postResolvers = {
     },
   },
 
+  PublicPost: {
+    urgentNotes: (parent: { urgentNotes?: unknown[] }) => {
+      return parent.urgentNotes ?? [];
+    },
+  },
+
   Post: {
+    urgentNotes: (parent: { urgentNotes?: unknown[] }) => {
+      return parent.urgentNotes ?? [];
+    },
+
     comments: (parent: { id: string }, _args: unknown, ctx: GraphQLContext) => {
       return ctx.loaders.commentsByPostId.load(parent.id);
     },
