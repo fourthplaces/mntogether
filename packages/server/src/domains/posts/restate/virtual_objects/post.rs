@@ -1181,26 +1181,11 @@ impl PostObject for PostObjectImpl {
 
     async fn regenerate(
         &self,
-        ctx: ObjectContext<'_>,
+        _ctx: ObjectContext<'_>,
         _req: EmptyRequest,
     ) -> Result<PostResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let post_id = Self::parse_post_id(ctx.key())?;
-
-        ctx.run(|| async {
-            crate::domains::crawling::activities::regenerate_single_post(post_id, &self.deps)
-                .await
-                .map(|_| ())
-                .map_err(Into::into)
-        })
-        .await?;
-
-        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?
-            .ok_or_else(|| TerminalError::new("Post not found after regenerate"))?;
-
-        Ok(PostResult::from(post))
+        // Regeneration not available (crawling pipeline removed in Root Editorial pivot)
+        Err(TerminalError::new("Post regeneration requires the crawling pipeline which has been removed").into())
     }
 
     async fn regenerate_tags(

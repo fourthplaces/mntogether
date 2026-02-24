@@ -9,7 +9,6 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
-use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -233,31 +232,19 @@ impl JobsService for JobsServiceImpl {
             .await
             .map_err(|e| TerminalError::new(format!("Failed to parse Restate response: {}", e)))?;
 
-        // Extract website UUIDs from workflow keys for batch lookup
-        let mut website_ids: Vec<Uuid> = Vec::new();
+        // Extract website UUIDs from workflow keys
         let mut key_to_website_id: HashMap<String, Uuid> = HashMap::new();
 
         for row in &introspection.rows {
             if let Some(ref key) = row.target_service_key {
                 if let Some(uuid) = extract_website_id(key) {
-                    if !website_ids.contains(&uuid) {
-                        website_ids.push(uuid);
-                    }
                     key_to_website_id.insert(key.clone(), uuid);
                 }
             }
         }
 
-        // Batch-lookup website domains
-        let domain_map: HashMap<Uuid, String> = if !website_ids.is_empty() {
-            Website::find_domains_by_ids(&website_ids, &self.deps.db_pool)
-                .await
-                .unwrap_or_default()
-                .into_iter()
-                .collect()
-        } else {
-            HashMap::new()
-        };
+        // Website domain lookup removed (website domain deleted)
+        let domain_map: HashMap<Uuid, String> = HashMap::new();
 
         // Build results
         let jobs: Vec<JobResult> = introspection

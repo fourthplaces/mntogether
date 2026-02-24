@@ -8,13 +8,10 @@ use async_trait::async_trait;
 use sqlx::PgPool;
 use std::sync::{Arc, Mutex};
 
-use super::{BaseEmbeddingService, BasePiiDetector, BasePushNotificationService, PiiScrubResult};
+use super::{BaseEmbeddingService, BasePiiDetector, PiiScrubResult};
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 use crate::domains::auth::JwtService;
 use crate::kernel::{ServerDeps, StreamHub, TwilioAdapter};
-
-// Import from extraction library
-use extraction::{MockIngestor, MockWebSearcher};
 
 // =============================================================================
 // Mock AI Client (for testing)
@@ -153,65 +150,6 @@ impl BaseEmbeddingService for MockEmbeddingService {
 }
 
 // =============================================================================
-// Mock Push Notification Service
-// =============================================================================
-
-pub struct MockPushNotificationService {
-    sent_notifications: Arc<Mutex<Vec<(String, String, String, serde_json::Value)>>>,
-}
-
-impl MockPushNotificationService {
-    pub fn new() -> Self {
-        Self {
-            sent_notifications: Arc::new(Mutex::new(Vec::new())),
-        }
-    }
-
-    /// Get all notifications that were sent
-    pub fn sent_notifications(&self) -> Vec<(String, String, String, serde_json::Value)> {
-        self.sent_notifications.lock().unwrap().clone()
-    }
-
-    /// Check if a notification was sent with the given title
-    pub fn was_sent_with_title(&self, title: &str) -> bool {
-        self.sent_notifications
-            .lock()
-            .unwrap()
-            .iter()
-            .any(|(_, t, _, _)| t == title)
-    }
-}
-
-#[async_trait]
-impl BasePushNotificationService for MockPushNotificationService {
-    async fn send_notification(
-        &self,
-        push_token: &str,
-        title: &str,
-        body: &str,
-        data: serde_json::Value,
-    ) -> Result<()> {
-        self.sent_notifications.lock().unwrap().push((
-            push_token.to_string(),
-            title.to_string(),
-            body.to_string(),
-            data,
-        ));
-        Ok(())
-    }
-
-    async fn send_batch(
-        &self,
-        notifications: Vec<(&str, &str, &str, serde_json::Value)>,
-    ) -> Result<()> {
-        for (token, title, body, data) in notifications {
-            self.send_notification(token, title, body, data).await?;
-        }
-        Ok(())
-    }
-}
-
-// =============================================================================
 // Mock PII Detector
 // =============================================================================
 
@@ -276,30 +214,18 @@ impl BasePiiDetector for MockPiiDetector {
 
 #[derive(Clone)]
 pub struct TestDependencies {
-    pub ingestor: Arc<MockIngestor>,
     pub ai: Arc<OpenAi>,
     pub embedding_service: Arc<MockEmbeddingService>,
-    pub push_service: Arc<MockPushNotificationService>,
-    pub web_searcher: Arc<MockWebSearcher>,
     pub pii_detector: Arc<MockPiiDetector>,
 }
 
 impl TestDependencies {
     pub fn new() -> Self {
         Self {
-            ingestor: Arc::new(MockIngestor::new()),
             ai: mock_openai_client(),
             embedding_service: Arc::new(MockEmbeddingService::new()),
-            push_service: Arc::new(MockPushNotificationService::new()),
-            web_searcher: Arc::new(MockWebSearcher::new()),
             pii_detector: Arc::new(MockPiiDetector::new()),
         }
-    }
-
-    /// Set a mock ingestor (for crawling/scraping)
-    pub fn mock_ingestor(mut self, ingestor: MockIngestor) -> Self {
-        self.ingestor = Arc::new(ingestor);
-        self
     }
 
     /// Set an AI client (can be configured with a test server URL)
@@ -324,18 +250,6 @@ impl TestDependencies {
         self
     }
 
-    /// Set a mock push notification service
-    pub fn mock_push(mut self, service: MockPushNotificationService) -> Self {
-        self.push_service = Arc::new(service);
-        self
-    }
-
-    /// Set a mock web searcher
-    pub fn mock_web_searcher(mut self, searcher: MockWebSearcher) -> Self {
-        self.web_searcher = Arc::new(searcher);
-        self
-    }
-
     /// Set a mock PII detector
     pub fn mock_pii(mut self, detector: MockPiiDetector) -> Self {
         self.pii_detector = Arc::new(detector);
@@ -353,18 +267,13 @@ impl TestDependencies {
 
         ServerDeps::new(
             db_pool,
-            self.ingestor,
             self.ai,
             None, // No Claude client in tests
             self.embedding_service,
-            self.push_service,
             Arc::new(TwilioAdapter::new(twilio)),
-            self.web_searcher,
             self.pii_detector,
-            None, // No extraction service in tests
             jwt_service,
             StreamHub::new(),
-            None,   // No Apify client in tests
             true,   // test_identifier_enabled
             vec![], // admin_identifiers
         )

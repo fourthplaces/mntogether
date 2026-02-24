@@ -54,6 +54,7 @@ impl DataMigration for NormalizeWebsiteUrlsMigration {
 /// - "https://www.example.org/page" -> "example.org"
 /// - "http://www.example.org" -> "example.org"
 /// - "www.example.org" -> "example.org"
+#[allow(dead_code)] // Used in tests only; migration itself is a no-op
 fn normalize_domain(input: &str) -> Result<String> {
     let input_str = input.trim();
 

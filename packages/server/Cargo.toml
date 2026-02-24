@@ -8,10 +8,6 @@ name = "server_core"
 path = "src/lib.rs"
 
 [[bin]]
-name = "generate_embeddings"
-path = "src/bin/generate_embeddings.rs"
-
-[[bin]]
 name = "migrate_cli"
 path = "src/bin/migrate_cli.rs"
 
@@ -29,10 +25,6 @@ tokio = { workspace = true }
 async-trait = "0.1"
 futures = "0.3"
 tokio-stream = { version = "0.1", features = ["sync"] }
-
-# Real-time messaging
-async-nats = "0.38"
-bytes = "1.7"
 
 # Error handling
 anyhow = { workspace = true }
@@ -65,24 +57,20 @@ sqlx = { workspace = true, features = ["migrate"] }
 dataloader = "0.18"
 pgvector = { version = "0.4", features = ["sqlx", "serde"] }
 
-# AI / LLM - via extraction library
-extraction = { path = "../extraction", features = ["postgres", "openai", "firecrawl"] }
-ai-client = { path = "../ai-client" }
-apify-client = { path = "../apify-client" }
+# Byte buffers (used by Restate serde bridge)
+bytes = "1"
 
-# LLM framework (rig.rs)
-rig-core = "0.9"
+# JSON Schema generation (used by AI tool definitions and structured extraction)
 schemars = "0.8"
 
-# HTTP client (for Expo + Restate)
+# AI / LLM
+ai-client = { path = "../ai-client" }
+
+# HTTP client
 reqwest = { workspace = true }
 urlencoding = "2.1"
 url = "2.5"
 hyper = { version = "1", features = ["full"] }
-
-# Web scraping (search via extraction library's TavilyWebSearcher)
-scraper = "0.21"        # HTML parsing with CSS selectors
-htmd = "0.1"            # HTML to Markdown conversion
 
 # RFC 5545 recurrence rules (calendar events)
 rrule = "0.14"
@@ -114,7 +102,7 @@ clap = { version = "4.5", features = ["derive"] }
 # Restate HTTP server
 http = "1"
 
-# SSE endpoint
+# HTTP server (webhook endpoints)
 axum = "0.8"
 
 [dev-dependencies]

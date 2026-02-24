@@ -1,24 +1,15 @@
-// Business domains
+// Business domains — Root Editorial CMS
 pub mod agents;
 pub mod auth;
-pub mod chatrooms;
-pub mod curator;
+pub mod chatrooms; // Container/Message models used by post comments
 pub mod contacts;
-pub mod crawling;
-pub mod extraction;
 pub mod heat_map;
 pub mod jobs;
 pub mod locations;
 pub mod member;
 pub mod memo;
-pub mod newsletter;
 pub mod notes;
 pub mod organization;
 pub mod posts;
-pub mod providers;
 pub mod schedules;
-pub mod social_profile;
-pub mod source;
-pub mod sync;
 pub mod tag;
-pub mod website;

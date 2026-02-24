@@ -2,12 +2,9 @@ export const typeDefs = /* GraphQL */ `
 enum PostStatus { pending_approval active rejected archived }
 enum PostType { service opportunity business }
 enum OrganizationStatus { pending_review approved rejected suspended }
-enum SourceStatus { pending_review approved rejected suspended }
-enum WebsiteStatus { pending_review approved rejected suspended }
-enum SourceType { website instagram facebook tiktok x newsletter }
-enum NewsletterSubscriptionStatus { detected subscribing pending_confirmation active inactive failed confirmation_failed }
 
 type Query {
+  # Posts (public)
   publicPosts(
     postType: String
     category: String
@@ -17,6 +14,8 @@ type Query {
     radiusMiles: Float
   ): PublicPostConnection!
   publicFilters: PublicFilters!
+
+  # Posts (admin)
   post(id: ID!): Post
   posts(
     status: String
@@ -28,7 +27,6 @@ type Query {
     limit: Int
     offset: Int
   ): PostConnection!
-
   postStats(status: String): PostStats!
 
   # Organizations (admin)
@@ -36,67 +34,22 @@ type Query {
   organization(id: ID!): Organization
   organizationChecklist(id: ID!): Checklist!
 
-  # Sources (admin)
-  sources(
-    status: String
-    sourceType: String
-    search: String
-    limit: Int
-    offset: Int
-  ): SourceConnection!
-  source(id: ID!): Source
-  sourcePages(sourceId: ID!): [ExtractionPage!]!
-  sourcePageCount(sourceId: ID!): Int!
-  sourceAssessment(sourceId: ID!): Assessment
-  searchSourcesByContent(query: String!, limit: Int): SourceConnection!
-  extractionPage(url: String!): ExtractionPage
-  workflowStatus(workflowName: String!, workflowId: String!): String
-
-  # Websites (admin, legacy)
-  websites(
-    status: String
-    search: String
-    limit: Int
-    offset: Int
-  ): WebsiteConnection!
-  website(id: ID!): Website
-  websitePages(domain: String!, limit: Int): [ExtractionPage!]!
-  websitePageCount(domain: String!): Int!
-  websiteAssessment(websiteId: ID!): Assessment
-  websitePosts(
-    websiteId: ID!
-    limit: Int
-  ): PostConnection!
-
   # Tags (admin)
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
 
-  # Sync/Proposals (admin)
-  syncBatches(status: String, limit: Int): SyncBatchConnection!
-  syncProposals(batchId: ID!): SyncProposalConnection!
-
-  # Search Queries (admin)
-  searchQueries: [SearchQuery!]!
-
   # Jobs (admin)
   jobs(status: String, limit: Int): [Job!]!
 
-  # Entity Proposals & Notes (admin)
-  entityProposals(entityId: ID!): [EntityProposal!]!
+  # Notes (admin)
   entityNotes(noteableType: String!, noteableId: ID!): [Note!]!
 
   # Organization detail queries (admin)
-  organizationSources(organizationId: ID!): [Source!]!
   organizationPosts(organizationId: ID!, limit: Int): PostConnection!
 
   # Public organizations
   publicOrganizations: [PublicOrganization!]!
   publicOrganization(id: ID!): PublicOrganization
-
-  # Chat (admin)
-  recentChats(limit: Int): [ChatroomInfo!]!
-  chatMessages(chatroomId: ID!): [ChatMessage!]!
 }
 
 type Mutation {
@@ -128,43 +81,6 @@ type Mutation {
   setOrganizationStatus(id: ID!, status: String!, reason: String): Organization!
   toggleChecklistItem(organizationId: ID!, checklistKey: String!, checked: Boolean!): Checklist!
   regenerateOrganization(id: ID!): RegenerateOrgResult!
-  extractOrgPosts(id: ID!): Boolean!
-  cleanUpOrgPosts(id: ID!): Boolean!
-  runCurator(id: ID!): Boolean!
-  removeAllOrgPosts(id: ID!): Boolean!
-  removeAllOrgNotes(id: ID!): Boolean!
-  rewriteNarratives(organizationId: ID!): RewriteNarrativesResult!
-
-  # Websites (admin, legacy)
-  submitNewWebsite(url: String!): Website!
-  approveWebsite(id: ID!): Website!
-  rejectWebsite(id: ID!, reason: String!): Website!
-  crawlWebsite(id: ID!): Boolean!
-  generateWebsiteAssessment(id: ID!): Boolean!
-  regenerateWebsitePosts(id: ID!): WorkflowStartResult!
-  deduplicateWebsitePosts(id: ID!): WorkflowStartResult!
-  extractWebsiteOrganization(id: ID!): Website!
-  assignWebsiteOrganization(id: ID!, organizationId: ID!): Website!
-  unassignWebsiteOrganization(id: ID!): Website!
-  approvePostInline(id: ID!): Post!
-  rejectPostInline(id: ID!, reason: String): Post!
-
-  # Sources (admin)
-  submitWebsite(url: String!): Source!
-  lightCrawlAll: LightCrawlAllResult!
-  approveSource(id: ID!): Source!
-  rejectSource(id: ID!, reason: String!): Source!
-  crawlSource(id: ID!): Boolean!
-  subscribeNewsletter(formId: ID!, organizationId: ID): WorkflowStartResult!
-  confirmNewsletter(sourceId: ID!): WorkflowStartResult!
-  deactivateNewsletter(sourceId: ID!): Source!
-  reactivateNewsletter(sourceId: ID!): Source!
-  generateSourceAssessment(id: ID!): Boolean!
-  regenerateSourcePosts(id: ID!): WorkflowStartResult!
-  deduplicateSourcePosts(id: ID!): WorkflowStartResult!
-  extractSourceOrganization(id: ID!): Source!
-  assignSourceOrganization(id: ID!, organizationId: ID!): Source!
-  unassignSourceOrganization(id: ID!): Source!
 
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -174,35 +90,12 @@ type Mutation {
   updateTag(id: ID!, displayName: String, color: String, description: String, emoji: String): Tag!
   deleteTag(id: ID!): Boolean!
 
-  # Sync/Proposals (admin)
-  approveProposal(id: ID!): Boolean!
-  rejectProposal(id: ID!): Boolean!
-  approveBatch(id: ID!): Boolean!
-  rejectBatch(id: ID!): Boolean!
-  refineProposal(proposalId: ID!, comment: String!): Boolean!
-
-  # Search Queries (admin)
-  createSearchQuery(queryText: String!): SearchQuery!
-  updateSearchQuery(id: ID!, queryText: String!): SearchQuery!
-  toggleSearchQuery(id: ID!): SearchQuery!
-  deleteSearchQuery(id: ID!): Boolean!
-  runScheduledDiscovery: Boolean!
-
   # Notes (admin)
   createNote(noteableType: String!, noteableId: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String): Note!
   updateNote(id: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String, expiredAt: String): Note!
   deleteNote(id: ID!): Boolean!
   unlinkNote(noteId: ID!, postId: ID!): Boolean!
-  generateNotesFromSources(organizationId: ID!): GenerateNotesResult!
   autoAttachNotes(organizationId: ID!): AutoAttachNotesResult!
-
-  # Organization source operations (admin)
-  createSocialSource(organizationId: ID!, platform: String!, identifier: String!): Source!
-  crawlAllOrgSources(organizationId: ID!): Boolean!
-
-  # Chat (admin)
-  createChat(language: String, withAgent: String): ChatroomInfo!
-  sendChatMessage(chatroomId: ID!, content: String!): ChatMessage!
 }
 
 type PublicFilters {
@@ -328,12 +221,8 @@ type Organization {
   name: String!
   description: String
   status: OrganizationStatus!
-  websiteCount: Int!
-  socialProfileCount: Int!
-  snapshotCount: Int!
   createdAt: String!
   updatedAt: String!
-  sources: [Source!]!
   posts(limit: Int): PostConnection!
   notes: [Note!]!
   checklist: Checklist!
@@ -362,108 +251,6 @@ type ChecklistItem {
 
 type RegenerateOrgResult {
   organizationId: ID
-  status: String!
-}
-
-type RewriteNarrativesResult {
-  rewritten: Int!
-  failed: Int!
-  total: Int!
-}
-
-type Website {
-  id: ID!
-  domain: String!
-  status: WebsiteStatus!
-  active: Boolean!
-  crawlCount: Int
-  postCount: Int
-  lastCrawledAt: String
-  organizationId: ID
-  createdAt: String
-  posts(limit: Int): PostConnection!
-  pages(limit: Int): [ExtractionPage!]!
-  pageCount: Int!
-  assessment: Assessment
-  organization: Organization
-}
-
-type WebsiteConnection {
-  websites: [Website!]!
-  totalCount: Int!
-  hasNextPage: Boolean!
-}
-
-type Source {
-  id: ID!
-  sourceType: SourceType!
-  identifier: String!
-  url: String
-  status: SourceStatus!
-  active: Boolean!
-  organizationId: ID
-  organizationName: String
-  scrapeFrequencyHours: Int
-  lastScrapedAt: String
-  postCount: Int
-  snapshotCount: Int
-  createdAt: String!
-  updatedAt: String!
-  pages: [ExtractionPage!]!
-  pageCount: Int!
-  assessment: Assessment
-  organization: Organization
-  newsletterSource: NewsletterSource
-  detectedNewsletterForms: [DetectedNewsletterForm!]!
-}
-
-type NewsletterSource {
-  id: ID!
-  sourceId: ID!
-  ingestEmail: String!
-  signupFormUrl: String!
-  subscriptionStatus: NewsletterSubscriptionStatus!
-  confirmationLink: String
-  expectedSenderDomain: String
-  lastNewsletterReceivedAt: String
-  newslettersReceivedCount: Int!
-}
-
-type DetectedNewsletterForm {
-  id: ID!
-  websiteSourceId: ID!
-  formUrl: String!
-  formType: String!
-  requiresExtraFields: Boolean!
-  extraFieldsDetected: [String!]!
-  status: String!
-}
-
-type SourceConnection {
-  sources: [Source!]!
-  totalCount: Int!
-  hasNextPage: Boolean!
-  hasPreviousPage: Boolean!
-}
-
-type ExtractionPage {
-  url: String!
-  content: String
-}
-
-type Assessment {
-  id: ID!
-  websiteId: ID!
-  assessmentMarkdown: String!
-  confidenceScore: Float
-}
-
-type LightCrawlAllResult {
-  sourcesQueued: Int!
-}
-
-type WorkflowStartResult {
-  workflowId: String!
   status: String!
 }
 
@@ -519,71 +306,12 @@ type Comment {
   createdAt: String!
 }
 
-type SyncBatch {
-  id: ID!
-  resourceType: String!
-  sourceId: ID
-  sourceName: String
-  status: String!
-  summary: String
-  proposalCount: Int!
-  approvedCount: Int!
-  rejectedCount: Int!
-  createdAt: String!
-  reviewedAt: String
-}
-
-type SyncBatchConnection {
-  batches: [SyncBatch!]!
-}
-
-type SyncProposal {
-  id: ID!
-  batchId: ID!
-  operation: String!
-  status: String!
-  entityType: String!
-  draftEntityId: ID
-  targetEntityId: ID
-  reason: String
-  reviewedBy: String
-  reviewedAt: String
-  createdAt: String!
-  draftTitle: String
-  targetTitle: String
-  mergeSourceIds: [String!]!
-  mergeSourceTitles: [String!]!
-  relevanceScore: Float
-  curatorReasoning: String
-  confidence: String
-  sourceUrls: [String!]
-  revisionCount: Int
-}
-
-type SyncProposalConnection {
-  proposals: [SyncProposal!]!
-}
-
-type EntityProposal {
-  id: ID!
-  batchId: ID!
-  operation: String!
-  status: String!
-  entityType: String!
-  draftEntityId: ID
-  targetEntityId: ID
-  reason: String
-  createdAt: String!
-}
-
 type Note {
   id: ID!
   content: String!
   ctaText: String
   severity: String!
   sourceUrl: String
-  sourceId: String
-  sourceType: String
   isPublic: Boolean!
   createdBy: String!
   expiredAt: String
@@ -597,23 +325,10 @@ type LinkedPost {
   title: String!
 }
 
-type GenerateNotesResult {
-  notesCreated: Int!
-  sourcesScanned: Int!
-  postsAttached: Int!
-}
-
 type AutoAttachNotesResult {
   notesCount: Int!
   postsCount: Int!
   noteablesCreated: Int!
-}
-
-type SearchQuery {
-  id: ID!
-  queryText: String!
-  isActive: Boolean!
-  sortOrder: Int!
 }
 
 type Job {
@@ -626,22 +341,5 @@ type Job {
   modifiedAt: String
   completedAt: String
   completionResult: String
-  websiteDomain: String
-  websiteId: String
-}
-
-type ChatroomInfo {
-  id: ID!
-  title: String
-  createdAt: String!
-  messageCount: Int!
-}
-
-type ChatMessage {
-  id: ID!
-  chatroomId: String!
-  senderType: String!
-  content: String!
-  createdAt: String!
 }
 `;

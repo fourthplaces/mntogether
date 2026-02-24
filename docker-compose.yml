@@ -1,28 +1,5 @@
 services:
   # ========================================
-  # NATS for real-time messaging
-  # ========================================
-  nats:
-    image: nats:2.10-alpine
-    labels:
-      dev.description: "NATS messaging server"
-    container_name: mndigitalaid_nats
-    command: -js -p 4222 -m 8222
-    restart: always
-    ports:
-      - "4222:4222"
-      - "8222:8222"
-    volumes:
-      - nats_data:/data
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8222/healthz"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - mndigitalaid
-
-  # ========================================
   # PostgreSQL with pgvector extension
   # ========================================
   postgres:
@@ -47,12 +24,12 @@ services:
       - mndigitalaid
 
   # ========================================
-  # Redis for job queue and pub/sub
+  # Redis for cache and job queue
   # ========================================
   redis:
     image: redis:7-alpine
     labels:
-      dev.description: "Redis cache and pub/sub"
+      dev.description: "Redis cache"
     container_name: mndigitalaid_redis
     ports:
       - "6379:6379"
@@ -89,50 +66,35 @@ services:
       retries: 5
 
   # ========================================
-  # Server (Restate Services + SSE)
+  # Server (Restate Services)
   # ========================================
   server:
     build:
       context: .
       dockerfile: packages/server/Dockerfile.dev
     labels:
-      dev.description: "Restate services + SSE"
+      dev.description: "Restate services"
       dev.shell: "bash"
     container_name: mndigitalaid_server
     environment:
-      # Database, Cache & Messaging
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/mndigitalaid
-
-      # Server Config
       SERVER_PORT: 9080
       RESTATE_ADMIN_URL: http://restate:9070
       RESTATE_SELF_URL: http://server:9080
       RUST_LOG: ${RUST_LOG:-info,server_core=debug}
-
-      # API Keys (same as main API)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
-      TAVILY_API_KEY: ${TAVILY_API_KEY}
-      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
-
-      # Auth & Security
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
-
-      # SSE Server
-      SSE_SERVER_PORT: 8081
-
-      # Feature Flags
       TEST_IDENTIFIER_ENABLED: ${TEST_IDENTIFIER_ENABLED:-false}
       ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS:-}
       PII_SCRUBBING_ENABLED: ${PII_SCRUBBING_ENABLED:-false}
       PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-false}
     ports:
       - "9080:9080"
-      - "8081:8081"
     depends_on:
       postgres:
         condition: service_healthy
@@ -143,14 +105,13 @@ services:
       - ./Cargo.lock:/app/Cargo.lock
       - ./packages/server:/app/packages/server
       - ./packages/ai-client:/app/packages/ai-client
-      - ./packages/apify-client:/app/packages/apify-client
       - rust_target:/app/target
-    command: cargo watch -w /app/packages/server -w /app/packages/ai-client -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
+    command: cargo watch -w /app/packages/server -w /app/packages/ai-client -w /app/packages/twilio-rs -s 'cargo run --bin server'
     networks:
       - mndigitalaid
 
   # ========================================
-  # Admin App (Primary Admin Frontend)
+  # Admin App (CMS Interface)
   # ========================================
   admin-app:
     build:
@@ -160,11 +121,7 @@ services:
       dev.description: "Next.js admin app (SSR)"
     container_name: mndigitalaid_admin_app
     environment:
-      # Server-side: container uses Docker network to reach Restate
       RESTATE_INGRESS_URL: http://restate:8080
-      # Client-side: browser uses this for SSE streaming
-      NEXT_PUBLIC_SSE_URL: ${NEXT_PUBLIC_SSE_URL:-http://100.110.4.74:8081}
-      # JWT secret for proxy auth validation
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       NODE_ENV: development
       PORT: 3000
@@ -174,10 +131,8 @@ services:
     depends_on:
       - server
     volumes:
-      # Mount source for hot-reload
       - ./packages/admin-app:/app/packages/admin-app
       - ./packages/shared:/app/packages/shared
-      # Prevent overwriting generated files
       - /app/node_modules
       - /app/packages/admin-app/node_modules
       - /app/packages/admin-app/.next
@@ -186,7 +141,7 @@ services:
     restart: unless-stopped
 
   # ========================================
-  # Web App (Public Frontend)
+  # Web App (Public Site)
   # ========================================
   web-app:
     build:
@@ -214,41 +169,10 @@ services:
       - mndigitalaid
     restart: unless-stopped
 
-  # ========================================
-  # Search App (Search Frontend)
-  # ========================================
-  search-app:
-    build:
-      context: .
-      dockerfile: packages/search-app/Dockerfile.dev
-    labels:
-      dev.description: "Next.js search app (SSR)"
-    container_name: mndigitalaid_search_app
-    environment:
-      RESTATE_INGRESS_URL: http://restate:8080
-      NODE_ENV: development
-      PORT: 3002
-      HOSTNAME: "0.0.0.0"
-    ports:
-      - "3002:3002"
-    depends_on:
-      - server
-    volumes:
-      - ./packages/search-app:/app/packages/search-app
-      - ./packages/shared:/app/packages/shared
-      - /app/node_modules
-      - /app/packages/search-app/node_modules
-      - /app/packages/search-app/.next
-    networks:
-      - mndigitalaid
-    restart: unless-stopped
-
 # ========================================
 # Volumes for data persistence
 # ========================================
 volumes:
-  nats_data:
-    name: mndigitalaid_nats_data
   postgres_data:
     name: mndigitalaid_postgres_data
   redis_data:

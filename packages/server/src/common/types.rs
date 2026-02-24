@@ -67,33 +67,26 @@ pub struct ExtractedPost {
 }
 
 impl ExtractedPost {
-    /// Combine a NarrativePost with investigation info into a complete ExtractedPost.
-    ///
-    /// Injects the narrative's audience as an `audience_role` tag entry,
-    /// since Pass 1 sees the full page context when splitting by audience.
-    pub fn from_narrative_and_info(
-        narrative: crate::domains::crawling::activities::post_extraction::NarrativePost,
+    /// Create an ExtractedPost from information and tag entries.
+    pub fn from_info(
+        title: String,
+        summary: String,
+        description: String,
+        source_url: Option<String>,
         info: ExtractedPostInformation,
     ) -> Self {
-        let mut tags = TagEntry::to_map(&info.tags);
-
-        // Inject narrative audience as audience_role tag
-        let narrative_role = narrative.audience.to_lowercase();
-        let audience_roles = tags.entry("audience_role".to_string()).or_default();
-        if !audience_roles.contains(&narrative_role) {
-            audience_roles.insert(0, narrative_role);
-        }
+        let tags = TagEntry::to_map(&info.tags);
 
         Self {
-            title: narrative.title,
-            summary: narrative.summary,
-            description: narrative.description,
+            title,
+            summary,
+            description,
             contact: info.contact_or_none(),
             location: info.location,
             urgency: Some(info.urgency),
             confidence: Some(info.confidence),
             source_page_snapshot_id: None,
-            source_url: Some(narrative.source_url),
+            source_url,
             zip_code: info.zip_code,
             city: info.city,
             state: info.state,

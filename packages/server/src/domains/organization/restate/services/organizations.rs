@@ -1,33 +1,17 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use std::time::Duration;
-use tracing::{info, warn};
+use tracing::info;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
-use crate::common::{EmptyRequest, OrganizationId, WebsiteId};
-use crate::domains::crawling::activities::{
-    create_social_profiles_for_org, extract_and_create_organization, extract_organization_info,
-};
-use crate::domains::crawling::models::ExtractionPage;
+use crate::common::{EmptyRequest, OrganizationId};
 use crate::domains::organization::models::{Organization, OrganizationChecklistItem};
 use crate::domains::organization::models::organization_checklist::{CHECKLIST_KEYS, CHECKLIST_LABELS};
-use crate::domains::organization::restate::workflows::clean_up_org_posts::{
-    CleanUpOrgPostsRequest, CleanUpOrgPostsWorkflowClient,
-};
-use crate::domains::curator::restate::workflows::curate_org::{
-    CurateOrgRequest, CurateOrgWorkflowClient,
-};
-use crate::domains::organization::restate::workflows::extract_org_posts::{
-    ExtractOrgPostsRequest, ExtractOrgPostsWorkflowClient,
-};
 use crate::domains::notes::models::Note;
 use crate::domains::posts::models::Post;
 use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
-use crate::domains::source::models::Source;
 use crate::domains::tag::models::Tag;
-use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -97,13 +81,13 @@ pub struct SuspendOrganizationRequest {
 impl_restate_serde!(SuspendOrganizationRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RegenerateOrganizationResult {
-    pub organization_id: Option<String>,
-    pub websites_processed: i64,
+pub struct RemoveAllResult {
+    pub organization_id: String,
+    pub deleted_count: i64,
     pub status: String,
 }
 
-impl_restate_serde!(RegenerateOrganizationResult);
+impl_restate_serde!(RemoveAllResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetStatusRequest {
@@ -150,9 +134,6 @@ pub struct OrganizationResult {
     pub name: String,
     pub description: Option<String>,
     pub status: String,
-    pub website_count: i64,
-    pub social_profile_count: i64,
-    pub snapshot_count: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -167,15 +148,6 @@ pub struct OrganizationListResult {
 impl_restate_serde!(OrganizationListResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackfillResult {
-    pub processed: i64,
-    pub succeeded: i64,
-    pub failed: i64,
-}
-
-impl_restate_serde!(BackfillResult);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrganizationDetailResult {
     pub id: String,
     pub name: String,
@@ -184,14 +156,6 @@ pub struct OrganizationDetailResult {
 }
 
 impl_restate_serde!(OrganizationDetailResult);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScheduledExtractionResult {
-    pub orgs_triggered: i32,
-    pub status: String,
-}
-
-impl_restate_serde!(ScheduledExtractionResult);
 
 // =============================================================================
 // Service definition
@@ -212,28 +176,12 @@ pub trait OrganizationsService {
     async fn approve(req: ApproveOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn reject(req: RejectOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
     async fn suspend(req: SuspendOrganizationRequest) -> Result<OrganizationResult, HandlerError>;
-    async fn regenerate(
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
-    async fn backfill_organizations(req: EmptyRequest) -> Result<BackfillResult, HandlerError>;
-    async fn extract_org_posts(
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
-    async fn run_scheduled_extraction(
-        req: EmptyRequest,
-    ) -> Result<ScheduledExtractionResult, HandlerError>;
-    async fn clean_up_org_posts(
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
-    async fn run_curator(
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
     async fn remove_all_posts(
         req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    ) -> Result<RemoveAllResult, HandlerError>;
     async fn remove_all_notes(
         req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    ) -> Result<RemoveAllResult, HandlerError>;
     async fn set_status(req: SetStatusRequest) -> Result<OrganizationResult, HandlerError>;
     async fn get_checklist(
         req: GetOrganizationRequest,
@@ -270,9 +218,6 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 name: org.name,
                 description: org.description,
                 status: org.status,
-                website_count: 0,
-                social_profile_count: 0,
-                snapshot_count: 0,
                 created_at: org.created_at.to_rfc3339(),
                 updated_at: org.updated_at.to_rfc3339(),
             });
@@ -365,30 +310,11 @@ impl OrganizationsService for OrganizationsServiceImpl {
 
         let mut results = Vec::with_capacity(orgs.len());
         for org in orgs {
-            let website_count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
-            )
-            .bind(org.id)
-            .fetch_one(&self.deps.db_pool)
-            .await
-            .unwrap_or(0);
-
-            let social_profile_count = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
-            )
-            .bind(org.id)
-            .fetch_one(&self.deps.db_pool)
-            .await
-            .unwrap_or(0);
-
             results.push(OrganizationResult {
                 id: org.id.to_string(),
                 name: org.name,
                 description: org.description,
                 status: org.status,
-                website_count,
-                social_profile_count,
-                snapshot_count: 0,
                 created_at: org.created_at.to_rfc3339(),
                 updated_at: org.updated_at.to_rfc3339(),
             });
@@ -410,45 +336,11 @@ impl OrganizationsService for OrganizationsServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let website_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
-        )
-        .bind(org.id)
-        .fetch_one(&self.deps.db_pool)
-        .await
-        .unwrap_or(0);
-
-        let social_profile_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
-        )
-        .bind(org.id)
-        .fetch_one(&self.deps.db_pool)
-        .await
-        .unwrap_or(0);
-
-        // Compute snapshot (extraction page) count across all sources
-        let mut snapshot_count: i64 = 0;
-        let sources = Source::find_by_organization(org.id, &self.deps.db_pool)
-            .await
-            .unwrap_or_default();
-        for source in &sources {
-            if let Ok(site_url) = source.site_url(&self.deps.db_pool).await {
-                if let Ok(count) =
-                    ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool).await
-                {
-                    snapshot_count += count as i64;
-                }
-            }
-        }
-
         Ok(OrganizationResult {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count,
-            social_profile_count,
-            snapshot_count,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -480,9 +372,6 @@ impl OrganizationsService for OrganizationsServiceImpl {
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count: 0,
-            social_profile_count: 0,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -504,30 +393,11 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let website_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM sources WHERE source_type = 'website' AND organization_id = $1",
-        )
-        .bind(org.id)
-        .fetch_one(&self.deps.db_pool)
-        .await
-        .unwrap_or(0);
-
-        let social_profile_count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM sources WHERE source_type != 'website' AND organization_id = $1",
-        )
-        .bind(org.id)
-        .fetch_one(&self.deps.db_pool)
-        .await
-        .unwrap_or(0);
-
         Ok(OrganizationResult {
             id: org.id.to_string(),
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count,
-            social_profile_count,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -569,9 +439,6 @@ impl OrganizationsService for OrganizationsServiceImpl {
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count: 0,
-            social_profile_count: 0,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -605,9 +472,6 @@ impl OrganizationsService for OrganizationsServiceImpl {
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count: 0,
-            social_profile_count: 0,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -636,259 +500,8 @@ impl OrganizationsService for OrganizationsServiceImpl {
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count: 0,
-            social_profile_count: 0,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
-        })
-    }
-
-    async fn regenerate(
-        &self,
-        ctx: Context<'_>,
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let org_id = OrganizationId::from(req.id);
-        let pool = &self.deps.db_pool;
-
-        // Verify org exists
-        let _org = Organization::find_by_id(org_id, pool)
-            .await
-            .map_err(|e| TerminalError::new(format!("Organization not found: {}", e)))?;
-
-        // Find all websites linked to this org
-        let website_ids: Vec<WebsiteId> = sqlx::query_scalar::<_, Uuid>(
-            "SELECT id FROM sources WHERE source_type = 'website' AND organization_id = $1",
-        )
-        .bind(req.id)
-        .fetch_all(pool)
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?
-        .into_iter()
-        .map(WebsiteId::from_uuid)
-        .collect();
-
-        let websites_processed = website_ids.len() as i64;
-
-        if website_ids.is_empty() {
-            return Err(TerminalError::new("No websites linked to this organization").into());
-        }
-
-        info!(org_id = %org_id, websites = websites_processed, "Regenerating organization in-place");
-
-        // Re-run extraction on each website (no delete — update in place)
-        let mut best_name: Option<String> = None;
-        let mut best_desc: Option<String> = None;
-
-        for website_id in &website_ids {
-            match extract_organization_info(*website_id, &self.deps).await {
-                Ok((name, desc, social_links)) => {
-                    info!(website_id = %website_id, org_name = %name, "Extraction succeeded");
-                    // Use the first successful extraction for name/description
-                    if best_name.is_none() {
-                        best_name = Some(name);
-                        best_desc = desc;
-                    }
-                    // Create/find social profiles for every website's links
-                    create_social_profiles_for_org(org_id, &social_links, pool).await;
-                }
-                Err(e) => {
-                    warn!(website_id = %website_id, error = %e, "Re-extraction failed for website");
-                }
-            }
-        }
-
-        // Update org name/description if we got a successful extraction
-        if let Some(name) = &best_name {
-            Organization::update(org_id, name, best_desc.as_deref(), pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
-        }
-
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.into_uuid().to_string()),
-            websites_processed,
-            status: "completed".to_string(),
-        })
-    }
-
-    async fn backfill_organizations(
-        &self,
-        ctx: Context<'_>,
-        _req: EmptyRequest,
-    ) -> Result<BackfillResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-
-        let websites = Website::find_without_organization(&self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        let processed = websites.len() as i64;
-        let mut succeeded: i64 = 0;
-        let mut failed: i64 = 0;
-
-        info!(count = processed, "Starting organization backfill");
-
-        for website in &websites {
-            let website_id = website.id;
-            match extract_and_create_organization(website_id, &self.deps).await {
-                Ok(org_id) => {
-                    info!(website_id = %website_id, org_id = %org_id, "Backfill: organization created");
-                    succeeded += 1;
-                }
-                Err(e) => {
-                    warn!(website_id = %website_id, error = %e, "Backfill: organization extraction failed");
-                    failed += 1;
-                }
-            }
-        }
-
-        info!(
-            processed,
-            succeeded, failed, "Organization backfill complete"
-        );
-
-        Ok(BackfillResult {
-            processed,
-            succeeded,
-            failed,
-        })
-    }
-
-    async fn extract_org_posts(
-        &self,
-        ctx: Context<'_>,
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let org_id = req.id;
-
-        let workflow_id = format!("extract-org-{}-{}", org_id, chrono::Utc::now().timestamp());
-
-        ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(workflow_id.clone())
-            .run(ExtractOrgPostsRequest {
-                organization_id: org_id,
-            })
-            .send();
-
-        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered org-level extraction");
-
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.to_string()),
-            websites_processed: 0,
-            status: format!("started:{}", workflow_id),
-        })
-    }
-
-    async fn run_scheduled_extraction(
-        &self,
-        ctx: Context<'_>,
-        _req: EmptyRequest,
-    ) -> Result<ScheduledExtractionResult, HandlerError> {
-        info!("Running scheduled org extraction check");
-
-        let pool = &self.deps.db_pool;
-        let org_ids = Organization::find_needing_extraction(pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        if org_ids.is_empty() {
-            info!("No organizations need extraction");
-            // Self-schedule for 15 minutes
-            ctx.service_client::<OrganizationsServiceClient>()
-                .run_scheduled_extraction(EmptyRequest {})
-                .send_after(Duration::from_secs(900));
-
-            return Ok(ScheduledExtractionResult {
-                orgs_triggered: 0,
-                status: "no_orgs_due".to_string(),
-            });
-        }
-
-        info!(
-            count = org_ids.len(),
-            "Triggering extraction for organizations"
-        );
-
-        for org_id in &org_ids {
-            let wf_key = org_id.into_uuid().to_string();
-            ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(wf_key.clone())
-                .run(ExtractOrgPostsRequest {
-                    organization_id: org_id.into_uuid(),
-                })
-                .send();
-
-            // Also trigger curator workflow for this org
-            let curate_key = format!("curate-{}", org_id.into_uuid());
-            ctx.workflow_client::<CurateOrgWorkflowClient>(curate_key)
-                .run(CurateOrgRequest {
-                    organization_id: org_id.into_uuid(),
-                })
-                .send();
-        }
-
-        let triggered = org_ids.len() as i32;
-
-        // Self-schedule for 15 minutes
-        ctx.service_client::<OrganizationsServiceClient>()
-            .run_scheduled_extraction(EmptyRequest {})
-            .send_after(Duration::from_secs(900));
-
-        Ok(ScheduledExtractionResult {
-            orgs_triggered: triggered,
-            status: "completed".to_string(),
-        })
-    }
-
-    async fn clean_up_org_posts(
-        &self,
-        ctx: Context<'_>,
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let org_id = req.id;
-
-        let workflow_id = format!("cleanup-org-{}-{}", org_id, chrono::Utc::now().timestamp());
-
-        ctx.workflow_client::<CleanUpOrgPostsWorkflowClient>(workflow_id.clone())
-            .run(CleanUpOrgPostsRequest {
-                organization_id: org_id,
-            })
-            .send();
-
-        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered org-level cleanup");
-
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.to_string()),
-            websites_processed: 0,
-            status: format!("started:{}", workflow_id),
-        })
-    }
-
-    async fn run_curator(
-        &self,
-        ctx: Context<'_>,
-        req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-        let org_id = req.id;
-
-        let workflow_id = format!("curate-org-{}-{}", org_id, chrono::Utc::now().timestamp());
-
-        ctx.workflow_client::<CurateOrgWorkflowClient>(workflow_id.clone())
-            .run(CurateOrgRequest {
-                organization_id: org_id,
-            })
-            .send();
-
-        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered curator workflow");
-
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.to_string()),
-            websites_processed: 0,
-            status: format!("started:{}", workflow_id),
         })
     }
 
@@ -896,7 +509,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         &self,
         ctx: Context<'_>,
         req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+    ) -> Result<RemoveAllResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let org_id = req.id;
 
@@ -906,9 +519,9 @@ impl OrganizationsService for OrganizationsServiceImpl {
 
         info!(org_id = %org_id, deleted = deleted, "Removed all posts for organization");
 
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.to_string()),
-            websites_processed: deleted,
+        Ok(RemoveAllResult {
+            organization_id: org_id.to_string(),
+            deleted_count: deleted,
             status: "completed".to_string(),
         })
     }
@@ -917,7 +530,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
         &self,
         ctx: Context<'_>,
         req: RegenerateOrganizationRequest,
-    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+    ) -> Result<RemoveAllResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let org_id = req.id;
 
@@ -927,9 +540,9 @@ impl OrganizationsService for OrganizationsServiceImpl {
 
         info!(org_id = %org_id, deleted = deleted, "Removed all notes for organization");
 
-        Ok(RegenerateOrganizationResult {
-            organization_id: Some(org_id.to_string()),
-            websites_processed: deleted,
+        Ok(RemoveAllResult {
+            organization_id: org_id.to_string(),
+            deleted_count: deleted,
             status: "completed".to_string(),
         })
     }
@@ -987,9 +600,6 @@ impl OrganizationsService for OrganizationsServiceImpl {
             name: org.name,
             description: org.description,
             status: org.status,
-            website_count: 0,
-            social_profile_count: 0,
-            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })

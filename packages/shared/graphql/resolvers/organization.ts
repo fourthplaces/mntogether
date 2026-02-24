@@ -182,86 +182,9 @@ export const organizationResolvers = {
       });
     },
 
-    extractOrgPosts: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.restate.callService("Organizations", "extract_org_posts", {
-        id: args.id,
-      });
-      return true;
-    },
-
-    cleanUpOrgPosts: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.restate.callService("Organizations", "clean_up_org_posts", {
-        id: args.id,
-      });
-      return true;
-    },
-
-    runCurator: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.restate.callService("Organizations", "run_curator", {
-        id: args.id,
-      });
-      return true;
-    },
-
-    removeAllOrgPosts: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.restate.callService("Organizations", "remove_all_posts", {
-        id: args.id,
-      });
-      return true;
-    },
-
-    removeAllOrgNotes: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.restate.callService("Organizations", "remove_all_notes", {
-        id: args.id,
-      });
-      return true;
-    },
-
-    rewriteNarratives: async (
-      _parent: unknown,
-      args: { organizationId: string },
-      ctx: GraphQLContext
-    ) => {
-      return ctx.restate.callService("Posts", "rewrite_narratives", {
-        organization_id: args.organizationId,
-      });
-    },
   },
 
   Organization: {
-    sources: async (
-      parent: { id: string },
-      _args: unknown,
-      ctx: GraphQLContext
-    ) => {
-      const result = await ctx.restate.callService<{ sources: unknown[] }>(
-        "Sources",
-        "list_by_organization",
-        { organization_id: parent.id }
-      );
-      return result.sources;
-    },
-
     posts: async (
       parent: { id: string },
       args: { limit?: number },

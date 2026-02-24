@@ -894,38 +894,11 @@ impl PostsService for PostsServiceImpl {
 
     async fn submit_resource_link(
         &self,
-        ctx: Context<'_>,
-        req: SubmitResourceLinkRequest,
+        _ctx: Context<'_>,
+        _req: SubmitResourceLinkRequest,
     ) -> Result<ResourceLinkSubmitResult, HandlerError> {
-        let result = ctx
-            .run(|| async {
-                use crate::domains::posts::activities::scraping::ResourceLinkSubmission;
-                let submission = activities::scraping::submit_resource_link(
-                    req.url.clone(),
-                    req.submitter_contact.clone(),
-                    &self.deps,
-                )
-                .await
-                .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
-
-                match submission {
-                    ResourceLinkSubmission::PendingApproval { .. } => {
-                        Ok(ResourceLinkSubmitResult {
-                            job_id: Uuid::nil(),
-                            status: "pending_approval".to_string(),
-                        })
-                    }
-                    ResourceLinkSubmission::Processing { job_id, .. } => {
-                        Ok(ResourceLinkSubmitResult {
-                            job_id: job_id.into_uuid(),
-                            status: "processing".to_string(),
-                        })
-                    }
-                }
-            })
-            .await?;
-
-        Ok(result)
+        // Resource link submission pipeline removed (crawling/extraction pipeline deleted)
+        Err(TerminalError::new("Resource link submission is no longer available").into())
     }
 
     async fn backfill_embeddings(
@@ -956,30 +929,11 @@ impl PostsService for PostsServiceImpl {
 
     async fn deduplicate(
         &self,
-        ctx: Context<'_>,
+        _ctx: Context<'_>,
         _req: DeduplicateRequest,
     ) -> Result<DeduplicateResult, HandlerError> {
-        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-
-        let result = ctx
-            .run(|| async {
-                let r = activities::deduplicate_posts(
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    &self.deps,
-                )
-                .await
-                .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
-
-                Ok(DeduplicateResult {
-                    duplicates_found: r.duplicates_found as i32,
-                    posts_merged: r.posts_merged as i32,
-                    posts_deleted: r.posts_deleted as i32,
-                })
-            })
-            .await?;
-
-        Ok(result)
+        // Deduplication pipeline removed (sync/crawling pipeline deleted)
+        Err(TerminalError::new("Deduplication is no longer available").into())
     }
 
     async fn list_pending_revisions(
@@ -1359,30 +1313,11 @@ impl PostsService for PostsServiceImpl {
 
     async fn deduplicate_cross_source(
         &self,
-        ctx: Context<'_>,
+        _ctx: Context<'_>,
         _req: DeduplicateCrossSourceRequest,
     ) -> Result<DeduplicateCrossSourceResult, HandlerError> {
-        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-
-        let result = ctx
-            .run(|| async {
-                let r = activities::deduplicate_cross_source_all_orgs(
-                    user.member_id.into_uuid(),
-                    user.is_admin,
-                    &self.deps,
-                )
-                .await
-                .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
-
-                Ok(DeduplicateCrossSourceResult {
-                    batches_created: r.batches_created as i32,
-                    total_proposals: r.total_proposals as i32,
-                    orgs_processed: r.orgs_processed as i32,
-                })
-            })
-            .await?;
-
-        Ok(result)
+        // Cross-source deduplication pipeline removed (sync/crawling pipeline deleted)
+        Err(TerminalError::new("Cross-source deduplication is no longer available").into())
     }
 
     async fn expire_stale_posts(
@@ -1502,7 +1437,6 @@ impl PostsService for PostsServiceImpl {
 
         let result = ctx
             .run(|| async {
-                use crate::common::PostId;
                 use crate::domains::posts::models::post::UpdatePostContent;
 
                 let posts = Post::find_by_organization_id(req.organization_id, &self.deps.db_pool)

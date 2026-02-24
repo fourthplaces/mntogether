@@ -23,28 +23,6 @@ pub trait BaseEmbeddingService: Send + Sync {
 }
 
 // =============================================================================
-// Push Notification Trait (Infrastructure)
-// =============================================================================
-
-#[async_trait]
-pub trait BasePushNotificationService: Send + Sync {
-    /// Send a push notification to a push token
-    async fn send_notification(
-        &self,
-        push_token: &str,
-        title: &str,
-        body: &str,
-        data: serde_json::Value,
-    ) -> Result<()>;
-
-    /// Send multiple notifications in batch
-    async fn send_batch(
-        &self,
-        notifications: Vec<(&str, &str, &str, serde_json::Value)>,
-    ) -> Result<()>;
-}
-
-// =============================================================================
 // Twilio Service Trait (Infrastructure - SMS/OTP)
 // =============================================================================
 

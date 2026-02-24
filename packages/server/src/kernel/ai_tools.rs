@@ -7,7 +7,6 @@ use std::sync::Arc;
 
 use ai_client::{Tool, ToolDefinition};
 use async_trait::async_trait;
-use extraction::{Ingestor, WebSearcher};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -19,175 +18,8 @@ use crate::kernel::traits::BaseEmbeddingService;
 /// Error type for AI tools.
 #[derive(Debug, Error)]
 pub enum ToolError {
-    #[error("Web search failed: {0}")]
-    WebSearch(String),
-
-    #[error("Page fetch failed: {0}")]
-    FetchPage(String),
-
     #[error("Post search failed: {0}")]
     PostSearch(String),
-}
-
-// =============================================================================
-// Web Search Tool
-// =============================================================================
-
-/// Arguments for web search.
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct WebSearchArgs {
-    /// The search query.
-    pub query: String,
-}
-
-/// A single search result.
-#[derive(Debug, Serialize)]
-pub struct SearchResultOutput {
-    pub url: String,
-    pub title: Option<String>,
-    pub snippet: Option<String>,
-}
-
-/// Tool for searching the web using Tavily.
-pub struct WebSearchTool {
-    searcher: Arc<dyn WebSearcher>,
-}
-
-impl WebSearchTool {
-    pub fn new(searcher: Arc<dyn WebSearcher>) -> Self {
-        Self { searcher }
-    }
-}
-
-#[async_trait]
-impl Tool for WebSearchTool {
-    const NAME: &'static str = "web_search";
-    type Args = WebSearchArgs;
-    type Output = Vec<SearchResultOutput>;
-    type Error = ToolError;
-
-    async fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Search the web for information. Use this to find contact info, addresses, hours, or other details about an organization.".to_string(),
-            parameters: serde_json::to_value(schemars::schema_for!(WebSearchArgs)).unwrap_or_default(),
-        }
-    }
-
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        let results = self
-            .searcher
-            .search_with_limit(&args.query, 5)
-            .await
-            .map_err(|e| ToolError::WebSearch(e.to_string()))?;
-
-        Ok(results
-            .into_iter()
-            .map(|r| SearchResultOutput {
-                url: r.url.to_string(),
-                title: r.title,
-                snippet: r.snippet,
-            })
-            .collect())
-    }
-}
-
-// =============================================================================
-// Fetch Page Tool
-// =============================================================================
-
-/// Arguments for fetching a page.
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct FetchPageArgs {
-    /// The URL to fetch.
-    pub url: String,
-}
-
-/// Output from fetching a page.
-#[derive(Debug, Serialize)]
-pub struct FetchPageOutput {
-    pub url: String,
-    pub content: String,
-    pub title: Option<String>,
-}
-
-/// Tool for fetching and extracting content from a URL.
-///
-/// Checks `extraction_pages` cache first (covers pages already crawled via
-/// Firecrawl or ingested via Apify). Falls through to the live ingestor
-/// only on cache miss.
-pub struct FetchPageTool {
-    ingestor: Arc<dyn Ingestor>,
-    db_pool: PgPool,
-}
-
-impl FetchPageTool {
-    pub fn new(ingestor: Arc<dyn Ingestor>, db_pool: PgPool) -> Self {
-        Self { ingestor, db_pool }
-    }
-
-    /// Look up a URL in the extraction_pages cache.
-    async fn cached_page(&self, url: &str) -> Option<FetchPageOutput> {
-        let row: Option<(String, Option<String>)> =
-            sqlx::query_as("SELECT content, title FROM extraction_pages WHERE url = $1")
-                .bind(url)
-                .fetch_optional(&self.db_pool)
-                .await
-                .ok()?;
-
-        row.map(|(content, title)| FetchPageOutput {
-            url: url.to_string(),
-            content,
-            title,
-        })
-    }
-}
-
-#[async_trait]
-impl Tool for FetchPageTool {
-    const NAME: &'static str = "fetch_page";
-    type Args = FetchPageArgs;
-    type Output = FetchPageOutput;
-    type Error = ToolError;
-
-    async fn definition(&self) -> ToolDefinition {
-        ToolDefinition {
-            name: Self::NAME.to_string(),
-            description: "Fetch the content of a web page. Use this to get detailed information from a specific URL like a contact page or about page.".to_string(),
-            parameters: serde_json::to_value(schemars::schema_for!(FetchPageArgs)).unwrap_or_default(),
-        }
-    }
-
-    async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
-        // Check extraction_pages cache first (handles Instagram/social pages
-        // that were ingested via Apify, plus any previously-crawled pages).
-        if let Some(mut cached) = self.cached_page(&args.url).await {
-            tracing::debug!(url = %args.url, "fetch_page: cache hit in extraction_pages");
-            if cached.content.len() > 8000 {
-                cached.content = format!("{}...\n\n[Content truncated]", &cached.content[..8000]);
-            }
-            return Ok(cached);
-        }
-
-        let page = self
-            .ingestor
-            .fetch_one(&args.url)
-            .await
-            .map_err(|e| ToolError::FetchPage(e.to_string()))?;
-
-        // Truncate content to avoid overwhelming the model
-        let content = if page.content.len() > 8000 {
-            format!("{}...\n\n[Content truncated]", &page.content[..8000])
-        } else {
-            page.content
-        };
-
-        Ok(FetchPageOutput {
-            url: args.url,
-            content,
-            title: page.title,
-        })
-    }
 }
 
 // =============================================================================
@@ -277,19 +109,6 @@ impl Tool for SearchPostsTool {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_web_search_args_schema() {
-        // Verify the schema can be generated
-        let schema = schemars::schema_for!(WebSearchArgs);
-        assert!(schema.schema.object.is_some());
-    }
-
-    #[test]
-    fn test_fetch_page_args_schema() {
-        let schema = schemars::schema_for!(FetchPageArgs);
-        assert!(schema.schema.object.is_some());
-    }
 
     #[test]
     fn test_search_posts_args_schema() {

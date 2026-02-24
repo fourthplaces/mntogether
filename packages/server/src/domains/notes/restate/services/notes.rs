@@ -3,13 +3,10 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use uuid::Uuid;
 
-use tracing::warn;
-
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, NoteId, OrganizationId};
 use crate::domains::notes::activities;
 use crate::domains::notes::models::{Note, Noteable};
-use crate::domains::organization::models::Organization;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -378,34 +375,11 @@ impl NotesService for NotesServiceImpl {
 
     async fn generate_notes(
         &self,
-        ctx: Context<'_>,
-        req: GenerateNotesRequest,
+        _ctx: Context<'_>,
+        _req: GenerateNotesRequest,
     ) -> Result<GenerateNotesResult, HandlerError> {
-        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
-
-        let org_id = OrganizationId::from(req.organization_id);
-        let org = Organization::find_by_id(org_id, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        let result = activities::generate_notes_for_organization(org_id, &org.name, &self.deps)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        // Attach all org notes to all org posts (best-effort)
-        let posts_attached = match activities::attach_notes_to_org_posts(org_id, &self.deps).await {
-            Ok(r) => r.noteables_created,
-            Err(e) => {
-                warn!(org_id = %org_id, error = %e, "Failed to attach notes to posts");
-                0
-            }
-        };
-
-        Ok(GenerateNotesResult {
-            notes_created: result.notes_created,
-            sources_scanned: result.sources_scanned,
-            posts_attached,
-        })
+        // Note generation from website extraction removed (crawling pipeline deleted)
+        Err(TerminalError::new("Note generation from extraction is no longer available").into())
     }
 
     async fn attach_notes(
