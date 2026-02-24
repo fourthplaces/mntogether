@@ -1,5 +1,4 @@
 import type { NextConfig } from "next";
-import path from "path";
 
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -9,11 +8,6 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Workspace root for Turbopack
-  turbopack: {
-    root: path.resolve(__dirname, "../.."),
-  },
-
   // Transpile shared package
   transpilePackages: ["@mntogether/shared"],
 
