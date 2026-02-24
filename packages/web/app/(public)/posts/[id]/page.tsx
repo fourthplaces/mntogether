@@ -142,11 +142,8 @@ export default function PublicPostDetailPage() {
         {isAdmin && (
           <Link
             href={`/admin/posts/${postId}`}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-text-primary bg-surface-raised/60 hover:bg-surface-raised border border-border rounded-lg px-3 py-1.5 transition-colors"
+            className="text-xs font-medium text-text-muted hover:text-text-primary border border-border px-2 py-1"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-            </svg>
             Edit
           </Link>
         )}
@@ -185,13 +182,7 @@ export default function PublicPostDetailPage() {
             <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted mb-3">
               <span>{formatTimeAgo(post.published_at || post.created_at)}</span>
               {post.location && (
-                <span className="inline-flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  {post.location}
-                </span>
+                <span>{post.location}</span>
               )}
             </div>
 
@@ -283,11 +274,8 @@ export default function PublicPostDetailPage() {
                   )}
                   <div className="space-y-3">
                     {post.schedules!.map((s: PostScheduleResult) => (
-                      <div key={s.id} className={`flex items-start gap-2.5 ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-border-strong" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm text-text-body leading-snug">{formatSchedule(s)}</span>
+                      <div key={s.id} className={`text-sm text-text-body ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
+                        {formatSchedule(s)}
                       </div>
                     ))}
                   </div>
@@ -329,11 +317,8 @@ export default function PublicPostDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleSourceClick}
-                className="flex items-center justify-center gap-2 bg-action text-surface text-sm font-semibold rounded-xl px-5 py-3.5 hover:bg-action-hover transition-colors shadow-sm"
+                className="block text-center bg-action text-text-on-action text-sm font-semibold px-4 py-2 hover:bg-action-hover"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
                 Visit Source
               </a>
             )}

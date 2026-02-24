@@ -1,0 +1,80 @@
+@theme {
+  /* ===== SURFACE COLORS ===== */
+  --color-surface: #FFFFFF;
+  --color-surface-raised: #FFFFFF;
+  --color-surface-subtle: #FFFFFF;
+  --color-surface-muted: #F5F5F5;
+
+  /* ===== TEXT HIERARCHY ===== */
+  --color-text-primary: #000000;
+  --color-text-body: #000000;
+  --color-text-secondary: #666666;
+  --color-text-muted: #888888;
+  --color-text-faint: #AAAAAA;
+  --color-text-label: #888888;
+  --color-text-on-action: #FFFFFF;
+
+  /* ===== BORDER HIERARCHY ===== */
+  --color-border: #CCCCCC;
+  --color-border-strong: #999999;
+  --color-border-subtle: #E5E5E5;
+
+  /* ===== INTERACTIVE ===== */
+  --color-action: #000000;
+  --color-action-hover: #333333;
+  --color-link: #0000EE;
+  --color-link-hover: #0000CC;
+  --color-focus-ring: #0000EE;
+
+  /* ===== ADMIN ACCENT ===== */
+  --color-admin-accent: #D97706;
+  --color-admin-accent-hover: #B45309;
+  --color-admin-focus-ring: #F59E0B;
+
+  /* ===== SEMANTIC STATUS ===== */
+  --color-success: #34D399;
+  --color-success-hover: #10B981;
+  --color-success-bg: #DCFCE7;
+  --color-success-text: #166534;
+
+  --color-danger: #FB7185;
+  --color-danger-hover: #F43F5E;
+  --color-danger-bg: #FEE2E2;
+  --color-danger-text: #991B1B;
+
+  --color-warning-bg: #FEF9C3;
+  --color-warning-text: #854D0E;
+
+  --color-info-bg: #DBEAFE;
+  --color-info-text: #1E40AF;
+
+  /* ===== PATHWAY CARDS ===== */
+  --color-pathway-warm: #FFFFFF;
+  --color-pathway-warm-border: #CCCCCC;
+  --color-pathway-warm-hover: #F5F5F5;
+  --color-pathway-warm-hover-border: #999999;
+
+  --color-pathway-sage: #FFFFFF;
+  --color-pathway-sage-border: #CCCCCC;
+  --color-pathway-sage-hover: #F5F5F5;
+  --color-pathway-sage-hover-border: #999999;
+
+  --color-pathway-lavender: #FFFFFF;
+  --color-pathway-lavender-border: #CCCCCC;
+  --color-pathway-lavender-hover: #F5F5F5;
+  --color-pathway-lavender-hover-border: #999999;
+
+  /* ===== RADIUS ===== */
+  --radius-sm: 0;
+  --radius-md: 0;
+  --radius-lg: 0;
+  --radius-xl: 0;
+  --radius-2xl: 0;
+  --radius-full: 0;
+
+  /* ===== SHADOWS ===== */
+  --shadow-sm: none;
+  --shadow-card: none;
+  --shadow-card-hover: none;
+  --shadow-dialog: 0 2px 8px 0 rgb(0 0 0 / 0.15);
+}

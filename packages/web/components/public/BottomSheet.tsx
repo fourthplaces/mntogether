@@ -65,9 +65,7 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
               className="p-1 text-text-muted hover:text-text-primary transition-colors"
               aria-label="Close"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              &times;
             </button>
           </div>
         </div>

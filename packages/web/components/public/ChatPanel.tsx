@@ -40,7 +40,7 @@ export function ChatPanel({
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-border">
         <div className="flex items-center gap-2">
-          <div className="h-2 w-2 bg-green-400 rounded-full" />
+          <div className="h-2 w-2 bg-border-strong" />
           <span className="text-xs font-medium text-text-muted">
             MN Together Guide
           </span>
@@ -65,8 +65,8 @@ export function ChatPanel({
             <div
               className={`max-w-[80%] px-3 py-2 rounded-2xl text-sm ${
                 msg.sender_type === "user"
-                  ? "bg-blue-600 text-white rounded-br-md"
-                  : "bg-surface-muted text-text-primary rounded-bl-md"
+                  ? "bg-action text-text-on-action"
+                  : "bg-surface-muted text-text-primary"
               }`}
             >
               {msg.content}
@@ -114,21 +114,9 @@ export function ChatPanel({
           <button
             type="submit"
             disabled={!input.trim() || isSending || isWaitingForReply}
-            className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3 py-2 bg-action text-text-on-action text-sm font-semibold hover:bg-action-hover disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <svg
-              className="w-4 h-4"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
-              />
-            </svg>
+            Send
           </button>
         </div>
       </form>

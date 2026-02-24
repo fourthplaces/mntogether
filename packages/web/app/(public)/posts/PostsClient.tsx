@@ -25,7 +25,7 @@ export function PostsClient() {
       <BackLink href="/">Back to Home</BackLink>
 
       <PostFeed
-        title="Community Resources"
+        title="Posts"
         activePostType={postType}
         onFilterChange={setFilter}
         showResultCount

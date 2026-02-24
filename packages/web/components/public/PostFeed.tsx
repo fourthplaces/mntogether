@@ -43,10 +43,10 @@ export function PostFeed({
   const posts = listData?.posts ?? [];
 
   const tabClass = (isActive: boolean) =>
-    `px-5 py-2 rounded-full text-sm font-semibold border transition-all duration-200 whitespace-nowrap ${
+    `px-3 py-1 text-sm border whitespace-nowrap ${
       isActive
-        ? "bg-action text-text-on-action border-action shadow-sm"
-        : "bg-transparent text-text-secondary border-border-strong hover:border-action"
+        ? "bg-action text-text-on-action border-action"
+        : "bg-transparent text-text-secondary border-border hover:border-border-strong"
     }`;
 
   return (
