@@ -99,13 +99,15 @@ impl MembersService for MembersServiceImpl {
                 .edges
                 .into_iter()
                 .filter_map(|e| {
-                    uuid::Uuid::parse_str(&e.node.id).ok().map(|id| MemberResult {
-                        id,
-                        searchable_text: e.node.searchable_text,
-                        location_name: e.node.location_name,
-                        active: e.node.active,
-                        created_at: e.node.created_at.to_rfc3339(),
-                    })
+                    uuid::Uuid::parse_str(&e.node.id)
+                        .ok()
+                        .map(|id| MemberResult {
+                            id,
+                            searchable_text: e.node.searchable_text,
+                            location_name: e.node.location_name,
+                            active: e.node.active,
+                            created_at: e.node.created_at.to_rfc3339(),
+                        })
                 })
                 .collect(),
             total_count: connection.total_count,
@@ -124,17 +126,10 @@ impl MembersService for MembersServiceImpl {
         let pool = &self.deps.db_pool;
 
         let rows_affected = ctx
-            .run(|| async {
-                Member::reset_weekly_counts(pool)
-                    .await
-                    .map_err(Into::into)
-            })
+            .run(|| async { Member::reset_weekly_counts(pool).await.map_err(Into::into) })
             .await?;
 
-        tracing::info!(
-            members_reset = rows_affected,
-            "Weekly reset complete"
-        );
+        tracing::info!(members_reset = rows_affected, "Weekly reset complete");
 
         // Schedule next run (1 week)
         ctx.service_client::<MembersServiceClient>()

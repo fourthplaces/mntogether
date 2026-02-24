@@ -117,7 +117,10 @@ fn validate_status(status: &str) -> bool {
 fn extract_website_id(key: &str) -> Option<Uuid> {
     // Try to find a UUID (8-4-4-4-12 hex pattern) in the key
     for part in key.split('-').collect::<Vec<_>>().windows(5) {
-        let candidate = format!("{}-{}-{}-{}-{}", part[0], part[1], part[2], part[3], part[4]);
+        let candidate = format!(
+            "{}-{}-{}-{}-{}",
+            part[0], part[1], part[2], part[3], part[4]
+        );
         if let Ok(uuid) = Uuid::parse_str(&candidate) {
             return Some(uuid);
         }
@@ -220,11 +223,9 @@ impl JobsService for JobsServiceImpl {
                 .text()
                 .await
                 .unwrap_or_else(|_| "unknown".to_string());
-            return Err(TerminalError::new(format!(
-                "Restate query failed ({}): {}",
-                status, body
-            ))
-            .into());
+            return Err(
+                TerminalError::new(format!("Restate query failed ({}): {}", status, body)).into(),
+            );
         }
 
         let introspection: IntrospectionResponse = response
@@ -265,16 +266,14 @@ impl JobsService for JobsServiceImpl {
             .map(|row| {
                 let key = row.target_service_key.clone().unwrap_or_default();
                 let website_uuid = key_to_website_id.get(&key).copied();
-                let website_domain =
-                    website_uuid.and_then(|id| domain_map.get(&id).cloned());
+                let website_domain = website_uuid.and_then(|id| domain_map.get(&id).cloned());
 
                 // Determine completed_at: use modified_at if status is completed
-                let completed_at =
-                    if row.status.as_deref() == Some("completed") {
-                        row.modified_at.clone()
-                    } else {
-                        None
-                    };
+                let completed_at = if row.status.as_deref() == Some("completed") {
+                    row.modified_at.clone()
+                } else {
+                    None
+                };
 
                 let progress = row.progress.as_deref().map(clean_progress);
                 let status = row

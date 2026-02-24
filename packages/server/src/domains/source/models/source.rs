@@ -4,7 +4,11 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, OrganizationId, PaginationDirection, SourceId, ValidatedPaginationArgs};
+use crate::common::{
+    MemberId, OrganizationId, PaginationDirection, SourceId, ValidatedPaginationArgs,
+};
+use crate::domains::source::activities::ingest_social::build_profile_url;
+use crate::domains::source::models::website_source::WebsiteSource;
 
 /// Source - a unified content source (website, social profile, etc.)
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -79,6 +83,27 @@ impl Source {
             .map_err(Into::into)
     }
 
+    /// Get the site_url used in extraction_pages for this source.
+    /// For websites: `https://{domain}`. For social: the profile URL.
+    pub async fn site_url(&self, pool: &PgPool) -> Result<String> {
+        match self.source_type.as_str() {
+            "website" => {
+                let ws = WebsiteSource::find_by_source_id(self.id, pool).await?;
+                Ok(format!("https://{}", ws.domain))
+            }
+            "instagram" | "facebook" | "x" | "twitter" | "tiktok" => {
+                if let Some(url) = &self.url {
+                    return Ok(url.clone());
+                }
+                let ss =
+                    super::social_source::SocialSource::find_by_source_id(self.id, pool).await?;
+                Ok(build_profile_url(&self.source_type, &ss.handle))
+            }
+            "newsletter" => Ok(format!("newsletter:{}", self.id)),
+            other => anyhow::bail!("Unknown source type for site_url: {}", other),
+        }
+    }
+
     pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
             "SELECT * FROM sources WHERE active = true AND status = 'approved' ORDER BY created_at",
@@ -112,6 +137,7 @@ impl Source {
             SELECT * FROM sources
             WHERE status = 'approved'
               AND active = true
+              AND source_type != 'newsletter'
               AND (last_scraped_at IS NULL
                    OR last_scraped_at < NOW() - (scrape_frequency_hours || ' hours')::INTERVAL)
             ORDER BY last_scraped_at NULLS FIRST
@@ -257,6 +283,34 @@ impl Source {
         Ok(())
     }
 
+    /// Find website sources that have never been crawled.
+    pub async fn find_uncrawled_websites(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT s.* FROM sources s
+             JOIN website_sources ws ON ws.source_id = s.id
+             WHERE s.source_type = 'website'
+               AND s.last_scraped_at IS NULL
+             ORDER BY s.created_at DESC",
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find sources whose website_sources.domain matches any of the given domains.
+    pub async fn find_by_domains(domains: &[String], pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT DISTINCT s.* FROM sources s
+             JOIN website_sources ws ON ws.source_id = s.id
+             WHERE ws.domain = ANY($1)
+             ORDER BY s.created_at DESC",
+        )
+        .bind(domains)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find sources with cursor-based pagination
     pub async fn find_paginated(
         status: Option<&str>,
@@ -275,9 +329,10 @@ impl Source {
                     SELECT s.* FROM sources s
                     LEFT JOIN website_sources ws ON ws.source_id = s.id
                     LEFT JOIN social_sources ss ON ss.source_id = s.id
+                    LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
                     WHERE ($1::text IS NULL OR s.status = $1)
                       AND ($2::uuid IS NULL OR s.id > $2)
-                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%')
+                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%' OR ns.ingest_email ILIKE '%' || $4 || '%')
                       AND ($5::uuid IS NULL OR s.organization_id = $5)
                       AND ($6::text IS NULL OR s.source_type = $6)
                     ORDER BY s.id ASC
@@ -299,9 +354,10 @@ impl Source {
                     SELECT s.* FROM sources s
                     LEFT JOIN website_sources ws ON ws.source_id = s.id
                     LEFT JOIN social_sources ss ON ss.source_id = s.id
+                    LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
                     WHERE ($1::text IS NULL OR s.status = $1)
                       AND ($2::uuid IS NULL OR s.id < $2)
-                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%')
+                      AND ($4::text IS NULL OR ws.domain ILIKE '%' || $4 || '%' OR ss.handle ILIKE '%' || $4 || '%' OR ns.ingest_email ILIKE '%' || $4 || '%')
                       AND ($5::uuid IS NULL OR s.organization_id = $5)
                       AND ($6::text IS NULL OR s.source_type = $6)
                     ORDER BY s.id DESC
@@ -333,9 +389,7 @@ impl Source {
     }
 
     /// Find organization IDs that have >= 2 approved sources (candidates for cross-source dedup)
-    pub async fn find_org_ids_with_multiple_sources(
-        pool: &PgPool,
-    ) -> Result<Vec<OrganizationId>> {
+    pub async fn find_org_ids_with_multiple_sources(pool: &PgPool) -> Result<Vec<OrganizationId>> {
         sqlx::query_scalar::<_, OrganizationId>(
             r#"
             SELECT organization_id
@@ -363,8 +417,9 @@ impl Source {
             SELECT COUNT(*) FROM sources s
             LEFT JOIN website_sources ws ON ws.source_id = s.id
             LEFT JOIN social_sources ss ON ss.source_id = s.id
+            LEFT JOIN newsletter_sources ns ON ns.source_id = s.id
             WHERE ($1::text IS NULL OR s.status = $1)
-              AND ($2::text IS NULL OR ws.domain ILIKE '%' || $2 || '%' OR ss.handle ILIKE '%' || $2 || '%')
+              AND ($2::text IS NULL OR ws.domain ILIKE '%' || $2 || '%' OR ss.handle ILIKE '%' || $2 || '%' OR ns.ingest_email ILIKE '%' || $2 || '%')
               AND ($3::uuid IS NULL OR s.organization_id = $3)
               AND ($4::text IS NULL OR s.source_type = $4)
             "#,

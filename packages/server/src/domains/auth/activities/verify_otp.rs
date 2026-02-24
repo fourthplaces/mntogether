@@ -4,10 +4,10 @@ use anyhow::Result;
 use tracing::{error, info};
 use uuid::Uuid;
 
-use crate::domains::auth::types::OtpVerified;
 use crate::domains::auth::models::{
     hash_phone_number, is_admin_identifier, is_test_identifier, Identifier,
 };
+use crate::domains::auth::types::OtpVerified;
 use crate::domains::member::models::Member;
 use crate::kernel::ServerDeps;
 

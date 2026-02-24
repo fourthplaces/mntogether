@@ -111,6 +111,7 @@ services:
 
       # API Keys (same as main API)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       TAVILY_API_KEY: ${TAVILY_API_KEY}
       FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
 
@@ -138,23 +139,26 @@ services:
       restate:
         condition: service_healthy
     volumes:
+      - ./Cargo.toml:/app/Cargo.toml
+      - ./Cargo.lock:/app/Cargo.lock
       - ./packages/server:/app/packages/server
+      - ./packages/ai-client:/app/packages/ai-client
       - ./packages/apify-client:/app/packages/apify-client
       - rust_target:/app/target
-    command: cargo watch -w /app/packages/server -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
+    command: cargo watch -w /app/packages/server -w /app/packages/ai-client -w /app/packages/extraction -w /app/packages/twilio-rs -w /app/packages/apify-client -s 'cargo run --bin server'
     networks:
       - mndigitalaid
 
   # ========================================
-  # Next.js Web (Primary Frontend)
+  # Admin App (Primary Admin Frontend)
   # ========================================
-  web:
+  admin-app:
     build:
-      context: ./packages/web
-      dockerfile: Dockerfile.dev
+      context: .
+      dockerfile: packages/admin-app/Dockerfile.dev
     labels:
-      dev.description: "Next.js web app (SSR)"
-    container_name: mndigitalaid_web
+      dev.description: "Next.js admin app (SSR)"
+    container_name: mndigitalaid_admin_app
     environment:
       # Server-side: container uses Docker network to reach Restate
       RESTATE_INGRESS_URL: http://restate:8080
@@ -171,11 +175,70 @@ services:
       - server
     volumes:
       # Mount source for hot-reload
-      - ./packages/web:/app
+      - ./packages/admin-app:/app/packages/admin-app
+      - ./packages/shared:/app/packages/shared
       # Prevent overwriting generated files
       - /app/node_modules
-      - /app/.next
-      - /app/.yarn
+      - /app/packages/admin-app/node_modules
+      - /app/packages/admin-app/.next
+    networks:
+      - mndigitalaid
+    restart: unless-stopped
+
+  # ========================================
+  # Web App (Public Frontend)
+  # ========================================
+  web-app:
+    build:
+      context: .
+      dockerfile: packages/web-app/Dockerfile.dev
+    labels:
+      dev.description: "Next.js public web app (SSR)"
+    container_name: mndigitalaid_web_app
+    environment:
+      RESTATE_INGRESS_URL: http://restate:8080
+      NODE_ENV: development
+      PORT: 3001
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3001:3001"
+    depends_on:
+      - server
+    volumes:
+      - ./packages/web-app:/app/packages/web-app
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/packages/web-app/node_modules
+      - /app/packages/web-app/.next
+    networks:
+      - mndigitalaid
+    restart: unless-stopped
+
+  # ========================================
+  # Search App (Search Frontend)
+  # ========================================
+  search-app:
+    build:
+      context: .
+      dockerfile: packages/search-app/Dockerfile.dev
+    labels:
+      dev.description: "Next.js search app (SSR)"
+    container_name: mndigitalaid_search_app
+    environment:
+      RESTATE_INGRESS_URL: http://restate:8080
+      NODE_ENV: development
+      PORT: 3002
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "3002:3002"
+    depends_on:
+      - server
+    volumes:
+      - ./packages/search-app:/app/packages/search-app
+      - ./packages/shared:/app/packages/shared
+      - /app/node_modules
+      - /app/packages/search-app/node_modules
+      - /app/packages/search-app/.next
     networks:
       - mndigitalaid
     restart: unless-stopped

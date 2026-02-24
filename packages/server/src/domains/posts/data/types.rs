@@ -78,32 +78,27 @@ pub struct NearbyPostType {
     pub city: Option<String>,
 }
 
-/// Contact information
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ContactInfoGraphQL {
-    pub phone: Option<String>,
-    pub email: Option<String>,
-    pub website: Option<String>,
-}
-
-impl From<crate::common::ContactInfo> for ContactInfoGraphQL {
-    fn from(c: crate::common::ContactInfo) -> Self {
-        Self {
-            phone: c.phone,
-            email: c.email,
-            website: c.website,
-        }
-    }
-}
-
 /// Post status
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum PostStatusData {
     PendingApproval,
     Active,
     Rejected,
     Expired,
     Filled,
+}
+
+impl std::fmt::Display for PostStatusData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PostStatusData::PendingApproval => write!(f, "pending_approval"),
+            PostStatusData::Active => write!(f, "active"),
+            PostStatusData::Rejected => write!(f, "rejected"),
+            PostStatusData::Expired => write!(f, "expired"),
+            PostStatusData::Filled => write!(f, "filled"),
+        }
+    }
 }
 
 /// Input for editing a listing before approval

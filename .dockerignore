@@ -1,0 +1,23 @@
+# Rust
+target/
+packages/server/target/
+
+# Node
+**/node_modules
+**/.next
+**/.yarn
+
+# Git
+.git
+
+# IDE
+.vscode
+.idea
+
+# Env
+.env
+.env.*
+
+# Misc
+.DS_Store
+infra/

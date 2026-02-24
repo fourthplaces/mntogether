@@ -9,7 +9,7 @@ use crate::common::{OrganizationId, SocialProfileId};
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct SocialProfile {
     pub id: SocialProfileId,
-    pub organization_id: OrganizationId,
+    pub organization_id: Option<OrganizationId>,
     pub platform: String,
     pub handle: String,
     pub url: Option<String>,
@@ -128,12 +128,10 @@ impl SocialProfile {
     }
 
     pub async fn update_last_scraped(id: SocialProfileId, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            "UPDATE sources SET last_scraped_at = now(), updated_at = now() WHERE id = $1",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
+        sqlx::query("UPDATE sources SET last_scraped_at = now(), updated_at = now() WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
         Ok(())
     }
 

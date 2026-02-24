@@ -1,3 +1,3 @@
 pub mod models;
 
-pub use models::{Location, ZipCode};
+pub use models::{Location, Locationable, ZipCode};

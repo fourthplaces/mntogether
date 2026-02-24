@@ -11,7 +11,7 @@ use super::readable::Readable;
 
 /// A deferred database read that executes after effects settle.
 ///
-/// Actions return this instead of the model directly. GraphQL resolvers call
+/// Actions return this instead of the model directly. API handlers call
 /// `.read()` after `engine.activate().process()` completes.
 ///
 /// # Example
@@ -27,7 +27,7 @@ use super::readable::Readable;
 ///     Ok(ReadResult::new(member.id, ctx.deps().db_pool().clone()))
 /// }
 ///
-/// // In GraphQL resolver:
+/// // In API handler:
 /// let member = ctx.engine
 ///     .activate(AppState::default())
 ///     .process(|run_ctx| actions::register_member(args, run_ctx))

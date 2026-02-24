@@ -55,6 +55,7 @@ pub struct Organization {
     pub reviewed_at: Option<DateTime<Utc>>,
     pub rejection_reason: Option<String>,
 
+    pub last_extracted_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -218,6 +219,27 @@ impl Organization {
         .map_err(Into::into)
     }
 
+    /// Move an organization back to pending review
+    pub async fn move_to_pending(id: OrganizationId, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE organizations
+            SET
+                status = 'pending_review',
+                reviewed_by = NULL,
+                reviewed_at = NULL,
+                rejection_reason = NULL,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find or create an organization by name (exact match).
     /// If exists, updates description only if the new one is non-null.
     /// System-created orgs default to 'pending_review'.
@@ -240,6 +262,35 @@ impl Organization {
         .fetch_one(pool)
         .await
         .map_err(Into::into)
+    }
+
+    /// Find orgs where any source was crawled more recently than the last extraction.
+    pub async fn find_needing_extraction(pool: &PgPool) -> Result<Vec<OrganizationId>> {
+        sqlx::query_scalar::<_, OrganizationId>(
+            r#"
+            SELECT DISTINCT o.id
+            FROM organizations o
+            JOIN sources s ON s.organization_id = o.id
+            WHERE s.status = 'approved' AND s.active = true
+              AND s.last_scraped_at IS NOT NULL
+              AND (o.last_extracted_at IS NULL OR s.last_scraped_at > o.last_extracted_at)
+            ORDER BY o.id
+            LIMIT 10
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    pub async fn update_last_extracted(id: OrganizationId, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            "UPDATE organizations SET last_extracted_at = NOW(), updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
     }
 
     pub async fn delete(id: OrganizationId, pool: &PgPool) -> Result<()> {

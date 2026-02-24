@@ -8,6 +8,6 @@ pub mod restate;
 // Explicit re-exports to avoid ambiguous glob re-exports
 pub use data::{WebsiteAssessmentData, WebsiteData, WebsiteSearchResultData};
 pub use models::{
-    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment,
-    WebsiteResearch, WebsiteResearchHomepage, WebsiteSearchResult, WebsiteStatus,
+    TavilySearchQuery, TavilySearchResult, Website, WebsiteAssessment, WebsiteResearch,
+    WebsiteResearchHomepage, WebsiteSearchResult, WebsiteStatus,
 };

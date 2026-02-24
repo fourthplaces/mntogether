@@ -88,6 +88,52 @@ impl ExtractionPage {
         Ok(count.0 as usize)
     }
 
+    /// Get pages for a newsletter source.
+    ///
+    /// Queries `extraction_pages` by `site_url = newsletter:{source_id}`.
+    pub async fn find_by_newsletter_source(
+        source_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<(Uuid, String, String)>> {
+        let site_url = format!("newsletter:{}", source_id);
+
+        let pages = sqlx::query_as::<_, (String, String)>(
+            r#"
+            SELECT url, content
+            FROM extraction_pages
+            WHERE site_url = $1
+            ORDER BY fetched_at DESC
+            "#,
+        )
+        .bind(&site_url)
+        .fetch_all(pool)
+        .await?;
+
+        let result: Vec<(Uuid, String, String)> = pages
+            .into_iter()
+            .map(|(url, content)| {
+                let id = Self::url_to_uuid(&url);
+                (id, url, content)
+            })
+            .collect();
+
+        Ok(result)
+    }
+
+    /// Count pages for a newsletter source.
+    pub async fn count_by_newsletter_source(source_id: Uuid, pool: &PgPool) -> Result<usize> {
+        let site_url = format!("newsletter:{}", source_id);
+
+        let count: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM extraction_pages WHERE site_url = $1",
+        )
+        .bind(&site_url)
+        .fetch_one(pool)
+        .await?;
+
+        Ok(count.0 as usize)
+    }
+
     /// Generate a deterministic UUID from a URL.
     ///
     /// Uses SHA-256 hash of the URL, taking first 16 bytes as UUID.

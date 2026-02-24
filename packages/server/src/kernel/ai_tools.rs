@@ -1,13 +1,13 @@
 //! Reusable AI tools for agentic workflows.
 //!
-//! These tools implement the `openai_client::Tool` trait and can be used
+//! These tools implement the `ai_client::Tool` trait and can be used
 //! with the Agent builder for tool-calling loops.
 
 use std::sync::Arc;
 
+use ai_client::{Tool, ToolDefinition};
 use async_trait::async_trait;
 use extraction::{Ingestor, WebSearcher};
-use openai_client::Tool;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -66,8 +66,12 @@ impl Tool for WebSearchTool {
     type Output = Vec<SearchResultOutput>;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Search the web for information. Use this to find contact info, addresses, hours, or other details about an organization."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Search the web for information. Use this to find contact info, addresses, hours, or other details about an organization.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(WebSearchArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
@@ -108,13 +112,34 @@ pub struct FetchPageOutput {
 }
 
 /// Tool for fetching and extracting content from a URL.
+///
+/// Checks `extraction_pages` cache first (covers pages already crawled via
+/// Firecrawl or ingested via Apify). Falls through to the live ingestor
+/// only on cache miss.
 pub struct FetchPageTool {
     ingestor: Arc<dyn Ingestor>,
+    db_pool: PgPool,
 }
 
 impl FetchPageTool {
-    pub fn new(ingestor: Arc<dyn Ingestor>) -> Self {
-        Self { ingestor }
+    pub fn new(ingestor: Arc<dyn Ingestor>, db_pool: PgPool) -> Self {
+        Self { ingestor, db_pool }
+    }
+
+    /// Look up a URL in the extraction_pages cache.
+    async fn cached_page(&self, url: &str) -> Option<FetchPageOutput> {
+        let row: Option<(String, Option<String>)> =
+            sqlx::query_as("SELECT content, title FROM extraction_pages WHERE url = $1")
+                .bind(url)
+                .fetch_optional(&self.db_pool)
+                .await
+                .ok()?;
+
+        row.map(|(content, title)| FetchPageOutput {
+            url: url.to_string(),
+            content,
+            title,
+        })
     }
 }
 
@@ -125,11 +150,25 @@ impl Tool for FetchPageTool {
     type Output = FetchPageOutput;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Fetch the content of a web page. Use this to get detailed information from a specific URL like a contact page or about page."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Fetch the content of a web page. Use this to get detailed information from a specific URL like a contact page or about page.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(FetchPageArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {
+        // Check extraction_pages cache first (handles Instagram/social pages
+        // that were ingested via Apify, plus any previously-crawled pages).
+        if let Some(mut cached) = self.cached_page(&args.url).await {
+            tracing::debug!(url = %args.url, "fetch_page: cache hit in extraction_pages");
+            if cached.content.len() > 8000 {
+                cached.content = format!("{}...\n\n[Content truncated]", &cached.content[..8000]);
+            }
+            return Ok(cached);
+        }
+
         let page = self
             .ingestor
             .fetch_one(&args.url)
@@ -199,8 +238,12 @@ impl Tool for SearchPostsTool {
     type Output = Vec<SearchPostOutput>;
     type Error = ToolError;
 
-    fn description(&self) -> &str {
-        "Search for services, opportunities, businesses, and resources. Use this to find posts matching a user's question about what's available in their community."
+    async fn definition(&self) -> ToolDefinition {
+        ToolDefinition {
+            name: Self::NAME.to_string(),
+            description: "Search for services, opportunities, businesses, and resources. Use this to find posts matching a user's question about what's available in their community.".to_string(),
+            parameters: serde_json::to_value(schemars::schema_for!(SearchPostsArgs)).unwrap_or_default(),
+        }
     }
 
     async fn call(&self, args: Self::Args) -> Result<Self::Output, Self::Error> {

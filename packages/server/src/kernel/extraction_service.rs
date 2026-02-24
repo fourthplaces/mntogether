@@ -44,6 +44,26 @@ impl<A: AI + Clone> ExtractionService<A> {
         &self.index
     }
 
+    /// Search for pages and return unique site_urls.
+    ///
+    /// Used by semantic source search — finds which sites have content
+    /// matching a query, without fetching full page content.
+    pub async fn search_page_sites(&self, query: &str, limit: usize) -> Result<Vec<String>> {
+        let page_refs = self
+            .index
+            .search(query, limit, None)
+            .await
+            .map_err(|e| anyhow::anyhow!("Search failed: {}", e))?;
+
+        let mut seen = std::collections::HashSet::new();
+        let site_urls: Vec<String> = page_refs
+            .into_iter()
+            .filter(|p| seen.insert(p.site_url.clone()))
+            .map(|p| p.site_url)
+            .collect();
+        Ok(site_urls)
+    }
+
     /// Search for relevant pages and return their raw content.
     ///
     /// Unlike `extract()` which returns RAG-summarized content, this returns
@@ -266,6 +286,19 @@ impl<A: AI + Clone> ExtractionService<A> {
             .store_page(page)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to store page {}: {}", page.url, e))
+    }
+
+    /// Get all cached pages for a site_url.
+    ///
+    /// Used by org-level extraction to pool content from multiple sources.
+    pub async fn get_pages_for_site(&self, site_url: &str) -> Result<Vec<CachedPage>> {
+        use extraction::traits::store::PageCache;
+
+        self.index
+            .store()
+            .get_pages_for_site(site_url)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to get pages for site {}: {}", site_url, e))
     }
 }
 

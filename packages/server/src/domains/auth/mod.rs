@@ -1,7 +1,7 @@
 //! Auth domain - handles authentication via OTP (phone number)
 //!
 //! Architecture (Restate workflows):
-//!   GraphQL → workflow_client.invoke(Workflow) → workflow orchestrates activities
+//!   API → Restate workflow → workflow orchestrates activities
 //!
 //! Responsibilities:
 //! - Phone-based OTP authentication via Twilio
@@ -11,9 +11,9 @@
 pub mod activities;
 pub mod jwt;
 pub mod models;
-pub mod types;
 pub mod restate;
+pub mod types;
 
 pub use jwt::{Claims, JwtService};
-pub use types::{OtpSent, OtpVerified};
 pub use restate::*;
+pub use types::{OtpSent, OtpVerified};

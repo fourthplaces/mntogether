@@ -1,7 +1,7 @@
 //! Website domain actions - business logic functions
 //!
-//! Actions return events directly. GraphQL mutations call actions via `process()`
-//! and the returned event is dispatched through the engine.
+//! Actions return data directly. Called from Restate virtual objects
+//! and API handlers.
 
 pub mod approval;
 pub mod discover;
@@ -15,7 +15,7 @@ use crate::domains::website::models::Website;
 use crate::kernel::ServerDeps;
 
 /// Get all websites pending review
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_pending_websites(deps: &ServerDeps) -> Result<Vec<Website>> {
     info!("Getting pending websites");
 
@@ -79,7 +79,10 @@ pub async fn search_websites_semantic(
     limit: i32,
     deps: &ServerDeps,
 ) -> Result<Vec<crate::domains::website::models::WebsiteSearchResult>> {
-    let query_embedding = deps.ai.create_embedding(query, "text-embedding-3-small").await?;
+    let query_embedding = deps
+        .ai
+        .create_embedding(query, "text-embedding-3-small")
+        .await?;
 
     crate::domains::website::models::WebsiteAssessment::search_by_similarity(
         &query_embedding,
@@ -97,7 +100,7 @@ pub async fn search_websites_semantic(
 /// Get paginated websites with cursor-based pagination (Relay spec)
 ///
 /// Admin only. Returns a WebsiteConnection with edges, pageInfo, and totalCount.
-/// Note: Admin auth is checked at the GraphQL layer
+/// Note: Admin auth is checked at the API layer
 pub async fn get_websites_paginated(
     status: Option<&str>,
     search: Option<&str>,
@@ -108,10 +111,12 @@ pub async fn get_websites_paginated(
     let pool = &deps.db_pool;
 
     // Fetch websites with cursor pagination
-    let (websites, has_more) = Website::find_paginated(status, search, organization_id, args, pool).await?;
+    let (websites, has_more) =
+        Website::find_paginated(status, search, organization_id, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Website::count_with_filters(status, search, organization_id, pool).await? as i32;
+    let total_count =
+        Website::count_with_filters(status, search, organization_id, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<WebsiteEdge> = websites

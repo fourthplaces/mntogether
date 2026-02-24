@@ -53,11 +53,7 @@ impl ApifyClient {
     }
 
     /// Start an Instagram profile scrape run. Returns immediately with run metadata.
-    pub async fn start_instagram_scrape(
-        &self,
-        username: &str,
-        limit: u32,
-    ) -> Result<RunData> {
+    pub async fn start_instagram_scrape(&self, username: &str, limit: u32) -> Result<RunData> {
         let input = InstagramScraperInput {
             username: vec![username.to_string()],
             results_limit: limit,
@@ -88,10 +84,7 @@ impl ApifyClient {
     /// Poll until a run completes. Uses `waitForFinish=60` for efficient long-polling.
     pub async fn wait_for_run(&self, run_id: &str) -> Result<RunData> {
         loop {
-            let url = format!(
-                "{}/actor-runs/{}?waitForFinish=60",
-                BASE_URL, run_id
-            );
+            let url = format!("{}/actor-runs/{}?waitForFinish=60", BASE_URL, run_id);
             let resp = self
                 .client
                 .get(&url)
@@ -123,14 +116,8 @@ impl ApifyClient {
     }
 
     /// Fetch dataset items from a completed run.
-    pub async fn get_dataset_items<T: DeserializeOwned>(
-        &self,
-        dataset_id: &str,
-    ) -> Result<Vec<T>> {
-        let url = format!(
-            "{}/datasets/{}/items?format=json",
-            BASE_URL, dataset_id
-        );
+    pub async fn get_dataset_items<T: DeserializeOwned>(&self, dataset_id: &str) -> Result<Vec<T>> {
+        let url = format!("{}/datasets/{}/items?format=json", BASE_URL, dataset_id);
         let resp = self
             .client
             .get(&url)
@@ -230,11 +217,7 @@ impl ApifyClient {
     }
 
     /// Scrape X/Twitter posts end-to-end: start run, poll, fetch results.
-    pub async fn scrape_x_posts(
-        &self,
-        handle: &str,
-        limit: u32,
-    ) -> Result<Vec<Tweet>> {
+    pub async fn scrape_x_posts(&self, handle: &str, limit: u32) -> Result<Vec<Tweet>> {
         tracing::info!(handle, limit, "Starting X/Twitter scrape");
 
         let input = TweetScraperInput {

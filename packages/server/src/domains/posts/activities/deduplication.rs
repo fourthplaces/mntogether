@@ -9,8 +9,8 @@
 //! 3. Different audience = different post (volunteer vs recipient = 2 posts)
 //! 4. Same service described differently = merge (LLM understands identity)
 
+use ai_client::OpenAi;
 use anyhow::Result;
-use openai_client::OpenAIClient;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -19,12 +19,13 @@ use uuid::Uuid;
 
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{ExtractedPost, MemberId, PostId, SyncBatchId};
+use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
 use crate::domains::posts::models::{Post, UpdatePostContent};
 use crate::domains::source::models::Source;
 use crate::domains::sync::activities::{stage_proposals, ProposedOperation};
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
-use crate::kernel::ServerDeps;
+use crate::kernel::{ServerDeps, GPT_5_MINI};
 
 // ============================================================================
 // Types
@@ -83,11 +84,11 @@ pub struct DeduplicationRunResult {
 pub async fn deduplicate_posts_llm(
     source_type: &str,
     source_id: Uuid,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     // Get all non-deleted posts for this source
-    let posts = Post::find_active_by_source(source_type, source_id, pool).await?;
+    let posts = Post::find_reviewable_by_source(source_type, source_id, pool).await?;
 
     if posts.len() < 2 {
         info!(
@@ -128,7 +129,7 @@ pub async fn deduplicate_posts_llm(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            GPT_5_MINI,
             DEDUP_SYSTEM_PROMPT,
             &format!("Analyze these posts for duplicates:\n\n{}", posts_json),
         )
@@ -160,7 +161,7 @@ pub async fn deduplicate_posts_llm(
 /// Returns the count of posts soft-deleted.
 pub async fn apply_dedup_results(
     result: DuplicateAnalysis,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<usize> {
     let mut deleted_count = 0;
@@ -295,7 +296,7 @@ async fn generate_merge_reason(
     kept_title: &str,
     kept_id: PostId,
     reasoning: &str,
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<String> {
     let prompt = format!(
         r#"Write a brief, friendly explanation (1-2 sentences) for why a listing was merged with another.
@@ -318,13 +319,11 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
 
     let reason: String = ai
         .chat_completion(
-            openai_client::ChatRequest::new("gpt-4o")
-                .message(openai_client::Message::system("You write brief, user-friendly explanations for content merges. Keep responses under 200 characters."))
-                .message(openai_client::Message::user(&prompt)),
+            "You write brief, user-friendly explanations for content merges. Keep responses under 200 characters.",
+            &prompt,
         )
         .await
-        .map_err(|e| anyhow::anyhow!("Merge reason generation failed: {}", e))
-        .map(|r| r.content)?;
+        .map_err(|e| anyhow::anyhow!("Merge reason generation failed: {}", e))?;
 
     // Clean up response (remove quotes if AI wrapped it)
     let reason = reason.trim().trim_matches('"').to_string();
@@ -333,7 +332,7 @@ Example: "This listing has been consolidated with 'Community Food Shelf' to prov
 }
 
 // ============================================================================
-// Entry Point (GraphQL)
+// Entry Point
 // ============================================================================
 
 /// Deduplicate posts using LLM-based similarity (admin only)
@@ -369,14 +368,20 @@ pub async fn deduplicate_posts(
     let mut total_groups = 0;
 
     for website in &websites {
-        let dedup_result =
-            match deduplicate_posts_llm("website", website.id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
-                Ok(r) => r,
-                Err(e) => {
-                    warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
-                    continue;
-                }
-            };
+        let dedup_result = match deduplicate_posts_llm(
+            "website",
+            website.id.into_uuid(),
+            deps.ai.as_ref(),
+            &deps.db_pool,
+        )
+        .await
+        {
+            Ok(r) => r,
+            Err(e) => {
+                warn!(website_id = %website.id, error = %e, "Failed LLM deduplication");
+                continue;
+            }
+        };
 
         total_groups += dedup_result.duplicate_groups.len();
 
@@ -443,10 +448,13 @@ pub struct CrossSourceDedupResult {
 
 impl_restate_serde!(CrossSourceDedupResult);
 
-/// Detect cross-source duplicates for a single organization using LLM analysis.
+/// Detect duplicates for a single organization using LLM analysis.
+/// Handles both cross-source and same-source duplicates.
+/// The `model` parameter controls which LLM to use (e.g. GPT_5_MINI for pipeline, GPT_5 for cleanup).
 pub async fn detect_cross_source_duplicates(
     org_id: Uuid,
-    ai: &OpenAIClient,
+    model: &str,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<DuplicateAnalysis> {
     let posts = Post::find_active_pending_by_organization_with_source(org_id, pool).await?;
@@ -458,26 +466,15 @@ pub async fn detect_cross_source_duplicates(
         });
     }
 
-    // Check if there are multiple source types - if all from same source, no cross-source dupes
     let source_types: std::collections::HashSet<&str> =
         posts.iter().map(|p| p.source_type.as_str()).collect();
-    if source_types.len() < 2 {
-        info!(
-            org_id = %org_id,
-            source_type = ?source_types,
-            "Single source type for org, skipping cross-source dedup"
-        );
-        return Ok(DuplicateAnalysis {
-            duplicate_groups: vec![],
-            unique_post_ids: posts.iter().map(|p| p.id.as_uuid().to_string()).collect(),
-        });
-    }
 
     info!(
         org_id = %org_id,
         posts_count = posts.len(),
         source_types = ?source_types,
-        "Running cross-source deduplication analysis"
+        model = %model,
+        "Running deduplication analysis"
     );
 
     let posts_for_dedup: Vec<PostForCrossSourceDedup> = posts
@@ -496,34 +493,36 @@ pub async fn detect_cross_source_duplicates(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            model,
             CROSS_SOURCE_DEDUP_SYSTEM_PROMPT,
             &format!(
-                "Analyze these posts from the same organization across different sources for cross-platform duplicates:\n\n{}",
+                "Analyze these posts from the same organization for duplicates:\n\n{}",
                 posts_json
             ),
         )
         .await
-        .map_err(|e| anyhow::anyhow!("Cross-source deduplication analysis failed: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Deduplication analysis failed: {}", e))?;
 
     info!(
         org_id = %org_id,
         duplicate_groups = result.duplicate_groups.len(),
         unique_posts = result.unique_post_ids.len(),
-        "Cross-source deduplication analysis complete"
+        "Deduplication analysis complete"
     );
 
     Ok(result)
 }
 
-/// Stage cross-source dedup proposals for a single organization.
+/// Stage dedup proposals for a single organization.
 /// Creates a sync batch with merge proposals for admin review.
+/// The `model` parameter controls which LLM to use for duplicate detection.
 pub async fn stage_cross_source_dedup(
     org_id: Uuid,
-    ai: &OpenAIClient,
+    model: &str,
+    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<StageCrossSourceResult> {
-    let analysis = detect_cross_source_duplicates(org_id, ai, pool).await?;
+    let analysis = detect_cross_source_duplicates(org_id, model, ai, pool).await?;
 
     if analysis.duplicate_groups.is_empty() {
         return Ok(StageCrossSourceResult {
@@ -646,6 +645,7 @@ pub async fn stage_cross_source_dedup(
         org_id,
         Some("Cross-source duplicate detection"),
         proposed_ops,
+        &PostProposalHandler,
         pool,
     )
     .await?;
@@ -661,6 +661,20 @@ pub async fn stage_cross_source_dedup(
         batch_id: Some(stage_result.batch_id),
         proposals_staged: proposal_count,
     })
+}
+
+/// Soft-delete all rejected posts for an organization.
+/// Returns count of posts purged.
+pub async fn purge_rejected_posts_for_org(org_id: Uuid, pool: &PgPool) -> Result<usize> {
+    let rejected = Post::find_rejected_by_organization(org_id, pool).await?;
+    let count = rejected.len();
+
+    for post in &rejected {
+        Post::soft_delete(post.id, "Purged by org cleanup (rejected)", pool).await?;
+    }
+
+    info!(org_id = %org_id, purged = count, "Purged rejected posts");
+    Ok(count)
 }
 
 /// Run cross-source deduplication across all organizations with multiple sources.
@@ -691,7 +705,14 @@ pub async fn deduplicate_cross_source_all_orgs(
     let mut total_proposals = 0;
 
     for org_id in &org_ids {
-        match stage_cross_source_dedup(org_id.into_uuid(), deps.ai.as_ref(), &deps.db_pool).await {
+        match stage_cross_source_dedup(
+            org_id.into_uuid(),
+            GPT_5_MINI,
+            deps.ai.as_ref(),
+            &deps.db_pool,
+        )
+        .await
+        {
             Ok(result) => {
                 if result.batch_id.is_some() {
                     batches_created += 1;
@@ -755,8 +776,15 @@ When merging:
 ### Different Services = NOT Duplicates
 - "Food Shelf" from website + "Legal Aid Clinic" from Instagram → NOT duplicates (different services)
 
-### Different Audience = NOT Duplicates
-- "Volunteer at our food shelf" + "Get free groceries" → NOT duplicates (different audiences)
+### Different Role = NOT Duplicates
+- "Volunteer at our food shelf" + "Get free groceries" → NOT duplicates (different roles)
+
+### Same Event, Different Angle = DUPLICATES
+- "Get a flash tattoo at our fundraiser" + "Donate by booking a tattoo" → DUPLICATES (same event)
+
+### Same Cause, Different Giving Channels = DUPLICATES
+- "Donate online to keep families housed" + "Drop off groceries and supplies at our hub" → DUPLICATES (same crisis response, different ways to help — merge into one post listing all options)
+- "Ship Essentials to Families" + "Keep Families Housed and Fed — Give Now" → DUPLICATES (same org's emergency response, one asks for supplies, one asks for money)
 
 ### Published Posts ("active") Preferred as Canonical
 - If one is "active" and another "pending_approval", the active one is canonical
@@ -803,7 +831,7 @@ impl_restate_serde!(Phase2Result);
 /// If < 2 pending posts, returns empty vec.
 pub async fn find_duplicate_pending_posts(
     pending_posts: &[Post],
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<Vec<DuplicateGroup>> {
     if pending_posts.len() < 2 {
         return Ok(vec![]);
@@ -824,9 +852,12 @@ pub async fn find_duplicate_pending_posts(
 
     let result: DuplicateAnalysis = ai
         .extract(
-            "gpt-4o",
+            GPT_5_MINI,
             DEDUP_PENDING_SYSTEM_PROMPT,
-            &format!("Analyze these draft posts for duplicates:\n\n{}", posts_json),
+            &format!(
+                "Analyze these draft posts for duplicates:\n\n{}",
+                posts_json
+            ),
         )
         .await
         .map_err(|e| anyhow::anyhow!("Pending deduplication failed: {}", e))?;
@@ -847,7 +878,7 @@ pub async fn find_duplicate_pending_posts(
 pub async fn match_pending_to_active_posts(
     pending_posts: &[Post],
     active_posts: &[Post],
-    ai: &OpenAIClient,
+    ai: &OpenAi,
 ) -> Result<Vec<PendingActiveMatch>> {
     if pending_posts.is_empty() || active_posts.is_empty() {
         return Ok(vec![]);
@@ -880,7 +911,7 @@ pub async fn match_pending_to_active_posts(
 
     let result: PendingActiveAnalysis = ai
         .extract(
-            "gpt-4o",
+            GPT_5_MINI,
             MATCH_PENDING_ACTIVE_SYSTEM_PROMPT,
             &format!(
                 "## Draft Posts (pending approval)\n\n{}\n\n## Published Posts (active)\n\n{}",
@@ -921,12 +952,21 @@ Two posts are DUPLICATES only if they describe:
 
 ## Key Rules
 
-### Different Audience = Different Post (NOT duplicates)
+### Different Role = Different Post (NOT duplicates)
 - "Food Shelf" (for recipients getting food) ≠ "Food Shelf - Volunteer" (for people helping)
-- "Donate to X" (for donors) ≠ "Get Help from X" (for recipients)
-- These serve DIFFERENT user needs and should remain separate
+- "Get Help from X" (for recipients) ≠ "Volunteer at X" (for helpers)
+- These serve DIFFERENT user roles and should remain separate
 
-### Same Service + Same Audience = Duplicates (should merge)
+### Same Event from Different Angles = Duplicates (SHOULD merge)
+- A fundraiser event described as "attend" AND "donate" is ONE event — merge
+- "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
+- "Attend the Benefit Dinner" and "Donate at the Benefit Dinner" → Same event, merge
+
+### Same Cause, Different Giving Channels = Duplicates (SHOULD merge)
+- "Donate online to keep families housed" + "Drop off groceries at our hub" → Same crisis response, merge into one post listing all ways to help
+- "Ship Essentials to Families" + "Give Now to Keep Families Fed" → Same emergency response, one asks for supplies, one for money — merge
+
+### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing, merge them
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge them
 
@@ -958,11 +998,19 @@ Two posts are DUPLICATES only if they describe:
 
 ## Key Rules
 
-### Different Audience = Different Post (NOT duplicates)
+### Different Role = Different Post (NOT duplicates)
 - "Food Shelf" (for recipients) ≠ "Food Shelf - Volunteer" (for helpers)
-- These serve DIFFERENT user needs and should remain separate
+- These serve DIFFERENT user roles and should remain separate
 
-### Same Service + Same Audience = Duplicates (should merge)
+### Same Event from Different Angles = Duplicates (SHOULD merge)
+- A fundraiser described as "attend" AND "donate" is ONE event — merge
+- "Get a Flash Tattoo to Feed Neighbors" and "Book a Tattoo to Keep Families Housed" → Same event, merge
+
+### Same Cause, Different Giving Channels = Duplicates (SHOULD merge)
+- "Donate online to keep families housed" + "Drop off groceries at our hub" → Same crisis response, merge
+- "Ship Essentials to Families" + "Give Now to Keep Families Fed" → Same emergency response, merge
+
+### Same Service + Same Role = Duplicates (should merge)
 - "Valley Outreach Food Pantry" and "Food Pantry at Valley Outreach" → Same thing
 - "Help with Groceries" and "Food Assistance Program" → If same service, merge
 
@@ -991,7 +1039,9 @@ A draft MATCHES a published post only if:
 
 ## Key Rules
 
-- Different audience = NOT a match (volunteer vs recipient = different posts)
+- Different role = NOT a match (volunteer vs recipient = different posts)
+- Same event described from different angles (participant vs donor) = MATCH (fundraiser events are one post)
+- Same cause with different giving channels = MATCH (donate money + drop off supplies for same families = one post)
 - Same service described differently = MATCH
 - A draft that adds genuinely new information to a published post IS a match (it's an update)
 - A draft about a completely different service = NOT a match

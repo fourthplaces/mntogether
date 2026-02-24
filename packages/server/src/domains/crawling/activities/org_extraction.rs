@@ -242,8 +242,22 @@ static RE_TWITTER: LazyLock<Regex> = LazyLock::new(|| {
 });
 
 /// Non-profile path segments to skip per platform.
-const INSTAGRAM_SKIP: &[&str] = &["p", "reel", "reels", "stories", "explore", "accounts", "tv", "s", "share"];
-const FACEBOOK_SKIP: &[&str] = &["photo", "photos", "sharer", "share", "events", "groups", "watch", "marketplace", "login", "dialog", "plugins"];
+const INSTAGRAM_SKIP: &[&str] = &[
+    "p", "reel", "reels", "stories", "explore", "accounts", "tv", "s", "share",
+];
+const FACEBOOK_SKIP: &[&str] = &[
+    "photo",
+    "photos",
+    "sharer",
+    "share",
+    "events",
+    "groups",
+    "watch",
+    "marketplace",
+    "login",
+    "dialog",
+    "plugins",
+];
 const TWITTER_SKIP: &[&str] = &["intent", "share", "hashtag", "search", "i", "home"];
 
 struct SocialPattern {
@@ -253,15 +267,26 @@ struct SocialPattern {
 }
 
 const SOCIAL_PATTERNS: &[SocialPattern] = &[
-    SocialPattern { platform: "instagram", regex: &RE_INSTAGRAM, skip_segments: INSTAGRAM_SKIP },
-    SocialPattern { platform: "facebook", regex: &RE_FACEBOOK, skip_segments: FACEBOOK_SKIP },
-    SocialPattern { platform: "twitter", regex: &RE_TWITTER, skip_segments: TWITTER_SKIP },
+    SocialPattern {
+        platform: "instagram",
+        regex: &RE_INSTAGRAM,
+        skip_segments: INSTAGRAM_SKIP,
+    },
+    SocialPattern {
+        platform: "facebook",
+        regex: &RE_FACEBOOK,
+        skip_segments: FACEBOOK_SKIP,
+    },
+    SocialPattern {
+        platform: "twitter",
+        regex: &RE_TWITTER,
+        skip_segments: TWITTER_SKIP,
+    },
 ];
 
 /// Scan all page content for social media profile URLs using regex.
 /// Returns deduplicated profiles found across all pages.
 fn scan_social_profiles(pages: &[(Uuid, String, String)]) -> Vec<ExtractedSocialLink> {
-
     let mut seen = std::collections::HashSet::new();
     let mut profiles = Vec::new();
 
@@ -299,24 +324,18 @@ fn scan_social_profiles(pages: &[(Uuid, String, String)]) -> Vec<ExtractedSocial
 // Main Activity
 // =============================================================================
 
-/// Extract organization info from crawled pages and create Organization + SocialProfiles.
+/// Extracted organization info (name, description, social links) without any DB writes.
 ///
-/// This is a best-effort activity — failures are logged but don't propagate.
-/// Callable from both the crawl pipeline and the backfill endpoint.
-pub async fn extract_and_create_organization(
+/// Used by both `extract_and_create_organization` (new orgs) and the regenerate endpoint
+/// (update-in-place).
+pub async fn extract_organization_info(
     website_id: WebsiteId,
     deps: &ServerDeps,
-) -> Result<OrganizationId> {
+) -> Result<(String, Option<String>, Vec<ExtractedSocialLink>)> {
     let pool = &deps.db_pool;
 
     // Load website
     let website = Website::find_by_id(website_id, pool).await?;
-
-    // Skip if already has an organization
-    if website.organization_id.is_some() {
-        info!(website_id = %website_id, "Website already has organization, skipping");
-        return Ok(website.organization_id.unwrap());
-    }
 
     // Load extraction pages
     let pages = ExtractionPage::find_by_domain(&website.domain, pool).await?;
@@ -337,8 +356,13 @@ pub async fn extract_and_create_organization(
     );
 
     // LLM extraction: org name + description (priority pages only)
-    let extracted: ExtractedOrganization = deps.ai
-        .extract("gpt-4o", ORG_EXTRACTION_PROMPT, &org_content)
+    let extracted: ExtractedOrganization = deps
+        .ai
+        .extract(
+            crate::kernel::GPT_5_MINI,
+            ORG_EXTRACTION_PROMPT,
+            &org_content,
+        )
         .await
         .map_err(|e| anyhow::anyhow!("Organization extraction failed: {}", e))?;
 
@@ -350,9 +374,11 @@ pub async fn extract_and_create_organization(
         );
     }
 
-    let org_name = extracted.name.trim();
-    let org_desc = extracted.description.as_deref().map(|d| d.trim());
-
+    let org_name = extracted.name.trim().to_string();
+    let org_desc = extracted
+        .description
+        .as_deref()
+        .map(|d| d.trim().to_string());
 
     // Regex extraction: social profiles across ALL pages
     info!(
@@ -360,10 +386,7 @@ pub async fn extract_and_create_organization(
         "REGEX SCAN: scanning all pages for social media URLs"
     );
     let social_result = scan_social_profiles(&pages);
-    info!(
-        found = social_result.len(),
-        "REGEX SCAN: complete"
-    );
+    info!(found = social_result.len(), "REGEX SCAN: complete");
     for p in &social_result {
         info!(
             platform = %p.platform,
@@ -380,14 +403,16 @@ pub async fn extract_and_create_organization(
         "Organization info extracted"
     );
 
-    // Create or find organization
-    let org = Organization::find_or_create_by_name(org_name, org_desc, pool).await?;
+    Ok((org_name, org_desc, social_result))
+}
 
-    // Link website to organization
-    Website::set_organization_id(website_id, org.id, pool).await?;
-
-    // Create social profiles
-    for link in &social_result {
+/// Normalize and persist extracted social links for an organization.
+pub async fn create_social_profiles_for_org(
+    org_id: OrganizationId,
+    social_links: &[ExtractedSocialLink],
+    pool: &sqlx::PgPool,
+) {
+    for link in social_links {
         let platform = match normalize_platform(&link.platform) {
             Some(p) => p,
             None => {
@@ -402,18 +427,12 @@ pub async fn extract_and_create_organization(
             continue;
         }
 
-        match SocialProfile::find_or_create(
-            org.id,
-            platform,
-            &handle,
-            link.url.as_deref(),
-            pool,
-        )
-        .await
+        match SocialProfile::find_or_create(org_id, platform, &handle, link.url.as_deref(), pool)
+            .await
         {
             Ok(profile) => {
                 info!(
-                    org_id = %org.id,
+                    org_id = %org_id,
                     platform = %platform,
                     handle = %handle,
                     profile_id = %profile.id,
@@ -422,7 +441,7 @@ pub async fn extract_and_create_organization(
             }
             Err(e) => {
                 warn!(
-                    org_id = %org.id,
+                    org_id = %org_id,
                     platform = %platform,
                     handle = %handle,
                     error = %e,
@@ -431,6 +450,38 @@ pub async fn extract_and_create_organization(
             }
         }
     }
+}
+
+/// Extract organization info from crawled pages and create Organization + SocialProfiles.
+///
+/// This is a best-effort activity — failures are logged but don't propagate.
+/// Callable from both the crawl pipeline and the backfill endpoint.
+pub async fn extract_and_create_organization(
+    website_id: WebsiteId,
+    deps: &ServerDeps,
+) -> Result<OrganizationId> {
+    let pool = &deps.db_pool;
+
+    // Load website
+    let website = Website::find_by_id(website_id, pool).await?;
+
+    // Skip if already has an organization
+    if website.organization_id.is_some() {
+        info!(website_id = %website_id, "Website already has organization, skipping");
+        return Ok(website.organization_id.unwrap());
+    }
+
+    // Extract org info (LLM + regex)
+    let (org_name, org_desc, social_links) = extract_organization_info(website_id, deps).await?;
+
+    // Create or find organization
+    let org = Organization::find_or_create_by_name(&org_name, org_desc.as_deref(), pool).await?;
+
+    // Link website to organization
+    Website::set_organization_id(website_id, org.id, pool).await?;
+
+    // Create social profiles
+    create_social_profiles_for_org(org.id, &social_links, pool).await;
 
     info!(
         website_id = %website_id,
@@ -469,15 +520,24 @@ Follow us on [Twitter](https://x.com/canaboretum)
         println!("Found profiles: {:?}", profiles);
 
         assert!(platforms.contains(&"instagram"), "Should find instagram");
-        assert!(handles.contains(&"communityaidnetworkmn"), "Should find communityaidnetworkmn handle");
+        assert!(
+            handles.contains(&"communityaidnetworkmn"),
+            "Should find communityaidnetworkmn handle"
+        );
 
         assert!(platforms.contains(&"facebook"), "Should find facebook");
-        assert!(handles.contains(&"communityaidnetworkmn"), "Should find CommunityAidNetworkMN handle (lowercased)");
+        assert!(
+            handles.contains(&"communityaidnetworkmn"),
+            "Should find CommunityAidNetworkMN handle (lowercased)"
+        );
 
         assert!(platforms.contains(&"twitter"), "Should find twitter/x");
 
         // Should NOT include post URLs
-        assert!(!handles.contains(&"p"), "Should skip instagram.com/p/ (post URL)");
+        assert!(
+            !handles.contains(&"p"),
+            "Should skip instagram.com/p/ (post URL)"
+        );
     }
 
     #[test]
@@ -513,6 +573,10 @@ Visit us at https://instagram.com/myhandle and https://facebook.com/mypage
         ];
 
         let profiles = scan_social_profiles(&pages);
-        assert_eq!(profiles.len(), 1, "Should deduplicate same handle across pages");
+        assert_eq!(
+            profiles.len(),
+            1,
+            "Should deduplicate same handle across pages"
+        );
     }
 }

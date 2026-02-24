@@ -123,7 +123,16 @@ impl Contact {
             if let Some(phone) = obj.get("phone").and_then(|v| v.as_str()) {
                 if !phone.is_empty() {
                     contacts.push(
-                        Self::create(contactable_type, contactable_id, ContactType::Phone, phone.to_string(), None, Some(order), pool).await?,
+                        Self::create(
+                            contactable_type,
+                            contactable_id,
+                            ContactType::Phone,
+                            phone.to_string(),
+                            None,
+                            Some(order),
+                            pool,
+                        )
+                        .await?,
                     );
                     order += 1;
                 }
@@ -132,7 +141,16 @@ impl Contact {
             if let Some(email) = obj.get("email").and_then(|v| v.as_str()) {
                 if !email.is_empty() {
                     contacts.push(
-                        Self::create(contactable_type, contactable_id, ContactType::Email, email.to_string(), None, Some(order), pool).await?,
+                        Self::create(
+                            contactable_type,
+                            contactable_id,
+                            ContactType::Email,
+                            email.to_string(),
+                            None,
+                            Some(order),
+                            pool,
+                        )
+                        .await?,
                     );
                     order += 1;
                 }
@@ -141,7 +159,16 @@ impl Contact {
             if let Some(website) = obj.get("website").and_then(|v| v.as_str()) {
                 if !website.is_empty() {
                     contacts.push(
-                        Self::create(contactable_type, contactable_id, ContactType::Website, website.to_string(), None, Some(order), pool).await?,
+                        Self::create(
+                            contactable_type,
+                            contactable_id,
+                            ContactType::Website,
+                            website.to_string(),
+                            None,
+                            Some(order),
+                            pool,
+                        )
+                        .await?,
                     );
                     order += 1;
                 }
@@ -150,7 +177,16 @@ impl Contact {
             if let Some(address) = obj.get("address").and_then(|v| v.as_str()) {
                 if !address.is_empty() {
                     contacts.push(
-                        Self::create(contactable_type, contactable_id, ContactType::Address, address.to_string(), None, Some(order), pool).await?,
+                        Self::create(
+                            contactable_type,
+                            contactable_id,
+                            ContactType::Address,
+                            address.to_string(),
+                            None,
+                            Some(order),
+                            pool,
+                        )
+                        .await?,
                     );
                 }
             }
@@ -165,13 +201,12 @@ impl Contact {
         contactable_id: Uuid,
         pool: &PgPool,
     ) -> Result<u64> {
-        let result = sqlx::query(
-            "DELETE FROM contacts WHERE contactable_type = $1 AND contactable_id = $2",
-        )
-        .bind(contactable_type)
-        .bind(contactable_id)
-        .execute(pool)
-        .await?;
+        let result =
+            sqlx::query("DELETE FROM contacts WHERE contactable_type = $1 AND contactable_id = $2")
+                .bind(contactable_type)
+                .bind(contactable_id)
+                .execute(pool)
+                .await?;
 
         Ok(result.rows_affected())
     }

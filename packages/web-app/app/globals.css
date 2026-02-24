@@ -1,0 +1,16 @@
+@import "tailwindcss";
+@import "./themes/reference.css";
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Hide scrollbar for filter tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}

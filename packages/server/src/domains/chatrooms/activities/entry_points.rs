@@ -1,7 +1,7 @@
 //! Entry-point actions for chatrooms domain
 //!
 //! Actions return plain data (Container, Message). Agent side-effects are
-//! triggered via `tokio::spawn` in the GraphQL layer.
+//! triggered via `tokio::spawn` in the API layer.
 
 use anyhow::Result;
 use tracing::info;

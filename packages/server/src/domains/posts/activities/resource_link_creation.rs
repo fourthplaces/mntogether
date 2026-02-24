@@ -54,9 +54,14 @@ pub async fn create_posts_from_resource_link(
                 // Link to website source via post_sources
                 use crate::domains::posts::models::PostSource;
                 if let Err(e) = PostSource::create(
-                    new_post.id, "website", source_id.into_uuid(),
-                    Some(&url), &deps.db_pool,
-                ).await {
+                    new_post.id,
+                    "website",
+                    source_id.into_uuid(),
+                    Some(&url),
+                    &deps.db_pool,
+                )
+                .await
+                {
                     warn!(
                         post_id = %new_post.id,
                         error = %e,

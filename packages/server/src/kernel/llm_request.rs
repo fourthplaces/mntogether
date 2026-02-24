@@ -1,10 +1,10 @@
 // Simple completion traits for LLM text responses
 //
-// For structured JSON output, use `OpenAIClient::extract<T>()` from
-// the openai-client crate with types that derive `JsonSchema + Deserialize`.
+// For structured JSON output, use `OpenAi::extract<T>()` from
+// the ai-client crate with types that derive `JsonSchema + Deserialize`.
 
+use ai_client::OpenAi;
 use anyhow::Result;
-use openai_client::{ChatRequest, Message, OpenAIClient};
 
 /// Extension trait for simple text completions
 #[async_trait::async_trait]
@@ -17,39 +17,29 @@ pub trait CompletionExt {
 }
 
 #[async_trait::async_trait]
-impl CompletionExt for OpenAIClient {
+impl CompletionExt for OpenAi {
     async fn complete(&self, prompt: &str) -> Result<String> {
-        let request = ChatRequest::new("gpt-4o").message(Message::user(prompt));
-
-        let response = self
-            .chat_completion(request)
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-        Ok(response.content)
+        OpenAi::complete(self, prompt).await
     }
 
     async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
-        let model = model.unwrap_or("gpt-4o");
-        let request = ChatRequest::new(model).message(Message::user(prompt));
-
-        let response = self
-            .chat_completion(request)
-            .await
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
-
-        Ok(response.content)
+        if let Some(model) = model {
+            let temp_client = OpenAi::new(self.api_key(), model);
+            temp_client.complete(prompt).await
+        } else {
+            OpenAi::complete(self, prompt).await
+        }
     }
 }
 
 #[async_trait::async_trait]
-impl CompletionExt for std::sync::Arc<OpenAIClient> {
+impl CompletionExt for std::sync::Arc<OpenAi> {
     async fn complete(&self, prompt: &str) -> Result<String> {
         (**self).complete(prompt).await
     }
 
     async fn complete_with_model(&self, prompt: &str, model: Option<&str>) -> Result<String> {
-        (**self).complete_with_model(prompt, model).await
+        CompletionExt::complete_with_model(&**self, prompt, model).await
     }
 }
 
@@ -61,7 +51,7 @@ mod tests {
     fn test_completion_ext_compiles() {
         fn _assert_completion_ext<T: CompletionExt>() {}
 
-        _assert_completion_ext::<OpenAIClient>();
-        _assert_completion_ext::<std::sync::Arc<OpenAIClient>>();
+        _assert_completion_ext::<OpenAi>();
+        _assert_completion_ext::<std::sync::Arc<OpenAi>>();
     }
 }

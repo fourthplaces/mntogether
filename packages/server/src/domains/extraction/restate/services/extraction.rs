@@ -144,16 +144,14 @@ impl ExtractionServiceImpl {
 impl ExtractionService for ExtractionServiceImpl {
     async fn submit_url(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: SubmitUrlRequest,
     ) -> Result<SubmitUrlResult, HandlerError> {
-        let results = extraction_activities::submit_url(
-            &req.url,
-            req.query.as_deref(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let results = extraction_activities::submit_url(&req.url, req.query.as_deref(), &self.deps)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(SubmitUrlResult {
             extractions_count: results.len() as i32,
@@ -167,13 +165,10 @@ impl ExtractionService for ExtractionServiceImpl {
     ) -> Result<TriggerResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let results = extraction_activities::trigger_extraction(
-            &req.query,
-            req.site.as_deref(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let results =
+            extraction_activities::trigger_extraction(&req.query, req.site.as_deref(), &self.deps)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(TriggerResult {
             extractions_count: results.len() as i32,
@@ -202,9 +197,11 @@ impl ExtractionService for ExtractionServiceImpl {
 
     async fn get_page(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: GetPageRequest,
     ) -> Result<OptionalPageResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let page = ExtractionPageData::find_by_url(&req.url, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
@@ -219,14 +216,15 @@ impl ExtractionService for ExtractionServiceImpl {
 
     async fn list_pages(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: ListPagesRequest,
     ) -> Result<PageListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let limit = req.limit.unwrap_or(50);
-        let pages =
-            ExtractionPageData::find_by_domain(&req.domain, limit, &self.deps.db_pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let pages = ExtractionPageData::find_by_domain(&req.domain, limit, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(PageListResult {
             pages: pages
@@ -241,13 +239,17 @@ impl ExtractionService for ExtractionServiceImpl {
 
     async fn count_pages(
         &self,
-        _ctx: Context<'_>,
+        ctx: Context<'_>,
         req: CountRequest,
     ) -> Result<CountResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
         let count = ExtractionPageData::count_by_domain(&req.domain, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        Ok(CountResult { count: count as i64 })
+        Ok(CountResult {
+            count: count as i64,
+        })
     }
 }

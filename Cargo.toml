@@ -5,6 +5,7 @@ members = [
     "packages/twilio-rs",
     "packages/extraction",
     "packages/openai-client",
+    "packages/ai-client",
     "packages/apify-client",
 ]
 

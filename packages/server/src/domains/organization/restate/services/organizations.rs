@@ -1,15 +1,31 @@
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::time::Duration;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, WebsiteId};
-use crate::domains::crawling::activities::extract_and_create_organization;
-use crate::domains::organization::models::Organization;
+use crate::domains::crawling::activities::{
+    create_social_profiles_for_org, extract_and_create_organization, extract_organization_info,
+};
+use crate::domains::crawling::models::ExtractionPage;
+use crate::domains::organization::models::{Organization, OrganizationChecklistItem};
+use crate::domains::organization::models::organization_checklist::{CHECKLIST_KEYS, CHECKLIST_LABELS};
+use crate::domains::organization::restate::workflows::clean_up_org_posts::{
+    CleanUpOrgPostsRequest, CleanUpOrgPostsWorkflowClient,
+};
+use crate::domains::curator::restate::workflows::curate_org::{
+    CurateOrgRequest, CurateOrgWorkflowClient,
+};
+use crate::domains::organization::restate::workflows::extract_org_posts::{
+    ExtractOrgPostsRequest, ExtractOrgPostsWorkflowClient,
+};
+use crate::domains::notes::models::Note;
 use crate::domains::posts::models::Post;
 use crate::domains::posts::restate::services::posts::{PublicPostResult, PublicTagResult};
+use crate::domains::source::models::Source;
 use crate::domains::tag::models::Tag;
 use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
@@ -89,6 +105,41 @@ pub struct RegenerateOrganizationResult {
 
 impl_restate_serde!(RegenerateOrganizationResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SetStatusRequest {
+    pub id: Uuid,
+    pub status: String,
+    pub reason: Option<String>,
+}
+
+impl_restate_serde!(SetStatusRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ToggleChecklistRequest {
+    pub organization_id: Uuid,
+    pub checklist_key: String,
+    pub checked: bool,
+}
+
+impl_restate_serde!(ToggleChecklistRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChecklistItemResult {
+    pub key: String,
+    pub label: String,
+    pub checked: bool,
+    pub checked_by: Option<String>,
+    pub checked_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ChecklistResult {
+    pub items: Vec<ChecklistItemResult>,
+    pub all_checked: bool,
+}
+
+impl_restate_serde!(ChecklistResult);
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -101,6 +152,7 @@ pub struct OrganizationResult {
     pub status: String,
     pub website_count: i64,
     pub social_profile_count: i64,
+    pub snapshot_count: i64,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -133,6 +185,14 @@ pub struct OrganizationDetailResult {
 
 impl_restate_serde!(OrganizationDetailResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledExtractionResult {
+    pub orgs_triggered: i32,
+    pub status: String,
+}
+
+impl_restate_serde!(ScheduledExtractionResult);
+
 // =============================================================================
 // Service definition
 // =============================================================================
@@ -156,6 +216,31 @@ pub trait OrganizationsService {
         req: RegenerateOrganizationRequest,
     ) -> Result<RegenerateOrganizationResult, HandlerError>;
     async fn backfill_organizations(req: EmptyRequest) -> Result<BackfillResult, HandlerError>;
+    async fn extract_org_posts(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn run_scheduled_extraction(
+        req: EmptyRequest,
+    ) -> Result<ScheduledExtractionResult, HandlerError>;
+    async fn clean_up_org_posts(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn run_curator(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn remove_all_posts(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn remove_all_notes(
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError>;
+    async fn set_status(req: SetStatusRequest) -> Result<OrganizationResult, HandlerError>;
+    async fn get_checklist(
+        req: GetOrganizationRequest,
+    ) -> Result<ChecklistResult, HandlerError>;
+    async fn toggle_checklist_item(
+        req: ToggleChecklistRequest,
+    ) -> Result<ChecklistResult, HandlerError>;
 }
 
 pub struct OrganizationsServiceImpl {
@@ -187,6 +272,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 status: org.status,
                 website_count: 0,
                 social_profile_count: 0,
+                snapshot_count: 0,
                 created_at: org.created_at.to_rfc3339(),
                 updated_at: org.updated_at.to_rfc3339(),
             });
@@ -234,8 +320,10 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 });
         }
 
+        let org_uuid = org.id.into_uuid();
+        let org_name = org.name.clone();
         Ok(OrganizationDetailResult {
-            id: org.id.to_string(),
+            id: org_uuid.to_string(),
             name: org.name,
             description: org.description,
             posts: posts
@@ -255,6 +343,9 @@ impl OrganizationsService for OrganizationsServiceImpl {
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: Vec::new(),
+                        distance_miles: None,
+                        organization_id: Some(org_uuid),
+                        organization_name: Some(org_name.clone()),
                     }
                 })
                 .collect(),
@@ -297,6 +388,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
                 status: org.status,
                 website_count,
                 social_profile_count,
+                snapshot_count: 0,
                 created_at: org.created_at.to_rfc3339(),
                 updated_at: org.updated_at.to_rfc3339(),
             });
@@ -334,6 +426,21 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .await
         .unwrap_or(0);
 
+        // Compute snapshot (extraction page) count across all sources
+        let mut snapshot_count: i64 = 0;
+        let sources = Source::find_by_organization(org.id, &self.deps.db_pool)
+            .await
+            .unwrap_or_default();
+        for source in &sources {
+            if let Ok(site_url) = source.site_url(&self.deps.db_pool).await {
+                if let Ok(count) =
+                    ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool).await
+                {
+                    snapshot_count += count as i64;
+                }
+            }
+        }
+
         Ok(OrganizationResult {
             id: org.id.to_string(),
             name: org.name,
@@ -341,6 +448,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count,
             social_profile_count,
+            snapshot_count,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -353,9 +461,14 @@ impl OrganizationsService for OrganizationsServiceImpl {
     ) -> Result<OrganizationResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let org = Organization::create(&req.name, req.description.as_deref(), "admin", &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+        let org = Organization::create(
+            &req.name,
+            req.description.as_deref(),
+            "admin",
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Admin-created orgs are auto-approved
         let org = Organization::approve(org.id, user.member_id, &self.deps.db_pool)
@@ -369,6 +482,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count: 0,
             social_profile_count: 0,
+            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -413,6 +527,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count,
             social_profile_count,
+            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -456,6 +571,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count: 0,
             social_profile_count: 0,
+            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -477,6 +593,11 @@ impl OrganizationsService for OrganizationsServiceImpl {
         .await
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
+        // Reset checklist on rejection
+        OrganizationChecklistItem::reset(org.id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
         info!(org_id = %org.id, "Organization rejected");
 
         Ok(OrganizationResult {
@@ -486,6 +607,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count: 0,
             social_profile_count: 0,
+            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -516,6 +638,7 @@ impl OrganizationsService for OrganizationsServiceImpl {
             status: org.status,
             website_count: 0,
             social_profile_count: 0,
+            snapshot_count: 0,
             created_at: org.created_at.to_rfc3339(),
             updated_at: org.updated_at.to_rfc3339(),
         })
@@ -530,7 +653,12 @@ impl OrganizationsService for OrganizationsServiceImpl {
         let org_id = OrganizationId::from(req.id);
         let pool = &self.deps.db_pool;
 
-        // Find all websites linked to this org before deleting
+        // Verify org exists
+        let _org = Organization::find_by_id(org_id, pool)
+            .await
+            .map_err(|e| TerminalError::new(format!("Organization not found: {}", e)))?;
+
+        // Find all websites linked to this org
         let website_ids: Vec<WebsiteId> = sqlx::query_scalar::<_, Uuid>(
             "SELECT id FROM sources WHERE source_type = 'website' AND organization_id = $1",
         )
@@ -548,20 +676,23 @@ impl OrganizationsService for OrganizationsServiceImpl {
             return Err(TerminalError::new("No websites linked to this organization").into());
         }
 
-        info!(org_id = %org_id, websites = websites_processed, "Regenerating organization: deleting and re-extracting");
+        info!(org_id = %org_id, websites = websites_processed, "Regenerating organization in-place");
 
-        // Delete org — cascades: websites get org_id=NULL, social_profiles deleted
-        Organization::delete(org_id, pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+        // Re-run extraction on each website (no delete — update in place)
+        let mut best_name: Option<String> = None;
+        let mut best_desc: Option<String> = None;
 
-        // Re-run extraction on each website
-        let mut new_org_id: Option<String> = None;
         for website_id in &website_ids {
-            match extract_and_create_organization(*website_id, &self.deps).await {
-                Ok(oid) => {
-                    info!(website_id = %website_id, org_id = %oid, "Re-extraction succeeded");
-                    new_org_id = Some(oid.into_uuid().to_string());
+            match extract_organization_info(*website_id, &self.deps).await {
+                Ok((name, desc, social_links)) => {
+                    info!(website_id = %website_id, org_name = %name, "Extraction succeeded");
+                    // Use the first successful extraction for name/description
+                    if best_name.is_none() {
+                        best_name = Some(name);
+                        best_desc = desc;
+                    }
+                    // Create/find social profiles for every website's links
+                    create_social_profiles_for_org(org_id, &social_links, pool).await;
                 }
                 Err(e) => {
                     warn!(website_id = %website_id, error = %e, "Re-extraction failed for website");
@@ -569,8 +700,15 @@ impl OrganizationsService for OrganizationsServiceImpl {
             }
         }
 
+        // Update org name/description if we got a successful extraction
+        if let Some(name) = &best_name {
+            Organization::update(org_id, name, best_desc.as_deref(), pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
+
         Ok(RegenerateOrganizationResult {
-            organization_id: new_org_id,
+            organization_id: Some(org_id.into_uuid().to_string()),
             websites_processed,
             status: "completed".to_string(),
         })
@@ -607,12 +745,330 @@ impl OrganizationsService for OrganizationsServiceImpl {
             }
         }
 
-        info!(processed, succeeded, failed, "Organization backfill complete");
+        info!(
+            processed,
+            succeeded, failed, "Organization backfill complete"
+        );
 
         Ok(BackfillResult {
             processed,
             succeeded,
             failed,
         })
+    }
+
+    async fn extract_org_posts(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let workflow_id = format!("extract-org-{}-{}", org_id, chrono::Utc::now().timestamp());
+
+        ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(workflow_id.clone())
+            .run(ExtractOrgPostsRequest {
+                organization_id: org_id,
+            })
+            .send();
+
+        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered org-level extraction");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn run_scheduled_extraction(
+        &self,
+        ctx: Context<'_>,
+        _req: EmptyRequest,
+    ) -> Result<ScheduledExtractionResult, HandlerError> {
+        info!("Running scheduled org extraction check");
+
+        let pool = &self.deps.db_pool;
+        let org_ids = Organization::find_needing_extraction(pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        if org_ids.is_empty() {
+            info!("No organizations need extraction");
+            // Self-schedule for 15 minutes
+            ctx.service_client::<OrganizationsServiceClient>()
+                .run_scheduled_extraction(EmptyRequest {})
+                .send_after(Duration::from_secs(900));
+
+            return Ok(ScheduledExtractionResult {
+                orgs_triggered: 0,
+                status: "no_orgs_due".to_string(),
+            });
+        }
+
+        info!(
+            count = org_ids.len(),
+            "Triggering extraction for organizations"
+        );
+
+        for org_id in &org_ids {
+            let wf_key = org_id.into_uuid().to_string();
+            ctx.workflow_client::<ExtractOrgPostsWorkflowClient>(wf_key.clone())
+                .run(ExtractOrgPostsRequest {
+                    organization_id: org_id.into_uuid(),
+                })
+                .send();
+
+            // Also trigger curator workflow for this org
+            let curate_key = format!("curate-{}", org_id.into_uuid());
+            ctx.workflow_client::<CurateOrgWorkflowClient>(curate_key)
+                .run(CurateOrgRequest {
+                    organization_id: org_id.into_uuid(),
+                })
+                .send();
+        }
+
+        let triggered = org_ids.len() as i32;
+
+        // Self-schedule for 15 minutes
+        ctx.service_client::<OrganizationsServiceClient>()
+            .run_scheduled_extraction(EmptyRequest {})
+            .send_after(Duration::from_secs(900));
+
+        Ok(ScheduledExtractionResult {
+            orgs_triggered: triggered,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn clean_up_org_posts(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let workflow_id = format!("cleanup-org-{}-{}", org_id, chrono::Utc::now().timestamp());
+
+        ctx.workflow_client::<CleanUpOrgPostsWorkflowClient>(workflow_id.clone())
+            .run(CleanUpOrgPostsRequest {
+                organization_id: org_id,
+            })
+            .send();
+
+        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered org-level cleanup");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn run_curator(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let workflow_id = format!("curate-org-{}-{}", org_id, chrono::Utc::now().timestamp());
+
+        ctx.workflow_client::<CurateOrgWorkflowClient>(workflow_id.clone())
+            .run(CurateOrgRequest {
+                organization_id: org_id,
+            })
+            .send();
+
+        info!(org_id = %org_id, workflow_id = %workflow_id, "Triggered curator workflow");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: 0,
+            status: format!("started:{}", workflow_id),
+        })
+    }
+
+    async fn remove_all_posts(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let deleted = Post::delete_all_for_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org_id, deleted = deleted, "Removed all posts for organization");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: deleted,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn remove_all_notes(
+        &self,
+        ctx: Context<'_>,
+        req: RegenerateOrganizationRequest,
+    ) -> Result<RegenerateOrganizationResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = req.id;
+
+        let deleted = Note::delete_all_for_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        info!(org_id = %org_id, deleted = deleted, "Removed all notes for organization");
+
+        Ok(RegenerateOrganizationResult {
+            organization_id: Some(org_id.to_string()),
+            websites_processed: deleted,
+            status: "completed".to_string(),
+        })
+    }
+
+    async fn set_status(
+        &self,
+        ctx: Context<'_>,
+        req: SetStatusRequest,
+    ) -> Result<OrganizationResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.id);
+        let pool = &self.deps.db_pool;
+
+        let org = match req.status.as_str() {
+            "pending_review" => {
+                let org = Organization::move_to_pending(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                // Clear checklist when moving back to pending
+                OrganizationChecklistItem::reset(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                org
+            }
+            "approved" => {
+                Organization::approve(org_id, user.member_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?
+            }
+            "rejected" => {
+                let reason = req.reason.unwrap_or_else(|| "Status changed by admin".to_string());
+                let org = Organization::reject(org_id, user.member_id, reason, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                OrganizationChecklistItem::reset(org_id, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+                org
+            }
+            "suspended" => {
+                let reason = req.reason.unwrap_or_else(|| "Suspended by admin".to_string());
+                Organization::suspend(org_id, user.member_id, reason, pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?
+            }
+            _ => {
+                return Err(TerminalError::new(format!("Invalid status: {}", req.status)).into());
+            }
+        };
+
+        info!(org_id = %org.id, new_status = %req.status, "Organization status changed");
+
+        Ok(OrganizationResult {
+            id: org.id.to_string(),
+            name: org.name,
+            description: org.description,
+            status: org.status,
+            website_count: 0,
+            social_profile_count: 0,
+            snapshot_count: 0,
+            created_at: org.created_at.to_rfc3339(),
+            updated_at: org.updated_at.to_rfc3339(),
+        })
+    }
+
+    async fn get_checklist(
+        &self,
+        ctx: Context<'_>,
+        req: GetOrganizationRequest,
+    ) -> Result<ChecklistResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.id);
+
+        let checked_items = OrganizationChecklistItem::find_by_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let items: Vec<ChecklistItemResult> = CHECKLIST_LABELS
+            .iter()
+            .map(|(key, label)| {
+                let found = checked_items.iter().find(|ci| ci.checklist_key == *key);
+                ChecklistItemResult {
+                    key: key.to_string(),
+                    label: label.to_string(),
+                    checked: found.is_some(),
+                    checked_by: found.map(|ci| ci.checked_by.to_string()),
+                    checked_at: found.map(|ci| ci.checked_at.to_rfc3339()),
+                }
+            })
+            .collect();
+
+        let all_checked = items.iter().all(|i| i.checked);
+
+        Ok(ChecklistResult { items, all_checked })
+    }
+
+    async fn toggle_checklist_item(
+        &self,
+        ctx: Context<'_>,
+        req: ToggleChecklistRequest,
+    ) -> Result<ChecklistResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let org_id = OrganizationId::from(req.organization_id);
+
+        if !CHECKLIST_KEYS.contains(&req.checklist_key.as_str()) {
+            return Err(TerminalError::new(format!("Invalid checklist key: {}", req.checklist_key)).into());
+        }
+
+        if req.checked {
+            OrganizationChecklistItem::check(org_id, &req.checklist_key, user.member_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        } else {
+            OrganizationChecklistItem::uncheck(org_id, &req.checklist_key, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+        }
+
+        // Return updated checklist
+        let checked_items = OrganizationChecklistItem::find_by_organization(org_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let items: Vec<ChecklistItemResult> = CHECKLIST_LABELS
+            .iter()
+            .map(|(key, label)| {
+                let found = checked_items.iter().find(|ci| ci.checklist_key == *key);
+                ChecklistItemResult {
+                    key: key.to_string(),
+                    label: label.to_string(),
+                    checked: found.is_some(),
+                    checked_by: found.map(|ci| ci.checked_by.to_string()),
+                    checked_at: found.map(|ci| ci.checked_at.to_rfc3339()),
+                }
+            })
+            .collect();
+
+        let all_checked = items.iter().all(|i| i.checked);
+
+        Ok(ChecklistResult { items, all_checked })
     }
 }

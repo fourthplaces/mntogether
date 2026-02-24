@@ -8,9 +8,9 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
-use crate::common::{SyncBatchId, SyncProposalId, WebsiteId};
+use crate::common::{OrganizationId, SyncBatchId, SyncProposalId, WebsiteId};
 use crate::domains::agents::models::Agent;
-use crate::domains::posts::activities::post_sync_handler::PostProposalHandler;
+use crate::domains::organization::models::Organization;
 use crate::domains::posts::models::Post;
 use crate::domains::sync::activities::proposal_actions;
 use crate::domains::sync::{SyncBatch, SyncProposal, SyncProposalMergeSource};
@@ -142,6 +142,15 @@ pub struct ProposalResult {
     pub target_title: Option<String>,
     pub merge_source_ids: Vec<Uuid>,
     pub merge_source_titles: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_score: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "curator_reasoning")]
+    pub consultant_reasoning: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_urls: Option<Vec<String>>,
+    pub revision_count: i32,
 }
 
 impl_restate_serde!(ProposalResult);
@@ -164,6 +173,11 @@ impl ProposalResult {
             target_title: None,
             merge_source_ids: vec![],
             merge_source_titles: vec![],
+            relevance_score: None,
+            consultant_reasoning: p.consultant_reasoning,
+            confidence: p.confidence,
+            source_urls: p.source_urls,
+            revision_count: p.revision_count,
         }
     }
 }
@@ -206,9 +220,7 @@ impl_restate_serde!(EntityProposalListResult);
 pub trait SyncService {
     async fn list_batches(req: ListBatchesRequest) -> Result<BatchListResult, HandlerError>;
     async fn get_batch(req: GetBatchRequest) -> Result<BatchResult, HandlerError>;
-    async fn list_proposals(
-        req: ListProposalsRequest,
-    ) -> Result<ProposalListResult, HandlerError>;
+    async fn list_proposals(req: ListProposalsRequest) -> Result<ProposalListResult, HandlerError>;
     async fn list_entity_proposals(
         req: ListEntityProposalsRequest,
     ) -> Result<EntityProposalListResult, HandlerError>;
@@ -225,6 +237,24 @@ pub struct SyncServiceImpl {
 impl SyncServiceImpl {
     pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
         Self { deps }
+    }
+
+    async fn lookup_source_name(batch: &SyncBatch, pool: &sqlx::PgPool) -> Option<String> {
+        let source_id = batch.source_id?;
+        if batch.resource_type == "curator" || batch.resource_type == "organization" {
+            if let Ok(org) =
+                Organization::find_by_id(OrganizationId::from(source_id), pool).await
+            {
+                return Some(org.name);
+            }
+        }
+        if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
+            return Some(website.domain);
+        }
+        if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
+            return Some(agent.display_name);
+        }
+        None
     }
 }
 
@@ -244,13 +274,21 @@ impl SyncService for SyncServiceImpl {
         }
         .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Look up source names: try website first, then agent
+        // Look up source names: try org (curator), website, then agent
         let mut source_name_map: std::collections::HashMap<Uuid, String> =
             std::collections::HashMap::new();
         for b in &batches {
             if let Some(source_id) = b.source_id {
                 if !source_name_map.contains_key(&source_id) {
-                    if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
+                    if b.resource_type == "curator" || b.resource_type == "organization" {
+                        if let Ok(org) =
+                            Organization::find_by_id(OrganizationId::from(source_id), pool).await
+                        {
+                            source_name_map.insert(source_id, org.name);
+                        }
+                    } else if let Ok(website) =
+                        Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await
+                    {
                         source_name_map.insert(source_id, website.domain);
                     } else if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
                         source_name_map.insert(source_id, agent.display_name);
@@ -283,17 +321,7 @@ impl SyncService for SyncServiceImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Batch not found"))?;
 
-        let source_name = if let Some(source_id) = batch.source_id {
-            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), pool).await {
-                Some(website.domain)
-            } else if let Ok(agent) = Agent::find_by_id(source_id, pool).await {
-                Some(agent.display_name)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        let source_name = Self::lookup_source_name(&batch, pool).await;
 
         Ok(BatchResult::from_model(batch, source_name))
     }
@@ -306,10 +334,9 @@ impl SyncService for SyncServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let pool = &self.deps.db_pool;
 
-        let proposals =
-            SyncProposal::find_by_batch(SyncBatchId::from_uuid(req.batch_id), pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let proposals = SyncProposal::find_by_batch(SyncBatchId::from_uuid(req.batch_id), pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Collect all entity IDs we need titles for
         let mut entity_ids: Vec<Uuid> = Vec::new();
@@ -334,14 +361,19 @@ impl SyncService for SyncServiceImpl {
             merge_sources_by_proposal.insert(p.id.into_uuid(), source_ids);
         }
 
-        // Batch-load all post titles (includes soft-deleted posts for display)
+        // Batch-load all post titles + scores (includes soft-deleted posts for display)
         entity_ids.sort();
         entity_ids.dedup();
-        let title_rows = Post::find_titles_by_ids(&entity_ids, pool)
+        let title_score_rows = Post::find_titles_and_scores_by_ids(&entity_ids, pool)
             .await
             .unwrap_or_default();
-        let title_map: std::collections::HashMap<Uuid, String> = title_rows
+        let title_map: std::collections::HashMap<Uuid, String> = title_score_rows
+            .iter()
+            .map(|(id, title, _)| (*id, title.clone()))
+            .collect();
+        let score_map: std::collections::HashMap<Uuid, Option<i32>> = title_score_rows
             .into_iter()
+            .map(|(id, _, score)| (id, score))
             .collect();
 
         Ok(ProposalListResult {
@@ -358,6 +390,15 @@ impl SyncService for SyncServiceImpl {
                         .filter_map(|id| title_map.get(id).cloned())
                         .collect();
 
+                    // Use draft entity score if available, otherwise target entity score
+                    let relevance_score = p
+                        .draft_entity_id
+                        .and_then(|id| score_map.get(&id).copied().flatten())
+                        .or_else(|| {
+                            p.target_entity_id
+                                .and_then(|id| score_map.get(&id).copied().flatten())
+                        });
+
                     ProposalResult {
                         id: pid,
                         batch_id: p.batch_id.into_uuid(),
@@ -371,9 +412,16 @@ impl SyncService for SyncServiceImpl {
                         reviewed_at: p.reviewed_at.map(|t| t.to_rfc3339()),
                         created_at: p.created_at.to_rfc3339(),
                         draft_title: p.draft_entity_id.and_then(|id| title_map.get(&id).cloned()),
-                        target_title: p.target_entity_id.and_then(|id| title_map.get(&id).cloned()),
+                        target_title: p
+                            .target_entity_id
+                            .and_then(|id| title_map.get(&id).cloned()),
                         merge_source_ids: merge_ids,
                         merge_source_titles: merge_titles,
+                        relevance_score,
+                        consultant_reasoning: p.consultant_reasoning,
+                        confidence: p.confidence,
+                        source_urls: p.source_urls,
+                        revision_count: p.revision_count,
                     }
                 })
                 .collect(),
@@ -416,13 +464,11 @@ impl SyncService for SyncServiceImpl {
     ) -> Result<ProposalResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let handler = PostProposalHandler;
         let proposal = ctx
             .run(|| async {
-                proposal_actions::approve_proposal(
+                proposal_actions::approve_proposal_auto(
                     SyncProposalId::from_uuid(req.proposal_id),
                     user.member_id,
-                    &handler,
                     &self.deps.db_pool,
                 )
                 .await
@@ -440,13 +486,11 @@ impl SyncService for SyncServiceImpl {
     ) -> Result<ProposalResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let handler = PostProposalHandler;
         let proposal = ctx
             .run(|| async {
-                proposal_actions::reject_proposal(
+                proposal_actions::reject_proposal_auto(
                     SyncProposalId::from_uuid(req.proposal_id),
                     user.member_id,
-                    &handler,
                     &self.deps.db_pool,
                 )
                 .await
@@ -464,13 +508,11 @@ impl SyncService for SyncServiceImpl {
     ) -> Result<BatchResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let handler = PostProposalHandler;
         let batch = ctx
             .run(|| async {
-                proposal_actions::approve_batch(
+                proposal_actions::approve_batch_auto(
                     SyncBatchId::from_uuid(req.batch_id),
                     user.member_id,
-                    &handler,
                     &self.deps.db_pool,
                 )
                 .await
@@ -478,13 +520,7 @@ impl SyncService for SyncServiceImpl {
             })
             .await?;
 
-        let source_name = if let Some(source_id) = batch.source_id {
-            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
-                Some(website.domain)
-            } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
-                Some(agent.display_name)
-            } else { None }
-        } else { None };
+        let source_name = Self::lookup_source_name(&batch, &self.deps.db_pool).await;
         Ok(BatchResult::from_model(batch, source_name))
     }
 
@@ -495,13 +531,11 @@ impl SyncService for SyncServiceImpl {
     ) -> Result<BatchResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let handler = PostProposalHandler;
         let batch = ctx
             .run(|| async {
-                proposal_actions::reject_batch(
+                proposal_actions::reject_batch_auto(
                     SyncBatchId::from_uuid(req.batch_id),
                     user.member_id,
-                    &handler,
                     &self.deps.db_pool,
                 )
                 .await
@@ -509,13 +543,7 @@ impl SyncService for SyncServiceImpl {
             })
             .await?;
 
-        let source_name = if let Some(source_id) = batch.source_id {
-            if let Ok(website) = Website::find_by_id(WebsiteId::from_uuid(source_id), &self.deps.db_pool).await {
-                Some(website.domain)
-            } else if let Ok(agent) = Agent::find_by_id(source_id, &self.deps.db_pool).await {
-                Some(agent.display_name)
-            } else { None }
-        } else { None };
+        let source_name = Self::lookup_source_name(&batch, &self.deps.db_pool).await;
         Ok(BatchResult::from_model(batch, source_name))
     }
 }

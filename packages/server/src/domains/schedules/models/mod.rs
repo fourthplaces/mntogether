@@ -1,3 +1,6 @@
 pub mod schedule;
 
-pub use schedule::Schedule;
+pub use schedule::{
+    CreateOneOffSchedule, CreateOperatingHoursSchedule, CreateRecurringSchedule, Schedule,
+    UpdateScheduleParams,
+};

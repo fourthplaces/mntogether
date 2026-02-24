@@ -120,7 +120,7 @@ impl<T, V> Id<T, V> {
 
     /// Parses an `Id` from a string.
     ///
-    /// This is the primary way to convert GraphQL string inputs to typed IDs.
+    /// This is the primary way to convert string inputs to typed IDs.
     ///
     /// # Errors
     ///
@@ -259,7 +259,9 @@ impl<'de, T, V> Deserialize<'de> for Id<T, V> {
 // Restate SDK serde support
 // ============================================================================
 
-impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Serialize for Id<T, V> {
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Serialize
+    for Id<T, V>
+{
     type Error = serde_json::Error;
 
     fn serialize(&self) -> Result<bytes::Bytes, Self::Error> {
@@ -267,7 +269,9 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Ser
     }
 }
 
-impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Deserialize for Id<T, V> {
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Deserialize
+    for Id<T, V>
+{
     type Error = serde_json::Error;
 
     fn deserialize(bytes: &mut bytes::Bytes) -> Result<Self, Self::Error> {
@@ -276,7 +280,9 @@ impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::Des
     }
 }
 
-impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::WithContentType for Id<T, V> {
+impl<T: Send + Sync + 'static, V: Send + Sync + 'static> restate_sdk::serde::WithContentType
+    for Id<T, V>
+{
     fn content_type() -> &'static str {
         "application/json"
     }

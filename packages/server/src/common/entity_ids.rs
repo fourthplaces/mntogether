@@ -80,6 +80,9 @@ pub struct SyncBatch;
 /// Marker type for SyncProposal entities (individual AI-proposed operations).
 pub struct SyncProposal;
 
+/// Marker type for ProposalComment entities (admin feedback on proposals).
+pub struct ProposalComment;
+
 /// Marker type for Organization entities (groups of related sources).
 pub struct Organization;
 
@@ -95,6 +98,12 @@ pub struct WebsiteSource;
 /// Marker type for SocialSource entities (social-media-specific source details).
 pub struct SocialSource;
 
+/// Marker type for NewsletterSource entities (newsletter subscription source details).
+pub struct NewsletterSource;
+
+/// Marker type for DetectedNewsletterForm entities (detected newsletter signup forms).
+pub struct DetectedNewsletterForm;
+
 /// Marker type for Note entities (attachable alerts and context).
 pub struct Note;
 
@@ -103,6 +112,12 @@ pub struct Noteable;
 
 /// Marker type for PostSource entities (unified post source tracking).
 pub struct PostSource;
+
+/// Marker type for Locatable entities (polymorphic location associations).
+pub struct Locatable;
+
+/// Marker type for HeatMapPoint entities (heat map snapshot points).
+pub struct HeatMapPoint;
 
 // ============================================================================
 // Type aliases - the primary API
@@ -165,6 +180,9 @@ pub type SyncBatchId = Id<SyncBatch>;
 /// Typed ID for SyncProposal entities.
 pub type SyncProposalId = Id<SyncProposal>;
 
+/// Typed ID for ProposalComment entities.
+pub type ProposalCommentId = Id<ProposalComment>;
+
 /// Typed ID for Organization entities.
 pub type OrganizationId = Id<Organization>;
 
@@ -180,6 +198,12 @@ pub type WebsiteSourceId = Id<WebsiteSource>;
 /// Typed ID for SocialSource entities.
 pub type SocialSourceId = Id<SocialSource>;
 
+/// Typed ID for NewsletterSource entities.
+pub type NewsletterSourceId = Id<NewsletterSource>;
+
+/// Typed ID for DetectedNewsletterForm entities.
+pub type DetectedNewsletterFormId = Id<DetectedNewsletterForm>;
+
 /// Typed ID for Note entities.
 pub type NoteId = Id<Note>;
 
@@ -188,3 +212,9 @@ pub type NoteableId = Id<Noteable>;
 
 /// Typed ID for PostSource entities.
 pub type PostSourceId = Id<PostSource>;
+
+/// Typed ID for Locatable entities.
+pub type LocatableId = Id<Locatable>;
+
+/// Typed ID for HeatMapPoint entities.
+pub type HeatMapPointId = Id<HeatMapPoint>;

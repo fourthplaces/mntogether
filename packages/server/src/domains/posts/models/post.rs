@@ -5,9 +5,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{
-    ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs,
-};
+use crate::common::{ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
 /// Listing - a service, opportunity, or business listing
@@ -72,6 +70,11 @@ pub struct Post {
 
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
+
+    // Relevance scoring (for human review triage)
+    pub relevance_score: Option<i32>,
+    pub relevance_breakdown: Option<String>,
+    pub scored_at: Option<DateTime<Utc>>,
 }
 
 /// Search result from semantic similarity search
@@ -101,9 +104,33 @@ pub struct PostWithDistance {
     pub submission_type: Option<String>,
     pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
     pub zip_code: Option<String>,
     pub location_city: Option<String>,
     pub distance_miles: f64,
+}
+
+/// PostWithDistance plus total_count from COUNT(*) OVER() window function
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct PostWithDistanceAndCount {
+    pub id: PostId,
+    pub title: String,
+    pub description: String,
+    pub description_markdown: Option<String>,
+    pub summary: Option<String>,
+    pub post_type: String,
+    pub category: String,
+    pub status: String,
+    pub urgency: Option<String>,
+    pub location: Option<String>,
+    pub submission_type: Option<String>,
+    pub source_url: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub published_at: Option<DateTime<Utc>>,
+    pub updated_at: DateTime<Utc>,
+    pub distance_miles: f64,
+    pub total_count: i64,
 }
 
 /// Search result with location info (for chat agent tool)
@@ -341,10 +368,49 @@ pub struct UpdatePostContent {
 }
 
 // =============================================================================
+// Filter params
+// =============================================================================
+
+/// Shared filter parameters for post listing queries.
+/// All fields are optional — default is no filtering.
+#[derive(Debug, Clone, Default)]
+pub struct PostFilters<'a> {
+    pub status: Option<&'a str>,
+    pub source_type: Option<&'a str>,
+    pub source_id: Option<Uuid>,
+    pub agent_id: Option<Uuid>,
+    pub search: Option<&'a str>,
+}
+
+// =============================================================================
 // SQL Queries - ALL queries must be in models/
 // =============================================================================
 
 impl Post {
+    /// SQL predicate: filters out posts with all-expired schedules.
+    /// Posts without schedules (evergreen) always pass.
+    /// Posts with at least one active schedule pass.
+    ///
+    /// Schedule "active" means:
+    /// - One-off event: dtend (or dtstart if no dtend) is in the future
+    /// - Recurring/operating hours: valid_to is NULL (open-ended) or in the future
+    const SCHEDULE_ACTIVE_FILTER: &'static str = r#"
+        AND (
+            NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = p.id
+            )
+            OR EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = p.id
+                AND (
+                    (NULLIF(s.rrule, '') IS NULL AND COALESCE(s.dtend, s.dtstart) > NOW())
+                    OR (NULLIF(s.rrule, '') IS NOT NULL AND (s.valid_to IS NULL OR s.valid_to >= CURRENT_DATE))
+                )
+            )
+        )
+    "#;
+
     /// Find all posts created by a specific agent (joins through agents.member_id).
     pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>(
@@ -378,22 +444,29 @@ impl Post {
 
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL",
-        )
-        .bind(ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        sqlx::query_as::<_, Self>("SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL")
+            .bind(ids)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Batch-load post titles by IDs (includes soft-deleted posts, for display purposes)
-    pub async fn find_titles_by_ids(
+    pub async fn find_titles_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<(Uuid, String)>> {
+        sqlx::query_as::<_, (Uuid, String)>("SELECT id, title FROM posts WHERE id = ANY($1)")
+            .bind(ids)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Batch-load titles and relevance scores for a set of post IDs.
+    pub async fn find_titles_and_scores_by_ids(
         ids: &[Uuid],
         pool: &PgPool,
-    ) -> Result<Vec<(Uuid, String)>> {
-        sqlx::query_as::<_, (Uuid, String)>(
-            "SELECT id, title FROM posts WHERE id = ANY($1)",
+    ) -> Result<Vec<(Uuid, String, Option<i32>)>> {
+        sqlx::query_as::<_, (Uuid, String, Option<i32>)>(
+            "SELECT id, title, relevance_score FROM posts WHERE id = ANY($1)",
         )
         .bind(ids)
         .fetch_all(pool)
@@ -439,16 +512,12 @@ impl Post {
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn find_paginated(
-        status: Option<&str>,
-        source_type: Option<&str>,
-        source_id: Option<Uuid>,
-        agent_id: Option<Uuid>,
-        search: Option<&str>,
+        filters: &PostFilters<'_>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
         let fetch_limit = args.fetch_limit();
-        let search_pattern = search.map(|s| format!("%{}%", s));
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
 
         let results = match args.direction {
             PaginationDirection::Forward => {
@@ -470,12 +539,12 @@ impl Post {
                     LIMIT $3
                     "#,
                 )
-                .bind(status)
+                .bind(filters.status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(source_type)
-                .bind(source_id)
-                .bind(agent_id)
+                .bind(filters.source_type)
+                .bind(filters.source_id)
+                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?
@@ -500,12 +569,12 @@ impl Post {
                     LIMIT $3
                     "#,
                 )
-                .bind(status)
+                .bind(filters.status)
                 .bind(args.cursor)
                 .bind(fetch_limit)
-                .bind(source_type)
-                .bind(source_id)
-                .bind(agent_id)
+                .bind(filters.source_type)
+                .bind(filters.source_id)
+                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .fetch_all(pool)
                 .await?;
@@ -536,17 +605,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE post_type = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.post_type = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(post_type)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(post_type)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -557,17 +629,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE category = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.category = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(category)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -578,17 +653,20 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        let listings = sqlx::query_as::<_, Post>(
-            "SELECT * FROM posts
-             WHERE capacity_status = $1 AND status = 'active' AND deleted_at IS NULL AND revision_of_post_id IS NULL AND translation_of_id IS NULL
-             ORDER BY created_at DESC
+        let sql = format!(
+            "SELECT p.* FROM posts p
+             WHERE p.capacity_status = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
+             {}
+             ORDER BY p.created_at DESC
              LIMIT $2 OFFSET $3",
-        )
-        .bind(capacity_status)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let listings = sqlx::query_as::<_, Post>(&sql)
+            .bind(capacity_status)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await?;
         Ok(listings)
     }
 
@@ -597,7 +675,7 @@ impl Post {
         organization_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Post>(
+        let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
             JOIN post_sources ps ON ps.post_id = p.id
@@ -607,13 +685,16 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              {}
             ORDER BY p.created_at DESC
             "#,
-        )
-        .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, Post>(&sql)
+            .bind(organization_id)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find ALL posts for an organization (joins through post_sources → sources), regardless of status.
@@ -631,6 +712,13 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sync_proposals sp
+                JOIN sync_batches sb ON sb.id = sp.batch_id
+                WHERE sp.draft_entity_id = p.id
+                  AND sp.status = 'pending'
+                  AND sb.status IN ('pending', 'partially_reviewed')
+              )
             ORDER BY p.created_at DESC
             "#,
         )
@@ -654,6 +742,13 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM sync_proposals sp
+                JOIN sync_batches sb ON sb.id = sp.batch_id
+                WHERE sp.draft_entity_id = p.id
+                  AND sp.status = 'pending'
+                  AND sb.status IN ('pending', 'partially_reviewed')
+              )
             "#,
         )
         .bind(source_type)
@@ -792,6 +887,9 @@ impl Post {
                 category = COALESCE($6, category),
                 urgency = COALESCE($7, urgency),
                 location = COALESCE($8, location),
+                relevance_score = NULL,
+                relevance_breakdown = NULL,
+                scored_at = NULL,
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -825,6 +923,32 @@ impl Post {
         Ok(result.rows_affected())
     }
 
+    /// Mark posts as expired when all their schedules have passed.
+    /// Only affects posts that have schedules (evergreen posts are untouched).
+    pub async fn expire_by_schedule(pool: &PgPool) -> Result<u64> {
+        let result = sqlx::query(
+            r#"
+            UPDATE posts SET status = 'expired', updated_at = NOW()
+            WHERE status = 'active'
+              AND EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = posts.id
+              )
+              AND NOT EXISTS (
+                SELECT 1 FROM schedules s
+                WHERE s.schedulable_type = 'post' AND s.schedulable_id = posts.id
+                AND (
+                  (NULLIF(s.rrule, '') IS NULL AND COALESCE(s.dtend, s.dtstart) > NOW())
+                  OR (NULLIF(s.rrule, '') IS NOT NULL AND (s.valid_to IS NULL OR s.valid_to >= CURRENT_DATE))
+                )
+              )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected())
+    }
+
     /// Update last_seen_at timestamp
     pub async fn update_last_seen(post_ids: &[PostId], pool: &PgPool) -> Result<u64> {
         let result = sqlx::query(
@@ -841,7 +965,7 @@ impl Post {
     }
 
     /// Find existing active listings from a source (for sync)
-    pub async fn find_active_by_source(
+    pub async fn find_reviewable_by_source(
         source_type: &str,
         source_id: Uuid,
         pool: &PgPool,
@@ -910,15 +1034,8 @@ impl Post {
     /// When agent_id is provided, filters via JOIN through agents.member_id.
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
-    pub async fn count_by_status(
-        status: Option<&str>,
-        source_type: Option<&str>,
-        source_id: Option<Uuid>,
-        agent_id: Option<Uuid>,
-        search: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<i64> {
-        let search_pattern = search.map(|s| format!("%{}%", s));
+    pub async fn count_by_status(filters: &PostFilters<'_>, pool: &PgPool) -> Result<i64> {
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(DISTINCT p.id)
@@ -935,14 +1052,37 @@ impl Post {
               AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
             "#,
         )
-        .bind(status)
-        .bind(source_type)
-        .bind(source_id)
-        .bind(agent_id)
+        .bind(filters.status)
+        .bind(filters.source_type)
+        .bind(filters.source_id)
+        .bind(filters.agent_id)
         .bind(&search_pattern)
         .fetch_one(pool)
         .await?;
         Ok(count)
+    }
+
+    /// Count posts grouped by post_type and submission_type for a given status.
+    /// Returns (post_type, submission_type, count) tuples.
+    pub async fn stats_by_status(
+        status: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Vec<(Option<String>, Option<String>, i64)>> {
+        sqlx::query_as::<_, (Option<String>, Option<String>, i64)>(
+            r#"
+            SELECT p.post_type, p.submission_type, COUNT(*)::bigint
+            FROM posts p
+            WHERE ($1::text IS NULL OR p.status = $1)
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+            GROUP BY p.post_type, p.submission_type
+            "#,
+        )
+        .bind(status)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Ensure listing is active (for operations that require active status)
@@ -954,6 +1094,26 @@ impl Post {
             );
         }
         Ok(())
+    }
+
+    /// Delete all posts for an organization (hard delete via post_sources → sources join).
+    /// Returns the count of deleted posts.
+    pub async fn delete_all_for_organization(organization_id: Uuid, pool: &PgPool) -> Result<i64> {
+        let result = sqlx::query(
+            r#"
+            DELETE FROM posts
+            WHERE id IN (
+                SELECT DISTINCT p.id FROM posts p
+                JOIN post_sources ps ON ps.post_id = p.id
+                JOIN sources s ON ps.source_id = s.id
+                WHERE s.organization_id = $1
+            )
+            "#,
+        )
+        .bind(organization_id)
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected() as i64)
     }
 
     /// Delete a listing by ID (hard delete - use soft_delete instead for link preservation)
@@ -1064,7 +1224,7 @@ impl Post {
 
         let vector = Vector::from(query_embedding.to_vec());
 
-        let results = sqlx::query_as::<_, PostSearchResult>(
+        let sql = format!(
             r#"
             SELECT
                 p.id as post_id,
@@ -1080,15 +1240,18 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
+              {}
             ORDER BY p.embedding <=> $1
             LIMIT $3
             "#,
-        )
-        .bind(&vector)
-        .bind(threshold)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let results = sqlx::query_as::<_, PostSearchResult>(&sql)
+            .bind(&vector)
+            .bind(threshold)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?;
 
         Ok(results)
     }
@@ -1104,7 +1267,7 @@ impl Post {
 
         let vector = Vector::from(query_embedding.to_vec());
 
-        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(
+        let sql = format!(
             r#"
             SELECT
                 p.id as post_id,
@@ -1123,15 +1286,18 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND (1 - (p.embedding <=> $1)) > $2
+              {}
             ORDER BY p.embedding <=> $1
             LIMIT $3
             "#,
-        )
-        .bind(&vector)
-        .bind(threshold)
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(&sql)
+            .bind(&vector)
+            .bind(threshold)
+            .bind(limit)
+            .fetch_all(pool)
+            .await?;
 
         Ok(results)
     }
@@ -1205,7 +1371,7 @@ impl Post {
         limit: i32,
         pool: &PgPool,
     ) -> Result<Vec<PostWithDistance>> {
-        sqlx::query_as::<_, PostWithDistance>(
+        let sql = format!(
             r#"
             WITH center AS (
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
@@ -1214,7 +1380,7 @@ impl Post {
                    p.description_markdown, p.summary,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
-                   p.created_at,
+                   p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,
                    haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
             FROM posts p
@@ -1226,16 +1392,94 @@ impl Post {
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              {}
             ORDER BY distance_miles ASC
             LIMIT $3
             "#,
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, PostWithDistance>(&sql)
+            .bind(center_zip)
+            .bind(radius_miles)
+            .bind(limit)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Find posts near a zip code with composable filters and offset pagination.
+    /// Uses GROUP BY + MIN(haversine) for multi-location dedup, bounding box pre-filter,
+    /// and COUNT(*) OVER() for total count in a single query.
+    pub async fn find_paginated_near_zip(
+        center_zip: &str,
+        radius_miles: f64,
+        filters: &PostFilters<'_>,
+        limit: i32,
+        offset: i32,
+        pool: &PgPool,
+    ) -> Result<(Vec<PostWithDistanceAndCount>, bool)> {
+        let search_pattern = filters.search.map(|s| format!("%{}%", s));
+
+        let results = sqlx::query_as::<_, PostWithDistanceAndCount>(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT p.id, p.title, p.description,
+                   p.description_markdown, p.summary,
+                   p.post_type, p.category, p.status, p.urgency,
+                   p.location, p.submission_type, p.source_url,
+                   p.created_at, p.published_at, p.updated_at,
+                   MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) as distance_miles,
+                   COUNT(*) OVER() as total_count
+            FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            LEFT JOIN agents a ON a.member_id = p.submitted_by_id
+            LEFT JOIN post_sources ps ON ps.post_id = p.id
+            CROSS JOIN center c
+            WHERE p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND ($2::text IS NULL OR p.status = $2)
+              AND ($3::text IS NULL OR ps.source_type = $3)
+              AND ($4::uuid IS NULL OR ps.source_id = $4)
+              AND ($5::uuid IS NULL OR a.id = $5)
+              AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+              AND z.latitude BETWEEN c.latitude - ($7::float8 / 69.0)
+                                 AND c.latitude + ($7::float8 / 69.0)
+              AND z.longitude BETWEEN c.longitude - ($7::float8 / (69.0 * cos(radians(c.latitude))))
+                                  AND c.longitude + ($7::float8 / (69.0 * cos(radians(c.latitude))))
+            GROUP BY p.id, p.title, p.description, p.description_markdown, p.summary,
+                     p.post_type, p.category, p.status, p.urgency, p.location,
+                     p.submission_type, p.source_url, p.created_at, p.published_at, p.updated_at,
+                     c.latitude, c.longitude
+            HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $7
+            ORDER BY distance_miles ASC
+            LIMIT $8 OFFSET $9
+            "#,
         )
-        .bind(center_zip)
-        .bind(radius_miles)
-        .bind(limit)
+        .bind(center_zip)             // $1
+        .bind(filters.status)         // $2
+        .bind(filters.source_type)    // $3
+        .bind(filters.source_id)      // $4
+        .bind(filters.agent_id)       // $5
+        .bind(&search_pattern)        // $6
+        .bind(radius_miles)           // $7
+        .bind(limit + 1)        // $8 - fetch one extra to detect next page
+        .bind(offset)           // $9
         .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+        .await?;
+
+        let has_more = results.len() > limit as usize;
+        let results = if has_more {
+            results.into_iter().take(limit as usize).collect()
+        } else {
+            results
+        };
+
+        Ok((results, has_more))
     }
 
     /// Find revision for a specific post (if any)
@@ -1442,7 +1686,7 @@ impl Post {
         offset: i64,
         pool: &PgPool,
     ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
+        let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
             LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
@@ -1455,17 +1699,20 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($1::text IS NULL OR t_pt.value = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
+              {}
             ORDER BY p.created_at DESC
             LIMIT $3 OFFSET $4
             "#,
-        )
-        .bind(post_type)
-        .bind(category)
-        .bind(limit)
-        .bind(offset)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_as::<_, Self>(&sql)
+            .bind(post_type)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Count active posts matching the same filters as find_public_filtered
@@ -1474,7 +1721,7 @@ impl Post {
         category: Option<&str>,
         pool: &PgPool,
     ) -> Result<i64> {
-        sqlx::query_scalar::<_, i64>(
+        let sql = format!(
             r#"
             SELECT COUNT(DISTINCT p.id) FROM posts p
             LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
@@ -1487,13 +1734,121 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($1::text IS NULL OR t_pt.value = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
+              {}
             "#,
-        )
-        .bind(post_type)
-        .bind(category)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_scalar::<_, i64>(&sql)
+            .bind(post_type)
+            .bind(category)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Find active posts near a zip code with optional post_type and category tag filters.
+    /// Returns posts ordered by distance, with distance_miles included.
+    pub async fn find_public_filtered_near_zip(
+        zip_code: &str,
+        radius_miles: f64,
+        post_type: Option<&str>,
+        category: Option<&str>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<PostWithDistance>> {
+        let sql = format!(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT DISTINCT ON (p.id)
+                   p.id, p.title, p.description,
+                   p.description_markdown, p.summary,
+                   p.post_type, p.category, p.status, p.urgency,
+                   p.location, p.submission_type, p.source_url,
+                   p.created_at, p.published_at, p.updated_at,
+                   l.postal_code as zip_code, l.city as location_city,
+                   haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
+            FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            CROSS JOIN center c
+            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
+            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($4::text IS NULL OR t_cat.value = $4)
+              {}
+            ORDER BY p.id, distance_miles ASC
+            "#,
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        // Wrap in a subquery to sort by distance and apply limit/offset
+        let wrapped = format!(
+            "SELECT * FROM ({}) sub ORDER BY distance_miles ASC LIMIT $5 OFFSET $6",
+            sql
+        );
+        sqlx::query_as::<_, PostWithDistance>(&wrapped)
+            .bind(zip_code)
+            .bind(radius_miles)
+            .bind(post_type)
+            .bind(category)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Count active posts near a zip code with optional post_type/category filters.
+    pub async fn count_public_filtered_near_zip(
+        zip_code: &str,
+        radius_miles: f64,
+        post_type: Option<&str>,
+        category: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        let sql = format!(
+            r#"
+            WITH center AS (
+                SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
+            )
+            SELECT COUNT(DISTINCT p.id) FROM posts p
+            INNER JOIN post_locations pl ON pl.post_id = p.id
+            INNER JOIN locations l ON l.id = pl.location_id
+            INNER JOIN zip_codes z ON l.postal_code = z.zip_code
+            CROSS JOIN center c
+            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
+            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
+            LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
+            LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
+              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($4::text IS NULL OR t_cat.value = $4)
+              {}
+            "#,
+            Self::SCHEDULE_ACTIVE_FILTER
+        );
+        sqlx::query_scalar::<_, i64>(&sql)
+            .bind(zip_code)
+            .bind(radius_miles)
+            .bind(post_type)
+            .bind(category)
+            .fetch_one(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Find a translation of a post in a specific language
@@ -1544,6 +1899,30 @@ impl Post {
         .map_err(Into::into)
     }
 
+    /// Find rejected posts for an organization (for cleanup/purge).
+    /// Joins through post_sources → sources to find org membership.
+    pub async fn find_rejected_by_organization(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT ON (p.id) p.*
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status = 'rejected'
+              AND p.deleted_at IS NULL
+            ORDER BY p.id
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Mark a post as a duplicate of another post.
     /// Sets duplicate_of_id, soft-deletes, and records the reason.
     pub async fn mark_as_duplicate(
@@ -1568,5 +1947,131 @@ impl Post {
         .execute(pool)
         .await?;
         Ok(())
+    }
+
+    // =========================================================================
+    // Relevance Scoring
+    // =========================================================================
+
+    /// Update relevance score for a post
+    pub async fn update_relevance_score(
+        id: PostId,
+        score: i32,
+        breakdown: &str,
+        pool: &PgPool,
+    ) -> Result<()> {
+        sqlx::query(
+            "UPDATE posts SET relevance_score = $1, relevance_breakdown = $2, scored_at = NOW(), updated_at = NOW() WHERE id = $3",
+        )
+        .bind(score)
+        .bind(breakdown)
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Clear relevance score (e.g. when content changes)
+    pub async fn clear_relevance_score(id: PostId, pool: &PgPool) -> Result<()> {
+        sqlx::query(
+            "UPDATE posts SET relevance_score = NULL, relevance_breakdown = NULL, scored_at = NULL, updated_at = NOW() WHERE id = $1",
+        )
+        .bind(id)
+        .execute(pool)
+        .await?;
+        Ok(())
+    }
+
+    /// Find unscored active posts for batch scoring.
+    /// Excludes revisions, translations, duplicates, and deleted posts.
+    pub async fn find_unscored_active(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM posts
+            WHERE status = 'active'
+              AND relevance_score IS NULL
+              AND revision_of_post_id IS NULL
+              AND translation_of_id IS NULL
+              AND duplicate_of_id IS NULL
+              AND deleted_at IS NULL
+            ORDER BY created_at DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find unscored active posts for a specific organization.
+    /// Joins through post_sources → sources to find org membership.
+    pub async fn find_unscored_active_by_org(
+        organization_id: Uuid,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            WHERE s.organization_id = $1
+              AND p.status = 'active'
+              AND p.relevance_score IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND p.duplicate_of_id IS NULL
+              AND p.deleted_at IS NULL
+            ORDER BY p.created_at DESC
+            "#,
+        )
+        .bind(organization_id)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Find organization names for multiple posts (via post_sources → sources → organizations).
+    /// Returns a map of post_id → organization name.
+    /// Find organization id and name for multiple posts (via post_sources → sources → organizations).
+    /// Returns a map of post_id → (org_id, org_name).
+    pub async fn find_org_info_for_posts(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<std::collections::HashMap<Uuid, (Uuid, String)>> {
+        let rows = sqlx::query_as::<_, (Uuid, Uuid, String)>(
+            r#"
+            SELECT DISTINCT ON (p.id) p.id, o.id, o.name
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            JOIN organizations o ON s.organization_id = o.id
+            WHERE p.id = ANY($1)
+            ORDER BY p.id
+            "#,
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await?;
+
+        Ok(rows.into_iter().map(|(post_id, org_id, org_name)| (post_id, (org_id, org_name))).collect())
+    }
+
+    /// Find organization name for a post (via post_sources → sources → organizations).
+    /// Returns None if the post has no linked organization.
+    pub async fn find_org_name(id: PostId, pool: &PgPool) -> Result<Option<String>> {
+        sqlx::query_scalar::<_, String>(
+            r#"
+            SELECT o.name
+            FROM posts p
+            JOIN post_sources ps ON ps.post_id = p.id
+            JOIN sources s ON ps.source_id = s.id
+            JOIN organizations o ON s.organization_id = o.id
+            WHERE p.id = $1
+            LIMIT 1
+            "#,
+        )
+        .bind(id)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
     }
 }

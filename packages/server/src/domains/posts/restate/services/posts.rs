@@ -12,6 +12,7 @@ use crate::common::PaginationArgs;
 use crate::domains::locations::models::ZipCode;
 use crate::domains::posts::activities;
 use crate::domains::posts::data::types::SubmitPostInput;
+use crate::domains::posts::models::post::PostFilters;
 use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
 use crate::domains::posts::models::Post;
 use crate::domains::schedules::models::Schedule;
@@ -32,7 +33,10 @@ pub struct ListPostsRequest {
     pub source_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
     pub search: Option<String>,
+    pub zip_code: Option<String>,
+    pub radius_miles: Option<f64>,
     pub first: Option<i32>,
+    pub offset: Option<i32>,
     pub after: Option<String>,
     pub last: Option<i32>,
     pub before: Option<String>,
@@ -123,6 +127,8 @@ pub struct PublicListRequest {
     pub category: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
+    pub zip_code: Option<String>,
+    pub radius_miles: Option<f64>,
 }
 
 impl_restate_serde!(PublicListRequest);
@@ -143,6 +149,21 @@ impl_restate_serde!(PublicFiltersRequest);
 pub struct DeduplicateCrossSourceRequest {}
 
 impl_restate_serde!(DeduplicateCrossSourceRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostStatsRequest {
+    pub status: Option<String>,
+}
+
+impl_restate_serde!(PostStatsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchScorePostsRequest {
+    pub limit: Option<i32>,
+    pub organization_id: Option<Uuid>,
+}
+
+impl_restate_serde!(BatchScorePostsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsRequest {
@@ -342,6 +363,12 @@ pub struct PublicPostResult {
     pub tags: Vec<PublicTagResult>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub urgent_notes: Vec<UrgentNoteInfo>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_miles: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub organization_name: Option<String>,
 }
 
 impl_restate_serde!(PublicPostResult);
@@ -393,6 +420,18 @@ pub struct PublicFiltersResult {
 impl_restate_serde!(PublicFiltersResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PostStatsResult {
+    pub total: i64,
+    pub services: i64,
+    pub opportunities: i64,
+    pub businesses: i64,
+    pub user_submitted: i64,
+    pub scraped: i64,
+}
+
+impl_restate_serde!(PostStatsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillLocationsResult {
     pub processed: i32,
     pub failed: i32,
@@ -400,6 +439,43 @@ pub struct BackfillLocationsResult {
 }
 
 impl_restate_serde!(BackfillLocationsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchScorePostsResult {
+    pub scored: i32,
+    pub failed: i32,
+    pub remaining: i32,
+}
+
+impl_restate_serde!(BatchScorePostsResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RewriteNarrativesRequest {
+    pub organization_id: Uuid,
+}
+
+impl_restate_serde!(RewriteNarrativesRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RewriteNarrativesResult {
+    pub rewritten: i32,
+    pub failed: i32,
+    pub total: i32,
+}
+
+impl_restate_serde!(RewriteNarrativesResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpireStalePostsRequest {}
+
+impl_restate_serde!(ExpireStalePostsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExpireStalePostsResult {
+    pub expired_count: u64,
+}
+
+impl_restate_serde!(ExpireStalePostsResult);
 
 // =============================================================================
 // Service definition
@@ -410,7 +486,9 @@ impl_restate_serde!(BackfillLocationsResult);
 pub trait PostsService {
     async fn list(req: ListPostsRequest) -> Result<PostListResult, HandlerError>;
     async fn search_nearby(req: NearbySearchRequest) -> Result<NearbySearchResults, HandlerError>;
-    async fn search_semantic(req: SemanticSearchRequest) -> Result<SemanticSearchResults, HandlerError>;
+    async fn search_semantic(
+        req: SemanticSearchRequest,
+    ) -> Result<SemanticSearchResults, HandlerError>;
     async fn submit(req: SubmitPostRequest) -> Result<SubmitPostResult, HandlerError>;
     async fn submit_resource_link(
         req: SubmitResourceLinkRequest,
@@ -421,7 +499,9 @@ pub trait PostsService {
         req: PendingRevisionsRequest,
     ) -> Result<PendingRevisionsResult, HandlerError>;
     async fn list_reports(req: ListReportsRequest) -> Result<ReportListResult, HandlerError>;
-    async fn upcoming_events(req: UpcomingEventsRequest) -> Result<UpcomingEventsResult, HandlerError>;
+    async fn upcoming_events(
+        req: UpcomingEventsRequest,
+    ) -> Result<UpcomingEventsResult, HandlerError>;
     async fn schedules_for_entity(
         req: SchedulesForEntityRequest,
     ) -> Result<ScheduleListResult, HandlerError>;
@@ -432,10 +512,21 @@ pub trait PostsService {
         req: ListPostsByOrganizationRequest,
     ) -> Result<PostListResult, HandlerError>;
     async fn public_list(req: PublicListRequest) -> Result<PublicListResult, HandlerError>;
-    async fn public_filters(req: PublicFiltersRequest) -> Result<PublicFiltersResult, HandlerError>;
+    async fn public_filters(req: PublicFiltersRequest)
+        -> Result<PublicFiltersResult, HandlerError>;
     async fn deduplicate_cross_source(
         req: DeduplicateCrossSourceRequest,
     ) -> Result<DeduplicateCrossSourceResult, HandlerError>;
+    async fn expire_stale_posts(
+        req: ExpireStalePostsRequest,
+    ) -> Result<ExpireStalePostsResult, HandlerError>;
+    async fn stats(req: PostStatsRequest) -> Result<PostStatsResult, HandlerError>;
+    async fn batch_score_posts(
+        req: BatchScorePostsRequest,
+    ) -> Result<BatchScorePostsResult, HandlerError>;
+    async fn rewrite_narratives(
+        req: RewriteNarrativesRequest,
+    ) -> Result<RewriteNarrativesResult, HandlerError>;
 }
 
 // =============================================================================
@@ -450,50 +541,34 @@ impl PostsServiceImpl {
     pub fn with_deps(deps: Arc<ServerDeps>) -> Self {
         Self { deps }
     }
-}
 
-impl PostsService for PostsServiceImpl {
-    async fn list(
+    /// Batch-load public tags and urgent notes for a set of post IDs.
+    async fn load_tags_and_notes(
         &self,
-        _ctx: Context<'_>,
-        req: ListPostsRequest,
-    ) -> Result<PostListResult, HandlerError> {
-        let status_filter = req.status.as_deref();
-
-        let pagination_args = PaginationArgs {
-            first: req.first,
-            after: req.after,
-            last: req.last,
-            before: req.before,
-        };
-        let validated = pagination_args
-            .validate()
-            .map_err(|e| TerminalError::new(e))?;
-
-        let source_type = req.source_type.as_deref();
-        let source_id = req.source_id;
-        let agent_id = req.agent_id;
-        let search_filter = req.search.as_deref();
-
-        let connection =
-            activities::get_posts_paginated(status_filter, source_type, source_id, agent_id, search_filter, &validated, &self.deps)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
-
-        // Batch-load tags for returned posts
-        let post_ids: Vec<uuid::Uuid> = connection.edges.iter().map(|e| e.node.id).collect();
-        let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+        post_ids: &[uuid::Uuid],
+    ) -> Result<
+        (
+            std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>>,
+            std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>>,
+        ),
+        HandlerError,
+    > {
+        let tag_rows = Tag::find_public_for_post_ids(post_ids, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+        use crate::domains::notes::models::note::Note;
+        let urgent_rows = Note::find_urgent_note_content_for_posts(post_ids, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
             std::collections::HashMap::new();
         for row in tag_rows {
             tags_by_post
                 .entry(row.taggable_id)
                 .or_default()
-                .push(PostTagResult {
-                    id: row.tag.id.into_uuid(),
+                .push(PublicTagResult {
                     kind: row.tag.kind,
                     value: row.tag.value,
                     display_name: row.tag.display_name,
@@ -501,43 +576,187 @@ impl PostsService for PostsServiceImpl {
                 });
         }
 
-        Ok(PostListResult {
-            posts: connection
-                .edges
-                .into_iter()
-                .map(|e| {
-                    let id = e.node.id;
-                    PostResult {
-                        id,
-                        title: e.node.title,
-                        description: e.node.description,
-                        description_markdown: e.node.description_markdown,
-                        summary: e.node.summary,
-                        status: format!("{:?}", e.node.status),
-                        post_type: e.node.post_type,
-                        category: e.node.category,
-                        urgency: e.node.urgency,
-                        location: e.node.location,
-                        source_url: e.node.source_url,
-                        submission_type: e.node.submission_type,
-                        created_at: e.node.created_at.to_rfc3339(),
-                        updated_at: e.node.created_at.to_rfc3339(),
-                        published_at: e.node.published_at.map(|dt| dt.to_rfc3339()),
-                        tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
-                        submitted_by: None,
-                        schedules: None,
-                        contacts: None,
-                        organization_id: None,
-                        organization_name: None,
-                        has_urgent_notes: None,
-                        urgent_notes: None,
-                    }
-                })
-                .collect(),
-            total_count: connection.total_count,
-            has_next_page: connection.page_info.has_next_page,
-            has_previous_page: connection.page_info.has_previous_page,
-        })
+        let mut urgent_notes_by_post: std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>> =
+            std::collections::HashMap::new();
+        for (post_id, content, cta_text) in urgent_rows {
+            urgent_notes_by_post
+                .entry(post_id)
+                .or_default()
+                .push(UrgentNoteInfo { content, cta_text });
+        }
+
+        Ok((tags_by_post, urgent_notes_by_post))
+    }
+}
+
+impl PostsService for PostsServiceImpl {
+    async fn list(
+        &self,
+        ctx: Context<'_>,
+        req: ListPostsRequest,
+    ) -> Result<PostListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let filters = PostFilters {
+            status: req.status.as_deref(),
+            source_type: req.source_type.as_deref(),
+            source_id: req.source_id,
+            agent_id: req.agent_id,
+            search: req.search.as_deref(),
+        };
+
+        // Branch: zip-based proximity filtering vs standard listing
+        if let Some(ref zip_code) = req.zip_code {
+            let radius = req.radius_miles.unwrap_or(25.0).min(100.0);
+            let limit = req.first.unwrap_or(20);
+            let offset = req.offset.unwrap_or(0);
+
+            let (results, total_count, has_more) = activities::get_posts_near_zip(
+                zip_code, radius, &filters, limit, offset, &self.deps,
+            )
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            // Batch-load tags for returned posts
+            let post_ids: Vec<uuid::Uuid> = results.iter().map(|r| r.id.into_uuid()).collect();
+            let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+                std::collections::HashMap::new();
+            for row in tag_rows {
+                tags_by_post
+                    .entry(row.taggable_id)
+                    .or_default()
+                    .push(PostTagResult {
+                        id: row.tag.id.into_uuid(),
+                        kind: row.tag.kind,
+                        value: row.tag.value,
+                        display_name: row.tag.display_name,
+                        color: row.tag.color,
+                    });
+            }
+
+            Ok(PostListResult {
+                posts: results
+                    .into_iter()
+                    .map(|pwd| {
+                        let id = pwd.id.into_uuid();
+                        PostResult {
+                            id,
+                            title: pwd.title,
+                            description: pwd.description,
+                            description_markdown: pwd.description_markdown,
+                            summary: pwd.summary,
+                            status: pwd.status,
+                            post_type: pwd.post_type,
+                            category: pwd.category,
+                            capacity_status: None,
+                            urgency: pwd.urgency,
+                            location: pwd.location,
+                            source_url: pwd.source_url,
+                            submission_type: pwd.submission_type,
+                            created_at: pwd.created_at.to_rfc3339(),
+                            updated_at: pwd.updated_at.to_rfc3339(),
+                            published_at: pwd.published_at.map(|dt| dt.to_rfc3339()),
+                            tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                            submitted_by: None,
+                            schedules: None,
+                            contacts: None,
+                            organization_id: None,
+                            organization_name: None,
+                            has_urgent_notes: None,
+                            urgent_notes: None,
+                            distance_miles: Some(pwd.distance_miles),
+                            relevance_score: None,
+                            relevance_breakdown: None,
+                        }
+                    })
+                    .collect(),
+                total_count,
+                has_next_page: has_more,
+                has_previous_page: offset > 0,
+            })
+        } else {
+            // Standard listing path (unchanged)
+            let pagination_args = PaginationArgs {
+                first: req.first,
+                after: req.after,
+                last: req.last,
+                before: req.before,
+            };
+            let validated = pagination_args
+                .validate()
+                .map_err(|e| TerminalError::new(e))?;
+
+            let connection = activities::get_posts_paginated(&filters, &validated, &self.deps)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            // Batch-load tags for returned posts
+            let post_ids: Vec<uuid::Uuid> = connection.edges.iter().map(|e| e.node.id).collect();
+            let tag_rows = Tag::find_for_post_ids(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PostTagResult>> =
+                std::collections::HashMap::new();
+            for row in tag_rows {
+                tags_by_post
+                    .entry(row.taggable_id)
+                    .or_default()
+                    .push(PostTagResult {
+                        id: row.tag.id.into_uuid(),
+                        kind: row.tag.kind,
+                        value: row.tag.value,
+                        display_name: row.tag.display_name,
+                        color: row.tag.color,
+                    });
+            }
+
+            Ok(PostListResult {
+                posts: connection
+                    .edges
+                    .into_iter()
+                    .map(|e| {
+                        let id = e.node.id;
+                        PostResult {
+                            id,
+                            title: e.node.title,
+                            description: e.node.description,
+                            description_markdown: e.node.description_markdown,
+                            summary: e.node.summary,
+                            status: e.node.status.to_string(),
+                            post_type: e.node.post_type,
+                            category: e.node.category,
+                            capacity_status: None,
+                            urgency: e.node.urgency,
+                            location: e.node.location,
+                            source_url: e.node.source_url,
+                            submission_type: e.node.submission_type,
+                            created_at: e.node.created_at.to_rfc3339(),
+                            updated_at: e.node.created_at.to_rfc3339(),
+                            published_at: e.node.published_at.map(|dt| dt.to_rfc3339()),
+                            tags: Some(tags_by_post.remove(&id).unwrap_or_default()),
+                            submitted_by: None,
+                            schedules: None,
+                            contacts: None,
+                            organization_id: None,
+                            organization_name: None,
+                            has_urgent_notes: None,
+                            urgent_notes: None,
+                            distance_miles: None,
+                            relevance_score: None,
+                            relevance_breakdown: None,
+                        }
+                    })
+                    .collect(),
+                total_count: connection.total_count,
+                has_next_page: connection.page_info.has_next_page,
+                has_previous_page: connection.page_info.has_previous_page,
+            })
+        }
     }
 
     async fn search_nearby(
@@ -552,9 +771,7 @@ impl PostsService for PostsServiceImpl {
         let _center = ZipCode::find_by_code(&req.zip_code, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
-            .ok_or_else(|| {
-                TerminalError::new(format!("Zip code '{}' not found", req.zip_code))
-            })?;
+            .ok_or_else(|| TerminalError::new(format!("Zip code '{}' not found", req.zip_code)))?;
 
         let results = Post::find_near_zip(&req.zip_code, radius, limit, &self.deps.db_pool)
             .await
@@ -573,13 +790,14 @@ impl PostsService for PostsServiceImpl {
                         status: pwd.status,
                         post_type: pwd.post_type,
                         category: pwd.category,
+                        capacity_status: None,
                         urgency: pwd.urgency,
                         location: pwd.location,
                         source_url: pwd.source_url,
                         submission_type: pwd.submission_type,
                         created_at: pwd.created_at.to_rfc3339(),
-                        updated_at: pwd.created_at.to_rfc3339(),
-                        published_at: None,
+                        updated_at: pwd.updated_at.to_rfc3339(),
+                        published_at: pwd.published_at.map(|dt| dt.to_rfc3339()),
                         tags: None,
                         submitted_by: None,
                         schedules: None,
@@ -588,6 +806,9 @@ impl PostsService for PostsServiceImpl {
                         organization_name: None,
                         has_urgent_notes: None,
                         urgent_notes: None,
+                        distance_miles: None,
+                        relevance_score: None,
+                        relevance_breakdown: None,
                     },
                     distance_miles: pwd.distance_miles,
                 })
@@ -688,10 +909,12 @@ impl PostsService for PostsServiceImpl {
                 .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
 
                 match submission {
-                    ResourceLinkSubmission::PendingApproval { .. } => Ok(ResourceLinkSubmitResult {
-                        job_id: Uuid::nil(),
-                        status: "pending_approval".to_string(),
-                    }),
+                    ResourceLinkSubmission::PendingApproval { .. } => {
+                        Ok(ResourceLinkSubmitResult {
+                            job_id: Uuid::nil(),
+                            status: "pending_approval".to_string(),
+                        })
+                    }
                     ResourceLinkSubmission::Processing { job_id, .. } => {
                         Ok(ResourceLinkSubmitResult {
                             job_id: job_id.into_uuid(),
@@ -833,7 +1056,7 @@ impl PostsService for PostsServiceImpl {
                     id: e.id,
                     title: e.title,
                     description: e.description,
-                    status: format!("{:?}", e.status),
+                    status: e.status.to_string(),
                     location: e.location,
                     source_url: e.source_url,
                 })
@@ -947,6 +1170,7 @@ impl PostsService for PostsServiceImpl {
                         status: p.status,
                         post_type: p.post_type,
                         category: p.category,
+                        capacity_status: p.capacity_status,
                         urgency: p.urgency,
                         location: p.location,
                         source_url: p.source_url,
@@ -962,6 +1186,9 @@ impl PostsService for PostsServiceImpl {
                         organization_name: None,
                         has_urgent_notes: None,
                         urgent_notes: None,
+                        distance_miles: None,
+                        relevance_score: p.relevance_score,
+                        relevance_breakdown: p.relevance_breakdown,
                     }
                 })
                 .collect(),
@@ -981,51 +1208,47 @@ impl PostsService for PostsServiceImpl {
         let post_type = req.post_type.as_deref();
         let category = req.category.as_deref();
 
-        let posts = Post::find_public_filtered(post_type, category, limit, offset, &self.deps.db_pool)
+        // Branch: zip-based proximity search vs normal list
+        let (post_items, total_count): (Vec<PublicPostResult>, i64) = if let Some(ref zip) =
+            req.zip_code
+        {
+            let radius = req.radius_miles.unwrap_or(25.0).min(100.0);
+
+            let nearby_posts = Post::find_public_filtered_near_zip(
+                zip,
+                radius,
+                post_type,
+                category,
+                limit,
+                offset,
+                &self.deps.db_pool,
+            )
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let total_count = Post::count_public_filtered(post_type, category, &self.deps.db_pool)
+            let count = Post::count_public_filtered_near_zip(
+                zip,
+                radius,
+                post_type,
+                category,
+                &self.deps.db_pool,
+            )
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch-load public tags for returned posts
-        let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
-        let tag_rows = Tag::find_public_for_post_ids(&post_ids, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+            let post_ids: Vec<uuid::Uuid> = nearby_posts.iter().map(|p| p.id.into_uuid()).collect();
+            let (tags_by_post, urgent_notes_by_post) = self.load_tags_and_notes(&post_ids).await?;
+            let mut tags_by_post = tags_by_post;
+            let mut urgent_notes_by_post = urgent_notes_by_post;
+            let mut org_info = Post::find_org_info_for_posts(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        // Batch-load urgent note content
-        use crate::domains::notes::models::note::Note;
-        let urgent_rows = Note::find_urgent_note_content_for_posts(&post_ids, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-        let mut urgent_notes_by_post: std::collections::HashMap<uuid::Uuid, Vec<UrgentNoteInfo>> =
-            std::collections::HashMap::new();
-        for (post_id, content, cta_text) in urgent_rows {
-            urgent_notes_by_post.entry(post_id).or_default().push(UrgentNoteInfo { content, cta_text });
-        }
-
-        // Group tags by post id
-        let mut tags_by_post: std::collections::HashMap<uuid::Uuid, Vec<PublicTagResult>> =
-            std::collections::HashMap::new();
-        for row in tag_rows {
-            tags_by_post
-                .entry(row.taggable_id)
-                .or_default()
-                .push(PublicTagResult {
-                    kind: row.tag.kind,
-                    value: row.tag.value,
-                    display_name: row.tag.display_name,
-                    color: row.tag.color,
-                });
-        }
-
-        Ok(PublicListResult {
-            posts: posts
+            let items = nearby_posts
                 .into_iter()
                 .map(|p| {
                     let id = p.id.into_uuid();
+                    let (org_id, org_name) = org_info.remove(&id).map(|(oid, name)| (Some(oid), Some(name))).unwrap_or((None, None));
                     PublicPostResult {
                         id,
                         title: p.title,
@@ -1039,9 +1262,62 @@ impl PostsService for PostsServiceImpl {
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        distance_miles: Some(p.distance_miles),
+                        organization_id: org_id,
+                        organization_name: org_name,
                     }
                 })
-                .collect(),
+                .collect();
+
+            (items, count)
+        } else {
+            let posts =
+                Post::find_public_filtered(post_type, category, limit, offset, &self.deps.db_pool)
+                    .await
+                    .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let count = Post::count_public_filtered(post_type, category, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let post_ids: Vec<uuid::Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+            let (tags_by_post, urgent_notes_by_post) = self.load_tags_and_notes(&post_ids).await?;
+            let mut tags_by_post = tags_by_post;
+            let mut urgent_notes_by_post = urgent_notes_by_post;
+            let mut org_info = Post::find_org_info_for_posts(&post_ids, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+
+            let items = posts
+                .into_iter()
+                .map(|p| {
+                    let id = p.id.into_uuid();
+                    let (org_id, org_name) = org_info.remove(&id).map(|(oid, name)| (Some(oid), Some(name))).unwrap_or((None, None));
+                    PublicPostResult {
+                        id,
+                        title: p.title,
+                        summary: p.summary,
+                        description: p.description,
+                        location: p.location,
+                        source_url: p.source_url,
+                        post_type: p.post_type,
+                        category: p.category,
+                        created_at: p.created_at.to_rfc3339(),
+                        published_at: p.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        distance_miles: None,
+                        organization_id: org_id,
+                        organization_name: org_name,
+                    }
+                })
+                .collect();
+
+            (items, count)
+        };
+
+        Ok(PublicListResult {
+            posts: post_items,
             total_count: total_count as i32,
         })
     }
@@ -1102,6 +1378,181 @@ impl PostsService for PostsServiceImpl {
                     batches_created: r.batches_created as i32,
                     total_proposals: r.total_proposals as i32,
                     orgs_processed: r.orgs_processed as i32,
+                })
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn expire_stale_posts(
+        &self,
+        ctx: Context<'_>,
+        _req: ExpireStalePostsRequest,
+    ) -> Result<ExpireStalePostsResult, HandlerError> {
+        let expired_count = ctx
+            .run(|| async {
+                activities::expire_scheduled_posts::expire_scheduled_posts(&self.deps)
+                    .await
+                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)
+            })
+            .await?;
+
+        Ok(ExpireStalePostsResult { expired_count })
+    }
+
+    async fn stats(
+        &self,
+        ctx: Context<'_>,
+        req: PostStatsRequest,
+    ) -> Result<PostStatsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let rows = Post::stats_by_status(req.status.as_deref(), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let mut total: i64 = 0;
+        let mut services: i64 = 0;
+        let mut opportunities: i64 = 0;
+        let mut businesses: i64 = 0;
+        let mut scraped: i64 = 0;
+        let mut user_submitted: i64 = 0;
+
+        for (post_type, submission_type, count) in &rows {
+            total += count;
+
+            match post_type.as_deref() {
+                Some("service") => services += count,
+                Some("opportunity") => opportunities += count,
+                Some("business") => businesses += count,
+                _ => {}
+            }
+
+            match submission_type.as_deref() {
+                Some("scraped") => scraped += count,
+                _ => user_submitted += count,
+            }
+        }
+
+        Ok(PostStatsResult {
+            total,
+            services,
+            opportunities,
+            businesses,
+            user_submitted,
+            scraped,
+        })
+    }
+
+    async fn batch_score_posts(
+        &self,
+        ctx: Context<'_>,
+        req: BatchScorePostsRequest,
+    ) -> Result<BatchScorePostsResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let limit = req.limit.unwrap_or(50).min(200);
+
+        let result = ctx
+            .run(|| async {
+                let unscored = match req.organization_id {
+                    Some(org_id) => Post::find_unscored_active_by_org(org_id, &self.deps.db_pool)
+                        .await
+                        .map_err(Into::<restate_sdk::errors::HandlerError>::into)?,
+                    None => Post::find_unscored_active(&self.deps.db_pool)
+                        .await
+                        .map_err(Into::<restate_sdk::errors::HandlerError>::into)?,
+                };
+
+                let total_remaining = unscored.len() as i32;
+                let batch: Vec<_> = unscored.into_iter().take(limit as usize).collect();
+
+                let mut scored = 0i32;
+                let mut failed = 0i32;
+
+                for post in batch {
+                    match activities::score_post_by_id(post.id, &self.deps.ai, &self.deps.db_pool)
+                        .await
+                    {
+                        Some(_) => scored += 1,
+                        None => failed += 1,
+                    }
+                }
+
+                let remaining = (total_remaining - scored - failed).max(0);
+
+                Ok(BatchScorePostsResult {
+                    scored,
+                    failed,
+                    remaining,
+                })
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn rewrite_narratives(
+        &self,
+        ctx: Context<'_>,
+        req: RewriteNarrativesRequest,
+    ) -> Result<RewriteNarrativesResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                use crate::common::PostId;
+                use crate::domains::posts::models::post::UpdatePostContent;
+
+                let posts = Post::find_by_organization_id(req.organization_id, &self.deps.db_pool)
+                    .await
+                    .map_err(Into::<restate_sdk::errors::HandlerError>::into)?;
+
+                let total = posts.len() as i32;
+                let mut rewritten = 0i32;
+                let mut failed = 0i32;
+
+                for post in posts {
+                    let description = post.description_markdown.as_deref()
+                        .unwrap_or(&post.description);
+
+                    match activities::post_extraction::rewrite_narrative(
+                        &self.deps.ai,
+                        &post.title,
+                        description,
+                    )
+                    .await
+                    {
+                        Ok(narrative) => {
+                            match Post::update_content(
+                                UpdatePostContent::builder()
+                                    .id(post.id)
+                                    .title(Some(narrative.title))
+                                    .summary(Some(narrative.summary))
+                                    .build(),
+                                &self.deps.db_pool,
+                            )
+                            .await
+                            {
+                                Ok(_) => rewritten += 1,
+                                Err(e) => {
+                                    tracing::warn!(post_id = %post.id, error = %e, "Failed to update post content");
+                                    failed += 1;
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            tracing::warn!(post_id = %post.id, error = %e, "Failed to rewrite narrative");
+                            failed += 1;
+                        }
+                    }
+                }
+
+                Ok(RewriteNarrativesResult {
+                    rewritten,
+                    failed,
+                    total,
                 })
             })
             .await?;

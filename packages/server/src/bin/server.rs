@@ -13,30 +13,37 @@ use server_core::domains::auth::JwtService;
 use server_core::domains::chatrooms::restate::{
     ChatObject, ChatObjectImpl, ChatsService, ChatsServiceImpl,
 };
-use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
-use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
-use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
-use server_core::domains::organization::restate::{
-    OrganizationsService, OrganizationsServiceImpl,
+use server_core::domains::curator::restate::{
+    CurateOrgWorkflow, CurateOrgWorkflowImpl, RefineProposalWorkflow,
+    RefineProposalWorkflowImpl,
 };
-use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
+
+use server_core::domains::crawling::restate::{CrawlWebsiteWorkflow, CrawlWebsiteWorkflowImpl};
+use server_core::domains::extraction::restate::{ExtractionService, ExtractionServiceImpl};
+use server_core::domains::heat_map::restate::{HeatMapService, HeatMapServiceImpl};
+use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
 use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
     RegisterMemberWorkflowImpl,
+};
+use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
+use server_core::domains::organization::restate::{
+    CleanUpOrgPostsWorkflow, CleanUpOrgPostsWorkflowImpl, ExtractOrgPostsWorkflow,
+    ExtractOrgPostsWorkflowImpl, OrganizationsService, OrganizationsServiceImpl,
 };
 use server_core::domains::posts::restate::{
     DeduplicatePostsWorkflow, DeduplicatePostsWorkflowImpl, ExtractPostsFromUrlWorkflow,
     ExtractPostsFromUrlWorkflowImpl, PostObject, PostObjectImpl, PostsService, PostsServiceImpl,
 };
+use server_core::domains::providers::restate::{
+    ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
+};
 use server_core::domains::social_profile::restate::{
     SocialProfilesService, SocialProfilesServiceImpl,
 };
 use server_core::domains::source::restate::{
-    RegenerateSocialPostsWorkflow, RegenerateSocialPostsWorkflowImpl, SourceObject,
-    SourceObjectImpl, SourcesService, SourcesServiceImpl,
-};
-use server_core::domains::providers::restate::{
-    ProviderObject, ProviderObjectImpl, ProvidersService, ProvidersServiceImpl,
+    CrawlSocialSourceWorkflow, CrawlSocialSourceWorkflowImpl, IngestSourceWorkflow,
+    IngestSourceWorkflowImpl, SourceObject, SourceObjectImpl, SourcesService, SourcesServiceImpl,
 };
 use server_core::domains::sync::restate::{SyncService, SyncServiceImpl};
 use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
@@ -44,8 +51,13 @@ use server_core::domains::website::restate::{
     RegeneratePostsWorkflow, RegeneratePostsWorkflowImpl, WebsiteObject, WebsiteObjectImpl,
     WebsiteResearchWorkflow, WebsiteResearchWorkflowImpl, WebsitesService, WebsitesServiceImpl,
 };
+use server_core::domains::newsletter::restate::{
+    ConfirmNewsletterWorkflow, ConfirmNewsletterWorkflowImpl, SubscribeNewsletterWorkflow,
+    SubscribeNewsletterWorkflowImpl,
+};
+use server_core::domains::newsletter::webhook::WebhookState;
 use server_core::kernel::{
-    create_extraction_service, sse::SseState, OpenAIClient, ServerDeps, StreamHub, TwilioAdapter,
+    create_extraction_service, sse::SseState, Claude, OpenAi, ServerDeps, StreamHub, TwilioAdapter,
 };
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -77,18 +89,36 @@ async fn main() -> Result<()> {
             Ok(val) if val.is_empty() => tracing::info!("  {}: (empty)", name),
             Ok(val) => {
                 let show = std::cmp::min(4, val.len());
-                tracing::info!("  {}: {}{}  ({} chars)", name, &val[..show], "*".repeat(val.len().saturating_sub(show)), val.len());
+                tracing::info!(
+                    "  {}: {}{}  ({} chars)",
+                    name,
+                    &val[..show],
+                    "*".repeat(val.len().saturating_sub(show)),
+                    val.len()
+                );
             }
             Err(_) => tracing::warn!("  {}: NOT SET", name),
         }
     }
     tracing::info!("Environment variables:");
     for name in &[
-        "DATABASE_URL", "OPENAI_API_KEY", "TAVILY_API_KEY", "FIRECRAWL_API_KEY",
-        "EXPO_ACCESS_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
-        "TWILIO_VERIFY_SERVICE_SID", "JWT_SECRET", "JWT_ISSUER",
-        "SERVER_PORT", "SSE_SERVER_PORT", "ADMIN_IDENTIFIERS",
-        "RESTATE_ADMIN_URL", "RESTATE_SELF_URL", "RESTATE_AUTH_TOKEN",
+        "DATABASE_URL",
+        "OPENAI_API_KEY",
+        "TAVILY_API_KEY",
+        "FIRECRAWL_API_KEY",
+        "EXPO_ACCESS_TOKEN",
+        "TWILIO_ACCOUNT_SID",
+        "TWILIO_AUTH_TOKEN",
+        "TWILIO_VERIFY_SERVICE_SID",
+        "JWT_SECRET",
+        "JWT_ISSUER",
+        "SERVER_PORT",
+        "SSE_SERVER_PORT",
+        "ADMIN_IDENTIFIERS",
+        "RESTATE_ADMIN_URL",
+        "RESTATE_SELF_URL",
+        "ANTHROPIC_API_KEY",
+        "RESTATE_AUTH_TOKEN",
     ] {
         mask_env(name);
     }
@@ -141,15 +171,19 @@ async fn main() -> Result<()> {
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create OpenAI client
-    let openai_client = Arc::new(OpenAIClient::new(openai_api_key.clone()));
+    // Create AI clients
+    let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
+    let claude_client = std::env::var("ANTHROPIC_API_KEY")
+        .ok()
+        .filter(|k| !k.is_empty())
+        .map(|key| Arc::new(Claude::new(key, "claude-sonnet-4-5-20250929")));
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
     let pii_detector = server_core::kernel::pii::create_pii_detector(
         pii_scrubbing_enabled,
         pii_use_gpt_detection,
-        Some(openai_api_key),
+        Some(openai_client.clone()),
     );
 
     // Create ingestor with SSRF protection
@@ -198,6 +232,7 @@ async fn main() -> Result<()> {
         pool.clone(),
         ingestor,
         openai_client,
+        claude_client,
         Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(ExpoClient::new(expo_access_token)),
         Arc::new(TwilioAdapter::new(twilio)),
@@ -238,6 +273,24 @@ async fn main() -> Result<()> {
         axum::serve(sse_listener, sse_router).await.unwrap();
     });
 
+    // Start webhook server for Postmark inbound emails
+    let webhook_port = std::env::var("WEBHOOK_SERVER_PORT")
+        .unwrap_or_else(|_| "8082".to_string())
+        .parse::<u16>()
+        .context("Invalid WEBHOOK_SERVER_PORT")?;
+    let webhook_router =
+        server_core::domains::newsletter::webhook::router(WebhookState {
+            deps: server_deps.clone(),
+        });
+    let webhook_addr = format!("0.0.0.0:{}", webhook_port);
+    tracing::info!("Webhook server listening on {}", webhook_addr);
+    let webhook_listener = tokio::net::TcpListener::bind(&webhook_addr)
+        .await
+        .context("Failed to bind webhook server")?;
+    tokio::spawn(async move {
+        axum::serve(webhook_listener, webhook_router).await.unwrap();
+    });
+
     // Build Restate endpoint with all domain services, objects, and workflows
     let mut builder = Endpoint::builder();
 
@@ -255,16 +308,23 @@ async fn main() -> Result<()> {
         // Chatrooms domain
         .bind(ChatObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ChatsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Curator domain
+        .bind(CurateOrgWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(RefineProposalWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Crawling domain
         .bind(CrawlWebsiteWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Extraction domain
         .bind(ExtractionServiceImpl::with_deps(server_deps.clone()).serve())
+        // Heat map domain
+        .bind(HeatMapServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs domain
         .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
         // Notes domain
         .bind(NotesServiceImpl::with_deps(server_deps.clone()).serve())
         // Organization domain
         .bind(OrganizationsServiceImpl::with_deps(server_deps.clone()).serve())
+        .bind(ExtractOrgPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(CleanUpOrgPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Member domain
         .bind(MemberObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(MembersServiceImpl::with_deps(server_deps.clone()).serve())
@@ -279,7 +339,11 @@ async fn main() -> Result<()> {
         // Source domain
         .bind(SourceObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(SourcesServiceImpl::with_deps(server_deps.clone()).serve())
-        .bind(RegenerateSocialPostsWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(CrawlSocialSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(IngestSourceWorkflowImpl::with_deps(server_deps.clone()).serve())
+        // Newsletter domain
+        .bind(SubscribeNewsletterWorkflowImpl::with_deps(server_deps.clone()).serve())
+        .bind(ConfirmNewsletterWorkflowImpl::with_deps(server_deps.clone()).serve())
         // Providers domain
         .bind(ProviderObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(ProvidersServiceImpl::with_deps(server_deps.clone()).serve())
@@ -309,12 +373,13 @@ async fn main() -> Result<()> {
                 "Auto-registering with Restate"
             );
             let client = reqwest::Client::new();
-            let mut request = client
-                .post(format!("{}/deployments", admin_url))
-                .json(&serde_json::json!({
-                    "uri": self_url,
-                    "force": true
-                }));
+            let mut request =
+                client
+                    .post(format!("{}/deployments", admin_url))
+                    .json(&serde_json::json!({
+                        "uri": self_url,
+                        "force": true
+                    }));
             if let Some(token) = &auth_token {
                 request = request.bearer_auth(token);
             }

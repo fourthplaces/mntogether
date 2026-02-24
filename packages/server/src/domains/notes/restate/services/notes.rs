@@ -191,12 +191,9 @@ pub trait NotesService {
     ) -> Result<NoteListResult, HandlerError>;
     async fn link(req: LinkNoteRequest) -> Result<NoteResult, HandlerError>;
     async fn unlink(req: UnlinkNoteRequest) -> Result<EmptyRequest, HandlerError>;
-    async fn generate_notes(
-        req: GenerateNotesRequest,
-    ) -> Result<GenerateNotesResult, HandlerError>;
-    async fn attach_notes(
-        req: AttachNotesRequest,
-    ) -> Result<AttachNotesResult, HandlerError>;
+    async fn generate_notes(req: GenerateNotesRequest)
+        -> Result<GenerateNotesResult, HandlerError>;
+    async fn attach_notes(req: AttachNotesRequest) -> Result<AttachNotesResult, HandlerError>;
 }
 
 pub struct NotesServiceImpl {
@@ -246,11 +243,7 @@ impl NotesService for NotesServiceImpl {
         Ok(NoteResult::from(note))
     }
 
-    async fn get(
-        &self,
-        ctx: Context<'_>,
-        req: GetNoteRequest,
-    ) -> Result<NoteResult, HandlerError> {
+    async fn get(&self, ctx: Context<'_>, req: GetNoteRequest) -> Result<NoteResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
         let note = Note::find_by_id(NoteId::from(req.id), &self.deps.db_pool)
@@ -302,13 +295,9 @@ impl NotesService for NotesServiceImpl {
     ) -> Result<NoteListResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
-        let notes = Note::find_for_entity(
-            &req.noteable_type,
-            req.noteable_id,
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let notes = Note::find_for_entity(&req.noteable_type, req.noteable_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Batch-fetch linked posts for all notes
         let note_ids: Vec<_> = notes.iter().map(|n| n.id).collect();
@@ -352,9 +341,14 @@ impl NotesService for NotesServiceImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
 
         let note_id = NoteId::from(req.note_id);
-        Noteable::create(note_id, &req.noteable_type, req.noteable_id, &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
+        Noteable::create(
+            note_id,
+            &req.noteable_type,
+            req.noteable_id,
+            &self.deps.db_pool,
+        )
+        .await
+        .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let note = Note::find_by_id(note_id, &self.deps.db_pool)
             .await
@@ -394,10 +388,9 @@ impl NotesService for NotesServiceImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let result =
-            activities::generate_notes_for_organization(org_id, &org.name, &self.deps)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let result = activities::generate_notes_for_organization(org_id, &org.name, &self.deps)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Attach all org notes to all org posts (best-effort)
         let posts_attached = match activities::attach_notes_to_org_posts(org_id, &self.deps).await {

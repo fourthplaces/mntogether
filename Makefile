@@ -11,7 +11,7 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart clean build migrate seed shell db-shell redis-cli test check
+.PHONY: help up down logs restart restart-server restart-admin clean build migrate seed shell db-shell redis-cli test check
 
 # Default target - show help
 help:
@@ -21,12 +21,14 @@ help:
 	@echo "  make up          - Start all services (Postgres, Redis, API, Web App)"
 	@echo "  make up-full     - Start all services including Next.js"
 	@echo "  make down        - Stop all services"
-	@echo "  make restart     - Restart all services"
+	@echo "  make restart        - Restart all services (down + up, picks up config changes)"
+	@echo "  make restart-server - Restart server only"
+	@echo "  make restart-admin  - Restart admin app only"
 	@echo ""
 	@echo "📋 Logs & Monitoring:"
 	@echo "  make logs        - View logs from all services"
 	@echo "  make logs-server - View server logs only"
-	@echo "  make logs-web    - View web app logs only"
+	@echo "  make logs-admin  - View admin app logs only"
 	@echo "  make logs-db     - View PostgreSQL logs only"
 	@echo ""
 	@echo "🗄️  Database:"
@@ -64,9 +66,20 @@ up-full:
 down:
 	docker compose down
 
-# Restart all services
+# Restart all services (down + up to pick up compose config changes)
 restart:
-	docker compose restart
+	docker compose down
+	docker compose up -d
+
+# Restart server only
+restart-server:
+	docker compose rm -sf server
+	docker compose up -d server
+
+# Restart admin app only
+restart-admin:
+	docker compose rm -sf admin-app
+	docker compose up -d admin-app
 
 # Rebuild and start all services
 build:
@@ -85,14 +98,13 @@ logs:
 logs-server:
 	docker compose logs -f server
 
-# View web (Next.js) logs
-logs-web:
-	docker compose logs -f web
+# View admin app (Next.js) logs
+logs-admin:
+	docker compose logs -f admin-app
 
-# Alias for logs-web
-# Alias for logs-web
+# Alias for logs-admin
 logs-next:
-	docker compose logs -f web
+	docker compose logs -f admin-app
 
 # View PostgreSQL logs
 logs-db:
@@ -217,10 +229,6 @@ health:
 # Watch Rust changes and rebuild
 watch:
 	docker compose exec server cargo watch -x 'run --bin server'
-
-# Generate GraphQL schema
-schema:
-	docker compose exec server cargo run --bin generate_schema
 
 # Interactive development CLI
 dev-cli:

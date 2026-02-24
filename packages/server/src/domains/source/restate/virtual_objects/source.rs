@@ -9,7 +9,9 @@ use uuid::Uuid;
 
 use crate::common::auth::restate_auth::require_admin;
 use crate::common::{EmptyRequest, OrganizationId, SourceId, WebsiteId};
-use crate::domains::source::models::{get_source_identifier, Source, WebsiteSource};
+use crate::domains::crawling::models::ExtractionPage;
+use crate::domains::source::models::{Source, WebsiteSource};
+use crate::domains::source::restate::services::sources::{source_to_result, SourceResult};
 use crate::domains::website::activities;
 use crate::domains::website::models::WebsiteAssessment;
 use crate::impl_restate_serde;
@@ -43,21 +45,6 @@ impl_restate_serde!(AssignOrganizationRequest);
 // =============================================================================
 // Response types
 // =============================================================================
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SourceObjectResult {
-    pub id: Uuid,
-    pub source_type: String,
-    pub identifier: String,
-    pub url: Option<String>,
-    pub status: String,
-    pub active: bool,
-    pub created_at: Option<String>,
-    pub last_scraped_at: Option<String>,
-    pub organization_id: Option<String>,
-}
-
-impl_restate_serde!(SourceObjectResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AssessmentResult {
@@ -108,6 +95,28 @@ pub struct ExtractOrganizationResult {
 
 impl_restate_serde!(ExtractOrganizationResult);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageResult {
+    pub url: String,
+    pub content: Option<String>,
+}
+
+impl_restate_serde!(SourcePageResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageListResult {
+    pub pages: Vec<SourcePageResult>,
+}
+
+impl_restate_serde!(SourcePageListResult);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourcePageCountResult {
+    pub count: i64,
+}
+
+impl_restate_serde!(SourcePageCountResult);
+
 // =============================================================================
 // Virtual object definition
 // =============================================================================
@@ -115,33 +124,33 @@ impl_restate_serde!(ExtractOrganizationResult);
 #[restate_sdk::object]
 #[name = "Source"]
 pub trait SourceObject {
-    async fn approve(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
-    async fn reject(req: RejectSourceRequest) -> Result<SourceObjectResult, HandlerError>;
-    async fn suspend(req: SuspendSourceRequest) -> Result<SourceObjectResult, HandlerError>;
+    async fn approve(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
+    async fn reject(req: RejectSourceRequest) -> Result<SourceResult, HandlerError>;
+    async fn suspend(req: SuspendSourceRequest) -> Result<SourceResult, HandlerError>;
     async fn assign_organization(
         req: AssignOrganizationRequest,
-    ) -> Result<SourceObjectResult, HandlerError>;
-    async fn unassign_organization(
-        req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError>;
+    ) -> Result<SourceResult, HandlerError>;
+    async fn unassign_organization(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
     async fn generate_assessment(
         req: EmptyRequest,
     ) -> Result<GenerateAssessmentResult, HandlerError>;
-    async fn regenerate_posts(
-        req: EmptyRequest,
-    ) -> Result<RegeneratePostsResult, HandlerError>;
-    async fn deduplicate_posts(
-        req: EmptyRequest,
-    ) -> Result<DeduplicatePostsResult, HandlerError>;
+    async fn regenerate_posts(req: EmptyRequest) -> Result<RegeneratePostsResult, HandlerError>;
+    async fn deduplicate_posts(req: EmptyRequest) -> Result<DeduplicatePostsResult, HandlerError>;
     async fn extract_organization(
         req: EmptyRequest,
     ) -> Result<ExtractOrganizationResult, HandlerError>;
 
     #[shared]
-    async fn get(req: EmptyRequest) -> Result<SourceObjectResult, HandlerError>;
+    async fn get(req: EmptyRequest) -> Result<SourceResult, HandlerError>;
 
     #[shared]
     async fn get_assessment(req: EmptyRequest) -> Result<OptionalAssessmentResult, HandlerError>;
+
+    #[shared]
+    async fn list_pages(req: EmptyRequest) -> Result<SourcePageListResult, HandlerError>;
+
+    #[shared]
+    async fn count_pages(req: EmptyRequest) -> Result<SourcePageCountResult, HandlerError>;
 }
 
 pub struct SourceObjectImpl {
@@ -158,22 +167,11 @@ impl SourceObjectImpl {
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)).into())
     }
 
-    async fn build_result(source: Source, pool: &sqlx::PgPool) -> Result<SourceObjectResult, HandlerError> {
-        let identifier = get_source_identifier(source.id, pool)
-            .await
-            .unwrap_or_else(|_| "unknown".to_string());
-
-        Ok(SourceObjectResult {
-            id: source.id.into_uuid(),
-            source_type: source.source_type,
-            identifier,
-            url: source.url,
-            status: source.status,
-            active: source.active,
-            created_at: Some(source.created_at.to_rfc3339()),
-            last_scraped_at: source.last_scraped_at.map(|dt| dt.to_rfc3339()),
-            organization_id: source.organization_id.map(|id| id.to_string()),
-        })
+    async fn build_result(
+        source: Source,
+        pool: &sqlx::PgPool,
+    ) -> Result<SourceResult, HandlerError> {
+        source_to_result(source, pool).await
     }
 }
 
@@ -182,7 +180,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -209,7 +207,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: RejectSourceRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -237,7 +235,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: SuspendSourceRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -265,7 +263,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         req: AssignOrganizationRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
@@ -284,16 +282,14 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: ObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
-        let source = Source::unset_organization_id(
-            SourceId::from_uuid(source_id),
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let source =
+            Source::unset_organization_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Self::build_result(source, &self.deps.db_pool).await
     }
@@ -307,17 +303,17 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Self::parse_source_id(ctx.key())?;
 
         // Only websites have assessments
-        let _ws = WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|_| TerminalError::new("Assessments are only available for website sources"))?;
+        let _ws =
+            WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|_| {
+                    TerminalError::new("Assessments are only available for website sources")
+                })?;
 
-        let result = activities::approval::assess_website(
-            source_id,
-            user.member_id.into_uuid(),
-            &self.deps,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let result =
+            activities::approval::assess_website(source_id, user.member_id.into_uuid(), &self.deps)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         if result.status == "completed" {
             Ok(GenerateAssessmentResult {
@@ -359,37 +355,14 @@ impl SourceObject for SourceObjectImpl {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Self::parse_source_id(ctx.key())?;
 
-        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|e| TerminalError::new(e.to_string()))?;
-
         let workflow_id = format!("regen-{}-{}", source_id, chrono::Utc::now().timestamp());
 
-        match source.source_type.as_str() {
-            "website" => {
-                let _ = ctx
-                    .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
-                        workflow_id.clone(),
-                    )
-                    .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { website_id: source_id })
-                    .send();
-            }
-            "instagram" | "facebook" | "tiktok" => {
-                let _ = ctx
-                    .workflow_client::<crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsWorkflowClient>(
-                        workflow_id.clone(),
-                    )
-                    .run(crate::domains::source::restate::workflows::regenerate_social_posts::RegenerateSocialPostsRequest { source_id })
-                    .send();
-            }
-            other => {
-                return Err(TerminalError::new(format!(
-                    "Post regeneration is not supported for source type '{}'",
-                    other
-                ))
-                .into());
-            }
-        }
+        let _ = ctx
+            .workflow_client::<crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsWorkflowClient>(
+                workflow_id.clone(),
+            )
+            .run(crate::domains::website::restate::workflows::regenerate_posts::RegeneratePostsRequest { source_id })
+            .send();
 
         Ok(RegeneratePostsResult {
             posts_created: 0,
@@ -435,9 +408,14 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Self::parse_source_id(ctx.key())?;
 
         // Only websites support org extraction
-        let _ws = WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
-            .await
-            .map_err(|_| TerminalError::new("Organization extraction is only available for website sources"))?;
+        let _ws =
+            WebsiteSource::find_by_source_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+                .await
+                .map_err(|_| {
+                    TerminalError::new(
+                        "Organization extraction is only available for website sources",
+                    )
+                })?;
 
         match crate::domains::crawling::activities::extract_and_create_organization(
             WebsiteId::from_uuid(source_id),
@@ -449,9 +427,9 @@ impl SourceObject for SourceObjectImpl {
                 organization_id: Some(org_id.into_uuid().to_string()),
                 status: "completed".to_string(),
             }),
-            Err(e) => Err(
-                TerminalError::new(format!("Organization extraction failed: {}", e)).into(),
-            ),
+            Err(e) => {
+                Err(TerminalError::new(format!("Organization extraction failed: {}", e)).into())
+            }
         }
     }
 
@@ -459,7 +437,7 @@ impl SourceObject for SourceObjectImpl {
         &self,
         ctx: SharedObjectContext<'_>,
         _req: EmptyRequest,
-    ) -> Result<SourceObjectResult, HandlerError> {
+    ) -> Result<SourceResult, HandlerError> {
         let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let source_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)))?;
@@ -480,12 +458,10 @@ impl SourceObject for SourceObjectImpl {
         let source_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid source ID: {}", e)))?;
 
-        let assessment = WebsiteAssessment::find_latest_by_website_id(
-            source_id,
-            &self.deps.db_pool,
-        )
-        .await
-        .map_err(|e| TerminalError::new(e.to_string()))?;
+        let assessment =
+            WebsiteAssessment::find_latest_by_website_id(source_id, &self.deps.db_pool)
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(OptionalAssessmentResult {
             assessment: assessment.map(|a| AssessmentResult {
@@ -494,6 +470,65 @@ impl SourceObject for SourceObjectImpl {
                 assessment_markdown: a.assessment_markdown,
                 confidence_score: a.confidence_score,
             }),
+        })
+    }
+
+    async fn list_pages(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<SourcePageListResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let source_id = Self::parse_source_id(ctx.key())?;
+
+        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let site_url = source
+            .site_url(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let pages = ExtractionPage::find_by_domain(&site_url, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(SourcePageListResult {
+            pages: pages
+                .into_iter()
+                .take(50)
+                .map(|(_id, url, content)| SourcePageResult {
+                    url,
+                    content: Some(content),
+                })
+                .collect(),
+        })
+    }
+
+    async fn count_pages(
+        &self,
+        ctx: SharedObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<SourcePageCountResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let source_id = Self::parse_source_id(ctx.key())?;
+
+        let source = Source::find_by_id(SourceId::from_uuid(source_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let site_url = source
+            .site_url(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let count = ExtractionPage::count_by_domain(&site_url, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(SourcePageCountResult {
+            count: count as i64,
         })
     }
 }

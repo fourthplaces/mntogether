@@ -1,13 +1,12 @@
 //! Regenerate posts workflow
 //!
-//! Long-running workflow that re-extracts posts from a website using system-level
-//! extraction. Uses Restate K/V state for progress tracking via a shared `get_status` handler.
+//! Long-running workflow that re-extracts posts from any source type using cached
+//! extraction pages. Uses Restate K/V state for progress tracking via a shared `get_status` handler.
 //!
 //! Flow:
-//! 1. Load website
-//! 2. Search pages (using website domain as query)
-//! 3. Extract with system-level extraction (no agent purpose)
-//! 4. LLM sync proposals for admin review
+//! 1. Load source and its cached pages
+//! 2. Extract posts from pages (no agent purpose)
+//! 3. LLM sync proposals for admin review
 
 use restate_sdk::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -15,13 +14,15 @@ use std::sync::Arc;
 use tracing::{info, warn};
 use uuid::Uuid;
 
-use crate::common::{EmptyRequest, WebsiteId};
+use crate::common::{EmptyRequest, SourceId};
 use crate::domains::crawling::activities::post_extraction::extract_posts_from_pages_with_tags;
-use crate::domains::notes::activities::{attach_notes_to_org_posts, generate_notes_for_organization};
+use crate::domains::notes::activities::{
+    attach_notes_to_org_posts, generate_notes_for_organization,
+};
 use crate::domains::organization::models::Organization;
 use crate::domains::posts::activities::llm_sync::llm_sync_posts;
+use crate::domains::source::models::Source;
 use crate::domains::tag::models::tag_kind_config::build_tag_instructions;
-use crate::domains::website::models::Website;
 use crate::impl_restate_serde;
 use crate::kernel::ServerDeps;
 
@@ -31,7 +32,7 @@ use crate::kernel::ServerDeps;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RegeneratePostsRequest {
-    pub website_id: Uuid,
+    pub source_id: Uuid,
 }
 
 impl_restate_serde!(RegeneratePostsRequest);
@@ -51,8 +52,9 @@ impl_restate_serde!(RegeneratePostsWorkflowResult);
 #[restate_sdk::workflow]
 #[name = "RegeneratePostsWorkflow"]
 pub trait RegeneratePostsWorkflow {
-    async fn run(req: RegeneratePostsRequest)
-        -> Result<RegeneratePostsWorkflowResult, HandlerError>;
+    async fn run(
+        req: RegeneratePostsRequest,
+    ) -> Result<RegeneratePostsWorkflowResult, HandlerError>;
 
     #[shared]
     async fn get_status(req: EmptyRequest) -> Result<String, HandlerError>;
@@ -74,38 +76,37 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         ctx: WorkflowContext<'_>,
         req: RegeneratePostsRequest,
     ) -> Result<RegeneratePostsWorkflowResult, HandlerError> {
-        info!(website_id = %req.website_id, "Starting regenerate posts workflow");
+        info!(source_id = %req.source_id, "Starting regenerate posts workflow");
 
         let pool = &self.deps.db_pool;
-        let website_id = WebsiteId::from_uuid(req.website_id);
+        let source_id = SourceId::from_uuid(req.source_id);
 
-        let website =
-            Website::find_by_id(website_id, pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let source = Source::find_by_id(source_id, pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
-        let domain = &website.domain;
+        let site_url = source
+            .site_url(pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         // Build tag instructions from all active tag kinds
-        let tag_instructions = build_tag_instructions(pool)
-            .await
-            .unwrap_or_default();
+        let tag_instructions = build_tag_instructions(pool).await.unwrap_or_default();
 
         // Phase 1: Search for pages using the extraction service
         ctx.set("status", "Searching for pages...".to_string());
 
-        let extraction = self.deps.extraction.as_ref().ok_or_else(|| {
-            TerminalError::new("Extraction service not configured")
-        })?;
+        let extraction = self
+            .deps
+            .extraction
+            .as_ref()
+            .ok_or_else(|| TerminalError::new("Extraction service not configured"))?;
 
-        let pages = match extraction
-            .search_and_get_pages(domain, Some(domain), 50)
-            .await
-        {
+        let pages = match extraction.get_pages_for_site(&site_url).await {
             Ok(p) => p,
             Err(e) => {
-                let msg = format!("Failed to search pages: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "Page search failed");
+                let msg = format!("Failed to load pages: {}", e);
+                warn!(source_id = %req.source_id, error = %e, "Page load failed");
                 ctx.set("status", msg.clone());
                 return Ok(RegeneratePostsWorkflowResult {
                     proposals_staged: 0,
@@ -130,7 +131,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
 
         let posts = match extract_posts_from_pages_with_tags(
             &pages,
-            domain,
+            &site_url,
             &tag_instructions,
             &self.deps,
         )
@@ -139,7 +140,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             Ok(p) => p,
             Err(e) => {
                 let msg = format!("Extraction failed: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "Extraction failed");
+                warn!(source_id = %req.source_id, error = %e, "Extraction failed");
                 ctx.set("status", msg);
                 return Ok(RegeneratePostsWorkflowResult {
                     proposals_staged: 0,
@@ -157,14 +158,11 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         }
 
         // Phase 3: LLM sync — creates proposals for admin review
-        ctx.set(
-            "status",
-            format!("Analyzing {} posts...", posts.len()),
-        );
+        ctx.set("status", format!("Analyzing {} posts...", posts.len()));
 
         let sync_result = match llm_sync_posts(
-            "website",
-            req.website_id,
+            &source.source_type,
+            req.source_id,
             posts,
             self.deps.ai.as_ref(),
             pool,
@@ -174,7 +172,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             Ok(r) => r,
             Err(e) => {
                 let msg = format!("LLM sync failed: {}", e);
-                warn!(website_id = %req.website_id, error = %e, "LLM sync failed");
+                warn!(source_id = %req.source_id, error = %e, "LLM sync failed");
                 ctx.set("status", msg);
                 return Ok(RegeneratePostsWorkflowResult {
                     proposals_staged: 0,
@@ -189,7 +187,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
             + sync_result.staged_merges) as i32;
 
         // Phase 4: Generate notes for the organization (best-effort)
-        if let Some(org_id) = website.organization_id {
+        if let Some(org_id) = source.organization_id {
             ctx.set("status", "Generating notes...".to_string());
             match Organization::find_by_id(org_id, pool).await {
                 Ok(org) => {
@@ -200,10 +198,14 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
                                 warn!(org_id = %org_id, error = %e, "Failed to attach notes to posts");
                             }
                         }
-                        Err(e) => warn!(org_id = %org_id, error = %e, "Note generation failed (non-blocking)"),
+                        Err(e) => {
+                            warn!(org_id = %org_id, error = %e, "Note generation failed (non-blocking)")
+                        }
                     }
                 }
-                Err(e) => warn!(org_id = %org_id, error = %e, "Failed to load org for note generation"),
+                Err(e) => {
+                    warn!(org_id = %org_id, error = %e, "Failed to load org for note generation")
+                }
             }
         }
 
@@ -218,7 +220,7 @@ impl RegeneratePostsWorkflow for RegeneratePostsWorkflowImpl {
         );
 
         info!(
-            website_id = %req.website_id,
+            source_id = %req.source_id,
             proposals_staged = total_proposals,
             "Regenerate posts workflow completed"
         );

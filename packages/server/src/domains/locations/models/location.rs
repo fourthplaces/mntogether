@@ -2,6 +2,7 @@ use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
+use typed_builder::TypedBuilder;
 
 use crate::common::LocationId;
 
@@ -24,6 +25,26 @@ pub struct Location {
     pub updated_at: DateTime<Utc>,
 }
 
+#[derive(TypedBuilder)]
+#[builder(field_defaults(setter(into)))]
+pub struct CreateLocation<'a> {
+    pub location_type: &'a str,
+    #[builder(default)]
+    pub name: Option<&'a str>,
+    #[builder(default)]
+    pub address_line_1: Option<&'a str>,
+    #[builder(default)]
+    pub city: Option<&'a str>,
+    #[builder(default)]
+    pub state: Option<&'a str>,
+    #[builder(default)]
+    pub postal_code: Option<&'a str>,
+    #[builder(default)]
+    pub latitude: Option<f64>,
+    #[builder(default)]
+    pub longitude: Option<f64>,
+}
+
 impl Location {
     pub async fn find_by_id(id: LocationId, pool: &PgPool) -> Result<Self> {
         let location = sqlx::query_as::<_, Self>("SELECT * FROM locations WHERE id = $1")
@@ -33,17 +54,7 @@ impl Location {
         Ok(location)
     }
 
-    pub async fn create(
-        name: Option<&str>,
-        address_line_1: Option<&str>,
-        city: Option<&str>,
-        state: Option<&str>,
-        postal_code: Option<&str>,
-        latitude: Option<f64>,
-        longitude: Option<f64>,
-        location_type: &str,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(params: &CreateLocation<'_>, pool: &PgPool) -> Result<Self> {
         let location = sqlx::query_as::<_, Self>(
             r#"
             INSERT INTO locations (name, address_line_1, city, state, postal_code, latitude, longitude, location_type)
@@ -51,14 +62,14 @@ impl Location {
             RETURNING *
             "#,
         )
-        .bind(name)
-        .bind(address_line_1)
-        .bind(city)
-        .bind(state)
-        .bind(postal_code)
-        .bind(latitude)
-        .bind(longitude)
-        .bind(location_type)
+        .bind(params.name)
+        .bind(params.address_line_1)
+        .bind(params.city)
+        .bind(params.state)
+        .bind(params.postal_code)
+        .bind(params.latitude)
+        .bind(params.longitude)
+        .bind(params.location_type)
         .fetch_one(pool)
         .await?;
         Ok(location)
@@ -86,12 +97,11 @@ impl Location {
 
         // Try to find existing location by postal_code
         if !postal_code.is_empty() {
-            let existing = sqlx::query_as::<_, Self>(
-                "SELECT * FROM locations WHERE postal_code = $1 LIMIT 1",
-            )
-            .bind(postal_code)
-            .fetch_optional(pool)
-            .await?;
+            let existing =
+                sqlx::query_as::<_, Self>("SELECT * FROM locations WHERE postal_code = $1 LIMIT 1")
+                    .bind(postal_code)
+                    .fetch_optional(pool)
+                    .await?;
 
             if let Some(loc) = existing {
                 return Ok(loc);
@@ -100,26 +110,28 @@ impl Location {
 
         // Look up lat/lng from zip_codes reference table
         let (lat, lng) = if !postal_code.is_empty() {
-            let coords: Option<(f64, f64)> = sqlx::query_as(
-                "SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1",
-            )
-            .bind(postal_code)
-            .fetch_optional(pool)
-            .await?;
-            coords.map(|(la, lo)| (Some(la), Some(lo))).unwrap_or((None, None))
+            let coords: Option<(f64, f64)> =
+                sqlx::query_as("SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1")
+                    .bind(postal_code)
+                    .fetch_optional(pool)
+                    .await?;
+            coords
+                .map(|(la, lo)| (Some(la), Some(lo)))
+                .unwrap_or((None, None))
         } else {
             (None, None)
         };
 
         Self::create(
-            None,
-            address,
-            city,
-            state,
-            zip,
-            lat,
-            lng,
-            "physical",
+            &CreateLocation::builder()
+                .location_type("physical")
+                .address_line_1(address)
+                .city(city)
+                .state(state)
+                .postal_code(zip)
+                .latitude(lat)
+                .longitude(lng)
+                .build(),
             pool,
         )
         .await

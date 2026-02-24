@@ -1,6 +1,6 @@
 //! Post CRUD actions - entry-point functions for post operations
 //!
-//! These are called directly from GraphQL mutations.
+//! These are called from Restate virtual objects.
 //! Actions are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return plain data.
 
@@ -8,10 +8,10 @@ use anyhow::Result;
 use tracing::info;
 use uuid::Uuid;
 
+use super::post_operations::{self, UpdateAndApprovePost};
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{MemberId, PostId};
 use crate::domains::posts::data::{EditPostInput, SubmitPostInput};
-use super::post_operations::{self, UpdateAndApprovePost};
 use crate::kernel::ServerDeps;
 
 /// Submit a post from user input (public, goes to pending_approval)
@@ -222,6 +222,7 @@ pub async fn track_post_click(post_id: Uuid, deps: &ServerDeps) -> Result<()> {
 
 use crate::common::{build_page_info, Cursor, ValidatedPaginationArgs};
 use crate::domains::posts::data::{PostConnection, PostEdge, PostType};
+use crate::domains::posts::models::post::PostFilters;
 use crate::domains::posts::models::Post;
 
 /// Get paginated posts with cursor-based pagination (Relay spec)
@@ -229,21 +230,17 @@ use crate::domains::posts::models::Post;
 /// This is the main query action for listing posts with proper pagination.
 /// Returns a PostConnection with edges, pageInfo, and totalCount.
 pub async fn get_posts_paginated(
-    status: Option<&str>,
-    source_type: Option<&str>,
-    source_id: Option<uuid::Uuid>,
-    agent_id: Option<uuid::Uuid>,
-    search: Option<&str>,
+    filters: &PostFilters<'_>,
     args: &ValidatedPaginationArgs,
     deps: &ServerDeps,
 ) -> Result<PostConnection> {
     let pool = &deps.db_pool;
 
     // Fetch posts with cursor pagination
-    let (posts, has_more) = Post::find_paginated(status, source_type, source_id, agent_id, search, args, pool).await?;
+    let (posts, has_more) = Post::find_paginated(filters, args, pool).await?;
 
     // Get total count for the filter
-    let total_count = Post::count_by_status(status, source_type, source_id, agent_id, search, pool).await? as i32;
+    let total_count = Post::count_by_status(filters, pool).await? as i32;
 
     // Build edges with cursors
     let edges: Vec<PostEdge> = posts
@@ -270,4 +267,38 @@ pub async fn get_posts_paginated(
         page_info,
         total_count,
     })
+}
+
+use crate::domains::locations::models::ZipCode;
+use crate::domains::posts::models::post::PostWithDistanceAndCount;
+
+/// Find posts near a zip code with composable filters.
+/// Validates the zip code, then delegates to the model query.
+/// Returns (results, total_count, has_more) for offset-based pagination.
+pub async fn get_posts_near_zip(
+    zip_code: &str,
+    radius_miles: f64,
+    filters: &PostFilters<'_>,
+    limit: i32,
+    offset: i32,
+    deps: &ServerDeps,
+) -> Result<(Vec<PostWithDistanceAndCount>, i32, bool)> {
+    let pool = &deps.db_pool;
+
+    // Validate zip code exists
+    let _center = ZipCode::find_by_code(zip_code, pool)
+        .await?
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Zip code '{}' not found. Only Minnesota zip codes are currently supported.",
+                zip_code
+            )
+        })?;
+
+    let (results, has_more) =
+        Post::find_paginated_near_zip(zip_code, radius_miles, filters, limit, offset, pool).await?;
+
+    let total_count = results.first().map(|r| r.total_count as i32).unwrap_or(0);
+
+    Ok((results, total_count, has_more))
 }

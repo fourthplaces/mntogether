@@ -3,6 +3,7 @@ use sqlx::PgPool;
 
 use crate::common::{MemberId, OrganizationId, SourceId};
 
+use super::newsletter_source::NewsletterSource;
 use super::social_source::SocialSource;
 use super::source::Source;
 use super::website_source::WebsiteSource;
@@ -96,17 +97,15 @@ pub async fn create_social_source(
     organization_id: Option<OrganizationId>,
     pool: &PgPool,
 ) -> Result<(Source, SocialSource)> {
-    let resolved_url = url
-        .map(|u| u.to_string())
-        .unwrap_or_else(|| {
-            let clean_handle = handle.trim_start_matches('@');
-            match platform {
-                "instagram" => format!("https://instagram.com/{}", clean_handle),
-                "facebook" => format!("https://facebook.com/{}", clean_handle),
-                "tiktok" => format!("https://tiktok.com/@{}", clean_handle),
-                _ => format!("https://{}.com/{}", platform, clean_handle),
-            }
-        });
+    let resolved_url = url.map(|u| u.to_string()).unwrap_or_else(|| {
+        let clean_handle = handle.trim_start_matches('@');
+        match platform {
+            "instagram" => format!("https://instagram.com/{}", clean_handle),
+            "facebook" => format!("https://facebook.com/{}", clean_handle),
+            "tiktok" => format!("https://tiktok.com/@{}", clean_handle),
+            _ => format!("https://{}.com/{}", platform, clean_handle),
+        }
+    });
 
     let mut tx = pool.begin().await?;
 
@@ -158,6 +157,46 @@ pub async fn find_or_create_social_source(
     create_social_source(platform, handle, url, organization_id, pool).await
 }
 
+/// Create a newsletter source (inserts into both sources + newsletter_sources)
+pub async fn create_newsletter_source(
+    signup_form_url: &str,
+    organization_id: Option<OrganizationId>,
+    pool: &PgPool,
+) -> Result<(Source, NewsletterSource)> {
+    let ingest_email = NewsletterSource::generate_ingest_email();
+
+    let mut tx = pool.begin().await?;
+
+    let source = sqlx::query_as::<_, Source>(
+        r#"
+        INSERT INTO sources (source_type, url, organization_id, status)
+        VALUES ('newsletter', $1, $2, 'approved')
+        RETURNING *
+        "#,
+    )
+    .bind(signup_form_url)
+    .bind(organization_id)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    let newsletter_source = sqlx::query_as::<_, NewsletterSource>(
+        r#"
+        INSERT INTO newsletter_sources (source_id, ingest_email, signup_form_url)
+        VALUES ($1, $2, $3)
+        RETURNING *
+        "#,
+    )
+    .bind(source.id)
+    .bind(&ingest_email)
+    .bind(signup_form_url)
+    .fetch_one(&mut *tx)
+    .await?;
+
+    tx.commit().await?;
+
+    Ok((source, newsletter_source))
+}
+
 /// Helper to get the display identifier for a source
 pub async fn get_source_identifier(source_id: SourceId, pool: &PgPool) -> Result<String> {
     // Try website first
@@ -168,5 +207,12 @@ pub async fn get_source_identifier(source_id: SourceId, pool: &PgPool) -> Result
     if let Some(ss) = SocialSource::find_by_source_id_optional(source_id, pool).await? {
         return Ok(ss.handle);
     }
-    Err(anyhow::anyhow!("No website_source or social_source found for source {}", source_id))
+    // Try newsletter
+    if let Some(ns) = NewsletterSource::find_by_source_id_optional(source_id, pool).await? {
+        return Ok(ns.ingest_email);
+    }
+    Err(anyhow::anyhow!(
+        "No website_source, social_source, or newsletter_source found for source {}",
+        source_id
+    ))
 }

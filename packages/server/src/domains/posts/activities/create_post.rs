@@ -11,11 +11,13 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::common::{ContactInfo, ExtractedPost, ExtractedSchedule, PostId};
+use crate::domains::contacts::Contact;
 use crate::domains::locations::models::Location;
 use crate::domains::posts::models::PostLocation;
-use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post};
-use crate::domains::schedules::models::Schedule;
+use crate::domains::schedules::models::{
+    CreateOneOffSchedule, CreateOperatingHoursSchedule, CreateRecurringSchedule, Schedule,
+};
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
@@ -243,7 +245,11 @@ fn parse_date(s: &str) -> Option<NaiveDate> {
 ///
 /// Deletes existing schedules and saves new ones. Used when updating/regenerating
 /// an existing post with fresh extraction that includes schedule data.
-pub async fn sync_schedules_for_post(post_id: PostId, schedules: &[ExtractedSchedule], pool: &PgPool) {
+pub async fn sync_schedules_for_post(
+    post_id: PostId,
+    schedules: &[ExtractedSchedule],
+    pool: &PgPool,
+) {
     if schedules.is_empty() {
         return;
     }
@@ -265,17 +271,35 @@ async fn save_schedule(post_id: PostId, sched: &ExtractedSchedule, pool: &PgPool
     let result = match sched.frequency.as_str() {
         "weekly" => {
             let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
-                warn!(frequency = "weekly", "Missing or invalid day_of_week for weekly schedule, skipping");
+                warn!(
+                    frequency = "weekly",
+                    "Missing or invalid day_of_week for weekly schedule, skipping"
+                );
                 return;
             };
             let opens = sched.start_time.as_deref().and_then(parse_time);
             let closes = sched.end_time.as_deref().and_then(parse_time);
 
-            Schedule::create_operating_hours("post", post_uuid, day, opens, closes, tz, notes, pool).await
+            Schedule::create_operating_hours(
+                &CreateOperatingHoursSchedule::builder()
+                    .schedulable_type("post")
+                    .schedulable_id(post_uuid)
+                    .day_of_week(day)
+                    .timezone(tz)
+                    .opens_at(opens)
+                    .closes_at(closes)
+                    .notes(notes)
+                    .build(),
+                pool,
+            )
+            .await
         }
         "biweekly" => {
             let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
-                warn!(frequency = "biweekly", "Missing or invalid day_of_week, skipping");
+                warn!(
+                    frequency = "biweekly",
+                    "Missing or invalid day_of_week, skipping"
+                );
                 return;
             };
             let opens = sched.start_time.as_deref().and_then(parse_time);
@@ -290,13 +314,28 @@ async fn save_schedule(post_id: PostId, sched: &ExtractedSchedule, pool: &PgPool
             };
 
             Schedule::create_recurring(
-                "post", post_uuid, Utc::now(), &rrule, duration,
-                opens, closes, Some(day), tz, notes, pool,
-            ).await
+                &CreateRecurringSchedule::builder()
+                    .schedulable_type("post")
+                    .schedulable_id(post_uuid)
+                    .dtstart(Utc::now())
+                    .rrule(rrule.as_str())
+                    .timezone(tz)
+                    .duration_minutes(duration)
+                    .opens_at(opens)
+                    .closes_at(closes)
+                    .day_of_week(Some(day))
+                    .notes(notes)
+                    .build(),
+                pool,
+            )
+            .await
         }
         "monthly" => {
             let Some(day) = sched.day_of_week.as_deref().and_then(parse_day_of_week) else {
-                warn!(frequency = "monthly", "Missing or invalid day_of_week, skipping");
+                warn!(
+                    frequency = "monthly",
+                    "Missing or invalid day_of_week, skipping"
+                );
                 return;
             };
             let opens = sched.start_time.as_deref().and_then(parse_time);
@@ -311,25 +350,58 @@ async fn save_schedule(post_id: PostId, sched: &ExtractedSchedule, pool: &PgPool
             };
 
             Schedule::create_recurring(
-                "post", post_uuid, Utc::now(), &rrule, duration,
-                opens, closes, Some(day), tz, notes, pool,
-            ).await
+                &CreateRecurringSchedule::builder()
+                    .schedulable_type("post")
+                    .schedulable_id(post_uuid)
+                    .dtstart(Utc::now())
+                    .rrule(rrule.as_str())
+                    .timezone(tz)
+                    .duration_minutes(duration)
+                    .opens_at(opens)
+                    .closes_at(closes)
+                    .day_of_week(Some(day))
+                    .notes(notes)
+                    .build(),
+                pool,
+            )
+            .await
         }
         "one_time" => {
             let Some(date) = sched.date.as_deref().and_then(parse_date) else {
-                warn!(frequency = "one_time", "Missing or invalid date for one-off event, skipping");
+                warn!(
+                    frequency = "one_time",
+                    "Missing or invalid date for one-off event, skipping"
+                );
                 return;
             };
-            let start_time = sched.start_time.as_deref().and_then(parse_time)
+            let start_time = sched
+                .start_time
+                .as_deref()
+                .and_then(parse_time)
                 .unwrap_or_else(|| NaiveTime::from_hms_opt(0, 0, 0).unwrap());
-            let end_time = sched.end_time.as_deref().and_then(parse_time)
+            let end_time = sched
+                .end_time
+                .as_deref()
+                .and_then(parse_time)
                 .unwrap_or_else(|| NaiveTime::from_hms_opt(23, 59, 0).unwrap());
             let is_all_day = sched.start_time.is_none() && sched.end_time.is_none();
 
             let dtstart = date.and_time(start_time).and_utc();
             let dtend = date.and_time(end_time).and_utc();
 
-            Schedule::create_one_off("post", post_uuid, dtstart, dtend, is_all_day, tz, notes, pool).await
+            Schedule::create_one_off(
+                &CreateOneOffSchedule::builder()
+                    .schedulable_type("post")
+                    .schedulable_id(post_uuid)
+                    .dtstart(dtstart)
+                    .dtend(dtend)
+                    .is_all_day(is_all_day)
+                    .timezone(tz)
+                    .notes(notes)
+                    .build(),
+                pool,
+            )
+            .await
         }
         other => {
             // Default to weekly if frequency is unknown but we have a day
@@ -337,7 +409,19 @@ async fn save_schedule(post_id: PostId, sched: &ExtractedSchedule, pool: &PgPool
                 let opens = sched.start_time.as_deref().and_then(parse_time);
                 let closes = sched.end_time.as_deref().and_then(parse_time);
                 warn!(frequency = %other, "Unknown frequency from LLM, defaulting to weekly");
-                Schedule::create_operating_hours("post", post_uuid, day, opens, closes, tz, notes, pool).await
+                Schedule::create_operating_hours(
+                    &CreateOperatingHoursSchedule::builder()
+                        .schedulable_type("post")
+                        .schedulable_id(post_uuid)
+                        .day_of_week(day)
+                        .timezone(tz)
+                        .opens_at(opens)
+                        .closes_at(closes)
+                        .notes(notes)
+                        .build(),
+                    pool,
+                )
+                .await
             } else {
                 warn!(frequency = %other, "Unknown frequency and no day_of_week, skipping");
                 return;

@@ -79,11 +79,7 @@ impl Agent {
     ///
     /// Provisions a member row with `expo_push_token = "agent:{slug}"` to prevent
     /// collision with real users. The slug is derived from the display_name.
-    pub async fn create(
-        display_name: &str,
-        role: &str,
-        pool: &PgPool,
-    ) -> Result<Self> {
+    pub async fn create(display_name: &str, role: &str, pool: &PgPool) -> Result<Self> {
         let slug = display_name
             .to_lowercase()
             .replace(|c: char| !c.is_alphanumeric(), "-")

@@ -24,15 +24,14 @@
 
 pub mod activities;
 pub mod models;
-pub mod types;
 pub mod restate;
+pub mod types;
 
 // Re-export restate types
 pub use restate::*;
 
 // Re-export types
-pub use types::{WebsiteIngested, NarrativesExtracted, PostsSynced};
+pub use types::{NarrativesExtracted, PostsSynced, WebsiteIngested};
 
 // Re-export models
 pub use models::ExtractionPage;
-

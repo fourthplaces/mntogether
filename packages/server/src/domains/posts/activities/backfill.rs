@@ -4,8 +4,8 @@ use anyhow::Result;
 use tracing::{error, info};
 
 use crate::domains::locations::models::Location;
-use crate::domains::posts::models::post_location::PostLocation;
 use crate::domains::posts::models::post::Post;
+use crate::domains::posts::models::post_location::PostLocation;
 use crate::kernel::ServerDeps;
 
 /// Result of backfilling post embeddings
@@ -171,7 +171,10 @@ pub async fn backfill_post_locations(
     .await
     .unwrap_or(0) as i32;
 
-    info!(processed, failed, remaining, "Post location backfill completed");
+    info!(
+        processed,
+        failed, remaining, "Post location backfill completed"
+    );
 
     Ok(BackfillLocationsResult {
         processed,

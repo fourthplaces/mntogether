@@ -1,12 +1,12 @@
 //! Relay-style cursor-based pagination types
 //!
-//! Implements the GraphQL Cursor Connections Specification:
+//! Implements the Relay Cursor Connections Specification:
 //! https://relay.dev/graphql/connections.htm
 //!
 //! # Usage
 //!
 //! ```rust,ignore
-//! // In GraphQL query resolver
+//! // In query handler
 //! let args = PaginationArgs { first: Some(10), after: None, .. };
 //! let validated = args.validate()?;
 //!
@@ -70,7 +70,7 @@ impl Cursor {
 
 /// Page information for cursor-based pagination.
 ///
-/// Implements the Relay GraphQL Cursor Connections Specification.
+/// Implements the Relay Cursor Connections Specification.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PageInfo {
     /// When paginating forwards, are there more items?

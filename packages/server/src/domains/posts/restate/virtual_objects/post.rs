@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::common::auth::restate_auth::{optional_auth, require_admin};
 use crate::common::EmptyRequest;
 use crate::common::{MessageId, PostId, ScheduleId};
+use crate::domains::agents::models::Agent;
 use crate::domains::chatrooms::activities as chatroom_activities;
 use crate::domains::chatrooms::models::Message;
 use crate::domains::chatrooms::restate::virtual_objects::{MessageListResult, MessageResult};
@@ -19,7 +20,6 @@ use crate::domains::posts::activities;
 use crate::domains::posts::activities::schedule::ScheduleParams;
 use crate::domains::posts::activities::tags::TagInput;
 use crate::domains::posts::models::post_report::PostReportRecord;
-use crate::domains::agents::models::Agent;
 use crate::domains::posts::models::Post;
 use crate::domains::tag::models::tag::Tag;
 use crate::impl_restate_serde;
@@ -28,6 +28,14 @@ use crate::kernel::ServerDeps;
 // =============================================================================
 // Request types
 // =============================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GetPostRequest {
+    #[serde(default)]
+    pub show_private: bool,
+}
+
+impl_restate_serde!(GetPostRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApprovePostRequest {}
@@ -152,6 +160,13 @@ pub struct DeleteScheduleRequest {
 impl_restate_serde!(DeleteScheduleRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateCapacityStatusRequest {
+    pub capacity_status: String,
+}
+
+impl_restate_serde!(UpdateCapacityStatusRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddCommentRequest {
     pub content: String,
     pub parent_message_id: Option<Uuid>,
@@ -202,6 +217,7 @@ pub struct PostResult {
     pub status: String,
     pub post_type: String,
     pub category: String,
+    pub capacity_status: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
     pub source_url: Option<String>,
@@ -226,6 +242,12 @@ pub struct PostResult {
     pub has_urgent_notes: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub urgent_notes: Option<Vec<crate::domains::posts::restate::services::posts::UrgentNoteInfo>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub distance_miles: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_score: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub relevance_breakdown: Option<String>,
 }
 
 impl_restate_serde!(PostResult);
@@ -241,6 +263,7 @@ impl From<Post> for PostResult {
             status: p.status,
             post_type: p.post_type,
             category: p.category,
+            capacity_status: p.capacity_status,
             urgency: p.urgency,
             location: p.location,
             source_url: p.source_url,
@@ -256,6 +279,9 @@ impl From<Post> for PostResult {
             organization_name: None,
             has_urgent_notes: None,
             urgent_notes: None,
+            distance_miles: None,
+            relevance_score: p.relevance_score,
+            relevance_breakdown: p.relevance_breakdown,
         }
     }
 }
@@ -339,11 +365,15 @@ pub trait PostObject {
     async fn approve_revision(req: EmptyRequest) -> Result<PostResult, HandlerError>;
     async fn reject_revision(req: EmptyRequest) -> Result<(), HandlerError>;
     async fn regenerate(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn regenerate_tags(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn update_capacity_status(
+        req: UpdateCapacityStatusRequest,
+    ) -> Result<PostResult, HandlerError>;
     async fn add_comment(req: AddCommentRequest) -> Result<MessageResult, HandlerError>;
 
     // --- Reads (shared, concurrent) ---
     #[shared]
-    async fn get(req: EmptyRequest) -> Result<PostResult, HandlerError>;
+    async fn get(req: GetPostRequest) -> Result<PostResult, HandlerError>;
 
     #[shared]
     async fn get_reports(req: EmptyRequest) -> Result<ReportListResult, HandlerError>;
@@ -369,7 +399,8 @@ impl PostObjectImpl {
     }
 
     fn parse_post_id(key: &str) -> Result<Uuid, HandlerError> {
-        Uuid::parse_str(key).map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)).into())
+        Uuid::parse_str(key)
+            .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)).into())
     }
 }
 
@@ -411,7 +442,7 @@ impl PostObject for PostObjectImpl {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let post_id = Self::parse_post_id(ctx.key())?;
 
-        // Bridge to the existing EditPostInput (which derives GraphQLInputObject)
+        // Bridge to the existing EditPostInput
         // by creating the activity-level type directly
         use crate::domains::posts::data::types::EditPostInput;
         let edit_input = EditPostInput {
@@ -474,11 +505,7 @@ impl PostObject for PostObjectImpl {
         Ok(PostResult::from(post))
     }
 
-    async fn delete(
-        &self,
-        ctx: ObjectContext<'_>,
-        _req: EmptyRequest,
-    ) -> Result<(), HandlerError> {
+    async fn delete(&self, ctx: ObjectContext<'_>, _req: EmptyRequest) -> Result<(), HandlerError> {
         let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
         let post_id = Self::parse_post_id(ctx.key())?;
 
@@ -535,10 +562,14 @@ impl PostObject for PostObjectImpl {
         let post_id = Self::parse_post_id(ctx.key())?;
 
         ctx.run(|| async {
-            Post::update_status(PostId::from_uuid(post_id), "pending_approval", &self.deps.db_pool)
-                .await
-                .map(|_| ())
-                .map_err(Into::into)
+            Post::update_status(
+                PostId::from_uuid(post_id),
+                "pending_approval",
+                &self.deps.db_pool,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
         })
         .await?;
 
@@ -877,7 +908,7 @@ impl PostObject for PostObjectImpl {
     async fn get(
         &self,
         ctx: SharedObjectContext<'_>,
-        _req: EmptyRequest,
+        req: GetPostRequest,
     ) -> Result<PostResult, HandlerError> {
         let post_id = Uuid::parse_str(ctx.key())
             .map_err(|e| TerminalError::new(format!("Invalid post ID: {}", e)))?;
@@ -889,8 +920,14 @@ impl PostObject for PostObjectImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found"))?;
 
-        // Admins see all tags; public visitors see only public tags
-        let tags = if is_admin {
+        // Non-admins can only see active, non-deleted posts
+        if !is_admin && (post.status != "active" || post.deleted_at.is_some()) {
+            return Err(TerminalError::new("Post not found").into());
+        }
+
+        // Show private tags only if admin AND explicitly requested
+        let include_private = is_admin && req.show_private;
+        let tags = if include_private {
             Tag::find_for_post(PostId::from_uuid(post_id), &self.deps.db_pool)
                 .await
                 .map_err(|e| TerminalError::new(e.to_string()))?
@@ -955,7 +992,10 @@ impl PostObject for PostObjectImpl {
         let urgent_rows = Note::find_urgent_note_content_for_posts(&[post_id], &self.deps.db_pool)
             .await
             .unwrap_or_default();
-        let urgent_note_texts: Vec<UrgentNoteInfo> = urgent_rows.into_iter().map(|(_, content, cta_text)| UrgentNoteInfo { content, cta_text }).collect();
+        let urgent_note_texts: Vec<UrgentNoteInfo> = urgent_rows
+            .into_iter()
+            .map(|(_, content, cta_text)| UrgentNoteInfo { content, cta_text })
+            .collect();
 
         let mut result = PostResult::from(post);
         if let Some((org_id, org_name)) = org_row {
@@ -963,7 +1003,11 @@ impl PostObject for PostObjectImpl {
             result.organization_name = Some(org_name);
         }
         result.has_urgent_notes = Some(!urgent_note_texts.is_empty());
-        result.urgent_notes = if urgent_note_texts.is_empty() { None } else { Some(urgent_note_texts) };
+        result.urgent_notes = if urgent_note_texts.is_empty() {
+            None
+        } else {
+            Some(urgent_note_texts)
+        };
         result.submitted_by = submitted_by;
         result.tags = Some(
             tags.into_iter()
@@ -1159,6 +1203,69 @@ impl PostObject for PostObjectImpl {
         Ok(PostResult::from(post))
     }
 
+    async fn regenerate_tags(
+        &self,
+        ctx: ObjectContext<'_>,
+        _req: EmptyRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        ctx.run(|| async {
+            activities::tags::regenerate_post_tags(post_id, &self.deps)
+                .await
+                .map(|_| ())
+                .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after regenerate_tags"))?;
+
+        Ok(PostResult::from(post))
+    }
+
+    async fn update_capacity_status(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: UpdateCapacityStatusRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let _user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        // Validate the capacity status value
+        let valid = ["accepting", "paused", "at_capacity"];
+        if !valid.contains(&req.capacity_status.as_str()) {
+            return Err(TerminalError::new(format!(
+                "Invalid capacity status: {}. Must be one of: {}",
+                req.capacity_status,
+                valid.join(", ")
+            ))
+            .into());
+        }
+
+        ctx.run(|| async {
+            Post::update_capacity_status(
+                PostId::from_uuid(post_id),
+                &req.capacity_status,
+                &self.deps.db_pool,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after update_capacity_status"))?;
+
+        Ok(PostResult::from(post))
+    }
+
     async fn add_comment(
         &self,
         ctx: ObjectContext<'_>,
@@ -1215,16 +1322,13 @@ impl PostObject for PostObjectImpl {
         let container_id = match post.get_comments_container_id() {
             Some(id) => id,
             None => {
-                return Ok(MessageListResult {
-                    messages: vec![],
-                });
+                return Ok(MessageListResult { messages: vec![] });
             }
         };
 
-        let messages =
-            Message::find_approved_by_container(container_id, &self.deps.db_pool)
-                .await
-                .map_err(|e| TerminalError::new(e.to_string()))?;
+        let messages = Message::find_approved_by_container(container_id, &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
 
         Ok(MessageListResult {
             messages: messages.into_iter().map(MessageResult::from).collect(),

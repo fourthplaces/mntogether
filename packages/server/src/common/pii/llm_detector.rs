@@ -3,8 +3,9 @@
 //! Uses the OpenAIClient for context-aware PII detection that can
 //! catch unstructured PII like names and addresses that regex misses.
 
+use crate::kernel::GPT_5_MINI;
+use ai_client::OpenAi;
 use anyhow::Result;
-use openai_client::OpenAIClient;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -55,7 +56,7 @@ If no PII is detected, return an empty entities array."#;
 ///
 /// This detects unstructured PII like names, addresses, and medical info
 /// that regex patterns cannot reliably catch.
-pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<PiiEntity>> {
+pub async fn detect_pii_with_ai(text: &str, ai: &OpenAi) -> Result<Vec<PiiEntity>> {
     if text.trim().is_empty() {
         return Ok(Vec::new());
     }
@@ -63,7 +64,7 @@ pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<Pii
     let user_prompt = format!("Analyze this text for PII:\n\n{}", text);
 
     let response: PiiDetectionResponse = ai
-        .extract("gpt-4o", PII_DETECTION_PROMPT, &user_prompt)
+        .extract(GPT_5_MINI, PII_DETECTION_PROMPT, &user_prompt)
         .await
         .map_err(|e| anyhow::anyhow!("PII detection failed: {}", e))?;
 
@@ -74,8 +75,8 @@ pub async fn detect_pii_with_ai(text: &str, ai: &OpenAIClient) -> Result<Vec<Pii
 ///
 /// Creates an OpenAI client internally. Prefer `detect_pii_with_ai` for
 /// better testability and consistency with the rest of the codebase.
-pub async fn detect_pii_with_gpt(text: &str, openai_api_key: &str) -> Result<Vec<PiiEntity>> {
-    let ai = OpenAIClient::new(openai_api_key.to_string());
+pub async fn detect_pii_with_gpt(text: &str, openrouter_api_key: &str) -> Result<Vec<PiiEntity>> {
+    let ai = OpenAi::new(openrouter_api_key.to_string(), GPT_5_MINI);
     detect_pii_with_ai(text, &ai).await
 }
 
@@ -128,14 +129,14 @@ pub fn entities_to_findings(text: &str, entities: &[PiiEntity]) -> PiiFindings {
 }
 
 /// Hybrid detection: combines regex and LLM
-pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFindings> {
+pub async fn detect_pii_hybrid(text: &str, api_key: &str) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
     // Start with regex detection (fast, reliable for structured data)
     let mut findings = detect_structured_pii(text);
 
     // Add LLM detection for unstructured PII
-    let entities = detect_pii_with_gpt(text, openai_api_key).await?;
+    let entities = detect_pii_with_gpt(text, api_key).await?;
     let llm_findings = entities_to_findings(text, &entities);
 
     // Merge findings (deduplicating overlaps)
@@ -156,8 +157,8 @@ pub async fn detect_pii_hybrid(text: &str, openai_api_key: &str) -> Result<PiiFi
     Ok(findings)
 }
 
-/// Hybrid detection with an OpenAIClient instance (preferred for testing)
-pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAIClient) -> Result<PiiFindings> {
+/// Hybrid detection with an AI client instance (preferred for testing)
+pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAi) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
     // Start with regex detection (fast, reliable for structured data)
