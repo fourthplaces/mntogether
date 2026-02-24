@@ -1,4 +1,6 @@
-# Refactoring Progress
+# Refactoring Progress (HISTORICAL)
+
+> **Historical document.** This tracks a pre-Restate refactoring. The kernel patterns described here have evolved — business logic now lives in activities (not effects), and the architecture uses Restate for durable workflows. See [ROOT_EDITORIAL_PIVOT.md](../../docs/ROOT_EDITORIAL_PIVOT.md).
 
 ## ✅ Completed
 

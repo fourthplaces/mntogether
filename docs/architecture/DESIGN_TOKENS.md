@@ -1,6 +1,6 @@
 # Design Tokens Reference
 
-Quick reference for all design values used in Minnesota Digital Aid.
+Quick reference for all design values used in Root Editorial.
 
 ## Colors
 

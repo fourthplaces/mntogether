@@ -1,6 +1,8 @@
-# mndigitalaid Deployment Guide
+# Root Editorial Deployment Guide
 
-Complete guide for deploying mndigitalaid to AWS using Pulumi and GitHub Actions.
+> **Note**: AWS resource names (`mndigitalaid-*`) reflect the original project name and haven't been renamed in infrastructure. The project is now Root Editorial but the deployment resources retain their original names.
+
+Complete guide for deploying Root Editorial to AWS using Pulumi and GitHub Actions.
 
 ## Overview
 

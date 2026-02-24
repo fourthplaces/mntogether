@@ -2,7 +2,7 @@
 
 ## Overview
 
-Each domain follows a layered architecture built on **Restate** for durable workflow execution. The project migrated from seesaw-rs (event-driven state machines) to Restate SDK 0.4.0 in early 2026.
+Each domain follows a layered architecture built on **Restate** for durable workflow execution (Restate SDK 0.4.0).
 
 ## Directory Structure
 

@@ -185,7 +185,7 @@ export TEST_IDENTIFIER_ENABLED=true
 # (Manual step or via admin interface)
 
 # 3. Test authentication
-curl -X POST http://localhost:8080/graphql \
+curl -X POST http://localhost:9080/graphql \
   -H "Content-Type: application/json" \
   -d '{
     "query": "mutation { verifyCode(phoneNumber: \"+1234567890\", code: \"123456\") }"

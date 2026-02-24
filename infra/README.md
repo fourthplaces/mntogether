@@ -1,6 +1,8 @@
-# mndigitalaid Infrastructure
+# Root Editorial Infrastructure
 
-Pulumi-based infrastructure as code for deploying mndigitalaid to AWS.
+> **Note**: This infrastructure documentation predates the Root Editorial pivot. Some references to `admin-spa`, `web-next`, and `web-app` as separate S3-hosted SPAs are outdated. The current app architecture uses `admin-app` (CMS, port 3000) and `web-app` (public site, port 3001), both as Next.js apps. Infrastructure config will need updating before production deployment.
+
+Pulumi-based infrastructure as code for deploying to AWS.
 
 ## Architecture
 

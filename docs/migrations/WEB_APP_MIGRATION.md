@@ -1,4 +1,6 @@
-# Web App Migration - Expo to React
+# Web App Migration - Expo to React (HISTORICAL)
+
+> **Historical document.** This describes the initial Expo → React migration. The web app has since been rebuilt as a Next.js application (`packages/web-app`, port 3001). The admin dashboard is a separate Next.js app (`packages/admin-app`, port 3000). See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md).
 
 Successfully migrated from Expo mobile app to React web app.
 

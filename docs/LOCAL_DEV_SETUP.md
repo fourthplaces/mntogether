@@ -10,10 +10,7 @@ cd mntogether
 # 2. Generate Cargo.lock (gitignored)
 cargo generate-lockfile
 
-# 3. Create .yarn directory for web package (gitignored)
-mkdir -p packages/web/.yarn
-
-# 4. Set up environment
+# 3. Set up environment
 cp .env.example .env
 # Edit .env:
 #   JWT_SECRET=<generate with: openssl rand -base64 32>
@@ -22,14 +19,14 @@ cp .env.example .env
 #   PII_USE_GPT_DETECTION=false
 # API keys (OpenAI, Twilio, etc.) are NOT needed for design/frontend work
 
-# 5. Start services
+# 4. Start services
 docker compose up -d
 # First build takes 5-10 min (Rust compile)
 
-# 6. Run migrations
+# 5. Run migrations
 docker compose exec server sqlx migrate run --source /app/packages/server/migrations
 
-# 7. Restore test data (if available)
+# 6. Restore test data (if available)
 docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
 ```
 
@@ -118,28 +115,21 @@ Stored in `schedules` with polymorphic `schedulable_type = 'post'`. Contains day
 
 ## Architecture Notes
 
-### API is Restate, not GraphQL
+### GraphQL API via Restate
 
-The frontend talks to Restate RPC endpoints via a Next.js proxy:
+The frontend talks to the Rust server through the Restate runtime, which provides durable workflow execution:
 
 ```
-Browser --> /api/restate/Posts/public_list --> Restate Runtime (8180) --> Server (9080)
+Browser --> Next.js App (3000/3001) --> Restate Runtime (8180) --> Rust Server (9080)
 ```
 
-Key public endpoints (no auth needed):
-- `POST /api/restate/Posts/public_list` - Paginated post list with optional `post_type` and `category` filters
-- `POST /api/restate/Posts/public_filters` - Available filter options with counts
-- `POST /api/restate/Post/{id}/get` - Single post detail with contacts, schedules, tags, org info
+The admin-app and web-app both communicate with the backend via GraphQL, with the shared package defining the schema types.
 
 ### Filter queries join through tags
 
-The `public_list` endpoint filters by joining posts to tags:
+The public post listing filters by joining posts to tags:
 - `post_type` filter: joins `taggables` + `tags WHERE kind = 'post_type'`
 - `category` filter: joins `taggables` + `tags WHERE kind = 'service_offered'`
-
-The `public_filters` endpoint returns available filter options:
-- Post types: hardcoded to `offering`, `seeking`, `announcement` from `tags WHERE kind = 'post_type'`
-- Categories: dynamic from `tags WHERE kind = 'service_offered'` joined to active posts
 
 ### Public tag display
 
@@ -149,28 +139,24 @@ The `find_public_for_post_ids` query joins `tags.kind` to `tag_kinds.slug` and f
 
 | Service | Port | Notes |
 |---|---|---|
-| Next.js Web | 3000 | Public site + admin |
-| Rust Server | 9080 | Restate services |
-| SSE Server | 8081 | Real-time streaming |
+| Admin App (Next.js) | 3000 | CMS admin panel |
+| Web App (Next.js) | 3001 | Public site |
+| Rust Server | 9080 | Restate workflow services |
 | Restate Runtime | 8180 (ingress), 9070 (admin) | Workflow orchestration |
 | PostgreSQL | 5432 | pgvector (see docker-compose.yml for credentials) |
-| Redis | 6379 | Job queue, pub/sub |
-| NATS | 4222 | Messaging |
+| Redis | 6379 | Caching |
 
 ## Test Auth
 
 With `TEST_IDENTIFIER_ENABLED=true`, log in with:
-- Email: `test@example.com`
-- Code: `123456`
+- Phone: `+1234567890`
+- Code: any value (Twilio verification is skipped)
 
 No Twilio API keys needed.
 
 ## Gotchas
 
 1. **Cargo.lock is gitignored** - Run `cargo generate-lockfile` after cloning
-2. **packages/web/.yarn/ is gitignored** - Create it with `mkdir -p packages/web/.yarn`
-3. **Port 4222 conflict** - If NATS fails to start, check for another NATS container: `docker ps -a --filter publish=4222`
-4. **First Rust compile is slow** - 5-10 min inside Docker on first `docker compose up`
-5. **The `post_type` column on posts is NOT used for filtering** - Filtering uses tags (kind = 'post_type')
-6. **`seed_organizations` binary needs OpenAI key** - Use the SQL dump instead for offline setup
-7. **Docker volumes persist across restarts** - Data survives `docker compose down`. Only `docker compose down -v` or `make clean` wipes data.
+2. **First Rust compile is slow** - 5-10 min inside Docker on first `docker compose up`
+3. **The `post_type` column on posts is NOT used for filtering** - Filtering uses tags (kind = 'post_type')
+4. **Docker volumes persist across restarts** - Data survives `docker compose down`. Only `docker compose down -v` or `make clean` wipes data.

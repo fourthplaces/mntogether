@@ -1,6 +1,8 @@
-# Development CLI
+# Development CLI (HISTORICAL)
 
-Single entry point for working with the Minnesota Digital Aid application.
+> **Historical document.** The Rust-based dev CLI (`dev.sh` / `packages/dev-cli/`) described here is no longer the recommended development approach. Use `docker-compose up` in `packages/server/` for backend services, and `yarn dev` in `packages/admin-app/` or `packages/web-app/` for frontends. The Expo mobile app, Seesaw architecture, and several API keys referenced below have been removed. See [LOCAL_DEV_SETUP.md](../LOCAL_DEV_SETUP.md) for current setup instructions.
+
+Single entry point for working with the Root Editorial application.
 
 ## Quick Start
 

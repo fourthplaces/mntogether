@@ -1,4 +1,6 @@
-# Restate Migration Summary
+# Restate Migration Summary (HISTORICAL)
+
+> **Historical document.** This describes the seesaw-rs → Restate migration. The migration is complete and Restate is the current workflow engine. Some details (separate `workflow_server` binary, GraphQL port 8080, Firecrawl as external service) are outdated — the server is now a single `server` binary on port 9080, and Firecrawl has been removed. See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md).
 
 ## 🎉 Migration Complete!
 

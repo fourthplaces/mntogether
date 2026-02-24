@@ -260,7 +260,7 @@ Possible additions (not currently implemented):
 ### Load Testing
 ```bash
 # Generate load to verify rotation under traffic
-ab -n 1000 -c 10 http://localhost:4000/graphql \
+ab -n 1000 -c 10 http://localhost:9080/graphql \
   -p query_posts.json -T "application/json"
 ```
 

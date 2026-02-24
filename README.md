@@ -1,574 +1,137 @@
-# MN Together
+# Root Editorial
 
-A privacy-first platform connecting volunteers with immigrant resource organizations and cause-driven businesses in Minnesota, powered by AI semantic search and location-based matching.
+An open CMS for community journalism — helping non-technical editors curate and publish community-focused content.
 
 ## Overview
 
-This platform connects volunteers with immigrant resource organizations and cause-driven businesses in Minnesota. It features:
+Root Editorial is the editorial layer of a three-part architecture:
 
-- **Privacy-First Design**: No PII storage, only coarse location data and Expo push tokens
-- **Cause-Driven Commerce**: Track businesses that donate proceeds to immigrant causes
-- **Text-First Architecture**: Searchable text as source of truth for anti-fragile evolution
-- **AI-Powered Matching**: GPT-4o extracts content, embeddings enable semantic search
-- **Event-Driven Architecture**: Built with seesaw-core for clean separation of concerns
-- **Location-Based Filtering**: 30km radius matching using PostGIS distance calculations
-- **Smart Notifications**: Weekly throttling (max 3) with AI relevance checking
-- **Real-Time Chat**: Organization-specific chat rooms with thread support
+- **Root Signal** (separate repo) — AI-powered content discovery and crawling
+- **Root Editorial** (this repo) — CMS for editorial curation and publishing
+- **MN Together** — The first instance/theme, focused on Minnesota community journalism
+
+### What This Repo Does
+
+- **CMS GUI** for non-tech editors to curate community content
+- **Post lifecycle management** — create, review, approve, publish, expire
+- **Organization management** — track community organizations and their content sources
+- **AI-assisted editorial tooling** — PII detection, summary generation, editorial notes
+- **GraphQL API** — serving admin and public web apps
+- **Broadsheet layout engine** (coming) — 3-column newspaper-style digital editions
 
 ## Quick Start
 
 ### Prerequisites
 
 - Docker and Docker Compose ([Install Docker Desktop](https://www.docker.com/products/docker-desktop/))
-- API keys: OpenAI, Voyage AI, Firecrawl, Twilio (SMS auth)
+- Rust toolchain (for local dev without Docker)
+- Node.js 22+ and Yarn 4+ (for frontend apps)
 
-### 🚀 One-Command Setup
-
-**Option 1: Docker Compose (Recommended)**
-
-The fastest way to get started:
+### Setup
 
 ```bash
-# Copy environment template
+# 1. Clone and enter repo
+gh repo clone fourthplaces/mntogether
+cd mntogether
+
+# 2. Generate Cargo.lock (gitignored)
+cargo generate-lockfile
+
+# 3. Set up environment
 cp .env.example .env
-# Edit .env and add your API keys
+# Edit .env:
+#   JWT_SECRET=<generate with: openssl rand -base64 32>
+#   TEST_IDENTIFIER_ENABLED=true
 
-# Start all services
-make up
-
-# Run migrations
-make migrate
-
-# Access the application
-# - API: http://localhost:8080
-# - GraphQL Playground: http://localhost:8080/graphql
-# - Web App: http://localhost:3001
-# - Admin Dashboard: http://localhost:3001/admin
-```
-
-See [DOCKER_GUIDE.md](DOCKER_GUIDE.md) for complete Docker setup documentation.
-
-**Option 2: Interactive CLI**
-
-For a guided interactive setup:
-
-```bash
-./dev.sh
-```
-
-This single entry point will:
-1. Install all dependencies automatically
-2. Build the project
-3. Present an interactive menu for:
-   - Starting the mobile app (Expo)
-   - Managing Docker services
-   - Viewing logs
-
-See [DEV_CLI.md](docs/setup/DEV_CLI.md) for complete CLI documentation.
-
-### Environment Variables
-
-Before starting, create your environment file:
-
-```bash
-cp .env.example .env
-# Edit .env and add your API keys
-```
-
-**Required keys:**
-```env
-# AI/ML
-OPENAI_API_KEY=sk-...                    # Required: GPT-4o for need extraction
-VOYAGE_API_KEY=pa-...                    # Required: Embeddings
-
-# Web scraping
-FIRECRAWL_API_KEY=fc-...                 # Required: Source scraping
-TAVILY_API_KEY=tvly-...                  # Optional: Search discovery
-
-# SMS authentication
-TWILIO_ACCOUNT_SID=AC...                 # Required: SMS verification
-TWILIO_AUTH_TOKEN=...                    # Required
-TWILIO_VERIFY_SERVICE_SID=VA...          # Required
-
-# JWT authentication
-JWT_SECRET=...                           # Required: 32+ byte secret (generate with: openssl rand -base64 32)
-
-# Admin access
-ADMIN_IDENTIFIERS=admin@example.com      # Required: Comma-separated admin emails/phones
-```
-
-See [.env.example](.env.example) for complete configuration options.
-
-### Manual Setup (Alternative)
-
-If you prefer manual control without Make:
-
-#### Docker Compose Commands
-
-```bash
-# Start all services
+# 4. Start infrastructure
 docker compose up -d
 
-# View logs
-docker compose logs -f
+# 5. Run migrations
+docker compose exec server sqlx migrate run --source /app/packages/server/migrations
 
-# Run migrations
-docker compose exec api sqlx migrate run
-
-# Stop services
-docker compose down
+# 6. Restore test data
+docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
 ```
 
-#### Standalone Development (Without Docker)
-
-If you prefer running services directly:
-
-1. **Start PostgreSQL and Redis**:
-   ```bash
-   # Install PostgreSQL 14+ with pgvector
-   # Install Redis 6+
-   ```
-
-2. **Backend (Rust + GraphQL)**:
-   ```bash
-   cd packages/server
-   cp .env.example .env
-   # Edit .env with your API keys
-
-   cargo sqlx migrate run
-   cargo run --bin server
-   # API: http://localhost:8080
-   ```
-
-3. **Web App (React + Vite)**:
-   ```bash
-   cd packages/web-app
-   yarn install
-   yarn dev
-   # Access: http://localhost:3001
-   # Admin: http://localhost:3001/admin
-   ```
-
-4. **Expo App (React Native)**:
-   ```bash
-   cd packages/app
-   npm install
-   npm start
-   # Press 'a' for Android, 'i' for iOS, 'w' for web
-   ```
-
-### Available Services
-
-- **PostgreSQL**: `localhost:5432` (pgvector/pgvector:pg16 with pgvector extension)
-- **Redis**: `localhost:6379` (redis:7-alpine for job queue and pub/sub)
-- **API Server**: `localhost:8080` (Rust + GraphQL with hot-reload)
-- **GraphiQL Playground**: `localhost:8080/graphql` (Interactive API explorer)
-- **Health Check**: `localhost:8080/health` (Service status endpoint)
-- **Web App**: `localhost:3001` (React + Vite - Public listings + Admin dashboard)
-- **Next.js Site**: `localhost:3000` (Optional SSR site - requires `--profile full`)
-
-### Seeding Data
-
-After migrations, seed the database with real organizations:
+### Start Development
 
 ```bash
-cd packages/server
-cargo run --bin seed_organizations
+# Backend (Rust server on port 9080)
+cargo run --bin server
+
+# Admin app (CMS on port 3000)
+cd packages/admin-app && yarn dev
+
+# Public web app (port 3001)
+cd packages/web-app && yarn dev
 ```
 
-This imports 50+ immigrant resource organizations from JSON with AI-powered tag extraction.
+### Test Login
 
-### Development Commands
+With `TEST_IDENTIFIER_ENABLED=true`:
+- Phone: `+1234567890`
+- Code: any value (Twilio verification is skipped)
 
-```bash
-# From project root
-make help          # Show all available commands
-make up            # Start all services
-make down          # Stop all services
-make logs          # View logs from all services
-make migrate       # Run database migrations
-make seed          # Seed database with organizations
-make test          # Run Rust tests
-make build         # Rebuild containers
-make shell         # Open shell in API container
-make db-shell      # Open PostgreSQL shell
-make redis-cli     # Open Redis CLI
-make health        # Check service health
+## Architecture
+
 ```
-
-See [Makefile](Makefile) for all available commands.
+┌──────────────────┐     ┌──────────────────┐
+│   Admin App      │     │   Web App        │
+│  (Next.js CMS)   │     │  (Next.js public)│
+│   Port 3000      │     │   Port 3001      │
+└────────┬─────────┘     └────────┬─────────┘
+         │                        │
+         └────────┬───────────────┘
+                  ▼
+         ┌─────────────────┐
+         │ Restate Runtime  │
+         │  Port 9070/8180  │
+         └────────┬────────┘
+                  ▼
+┌─────────────────┐      ┌─────────────┐      ┌─────────────┐
+│   Rust Server   │─────▶│  PostgreSQL  │      │    Redis    │
+│  (Restate svc)  │      │  (pgvector)  │      │  (caching)  │
+│   Port 9080     │      │  Port 5432   │      │  Port 6379  │
+└─────────────────┘      └─────────────┘      └─────────────┘
+         │
+         │ (External APIs)
+         ├─▶ OpenAI / OpenRouter (LLM)
+         └─▶ Twilio (SMS/email auth)
+```
 
 ## Workspace Packages
 
-This project uses Cargo workspaces with the following packages:
-
-- **server**: Main GraphQL API server with event-driven architecture
-- **intelligent-crawler**: Web scraping service with content hash deduplication
-- **twilio-rs**: Twilio SMS authentication client wrapper
-- **dev-cli**: Interactive CLI for managing development tasks
-
-## Project Structure
-
 ```
-mndigitalaid/
-├── Cargo.toml                    # Workspace root
-├── docker-compose.yml            # Docker services configuration
-├── Makefile                      # Development commands
-├── dev.sh                        # Interactive development CLI
-├── packages/
-│   ├── server/                   # Backend (Rust + GraphQL)
-│   │   ├── src/
-│   │   │   ├── common/           # Shared utilities
-│   │   │   │   └── utils/        # geocoding, embeddings, expo client
-│   │   │   ├── domains/          # Business domains (event-driven)
-│   │   │   │   ├── listings/     # Organizations & business info
-│   │   │   │   ├── members/      # Volunteer registration
-│   │   │   │   ├── chatrooms/    # Real-time chat system
-│   │   │   │   ├── matching/     # Semantic search + notifications
-│   │   │   │   └── auth/         # Authentication & authorization
-│   │   │   ├── kernel/           # Core infrastructure
-│   │   │   │   ├── jobs/         # Background job queue
-│   │   │   │   └── scheduled_tasks.rs  # Cron jobs
-│   │   │   └── server/           # HTTP server + GraphQL
-│   │   ├── migrations/           # PostgreSQL migrations
-│   │   └── tests/                # Integration tests
-│   ├── intelligent-crawler/      # Web scraping service
-│   ├── twilio-rs/                # SMS authentication client
-│   ├── dev-cli/                  # Interactive development CLI
-│   ├── web-app/                  # Web app (React + Vite - Public + Admin)
-│   ├── web-next/                 # Next.js SSR site (optional)
-│   ├── app/                      # Mobile app (React Native + Expo)
-│   └── admin-spa/                # Admin dashboard (React)
-├── docs/                         # Comprehensive documentation
-├── data/                         # Seed data and resources
-└── infra/                        # Infrastructure configuration
+packages/
+├── server/          # Rust — Restate workflow server (backend)
+├── admin-app/       # TypeScript — Next.js CMS admin panel
+├── web-app/         # TypeScript — Next.js public web app
+├── shared/          # TypeScript — Shared GraphQL schema and types
+├── ai-client/       # Rust — LLM client abstraction
+└── twilio-rs/       # Rust — Twilio Verify wrapper
 ```
-
-## Development Status
-
-### ✅ PRODUCTION-READY
-
-All core features implemented and ready for deployment:
-
-#### Listings Domain
-- ✅ Organization CRUD with flexible tag system (services, languages, communities)
-- ✅ **Cause-Driven Commerce**: Business organizations with proceeds tracking
-- ✅ Business info: proceeds percentage, beneficiary orgs, CTA links
-- ✅ Ownership tags (women-owned, immigrant-owned, BIPOC-owned)
-- ✅ Certification tags (B-Corp, benefit corporation)
-- ✅ Web scraping with Firecrawl API
-- ✅ AI content extraction using GPT-4o via rig.rs
-- ✅ Content hash-based duplicate detection
-- ✅ Human-in-the-loop approval workflow
-- ✅ Post creation for temporal announcements
-- ✅ Complete GraphQL API
-
-#### Members Domain
-- ✅ Privacy-first registration (coarse location, no PII)
-- ✅ Text-first profile (searchable_text as source of truth)
-- ✅ Auto-geocoding (city/state → lat/lng)
-- ✅ Embedding generation (OpenAI text-embedding-3-small)
-- ✅ Weekly notification throttling (max 3/week)
-- ✅ SMS authentication via Twilio Verify
-- ✅ JWT-based authorization
-
-#### Chatrooms Domain
-- ✅ Real-time messaging system
-- ✅ Organization-specific chat rooms
-- ✅ Thread support for organized discussions
-- ✅ Member participation tracking
-- ✅ PII scrubbing with GPT-4o detection
-
-#### Matching Domain
-- ✅ Distance-filtered vector search (30km radius)
-- ✅ Embedding similarity ranking
-- ✅ AI relevance checking
-- ✅ Expo push notification delivery
-- ✅ Atomic throttle checking
-- ✅ Notification tracking and analytics
-
-#### Infrastructure
-- ✅ Event-driven architecture (seesaw-core)
-- ✅ Background job queue (Postgres-based)
-- ✅ Scheduled tasks (hourly scraping, weekly reset)
-- ✅ Integration test harness
-- ✅ Docker Compose development environment
-- ✅ Production-ready deployment configuration
-- ✅ Health checks and monitoring
-
-See [CURRENT_STATUS.md](docs/status/CURRENT_STATUS.md) for full details.
-
-## Architecture Highlights
-
-### Event-Driven Architecture
-Clean separation of concerns using the seesaw pattern (via seesaw-core 0.1.1):
-```
-Request Event → Machine (decide) → Command → Effect (IO) → Fact Event
-```
-- **Events**: Immutable facts about what happened
-- **Commands**: Intent to perform an action
-- **Machines**: Pure decision logic (no IO)
-- **Effects**: Stateless IO handlers
-- **Edges**: Thin GraphQL resolvers that dispatch requests
-
-### Domain-Driven Design
-The codebase is organized into business domains:
-
-- **Listings**: Organizations, business info, posts, tags
-- **Members**: Volunteer profiles, preferences, location
-- **Chatrooms**: Real-time messaging and threads
-- **Matching**: Semantic search and notifications
-- **Auth**: SMS verification, JWT tokens, admin authorization
-
-Each domain follows strict layering:
-- `models/`: SQL queries only (no business logic)
-- `data/`: GraphQL types with lazy resolvers
-- `events/`: Domain event definitions (where applicable)
-- `commands/`: Command definitions with execution modes (where applicable)
-- `machines/`: State machines for decision logic (where applicable)
-- `effects/`: IO implementations (API calls, DB writes) (where applicable)
-
-### Key Principles
-- **Privacy-First**: Coarse coordinates (city-level), no PII, only Expo tokens
-- **Text-First**: `searchable_text` as source of truth for anti-fragile evolution
-- **Human-in-the-Loop**: AI extracts needs → Admin approves → Matching triggered
-- **Location as Filter**: Distance filtering (30km) before semantic ranking
-- **Generous Matching**: Bias toward recall, not precision
-- **Content Hash Sync**: Detect new/changed/disappeared needs automatically
 
 ## Technology Stack
 
-### Backend
-- **Rust**: Type-safe, high-performance systems language
-- **seesaw-core**: Event-driven framework for clean architecture (0.1.1)
-- **Axum**: Modern async web framework
-- **Juniper**: GraphQL server implementation
-- **SQLx**: Compile-time checked SQL queries
-- **PostgreSQL + pgvector**: Vector similarity search with IVFFlat indexes
-- **Redis**: Job queue and pub/sub messaging
-
-### AI/ML
-- **OpenAI GPT-4o**: Need extraction and relevance checking
-- **OpenAI text-embedding-3-small**: 1536-dimensional embeddings
-- **rig.rs**: Type-safe AI/LLM integration framework
-
-### External Services
-- **Firecrawl**: Headless browser for web scraping
-- **Nominatim (OpenStreetMap)**: Free geocoding service
-- **Expo**: Push notification delivery
-- **Twilio Verify**: SMS authentication
-
-### Frontend
-- **React + Vite**: Web app with public listings and admin dashboard
-- **Next.js 16**: Optional SSR public site with Tailwind CSS 4
-- **React Native + Expo**: Mobile volunteer app (iOS/Android)
-- **Apollo Client**: GraphQL client for state management
-
-## Running the Server
-
-### Development Mode
-```bash
-cd packages/server
-cargo run --bin server
-# Server starts at http://localhost:8080
-# GraphQL playground at http://localhost:8080/graphql
-```
-
-### Production Build
-```bash
-cd packages/server
-cargo build --release
-./target/release/server
-```
-
-### Background Jobs
-The server automatically runs:
-- **Hourly**: Organization source scraping
-- **Weekly (Monday midnight)**: Reset notification throttles
-
-## Performance Characteristics
-
-### Query Times (Expected)
-- Member registration: ~500ms (includes Nominatim geocoding)
-- Embedding generation: ~200ms per text (OpenAI text-embedding-3-small)
-- Vector search: ~10-20ms with IVFFlat indexes
-- AI relevance check: ~300-500ms per candidate (GPT-4o)
-- PII scrubbing: ~500ms per message (GPT-4o detection)
-- Expo notification: ~100ms per push
-- Full matching pipeline: ~2-3s per approved opportunity
-
-### Scalability
-- **Current**: Suitable for <10K members, 1K organizations
-- **With indexes**: Scales to ~100K members, 10K organizations
-- **For >100K**: Consider distributed vector search (Pinecone, Weaviate)
-
-### Database Indexes
-- IVFFlat indexes on embedding vectors (1536 dimensions)
-- PostGIS spatial indexes on location coordinates
-- B-tree indexes on foreign keys and timestamps
-- Hash indexes on UUIDs, tokens, and content hashes
-
-## API Examples
-
-### Register a Member
-```graphql
-mutation {
-  registerMember(
-    expoPushToken: "ExponentPushToken[xyz]"
-    searchableText: "Can drive, speak Spanish, interested in food assistance"
-    city: "Minneapolis"
-    state: "MN"
-  ) {
-    id
-    locationName
-    latitude
-    longitude
-  }
-}
-```
-
-### Approve a Need (Triggers Matching)
-```graphql
-mutation {
-  approveNeed(needId: "uuid-here") {
-    id
-    status
-  }
-}
-```
-
-This automatically:
-1. Generates embedding for the need
-2. Searches for members within 30km
-3. Ranks by semantic similarity
-4. Checks AI relevance
-5. Sends push notifications
-6. Records in notifications table
-
-### Query Organizations
-```graphql
-query {
-  searchOrganizations(query: "food assistance") {
-    id
-    name
-    organizationType
-    tags {
-      kind
-      value
-    }
-    sources {
-      sourceUrl
-    }
-  }
-}
-```
-
-### Query Cause-Driven Businesses
-```graphql
-query {
-  organization(id: "uuid-here") {
-    name
-    organizationType
-    businessInfo {
-      proceedsPercentage
-      onlineStoreUrl
-      donationUrl
-      giftCardUrl
-      isCauseDriven
-    }
-    tags(kind: "ownership") {
-      value
-    }
-  }
-}
-```
-
-## Testing
-
-### Run All Tests
-```bash
-cd packages/server
-cargo test
-```
-
-### Run Specific Test File
-```bash
-cargo test --test organization_needs_tests
-cargo test --test content_hash_tests
-```
-
-### Integration Tests
-The project includes integration tests with:
-- PostgreSQL test containers
-- Redis test containers
-- Test fixtures for organizations and members
-- GraphQL query testing harness
-
-## Deployment
-
-### Prerequisites
-- PostgreSQL 14+ with pgvector extension
-- Redis 6+
-- Valid API keys for OpenAI, Firecrawl, Twilio
-
-### Environment Setup
-1. Copy `.env.example` to `.env`
-2. Fill in all required API keys
-3. Set `DATABASE_URL` to production database
-4. Set `REDIS_URL` to production Redis instance
-
-### Database Setup
-```bash
-# Run migrations
-sqlx migrate run
-
-# Seed organizations (optional)
-cargo run --bin seed_organizations
-```
-
-### Start Server
-```bash
-cargo run --release --bin server
-```
-
-### Health Check
-```bash
-curl http://localhost:8080/health
-# Should return: {"status":"healthy"}
-```
-
-## Recent Updates
-
-### Cause-Driven Commerce (January 2026)
-- Added `business_organizations` table with proceeds tracking
-- 12 new tags for ownership and certifications (women-owned, B-Corp, etc.)
-- Business info GraphQL API with `isCauseDriven` resolver
-- Support for beneficiary organizations and CTA links
-
-### Production Fixes
-- PII scrubbing with GPT-4o detection
-- Enhanced admin authorization system
-- Improved error handling and logging
-- Database query optimizations
-
-## Known Limitations
-
-1. **AI Costs**: GPT-4o usage for relevance checking and PII detection
-2. **Geocoding**: Free tier (Nominatim) - rate limited for production use
-3. **Frontend Integration**: Cause-driven commerce backend ready, frontend UI pending
-4. **Notification Preferences**: All members receive same notification types
-5. **Mobile App**: Basic structure in place, needs feature completion
+| Component | Technology |
+|-----------|-----------|
+| Backend | Rust + Restate SDK 0.4.0 |
+| Database | PostgreSQL + pgvector |
+| Cache | Redis |
+| LLM | OpenAI / OpenRouter |
+| Auth | Twilio Verify (phone/email OTP) + JWT |
+| Frontend | Next.js (App Router) |
+| GraphQL | Shared schema (packages/shared) |
 
 ## Documentation
 
-For complete documentation, see the [docs/](docs/) directory:
+See the [docs/](docs/README.md) directory for complete documentation:
 
-- **[Documentation Index](docs/README.md)** - Complete documentation overview
-- **Setup Guides**: [Quick Start](docs/setup/QUICK_START.md), [Docker Setup](docs/setup/DOCKER_SETUP.md), [Deployment](docs/setup/DEPLOYMENT.md)
-- **Architecture**: [Domain Architecture](docs/architecture/DOMAIN_ARCHITECTURE.md), [Schema Design](docs/architecture/SCHEMA_DESIGN.md)
-- **Development**: [API Integration Guide](docs/guides/API_INTEGRATION_GUIDE.md), [Designer Guide](docs/guides/DESIGNER_GUIDE.md)
-- **Security**: [Authentication Guide](docs/security/AUTHENTICATION_GUIDE.md), [Security](docs/security/SECURITY.md)
-- **Status**: [MVP Complete](docs/status/MVP_COMPLETE.md), [Current Status](docs/status/CURRENT_STATUS.md)
+- **[Root Editorial Pivot](docs/ROOT_EDITORIAL_PIVOT.md)** — The pivot bible
+- **[Local Dev Setup](docs/LOCAL_DEV_SETUP.md)** — Detailed setup with test data
+- **[Docker Guide](docs/DOCKER_GUIDE.md)** — Docker Compose reference
+- **[Architecture](docs/architecture/DOMAIN_ARCHITECTURE.md)** — Domain architecture
+- **[API Guide](docs/guides/API_INTEGRATION_GUIDE.md)** — GraphQL API integration
 
 ## License
 

@@ -143,7 +143,7 @@ RawPage {
 
 ### Extraction Library Query Pattern
 
-**Current pattern** (`/packages/extraction/src/ingestors/firecrawl.rs`):
+**Current pattern** (extraction library, historically Firecrawl-based):
 
 1. Takes a `DiscoverConfig` with starting URL
 2. Returns `Vec<RawPage>` — these get stored in the database

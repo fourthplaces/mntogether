@@ -1,4 +1,6 @@
-# Technical Spikes - De-Risking the Architecture
+# Technical Spikes - De-Risking the Architecture (HISTORICAL)
+
+> **Historical document.** These spikes predate the Root Editorial pivot. Most systems they validated (GraphQL subscriptions, Expo push notifications, Firecrawl extraction, volunteer intake AI, Redis broadcast) have been removed or superseded. pgvector is still used for semantic search on posts/providers, but not for volunteer matching. See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md).
 
 ## Overview
 

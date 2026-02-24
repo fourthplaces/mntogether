@@ -1,6 +1,8 @@
-# Semantic Search for Organizations
+# Semantic Search for Organizations (HISTORICAL)
 
-Production-ready AI-powered organization matching using vector embeddings.
+> **Note**: The embedding provider has changed since this was written (OpenAI → OpenRouter/Claude). The core concept of pgvector-based semantic search is still used in the codebase, but specific API details may be outdated.
+
+Production-ready AI-powered organization search using vector embeddings.
 
 ## Overview
 

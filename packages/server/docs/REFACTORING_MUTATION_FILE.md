@@ -1,6 +1,8 @@
-# Refactoring Plan: Split mutation.rs File
+# Refactoring Plan: Split mutation.rs File (HISTORICAL)
 
-## Current State
+> **Outdated.** The `listings` domain was renamed to `posts`, and the "edges" pattern (GraphQL resolvers dispatching seesaw commands) has been replaced by Restate services with activities. This refactoring plan is no longer applicable.
+
+## Current State (at time of writing)
 
 **File**: `src/domains/listings/edges/mutation.rs`
 **Size**: 885 lines

@@ -100,7 +100,7 @@ ContainerId::from(chatroom_id.as_uuid().clone())
 
 ### 2. Frontend Integration (Next Step)
 
-#### Admin Panel (`packages/admin-spa`)
+#### Admin Panel (`packages/admin-app`)
 - [ ] Add business info form to organization editor
 - [ ] Add proceeds percentage input (0-100)
 - [ ] Add beneficiary organization picker

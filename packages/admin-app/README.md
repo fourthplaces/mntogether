@@ -1,14 +1,13 @@
-# MN Digital Aid - Next.js Public Site
+# Root Editorial — Admin App (CMS)
 
-Server-side rendered Next.js application for the public-facing MN Digital Aid website. Built with Next.js 15, TypeScript, and Tailwind CSS.
+Next.js admin panel for the Root Editorial CMS. Built with Next.js, TypeScript, and Tailwind CSS.
 
 ## Features
 
-- **Server-Side Rendering**: SEO-optimized with SSR for crawlability
-- **GraphQL Integration**: Fetches data from the Rust GraphQL API
-- **Semantic Search**: Search organizations using AI-powered semantic matching
-- **Incremental Static Regeneration**: Pages revalidate every 60 seconds
-- **Standalone Output**: Optimized Docker deployment
+- **CMS Admin Panel**: Content moderation, post lifecycle, org management
+- **GraphQL Integration**: Communicates with the Rust backend via GraphQL
+- **JWT Authentication**: Admin-only access via OTP verification
+- **Editorial Workflows**: Approve, reject, edit, and publish posts
 
 ## Tech Stack
 
@@ -67,7 +66,7 @@ cp .env.local.example .env.local
 **Environment Variables:**
 
 ```env
-NEXT_PUBLIC_API_URL=http://localhost:8080/graphql
+NEXT_PUBLIC_API_URL=http://localhost:9080/graphql
 ```
 
 **Run Development Server:**
@@ -249,28 +248,27 @@ import type {
 ### CORS
 
 CORS is automatically configured for development:
-- `http://localhost:3000` (Next.js)
-- `http://localhost:19006` (Expo web)
-- `http://localhost:8081` (React Native)
+- `http://localhost:3000` (Admin App)
+- `http://localhost:3001` (Web App)
 
 For production, set `ALLOWED_ORIGINS` in the Rust server's `.env` file.
 
 ### Testing the API
 
 **GraphQL Playground (Development):**
-http://localhost:8080/graphql
+http://localhost:9080/graphql
 
 **curl:**
 ```bash
-curl http://localhost:8080/health
-curl -X POST http://localhost:8080/graphql \
+curl http://localhost:9080/health
+curl -X POST http://localhost:9080/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ organizations { id name } }"}'
 ```
 
 **Browser Console:**
 ```javascript
-fetch('http://localhost:8080/graphql', {
+fetch('http://localhost:9080/graphql', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

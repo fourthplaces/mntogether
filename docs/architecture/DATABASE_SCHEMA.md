@@ -4,7 +4,7 @@
 
 ## Overview
 
-MN Together uses PostgreSQL with the following extensions:
+Root Editorial uses PostgreSQL with the following extensions:
 
 - **uuid-ossp** — UUID generation
 - **pgvector** — Vector similarity search (1536-dimension embeddings for OpenAI)
@@ -18,12 +18,12 @@ The schema spans **~90 tables across 23 business domains**, connected through a 
 
 ### members
 
-Privacy-first user representation. No PII stored — only an anonymous push token.
+Privacy-first user representation. No PII stored.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID PK | |
-| expo_push_token | TEXT UNIQUE | Anonymous identifier for notifications |
+| expo_push_token | TEXT UNIQUE | Legacy column name — anonymous identifier (not actively used for Expo push) |
 | searchable_text | TEXT | Free-text source of truth for skills/capabilities |
 | latitude, longitude | FLOAT | Coarse location for matching |
 | location_name | TEXT | Display name ("Minneapolis, MN") |
@@ -659,7 +659,7 @@ Plain-text filter rules. NULL query_id means global rule.
 
 ### 1. Privacy-First Members
 
-Members store zero PII. The `expo_push_token` is the anonymous identifier. Phone numbers are hashed in the `identifiers` table and never stored in plaintext. Location is coarse (city-level).
+Members store zero PII. Phone numbers are hashed in the `identifiers` table and never stored in plaintext. Location is coarse (city-level). The `expo_push_token` column is a legacy name — it serves as a unique anonymous identifier.
 
 ### 2. Class Table Inheritance (Sources)
 

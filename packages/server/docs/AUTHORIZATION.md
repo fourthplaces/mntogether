@@ -1,8 +1,10 @@
-# Authorization Policy
+# Authorization Policy (HISTORICAL)
+
+> **Partially outdated.** The seesaw-rs event-driven pattern described here has been replaced by Restate (Services, Workflows, Objects). The authorization concepts (JWT, admin checks) are still valid, but the "Edge Layer / Effect Layer / Machine Layer" architecture no longer applies. Authorization now happens in Restate service handlers and activities.
 
 ## Overview
 
-This document describes the authorization architecture and policy for the server application, following the seesaw-rs event-driven pattern.
+This document describes the authorization architecture and policy for the server application.
 
 ## Architecture
 

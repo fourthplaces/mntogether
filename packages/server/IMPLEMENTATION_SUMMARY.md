@@ -1,4 +1,6 @@
-# Implementation Summary: Seesaw-rs Violations & JWT Authentication
+# Implementation Summary: Seesaw-rs Violations & JWT Authentication (HISTORICAL)
+
+> **Historical document.** Seesaw has been removed from the codebase and replaced by Restate for durable workflows. The JWT authentication patterns described here are still in use. See [ROOT_EDITORIAL_PIVOT.md](../../docs/ROOT_EDITORIAL_PIVOT.md).
 
 **Date**: 2026-01-28
 **Status**: ✅ Complete (Phases 1-5)

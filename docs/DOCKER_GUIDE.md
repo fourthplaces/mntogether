@@ -1,6 +1,6 @@
 # Docker Setup Guide
 
-This guide covers running the Minnesota Digital Aid platform using Docker Compose.
+This guide covers running the Root Editorial platform using Docker Compose.
 
 ## Prerequisites
 
@@ -20,13 +20,6 @@ cp .env.example .env
 Edit `.env` and add your API keys. **Minimum required keys:**
 
 ```env
-# AI Services (REQUIRED)
-OPENAI_API_KEY=sk-...
-VOYAGE_API_KEY=pa-...
-
-# Web Scraping (REQUIRED)
-FIRECRAWL_API_KEY=fc-...
-
 # SMS Authentication (REQUIRED)
 TWILIO_ACCOUNT_SID=AC...
 TWILIO_AUTH_TOKEN=...
@@ -35,7 +28,7 @@ TWILIO_VERIFY_SERVICE_SID=VA...
 # JWT Secret (REQUIRED - generate with: openssl rand -base64 32)
 JWT_SECRET=your_jwt_secret_here_at_least_32_bytes
 
-# Admin Access (REQUIRED for admin features)
+# Admin Access (REQUIRED for CMS admin features)
 ADMIN_IDENTIFIERS=admin@example.com,+15551234567
 ```
 
@@ -51,9 +44,9 @@ docker compose up -d
 
 This starts:
 - **PostgreSQL** (port 5432) - Database with pgvector extension
-- **Redis** (port 6379) - Job queue and pub/sub
-- **API Server** (port 8080) - Rust GraphQL server
-- **Web App** (port 3001) - React admin dashboard
+- **Redis** (port 6379) - Caching
+- **Restate Runtime** (port 9070 admin, 8180 ingress) - Workflow orchestration
+- **Rust Server** (port 9080) - Restate workflow server
 
 ### 3. Run Migrations
 
@@ -63,31 +56,10 @@ make migrate
 
 ### 4. Access the Application
 
-- **API Server**: http://localhost:8080
-- **GraphQL Playground**: http://localhost:8080/graphql
-- **Web App**: http://localhost:3001
-- **Admin Dashboard**: http://localhost:3001/admin
-- **Health Check**: http://localhost:8080/health
-
-## Service Profiles
-
-### Default Services (Core)
-
-Includes Postgres, Redis, API Server, and Web App:
-
-```bash
-docker compose up -d
-```
-
-### Full Stack (including Next.js)
-
-```bash
-# Using Make
-make up-full
-
-# Or using Docker Compose
-docker compose --profile full up -d
-```
+- **Restate Admin**: http://localhost:9070
+- **CMS Admin App**: http://localhost:3000 (run separately with `yarn dev`)
+- **Public Web App**: http://localhost:3001 (run separately with `yarn dev`)
+- **Health Check**: http://localhost:9080/health
 
 ## Common Commands
 
@@ -107,7 +79,6 @@ make health      # Check service health
 ```bash
 make logs        # All services
 make logs-api    # API server only
-make logs-web    # Web app only
 make logs-db     # PostgreSQL only
 make logs-redis  # Redis only
 ```
@@ -116,9 +87,8 @@ make logs-redis  # Redis only
 
 ```bash
 make migrate     # Run migrations
-make seed        # Seed organizations
 make db-shell    # Open PostgreSQL shell
-make db-reset    # Reset database (⚠️  data loss)
+make db-reset    # Reset database (data loss)
 ```
 
 ### Development Tools
@@ -135,7 +105,7 @@ make clippy      # Run linter
 ### Cleanup
 
 ```bash
-make clean       # Remove all containers and volumes (⚠️  data loss)
+make clean       # Remove all containers and volumes (data loss)
 make prune       # Clean Docker build cache
 ```
 
@@ -146,7 +116,7 @@ make prune       # Clean Docker build cache
 The development setup includes hot-reloading:
 
 - **Rust API**: Uses `cargo-watch` to rebuild on file changes
-- **Web App**: Vite dev server with hot module replacement
+- **Next.js Apps**: Vite/Next dev server with hot module replacement (run separately)
 
 ### 2. Running Tests
 
@@ -155,7 +125,7 @@ The development setup includes hot-reloading:
 make test
 
 # Run specific test
-docker compose exec api cargo test --test organization_needs_tests
+docker compose exec api cargo test --test some_test_name
 ```
 
 ### 3. Database Migrations
@@ -173,16 +143,6 @@ Run migrations:
 make migrate
 ```
 
-### 4. Seeding Data
-
-Seed the database with real organizations:
-
-```bash
-make seed
-```
-
-This imports 50+ immigrant resource organizations with AI-powered tag extraction.
-
 ## Troubleshooting
 
 ### Services Won't Start
@@ -193,8 +153,8 @@ Check if ports are already in use:
 # Check port usage
 lsof -i :5432  # PostgreSQL
 lsof -i :6379  # Redis
-lsof -i :8080  # API
-lsof -i :3001  # Web App
+lsof -i :9080  # Rust Server
+lsof -i :9070  # Restate Admin
 ```
 
 ### Database Connection Issues
@@ -246,7 +206,7 @@ Clean up Docker cache:
 make prune
 ```
 
-Remove all containers and volumes (⚠️  data loss):
+Remove all containers and volumes (data loss):
 
 ```bash
 make clean
@@ -276,25 +236,28 @@ docker compose -f docker-compose.prod.yml up -d
 ## Architecture
 
 ```
-┌─────────────────┐
-│   Web App       │
-│  (React/Vite)   │
-│   Port 3001     │
-└────────┬────────┘
-         │
-         ▼
+┌──────────────────┐     ┌──────────────────┐
+│   Admin App      │     │   Web App        │
+│  (Next.js CMS)   │     │  (Next.js public)│
+│   Port 3000      │     │   Port 3001      │
+└────────┬─────────┘     └────────┬─────────┘
+         │                        │
+         └────────┬───────────────┘
+                  ▼
+         ┌─────────────────┐
+         │ Restate Runtime  │
+         │  Port 9070/8180  │
+         └────────┬────────┘
+                  ▼
 ┌─────────────────┐      ┌─────────────┐      ┌─────────────┐
-│   API Server    │─────▶│  PostgreSQL │      │    Redis    │
-│  (Rust/GraphQL) │◀─────│  (pgvector) │      │  (pub/sub)  │
-│   Port 8080     │      │  Port 5432  │      │  Port 6379  │
+│   Rust Server   │─────▶│  PostgreSQL  │      │    Redis    │
+│  (Restate svc)  │      │  (pgvector)  │      │  (caching)  │
+│   Port 9080     │      │  Port 5432   │      │  Port 6379  │
 └─────────────────┘      └─────────────┘      └─────────────┘
          │
          │ (External APIs)
-         ├─▶ OpenAI (GPT-4o, embeddings)
-         ├─▶ Voyage AI (embeddings)
-         ├─▶ Firecrawl (web scraping)
-         ├─▶ Twilio (SMS auth)
-         └─▶ Expo (push notifications)
+         ├─▶ OpenAI / OpenRouter (LLM)
+         └─▶ Twilio (SMS/email auth)
 ```
 
 ## Data Persistence
@@ -312,16 +275,3 @@ make clean  # Interactive prompt
 # or
 docker compose down -v  # Force remove
 ```
-
-## Next Steps
-
-- Read [QUICK_START.md](docs/setup/QUICK_START.md) for detailed setup
-- See [API_INTEGRATION_GUIDE.md](docs/guides/API_INTEGRATION_GUIDE.md) for API usage
-- Check [DEPLOYMENT.md](docs/setup/DEPLOYMENT.md) for production deployment
-- Review [SECURITY.md](docs/security/SECURITY.md) for security best practices
-
-## Support
-
-- Issues: [GitHub Issues](https://github.com/fourthplaces/mndigitalaid/issues)
-- Documentation: [docs/](docs/)
-- Interactive CLI: Run `./dev.sh` for guided setup

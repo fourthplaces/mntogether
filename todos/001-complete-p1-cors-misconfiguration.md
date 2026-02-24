@@ -28,7 +28,7 @@ let cors = CorsLayer::new()
 - CSRF attacks possible from malicious websites
 - Credential theft via third-party sites
 - Unauthorized API access from any domain
-- Exposure of sensitive volunteer and organization data
+- Exposure of sensitive organization data
 
 **From Security Sentinel Agent**: "This allows malicious websites to make authenticated requests on behalf of users, leading to CSRF attacks."
 
@@ -47,7 +47,6 @@ let cors = CorsLayer::new()
     .allow_origin([
         "https://yourdomain.com".parse().unwrap(),
         "https://admin.yourdomain.com".parse().unwrap(),
-        "exp://192.168.1.0/24".parse().unwrap(), // Expo development
     ])
     .allow_methods([Method::GET, Method::POST])
     .allow_headers([AUTHORIZATION, CONTENT_TYPE])
@@ -97,15 +96,15 @@ let cors = CorsLayer::new()
 **Testing Required**:
 - Verify legitimate origins can access API
 - Confirm blocked origins receive CORS errors
-- Test Expo mobile app connectivity
-- Test admin dashboard connectivity
+- Test admin app connectivity (port 3000)
+- Test web app connectivity (port 3001)
 
 ## Acceptance Criteria
 
 - [ ] CORS configured with specific allowed origins
 - [ ] Development and production origins properly separated
-- [ ] Mobile app (Expo) can still connect
-- [ ] Admin dashboard can still connect
+- [ ] Admin app (port 3000) can still connect
+- [ ] Web app (port 3001) can still connect
 - [ ] Unauthorized origins receive CORS errors
 - [ ] Credentials (JWT tokens) only sent to allowed origins
 - [ ] Documentation updated with CORS configuration

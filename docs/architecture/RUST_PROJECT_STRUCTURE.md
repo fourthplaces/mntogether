@@ -2,7 +2,7 @@
 
 ## Overview
 
-MN Together is a **single-crate Rust project** at `packages/server/` with internal module organization. The project previously used a multi-crate workspace (`crates/api/core/db/matching/scraper/`) but consolidated into a single crate for simplicity.
+Root Editorial is a **single-crate Rust project** at `packages/server/` with internal module organization. The project previously used a multi-crate workspace (`crates/api/core/db/matching/scraper/`) but consolidated into a single crate for simplicity.
 
 ## Top-Level Layout
 
@@ -19,21 +19,21 @@ packages/
 │       ├── common/           # Shared types (entity IDs, pagination, restate_serde)
 │       └── domains/          # Business domains (22 domains)
 │
-├── web/              # Next.js frontend (App Router)
-├── admin-app/        # Admin panel (Next.js, separate from web)
+├── admin-app/        # Admin panel (Next.js, CMS, port 3000)
+├── web-app/          # Public-facing site (Next.js, port 3001)
 ├── shared/           # Shared TypeScript (GraphQL schema, types)
-├── extraction/       # Rust library crate (web scraping, Firecrawl, Tavily)
 ├── ai-client/        # Rust library crate (LLM client abstraction)
-├── apify-client/     # Rust library crate (Apify API client)
 ├── twilio-rs/        # Rust library crate (Twilio Verify wrapper)
-└── openai-client/    # Rust library crate (OpenAI API client)
+├── extraction/       # DEPRECATED — crawling moved to Root Signal
+├── apify-client/     # DEPRECATED — superseded by extraction
+└── openai-client/    # DEPRECATED — superseded by ai-client
 ```
 
 ## Binaries (`src/bin/`)
 
 | Binary               | Purpose                                    |
 |------------------------|--------------------------------------------|
-| `server`              | Main Restate workflow server (port 9080) + SSE server (port 8081) |
+| `server`              | Main Restate workflow server (port 9080)   |
 | `run_migrations`      | Run SQLx database migrations               |
 | `migrate_cli`         | CLI for migration management               |
 | `generate_embeddings` | Batch generate vector embeddings           |
@@ -47,12 +47,8 @@ Shared infrastructure used by all domains:
 | `deps.rs`             | `ServerDeps` struct — dependency container passed to all workflows/activities |
 | `mod.rs`              | Re-exports, AI model constants (`GPT_5_MINI`, `Claude`, `OpenAi`) |
 | `ai_tools.rs`         | AI tool definitions for function calling    |
-| `extraction_service.rs` | Extraction service factory                |
 | `llm_request.rs`      | LLM request/response types                 |
-| `nats.rs`             | NATS messaging client                      |
 | `pii.rs`              | PII detection and scrubbing                |
-| `sse.rs`              | SSE (Server-Sent Events) streaming server  |
-| `stream_hub.rs`       | Pub/sub hub for real-time events           |
 | `tag.rs`              | Tag resolution utilities                   |
 | `traits.rs`           | Shared trait definitions                   |
 | `test_dependencies.rs` | Test-only dependency stubs                |
@@ -68,14 +64,10 @@ pub struct ServerDeps {
     pub openai: Arc<OpenAi>,
     pub claude: Option<Arc<Claude>>,
     pub embedding: Arc<EmbeddingService>,
-    pub expo: Arc<ExpoClient>,
     pub twilio: Arc<TwilioAdapter>,
     pub web_searcher: Arc<dyn WebSearcher>,
     pub pii_detector: Arc<dyn PiiDetector>,
-    pub extraction: Option<ExtractionService>,
     pub jwt_service: Arc<JwtService>,
-    pub stream_hub: StreamHub,
-    pub apify: Option<Arc<ApifyClient>>,
     // ...
 }
 ```
@@ -140,7 +132,6 @@ impl_restate_serde!(CurateOrgRequest);  // Makes type work with Restate
 |-----------------|------------------------------------------|---------------|
 | `auth`          | Phone OTP authentication (Twilio Verify) | Services      |
 | `member`        | User profiles and registration           | Services, Objects, Workflows |
-| `chatrooms`     | Real-time chat with LLM                  | Services, Objects |
 | `contacts`      | Contact information management           | (models only) |
 | `social_profile` | Social media profile linking            | Services      |
 | `providers`     | Service provider profiles                | Services, Objects |
@@ -185,9 +176,7 @@ From `Cargo.toml`:
 | `rig-core`    | 0.9     | LLM framework                   |
 | `serde`       | 1.x     | Serialization                    |
 | `pgvector`    | 0.4     | Vector similarity search         |
-| `async-nats`  | 0.38    | NATS messaging                   |
 | `jsonwebtoken` | 9      | JWT authentication               |
-| `extraction`  | local   | Web scraping (Firecrawl, Tavily) |
 | `ai-client`   | local   | LLM client abstraction           |
 
 ## Runtime Architecture
@@ -202,11 +191,7 @@ Rust Server (port 9080, Restate endpoint)
     ├── Workflows (durable multi-step)
     └── Virtual Objects (keyed state)
     ↓
-PostgreSQL + NATS
-
-SSE Server (port 8081, axum)
-    ↑ WebSocket/SSE
-Next.js Frontend (real-time updates)
+PostgreSQL
 ```
 
 ## Historical Note

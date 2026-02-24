@@ -1,34 +1,26 @@
 # Plans Directory
 
-## Active Plan
+## Active Plans
 
-**📍 [2026-01-27-mvp-execution-plan.md](./2026-01-27-mvp-execution-plan.md)** - THE current execution plan
+Architectural plans and design documents. See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md) for the overarching pivot strategy.
 
-This is the authoritative plan. It uses a spike-based approach to ship value incrementally:
-- **SPIKE 1**: Need discovery pipeline + display (2 days)
-- **SPIKE 2**: Simple volunteer intake (1 day)
-- **SPIKE 3**: AI chat (optional, 2 days)
+### Architecture & Infrastructure
 
-Timeline: **3-5 days to shippable MVP**
+- [GraphQL BFF Layer](2026-02-13-feat-graphql-bff-layer-plan.md) — Current GraphQL architecture
+- [Separate Web Apps](2026-02-13-refactor-separate-web-apps-plan.md) — App split (admin-app + web-app)
+- [GraphQL Architecture Audit](2026-02-13-refactor-graphql-architecture-audit-plan.md) — GraphQL cleanup
+- [Data Model Alignment (HSDS)](2026-02-05-refactor-data-model-alignment-with-hsds-plan.md) — Post/org data model
 
----
+### Features
 
-## Archived Plans
+- [Notes Model & Attachable Alerts](2026-02-10-feat-notes-model-attachable-alerts-plan.md) — Editorial notes system
 
-**[ARCHIVED-2026-01-27-comprehensive-plan.md](./ARCHIVED-2026-01-27-comprehensive-plan.md)** - Superseded comprehensive plan
+### Security & Quality
 
-This was the original 15-17 day plan that assumed building everything upfront. It's preserved for reference but is no longer the active plan. The spike-based approach replaced it after realizing SPIKE 1 alone delivers a useful product.
+- [Admin Authorization Security Gaps](2026-02-02-fix-admin-authorization-security-gaps-plan.md) — Auth security fixes
+- [Codebase Health Audit](2026-02-02-refactor-codebase-health-audit-plan.md) — Codebase health findings
+- [Architectural Audit Cleanup](2026-02-01-refactor-architectural-audit-cleanup-plan.md) — SOLID violations analysis
 
----
+## Archived
 
-## Plan Evolution
-
-```
-Jan 27: Comprehensive plan created (15-17 days, full system)
-        ↓
-Jan 27: Feedback identified overbuilding
-        ↓
-Jan 27: Spike-based plan created (3-5 days, incremental shipping)
-        ↓
-Jan 27: Comprehensive plan archived, spike plan now authoritative ✅
-```
+- [ARCHIVED: Comprehensive Plan (Jan 27)](ARCHIVED-2026-01-27-comprehensive-plan.md) — Original 15-17 day plan, superseded by pivot

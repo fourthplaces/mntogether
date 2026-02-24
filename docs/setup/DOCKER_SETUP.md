@@ -1,15 +1,15 @@
 # Docker Compose Development Setup
 
-Complete guide for running the MN Digital Aid platform with Docker Compose.
+Complete guide for running Root Editorial with Docker Compose.
 
 ## Overview
 
 The docker-compose setup includes:
 - **PostgreSQL** (pgvector) - Database with vector search support
-- **Redis** - Pub/sub for real-time features
-- **API Server** (Rust) - GraphQL backend with hot-reload
-- **Next.js App** (Node.js) - Public-facing SSR website with hot-reload
-- **Web App** (React) - SPA with public pages + admin dashboard with hot-reload
+- **Redis** - Caching
+- **API Server** (Rust) - Restate workflow server with hot-reload
+- **Admin App** (Next.js) - CMS admin panel (port 3000)
+- **Web App** (Next.js) - Public-facing site (port 3001)
 
 ## Quick Start
 
@@ -33,10 +33,9 @@ The docker-compose setup includes:
    ```
 
 4. **Access the services**:
-   - Next.js App (SSR): http://localhost:3000
-   - Web App (SPA): http://localhost:3001
-   - Admin Dashboard: http://localhost:3001/admin
-   - GraphQL API: http://localhost:8080/graphql
+   - Admin App (CMS): http://localhost:3000
+   - Web App (Public): http://localhost:3001
+   - Restate API: http://localhost:9080
    - PostgreSQL: localhost:5432
    - Redis: localhost:6379
 
@@ -52,9 +51,6 @@ REDIS_URL=redis://redis:6379
 # AI/ML (REQUIRED)
 OPENAI_API_KEY=sk-...                    # Get from https://platform.openai.com/
 
-# Web scraping (REQUIRED)
-FIRECRAWL_API_KEY=fc-...                 # Get from https://firecrawl.dev/
-
 # SMS authentication (REQUIRED for auth)
 TWILIO_ACCOUNT_SID=AC...                 # Get from https://twilio.com/
 TWILIO_AUTH_TOKEN=...
@@ -65,8 +61,6 @@ JWT_SECRET=$(openssl rand -base64 32)    # Generate a secure secret
 JWT_ISSUER=mndigitalaid
 
 # Optional
-TAVILY_API_KEY=tvly-...                  # Optional: Enhanced search
-EXPO_ACCESS_TOKEN=...                    # Optional: Push notifications
 ADMIN_IDENTIFIERS=+1234567890            # Optional: Admin phone numbers
 ```
 
@@ -188,7 +182,7 @@ If you see "port already in use":
 ```bash
 # Check what's using the port
 lsof -i :3000  # Next.js
-lsof -i :8080  # API
+lsof -i :9080  # API
 lsof -i :5432  # PostgreSQL
 lsof -i :6379  # Redis
 
@@ -243,16 +237,16 @@ docker-compose up -d --build api
 ### Can't Connect to API from Next.js
 
 Check that `NEXT_PUBLIC_API_URL` is set correctly:
-- In docker-compose: `http://localhost:8080/graphql`
-- If running Next.js locally: `http://localhost:8080/graphql`
+- In docker-compose: `http://localhost:9080/graphql`
+- If running Next.js locally: `http://localhost:9080/graphql`
 
 ## Architecture
 
 ```
 ┌─────────────────────────┐  ┌─────────────────────────┐
-│  Browser (:3000)        │  │  Browser (:3001)        │
-│  Next.js SSR (Public)   │  │  React SPA              │
-│                         │  │  Public + Admin         │
+│  Admin App (:3000)      │  │  Web App (:3001)        │
+│  Next.js CMS            │  │  Next.js Public         │
+│                         │  │                         │
 └────────┬────────────────┘  └────────┬────────────────┘
          │                            │
          │ HTTP                       │ HTTP
@@ -260,14 +254,14 @@ Check that `NEXT_PUBLIC_API_URL` is set correctly:
          └────────────┬───────────────┘
                       ↓
          ┌────────────────────────────────┐
-         │  API Server (localhost:8080)   │
-         │  Rust + GraphQL                │
+         │  Rust Server (localhost:9080)  │
+         │  Restate Workflows             │
          └────┬──────────────────┬────────┘
               │                  │
               ↓                  ↓
        ┌─────────────┐    ┌─────────────┐
        │ PostgreSQL  │    │   Redis     │
-       │ (pgvector)  │    │  (pub/sub)  │
+       │ (pgvector)  │    │  (cache)    │
        │ :5432       │    │   :6379     │
        └─────────────┘    └─────────────┘
 ```
@@ -282,11 +276,11 @@ Check that `NEXT_PUBLIC_API_URL` is set correctly:
 
 After getting everything running:
 
-1. **Explore the GraphQL API**: http://localhost:8080/graphql
+1. **Explore the GraphQL API**: http://localhost:9080/graphql
 2. **Browse the Next.js site**: http://localhost:3000
 3. **Seed test data**: `docker-compose exec api cargo run --bin seed_organizations`
 4. **Try semantic search**: http://localhost:3000/search?q=food
-5. **Check the admin UI**: See [packages/admin-spa/README.md](packages/admin-spa/README.md)
+5. **Check the admin UI**: See [packages/admin-app/README.md](../../packages/admin-app/README.md)
 
 ## Production Deployment
 

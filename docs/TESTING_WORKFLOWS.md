@@ -6,7 +6,7 @@ This guide walks through testing the Restate workflow implementation end-to-end.
 
 ```
 ┌─────────────────────┐
-│  GraphQL API        │  :8080
+│  GraphQL API        │  :9080
 │  (cargo run --bin   │
 │   server)           │
 └──────────┬──────────┘
@@ -68,7 +68,7 @@ curl http://localhost:9071/health
 curl http://localhost:9080/health || echo "Workflow server running (no /health endpoint)"
 
 # Check API server is running
-curl http://localhost:8080/health
+curl http://localhost:9080/health
 ```
 
 ## Option 2: Local Development (3 Terminals)
@@ -102,7 +102,7 @@ cargo run --bin migrate_cli
 cargo run --bin server
 
 # Should see:
-# Server listening on 0.0.0.0:8080
+# Server listening on 0.0.0.0:9080
 ```
 
 ### Register Workflows

@@ -1,6 +1,12 @@
-# Seed Data
+# Data Directory
 
-## Running the Seed Script
+## Test Database Snapshot
+
+The primary test data is in `local_test_db.sql` — a pg_dump snapshot for local development. See [LOCAL_DEV_SETUP.md](../docs/LOCAL_DEV_SETUP.md) for restore instructions.
+
+## Seed Script (Legacy)
+
+> **Note**: The seed script below requires an `OPENAI_API_KEY` and may be outdated. For local development, restore the test database snapshot instead.
 
 Import organizations from the JSON file:
 

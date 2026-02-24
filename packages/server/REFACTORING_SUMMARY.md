@@ -1,4 +1,6 @@
-# Refactoring Summary
+# Refactoring Summary (HISTORICAL)
+
+> **Historical document.** This describes a pre-Restate refactoring. Some patterns (kernel as infrastructure, domain functions) are still relevant, but the Effect/Command/Machine terminology has been replaced by Restate Services/Workflows/Objects and Activities. See [ROOT_EDITORIAL_PIVOT.md](../../docs/ROOT_EDITORIAL_PIVOT.md).
 
 ## Changes Made
 

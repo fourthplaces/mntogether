@@ -1,11 +1,10 @@
-# Dependency Injection Architecture
+# Dependency Injection Architecture (HISTORICAL)
+
+> **Partially outdated.** The dual-container pattern (ServerKernel + ServerDeps) described here has been simplified. The current architecture uses `ServerDeps` as the single dependency container, passed as `Arc<ServerDeps>` to Restate workflow implementations. Some service references (Firecrawl, Tavily, push notifications) are dead.
 
 ## Overview
 
-The application uses two dependency containers that serve different purposes:
-
-1. **ServerKernel** - Complete infrastructure layer
-2. **ServerDeps** - Domain-specific dependencies
+The application uses a dependency container for infrastructure services:
 
 This document explains when and why to use each.
 
