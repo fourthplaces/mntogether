@@ -10,7 +10,7 @@ Pulumi-based infrastructure as code for deploying to AWS.
 ┌─────────────────────────────────────────────────────────────┐
 │                        CloudFront                           │
 │  ┌──────────────────┐           ┌──────────────────┐       │
-│  │   admin-spa      │           │    web-app       │       │
+│  │   admin-app      │           │    web-app       │       │
 │  │ admin.domain.com │           │  app.domain.com  │       │
 │  └────────┬─────────┘           └────────┬─────────┘       │
 └───────────┼──────────────────────────────┼─────────────────┘
@@ -331,7 +331,7 @@ After deploying frontend changes:
 
 ```bash
 # Get distribution ID
-cd infra/packages/admin-spa
+cd infra/packages/web-app
 DIST_ID=$(pulumi stack output cloudFrontDistributionId)
 
 # Invalidate all files

@@ -7,7 +7,7 @@
 Root Editorial uses PostgreSQL with the following extensions:
 
 - **uuid-ossp** — UUID generation
-- **pgvector** — Vector similarity search (1536-dimension embeddings for OpenAI)
+- **pgvector** — Vector similarity search (1024-dimension embeddings via Voyage AI)
 - **pg_trgm** — Trigram text similarity
 
 The schema spans **~90 tables across 23 business domains**, connected through a combination of foreign keys, polymorphic joins, and class table inheritance.

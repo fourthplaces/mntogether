@@ -163,6 +163,5 @@ ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001
 
 ## Related Documentation
 
-- [Embedded Frontends](EMBEDDED_FRONTENDS.md) — Frontend architecture patterns
 - [Authentication Security](../security/AUTHENTICATION_SECURITY.md) — Auth details
 - [Package Structure](../architecture/PACKAGE_STRUCTURE.md) — Monorepo layout

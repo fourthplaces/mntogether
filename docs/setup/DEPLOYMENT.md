@@ -9,7 +9,7 @@ The deployment infrastructure consists of:
 - **CI/CD**: GitHub Actions for automated deployments
 - **Environments**: Development (`dev`) and Production (`prod`)
 - **Hosting**:
-  - Admin SPA → CloudFront + S3 (admin.mntogether.org)
+  - Admin App → CloudFront + S3 (admin.mntogether.org)
   - Web App → CloudFront + S3 (app.mntogether.org)
   - Server API → ECS Fargate + ALB (api.mntogether.org)
   - Database → RDS PostgreSQL with pgvector
@@ -153,8 +153,7 @@ yarn build
 # Or deploy individually
 ./deploy.sh dev core up --yes      # Core infrastructure first
 ./deploy.sh dev server up --yes    # Then server
-./deploy.sh dev admin-spa up --yes # Frontend apps
-./deploy.sh dev web-app up --yes
+./deploy.sh dev web-app up --yes   # Frontend apps
 ```
 
 #### Deploy to Production
@@ -185,9 +184,9 @@ yarn build
 - Automatic after successful server deployment
 - Automatic on push to `main` or `dev`
 - Automatic when files change in:
-  - `packages/admin-spa/**`
+  - `packages/admin-app/**`
   - `packages/web-app/**`
-  - `infra/packages/*-spa/**`
+  - `infra/packages/web-app/**`
 - Manual via workflow dispatch
 
 #### Manual Workflow Trigger
@@ -205,15 +204,14 @@ yarn build
 ```bash
 1. Core stack (RDS, certificates, VPC)
 2. Server stack (ECS, ALB)
-3. Admin SPA stack (CloudFront, S3)
-4. Web App stack (CloudFront, S3)
+3. Web App stack (CloudFront, S3)
 ```
 
 **Subsequent Deployments**:
 
 - Core changes: Rarely needed
 - Server: Any backend code changes
-- Frontend: Any admin-spa or web-app changes
+- Frontend: Any admin-app or web-app changes
 
 ## Post-Deployment Tasks
 
@@ -347,7 +345,7 @@ aws s3 ls s3://admin.mntogether.org/
 2. **Check CloudFront distribution**:
 ```bash
 # Get distribution ID from Pulumi
-cd infra/packages/admin-spa
+cd infra/packages/web-app
 pulumi stack output cloudFrontDistributionId
 
 # Check status

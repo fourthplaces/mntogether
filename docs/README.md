@@ -26,18 +26,18 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Schema Relationships](architecture/SCHEMA_RELATIONSHIPS.md) - ER diagrams and query patterns
 - [Simplified Schema](architecture/SIMPLIFIED_SCHEMA.md) - Minimal schema philosophy
 - [Tags vs Fields](architecture/TAGS_VS_FIELDS.md) - Data modeling decisions
+- [Cause Commerce](architecture/CAUSE_COMMERCE_ARCHITECTURE.md) - Cause-driven commerce patterns
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
 - [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
 
 ### Development Guides
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
-- [Embedded Frontends](guides/EMBEDDED_FRONTENDS.md) - Frontend architecture patterns
-- [OpenRouter Integration](guides/OPENROUTER_INTEGRATION.md) - AI service integration
 - [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
 - [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Restate workflow testing guide
 
 ### Admin & CMS
 - [Admin Quick Start](admin/ADMIN_QUICK_START.md) - Admin/CMS authentication setup
+- [Admin Email Setup](admin/ADMIN_EMAIL_SETUP.md) - Admin email configuration
 - [Admin Identifiers Migration](admin/ADMIN_IDENTIFIERS_MIGRATION.md) - Auth identifier system
 - [Post Rotation System](admin/POST_ROTATION_SYSTEM.md) - Content rotation logic
 - [Twilio Email Implementation](admin/TWILIO_EMAIL_IMPLEMENTATION.md) - Twilio email integration
@@ -47,16 +47,14 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Authentication Guide](security/AUTHENTICATION_GUIDE.md) - Auth implementation guide
 - [Authentication Security](security/AUTHENTICATION_SECURITY.md) - Auth security details
 
-### Migrations (Historical)
-- [Yarn Modern Upgrade](migrations/YARN_MODERN_UPGRADE.md) - Yarn 1 → Yarn 4 upgrade
-- [Web App Migration](migrations/WEB_APP_MIGRATION.md) - Frontend migration history
-- [Claude/Voyage Migration](migrations/MIGRATION_CLAUDE_VOYAGE.md) - AI provider migration history
+### Status & Postmortems
+- [Phase 1: Dead Code Removal](status/PHASE_1_DEAD_CODE_REMOVAL.md)
+- [Phase 2: Post Types](status/PHASE_2_POST_TYPES.md)
+- [Phase 3: Edition System](status/PHASE_3_EDITION_SYSTEM.md)
+- [Final Schema Summary](status/FINAL_SCHEMA_SUMMARY.md)
 
 ### Prompts
 - [Prompts Index](prompts/README.md) - LLM prompts used in the codebase
-
-### Plans
-- [Plans Index](plans/README.md) - Architectural plans and brainstorms
 
 ## Related Resources
 

@@ -116,3 +116,74 @@ cd packages/web-app && yarn dev --port 3001   # Public site on :3001
 
 After Rust code changes: `docker compose up -d --build server`
 After new migrations: `make migrate` then rebuild server
+
+---
+
+## Test-Driven Development
+
+**RED → GREEN → REFACTOR** is mandatory for every feature, bug fix, or change to API edges.
+
+1. **RED** — Write a failing test first. Run it. Confirm it fails for the right reason.
+2. **GREEN** — Write the simplest code that makes it pass.
+3. **REFACTOR** — Clean up while keeping tests green.
+
+### Hard Rule: API Edge Testing Only
+
+Test through Restate service/object handlers and GraphQL endpoints. Verify via API response AND model queries. Mock external services via `TestDependencies`.
+
+**Never** bypass the API with direct database manipulation, test internal implementation details, or call private functions.
+
+```rust
+// FORBIDDEN — bypasses the API layer
+sqlx::query!("INSERT INTO posts ...", ...).execute(&pool).await;
+```
+
+### Use Models, Not Raw SQL
+
+```rust
+// GOOD:
+let post = Post::find_by_id(id, pool).await?;
+Post::approve(post_id, admin_id, pool).await?;
+
+// BAD:
+sqlx::query!("SELECT * FROM posts WHERE id = $1", id)
+```
+
+### Test Coverage
+
+Every API edge must test: happy path, error cases, edge cases, state verification (via models), and API response shape.
+
+### Test Structure
+
+- Location: `packages/server/tests/`
+- Naming: `{feature}_tests.rs`
+- Harness: `#[test_context(TestHarness)]`
+- One assertion per test
+
+### Non-Negotiable
+
+1. No code without tests — test first, see it fail, then implement
+2. No bypassing the API — test through API edges only
+3. No raw SQL in tests — use models and helpers
+4. No deleting tests — fix them
+5. No skipping refactor — clean code after green
+6. Run `cargo test` before commit
+
+---
+
+## Documentation Organization
+
+All documentation goes in `docs/`, not the project root. `README.md` is the only exception.
+
+```
+docs/
+├── admin/           # Admin-specific guides and setup
+├── architecture/    # System architecture and design documents
+├── guides/          # Implementation guides, tutorials, and reference
+├── prompts/         # LLM prompts used in the codebase
+├── security/        # Security policies and authentication
+├── setup/           # Setup and deployment instructions
+└── status/          # Implementation status, postmortems, and progress reports
+```
+
+Before creating any `.md` file, place it in the appropriate `docs/` subdirectory and update `docs/README.md` if it's a major document.
