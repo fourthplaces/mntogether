@@ -51,6 +51,15 @@ type Query {
   # Public organizations
   publicOrganizations: [PublicOrganization!]!
   publicOrganization(id: ID!): PublicOrganization
+
+  # Counties + Editions (admin)
+  counties: [County!]!
+  county(id: ID!): County
+  editions(countyId: ID, status: String, limit: Int, offset: Int): EditionConnection!
+  edition(id: ID!): Edition
+  currentEdition(countyId: ID!): Edition
+  rowTemplates: [RowTemplate!]!
+  postTemplates: [PostTemplateConfig!]!
 }
 
 type Mutation {
@@ -97,6 +106,17 @@ type Mutation {
   deleteNote(id: ID!): Boolean!
   unlinkNote(noteId: ID!, postId: ID!): Boolean!
   autoAttachNotes(organizationId: ID!): AutoAttachNotesResult!
+
+  # Editions (admin)
+  createEdition(countyId: ID!, periodStart: String!, periodEnd: String!, title: String): Edition!
+  generateEdition(id: ID!): Edition!
+  publishEdition(id: ID!): Edition!
+  archiveEdition(id: ID!): Edition!
+  batchGenerateEditions(periodStart: String!, periodEnd: String!): BatchGenerateEditionsResult!
+  updateEditionRow(rowId: ID!, rowTemplateSlug: String, sortOrder: Int): EditionRow!
+  reorderEditionRows(editionId: ID!, rowIds: [ID!]!): [EditionRow!]!
+  removePostFromEdition(slotId: ID!): Boolean!
+  changeSlotTemplate(slotId: ID!, postTemplate: String!): EditionSlot!
 }
 
 type PublicFilters {
@@ -349,4 +369,73 @@ type Job {
   completionResult: String
 }
 
+type County {
+  id: ID!
+  fipsCode: String!
+  name: String!
+  state: String!
+}
+
+type Edition {
+  id: ID!
+  county: County!
+  title: String
+  periodStart: String!
+  periodEnd: String!
+  status: String!
+  publishedAt: String
+  rows: [EditionRow!]!
+  createdAt: String!
+}
+
+type EditionConnection {
+  editions: [Edition!]!
+  totalCount: Int!
+}
+
+type EditionRow {
+  id: ID!
+  rowTemplate: RowTemplate!
+  sortOrder: Int!
+  slots: [EditionSlot!]!
+}
+
+type EditionSlot {
+  id: ID!
+  post: Post!
+  postTemplate: String!
+  slotIndex: Int!
+}
+
+type RowTemplate {
+  id: ID!
+  slug: String!
+  displayName: String!
+  description: String
+  slots: [RowTemplateSlotDef!]!
+}
+
+type RowTemplateSlotDef {
+  slotIndex: Int!
+  weight: Weight!
+  count: Int!
+  accepts: [PostType!]
+}
+
+type PostTemplateConfig {
+  id: ID!
+  slug: String!
+  displayName: String!
+  description: String
+  compatibleTypes: [PostType!]!
+  bodyTarget: Int!
+  bodyMax: Int!
+  titleMax: Int!
+}
+
+type BatchGenerateEditionsResult {
+  created: Int!
+  failed: Int!
+  totalCounties: Int!
+}
 `;

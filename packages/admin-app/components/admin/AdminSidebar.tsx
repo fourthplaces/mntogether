@@ -43,6 +43,15 @@ const navGroups: NavGroup[] = [
           </svg>
         ),
       },
+      {
+        href: "/admin/editions",
+        label: "Editions",
+        icon: (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2zM3 8h18M7 8v12M17 8v12" />
+          </svg>
+        ),
+      },
     ],
   },
   {
