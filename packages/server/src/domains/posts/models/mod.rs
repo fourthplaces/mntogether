@@ -1,10 +1,22 @@
 pub mod business_post;
 pub mod post;
+pub mod post_item;
+pub mod post_link;
 pub mod post_location;
+pub mod post_media;
+pub mod post_meta;
+pub mod post_person;
 pub mod post_report;
 pub mod post_source;
+pub mod post_source_attribution;
 
 pub use business_post::*;
 pub use post::*;
+pub use post_item::*;
+pub use post_link::*;
 pub use post_location::*;
+pub use post_media::*;
+pub use post_meta::*;
+pub use post_person::*;
 pub use post_source::*;
+pub use post_source_attribution::*;
