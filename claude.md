@@ -48,7 +48,21 @@ pub async fn approve_post(post_id: PostId, deps: &ServerDeps) -> Result<PostId> 
 
 ## Restate Workflows
 
-Architecture: `Next.js (:3000) → Restate Runtime (:9070) → Rust Server (:9080) → PostgreSQL`
+Architecture: `Next.js → Restate Ingress → Rust Server → PostgreSQL`
+
+### Ports
+
+| Service | Port | Notes |
+|---|---|---|
+| Admin app (Next.js) | 3000 | `packages/admin-app` — default `next dev` port |
+| Web app (Next.js) | 3001 | `packages/web-app` — runs with `--port 3001` |
+| Restate Ingress | 8180 | HTTP API for service calls (mapped from container 8080) |
+| Restate Admin | 9070 | Service discovery, deployments, introspection |
+| Rust Server | 9080 | Restate endpoint (h2c, not directly callable via curl) |
+| PostgreSQL | 5432 | Docker container |
+| Redis | 6379 | Docker container |
+
+The Rust server auto-registers with Restate on startup — no manual `register-workflows.sh` needed after `docker compose up -d --build server`.
 
 ### Pattern
 
@@ -92,7 +106,13 @@ Key rules:
 ### Dev Setup
 
 ```bash
-docker-compose up -d postgres redis restate   # Infrastructure
-cargo run --bin server                         # Restate endpoint on :9080
-./scripts/register-workflows.sh               # Register with Restate runtime
+docker compose up -d                          # All infrastructure + Rust server
+# Server auto-registers with Restate on startup
+
+# Frontend (run from repo root):
+cd packages/admin-app && yarn dev             # Admin on :3000
+cd packages/web-app && yarn dev --port 3001   # Public site on :3001
 ```
+
+After Rust code changes: `docker compose up -d --build server`
+After new migrations: `make migrate` then rebuild server
