@@ -9,9 +9,9 @@ Renamed `ADMIN_EMAILS` to `ADMIN_IDENTIFIERS` to support both email addresses an
 - **After:** `ADMIN_IDENTIFIERS=admin@example.com,+15551234567`
 
 Now supports:
-- ✅ **Email addresses** - Case-insensitive matching (admin@example.com)
-- ✅ **Phone numbers** - E.164 format (+15551234567)
-- ✅ **Mixed list** - Can have both emails and phones in the same variable
+- [+] **Email addresses** - Case-insensitive matching (admin@example.com)
+- [+] **Phone numbers** - E.164 format (+15551234567)
+- [+] **Mixed list** - Can have both emails and phones in the same variable
 
 ### Configuration
 
@@ -62,7 +62,7 @@ Supports emails and phone numbers (E.164: +1234567890)
 ```
 
 **Commands:**
-- `./dev.sh` → "👤 Manage admin users" → Now manages identifiers
+- `./dev.sh` → "Manage admin users" → Now manages identifiers
 - Add/remove identifiers (auto-saves to `.env`)
 - Push to Fly.io secrets
 
@@ -134,8 +134,8 @@ Supports emails and phone numbers (E.164: +1234567890)
 1. **Using Dev CLI:**
    ```bash
    ./dev.sh
-   # Select: 👤 Manage admin users
-   # Select: ⬆️  Push to Fly.io (production)
+   # Select: Manage admin users
+   # Select: Push to Fly.io (production)
    ```
 
 2. **Or using flyctl directly:**
@@ -151,9 +151,9 @@ Supports emails and phone numbers (E.164: +1234567890)
 ### Phone Number Format
 
 Phone numbers **must** be in E.164 format:
-- ✅ **Correct:** `+15551234567` (starts with `+`, includes country code)
-- ❌ **Wrong:** `5551234567` (missing `+` and country code)
-- ❌ **Wrong:** `(555) 123-4567` (not E.164 format)
+- [+] **Correct:** `+15551234567` (starts with `+`, includes country code)
+- [-] **Wrong:** `5551234567` (missing `+` and country code)
+- [-] **Wrong:** `(555) 123-4567` (not E.164 format)
 
 **Examples:**
 - US: `+15551234567`
@@ -170,14 +170,14 @@ cargo test domains::auth::models::identifier::tests
 ```
 
 **Test Coverage:**
-- ✅ Email matching (case-insensitive)
-- ✅ Phone number matching (exact)
-- ✅ Mixed list (emails + phones)
-- ✅ Negative cases (non-admins rejected)
+- [+] Email matching (case-insensitive)
+- [+] Phone number matching (exact)
+- [+] Mixed list (emails + phones)
+- [+] Negative cases (non-admins rejected)
 
 ## Backwards Compatibility
 
-⚠️ **Breaking Change:** The environment variable name changed from `ADMIN_EMAILS` to `ADMIN_IDENTIFIERS`.
+WARNING: **Breaking Change:** The environment variable name changed from `ADMIN_EMAILS` to `ADMIN_IDENTIFIERS`.
 
 **Required Actions:**
 1. Update `.env` file in `packages/server/`

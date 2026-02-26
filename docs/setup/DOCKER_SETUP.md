@@ -198,7 +198,7 @@ docker-compose ps
 # Check postgres logs
 docker-compose logs postgres
 
-# Reset database (⚠️ deletes all data)
+# Reset database (WARNING: deletes all data)
 docker-compose down -v
 docker-compose up -d postgres
 make migrate

@@ -2,7 +2,11 @@
 
 ## Test Database Snapshot
 
-The primary test data is in `local_test_db.sql` — a pg_dump snapshot for local development. See [LOCAL_DEV_SETUP.md](../docs/LOCAL_DEV_SETUP.md) for restore instructions.
+The primary test data is in `local_test_db.sql.gz` — a compressed pg_dump snapshot for local development. See [LOCAL_DEV_SETUP.md](../docs/setup/LOCAL_DEV_SETUP.md) for restore instructions.
+
+```bash
+gunzip -c data/local_test_db.sql.gz | docker compose exec -T postgres psql -U postgres -d mndigitalaid
+```
 
 ## Seed Script (Legacy)
 
@@ -42,20 +46,20 @@ Tags are extracted automatically using AI from the `populations_served` field.
 ## Output
 
 ```
-✓ Connected to database
-✓ Loaded 50 organizations from JSON
++ Connected to database
++ Loaded 50 organizations from JSON
 
-🚀 Starting seed process...
+Starting seed process...
 
-[1/50] Processing: 360 Communities – Burnsville Resource Center & Food Shelf
-  → Services: ["food_assistance", "emergency_financial_aid"]
-  → Languages: ["english"]
-  → Communities: ["general"]
-  ✓ Created organization with 3 tags
+[1/50] Processing: 360 Communities - Burnsville Resource Center & Food Shelf
+  -> Services: ["food_assistance", "emergency_financial_aid"]
+  -> Languages: ["english"]
+  -> Communities: ["general"]
+  + Created organization with 3 tags
 
 ...
 
-✨ Seed complete!
+Seed complete!
    Created: 50
    Skipped: 0
    Total: 50

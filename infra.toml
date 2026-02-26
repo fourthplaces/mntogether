@@ -1,5 +1,5 @@
 [project]
-name = "MN Together"
+name = "Root Editorial"
 
 [environments.dev]
 default = false

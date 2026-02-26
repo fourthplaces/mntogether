@@ -9,11 +9,11 @@ Successfully upgraded from Yarn Classic (1.22.22) to Yarn Modern (4.12.0).
 - **After:** Yarn Modern 4.12.0 (Berry)
 
 ### Benefits
-- ✅ **Faster installs** - Improved resolution and caching
-- ✅ **Better workspace support** - Enhanced monorepo features
-- ✅ **Improved security** - Better dependency verification
-- ✅ **Modern features** - Constraints, plugins, and more
-- ✅ **Smaller disk usage** - Better dependency deduplication
+- [+] **Faster installs** - Improved resolution and caching
+- [+] **Better workspace support** - Enhanced monorepo features
+- [+] **Improved security** - Better dependency verification
+- [+] **Modern features** - Constraints, plugins, and more
+- [+] **Smaller disk usage** - Better dependency deduplication
 
 ## Files Updated
 
@@ -71,10 +71,10 @@ No changes needed! The build scripts (`build.rs`, `dev-watch.sh`) automatically 
 
 ## Compatibility
 
-✅ All existing scripts work
-✅ Docker builds work
-✅ CI/CD unchanged
-✅ IDE integration maintained
+[+] All existing scripts work
+[+] Docker builds work
+[+] CI/CD unchanged
+[+] IDE integration maintained
 
 ## Lockfiles
 

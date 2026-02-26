@@ -10,12 +10,13 @@
 docs/
 ├── admin/           # Admin-specific guides and setup
 ├── architecture/    # System architecture and design documents
-├── guides/          # Implementation guides and tutorials
+├── guides/          # Implementation guides, tutorials, and reference
 ├── migrations/      # Database and code migration guides
-├── plans/           # Project plans and roadmaps
+├── plans/           # Project plans, roadmaps, and brainstorms
+├── prompts/         # LLM prompts used in the codebase
 ├── security/        # Security policies and authentication
 ├── setup/           # Setup and deployment instructions
-└── status/          # Implementation status and progress reports
+└── status/          # Implementation status, postmortems, and progress reports
 ```
 
 ### File Placement Rules
@@ -25,8 +26,8 @@ docs/
   - Examples: `DATA_MODEL.md`, `SCHEMA_DESIGN.md`, `DOMAIN_ARCHITECTURE.md`
 
 - **Implementation status** → `docs/status/`
-  - Completion reports, progress summaries, implementation details
-  - Examples: `IMPLEMENTATION_COMPLETE.md`, `MVP_COMPLETE.md`
+  - Completion reports, postmortems, progress summaries
+  - Examples: `FINAL_SCHEMA_SUMMARY.md`, `PHASE_1_DEAD_CODE_REMOVAL.md`
 
 - **Setup/deployment guides** → `docs/setup/`
   - Installation, configuration, deployment instructions
@@ -37,8 +38,8 @@ docs/
   - Examples: `ADMIN_EMAIL_SETUP.md`, `POST_ROTATION_SYSTEM.md`
 
 - **Integration guides** → `docs/guides/`
-  - API integration, feature implementation guides
-  - Examples: `API_INTEGRATION_GUIDE.md`, `MATCHING_IMPLEMENTATION.md`
+  - API integration, feature implementation guides, reference material
+  - Examples: `API_INTEGRATION_GUIDE.md`, `INSTITUTIONAL_LEARNINGS.md`
 
 - **Security docs** → `docs/security/`
   - Authentication, authorization, security policies
@@ -49,8 +50,12 @@ docs/
   - Examples: `MIGRATION_CLAUDE_VOYAGE.md`, `SQL_QUERY_REFACTORING.md`
 
 - **Plans** → `docs/plans/`
-  - Project plans, roadmaps, spikes
-  - Examples: `mvp-execution-plan.md`
+  - Project plans, roadmaps, brainstorms, spikes
+  - Examples: `2026-02-13-feat-graphql-bff-layer-plan.md`
+
+- **Prompts** → `docs/prompts/`
+  - LLM prompts used in the codebase (system prompts, generation templates)
+  - Examples: `posts/writing-style.md`, `pii/pii-detection.md`
 
 ### Exception
 

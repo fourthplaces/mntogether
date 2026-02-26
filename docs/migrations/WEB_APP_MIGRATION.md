@@ -1,22 +1,22 @@
 # Web App Migration - Expo to React (HISTORICAL)
 
-> **Historical document.** This describes the initial Expo → React migration. The web app has since been rebuilt as a Next.js application (`packages/web-app`, port 3001). The admin dashboard is a separate Next.js app (`packages/admin-app`, port 3000). See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md).
+> **Historical document.** This describes the initial Expo → React migration. The web app has since been rebuilt as a Next.js application (`packages/web-app`, port 3001). The admin dashboard is a separate Next.js app (`packages/admin-app`, port 3000). See [ROOT_EDITORIAL_PIVOT.md](../architecture/ROOT_EDITORIAL_PIVOT.md).
 
 Successfully migrated from Expo mobile app to React web app.
 
 ## What Changed
 
 ### Removed
-- ❌ `packages/app/` - Expo mobile app
-- ❌ Expo CLI dependency
-- ❌ React Native components
+- [-] `packages/app/` - Expo mobile app
+- [-] Expo CLI dependency
+- [-] React Native components
 
 ### Added
-- ✅ `packages/web-app/` - React web app
-- ✅ Vite build tool
-- ✅ Tailwind CSS styling
-- ✅ Apollo Client GraphQL integration
-- ✅ TypeScript support
+- [+] `packages/web-app/` - React web app
+- [+] Vite build tool
+- [+] Tailwind CSS styling
+- [+] Apollo Client GraphQL integration
+- [+] TypeScript support
 
 ## New Web App Structure
 
@@ -75,7 +75,7 @@ packages/web-app/
 ```bash
 # Using dev CLI
 ./dev.sh
-# Select: 🌐 Start web app
+# Select: Start web app
 
 # Or directly
 cd packages/web-app
@@ -97,10 +97,10 @@ yarn build
 The development CLI has been updated:
 
 **Before:**
-- 📱 Start mobile (Expo)
+- Start mobile (Expo)
 
 **After:**
-- 🌐 Start web app
+- Start web app
 
 The CLI now:
 - Installs `web-app` dependencies (instead of `app`)
@@ -153,7 +153,7 @@ Output directory: `dist/`
 2. Start the web app:
    ```bash
    ./dev.sh
-   # Select: 🌐 Start web app
+   # Select: Start web app
    ```
 
 3. Visit: http://localhost:3001

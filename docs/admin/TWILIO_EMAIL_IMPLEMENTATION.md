@@ -112,10 +112,10 @@ Enable it at: https://console.twilio.com/us1/develop/verify/services
 ### Environment Variables
 
 ```bash
-# ❌ WRONG - Using Account SID as service ID
+# [-] WRONG - Using Account SID as service ID
 TWILIO_VERIFY_SERVICE_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# ✅ CORRECT - Using Verify Service SID
+# [+] CORRECT - Using Verify Service SID
 TWILIO_VERIFY_SERVICE_SID=VA1234567890abcdef1234567890abcdef
 ```
 
@@ -149,11 +149,11 @@ test tests::test_is_phone_number ... ok
 
 ## Benefits
 
-- ✅ **Better UX** - Clear error messages guide users to fix configuration
-- ✅ **Validation** - Catches format errors before API call
-- ✅ **Documentation** - Comprehensive troubleshooting guide
-- ✅ **Testing** - Unit tests ensure validation works correctly
-- ✅ **Production Ready** - Handles common Twilio errors gracefully
+- [+] **Better UX** - Clear error messages guide users to fix configuration
+- [+] **Validation** - Catches format errors before API call
+- [+] **Documentation** - Comprehensive troubleshooting guide
+- [+] **Testing** - Unit tests ensure validation works correctly
+- [+] **Production Ready** - Handles common Twilio errors gracefully
 
 ## Next Steps
 

@@ -29,14 +29,12 @@ For EVERY feature, bug fix, or change to API edges:
 ## ABSOLUTE HARD RULE: API EDGE TESTING ONLY
 
 **NEVER EVER UNDER ANY CIRCUMSTANCES:**
-- ❌ `test_harness.bus().send(event).await` - FORBIDDEN
-- ❌ `harness.settle().await` - FORBIDDEN
-- ❌ Direct event bus access in tests - FORBIDDEN
-- ❌ Test internal implementation details - FORBIDDEN
+- ❌ Direct database manipulation bypassing the API - FORBIDDEN
+- ❌ Testing internal implementation details - FORBIDDEN
+- ❌ Calling private functions directly - FORBIDDEN
 
 **ALWAYS AND ONLY:**
-- ✅ Test through Restate virtual object handlers and API endpoints
-- ✅ Use the Restate test client
+- ✅ Test through Restate service/object handlers and GraphQL endpoints
 - ✅ Verify results via API response AND model queries
 - ✅ Mock external services via TestDependencies
 
@@ -45,10 +43,9 @@ This is a VERY VERY VERY HARD RULE. No exceptions.
 ### ❌ ABSOLUTELY FORBIDDEN:
 ```rust
 // DON'T DO THIS! EVER! NEVER! FORBIDDEN!
-test_harness.bus().send(ListingEvent::...).await;
-test_harness.settle().await;  // ALSO FORBIDDEN!
+sqlx::query!("INSERT INTO posts ...", ...).execute(&pool).await;
 
-// These bypass the API layer and test internal implementation.
+// Bypasses the API layer and tests internal implementation.
 // Tests MUST go through the actual API surface that users call.
 ```
 
@@ -59,16 +56,16 @@ test_harness.settle().await;  // ALSO FORBIDDEN!
 
 ### GOOD:
 ```rust
-let domain = Domain::find_by_id(id, pool).await?;
-let snapshots = DomainSnapshot::find_by_domain(domain_id, pool).await?;
-Domain::approve(domain_id, admin_id, pool).await?;
+let post = Post::find_by_id(id, pool).await?;
+let org = Organization::find_by_id(org_id, pool).await?;
+Post::approve(post_id, admin_id, pool).await?;
 ```
 
 ### BAD:
 ```rust
 // DON'T DO THIS!
-sqlx::query!("SELECT * FROM domains WHERE id = $1", id)
-sqlx::query!("UPDATE domains SET status = 'approved' WHERE id = $1", id)
+sqlx::query!("SELECT * FROM posts WHERE id = $1", id)
+sqlx::query!("UPDATE posts SET status = 'approved' WHERE id = $1", id)
 ```
 
 ## Test Coverage Requirements
@@ -102,8 +99,8 @@ TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD TDD
 ## Non-Negotiable Rules
 
 1. **NO CODE WITHOUT TESTS** - Write test first, see it fail, then implement
-2. **NO BUS TESTING** - Test through API edges only
-3. **NO RAW SQL** - Use models and helper functions
+2. **NO BYPASSING THE API** - Test through API edges only
+3. **NO RAW SQL IN TESTS** - Use models and helper functions
 4. **NO DELETING TESTS** - Fix them, don't delete them
 5. **NO SKIPPING REFACTOR** - Clean code after making tests pass
 6. **RUN TESTS BEFORE COMMIT** - `cargo test` must pass

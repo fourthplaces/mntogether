@@ -12,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .execute(&pool)
         .await?;
 
-    println!("✅ Migration 88 record deleted. Now run 'sqlx migrate run' to reapply it.");
+    println!("Migration 88 record deleted. Now run 'sqlx migrate run' to reapply it.");
 
     Ok(())
 }

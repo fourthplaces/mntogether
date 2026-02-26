@@ -93,12 +93,12 @@ COMMENT ON COLUMN business_organizations.proceeds_beneficiary_id IS 'Organizatio
 ```
 
 **What's NOT included (by design):**
-- ❌ business_type, founded_year, employee_count → use description
-- ❌ proceeds_description, impact_statement → use org.description
-- ❌ accepts_donations, donation_methods → just check if donation_link exists
-- ❌ gift_cards_available → just check if gift_card_link exists
-- ❌ delivery_available, pickup_available, ships_nationally → use description
-- ❌ Ownership/certification flags → use tags
+- [-] business_type, founded_year, employee_count → use description
+- [-] proceeds_description, impact_statement → use org.description
+- [-] accepts_donations, donation_methods → just check if donation_link exists
+- [-] gift_cards_available → just check if gift_card_link exists
+- [-] delivery_available, pickup_available, ships_nationally → use description
+- [-] Ownership/certification flags → use tags
 
 ### NO nonprofit_organizations Table
 
@@ -281,30 +281,30 @@ WHERE tag.kind = 'impact_area'
 
 ## Benefits of This Design
 
-### ✅ Clear Separation of Concerns
+### Clear Separation of Concerns
 - **Organization**: Who they are (Bailey Aro)
 - **Business Properties**: How they operate (15% proceeds model)
 - **Listing**: What they offer ("Shop merchandise")
 
-### ✅ Follows Existing Pattern
+### Follows Existing Pattern
 Same pattern as `listings` → `service_listings`, `opportunity_listings`, `business_listings`
 
-### ✅ One Organization, Many Listings
+### One Organization, Many Listings
 Bailey Aro can have multiple listings:
 - "Shop Apparel" (business listing)
 - "Volunteer at Pop-Up Events" (opportunity listing)
 - All share the same organization-level business properties
 
-### ✅ Organization-to-Organization Relationships
+### Organization-to-Organization Relationships
 `proceeds_beneficiary_id` links two organizations:
 - Bailey Aro (business) → Community Legal Aid (nonprofit)
 - Both are first-class organizations in the system
 
-### ✅ Flexible Tagging
+### Flexible Tagging
 - Tag organizations: business_model, impact_area, ownership_type
 - Tag listings: product_type, service_category, opportunity_type
 
-### ✅ Extensible
+### Extensible
 Easy to add more extension tables:
 - `government_organizations`
 - `community_organizations`
@@ -376,8 +376,8 @@ ALTER TABLE business_listings
 | `donation_link` | business_listings | business_organizations |
 | `gift_card_link` | business_listings | business_organizations |
 | `online_store_url` | business_listings | business_organizations |
-| `women_owned` | ❌ Missing | tags (ownership) |
-| `certified_b_corp` | ❌ Missing | tags (certification) |
+| `women_owned` | [-] Missing | tags (ownership) |
+| `certified_b_corp` | [-] Missing | tags (certification) |
 
 **Rationale**: Bailey Aro's "15% proceeds" policy applies to the ENTIRE ORGANIZATION, not just one listing. They might have multiple listings (merchandise, gift cards, event tickets), but all share the same proceeds policy.
 

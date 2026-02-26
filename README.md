@@ -127,9 +127,9 @@ packages/
 
 See the [docs/](docs/README.md) directory for complete documentation:
 
-- **[Root Editorial Pivot](docs/ROOT_EDITORIAL_PIVOT.md)** — The pivot bible
-- **[Local Dev Setup](docs/LOCAL_DEV_SETUP.md)** — Detailed setup with test data
-- **[Docker Guide](docs/DOCKER_GUIDE.md)** — Docker Compose reference
+- **[Root Editorial Pivot](docs/architecture/ROOT_EDITORIAL_PIVOT.md)** — The pivot bible
+- **[Local Dev Setup](docs/setup/LOCAL_DEV_SETUP.md)** — Detailed setup with test data
+- **[Docker Guide](docs/setup/DOCKER_GUIDE.md)** — Docker Compose reference
 - **[Architecture](docs/architecture/DOMAIN_ARCHITECTURE.md)** — Domain architecture
 - **[API Guide](docs/guides/API_INTEGRATION_GUIDE.md)** — GraphQL API integration
 

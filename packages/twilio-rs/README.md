@@ -4,11 +4,11 @@ A Rust client library for Twilio's Verify API and ICE server provisioning.
 
 ## Features
 
-- ✅ **OTP Verification** - Send OTP codes via SMS or Email
-- ✅ **Automatic Channel Detection** - Detects email vs phone number format
-- ✅ **Input Validation** - Validates E.164 phone format and email addresses
-- ✅ **Enhanced Error Messages** - Helpful error messages for common issues
-- ✅ **ICE Server Provisioning** - For WebRTC applications
+- [+] **OTP Verification** - Send OTP codes via SMS or Email
+- [+] **Automatic Channel Detection** - Detects email vs phone number format
+- [+] **Input Validation** - Validates E.164 phone format and email addresses
+- [+] **Enhanced Error Messages** - Helpful error messages for common issues
+- [+] **ICE Server Provisioning** - For WebRTC applications
 
 ## Installation
 
@@ -70,7 +70,7 @@ let ice_servers = service.fetch_ice_servers().await?;
 | `TWILIO_AUTH_TOKEN`           | Your Twilio Auth Token               | String      |
 | `TWILIO_VERIFY_SERVICE_SID`   | Your Twilio Verify Service SID       | `VAxxxxxx`  |
 
-⚠️ **Important:** The Verify Service SID starts with `VA`, not `AC`. Don't confuse it with your Account SID!
+WARNING: **Important:** The Verify Service SID starts with `VA`, not `AC`. Don't confuse it with your Account SID!
 
 ## API Reference
 
@@ -86,17 +86,17 @@ let ice_servers = service.fetch_ice_servers().await?;
 
 ### Phone Numbers
 Must be in **E.164 format**:
-- ✅ `+15551234567` (US)
-- ✅ `+442012345678` (UK)
-- ❌ `5551234567` (missing `+`)
-- ❌ `(555) 123-4567` (not E.164)
+- [+] `+15551234567` (US)
+- [+] `+442012345678` (UK)
+- [-] `5551234567` (missing `+`)
+- [-] `(555) 123-4567` (not E.164)
 
 ### Email Addresses
 Standard email format with `@` and domain:
-- ✅ `user@example.com`
-- ✅ `admin@company.co.uk`
-- ❌ `user@example` (no TLD)
-- ❌ `userexample.com` (no `@`)
+- [+] `user@example.com`
+- [+] `admin@company.co.uk`
+- [-] `user@example` (no TLD)
+- [-] `userexample.com` (no `@`)
 
 ## Troubleshooting
 
@@ -124,10 +124,10 @@ Standard email format with `@` and domain:
 
 **Solution:**
 ```rust
-// ❌ Wrong
+// [-] Wrong
 service_id: "ACxxxxxxxx"  // Account SID
 
-// ✅ Correct
+// [+] Correct
 service_id: "VAxxxxxxxx"  // Verify Service SID
 ```
 

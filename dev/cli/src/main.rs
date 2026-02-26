@@ -270,15 +270,15 @@ fn interactive_menu(ctx: &AppContext) -> Result<()> {
     use dialoguer::FuzzySelect;
 
     let items = vec![
-        "🚀 Start environment (up)",
-        "🛑 Stop environment (down)",
-        "🐳 Docker services →",
-        "🗄️  Database →",
-        "📦 Data migrations →",
-        "🔧 Scripts →",
-        "📊 Status",
-        "🩺 Doctor",
-        "❌ Exit",
+        "Start environment (up)",
+        "Stop environment (down)",
+        "Docker services →",
+        "Database →",
+        "Data migrations →",
+        "Scripts →",
+        "Status",
+        "Doctor",
+        "Exit",
     ];
 
     loop {

@@ -82,32 +82,32 @@ Don't create it. Nonprofits are just organizations with type='nonprofit'. If the
 ```sql
 business_organizations (
   organization_id,
-  business_type,              -- ❌ Remove
-  founded_year,               -- ❌ Remove
-  employee_count,             -- ❌ Remove
-  proceeds_percentage,        -- ✅ Keep
-  proceeds_beneficiary_id,    -- ✅ Keep
-  proceeds_description,       -- ❌ Remove (use org.description)
-  impact_statement,           -- ❌ Remove (use org.description)
-  accepts_donations,          -- ❌ Remove (just check if donation_link exists)
-  donation_link,              -- ✅ Keep
-  donation_methods,           -- ❌ Remove (not essential)
-  gift_cards_available,       -- ❌ Remove (just check if gift_card_link exists)
-  gift_card_link,             -- ✅ Keep
-  online_store_url,           -- ✅ Keep
-  delivery_available,         -- ❌ Remove (not essential for v1)
-  pickup_available,           -- ❌ Remove (not essential for v1)
-  ships_nationally            -- ❌ Remove (not essential for v1)
+  business_type,              -- [-] Remove
+  founded_year,               -- [-] Remove
+  employee_count,             -- [-] Remove
+  proceeds_percentage,        -- [+] Keep
+  proceeds_beneficiary_id,    -- [+] Keep
+  proceeds_description,       -- [-] Remove (use org.description)
+  impact_statement,           -- [-] Remove (use org.description)
+  accepts_donations,          -- [-] Remove (just check if donation_link exists)
+  donation_link,              -- [+] Keep
+  donation_methods,           -- [-] Remove (not essential)
+  gift_cards_available,       -- [-] Remove (just check if gift_card_link exists)
+  gift_card_link,             -- [+] Keep
+  online_store_url,           -- [+] Keep
+  delivery_available,         -- [-] Remove (not essential for v1)
+  pickup_available,           -- [-] Remove (not essential for v1)
+  ships_nationally            -- [-] Remove (not essential for v1)
 )
 -- 17 fields!
 
 nonprofit_organizations (
   organization_id,
-  ein,                        -- ❌ Don't create this table
-  tax_exempt_status,          -- ❌ Not essential
-  mission_statement,          -- ❌ Use org.description
-  founded_year,               -- ❌ Not essential
-  annual_budget_range         -- ❌ Not essential
+  ein,                        -- [-] Don't create this table
+  tax_exempt_status,          -- [-] Not essential
+  mission_statement,          -- [-] Use org.description
+  founded_year,               -- [-] Not essential
+  annual_budget_range         -- [-] Not essential
 )
 ```
 
@@ -115,11 +115,11 @@ nonprofit_organizations (
 ```sql
 business_organizations (
   organization_id,
-  proceeds_percentage,        -- ✅ Keep - need for queries
-  proceeds_beneficiary_id,    -- ✅ Keep - relationship
-  donation_link,              -- ✅ Keep - CTA
-  gift_card_link,             -- ✅ Keep - CTA
-  online_store_url            -- ✅ Keep - CTA
+  proceeds_percentage,        -- [+] Keep - need for queries
+  proceeds_beneficiary_id,    -- [+] Keep - relationship
+  donation_link,              -- [+] Keep - CTA
+  gift_card_link,             -- [+] Keep - CTA
+  online_store_url            -- [+] Keep - CTA
 )
 -- 6 fields total (including PK + timestamp)
 

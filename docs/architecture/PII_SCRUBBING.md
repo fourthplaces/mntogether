@@ -77,7 +77,7 @@ pub trait BasePiiDetector: Send + Sync {
    - Step 4: Combine results
    - Additional detection: names, addresses, medical info
    - 85-90% accuracy for unstructured PII
-   - ⚠️ Never sends raw PII to OpenAI
+   - WARNING: Never sends raw PII to OpenAI
 
 3. **NoopPiiDetector** - Disabled scrubbing (for testing)
    - Returns original text unchanged
@@ -335,14 +335,14 @@ let test_deps = TestDependencies::new()
 
 ## Privacy Guarantees
 
-### ✅ What We Get
+### What We Get
 - PII protection at rest (database never contains raw PII)
 - Automatic scrubbing of common PII patterns
 - Context-aware detection (preserves public org info)
 - No raw PII sent to OpenAI (redacted first)
 - Anonymous communication preserved
 
-### ⚠️ Limitations
+### Limitations
 - Not 100% accurate (AI models aren't perfect)
 - Some false positives possible (over-redaction)
 - Some false negatives possible (missed PII)
@@ -352,14 +352,14 @@ let test_deps = TestDependencies::new()
 
 | PII Type | Regex | GPT | Accuracy |
 |----------|-------|-----|----------|
-| Email addresses | ✅ | ✅ | 98%+ |
-| Phone numbers | ✅ | ✅ | 95%+ |
-| SSNs | ✅ | ✅ | 99%+ |
-| Credit cards | ✅ | ✅ | 99%+ |
-| IP addresses | ✅ | ✅ | 99%+ |
-| Names | ❌ | ✅ | 85-90% |
-| Street addresses | ⚠️ (partial) | ✅ | 80-85% |
-| Medical info | ❌ | ✅ | 75-80% |
+| Email addresses | [+] | [+] | 98%+ |
+| Phone numbers | [+] | [+] | 95%+ |
+| SSNs | [+] | [+] | 99%+ |
+| Credit cards | [+] | [+] | 99%+ |
+| IP addresses | [+] | [+] | 99%+ |
+| Names | [-] | [+] | 85-90% |
+| Street addresses | partial | [+] | 80-85% |
+| Medical info | [-] | [+] | 75-80% |
 
 ## File Structure
 
@@ -387,7 +387,7 @@ packages/server/src/
 
 ## Migration Path
 
-### Phase 1: Deploy with PII Scrubbing ✅
+### Phase 1: Deploy with PII Scrubbing [+]
 ```bash
 PII_SCRUBBING_ENABLED=true
 PII_USE_GPT_DETECTION=true

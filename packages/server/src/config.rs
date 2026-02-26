@@ -126,18 +126,18 @@ impl Config {
         if !missing_optional.is_empty() {
             tracing::warn!("Optional environment variables not set (using defaults):");
             for (var, default) in missing_optional {
-                tracing::warn!("  ⚠️  {} (default: {})", var, default);
+                tracing::warn!("  [!] {} (default: {})", var, default);
             }
         }
 
         if !missing_required.is_empty() {
-            tracing::error!("❌ Required environment variables are missing:");
+            tracing::error!("MISSING: Required environment variables:");
             for var in &missing_required {
-                tracing::error!("  ❌  {}", var);
+                tracing::error!("  - {}", var);
             }
             tracing::error!("Server will fail to start without these variables!");
         } else {
-            tracing::info!("✅ All required environment variables are present");
+            tracing::info!("All required environment variables are present.");
         }
     }
 }

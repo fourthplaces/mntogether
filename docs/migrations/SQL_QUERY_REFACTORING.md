@@ -48,4 +48,4 @@ let posts = Post::find_active(&deps.db_pool).await?;
 
 ## Key Rule
 
-**All database queries must live in `domains/*/models/` modules.** This is enforced in CLAUDE.md and documented in [INSTITUTIONAL_LEARNINGS.md](../INSTITUTIONAL_LEARNINGS.md).
+**All database queries must live in `domains/*/models/` modules.** This is enforced in CLAUDE.md and documented in [INSTITUTIONAL_LEARNINGS.md](../guides/INSTITUTIONAL_LEARNINGS.md).

@@ -274,7 +274,7 @@ function BusinessCard({ listing }) {
   return (
     <div className="business-card cause-driven">
       <div className="badge">
-        🤝 {businessInfo.proceedsPercentage}% goes to charity
+        {businessInfo.proceedsPercentage}% goes to charity
       </div>
 
       <h3>{listing.title}</h3>
@@ -285,7 +285,7 @@ function BusinessCard({ listing }) {
           {businessInfo.proceedsDescription}
         </p>
         <p className="impact-statement">
-          💡 {businessInfo.impactStatement}
+          {businessInfo.impactStatement}
         </p>
       </div>
 
@@ -299,21 +299,21 @@ function BusinessCard({ listing }) {
 
 ## Use Cases Supported
 
-### ✅ Direct Donations
+### Direct Donations
 - `accepts_donations: true`
 - `donation_link: "https://paypal.me/..."`
 
-### ✅ Gift Card Sales
+### Gift Card Sales
 - `gift_cards_available: true`
 - `gift_card_link: "https://..."`
 
-### ✅ Cause-Driven Commerce (NEW)
+### Cause-Driven Commerce (NEW)
 - `proceeds_percentage: 15.00`
 - `proceeds_beneficiary_id: "org-uuid"`
 - `proceeds_description: "15% supports..."`
 - `impact_statement: "Your purchase funds..."`
 
-### ✅ Tag-Based Discovery
+### Tag-Based Discovery
 - Filter by business model: `business_model=cause_driven`
 - Filter by impact area: `impact_area=immigrant_rights`
 - Find B Corps: `business_model=b_corp`

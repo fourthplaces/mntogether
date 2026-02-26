@@ -63,26 +63,26 @@ CREATE TABLE business_organizations (
 ## What's NOT Included (By Design)
 
 ### Fields we're NOT creating:
-- ❌ mission_statement → use description
-- ❌ founded_year → use description
-- ❌ ein → not essential
-- ❌ tax_exempt_status → not essential
-- ❌ annual_budget → not essential
-- ❌ business_type → use description or tags
-- ❌ employee_count → use description
-- ❌ proceeds_description → use description
-- ❌ impact_statement → use description
-- ❌ accepts_donations → just check if donation_link exists
-- ❌ donation_methods → not essential
-- ❌ gift_cards_available → just check if gift_card_link exists
-- ❌ delivery_available → use description
-- ❌ pickup_available → use description
-- ❌ ships_nationally → use description
-- ❌ minority_owned → use tags
-- ❌ women_owned → use tags
-- ❌ lgbtq_owned → use tags
-- ❌ certified_b_corp → use tags
-- ❌ worker_owned → use tags
+- [-] mission_statement → use description
+- [-] founded_year → use description
+- [-] ein → not essential
+- [-] tax_exempt_status → not essential
+- [-] annual_budget → not essential
+- [-] business_type → use description or tags
+- [-] employee_count → use description
+- [-] proceeds_description → use description
+- [-] impact_statement → use description
+- [-] accepts_donations → just check if donation_link exists
+- [-] donation_methods → not essential
+- [-] gift_cards_available → just check if gift_card_link exists
+- [-] delivery_available → use description
+- [-] pickup_available → use description
+- [-] ships_nationally → use description
+- [-] minority_owned → use tags
+- [-] women_owned → use tags
+- [-] lgbtq_owned → use tags
+- [-] certified_b_corp → use tags
+- [-] worker_owned → use tags
 
 ## Tags (Categorical Metadata)
 

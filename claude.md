@@ -15,14 +15,14 @@ Enforced by hooks in `.claude/hooks/` (registered in `.claude/settings.json`):
 ### SQLx: Use `query_as` function, never the macro
 
 ```rust
-// ✅ Always
+// GOOD:
 sqlx::query_as::<_, Self>("SELECT * FROM posts WHERE id = $1")
     .bind(id)
     .fetch_one(pool)
     .await
     .map_err(Into::into)
 
-// ❌ Never
+// BAD:
 sqlx::query_as!(Self, "SELECT * FROM posts WHERE id = $1", id)
 ```
 

@@ -2,20 +2,22 @@
 
 Documentation for the Root Editorial CMS platform — an open CMS for community journalism.
 
-> **See [ROOT_EDITORIAL_PIVOT.md](ROOT_EDITORIAL_PIVOT.md)** for the comprehensive pivot reference.
+> **See [ROOT_EDITORIAL_PIVOT.md](architecture/ROOT_EDITORIAL_PIVOT.md)** for the comprehensive pivot reference.
 
-## 📚 Documentation Structure
+## Documentation Structure
 
 ### Getting Started
-- [Local Dev Setup](LOCAL_DEV_SETUP.md) - Local development environment and test data
-- [Docker Guide](DOCKER_GUIDE.md) - Docker Compose setup and commands
+- [Local Dev Setup](setup/LOCAL_DEV_SETUP.md) - Local development environment and test data
+- [Docker Guide](setup/DOCKER_GUIDE.md) - Docker Compose setup and commands
 - [Quick Start](setup/QUICK_START.md) - Fast getting started guide
 - [Development CLI](setup/DEV_CLI.md) - Interactive development CLI usage
 - [Docker Setup](setup/DOCKER_SETUP.md) - Docker and containerization setup
 - [Deployment](setup/DEPLOYMENT.md) - Production deployment guide
 
 ### Architecture
-- [Root Editorial Pivot](ROOT_EDITORIAL_PIVOT.md) - The pivot bible: what stays, what's dead, what's next
+- [Root Editorial Pivot](architecture/ROOT_EDITORIAL_PIVOT.md) - The pivot bible: what stays, what's dead, what's next
+- [CMS System Spec](architecture/CMS_SYSTEM_SPEC.md) - Comprehensive CMS and broadsheet spec
+- [Post Type System](architecture/POST_TYPE_SYSTEM.md) - Post types, field groups, and templates
 - [Domain Architecture](architecture/DOMAIN_ARCHITECTURE.md) - Domain-driven design structure
 - [Package Structure](architecture/PACKAGE_STRUCTURE.md) - Monorepo organization
 - [Rust Implementation](architecture/RUST_IMPLEMENTATION.md) - Rust backend details
@@ -32,6 +34,8 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
 - [Embedded Frontends](guides/EMBEDDED_FRONTENDS.md) - Frontend architecture patterns
 - [OpenRouter Integration](guides/OPENROUTER_INTEGRATION.md) - AI service integration
+- [Institutional Learnings](guides/INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
+- [Testing Workflows](guides/TESTING_WORKFLOWS.md) - Restate workflow testing guide
 
 ### Admin & CMS
 - [Admin Quick Start](admin/ADMIN_QUICK_START.md) - Admin/CMS authentication setup
@@ -49,19 +53,13 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Web App Migration](migrations/WEB_APP_MIGRATION.md) - Frontend migration history
 - [Claude/Voyage Migration](migrations/MIGRATION_CLAUDE_VOYAGE.md) - AI provider migration history
 
-### Reference
-- [Institutional Learnings](INSTITUTIONAL_LEARNINGS.md) - Hard-won lessons and gotchas
-- [Restate Migration Summary](RESTATE_MIGRATION_SUMMARY.md) - Restate migration reference
-- [Testing Workflows](TESTING_WORKFLOWS.md) - Restate workflow testing guide
-- [Docs Audit](DOCS_AUDIT.md) - Documentation triage from the pivot
-
 ### Prompts
 - [Prompts Index](prompts/README.md) - LLM prompts used in the codebase
 
 ### Plans
 - [Plans Index](plans/README.md) - Architectural plans and brainstorms
 
-## 🔗 Related Resources
+## Related Resources
 
 - [Main README](../README.md) - Project overview and quick start
 - [Data README](../data/README.md) - Data directory documentation

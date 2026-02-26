@@ -28,7 +28,7 @@
 
 ## Fixed Vulnerabilities
 
-### ✅ ring 0.16.20 - AES Panic (RUSTSEC-2025-0009)
+### [+] ring 0.16.20 - AES Panic (RUSTSEC-2025-0009)
 - **Fixed**: Upgraded jsonwebtoken to v9, which uses ring 0.17+
 - **Status**: Resolved
 

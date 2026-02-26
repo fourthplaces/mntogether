@@ -1,6 +1,6 @@
 # Authentication Security Guide
 
-## ✅ Security Features Implemented
+## Security Features Implemented
 
 ### 1. Identifier-Based Authentication
 - **Supports**: Phone numbers (e.g., `+1234567890`) and email addresses (e.g., `user@example.com`)
@@ -12,7 +12,7 @@
 ```rust
 // Automatic warning if test mode enabled in production
 if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {
-    error!("⚠️  SECURITY WARNING: TEST_IDENTIFIER_ENABLED in production!");
+    error!("SECURITY WARNING: TEST_IDENTIFIER_ENABLED in production!");
 }
 ```
 
@@ -29,7 +29,7 @@ if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {
 - **Requirement**: Identifier must exist in database
 - **Safety**: Logs warning if enabled in release build
 
-## 🔒 Security Best Practices
+## Security Best Practices
 
 ### Environment Variables
 
@@ -75,7 +75,7 @@ ADMIN_EMAILS=test@example.com
 - Admin status stored in `identifiers.is_admin` column
 - Phone numbers do NOT auto-become admin from email list
 
-## 🔐 Authentication Flow
+## Authentication Flow
 
 ### 1. Send OTP
 ```graphql
@@ -113,18 +113,18 @@ Authorization: Bearer <jwt-token>
 - Adds `AuthUser` to request extensions
 - GraphQL resolvers check `ctx.auth_user.is_admin`
 
-## 🛡️ Security Considerations
+## Security Considerations
 
-### What's Protected ✅
-- ✅ OTP verification via Twilio
-- ✅ Identifier hashing (SHA-256)
-- ✅ JWT stateless auth
-- ✅ Admin authorization checks
-- ✅ Test mode safety warnings
-- ✅ Case-insensitive email matching
-- ✅ Environment-based configuration
+### What's Protected
+- [+] OTP verification via Twilio
+- [+] Identifier hashing (SHA-256)
+- [+] JWT stateless auth
+- [+] Admin authorization checks
+- [+] Test mode safety warnings
+- [+] Case-insensitive email matching
+- [+] Environment-based configuration
 
-### Potential Improvements 🔧
+### Potential Improvements
 
 1. **Rate Limiting**
    - Add per-identifier OTP request limits
@@ -146,7 +146,7 @@ Authorization: Bearer <jwt-token>
    - Add `ADMIN_PHONES` environment variable
    - Auto-admin for phone numbers (like emails)
 
-## 📊 Database Schema
+## Database Schema
 
 ```sql
 -- Identifiers table stores hashed phone numbers and emails
@@ -162,7 +162,7 @@ CREATE TABLE identifiers (
 CREATE INDEX idx_identifiers_phone_hash ON identifiers(phone_hash);
 ```
 
-## 🧪 Testing
+## Testing
 
 ### Unit Tests
 ```bash
@@ -192,7 +192,7 @@ curl -X POST http://localhost:9080/graphql \
   }'
 ```
 
-## 📝 Code Examples
+## Code Examples
 
 ### Check Admin Status
 ```rust
@@ -221,7 +221,7 @@ let phone_hash = hash_phone_number("+1234567890");
 let email_hash = hash_phone_number("user@example.com");
 ```
 
-## 🚨 Security Checklist
+## Security Checklist
 
 Before deploying to production:
 
@@ -235,7 +235,7 @@ Before deploying to production:
 - [ ] HTTPS enforced (no HTTP in production)
 - [ ] CORS properly configured (`ALLOWED_ORIGINS`)
 
-## 📚 Related Files
+## Related Files
 
 **Authentication Core:**
 - `src/domains/auth/effects.rs` - OTP sending & verification

@@ -1,6 +1,6 @@
 # Development CLI (HISTORICAL)
 
-> **Historical document.** The Rust-based dev CLI (`dev.sh` / `packages/dev-cli/`) described here is no longer the recommended development approach. Use `docker-compose up` in `packages/server/` for backend services, and `yarn dev` in `packages/admin-app/` or `packages/web-app/` for frontends. The Expo mobile app, Seesaw architecture, and several API keys referenced below have been removed. See [LOCAL_DEV_SETUP.md](../LOCAL_DEV_SETUP.md) for current setup instructions.
+> **Historical document.** The Rust-based dev CLI (`dev.sh` / `packages/dev-cli/`) described here is no longer the recommended development approach. Use `docker-compose up` in `packages/server/` for backend services, and `yarn dev` in `packages/admin-app/` or `packages/web-app/` for frontends. The Expo mobile app, Seesaw architecture, and several API keys referenced below have been removed. See [LOCAL_DEV_SETUP.md](LOCAL_DEV_SETUP.md) for current setup instructions.
 
 Single entry point for working with the Root Editorial application.
 
@@ -30,19 +30,19 @@ The following must be installed on your system:
 
 The CLI provides the following options:
 
-### 📱 Start mobile (Expo)
+### Start mobile (Expo)
 Starts the Expo development server for the mobile app. You can then:
 - Press `i` to open iOS Simulator
 - Press `a` to open Android Emulator
 - Scan QR code with Expo Go app on your device
 
-### 🐳 Docker start
+### Docker start
 Starts all Docker services in detached mode:
 - PostgreSQL database (port 5432)
 - Redis (port 6379)
 - API server (port 8080)
 
-### 🔄 Docker restart
+### Docker restart
 Restarts running Docker services without rebuilding.
 
 You'll be prompted to select which services to restart:
@@ -52,7 +52,7 @@ You'll be prompted to select which services to restart:
 
 Use Space to select/deselect, Enter to confirm.
 
-### 🔨 Docker rebuild
+### Docker rebuild
 Rebuilds Docker images from scratch and starts the services.
 
 You'll be prompted to select which services to rebuild:
@@ -67,18 +67,18 @@ Use this when:
 
 **Note:** The API service now includes cargo-watch for hot-reloading, so you typically only need to rebuild when changing dependencies or Dockerfiles.
 
-### 📋 Follow docker logs
+### Follow docker logs
 Tails the logs from all Docker services.
 Press `Ctrl+C` to stop following.
 
-### 🗄️ Run database migrations
+### Run database migrations
 Runs SQLx database migrations inside the running API container.
 
 This executes `sqlx migrate run` to apply any pending migrations.
 
 **Note:** Migrations also run automatically when Docker starts.
 
-### 🌐 Open GraphQL Playground
+### Open GraphQL Playground
 Opens the GraphQL Playground in your default browser at `http://localhost:8080/graphql`.
 
 This is useful for:
@@ -88,7 +88,7 @@ This is useful for:
 
 Note: Make sure Docker services are running first.
 
-### 🛑 Exit
+### Exit
 Exits the CLI.
 
 ## First Time Setup
@@ -198,11 +198,11 @@ Check Docker Desktop is running and you have enough resources allocated (4GB RAM
 
 Typical workflow:
 1. Run `./dev.sh`
-2. Select "🐳 Docker start" to start backend services (postgres, redis, api)
+2. Select "Docker start" to start backend services (postgres, redis, api)
 3. Migrations run automatically on startup
-4. Select "🌐 Open GraphQL Playground" to test the API
-5. Select "📱 Start mobile" to start the Expo app
+4. Select "Open GraphQL Playground" to test the API
+5. Select "Start mobile" to start the Expo app
 6. Edit Rust files - cargo-watch automatically reloads
-7. Select "📋 Follow docker logs" to debug backend issues
-8. Select "🔄 Docker restart" if needed (select specific services)
-9. Select "🔨 Docker rebuild" only when changing dependencies or Dockerfiles
+7. Select "Follow docker logs" to debug backend issues
+8. Select "Docker restart" if needed (select specific services)
+9. Select "Docker rebuild" only when changing dependencies or Dockerfiles

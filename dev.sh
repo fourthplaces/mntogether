@@ -13,7 +13,7 @@ quick_doctor() {
     need_cmd "$cmd" || missing+=("$cmd")
   done
   if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "⚠️  Missing recommended tools: ${missing[*]}"
+    echo "WARNING: Missing recommended tools: ${missing[*]}"
     echo "   Run './dev.sh doctor' for details."
     echo
   fi

@@ -65,7 +65,7 @@ When `TEST_IDENTIFIER_ENABLED=true`:
 - Identifier: `test@example.com`
 - OTP Code: `123456`
 
-**⚠️ Security Warning:**
+**WARNING: Security Warning:**
 - Test identifiers bypass Twilio verification
 - MUST be registered in database before use
 - Production safety check: Logs error if enabled in release build
@@ -82,7 +82,7 @@ ADMIN_EMAILS=admin@example.com,owner@example.com,superuser@example.com
 
 ## Security Features
 
-✅ **Implemented:**
+[+] **Implemented:**
 - JWT-based stateless authentication
 - OTP verification via Twilio (phone & email)
 - Phone number hashing (SHA256) for database storage
@@ -90,7 +90,7 @@ ADMIN_EMAILS=admin@example.com,owner@example.com,superuser@example.com
 - Production safety warning if test mode enabled in release build
 - Admin authorization checks in effects
 
-⚠️ **Important:**
+WARNING: **Important:**
 - Test identifier bypass should NEVER be enabled in production
 - The system logs a security warning if `TEST_IDENTIFIER_ENABLED=true` in release build
 - Always use environment variables for sensitive configuration

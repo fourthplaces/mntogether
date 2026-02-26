@@ -6,6 +6,7 @@ Cargo.lock
 # Environment
 .env
 .env.local
+/.env.*.local
 
 # Node.js
 node_modules/
@@ -22,10 +23,8 @@ yarn-error.log*
 !.yarn/versions
 .pnp.*
 
-# Expo
-.expo/
-dist/
-web-build/
+# Next.js
+.next/
 
 # IDEs
 .vscode/
@@ -41,11 +40,9 @@ Thumbs.db
 # Testing
 .testcontainers-*
 
-# SQLx (keep for offline mode)
-# .sqlx/
-# devkit
-/.env.*.local
+# Dev CLI
 /dev/cli/target/
+.dev/history.json
 
-# infra CLI
+# Infrastructure
 .infra-env

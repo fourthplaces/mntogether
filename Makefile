@@ -1,5 +1,5 @@
 # ============================================================================
-# Minnesota Digital Aid - Development Makefile
+# Root Editorial - Development Makefile
 # ============================================================================
 # Quick commands for managing the development environment
 #
@@ -15,9 +15,9 @@
 
 # Default target - show help
 help:
-	@echo "Minnesota Digital Aid - Development Commands"
+	@echo "Root Editorial - Development Commands"
 	@echo ""
-	@echo "🚀 Getting Started:"
+	@echo "Getting Started:"
 	@echo "  make up          - Start all services (Postgres, Redis, API, Web App)"
 	@echo "  make up-full     - Start all services including Next.js"
 	@echo "  make down        - Stop all services"
@@ -25,30 +25,30 @@ help:
 	@echo "  make restart-server - Restart server only"
 	@echo "  make restart-admin  - Restart admin app only"
 	@echo ""
-	@echo "📋 Logs & Monitoring:"
+	@echo "Logs & Monitoring:"
 	@echo "  make logs        - View logs from all services"
 	@echo "  make logs-server - View server logs only"
 	@echo "  make logs-admin  - View admin app logs only"
 	@echo "  make logs-db     - View PostgreSQL logs only"
 	@echo ""
-	@echo "🗄️  Database:"
+	@echo "Database:"
 	@echo "  make migrate     - Run database migrations"
 	@echo "  make seed        - Seed database with organizations"
 	@echo "  make db-shell    - Open PostgreSQL shell"
 	@echo "  make db-reset    - Reset database (drops and recreates)"
 	@echo ""
-	@echo "🔧 Development:"
+	@echo "Development:"
 	@echo "  make shell       - Open shell in API container"
 	@echo "  make redis-cli   - Open Redis CLI"
 	@echo "  make build       - Rebuild all containers"
 	@echo "  make test        - Run Rust tests"
 	@echo "  make check       - Fast compile check without building"
 	@echo ""
-	@echo "🧹 Cleanup:"
-	@echo "  make clean       - Remove all containers and volumes (⚠️  data loss)"
+	@echo "Cleanup:"
+	@echo "  make clean       - Remove all containers and volumes (WARNING: data loss)"
 	@echo "  make prune       - Clean up Docker build cache"
 	@echo ""
-	@echo "💡 Tip: Run './dev.sh' for interactive CLI menu"
+	@echo "Tip: Run './dev.sh' for interactive CLI menu"
 
 # ========================================
 # Service Management
@@ -134,16 +134,16 @@ embeddings:
 db-shell:
 	docker compose exec postgres psql -U postgres -d mndigitalaid
 
-# Reset database (⚠️  drops all data)
+# Reset database (WARNING: drops all data)
 db-reset:
-	@echo "⚠️  WARNING: This will delete all data!"
+	@echo "WARNING: This will delete all data!"
 	@read -p "Are you sure? (y/N) " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS mndigitalaid;"; \
 		docker compose exec postgres psql -U postgres -c "CREATE DATABASE mndigitalaid;"; \
 		$(MAKE) migrate; \
-		echo "✅ Database reset complete"; \
+		echo "Database reset complete."; \
 	else \
 		echo "Cancelled"; \
 	fi
@@ -180,15 +180,15 @@ clippy:
 # Cleanup
 # ========================================
 
-# Remove all containers and volumes (⚠️  data loss)
+# Remove all containers and volumes (WARNING: data loss)
 clean:
-	@echo "⚠️  WARNING: This will delete all containers, volumes, and data!"
+	@echo "WARNING: This will delete all containers, volumes, and data!"
 	@read -p "Are you sure? (y/N) " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose down -v; \
 		docker volume rm mndigitalaid_postgres_data mndigitalaid_redis_data mndigitalaid_rust_target 2>/dev/null || true; \
-		echo "✅ Cleanup complete"; \
+		echo "Cleanup complete."; \
 	else \
 		echo "Cancelled"; \
 	fi
@@ -208,19 +208,19 @@ status:
 
 # Check health of all services
 health:
-	@echo "🔍 Checking service health..."
+	@echo "Checking service health..."
 	@echo ""
-	@echo "📊 PostgreSQL:"
-	@docker compose exec postgres pg_isready -U postgres || echo "❌ Not ready"
+	@echo "PostgreSQL:"
+	@docker compose exec postgres pg_isready -U postgres || echo "  FAIL: Not ready"
 	@echo ""
-	@echo "📊 Redis:"
-	@docker compose exec redis redis-cli ping || echo "❌ Not ready"
+	@echo "Redis:"
+	@docker compose exec redis redis-cli ping || echo "  FAIL: Not ready"
 	@echo ""
-	@echo "📊 API Server:"
-	@curl -sf http://localhost:8080/health || echo "❌ Not ready"
+	@echo "API Server:"
+	@curl -sf http://localhost:8080/health || echo "  FAIL: Not ready"
 	@echo ""
-	@echo "📊 Web App:"
-	@curl -sf http://localhost:3001 > /dev/null && echo "✅ Running" || echo "❌ Not ready"
+	@echo "Web App:"
+	@curl -sf http://localhost:3001 > /dev/null && echo "  OK" || echo "  FAIL: Not ready"
 
 # ========================================
 # Useful Development Commands

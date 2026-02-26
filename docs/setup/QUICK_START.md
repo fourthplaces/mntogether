@@ -18,9 +18,9 @@ docker-compose up -d
 cargo run --bin server
 ```
 
-✅ API available at: http://localhost:9080/graphql
-✅ GraphQL Playground: http://localhost:9080/graphql (in browser)
-✅ Health check: http://localhost:9080/health
+[+] API available at: http://localhost:9080/graphql
+[+] GraphQL Playground: http://localhost:9080/graphql (in browser)
+[+] Health check: http://localhost:9080/health
 
 ## 2. Start Frontend
 
@@ -34,7 +34,7 @@ yarn install
 yarn dev
 ```
 
-✅ Frontend available at: http://localhost:3000
+[+] Frontend available at: http://localhost:3000
 
 ## 3. Test It Works
 

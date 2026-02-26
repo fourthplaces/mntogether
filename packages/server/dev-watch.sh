@@ -16,44 +16,44 @@ MISSING_OPTIONAL=0
 
 # Required API keys
 if [ -z "$OPENAI_API_KEY" ]; then
-    echo "⚠️  WARNING: OPENAI_API_KEY is not set (required)"
+    echo "WARNING: OPENAI_API_KEY is not set (required)"
     MISSING_REQUIRED=1
 fi
 
 if [ -z "$TWILIO_ACCOUNT_SID" ]; then
-    echo "⚠️  WARNING: TWILIO_ACCOUNT_SID is not set (required)"
+    echo "WARNING: TWILIO_ACCOUNT_SID is not set (required)"
     MISSING_REQUIRED=1
 fi
 
 if [ -z "$TWILIO_AUTH_TOKEN" ]; then
-    echo "⚠️  WARNING: TWILIO_AUTH_TOKEN is not set (required)"
+    echo "WARNING: TWILIO_AUTH_TOKEN is not set (required)"
     MISSING_REQUIRED=1
 fi
 
 if [ -z "$TWILIO_VERIFY_SERVICE_SID" ]; then
-    echo "⚠️  WARNING: TWILIO_VERIFY_SERVICE_SID is not set (required)"
+    echo "WARNING: TWILIO_VERIFY_SERVICE_SID is not set (required)"
     MISSING_REQUIRED=1
 fi
 
 if [ -z "$JWT_SECRET" ]; then
-    echo "⚠️  WARNING: JWT_SECRET is not set (required)"
+    echo "WARNING: JWT_SECRET is not set (required)"
     MISSING_REQUIRED=1
 fi
 
 # Optional API keys
 if [ -z "$TAVILY_API_KEY" ]; then
-    echo "ℹ️  INFO: TAVILY_API_KEY is not set (optional)"
+    echo "INFO: TAVILY_API_KEY is not set (optional)"
     MISSING_OPTIONAL=1
 fi
 
 if [ -z "$EXPO_ACCESS_TOKEN" ]; then
-    echo "ℹ️  INFO: EXPO_ACCESS_TOKEN is not set (optional)"
+    echo "INFO: EXPO_ACCESS_TOKEN is not set (optional)"
     MISSING_OPTIONAL=1
 fi
 
 if [ $MISSING_REQUIRED -eq 1 ]; then
     echo ""
-    echo "❌ ERROR: Required API keys are missing!"
+    echo "ERROR: Required API keys are missing!"
     echo "The server will fail to start without these keys."
     echo "Please set them in docker-compose.yml or a .env file."
     echo ""
@@ -61,7 +61,7 @@ fi
 
 if [ $MISSING_OPTIONAL -eq 1 ]; then
     echo ""
-    echo "💡 Optional API keys are not set. Some features may be limited."
+    echo "Note: Optional API keys are not set. Some features may be limited."
     echo ""
 fi
 

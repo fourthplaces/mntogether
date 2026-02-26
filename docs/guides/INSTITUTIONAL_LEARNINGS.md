@@ -220,7 +220,7 @@ pub twilio: Arc<dyn BaseTwilioService>,
 
 ### Key Documentation
 - **CLAUDE.md** - Hard rules and patterns (MUST READ)
-- **docs/ROOT_EDITORIAL_PIVOT.md** - Pivot bible: what survives, what's dead
+- **docs/architecture/ROOT_EDITORIAL_PIVOT.md** - Pivot bible: what survives, what's dead
 - **docs/architecture/DOMAIN_ARCHITECTURE.md** - Domain layer structure
 
 ### Code Examples

@@ -84,7 +84,7 @@ All domains live in `packages/server/src/domains/`:
 | `source` | Content sources | Services, Objects, Workflows | Yes |
 | `tag` | Tagging/categorization | Services | No |
 
-> **Note**: Additional domains may exist in the codebase from the pre-pivot era (chatrooms, crawling, curator, extraction, etc.). These are dead code scheduled for removal. See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md).
+> **Note**: Additional domains may exist in the codebase from the pre-pivot era (chatrooms, crawling, curator, extraction, etc.). These are dead code scheduled for removal. See [ROOT_EDITORIAL_PIVOT.md](ROOT_EDITORIAL_PIVOT.md).
 
 ## Dependency Graph
 

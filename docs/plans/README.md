@@ -2,7 +2,7 @@
 
 ## Active Plans
 
-Architectural plans and design documents. See [ROOT_EDITORIAL_PIVOT.md](../ROOT_EDITORIAL_PIVOT.md) for the overarching pivot strategy.
+Architectural plans and design documents. See [ROOT_EDITORIAL_PIVOT.md](../architecture/ROOT_EDITORIAL_PIVOT.md) for the overarching pivot strategy.
 
 ### Architecture & Infrastructure
 

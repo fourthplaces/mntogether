@@ -8,7 +8,7 @@
 
 ## Business Organization Properties
 
-### ✅ Keep as FIELDS
+### Keep as FIELDS
 
 #### Quantitative & Transactional
 ```sql
@@ -39,7 +39,7 @@ employee_count TEXT  -- '1-10', '11-50', etc.
 donation_methods TEXT[]  -- ['paypal', 'venmo', 'cash_app']
 ```
 
-### ✅ Move to TAGS
+### Move to TAGS
 
 #### Ownership (kind = 'ownership')
 ```sql

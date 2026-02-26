@@ -14,11 +14,11 @@ Comprehensive architectural audit of the Rust server codebase identifying SOLID 
 
 | Principle | Status | Key Issue |
 |-----------|--------|-----------|
-| **Single Responsibility** | ⚠️ Violations | MatchingEffect fat, PostMachine god object |
-| **Open/Closed** | ✅ Compliant | Good composite pattern usage |
-| **Liskov Substitution** | ✅ Compliant | Trait objects properly used |
-| **Interface Segregation** | ✅ Compliant | Small, focused traits |
-| **Dependency Inversion** | ⚠️ Partial | ServerDeps location, TwilioService concrete |
+| **Single Responsibility** | [!] Violations | MatchingEffect fat, PostMachine god object |
+| **Open/Closed** | [+] Compliant | Good composite pattern usage |
+| **Liskov Substitution** | [+] Compliant | Trait objects properly used |
+| **Interface Segregation** | [+] Compliant | Small, focused traits |
+| **Dependency Inversion** | [!] Partial | ServerDeps location, TwilioService concrete |
 
 **Total Issues Found:** 7 architectural issues, 10 TODO items, 1,026 terminology inconsistencies
 
