@@ -273,8 +273,8 @@ impl From<Post> for PostResult {
             published_at: p.published_at.map(|dt| dt.to_rfc3339()),
             tags: None,
             submitted_by: None,
-            schedules: None,
-            contacts: None,
+            schedules: Some(vec![]),
+            contacts: Some(vec![]),
             organization_id: None,
             organization_name: None,
             has_urgent_notes: None,
@@ -1020,43 +1020,35 @@ impl PostObject for PostObjectImpl {
                 })
                 .collect(),
         );
-        result.schedules = if schedules.is_empty() {
-            None
-        } else {
-            Some(
-                schedules
-                    .into_iter()
-                    .map(|s| PostScheduleResult {
-                        id: s.id.into_uuid(),
-                        day_of_week: s.day_of_week,
-                        opens_at: s.opens_at.map(|t| t.format("%H:%M").to_string()),
-                        closes_at: s.closes_at.map(|t| t.format("%H:%M").to_string()),
-                        timezone: s.timezone,
-                        notes: s.notes,
-                        rrule: s.rrule,
-                        dtstart: s.dtstart.map(|dt| dt.to_rfc3339()),
-                        dtend: s.dtend.map(|dt| dt.to_rfc3339()),
-                        is_all_day: s.is_all_day,
-                        duration_minutes: s.duration_minutes,
-                    })
-                    .collect(),
-            )
-        };
-        result.contacts = if contacts.is_empty() {
-            None
-        } else {
-            Some(
-                contacts
-                    .into_iter()
-                    .map(|c| PostContactResult {
-                        id: c.id,
-                        contact_type: c.contact_type,
-                        contact_value: c.contact_value,
-                        contact_label: c.contact_label,
-                    })
-                    .collect(),
-            )
-        };
+        result.schedules = Some(
+            schedules
+                .into_iter()
+                .map(|s| PostScheduleResult {
+                    id: s.id.into_uuid(),
+                    day_of_week: s.day_of_week,
+                    opens_at: s.opens_at.map(|t| t.format("%H:%M").to_string()),
+                    closes_at: s.closes_at.map(|t| t.format("%H:%M").to_string()),
+                    timezone: s.timezone,
+                    notes: s.notes,
+                    rrule: s.rrule,
+                    dtstart: s.dtstart.map(|dt| dt.to_rfc3339()),
+                    dtend: s.dtend.map(|dt| dt.to_rfc3339()),
+                    is_all_day: s.is_all_day,
+                    duration_minutes: s.duration_minutes,
+                })
+                .collect(),
+        );
+        result.contacts = Some(
+            contacts
+                .into_iter()
+                .map(|c| PostContactResult {
+                    id: c.id,
+                    contact_type: c.contact_type,
+                    contact_value: c.contact_value,
+                    contact_label: c.contact_label,
+                })
+                .collect(),
+        );
         Ok(result)
     }
 

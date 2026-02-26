@@ -23,17 +23,13 @@ export function PostCard({ post }: { post: PublicPost }) {
 
   return (
     <>
-      <Link
-        href={`/posts/${post.id}`}
-        className="bg-surface-raised p-6 border border-border hover:border-border-strong block"
-      >
+      <div className="bg-surface-raised p-6 border border-border hover:border-border-strong block relative">
         {post.organizationName && (
           <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-0.5">
             {post.organizationId ? (
               <Link
                 href={`/organizations/${post.organizationId}`}
-                onClick={(e) => e.stopPropagation()}
-                className="hover:text-text-primary"
+                className="hover:text-text-primary relative z-10"
               >
                 {post.organizationName}
               </Link>
@@ -42,6 +38,12 @@ export function PostCard({ post }: { post: PublicPost }) {
             )}
           </p>
         )}
+        {/* Stretched link — covers the whole card, sits below z-10 interactive elements */}
+        <Link
+          href={`/posts/${post.id}`}
+          className="absolute inset-0 z-0"
+          aria-label={post.title}
+        />
         <div className="flex items-center gap-2 mb-1">
           <h3 className="text-xl font-bold text-text-primary">{post.title}</h3>
           {urgentNotes.length > 0 && (
@@ -52,7 +54,7 @@ export function PostCard({ post }: { post: PublicPost }) {
                 e.stopPropagation();
                 setShowUrgent(true);
               }}
-              className="px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 shrink-0 hover:bg-red-200"
+              className="px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 shrink-0 hover:bg-red-200 relative z-10"
             >
               Urgent
             </button>
@@ -94,7 +96,7 @@ export function PostCard({ post }: { post: PublicPost }) {
             </span>
           ))}
         </div>
-      </Link>
+      </div>
 
       {/* Urgent Notes Dialog */}
       {showUrgent && (
