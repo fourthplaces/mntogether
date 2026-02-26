@@ -19,6 +19,7 @@ use server_core::domains::organization::restate::{
 use server_core::domains::posts::restate::{
     PostObject, PostObjectImpl, PostsService, PostsServiceImpl,
 };
+use server_core::domains::editions::restate::{EditionsService, EditionsServiceImpl};
 use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
 use server_core::kernel::{ServerDeps};
 use server_core::common::utils::EmbeddingService;
@@ -165,6 +166,8 @@ async fn main() -> Result<()> {
         // Posts
         .bind(PostObjectImpl::with_deps(server_deps.clone()).serve())
         .bind(PostsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Editions
+        .bind(EditionsServiceImpl::with_deps(server_deps.clone()).serve())
         // Tags
         .bind(TagsServiceImpl::with_deps(server_deps.clone()).serve())
         .build();
