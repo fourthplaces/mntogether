@@ -50,7 +50,7 @@ docker compose up -d
 docker compose exec server sqlx migrate run --source /app/packages/server/migrations
 
 # 6. Restore test data
-docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
+docker compose exec -T postgres psql -U postgres -d rooteditorial < data/local_test_db.sql
 ```
 
 ### Start Development

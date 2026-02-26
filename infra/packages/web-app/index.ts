@@ -10,7 +10,7 @@ const webAppDir = path.join(packagesDir, "web-app", "dist");
 const TEN_MINUTES = 60 * 10;
 
 // Get certificate ARN from core stack
-const coreStack = new pulumi.StackReference(`mndigitalaid-core-${config.stack}`);
+const coreStack = new pulumi.StackReference(`rooteditorial-core-${config.stack}`);
 const certificateArn = coreStack.getOutput("certificateArn");
 
 const domainParts = getDomainAndSubdomain(config.domain);

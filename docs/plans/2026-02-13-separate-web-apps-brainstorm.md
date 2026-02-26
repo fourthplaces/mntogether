@@ -31,7 +31,7 @@ Web apps only speak GraphQL via urql. They know nothing about Restate.
 ## Each Web App Bootstraps With
 
 - `next.config.ts`
-- `app/api/graphql/route.ts` — imports schema from `@mntogether/shared`
+- `app/api/graphql/route.ts` — imports schema from `@rooteditorial/shared`
 - `codegen.ts` — points to `../shared/graphql/typeDefs/**/*.graphql`
 - `lib/urql-provider.tsx` — urql client configured to `/api/graphql`
 - `gql/` — generated typed hooks (output of codegen)

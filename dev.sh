@@ -13,12 +13,12 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$REPO_ROOT" || exit 1
 
 # ── Container names ──────────────────────────────────────────────────
-C_POSTGRES="mndigitalaid_postgres"
-C_REDIS="mndigitalaid_redis"
-C_RESTATE="mndigitalaid_restate"
-C_SERVER="mndigitalaid_server"
-C_ADMIN="mndigitalaid_admin_app"
-C_WEBAPP="mndigitalaid_web_app"
+C_POSTGRES="rooteditorial_postgres"
+C_REDIS="rooteditorial_redis"
+C_RESTATE="rooteditorial_restate"
+C_SERVER="rooteditorial_server"
+C_ADMIN="rooteditorial_admin_app"
+C_WEBAPP="rooteditorial_web_app"
 
 # ── Ports ────────────────────────────────────────────────────────────
 P_POSTGRES=5432
@@ -113,7 +113,7 @@ get_status() {
       ;;
     unhealthy)
       echo "fail"
-      SERVICE_HINT="Container unhealthy. Run: docker compose logs ${container##mndigitalaid_}"
+      SERVICE_HINT="Container unhealthy. Run: docker compose logs ${container##rooteditorial_}"
       ;;
     stopped|exited)
       # Check if something else is on the port (local process)

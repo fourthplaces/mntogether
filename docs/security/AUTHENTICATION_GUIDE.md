@@ -10,7 +10,7 @@ The authentication system supports **both phone numbers and email addresses** as
 ```bash
 # JWT Configuration
 JWT_SECRET=your-secret-key
-JWT_ISSUER=mndigitalaid
+JWT_ISSUER=rooteditorial
 
 # Twilio Configuration (supports phone and email)
 TWILIO_ACCOUNT_SID=your-account-sid

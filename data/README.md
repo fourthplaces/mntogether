@@ -5,7 +5,7 @@
 The primary test data is in `local_test_db.sql.gz` — a compressed pg_dump snapshot for local development. See [LOCAL_DEV_SETUP.md](../docs/setup/LOCAL_DEV_SETUP.md) for restore instructions.
 
 ```bash
-gunzip -c data/local_test_db.sql.gz | docker compose exec -T postgres psql -U postgres -d mndigitalaid
+gunzip -c data/local_test_db.sql.gz | docker compose exec -T postgres psql -U postgres -d rooteditorial
 ```
 
 ## Seed Script (Legacy)

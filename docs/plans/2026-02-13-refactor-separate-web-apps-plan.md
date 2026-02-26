@@ -70,9 +70,9 @@ Fresh Next.js app with GraphQL boilerplate.
    └── package.json
    ```
 
-2. `package.json` — same deps as admin-app minus `react-markdown`, `swr`. Add `@mntogether/shared` workspace dependency. Dev script: `next dev --port 3001`.
+2. `package.json` — same deps as admin-app minus `react-markdown`, `swr`. Add `@rooteditorial/shared` workspace dependency. Dev script: `next dev --port 3001`.
 
-3. `app/api/graphql/route.ts` — identical pattern to admin-app: import `typeDefs, resolvers` from `@mntogether/shared`, create Yoga server.
+3. `app/api/graphql/route.ts` — identical pattern to admin-app: import `typeDefs, resolvers` from `@rooteditorial/shared`, create Yoga server.
 
 4. `lib/urql-provider.tsx` — copy from admin-app, unchanged.
 

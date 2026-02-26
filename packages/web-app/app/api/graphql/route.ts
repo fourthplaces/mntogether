@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { createYoga, createSchema } from "graphql-yoga";
-import { typeDefs, resolvers, createContext } from "@mntogether/shared";
+import { typeDefs, resolvers, createContext } from "@rooteditorial/shared";
 
 const schema = createSchema({ typeDefs, resolvers });
 

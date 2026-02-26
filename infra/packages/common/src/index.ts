@@ -35,7 +35,7 @@ export const config: Config = {
 
 /**
  * Split domain into subdomain and parent domain
- * Example: "admin.mndigitalaid.org" -> { subdomain: "admin", parentDomain: "mndigitalaid.org" }
+ * Example: "admin.mntogether.org" -> { subdomain: "admin", parentDomain: "mntogether.org" }
  */
 export function getDomainAndSubdomain(fullDomain: string) {
   const parts = fullDomain.split(".");
@@ -63,7 +63,7 @@ export function getDomainAndSubdomain(fullDomain: string) {
  */
 export function getStandardTags(additionalTags?: Record<string, string>) {
   return {
-    Project: "mndigitalaid",
+    Project: "rooteditorial",
     Environment: stack,
     ManagedBy: "pulumi",
     ...additionalTags,

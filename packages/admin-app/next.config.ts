@@ -9,7 +9,7 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   // Transpile shared package
-  transpilePackages: ["@mntogether/shared"],
+  transpilePackages: ["@rooteditorial/shared"],
 
   // Keep GraphQL server packages as external (Node.js runtime, not bundled)
   serverExternalPackages: [

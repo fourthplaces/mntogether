@@ -1,5 +1,5 @@
 {
-  "name": "mntogether",
+  "name": "rooteditorial",
   "private": true,
   "workspaces": [
     "packages/shared",

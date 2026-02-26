@@ -45,7 +45,7 @@ Edit `packages/server/.env`:
 
 ```env
 # Database (already configured for docker-compose)
-DATABASE_URL=postgresql://postgres:postgres@postgres:5432/mndigitalaid
+DATABASE_URL=postgresql://postgres:postgres@postgres:5432/rooteditorial
 REDIS_URL=redis://redis:6379
 
 # AI/ML (REQUIRED)
@@ -58,7 +58,7 @@ TWILIO_VERIFY_SERVICE_SID=VA...
 
 # JWT authentication (REQUIRED)
 JWT_SECRET=$(openssl rand -base64 32)    # Generate a secure secret
-JWT_ISSUER=mndigitalaid
+JWT_ISSUER=rooteditorial
 
 # Optional
 ADMIN_IDENTIFIERS=+1234567890            # Optional: Admin phone numbers
@@ -230,7 +230,7 @@ docker-compose down
 docker-compose up -d --build api
 
 # Clear cargo cache (if needed)
-docker volume rm mndigitalaid_api_target
+docker volume rm rooteditorial_api_target
 docker-compose up -d --build api
 ```
 

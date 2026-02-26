@@ -65,7 +65,7 @@ async fn main() -> Result<()> {
     let twilio_verify_service_sid = std::env::var("TWILIO_VERIFY_SERVICE_SID")
         .context("TWILIO_VERIFY_SERVICE_SID must be set")?;
     let jwt_secret = std::env::var("JWT_SECRET").context("JWT_SECRET must be set")?;
-    let jwt_issuer = std::env::var("JWT_ISSUER").unwrap_or_else(|_| "mndigitalaid".to_string());
+    let jwt_issuer = std::env::var("JWT_ISSUER").unwrap_or_else(|_| "rooteditorial".to_string());
     let test_identifier_enabled = std::env::var("TEST_IDENTIFIER_ENABLED")
         .unwrap_or_else(|_| "false".to_string())
         .parse::<bool>()

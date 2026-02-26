@@ -123,12 +123,12 @@ Create ECR repositories for Docker images:
 ```bash
 # Create repository for server
 aws ecr create-repository \
-  --repository-name mndigitalaid-server \
+  --repository-name rooteditorial-server \
   --region us-east-1
 
 # Create repository for Next.js app
 aws ecr create-repository \
-  --repository-name mndigitalaid-web-next \
+  --repository-name rooteditorial-web-next \
   --region us-east-1
 ```
 
@@ -139,7 +139,7 @@ For each environment (dev/prod), configure the domain:
 ```bash
 cd packages/core
 pulumi stack select dev --create
-pulumi config set domain mndigitalaid.org
+pulumi config set domain mntogether.org
 pulumi config set aws:region us-east-1
 ```
 
@@ -147,7 +147,7 @@ Repeat for prod:
 
 ```bash
 pulumi stack select prod --create
-pulumi config set domain mndigitalaid.org
+pulumi config set domain mntogether.org
 pulumi config set aws:region us-east-1
 ```
 
@@ -214,8 +214,8 @@ Each stack can have environment-specific configuration:
 # packages/server/Pulumi.dev.yaml
 config:
   aws:region: us-east-1
-  mndigitalaid-server:apiImageTag: dev-abc123
-  mndigitalaid-server:ecrRepoName: mndigitalaid-server
+  rooteditorial-server:apiImageTag: dev-abc123
+  rooteditorial-server:ecrRepoName: rooteditorial-server
 ```
 
 ### Stack References
@@ -223,7 +223,7 @@ config:
 Stacks reference each other via `StackReference`:
 
 ```typescript
-const coreStack = new pulumi.StackReference(`mndigitalaid-core-${config.stack}`);
+const coreStack = new pulumi.StackReference(`rooteditorial-core-${config.stack}`);
 const certificateArn = coreStack.getOutput("certificateArn");
 ```
 
@@ -262,10 +262,10 @@ View server logs:
 
 ```bash
 # API server
-aws logs tail /mndigitalaid/dev/api --follow
+aws logs tail /rooteditorial/dev/api --follow
 
 # Next.js app
-aws logs tail /mndigitalaid/dev/web-next --follow
+aws logs tail /rooteditorial/dev/web-next --follow
 ```
 
 ### CloudWatch Metrics
@@ -285,7 +285,7 @@ Run migrations after deploying the server:
 ```bash
 # Connect to ECS task
 aws ecs execute-command \
-  --cluster mndigitalaid-dev \
+  --cluster rooteditorial-dev \
   --task <task-id> \
   --container api \
   --interactive \
@@ -355,7 +355,7 @@ pulumi logs --follow
 
 1. Check ECS task logs:
 ```bash
-aws logs tail /mndigitalaid/dev/api --follow
+aws logs tail /rooteditorial/dev/api --follow
 ```
 
 2. Verify environment variables are set correctly
@@ -366,7 +366,7 @@ aws logs tail /mndigitalaid/dev/api --follow
 
 1. Check S3 bucket has files:
 ```bash
-aws s3 ls s3://admin.mndigitalaid.org/
+aws s3 ls s3://admin.mntogether.org/
 ```
 
 2. Check CloudFront distribution status:
@@ -426,8 +426,8 @@ aws cloudfront get-distribution --id <dist-id>
 
 ```bash
 aws rds restore-db-instance-from-db-snapshot \
-  --db-instance-identifier mndigitalaid-restored \
-  --db-snapshot-identifier mndigitalaid-snapshot-1
+  --db-instance-identifier rooteditorial-restored \
+  --db-snapshot-identifier rooteditorial-snapshot-1
 ```
 
 ### Infrastructure as Code

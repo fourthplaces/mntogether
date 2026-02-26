@@ -25,7 +25,7 @@ services:
       dockerfile: packages/server/Dockerfile
       args:
         BUILDKIT_INLINE_CACHE: 1
-    container_name: mndigitalaid_api_prod
+    container_name: rooteditorial_api_prod
     environment:
       # Database & Cache (use external managed services)
       DATABASE_URL: ${DATABASE_URL}
@@ -49,7 +49,7 @@ services:
 
       # JWT Authentication
       JWT_SECRET: ${JWT_SECRET}
-      JWT_ISSUER: ${JWT_ISSUER:-mndigitalaid}
+      JWT_ISSUER: ${JWT_ISSUER:-rooteditorial}
 
       # Admin Authorization
       ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS}
@@ -96,7 +96,7 @@ services:
       dockerfile: Dockerfile
       args:
         RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
-    container_name: mndigitalaid_admin_app_prod
+    container_name: rooteditorial_admin_app_prod
     environment:
       NODE_ENV: production
       PORT: 3000
@@ -130,5 +130,5 @@ services:
 # ========================================
 networks:
   default:
-    name: mndigitalaid_prod_network
+    name: rooteditorial_prod_network
     driver: bridge

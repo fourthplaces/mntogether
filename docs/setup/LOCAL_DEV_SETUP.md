@@ -27,7 +27,7 @@ docker compose up -d
 docker compose exec server sqlx migrate run --source /app/packages/server/migrations
 
 # 6. Restore test data (if available)
-docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
+docker compose exec -T postgres psql -U postgres -d rooteditorial < data/local_test_db.sql
 ```
 
 ## Restoring the Test Database
@@ -41,12 +41,12 @@ To restore:
 
 ```bash
 # Drop and recreate (if you want a clean slate)
-docker compose exec postgres psql -U postgres -c "DROP DATABASE mndigitalaid; CREATE DATABASE mndigitalaid;"
-docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
+docker compose exec postgres psql -U postgres -c "DROP DATABASE rooteditorial; CREATE DATABASE rooteditorial;"
+docker compose exec -T postgres psql -U postgres -d rooteditorial < data/local_test_db.sql
 
 # Or just restore on top of a fresh migration
 docker compose exec server sqlx migrate run --source /app/packages/server/migrations
-docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
+docker compose exec -T postgres psql -U postgres -d rooteditorial < data/local_test_db.sql
 ```
 
 ## What the Test Data Contains

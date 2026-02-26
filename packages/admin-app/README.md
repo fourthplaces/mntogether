@@ -90,20 +90,20 @@ Build and run with Docker:
 
 ```bash
 # Build image
-docker build -t mndigitalaid-web-next .
+docker build -t rooteditorial-web-next .
 
 # Run container
 docker run -p 3000:3000 \
-  -e NEXT_PUBLIC_API_URL=https://api.mndigitalaid.org/graphql \
-  mndigitalaid-web-next
+  -e NEXT_PUBLIC_API_URL=https://api.mntogether.org/graphql \
+  rooteditorial-web-next
 ```
 
 ## Deployment
 
 The app is automatically deployed to AWS ECS Fargate via GitHub Actions:
 
-- Push to `main` → deploys to prod (https://www.mndigitalaid.org)
-- Push to `dev` → deploys to dev (https://www.dev.mndigitalaid.org)
+- Push to `main` → deploys to prod (https://www.mntogether.org)
+- Push to `dev` → deploys to dev (https://www.dev.mntogether.org)
 
 ### Manual Deployment
 
@@ -293,7 +293,7 @@ fetch('http://localhost:9080/graphql', {
 View logs in CloudWatch:
 
 ```bash
-aws logs tail /mndigitalaid/dev/web-next --follow
+aws logs tail /rooteditorial/dev/web-next --follow
 ```
 
 ## Contributing

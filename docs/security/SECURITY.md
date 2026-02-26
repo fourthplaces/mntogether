@@ -42,7 +42,7 @@
 
 ## Reporting Security Issues
 
-If you discover a security vulnerability, please email security@mndigitalaid.org with:
+If you discover a security vulnerability, please email security@mntogether.org with:
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact

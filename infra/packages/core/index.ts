@@ -15,7 +15,7 @@ const zoneId = aws.route53
   .then((zone) => zone.id);
 
 // Request wildcard certificate for all subdomains
-const cert = new aws.acm.Certificate("mndigitalaid-cert", {
+const cert = new aws.acm.Certificate("rooteditorial-cert", {
   domainName: `*.${domainParts.parentDomain}`,
   subjectAlternativeNames: [domainParts.parentDomain],
   validationMethod: "DNS",
@@ -43,7 +43,7 @@ cert.domainValidationOptions.apply((options) => {
 });
 
 // Wait for certificate validation
-const certValidation = new aws.acm.CertificateValidation("mndigitalaid-cert-validation", {
+const certValidation = new aws.acm.CertificateValidation("rooteditorial-cert-validation", {
   certificateArn: cert.arn,
   validationRecordFqdns: pulumi.all(certValidationRecords.map((r) => r.fqdn)),
 });
@@ -57,7 +57,7 @@ const defaultSubnets = await aws.ec2.getSubnets({
 });
 
 // Security group for RDS
-const dbSecurityGroup = new aws.ec2.SecurityGroup("mndigitalaid-db-sg", {
+const dbSecurityGroup = new aws.ec2.SecurityGroup("rooteditorial-db-sg", {
   vpcId: defaultVpc.id,
   description: "Allow PostgreSQL access from ECS tasks",
   ingress: [
@@ -77,11 +77,11 @@ const dbSecurityGroup = new aws.ec2.SecurityGroup("mndigitalaid-db-sg", {
       cidrBlocks: ["0.0.0.0/0"],
     },
   ],
-  tags: getStandardTags({ Name: "mndigitalaid-db-sg" }),
+  tags: getStandardTags({ Name: "rooteditorial-db-sg" }),
 });
 
 // DB subnet group
-const dbSubnetGroup = new aws.rds.SubnetGroup("mndigitalaid-db-subnet", {
+const dbSubnetGroup = new aws.rds.SubnetGroup("rooteditorial-db-subnet", {
   subnetIds: defaultSubnets.ids,
   tags: getStandardTags(),
 });
@@ -94,35 +94,35 @@ const dbPassword = new random.RandomPassword("db-password", {
 });
 
 // RDS PostgreSQL instance
-const dbInstance = new aws.rds.Instance("mndigitalaid-db", {
+const dbInstance = new aws.rds.Instance("rooteditorial-db", {
   engine: "postgres",
   engineVersion: "16.4",
   instanceClass: config.isDev ? "db.t3.micro" : "db.t3.small",
   allocatedStorage: config.isDev ? 20 : 50,
   storageType: "gp3",
-  dbName: "mndigitalaid",
+  dbName: "rooteditorial",
   username: "postgres",
   password: dbPassword.result,
   vpcSecurityGroupIds: [dbSecurityGroup.id],
   dbSubnetGroupName: dbSubnetGroup.name,
   skipFinalSnapshot: config.isDev,
-  finalSnapshotIdentifier: config.isDev ? undefined : `mndigitalaid-final-${Date.now()}`,
+  finalSnapshotIdentifier: config.isDev ? undefined : `rooteditorial-final-${Date.now()}`,
   backupRetentionPeriod: config.isDev ? 1 : 7,
   publiclyAccessible: false,
   storageEncrypted: true,
   multiAz: config.isProd,
   enabledCloudwatchLogsExports: ["postgresql"],
-  tags: getStandardTags({ Name: "mndigitalaid-db" }),
+  tags: getStandardTags({ Name: "rooteditorial-db" }),
 });
 
 // Store DB credentials in Secrets Manager
-const dbSecret = new aws.secretsmanager.Secret("mndigitalaid-db-secret", {
-  name: `mndigitalaid/${config.stack}/database`,
+const dbSecret = new aws.secretsmanager.Secret("rooteditorial-db-secret", {
+  name: `rooteditorial/${config.stack}/database`,
   description: "PostgreSQL database credentials",
   tags: getStandardTags(),
 });
 
-const dbSecretVersion = new aws.secretsmanager.SecretVersion("mndigitalaid-db-secret-version", {
+const dbSecretVersion = new aws.secretsmanager.SecretVersion("rooteditorial-db-secret-version", {
   secretId: dbSecret.id,
   secretString: pulumi.jsonStringify({
     host: dbInstance.address,

@@ -264,9 +264,9 @@ docker compose -f docker-compose.prod.yml up -d
 
 Docker volumes are used for data persistence:
 
-- `mndigitalaid_postgres_data` - PostgreSQL database
-- `mndigitalaid_redis_data` - Redis data
-- `mndigitalaid_rust_target` - Rust build cache
+- `rooteditorial_postgres_data` - PostgreSQL database
+- `rooteditorial_redis_data` - Redis data
+- `rooteditorial_rust_target` - Rust build cache
 
 These volumes persist even after `docker compose down`. To remove them:
 

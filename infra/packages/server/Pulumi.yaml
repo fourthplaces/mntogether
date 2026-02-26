@@ -1,3 +1,3 @@
-name: mndigitalaid-server
+name: rooteditorial-server
 runtime: nodejs
 description: Server deployment to ECS Fargate with ALB

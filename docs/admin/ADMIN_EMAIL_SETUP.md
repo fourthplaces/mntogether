@@ -41,7 +41,7 @@ ADMIN_IDENTIFIERS=admin@example.com,+15551234567
 The simplest way: restore the test database which includes a pre-configured admin:
 
 ```bash
-docker compose exec -T postgres psql -U postgres -d mndigitalaid < data/local_test_db.sql
+docker compose exec -T postgres psql -U postgres -d rooteditorial < data/local_test_db.sql
 ```
 
 This creates an admin user with phone `+1234567890` (use with `TEST_IDENTIFIER_ENABLED=true`).

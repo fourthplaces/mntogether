@@ -1,7 +1,4 @@
 # Root Editorial Deployment Guide
-
-> **Note**: AWS resource names (`mndigitalaid-*`) reflect the original project name and haven't been renamed in infrastructure. The project is now Root Editorial but the deployment resources retain their original names.
-
 Complete guide for deploying Root Editorial to AWS using Pulumi and GitHub Actions.
 
 ## Overview
@@ -12,9 +9,9 @@ The deployment infrastructure consists of:
 - **CI/CD**: GitHub Actions for automated deployments
 - **Environments**: Development (`dev`) and Production (`prod`)
 - **Hosting**:
-  - Admin SPA → CloudFront + S3 (admin.mndigitalaid.org)
-  - Web App → CloudFront + S3 (app.mndigitalaid.org)
-  - Server API → ECS Fargate + ALB (api.mndigitalaid.org)
+  - Admin SPA → CloudFront + S3 (admin.mntogether.org)
+  - Web App → CloudFront + S3 (app.mntogether.org)
+  - Server API → ECS Fargate + ALB (api.mntogether.org)
   - Database → RDS PostgreSQL with pgvector
 
 ## Initial Setup
@@ -40,7 +37,7 @@ cat > github-trust-policy.json <<EOF
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
         },
         "StringLike": {
-          "token.actions.githubusercontent.com:sub": "repo:fourthplaces/mndigitalaid:*"
+          "token.actions.githubusercontent.com:sub": "repo:fourthplaces/mntogether:*"
         }
       }
     }
@@ -50,12 +47,12 @@ EOF
 
 # Create IAM role
 aws iam create-role \
-  --role-name github-actions-mndigitalaid \
+  --role-name github-actions-rooteditorial \
   --assume-role-policy-document file://github-trust-policy.json
 
 # Attach policies (adjust as needed)
 aws iam attach-role-policy \
-  --role-name github-actions-mndigitalaid \
+  --role-name github-actions-rooteditorial \
   --policy-arn arn:aws:iam::aws:policy/AdministratorAccess
 ```
 
@@ -63,7 +60,7 @@ aws iam attach-role-policy \
 
 ```bash
 aws ecr create-repository \
-  --repository-name mndigitalaid-server \
+  --repository-name rooteditorial-server \
   --region us-east-1
 ```
 
@@ -73,14 +70,14 @@ Ensure you have a hosted zone for your domain:
 
 ```bash
 aws route53 list-hosted-zones
-# Should show mndigitalaid.org
+# Should show mntogether.org
 ```
 
 If not, create one:
 
 ```bash
 aws route53 create-hosted-zone \
-  --name mndigitalaid.org \
+  --name mntogether.org \
   --caller-reference $(date +%s)
 ```
 
@@ -90,7 +87,7 @@ aws route53 create-hosted-zone \
 
 1. Go to https://app.pulumi.com
 2. Sign up (free tier is sufficient)
-3. Create a new organization (e.g., "mndigitalaid")
+3. Create a new organization (e.g., "rooteditorial")
 
 #### Get Pulumi Access Token
 
@@ -113,7 +110,7 @@ Add these secrets to your GitHub repository (Settings → Secrets and variables 
 
 ```
 AWS_ROLE_ARN
-  Value: arn:aws:iam::<AWS_ACCOUNT_ID>:role/github-actions-mndigitalaid
+  Value: arn:aws:iam::<AWS_ACCOUNT_ID>:role/github-actions-rooteditorial
 
 PULUMI_ACCESS_TOKEN
   Value: <your-pulumi-access-token>
@@ -122,7 +119,7 @@ PULUMI_CONFIG_PASSPHRASE
   Value: <your-generated-passphrase>
 
 ECR_REPOSITORY
-  Value: mndigitalaid-server
+  Value: rooteditorial-server
 ```
 
 ### 5. Local Development Setup
@@ -227,12 +224,12 @@ After deploying the server for the first time:
 ```bash
 # Get ECS task ID
 aws ecs list-tasks \
-  --cluster mndigitalaid-dev \
+  --cluster rooteditorial-dev \
   --service-name api-service
 
 # Connect to task
 aws ecs execute-command \
-  --cluster mndigitalaid-dev \
+  --cluster rooteditorial-dev \
   --task <task-id> \
   --container api \
   --interactive \
@@ -247,13 +244,13 @@ sqlx migrate run
 
 ```bash
 # Check API health
-curl https://api.mndigitalaid.org/health
+curl https://api.mntogether.org/health
 
 # Check admin SPA
-curl -I https://admin.mndigitalaid.org
+curl -I https://admin.mntogether.org
 
 # Check web app
-curl -I https://app.mndigitalaid.org
+curl -I https://app.mntogether.org
 ```
 
 ### 3. Generate Embeddings
@@ -263,7 +260,7 @@ After database is set up:
 ```bash
 # Connect to ECS task
 aws ecs execute-command \
-  --cluster mndigitalaid-prod \
+  --cluster rooteditorial-prod \
   --task <task-id> \
   --container api \
   --interactive \
@@ -279,17 +276,17 @@ aws ecs execute-command \
 
 ```bash
 # Server logs
-aws logs tail /mndigitalaid/prod/api --follow
+aws logs tail /rooteditorial/prod/api --follow
 
 # Filter for errors
-aws logs tail /mndigitalaid/prod/api --follow --filter-pattern "ERROR"
+aws logs tail /rooteditorial/prod/api --follow --filter-pattern "ERROR"
 ```
 
 ### ECS Service Status
 
 ```bash
 aws ecs describe-services \
-  --cluster mndigitalaid-prod \
+  --cluster rooteditorial-prod \
   --services api-service
 ```
 
@@ -297,7 +294,7 @@ aws ecs describe-services \
 
 ```bash
 aws rds describe-db-instances \
-  --db-instance-identifier mndigitalaid-db-prod
+  --db-instance-identifier rooteditorial-db-prod
 ```
 
 ## Troubleshooting
@@ -324,13 +321,13 @@ pulumi logs --follow
 
 1. **Check ECS logs**:
 ```bash
-aws logs tail /mndigitalaid/prod/api --follow
+aws logs tail /rooteditorial/prod/api --follow
 ```
 
 2. **Check service events**:
 ```bash
 aws ecs describe-services \
-  --cluster mndigitalaid-prod \
+  --cluster rooteditorial-prod \
   --services api-service \
   --query 'services[0].events[:10]'
 ```
@@ -344,7 +341,7 @@ aws ecs describe-services \
 
 1. **Check S3 bucket**:
 ```bash
-aws s3 ls s3://admin.mndigitalaid.org/
+aws s3 ls s3://admin.mntogether.org/
 ```
 
 2. **Check CloudFront distribution**:
@@ -394,11 +391,11 @@ pulumi up --yes
 ```bash
 # List snapshots
 aws rds describe-db-snapshots \
-  --db-instance-identifier mndigitalaid-db-prod
+  --db-instance-identifier rooteditorial-db-prod
 
 # Restore from snapshot
 aws rds restore-db-instance-from-db-snapshot \
-  --db-instance-identifier mndigitalaid-db-restored \
+  --db-instance-identifier rooteditorial-db-restored \
   --db-snapshot-identifier <snapshot-id>
 ```
 
@@ -408,7 +405,7 @@ aws rds restore-db-instance-from-db-snapshot \
 
 Use AWS Cost Explorer:
 1. AWS Console → Cost Explorer
-2. Filter by tag: Project=mndigitalaid
+2. Filter by tag: Project=rooteditorial
 3. View by service
 
 ### Cost Optimization Tips

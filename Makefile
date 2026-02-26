@@ -132,7 +132,7 @@ embeddings:
 
 # Open PostgreSQL shell
 db-shell:
-	docker compose exec postgres psql -U postgres -d mndigitalaid
+	docker compose exec postgres psql -U postgres -d rooteditorial
 
 # Reset database (WARNING: drops all data)
 db-reset:
@@ -140,8 +140,8 @@ db-reset:
 	@read -p "Are you sure? (y/N) " -n 1 -r; \
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS mndigitalaid;"; \
-		docker compose exec postgres psql -U postgres -c "CREATE DATABASE mndigitalaid;"; \
+		docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS rooteditorial;"; \
+		docker compose exec postgres psql -U postgres -c "CREATE DATABASE rooteditorial;"; \
 		$(MAKE) migrate; \
 		echo "Database reset complete."; \
 	else \
@@ -187,7 +187,7 @@ clean:
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose down -v; \
-		docker volume rm mndigitalaid_postgres_data mndigitalaid_redis_data mndigitalaid_rust_target 2>/dev/null || true; \
+		docker volume rm rooteditorial_postgres_data rooteditorial_redis_data rooteditorial_rust_target 2>/dev/null || true; \
 		echo "Cleanup complete."; \
 	else \
 		echo "Cancelled"; \

@@ -40,7 +40,7 @@ if ctx.deps().test_identifier_enabled && !cfg!(debug_assertions) {
 
 # Required
 JWT_SECRET=<strong-random-secret>
-JWT_ISSUER=mndigitalaid
+JWT_ISSUER=rooteditorial
 TWILIO_ACCOUNT_SID=<your-sid>
 TWILIO_AUTH_TOKEN=<your-token>
 TWILIO_VERIFY_SERVICE_SID=<your-service-sid>

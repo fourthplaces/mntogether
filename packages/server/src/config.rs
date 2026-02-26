@@ -46,7 +46,7 @@ impl Config {
             twilio_verify_service_sid: env::var("TWILIO_VERIFY_SERVICE_SID")
                 .context("TWILIO_VERIFY_SERVICE_SID must be set")?,
             jwt_secret: env::var("JWT_SECRET").context("JWT_SECRET must be set")?,
-            jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "mndigitalaid".to_string()),
+            jwt_issuer: env::var("JWT_ISSUER").unwrap_or_else(|_| "rooteditorial".to_string()),
             allowed_origins: env::var("ALLOWED_ORIGINS")
                 .unwrap_or_else(|_| {
                     if cfg!(debug_assertions) {
@@ -97,7 +97,7 @@ impl Config {
         let optional_vars = vec![
             ("REDIS_URL", "redis://localhost:6379"),
             ("PORT", "8080"),
-            ("JWT_ISSUER", "mndigitalaid"),
+            ("JWT_ISSUER", "rooteditorial"),
             ("ALLOWED_ORIGINS", "auto-configured"),
             ("TEST_IDENTIFIER_ENABLED", "false"),
             ("ADMIN_IDENTIFIERS", "empty"),

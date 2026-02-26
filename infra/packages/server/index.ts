@@ -8,7 +8,7 @@ const subdomain = "api";
 const fullDomain = `${subdomain}.${domainParts.parentDomain}`;
 
 // Get outputs from core stack
-const coreStack = new pulumi.StackReference(`mndigitalaid-core-${config.stack}`);
+const coreStack = new pulumi.StackReference(`rooteditorial-core-${config.stack}`);
 const certificateArn = coreStack.getOutput("certificateArn");
 const databaseSecretArn = coreStack.getOutput("databaseSecretArn");
 const vpcId = coreStack.getOutput("vpcId");
@@ -33,7 +33,7 @@ const ecrRepo = aws.ecr.getRepository({ name: ecrRepoName });
 // ========== CloudWatch Logs ==========
 
 const apiLogGroup = new aws.cloudwatch.LogGroup("api-logs", {
-  name: `/mndigitalaid/${config.stack}/api`,
+  name: `/rooteditorial/${config.stack}/api`,
   retentionInDays: config.isDev ? 7 : 30,
   tags: getStandardTags(),
 });
@@ -160,7 +160,7 @@ new aws.lb.Listener("api-http", {
 // ========== ECS Cluster and Service ==========
 
 const cluster = new aws.ecs.Cluster("api-cluster", {
-  name: `mndigitalaid-${config.stack}`,
+  name: `rooteditorial-${config.stack}`,
   settings: [
     {
       name: "containerInsights",
@@ -230,7 +230,7 @@ const taskRole = new aws.iam.Role("task-role", {
 
 // Task definition
 const taskDefinition = new aws.ecs.TaskDefinition("api-task", {
-  family: `mndigitalaid-api-${config.stack}`,
+  family: `rooteditorial-api-${config.stack}`,
   networkMode: "awsvpc",
   requiresCompatibilities: ["FARGATE"],
   cpu: config.isDev ? "256" : "512",
