@@ -40,9 +40,8 @@ Thumbs.db
 # Testing
 .testcontainers-*
 
-# Dev CLI
-/dev/cli/target/
-.dev/history.json
+# Dev tooling
+.dev/
 
 # Infrastructure
 .infra-env

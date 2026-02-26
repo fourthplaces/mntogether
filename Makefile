@@ -230,10 +230,6 @@ health:
 watch:
 	docker compose exec server cargo watch -x 'run --bin server'
 
-# Interactive development CLI
-dev-cli:
-	./dev.sh
-
 # Create a new database migration
 migration:
 	@read -p "Migration name: " name; \

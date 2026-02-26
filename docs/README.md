@@ -10,7 +10,6 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Local Dev Setup](setup/LOCAL_DEV_SETUP.md) - Local development environment and test data
 - [Docker Guide](setup/DOCKER_GUIDE.md) - Docker Compose setup and commands
 - [Quick Start](setup/QUICK_START.md) - Fast getting started guide
-- [Development CLI](setup/DEV_CLI.md) - Interactive development CLI usage
 - [Docker Setup](setup/DOCKER_SETUP.md) - Docker and containerization setup
 - [Deployment](setup/DEPLOYMENT.md) - Production deployment guide
 

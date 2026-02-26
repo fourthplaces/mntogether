@@ -129,7 +129,7 @@ OPENAI_API_KEY  # No longer needed
    ```bash
    cargo run --bin server
    # or
-   ./dev-cli  # then select "Run database migrations"
+   make migrate  # Run database migrations
    ```
 3. **Restart Services**: All embeddings need to be regenerated with the new model
 4. **Test**: Run tests to ensure everything works:
