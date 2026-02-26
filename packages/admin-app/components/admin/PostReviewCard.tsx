@@ -35,10 +35,13 @@ interface PostReviewCardProps {
   isRejecting?: boolean;
 }
 
-const TYPE_VARIANTS: Record<string, "info" | "success" | "business" | "default"> = {
-  service: "info",
-  opportunity: "success",
-  business: "business",
+const TYPE_VARIANTS: Record<string, "info" | "success" | "spotlight" | "warning" | "default"> = {
+  story: "info",
+  notice: "default",
+  exchange: "success",
+  event: "warning",
+  spotlight: "spotlight",
+  reference: "info",
 };
 
 const URGENCY_VARIANTS: Record<string, "danger" | "warning" | "success" | "default"> = {

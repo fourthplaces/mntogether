@@ -8,7 +8,7 @@ use uuid::Uuid;
 use crate::common::{ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
-/// Listing - a service, opportunity, or business listing
+/// A post — community content in one of 6 types (story, notice, exchange, event, spotlight, reference).
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Post {
     pub id: PostId,
@@ -19,9 +19,11 @@ pub struct Post {
     pub description_markdown: Option<String>,
     pub summary: Option<String>,
 
-    // Hot path fields (hybrid approach)
-    pub post_type: String, // 'service', 'opportunity', 'business'
+    // Type system (Phase 2)
+    pub post_type: String, // 'story', 'notice', 'exchange', 'event', 'spotlight', 'reference'
     pub category: String,
+    pub weight: String,  // 'heavy', 'medium', 'light' — layout column width
+    pub priority: i32,   // editorial importance (higher = more prominent)
     pub capacity_status: Option<String>, // 'accepting', 'paused', 'at_capacity'
     pub urgency: Option<String>,         // 'low', 'medium', 'high', 'urgent'
     pub status: String, // 'pending_approval', 'active', 'filled', 'rejected', 'expired'
@@ -163,23 +165,28 @@ pub struct PostWithSourceType {
 // Enums for type-safe edges
 // =============================================================================
 
-/// Listing type enum
+/// Post type enum — form presets, not rigid schemas.
+/// Types set which field groups are open by default; all groups are available on all types.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PostType {
-    Service,      // Food shelf, legal aid, housing help
-    Professional, // Lawyer, doctor, social worker
-    Business,     // Restaurant, shop
-    Opportunity,  // Volunteer role, job, event
+    Story,     // Feature articles, narratives
+    Notice,    // Announcements, alerts, public notices
+    Exchange,  // Needs/offers, services, opportunities
+    Event,     // Calendar events with datetime/location
+    Spotlight, // Community member or business profiles
+    Reference, // Directories, resource lists
 }
 
 impl std::fmt::Display for PostType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PostType::Service => write!(f, "service"),
-            PostType::Professional => write!(f, "professional"),
-            PostType::Business => write!(f, "business"),
-            PostType::Opportunity => write!(f, "opportunity"),
+            PostType::Story => write!(f, "story"),
+            PostType::Notice => write!(f, "notice"),
+            PostType::Exchange => write!(f, "exchange"),
+            PostType::Event => write!(f, "event"),
+            PostType::Spotlight => write!(f, "spotlight"),
+            PostType::Reference => write!(f, "reference"),
         }
     }
 }
@@ -189,11 +196,45 @@ impl std::str::FromStr for PostType {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "service" => Ok(PostType::Service),
-            "professional" => Ok(PostType::Professional),
-            "business" => Ok(PostType::Business),
-            "opportunity" => Ok(PostType::Opportunity),
-            _ => Err(anyhow::anyhow!("Invalid listing type: {}", s)),
+            "story" => Ok(PostType::Story),
+            "notice" => Ok(PostType::Notice),
+            "exchange" => Ok(PostType::Exchange),
+            "event" => Ok(PostType::Event),
+            "spotlight" => Ok(PostType::Spotlight),
+            "reference" => Ok(PostType::Reference),
+            _ => Err(anyhow::anyhow!("Invalid post type: {}", s)),
+        }
+    }
+}
+
+/// Layout weight — determines column width on the broadsheet.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum Weight {
+    Heavy,  // Full-width feature
+    Medium, // Half-width
+    Light,  // Third-width or sidebar
+}
+
+impl std::fmt::Display for Weight {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Weight::Heavy => write!(f, "heavy"),
+            Weight::Medium => write!(f, "medium"),
+            Weight::Light => write!(f, "light"),
+        }
+    }
+}
+
+impl std::str::FromStr for Weight {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "heavy" => Ok(Weight::Heavy),
+            "medium" => Ok(Weight::Medium),
+            "light" => Ok(Weight::Light),
+            _ => Err(anyhow::anyhow!("Invalid weight: {}", s)),
         }
     }
 }
@@ -318,10 +359,14 @@ pub struct CreatePost {
     // Optional fields - have defaults
     #[builder(default)]
     pub summary: Option<String>,
-    #[builder(default = "opportunity".to_string())]
+    #[builder(default = "notice".to_string())]
     pub post_type: String,
     #[builder(default = "general".to_string())]
     pub category: String,
+    #[builder(default = "medium".to_string())]
+    pub weight: String,
+    #[builder(default)]
+    pub priority: i32,
     #[builder(default)]
     pub capacity_status: Option<String>,
     #[builder(default)]
@@ -360,7 +405,13 @@ pub struct UpdatePostContent {
     #[builder(default)]
     pub summary: Option<String>,
     #[builder(default)]
+    pub post_type: Option<String>,
+    #[builder(default)]
     pub category: Option<String>,
+    #[builder(default)]
+    pub weight: Option<String>,
+    #[builder(default)]
+    pub priority: Option<i32>,
     #[builder(default)]
     pub urgency: Option<String>,
     #[builder(default)]
@@ -789,7 +840,7 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Create a new listing (returns inserted record with defaults applied)
+    /// Create a new post (returns inserted record with defaults applied)
     pub async fn create(input: CreatePost, pool: &PgPool) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
             r#"
@@ -799,6 +850,8 @@ impl Post {
                 summary,
                 post_type,
                 category,
+                weight,
+                priority,
                 capacity_status,
                 urgency,
                 location,
@@ -810,7 +863,7 @@ impl Post {
                 revision_of_post_id,
                 translation_of_id,
                 published_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING *
             "#,
         )
@@ -819,6 +872,8 @@ impl Post {
         .bind(input.summary)
         .bind(input.post_type)
         .bind(input.category)
+        .bind(input.weight)
+        .bind(input.priority)
         .bind(input.capacity_status)
         .bind(input.urgency)
         .bind(input.location)
@@ -874,7 +929,7 @@ impl Post {
         Ok(post)
     }
 
-    /// Update listing content (for edit + approve)
+    /// Update post content (for edit + approve)
     pub async fn update_content(input: UpdatePostContent, pool: &PgPool) -> Result<Self> {
         let post = sqlx::query_as::<_, Post>(
             r#"
@@ -884,9 +939,12 @@ impl Post {
                 description = COALESCE($3, description),
                 description_markdown = COALESCE($4, description_markdown),
                 summary = COALESCE($5, summary),
-                category = COALESCE($6, category),
-                urgency = COALESCE($7, urgency),
-                location = COALESCE($8, location),
+                post_type = COALESCE($6, post_type),
+                category = COALESCE($7, category),
+                weight = COALESCE($8, weight),
+                priority = COALESCE($9, priority),
+                urgency = COALESCE($10, urgency),
+                location = COALESCE($11, location),
                 relevance_score = NULL,
                 relevance_breakdown = NULL,
                 scored_at = NULL,
@@ -900,7 +958,10 @@ impl Post {
         .bind(input.description)
         .bind(input.description_markdown)
         .bind(input.summary)
+        .bind(input.post_type)
         .bind(input.category)
+        .bind(input.weight)
+        .bind(input.priority)
         .bind(input.urgency)
         .bind(input.location)
         .fetch_one(pool)
@@ -1533,7 +1594,7 @@ impl Post {
             .revision_of_post_id
             .ok_or_else(|| anyhow::anyhow!("Not a revision post"))?;
 
-        // Copy revision fields to original
+        // Copy revision fields to original (including type system fields)
         let updated = Self::update_content(
             UpdatePostContent::builder()
                 .id(original_id)
@@ -1541,7 +1602,10 @@ impl Post {
                 .description(Some(revision.description))
                 .description_markdown(revision.description_markdown)
                 .summary(revision.summary)
+                .post_type(Some(revision.post_type))
                 .category(Some(revision.category))
+                .weight(Some(revision.weight))
+                .priority(Some(revision.priority))
                 .urgency(revision.urgency)
                 .location(revision.location)
                 .build(),
@@ -1559,16 +1623,16 @@ impl Post {
     // Event Schedule Queries (joins against tags)
     // =========================================================================
 
-    /// Find schedules for posts that have the `post_type: event` tag.
+    /// Find schedules for event-type posts.
     /// Used by the upcoming_events query.
     pub async fn find_event_schedules(pool: &PgPool) -> Result<Vec<Schedule>> {
         sqlx::query_as::<_, Schedule>(
             r#"
             SELECT s.* FROM schedules s
-            INNER JOIN taggables tg ON tg.taggable_type = 'post' AND tg.taggable_id = s.schedulable_id
-            INNER JOIN tags t ON t.id = tg.tag_id
+            INNER JOIN posts p ON p.id = s.schedulable_id
             WHERE s.schedulable_type = 'post'
-              AND t.kind = 'post_type' AND t.value = 'event'
+              AND p.post_type = 'event'
+              AND p.deleted_at IS NULL
             "#,
         )
         .fetch_all(pool)
@@ -1653,6 +1717,8 @@ impl Post {
                 .summary(source.summary.clone())
                 .post_type(source.post_type.clone())
                 .category(source.category.clone())
+                .weight(source.weight.clone())
+                .priority(source.priority)
                 .urgency(source.urgency.clone())
                 .location(source.location.clone())
                 .source_language(source.source_language.clone())
@@ -1675,9 +1741,9 @@ impl Post {
     // Public Filtered Queries (for home page directory)
     // =========================================================================
 
-    /// Find active posts with optional post_type and category tag filters.
+    /// Find active posts with optional post_type column and category tag filters.
     ///
-    /// - `post_type`: a `post_type` tag value like "seeking", "offering", "announcement"
+    /// - `post_type`: the post_type column value ('story', 'notice', 'exchange', etc.)
     /// - `category`: a `service_offered` tag value like "food-assistance", "legal-aid"
     pub async fn find_public_filtered(
         post_type: Option<&str>,
@@ -1689,15 +1755,13 @@ impl Post {
         let sql = format!(
             r#"
             SELECT DISTINCT p.* FROM posts p
-            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
-            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
             LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
             LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
             WHERE p.status = 'active'
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
-              AND ($1::text IS NULL OR t_pt.value = $1)
+              AND ($1::text IS NULL OR p.post_type = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
               {}
             ORDER BY p.created_at DESC
@@ -1724,15 +1788,13 @@ impl Post {
         let sql = format!(
             r#"
             SELECT COUNT(DISTINCT p.id) FROM posts p
-            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
-            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
             LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
             LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
             WHERE p.status = 'active'
               AND p.deleted_at IS NULL
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
-              AND ($1::text IS NULL OR t_pt.value = $1)
+              AND ($1::text IS NULL OR p.post_type = $1)
               AND ($2::text IS NULL OR t_cat.value = $2)
               {}
             "#,
@@ -1746,7 +1808,7 @@ impl Post {
             .map_err(Into::into)
     }
 
-    /// Find active posts near a zip code with optional post_type and category tag filters.
+    /// Find active posts near a zip code with optional post_type and category filters.
     /// Returns posts ordered by distance, with distance_miles included.
     pub async fn find_public_filtered_near_zip(
         zip_code: &str,
@@ -1775,8 +1837,6 @@ impl Post {
             INNER JOIN locations l ON l.id = pl.location_id
             INNER JOIN zip_codes z ON l.postal_code = z.zip_code
             CROSS JOIN center c
-            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
-            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
             LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
             LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
             WHERE p.status = 'active'
@@ -1784,7 +1844,7 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
-              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($3::text IS NULL OR p.post_type = $3)
               AND ($4::text IS NULL OR t_cat.value = $4)
               {}
             ORDER BY p.id, distance_miles ASC
@@ -1826,8 +1886,6 @@ impl Post {
             INNER JOIN locations l ON l.id = pl.location_id
             INNER JOIN zip_codes z ON l.postal_code = z.zip_code
             CROSS JOIN center c
-            LEFT JOIN taggables tg_pt ON tg_pt.taggable_type = 'post' AND tg_pt.taggable_id = p.id
-            LEFT JOIN tags t_pt ON t_pt.id = tg_pt.tag_id AND t_pt.kind = 'post_type'
             LEFT JOIN taggables tg_cat ON tg_cat.taggable_type = 'post' AND tg_cat.taggable_id = p.id
             LEFT JOIN tags t_cat ON t_cat.id = tg_cat.tag_id AND t_cat.kind = 'service_offered'
             WHERE p.status = 'active'
@@ -1835,7 +1893,7 @@ impl Post {
               AND p.revision_of_post_id IS NULL
               AND p.translation_of_id IS NULL
               AND haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) <= $2
-              AND ($3::text IS NULL OR t_pt.value = $3)
+              AND ($3::text IS NULL OR p.post_type = $3)
               AND ($4::text IS NULL OR t_cat.value = $4)
               {}
             "#,

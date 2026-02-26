@@ -41,10 +41,10 @@ pub async fn get_upcoming_events(limit: usize, deps: &ServerDeps) -> Result<Vec<
     // Index by ID to preserve sort order
     let post_map: HashMap<Uuid, Post> = loaded.into_iter().map(|p| (p.id.into_uuid(), p)).collect();
 
-    // Batch-load business info for business-type posts
+    // Batch-load business info for spotlight posts (formerly business type)
     let business_post_ids: Vec<Uuid> = post_map
         .values()
-        .filter(|p| p.post_type == "business")
+        .filter(|p| p.post_type == "spotlight")
         .map(|p| p.id.into_uuid())
         .collect();
     let business_map: HashMap<Uuid, BusinessPost> = if business_post_ids.is_empty() {

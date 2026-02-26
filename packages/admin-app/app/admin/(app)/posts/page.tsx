@@ -16,7 +16,7 @@ import {
 
 type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
 
-type PostTypeFilter = "all" | "service" | "opportunity" | "business";
+type PostTypeFilter = "all" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 type SourceFilter = "all" | "USER_SUBMITTED" | "SCRAPED";
 type StatusFilter = "pending_approval" | "active" | "rejected";
 
@@ -143,9 +143,12 @@ export default function PostsPage() {
 
   const stats = {
     total: statsData?.postStats?.total || 0,
-    services: statsData?.postStats?.services || 0,
-    opportunities: statsData?.postStats?.opportunities || 0,
-    businesses: statsData?.postStats?.businesses || 0,
+    stories: statsData?.postStats?.stories || 0,
+    notices: statsData?.postStats?.notices || 0,
+    exchanges: statsData?.postStats?.exchanges || 0,
+    events: statsData?.postStats?.events || 0,
+    spotlights: statsData?.postStats?.spotlights || 0,
+    references: statsData?.postStats?.references || 0,
     userSubmitted: statsData?.postStats?.userSubmitted || 0,
     scraped: statsData?.postStats?.scraped || 0,
   };
@@ -302,7 +305,7 @@ export default function PostsPage() {
         </div>
 
         {/* Stats Dashboard - Post Types */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
           <button
             className={`bg-white border-2 rounded-lg p-4 text-left transition-all ${
               selectedType === "all"
@@ -315,41 +318,27 @@ export default function PostsPage() {
             <div className="text-sm text-stone-600">All Types</div>
           </button>
 
-          <button
-            className={`bg-white border-2 rounded-lg p-4 text-left transition-all ${
-              selectedType === "service"
-                ? "border-blue-500 shadow-md"
-                : "border-stone-200 hover:border-stone-300"
-            }`}
-            onClick={() => setSelectedType("service")}
-          >
-            <div className="text-2xl font-bold text-blue-700">{stats.services}</div>
-            <div className="text-sm text-stone-600">Services</div>
-          </button>
-
-          <button
-            className={`bg-white border-2 rounded-lg p-4 text-left transition-all ${
-              selectedType === "opportunity"
-                ? "border-green-500 shadow-md"
-                : "border-stone-200 hover:border-stone-300"
-            }`}
-            onClick={() => setSelectedType("opportunity")}
-          >
-            <div className="text-2xl font-bold text-green-700">{stats.opportunities}</div>
-            <div className="text-sm text-stone-600">Opportunities</div>
-          </button>
-
-          <button
-            className={`bg-white border-2 rounded-lg p-4 text-left transition-all ${
-              selectedType === "business"
-                ? "border-purple-500 shadow-md"
-                : "border-stone-200 hover:border-stone-300"
-            }`}
-            onClick={() => setSelectedType("business")}
-          >
-            <div className="text-2xl font-bold text-purple-700">{stats.businesses}</div>
-            <div className="text-sm text-stone-600">Businesses</div>
-          </button>
+          {([
+            { key: "story" as const, label: "Stories", count: stats.stories, color: "indigo" },
+            { key: "notice" as const, label: "Notices", count: stats.notices, color: "amber" },
+            { key: "exchange" as const, label: "Exchanges", count: stats.exchanges, color: "blue" },
+            { key: "event" as const, label: "Events", count: stats.events, color: "green" },
+            { key: "spotlight" as const, label: "Spotlights", count: stats.spotlights, color: "purple" },
+            { key: "reference" as const, label: "References", count: stats.references, color: "stone" },
+          ]).map((t) => (
+            <button
+              key={t.key}
+              className={`bg-white border-2 rounded-lg p-4 text-left transition-all ${
+                selectedType === t.key
+                  ? `border-${t.color}-500 shadow-md`
+                  : "border-stone-200 hover:border-stone-300"
+              }`}
+              onClick={() => setSelectedType(t.key)}
+            >
+              <div className={`text-2xl font-bold text-${t.color}-700`}>{t.count}</div>
+              <div className="text-sm text-stone-600">{t.label}</div>
+            </button>
+          ))}
         </div>
 
         {/* Source Filter + Score Filter */}
@@ -526,9 +515,12 @@ export default function PostsPage() {
         <div className="mt-6 bg-white border border-amber-200 rounded-lg p-6">
           <h3 className="font-semibold text-amber-900 mb-3">Review Tips</h3>
           <ul className="text-sm text-stone-700 space-y-2 list-disc list-inside">
-            <li><strong>Services</strong> offer help (legal aid, healthcare, food pantries)</li>
-            <li><strong>Opportunities</strong> need help (volunteers, donations, partnerships)</li>
-            <li><strong>Businesses</strong> donate proceeds to causes</li>
+            <li><strong>Stories</strong> are feature articles and narratives</li>
+            <li><strong>Notices</strong> are announcements, alerts, and public notices</li>
+            <li><strong>Exchanges</strong> are needs/offers, services, and opportunities</li>
+            <li><strong>Events</strong> have dates, times, and locations</li>
+            <li><strong>Spotlights</strong> are community member or business profiles</li>
+            <li><strong>References</strong> are directories and resource lists</li>
             <li>Click <strong>Show more</strong> to see full details and type-specific fields</li>
             <li>Use <strong>Edit</strong> to view and improve text before approving</li>
             <li>Check source URL to verify accuracy</li>

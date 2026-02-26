@@ -5,9 +5,12 @@ export const PostStatsQuery = graphql(`
   query PostStats($status: String) {
     postStats(status: $status) {
       total
-      services
-      opportunities
-      businesses
+      stories
+      notices
+      exchanges
+      events
+      spotlights
+      references
       userSubmitted
       scraped
     }

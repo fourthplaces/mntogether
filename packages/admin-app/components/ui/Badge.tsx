@@ -7,9 +7,7 @@ const variantStyles = {
   warning: "bg-warning-bg text-warning-text",
   danger: "bg-danger-bg text-danger-text",
   info: "bg-info-bg text-info-text",
-  service: "bg-info-bg text-info-text",
-  opportunity: "bg-success-bg text-success-text",
-  business: "bg-[#F3E8FF] text-[#6B21A8]",
+  spotlight: "bg-[#F3E8FF] text-[#6B21A8]",
 };
 
 const sizeStyles = {

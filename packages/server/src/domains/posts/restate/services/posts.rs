@@ -422,9 +422,12 @@ impl_restate_serde!(PublicFiltersResult);
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostStatsResult {
     pub total: i64,
-    pub services: i64,
-    pub opportunities: i64,
-    pub businesses: i64,
+    pub stories: i64,
+    pub notices: i64,
+    pub exchanges: i64,
+    pub events: i64,
+    pub spotlights: i64,
+    pub references: i64,
     pub user_submitted: i64,
     pub scraped: i64,
 }
@@ -1348,9 +1351,12 @@ impl PostsService for PostsServiceImpl {
             .map_err(|e| TerminalError::new(e.to_string()))?;
 
         let mut total: i64 = 0;
-        let mut services: i64 = 0;
-        let mut opportunities: i64 = 0;
-        let mut businesses: i64 = 0;
+        let mut stories: i64 = 0;
+        let mut notices: i64 = 0;
+        let mut exchanges: i64 = 0;
+        let mut events: i64 = 0;
+        let mut spotlights: i64 = 0;
+        let mut references: i64 = 0;
         let mut scraped: i64 = 0;
         let mut user_submitted: i64 = 0;
 
@@ -1358,9 +1364,12 @@ impl PostsService for PostsServiceImpl {
             total += count;
 
             match post_type.as_deref() {
-                Some("service") => services += count,
-                Some("opportunity") => opportunities += count,
-                Some("business") => businesses += count,
+                Some("story") => stories += count,
+                Some("notice") => notices += count,
+                Some("exchange") => exchanges += count,
+                Some("event") => events += count,
+                Some("spotlight") => spotlights += count,
+                Some("reference") => references += count,
                 _ => {}
             }
 
@@ -1372,9 +1381,12 @@ impl PostsService for PostsServiceImpl {
 
         Ok(PostStatsResult {
             total,
-            services,
-            opportunities,
-            businesses,
+            stories,
+            notices,
+            exchanges,
+            events,
+            spotlights,
+            references,
             user_submitted,
             scraped,
         })

@@ -1,6 +1,7 @@
 export const typeDefs = /* GraphQL */ `
 enum PostStatus { pending_approval active rejected archived }
-enum PostType { service opportunity business }
+enum PostType { story notice exchange event spotlight reference }
+enum Weight { heavy medium light }
 enum OrganizationStatus { pending_review approved rejected suspended }
 
 type Query {
@@ -125,6 +126,8 @@ type Post {
   summary: String
   status: PostStatus!
   postType: PostType
+  weight: Weight
+  priority: Int
   category: String
   capacityStatus: String
   urgency: String
@@ -198,9 +201,12 @@ type Tag {
 
 type PostStats {
   total: Int!
-  services: Int!
-  opportunities: Int!
-  businesses: Int!
+  stories: Int!
+  notices: Int!
+  exchanges: Int!
+  events: Int!
+  spotlights: Int!
+  references: Int!
   userSubmitted: Int!
   scraped: Int!
 }
@@ -342,4 +348,5 @@ type Job {
   completedAt: String
   completionResult: String
 }
+
 `;

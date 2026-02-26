@@ -34,7 +34,7 @@ export interface ContactInfo {
 // Post Types
 // ============================================================================
 
-export type PostType = "service" | "opportunity" | "business" | "professional";
+export type PostType = "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
 export type CapacityStatus = "accepting" | "paused" | "at_capacity";
 export type SubmissionType = "SCRAPED" | "MANUAL" | "USER_SUBMITTED";
@@ -54,33 +54,11 @@ export interface Post {
   location?: string;
   sourceUrl?: string;
   submissionType?: SubmissionType;
+  weight?: string;
+  priority?: number;
   tags?: Tag[];
   createdAt: string;
   updatedAt?: string;
-
-  // Service-specific fields
-  requiresIdentification?: boolean;
-  requiresAppointment?: boolean;
-  walkInsAccepted?: boolean;
-  remoteAvailable?: boolean;
-  inPersonAvailable?: boolean;
-  homeVisitsAvailable?: boolean;
-  wheelchairAccessible?: boolean;
-  interpretationAvailable?: boolean;
-  freeService?: boolean;
-  slidingScaleFees?: boolean;
-  acceptsInsurance?: boolean;
-  eveningHours?: boolean;
-  weekendHours?: boolean;
-
-  // Opportunity-specific fields
-  opportunityType?: string;
-  timeCommitment?: string;
-  requiresBackgroundCheck?: boolean;
-  minimumAge?: number;
-  skillsNeeded?: string[];
-  remoteOk?: boolean;
-
 }
 
 // ============================================================================
@@ -258,19 +236,16 @@ export interface GetRecentChatsResult {
   recentChats: ChatContainer[];
 }
 
-export interface ScrapedPostsStatsResult {
-  scrapedPendingServices: { totalCount: number };
-  scrapedPendingOpportunities: { totalCount: number };
-  scrapedPendingBusinesses: { totalCount: number };
-}
-
-export interface PendingPostsStatsResult {
-  allPending: { totalCount: number };
-  pendingServices: { totalCount: number };
-  pendingOpportunities: { totalCount: number };
-  pendingBusinesses: { totalCount: number };
-  pendingUserSubmitted: { totalCount: number };
-  pendingScraped: { totalCount: number };
+export interface PostStatsResult {
+  total: number;
+  stories: number;
+  notices: number;
+  exchanges: number;
+  events: number;
+  spotlights: number;
+  references: number;
+  userSubmitted: number;
+  scraped: number;
 }
 
 // ============================================================================
