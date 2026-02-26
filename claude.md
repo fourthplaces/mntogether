@@ -8,12 +8,6 @@ Enforced by hooks in `.claude/hooks/` (registered in `.claude/settings.json`):
 - **Migration files** → `guard-migrations.sh` blocks edits/overwrites of existing files. New migrations are allowed.
 - **Code patterns** → `guard-code-patterns.sh` warns on `query_as!` macro and raw SQL in tests.
 
-## Coding Permission
-
-- NEVER start writing code or editing files until the user explicitly approves ("go", "do it", "proceed", "yes")
-- Present the plan first, wait for approval, then execute
-- Reading files for research is always OK
-
 ---
 
 ## Rust Conventions
