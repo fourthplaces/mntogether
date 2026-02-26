@@ -90,15 +90,6 @@ export const TrackPostClickMutation = graphql(`
   }
 `);
 
-export const SubmitResourceLinkMutation = graphql(`
-  mutation SubmitResourceLink($url: String!, $context: String, $submitterContact: String) {
-    submitResourceLink(url: $url, context: $context, submitterContact: $submitterContact) {
-      message
-      jobId
-    }
-  }
-`);
-
 export const AddCommentMutation = graphql(`
   mutation AddComment($postId: ID!, $content: String!, $parentMessageId: String) {
     addComment(postId: $postId, content: $content, parentMessageId: $parentMessageId) {

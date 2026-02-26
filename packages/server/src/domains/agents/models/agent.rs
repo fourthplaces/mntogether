@@ -66,15 +66,6 @@ impl Agent {
         .map_err(Into::into)
     }
 
-    pub async fn find_active_curators(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM agents WHERE role = 'curator' AND status = 'active' ORDER BY created_at DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Create a new agent with a synthetic member identity.
     ///
     /// Provisions a member row with `expo_push_token = "agent:{slug}"` to prevent

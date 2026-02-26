@@ -76,26 +76,11 @@ pub struct SubmitPostRequest {
 impl_restate_serde!(SubmitPostRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubmitResourceLinkRequest {
-    pub url: String,
-    pub submitter_contact: Option<String>,
-}
-
-impl_restate_serde!(SubmitResourceLinkRequest);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillRequest {
     pub limit: Option<i32>,
 }
 
 impl_restate_serde!(BackfillRequest);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeduplicateRequest {
-    pub similarity_threshold: Option<f64>,
-}
-
-impl_restate_serde!(DeduplicateRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpcomingEventsRequest {
@@ -144,11 +129,6 @@ impl_restate_serde!(ListPostsByOrganizationRequest);
 pub struct PublicFiltersRequest {}
 
 impl_restate_serde!(PublicFiltersRequest);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeduplicateCrossSourceRequest {}
-
-impl_restate_serde!(DeduplicateCrossSourceRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostStatsRequest {
@@ -243,14 +223,6 @@ pub struct SubmitPostResult {
 impl_restate_serde!(SubmitPostResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ResourceLinkSubmitResult {
-    pub job_id: Uuid,
-    pub status: String,
-}
-
-impl_restate_serde!(ResourceLinkSubmitResult);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BackfillResult {
     pub processed: i32,
     pub failed: i32,
@@ -258,24 +230,6 @@ pub struct BackfillResult {
 }
 
 impl_restate_serde!(BackfillResult);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeduplicateResult {
-    pub duplicates_found: i32,
-    pub posts_merged: i32,
-    pub posts_deleted: i32,
-}
-
-impl_restate_serde!(DeduplicateResult);
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DeduplicateCrossSourceResult {
-    pub batches_created: i32,
-    pub total_proposals: i32,
-    pub orgs_processed: i32,
-}
-
-impl_restate_serde!(DeduplicateCrossSourceResult);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ReportDetailResult {
@@ -493,11 +447,7 @@ pub trait PostsService {
         req: SemanticSearchRequest,
     ) -> Result<SemanticSearchResults, HandlerError>;
     async fn submit(req: SubmitPostRequest) -> Result<SubmitPostResult, HandlerError>;
-    async fn submit_resource_link(
-        req: SubmitResourceLinkRequest,
-    ) -> Result<ResourceLinkSubmitResult, HandlerError>;
     async fn backfill_embeddings(req: BackfillRequest) -> Result<BackfillResult, HandlerError>;
-    async fn deduplicate(req: DeduplicateRequest) -> Result<DeduplicateResult, HandlerError>;
     async fn list_pending_revisions(
         req: PendingRevisionsRequest,
     ) -> Result<PendingRevisionsResult, HandlerError>;
@@ -517,9 +467,6 @@ pub trait PostsService {
     async fn public_list(req: PublicListRequest) -> Result<PublicListResult, HandlerError>;
     async fn public_filters(req: PublicFiltersRequest)
         -> Result<PublicFiltersResult, HandlerError>;
-    async fn deduplicate_cross_source(
-        req: DeduplicateCrossSourceRequest,
-    ) -> Result<DeduplicateCrossSourceResult, HandlerError>;
     async fn expire_stale_posts(
         req: ExpireStalePostsRequest,
     ) -> Result<ExpireStalePostsResult, HandlerError>;
@@ -895,15 +842,6 @@ impl PostsService for PostsServiceImpl {
         Ok(result)
     }
 
-    async fn submit_resource_link(
-        &self,
-        _ctx: Context<'_>,
-        _req: SubmitResourceLinkRequest,
-    ) -> Result<ResourceLinkSubmitResult, HandlerError> {
-        // Resource link submission pipeline removed (crawling/extraction pipeline deleted)
-        Err(TerminalError::new("Resource link submission is no longer available").into())
-    }
-
     async fn backfill_embeddings(
         &self,
         ctx: Context<'_>,
@@ -928,15 +866,6 @@ impl PostsService for PostsServiceImpl {
             .await?;
 
         Ok(result)
-    }
-
-    async fn deduplicate(
-        &self,
-        _ctx: Context<'_>,
-        _req: DeduplicateRequest,
-    ) -> Result<DeduplicateResult, HandlerError> {
-        // Deduplication pipeline removed (sync/crawling pipeline deleted)
-        Err(TerminalError::new("Deduplication is no longer available").into())
     }
 
     async fn list_pending_revisions(
@@ -1312,15 +1241,6 @@ impl PostsService for PostsServiceImpl {
                 })
                 .collect(),
         })
-    }
-
-    async fn deduplicate_cross_source(
-        &self,
-        _ctx: Context<'_>,
-        _req: DeduplicateCrossSourceRequest,
-    ) -> Result<DeduplicateCrossSourceResult, HandlerError> {
-        // Cross-source deduplication pipeline removed (sync/crawling pipeline deleted)
-        Err(TerminalError::new("Cross-source deduplication is no longer available").into())
     }
 
     async fn expire_stale_posts(

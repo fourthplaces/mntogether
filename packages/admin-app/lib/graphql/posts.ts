@@ -12,7 +12,6 @@ export const PostStatsQuery = graphql(`
       spotlights
       references
       userSubmitted
-      scraped
     }
   }
 `);
@@ -22,7 +21,6 @@ export const PostsListQuery = graphql(`
     $status: String
     $search: String
     $postType: String
-    $submissionType: String
     $zipCode: String
     $radiusMiles: Float
     $limit: Int
@@ -32,7 +30,6 @@ export const PostsListQuery = graphql(`
       status: $status
       search: $search
       postType: $postType
-      submissionType: $submissionType
       zipCode: $zipCode
       radiusMiles: $radiusMiles
       limit: $limit
@@ -185,15 +182,6 @@ export const UpdatePostCapacityMutation = graphql(`
     updatePostCapacity(id: $id, capacityStatus: $capacityStatus) {
       id
       capacityStatus
-    }
-  }
-`);
-
-export const SubmitResourceLinkMutation = graphql(`
-  mutation SubmitResourceLink($url: String!, $context: String, $submitterContact: String) {
-    submitResourceLink(url: $url, context: $context, submitterContact: $submitterContact) {
-      message
-      jobId
     }
   }
 `);

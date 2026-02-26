@@ -13,7 +13,6 @@ export const PostListFields = graphql(`
     urgency
     location
     sourceUrl
-    submissionType
     createdAt
     publishedAt
     distanceMiles
@@ -45,7 +44,6 @@ export const PostDetailFields = graphql(`
     urgency
     location
     sourceUrl
-    submissionType
     createdAt
     updatedAt
     publishedAt

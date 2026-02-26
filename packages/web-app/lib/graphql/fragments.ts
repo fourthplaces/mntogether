@@ -42,7 +42,6 @@ export const PostDetailPublicFields = graphql(`
     urgency
     location
     sourceUrl
-    submissionType
     createdAt
     updatedAt
     publishedAt

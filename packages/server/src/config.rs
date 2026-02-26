@@ -9,9 +9,6 @@ pub struct Config {
     pub redis_url: String,
     pub port: u16,
     pub openai_api_key: String,
-    pub tavily_api_key: String,
-    pub firecrawl_api_key: Option<String>,
-    pub expo_access_token: Option<String>,
     pub twilio_account_sid: String,
     pub twilio_auth_token: String,
     pub twilio_verify_service_sid: String,
@@ -42,9 +39,6 @@ impl Config {
                 .parse()
                 .context("PORT must be a valid number")?,
             openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
-            tavily_api_key: env::var("TAVILY_API_KEY").context("TAVILY_API_KEY must be set")?,
-            firecrawl_api_key: env::var("FIRECRAWL_API_KEY").ok(),
-            expo_access_token: env::var("EXPO_ACCESS_TOKEN").ok(),
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID")
                 .context("TWILIO_ACCOUNT_SID must be set")?,
             twilio_auth_token: env::var("TWILIO_AUTH_TOKEN")
@@ -94,7 +88,6 @@ impl Config {
         let required_vars = vec![
             "DATABASE_URL",
             "OPENAI_API_KEY",
-            "TAVILY_API_KEY",
             "TWILIO_ACCOUNT_SID",
             "TWILIO_AUTH_TOKEN",
             "TWILIO_VERIFY_SERVICE_SID",
@@ -105,8 +98,6 @@ impl Config {
             ("REDIS_URL", "redis://localhost:6379"),
             ("PORT", "8080"),
             ("JWT_ISSUER", "mndigitalaid"),
-            ("FIRECRAWL_API_KEY", "none (403 fallback disabled)"),
-            ("EXPO_ACCESS_TOKEN", "none"),
             ("ALLOWED_ORIGINS", "auto-configured"),
             ("TEST_IDENTIFIER_ENABLED", "false"),
             ("ADMIN_IDENTIFIERS", "empty"),

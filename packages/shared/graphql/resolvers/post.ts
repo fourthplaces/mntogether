@@ -46,7 +46,6 @@ export const postResolvers = {
         status?: string;
         search?: string;
         postType?: string;
-        submissionType?: string;
         zipCode?: string;
         radiusMiles?: number;
         limit?: number;
@@ -58,7 +57,6 @@ export const postResolvers = {
         status: args.status,
         search: args.search,
         post_type: args.postType,
-        submission_type: args.submissionType,
         zip_code: args.zipCode,
         radius_miles: args.radiusMiles,
         first: args.limit,
@@ -235,18 +233,6 @@ export const postResolvers = {
     ) => {
       return ctx.restate.callService("Posts", "batch_score_posts", {
         limit: args.limit,
-      });
-    },
-
-    submitResourceLink: async (
-      _parent: unknown,
-      args: { url: string; context?: string; submitterContact?: string },
-      ctx: GraphQLContext
-    ) => {
-      return ctx.restate.callService("Posts", "submit_resource_link", {
-        url: args.url,
-        context: args.context ?? null,
-        submitter_contact: args.submitterContact ?? null,
       });
     },
 

@@ -22,7 +22,6 @@ type Query {
     status: String
     search: String
     postType: String
-    submissionType: String
     zipCode: String
     radiusMiles: Float
     limit: Int
@@ -78,7 +77,6 @@ type Mutation {
   regeneratePostTags(id: ID!): Post!
   updatePostCapacity(id: ID!, capacityStatus: String!): Post!
   batchScorePosts(limit: Int): BatchScoreResult!
-  submitResourceLink(url: String!, context: String, submitterContact: String): SubmitResourceResult!
   addComment(postId: ID!, content: String!, parentMessageId: String): Comment!
 
   # Organizations (admin)
@@ -153,7 +151,6 @@ type Post {
   urgency: String
   location: String
   sourceUrl: String
-  submissionType: String
   createdAt: String!
   updatedAt: String!
   publishedAt: String
@@ -228,18 +225,12 @@ type PostStats {
   spotlights: Int!
   references: Int!
   userSubmitted: Int!
-  scraped: Int!
 }
 
 type BatchScoreResult {
   scored: Int!
   failed: Int!
   remaining: Int!
-}
-
-type SubmitResourceResult {
-  message: String!
-  jobId: String
 }
 
 type Organization {

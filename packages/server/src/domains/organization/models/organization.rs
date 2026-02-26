@@ -264,25 +264,6 @@ impl Organization {
         .map_err(Into::into)
     }
 
-    /// Find orgs where any source was crawled more recently than the last extraction.
-    pub async fn find_needing_extraction(pool: &PgPool) -> Result<Vec<OrganizationId>> {
-        sqlx::query_scalar::<_, OrganizationId>(
-            r#"
-            SELECT DISTINCT o.id
-            FROM organizations o
-            JOIN sources s ON s.organization_id = o.id
-            WHERE s.status = 'approved' AND s.active = true
-              AND s.last_scraped_at IS NOT NULL
-              AND (o.last_extracted_at IS NULL OR s.last_scraped_at > o.last_extracted_at)
-            ORDER BY o.id
-            LIMIT 10
-            "#,
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     pub async fn update_last_extracted(id: OrganizationId, pool: &PgPool) -> Result<()> {
         sqlx::query(
             "UPDATE organizations SET last_extracted_at = NOW(), updated_at = NOW() WHERE id = $1",

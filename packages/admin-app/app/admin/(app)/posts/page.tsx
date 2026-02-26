@@ -17,13 +17,11 @@ import {
 type ScoreFilter = "all" | "high" | "review" | "noise" | "unscored";
 
 type PostTypeFilter = "all" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
-type SourceFilter = "all" | "USER_SUBMITTED" | "SCRAPED";
 type StatusFilter = "pending_approval" | "active" | "rejected";
 
 export default function PostsPage() {
   const [selectedStatus, setSelectedStatus] = useState<StatusFilter>("pending_approval");
   const [selectedType, setSelectedType] = useState<PostTypeFilter>("all");
-  const [selectedSource, setSelectedSource] = useState<SourceFilter>("all");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [zipInput, setZipInput] = useState("");
@@ -42,7 +40,7 @@ export default function PostsPage() {
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [selectedStatus, selectedType, selectedSource, searchQuery, zipCode, radiusMiles]);
+  }, [selectedStatus, selectedType, searchQuery, zipCode, radiusMiles]);
 
   // Close more menu on click outside
   useEffect(() => {
@@ -67,7 +65,6 @@ export default function PostsPage() {
     variables: {
       status: selectedStatus,
       postType: selectedType === "all" ? null : selectedType,
-      submissionType: selectedSource === "all" ? null : selectedSource,
       search: searchQuery || null,
       zipCode: zipCode || null,
       radiusMiles: zipCode ? radiusMiles : null,
@@ -150,7 +147,6 @@ export default function PostsPage() {
     spotlights: statsData?.postStats?.spotlights || 0,
     references: statsData?.postStats?.references || 0,
     userSubmitted: statsData?.postStats?.userSubmitted || 0,
-    scraped: statsData?.postStats?.scraped || 0,
   };
 
   return (
@@ -341,41 +337,8 @@ export default function PostsPage() {
           ))}
         </div>
 
-        {/* Source Filter + Score Filter */}
+        {/* Score Filter */}
         <div className="flex gap-2 mb-6 flex-wrap items-center">
-          <button
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              selectedSource === "all"
-                ? "bg-amber-600 text-white"
-                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-            }`}
-            onClick={() => setSelectedSource("all")}
-          >
-            All Sources ({stats.total})
-          </button>
-          <button
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              selectedSource === "USER_SUBMITTED"
-                ? "bg-amber-600 text-white"
-                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-            }`}
-            onClick={() => setSelectedSource("USER_SUBMITTED")}
-          >
-            User Submitted ({stats.userSubmitted})
-          </button>
-          <button
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              selectedSource === "SCRAPED"
-                ? "bg-amber-600 text-white"
-                : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-            }`}
-            onClick={() => setSelectedSource("SCRAPED")}
-          >
-            Scraped ({stats.scraped})
-          </button>
-
-          <div className="w-px h-6 bg-stone-300 mx-1" />
-
           <select
             value={scoreFilter}
             onChange={(e) => setScoreFilter(e.target.value as ScoreFilter)}
@@ -390,7 +353,7 @@ export default function PostsPage() {
         </div>
 
         {/* Active Filters */}
-        {(selectedType !== "all" || selectedSource !== "all" || searchQuery || zipCode || scoreFilter !== "all") && (
+        {(selectedType !== "all" || searchQuery || zipCode || scoreFilter !== "all") && (
           <div className="mb-4 flex gap-2 flex-wrap">
             {searchQuery && (
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
@@ -404,14 +367,6 @@ export default function PostsPage() {
               <span className="inline-flex items-center gap-2 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm">
                 Type: <span className="font-semibold capitalize">{selectedType}</span>
                 <button onClick={() => setSelectedType("all")} className="hover:text-amber-900">
-                  {"\u2715"}
-                </button>
-              </span>
-            )}
-            {selectedSource !== "all" && (
-              <span className="inline-flex items-center gap-2 px-3 py-1 bg-stone-200 text-stone-800 rounded-full text-sm">
-                Source: <span className="font-semibold">{selectedSource === "USER_SUBMITTED" ? "User" : "Scraped"}</span>
-                <button onClick={() => setSelectedSource("all")} className="hover:text-stone-900">
                   {"\u2715"}
                 </button>
               </span>
@@ -458,8 +413,7 @@ export default function PostsPage() {
             </h3>
             <p className="text-stone-600">
               No {selectedStatus === "pending_approval" ? "pending" : selectedStatus} posts
-              {selectedType !== "all" && ` for ${selectedType}`}
-              {selectedSource !== "all" && ` from ${selectedSource === "USER_SUBMITTED" ? "users" : "scraper"}`}.
+              {selectedType !== "all" && ` for ${selectedType}`}.
             </p>
           </div>
         )}
@@ -470,23 +424,16 @@ export default function PostsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-6">
               {posts.map((post) => (
                 <div key={post.id} className="relative">
-                  {/* Source badge overlay */}
-                  <div className="absolute top-2 right-2 z-10 flex gap-1">
-                    {post.distanceMiles != null && (
+                  {/* Distance badge overlay */}
+                  {post.distanceMiles != null && (
+                    <div className="absolute top-2 right-2 z-10">
                       <span className="text-xs font-medium px-2 py-1 rounded bg-green-100 text-green-800">
                         {post.distanceMiles < 1
                           ? "< 1 mi"
                           : `${post.distanceMiles.toFixed(1)} mi`}
                       </span>
-                    )}
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${
-                      post.submissionType === "USER_SUBMITTED"
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-stone-100 text-stone-700"
-                    }`}>
-                      {post.submissionType === "USER_SUBMITTED" ? "User" : "Scraped"}
-                    </span>
-                  </div>
+                    </div>
+                  )}
                   <PostReviewCard
                     post={post}
                     onApprove={selectedStatus === "pending_approval" ? handleApprove : undefined}

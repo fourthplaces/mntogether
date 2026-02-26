@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useQuery } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { JobsListQuery } from "@/lib/graphql/jobs";
@@ -9,11 +8,7 @@ import { JobsListQuery } from "@/lib/graphql/jobs";
 type StatusFilter = "running" | "completed" | "backing-off" | null;
 
 const WORKFLOW_LABELS: Record<string, string> = {
-  CrawlWebsiteWorkflow: "Crawl Website",
   RegeneratePostsWorkflow: "Regenerate Posts",
-  DeduplicatePostsWorkflow: "Deduplicate Posts",
-  ExtractPostsFromUrlWorkflow: "Extract Posts",
-  WebsiteResearchWorkflow: "Website Research",
   RegisterMemberWorkflow: "Register Member",
 };
 
@@ -88,8 +83,6 @@ type Job = {
   modifiedAt: string | null;
   completedAt: string | null;
   completionResult: string | null;
-  websiteDomain: string | null;
-  websiteId: string | null;
 };
 
 function JobRow({ job }: { job: Job }) {
@@ -100,18 +93,6 @@ function JobRow({ job }: { job: Job }) {
       </td>
       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-stone-900">
         {workflowLabel(job.workflowName)}
-      </td>
-      <td className="px-6 py-4 whitespace-nowrap text-sm text-stone-600">
-        {job.websiteId ? (
-          <Link
-            href={`/admin/websites/${job.websiteId}`}
-            className="underline decoration-stone-300 hover:decoration-stone-600 hover:text-stone-900 transition-colors"
-          >
-            {job.websiteDomain || job.websiteId.slice(0, 8) + "..."}
-          </Link>
-        ) : (
-          <span className="text-stone-400">-</span>
-        )}
       </td>
       <td className="px-6 py-4 text-sm text-stone-600 max-w-xs truncate">
         {job.progress || <span className="text-stone-400">-</span>}
@@ -225,9 +206,6 @@ export default function JobsPage() {
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Workflow
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Website
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Progress

@@ -1,17 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "urql";
 import { PublicFiltersQuery } from "@/lib/graphql/public";
-import { SubmitSheet } from "@/components/SubmitSheet";
 import { PostFeed } from "@/components/PostFeed";
 
-type ActiveSheet = "search" | "submit" | null;
-
 export function HomeClient() {
-  const [activeSheet, setActiveSheet] = useState<ActiveSheet>(null);
-
   const [{ data: filtersData }] = useQuery({ query: PublicFiltersQuery });
 
   const postTypes = filtersData?.publicFilters?.postTypes ?? [];
@@ -45,8 +39,6 @@ export function HomeClient() {
         <PostFeed title="Recent posts" showSeeMore />
       </section>
 
-      {/* Bottom Sheets */}
-      <SubmitSheet isOpen={activeSheet === "submit"} onClose={() => setActiveSheet(null)} />
     </div>
   );
 }

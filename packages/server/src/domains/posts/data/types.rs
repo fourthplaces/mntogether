@@ -129,24 +129,6 @@ pub struct ContactInfoInput {
     pub website: Option<String>,
 }
 
-/// Result of scraping an organization source
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScrapeResult {
-    pub source_id: Uuid,
-    pub new_posts_count: i32,
-    pub changed_posts_count: i32,
-    pub disappeared_posts_count: i32,
-}
-
-/// Result of starting an async scrape job
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ScrapeJobResult {
-    pub job_id: Uuid,
-    pub source_id: Uuid,
-    pub status: String,
-    pub message: Option<String>,
-}
-
 /// Edge containing a post and its cursor (Relay spec)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PostEdge {
@@ -160,22 +142,6 @@ pub struct PostConnection {
     pub edges: Vec<PostEdge>,
     pub page_info: crate::common::PageInfo,
     pub total_count: i32,
-}
-
-/// Input for submitting a resource link from the public
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubmitResourceLinkInput {
-    pub url: String,
-    pub context: Option<String>,
-    pub submitter_contact: Option<String>,
-}
-
-/// Result of submitting a resource link
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SubmitResourceLinkResult {
-    pub job_id: Uuid,
-    pub status: String,
-    pub message: String,
 }
 
 /// Result of reposting a listing

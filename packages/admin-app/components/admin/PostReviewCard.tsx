@@ -15,7 +15,6 @@ interface PostReviewCardPost {
   urgency?: string | null;
   location?: string | null;
   sourceUrl?: string | null;
-  submissionType?: string | null;
   relevanceScore?: number | null;
   distanceMiles?: number | null;
   tags: Array<{

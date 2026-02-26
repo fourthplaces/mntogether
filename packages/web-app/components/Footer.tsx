@@ -13,8 +13,6 @@ export function Footer() {
         <div>
           <h5 className="mb-2 font-bold text-text-primary">Get Involved</h5>
           <Link href="/posts?post_type=offering" className="block text-text-secondary hover:underline mb-1">Volunteer</Link>
-          <Link href="/submit" className="block text-text-secondary hover:underline mb-1">Submit a Resource</Link>
-          <Link href="/submit" className="block text-text-secondary hover:underline mb-1">Submit an Event</Link>
         </div>
         <div>
           <h5 className="mb-2 font-bold text-text-primary">Resources</h5>

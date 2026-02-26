@@ -37,7 +37,6 @@ export interface ContactInfo {
 export type PostType = "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
 export type CapacityStatus = "accepting" | "paused" | "at_capacity";
-export type SubmissionType = "SCRAPED" | "MANUAL" | "USER_SUBMITTED";
 export type Urgency = "urgent" | "high" | "medium" | "low";
 
 export interface Post {
@@ -53,121 +52,11 @@ export interface Post {
   status: PostStatus;
   location?: string;
   sourceUrl?: string;
-  submissionType?: SubmissionType;
   weight?: string;
   priority?: number;
   tags?: Tag[];
   createdAt: string;
   updatedAt?: string;
-}
-
-// ============================================================================
-// Website Types
-// ============================================================================
-
-export type WebsiteStatus = "pending_review" | "approved" | "rejected" | "suspended";
-
-export interface Website {
-  id: string;
-  url?: string;
-  domain: string;
-  status: WebsiteStatus;
-  submittedBy?: string;
-  submitterType?: string;
-  lastScrapedAt?: string;
-  snapshotsCount?: number;
-  listingsCount?: number;
-  listings?: Post[];
-  createdAt: string;
-}
-
-export interface WebsiteAssessment {
-  id: string;
-  websiteId: string;
-  assessmentMarkdown?: string;
-  recommendation?: string;
-  confidenceScore?: number;
-  organizationName?: string;
-  foundedYear?: number;
-  generatedAt?: string;
-  modelUsed?: string;
-  reviewedByHuman?: boolean;
-}
-
-export interface WebsiteSearchResult {
-  websiteId: string;
-  assessmentId: string;
-  websiteDomain: string;
-  organizationName?: string;
-  recommendation?: string;
-  assessmentMarkdown?: string;
-  similarity: number;
-}
-
-// ============================================================================
-// Resource Types
-// ============================================================================
-
-export type ResourceStatus = "PENDING" | "APPROVED" | "REJECTED";
-
-export interface ResourceContact {
-  id: string;
-  contactType: string;
-  contactValue: string;
-  contactLabel?: string;
-  isPublic?: boolean;
-}
-
-export interface ResourceVersion {
-  id: string;
-  title: string;
-  content: string;
-  location?: string;
-  changeReason?: string;
-  createdAt: string;
-}
-
-export interface Resource {
-  id: string;
-  websiteId?: string;
-  title: string;
-  content: string;
-  location?: string;
-  status: ResourceStatus;
-  resourceType?: string;
-  hasEmbedding?: boolean;
-  sourceUrl?: string;
-  sourceUrls?: string[];
-  contacts?: ResourceContact[];
-  tags?: Tag[];
-  versions?: ResourceVersion[];
-  createdAt: string;
-  updatedAt?: string;
-}
-
-// ============================================================================
-// Chat Types
-// ============================================================================
-
-export interface ChatContainer {
-  id: string;
-  language?: string;
-  createdAt: string;
-  lastActivityAt?: string;
-}
-
-export interface ChatMessage {
-  id: string;
-  containerId: string;
-  role: string;
-  content: string;
-  authorId?: string;
-  moderationStatus?: string;
-  parentMessageId?: string;
-  sequenceNumber?: number;
-  createdAt: string;
-  updatedAt?: string;
-  editedAt?: string;
 }
 
 // ============================================================================
@@ -196,46 +85,6 @@ export interface GetPostDetailResult {
   listing: Post | null;
 }
 
-export interface GetWebsitesResult {
-  websites: PaginatedResult<Website>;
-}
-
-export interface GetWebsiteDetailResult {
-  website: Website | null;
-}
-
-export interface GetWebsiteAssessmentResult {
-  websiteAssessment: WebsiteAssessment | null;
-}
-
-export interface SearchWebsitesResult {
-  searchWebsites: WebsiteSearchResult[];
-}
-
-export interface GetResourcesResult {
-  resources: PaginatedResult<Resource>;
-}
-
-export interface GetResourceResult {
-  resource: Resource | null;
-}
-
-export interface GetPendingResourcesResult {
-  pendingResources: Resource[];
-}
-
-export interface GetMessagesResult {
-  messages: ChatMessage[];
-}
-
-export interface GetContainerResult {
-  container: ChatContainer | null;
-}
-
-export interface GetRecentChatsResult {
-  recentChats: ChatContainer[];
-}
-
 export interface PostStatsResult {
   total: number;
   stories: number;
@@ -245,18 +94,11 @@ export interface PostStatsResult {
   spotlights: number;
   references: number;
   userSubmitted: number;
-  scraped: number;
 }
 
 // ============================================================================
 // Mutation Input Types
 // ============================================================================
-
-export interface SubmitResourceLinkInput {
-  url: string;
-  context?: string;
-  submitterContact?: string;
-}
 
 export interface EditPostInput {
   title?: string;
@@ -265,12 +107,6 @@ export interface EditPostInput {
   location?: string;
   category?: string;
   urgency?: Urgency;
-}
-
-export interface EditResourceInput {
-  title?: string;
-  content?: string;
-  location?: string;
 }
 
 export interface TagInput {
@@ -291,14 +127,6 @@ export interface VerifyCodeResult {
   verifyCode: string;
 }
 
-export interface SubmitResourceLinkResult {
-  submitResourceLink: {
-    jobId: string;
-    status: string;
-    message?: string;
-  };
-}
-
 export interface ApprovePostResult {
   approveListing: Post;
 }
@@ -307,26 +135,3 @@ export interface EditAndApprovePostResult {
   editAndApproveListing: Post;
 }
 
-export interface ApproveWebsiteResult {
-  approveWebsite: Website;
-}
-
-export interface ApproveResourceResult {
-  approveResource: Resource;
-}
-
-export interface EditResourceResult {
-  editResource: Resource;
-}
-
-export interface CrawlWebsiteResult {
-  crawlWebsite: JobResult;
-}
-
-export interface CreateChatResult {
-  createChat: ChatContainer;
-}
-
-export interface SendMessageResult {
-  sendMessage: ChatMessage;
-}

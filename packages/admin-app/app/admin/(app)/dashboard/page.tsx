@@ -65,13 +65,6 @@ export default function DashboardPage() {
       color: "bg-emerald-400 hover:bg-emerald-500",
       count: pendingPostsCount,
     },
-    {
-      title: "Review Scraped Content",
-      description: "See what agents have discovered",
-      icon: "\u{1F50D}",
-      link: "/admin/scraped",
-      color: "bg-amber-600 hover:bg-amber-700",
-    },
   ];
 
   return (
@@ -143,20 +136,6 @@ export default function DashboardPage() {
         <div className="bg-white rounded-lg shadow-md p-6">
           <h2 className="text-xl font-bold text-stone-900 mb-4">System Status</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-              <div>
-                <p className="text-sm font-medium text-stone-900">Scraper</p>
-                <p className="text-xs text-stone-600">Running (hourly)</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-3 h-3 rounded-full bg-emerald-400 animate-pulse" />
-              <div>
-                <p className="text-sm font-medium text-stone-900">Agent Search</p>
-                <p className="text-xs text-stone-600">Active (hourly)</p>
-              </div>
-            </div>
             <div className="flex items-center gap-3">
               <div className="w-3 h-3 rounded-full bg-emerald-400" />
               <div>
