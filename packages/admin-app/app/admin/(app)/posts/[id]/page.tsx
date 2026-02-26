@@ -19,7 +19,6 @@ import {
   RegeneratePostTagsMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
-import { ApproveProposalMutation, RejectProposalMutation } from "@/lib/graphql/sync";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -97,13 +96,12 @@ export default function PostDetailPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // GraphQL: fetch post detail + proposals + notes in single query
+  // GraphQL: fetch post detail + notes in single query
   const [{ data: postData, fetching: isLoading, error }] = useQuery({
     query: PostDetailFullQuery,
     variables: { id: postId },
   });
   const post = postData?.post;
-  const proposals = postData?.entityProposals || [];
   const notes = postData?.entityNotes || [];
 
   // GraphQL mutations
@@ -269,26 +267,6 @@ export default function PostDetailPage() {
       console.error("Failed to reject post:", err);
     } finally {
       setActionInProgress(null);
-    }
-  };
-
-  const [, approveProposalMut] = useMutation(ApproveProposalMutation);
-  const [, rejectProposalMut] = useMutation(RejectProposalMutation);
-  const proposalMutationContext = { additionalTypenames: ["EntityProposal", "Post", "PostConnection"] };
-
-  const handleApproveProposal = async (proposalId: string) => {
-    try {
-      await approveProposalMut({ id: proposalId }, proposalMutationContext);
-    } catch (err) {
-      console.error("Failed to approve proposal:", err);
-    }
-  };
-
-  const handleRejectProposal = async (proposalId: string) => {
-    try {
-      await rejectProposalMut({ id: proposalId }, proposalMutationContext);
-    } catch (err) {
-      console.error("Failed to reject proposal:", err);
     }
   };
 
@@ -580,63 +558,6 @@ export default function PostDetailPage() {
           </div>
         )}
 
-        {/* Review: pending proposals */}
-        {proposals.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6 border-l-4 border-amber-400">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Pending Changes ({proposals.length})
-            </h2>
-            <div className="space-y-3">
-                {proposals.map((proposal) => (
-                  <div
-                    key={proposal.id}
-                    className="flex items-center justify-between border border-stone-200 rounded-lg p-4"
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            proposal.operation === "create"
-                              ? "bg-green-100 text-green-800"
-                              : proposal.operation === "update"
-                                ? "bg-blue-100 text-blue-800"
-                                : proposal.operation === "delete"
-                                  ? "bg-red-100 text-red-800"
-                                  : proposal.operation === "merge"
-                                    ? "bg-purple-100 text-purple-800"
-                                    : "bg-stone-100 text-stone-800"
-                          }`}
-                        >
-                          {proposal.operation}
-                        </span>
-                        <span className="text-xs text-stone-400">
-                          {new Date(proposal.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                      {proposal.reason && (
-                        <p className="text-sm text-stone-600">{proposal.reason}</p>
-                      )}
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleApproveProposal(proposal.id)}
-                        className="px-3 py-1 text-sm bg-emerald-400 text-white rounded hover:bg-emerald-500"
-                      >
-                        Approve
-                      </button>
-                      <button
-                        onClick={() => handleRejectProposal(proposal.id)}
-                        className="px-3 py-1 text-sm bg-rose-400 text-white rounded hover:bg-rose-500"
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
-
         {/* Tags */}
         <div id="tags-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
@@ -756,9 +677,6 @@ export default function PostDetailPage() {
                         <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
                           expired
                         </span>
-                      )}
-                      {note.sourceType && (
-                        <span className="text-xs text-stone-400">via {note.sourceType}</span>
                       )}
                       <span className="text-xs text-stone-400">
                         {note.createdBy} &middot; {new Date(note.createdAt).toLocaleDateString()}

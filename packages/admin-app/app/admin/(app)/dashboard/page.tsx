@@ -14,42 +14,24 @@ export default function DashboardPage() {
     return <AdminLoader label="Loading dashboard..." />;
   }
 
-  const websites = data?.websites?.websites || [];
   const pendingPosts = data?.pendingPosts?.posts || [];
   const allPosts = data?.allPosts?.posts || [];
 
   // Calculate stats
-  const totalWebsites = websites.length;
-  const approvedWebsites = websites.filter((d) => d.status === "approved").length;
-  const pendingWebsites = websites.filter((d) => d.status === "pending_review").length;
   const totalPosts = allPosts.length;
   const pendingPostsCount = pendingPosts.length;
   const approvedPosts = allPosts.filter(
     (l) => l.status === "active"
   ).length;
-  const totalPostsFromWebsites = websites.reduce(
-    (sum, d) => sum + (d.postCount || 0),
-    0
-  );
 
   // Recent activity (last 7 days)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const recentWebsites = websites.filter(
-    (d) => d.lastCrawledAt && new Date(d.lastCrawledAt) > sevenDaysAgo
-  ).length;
   const recentPosts = allPosts.filter(
     (l) => new Date(l.createdAt) > sevenDaysAgo
   ).length;
 
   const stats = [
-    {
-      title: "Total Websites",
-      value: totalWebsites,
-      subtitle: `${approvedWebsites} approved, ${pendingWebsites} pending`,
-      color: "bg-blue-500",
-      link: "/admin/websites",
-    },
     {
       title: "Total Posts",
       value: totalPosts,
@@ -59,26 +41,14 @@ export default function DashboardPage() {
     },
     {
       title: "Pending Approvals",
-      value: pendingWebsites + pendingPostsCount,
-      subtitle: `${pendingWebsites} websites, ${pendingPostsCount} posts`,
+      value: pendingPostsCount,
+      subtitle: `${pendingPostsCount} posts`,
       color: "bg-amber-500",
       link: "/admin/posts",
-    },
-    {
-      title: "Scraped Posts",
-      value: totalPostsFromWebsites,
-      subtitle: `From ${approvedWebsites} approved websites`,
-      color: "bg-purple-500",
-      link: "/admin/scraped",
     },
   ];
 
   const recentActivity = [
-    {
-      title: "New Websites (7 days)",
-      value: recentWebsites,
-      icon: "\u{1F310}",
-    },
     {
       title: "New Posts (7 days)",
       value: recentPosts,
@@ -94,14 +64,6 @@ export default function DashboardPage() {
       link: "/admin/posts",
       color: "bg-emerald-400 hover:bg-emerald-500",
       count: pendingPostsCount,
-    },
-    {
-      title: "Approve Websites",
-      description: "Review and approve pending websites",
-      icon: "\u{1F310}",
-      link: "/admin/websites",
-      color: "bg-blue-600 hover:bg-blue-700",
-      count: pendingWebsites,
     },
     {
       title: "Review Scraped Content",

@@ -2,13 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
-import { Chatroom } from "@/components/admin/Chatroom";
 import { GraphQLErrorBoundary } from "@/components/admin/GraphQLErrorBoundary";
 
 const COLLAPSED_KEY = "admin-sidebar-collapsed";
 
 export default function AdminAppLayout({ children }: { children: React.ReactNode }) {
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -57,18 +55,6 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
           <GraphQLErrorBoundary>{children}</GraphQLErrorBoundary>
         </main>
       </div>
-
-      {/* Chat FAB */}
-      <button
-        onClick={() => setIsChatOpen(true)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-amber-500 text-white rounded-full shadow-lg hover:bg-amber-600 transition-colors flex items-center justify-center text-2xl z-40"
-        title="Open Assistant"
-      >
-        {"\u{1F4AC}"}
-      </button>
-
-      {/* Chatroom Sidebar */}
-      <Chatroom isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} withAgent="admin" />
     </div>
   );
 }

@@ -21,9 +21,6 @@ export const OrganizationDetailFullQuery = graphql(`
   query OrganizationDetailFull($id: ID!) {
     organization(id: $id) {
       ...OrganizationFields
-      sources {
-        ...SourceFields
-      }
       posts {
         posts {
           id
@@ -164,42 +161,3 @@ export const RegenerateOrganizationMutation = graphql(`
   }
 `);
 
-export const ExtractOrgPostsMutation = graphql(`
-  mutation ExtractOrgPosts($id: ID!) {
-    extractOrgPosts(id: $id)
-  }
-`);
-
-export const CleanUpOrgPostsMutation = graphql(`
-  mutation CleanUpOrgPosts($id: ID!) {
-    cleanUpOrgPosts(id: $id)
-  }
-`);
-
-export const RunCuratorMutation = graphql(`
-  mutation RunCurator($id: ID!) {
-    runCurator(id: $id)
-  }
-`);
-
-export const RemoveAllOrgPostsMutation = graphql(`
-  mutation RemoveAllOrgPosts($id: ID!) {
-    removeAllOrgPosts(id: $id)
-  }
-`);
-
-export const RemoveAllOrgNotesMutation = graphql(`
-  mutation RemoveAllOrgNotes($id: ID!) {
-    removeAllOrgNotes(id: $id)
-  }
-`);
-
-export const RewriteNarrativesMutation = graphql(`
-  mutation RewriteNarratives($organizationId: ID!) {
-    rewriteNarratives(organizationId: $organizationId) {
-      rewritten
-      failed
-      total
-    }
-  }
-`);

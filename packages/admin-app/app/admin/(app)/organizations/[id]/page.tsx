@@ -15,26 +15,14 @@ import {
   SetOrganizationStatusMutation,
   ToggleChecklistItemMutation,
   RegenerateOrganizationMutation,
-  ExtractOrgPostsMutation,
-  CleanUpOrgPostsMutation,
-  RunCuratorMutation,
-  RemoveAllOrgPostsMutation,
-  RemoveAllOrgNotesMutation,
-  RewriteNarrativesMutation,
 } from "@/lib/graphql/organizations";
 import {
   CreateNoteMutation,
   UpdateNoteMutation,
   DeleteNoteMutation,
   UnlinkNoteMutation,
-  GenerateNotesFromSourcesMutation,
   AutoAttachNotesMutation,
-  CreateSocialSourceMutation,
-  CrawlAllOrgSourcesMutation,
 } from "@/lib/graphql/notes";
-import {
-  RegenerateSourcePostsMutation,
-} from "@/lib/graphql/sources";
 import {
   ApprovePostMutation,
   RejectPostMutation,
@@ -43,20 +31,9 @@ import {
   BatchScorePostsMutation,
 } from "@/lib/graphql/posts";
 
-const PLATFORMS = ["instagram", "facebook", "tiktok", "x"];
-
-const SOURCE_TYPE_LABELS: Record<string, string> = {
-  website: "Website",
-  instagram: "Instagram",
-  facebook: "Facebook",
-  tiktok: "TikTok",
-  x: "X (Twitter)",
-};
-
 const orgMutationContext = { additionalTypenames: ["Organization", "Checklist"] };
 const postMutationContext = { additionalTypenames: ["Post", "PostConnection"] };
 const noteMutationContext = { additionalTypenames: ["Note"] };
-const sourceMutationContext = { additionalTypenames: ["Source", "SourceConnection"] };
 
 export default function OrganizationDetailPage() {
   const params = useParams();
@@ -70,17 +47,7 @@ export default function OrganizationDetailPage() {
   const [editError, setEditError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
-  const [regeneratingPosts, setRegeneratingPosts] = useState(false);
-  const [generatingNotes, setGeneratingNotes] = useState(false);
-  const [extractingOrgPosts, setExtractingOrgPosts] = useState(false);
-  const [cleaningUpPosts, setCleaningUpPosts] = useState(false);
-  const [runningCurator, setRunningCurator] = useState(false);
-  const [crawlingAll, setCrawlingAll] = useState(false);
   const [autoAttaching, setAutoAttaching] = useState(false);
-  const [removingAllPosts, setRemovingAllPosts] = useState(false);
-  const [removingAllNotes, setRemovingAllNotes] = useState(false);
-  const [rewritingNarratives, setRewritingNarratives] = useState(false);
-  const [rewriteResult, setRewriteResult] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
   const [showRejectDialog, setShowRejectDialog] = useState(false);
@@ -104,7 +71,6 @@ export default function OrganizationDetailPage() {
   });
 
   const org = orgData?.organization;
-  const sources = org?.sources || [];
   const posts = org?.posts?.posts || [];
   const notes = org?.notes || [];
   const checklist = org?.checklist;
@@ -119,16 +85,7 @@ export default function OrganizationDetailPage() {
   const [, setOrgStatus] = useMutation(SetOrganizationStatusMutation);
   const [, toggleChecklistItem] = useMutation(ToggleChecklistItemMutation);
   const [, regenerateOrg] = useMutation(RegenerateOrganizationMutation);
-  const [, extractOrgPosts] = useMutation(ExtractOrgPostsMutation);
-  const [, cleanUpOrgPosts] = useMutation(CleanUpOrgPostsMutation);
-  const [, runCurator] = useMutation(RunCuratorMutation);
-  const [, removeAllOrgPosts] = useMutation(RemoveAllOrgPostsMutation);
-  const [, removeAllOrgNotes] = useMutation(RemoveAllOrgNotesMutation);
-  const [, rewriteNarratives] = useMutation(RewriteNarrativesMutation);
-  const [, generateNotesFromSources] = useMutation(GenerateNotesFromSourcesMutation);
   const [, autoAttachNotes] = useMutation(AutoAttachNotesMutation);
-  const [, regenerateSourcePosts] = useMutation(RegenerateSourcePostsMutation);
-  const [, crawlAllOrgSources] = useMutation(CrawlAllOrgSourcesMutation);
 
   // --- Actions ---
 
@@ -189,23 +146,6 @@ export default function OrganizationDetailPage() {
     }
   };
 
-  const handleGenerateNotes = async () => {
-    setMenuOpen(false);
-    setGeneratingNotes(true);
-    try {
-      const result = await generateNotesFromSources(
-        { organizationId: orgId },
-        noteMutationContext,
-      );
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to generate notes:", err);
-      alert(err.message || "Failed to generate notes");
-    } finally {
-      setGeneratingNotes(false);
-    }
-  };
-
   const handleAutoAttach = async () => {
     setAutoAttaching(true);
     try {
@@ -219,137 +159,6 @@ export default function OrganizationDetailPage() {
       alert(err.message || "Failed to auto-attach notes");
     } finally {
       setAutoAttaching(false);
-    }
-  };
-
-  const handleRegeneratePosts = async () => {
-    setMenuOpen(false);
-    setRegeneratingPosts(true);
-    try {
-      await Promise.all(
-        sources.map((source) =>
-          regenerateSourcePosts({ id: source.id }, sourceMutationContext)
-        )
-      );
-    } catch (err: any) {
-      console.error("Failed to regenerate posts:", err);
-      alert(err.message || "Failed to regenerate posts");
-    } finally {
-      setRegeneratingPosts(false);
-    }
-  };
-
-  const handleExtractOrgPosts = async () => {
-    setMenuOpen(false);
-    setExtractingOrgPosts(true);
-    try {
-      const result = await extractOrgPosts(
-        { id: orgId },
-        { additionalTypenames: ["Post", "PostConnection", "Organization"] },
-      );
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to extract org posts:", err);
-      alert(err.message || "Failed to extract org posts");
-    } finally {
-      setExtractingOrgPosts(false);
-    }
-  };
-
-  const handleCleanUpPosts = async () => {
-    setMenuOpen(false);
-    setCleaningUpPosts(true);
-    try {
-      const result = await cleanUpOrgPosts({ id: orgId }, postMutationContext);
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to clean up posts:", err);
-      alert(err.message || "Failed to clean up posts");
-    } finally {
-      setCleaningUpPosts(false);
-    }
-  };
-
-  const handleRunCurator = async () => {
-    setMenuOpen(false);
-    setRunningCurator(true);
-    try {
-      const result = await runCurator({ id: orgId }, orgMutationContext);
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to run curator:", err);
-      alert(err.message || "Failed to run curator");
-    } finally {
-      setRunningCurator(false);
-    }
-  };
-
-  const handleCrawlAll = async () => {
-    setMenuOpen(false);
-    setCrawlingAll(true);
-    try {
-      const result = await crawlAllOrgSources(
-        { organizationId: orgId },
-        sourceMutationContext,
-      );
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to crawl sources:", err);
-      alert(err.message || "Failed to crawl sources");
-    } finally {
-      setCrawlingAll(false);
-    }
-  };
-
-  const handleRemoveAllPosts = async () => {
-    if (!confirm(`Are you sure you want to delete ALL posts for "${org?.name}"? This cannot be undone.`)) return;
-    setMenuOpen(false);
-    setRemovingAllPosts(true);
-    try {
-      const result = await removeAllOrgPosts({ id: orgId }, postMutationContext);
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to remove posts:", err);
-      alert(err.message || "Failed to remove posts");
-    } finally {
-      setRemovingAllPosts(false);
-    }
-  };
-
-  const handleRemoveAllNotes = async () => {
-    if (!confirm(`Are you sure you want to delete ALL notes for "${org?.name}"? This cannot be undone.`)) return;
-    setMenuOpen(false);
-    setRemovingAllNotes(true);
-    try {
-      const result = await removeAllOrgNotes({ id: orgId }, noteMutationContext);
-      if (result.error) throw result.error;
-    } catch (err: any) {
-      console.error("Failed to remove notes:", err);
-      alert(err.message || "Failed to remove notes");
-    } finally {
-      setRemovingAllNotes(false);
-    }
-  };
-
-  const handleRewriteNarratives = async () => {
-    setMenuOpen(false);
-    setRewritingNarratives(true);
-    setRewriteResult(null);
-    try {
-      const result = await rewriteNarratives(
-        { organizationId: orgId },
-        postMutationContext,
-      );
-      if (result.error) throw result.error;
-      const data = result.data?.rewriteNarratives;
-      if (data) {
-        setRewriteResult(`Rewrote ${data.rewritten} of ${data.total} posts${data.failed > 0 ? ` (${data.failed} failed)` : ""}`);
-      }
-    } catch (err: any) {
-      console.error("Failed to rewrite narratives:", err);
-      setRewriteResult(`Error: ${err.message || "Failed to rewrite narratives"}`);
-    } finally {
-      setRewritingNarratives(false);
     }
   };
 
@@ -592,21 +401,13 @@ export default function OrganizationDetailPage() {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setMenuOpen(!menuOpen)}
-                    disabled={regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives || runningCurator || removingAllPosts || removingAllNotes}
+                    disabled={regenerating}
                     className="px-3 py-1.5 bg-stone-100 text-stone-700 rounded-lg hover:bg-stone-200 disabled:opacity-50 text-sm"
                   >
-                    {regenerating || regeneratingPosts || generatingNotes || extractingOrgPosts || cleaningUpPosts || crawlingAll || rewritingNarratives || runningCurator || removingAllPosts || removingAllNotes ? "..." : "\u22EF"}
+                    {regenerating ? "..." : "\u22EF"}
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
-                      <button
-                        onClick={handleCrawlAll}
-                        disabled={crawlingAll || sources.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {crawlingAll ? "Crawling..." : "Crawl All Sources"}
-                      </button>
-                      <div className="border-t border-stone-100 my-1" />
                       <button
                         onClick={handleRegenerate}
                         disabled={regenerating}
@@ -614,63 +415,7 @@ export default function OrganizationDetailPage() {
                       >
                         Regenerate with AI
                       </button>
-                      <button
-                        onClick={handleRegeneratePosts}
-                        disabled={regeneratingPosts || sources.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {regeneratingPosts ? "Regenerating Posts..." : "Regenerate Posts"}
-                      </button>
-                      <button
-                        onClick={handleGenerateNotes}
-                        disabled={generatingNotes}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {generatingNotes ? "Generating Notes..." : "Generate Notes"}
-                      </button>
-                      <button
-                        onClick={handleExtractOrgPosts}
-                        disabled={extractingOrgPosts || sources.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {extractingOrgPosts ? "Extracting Posts..." : "Extract Org Posts"}
-                      </button>
-                      <button
-                        onClick={handleRunCurator}
-                        disabled={runningCurator || sources.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-amber-700 hover:bg-amber-50 disabled:opacity-50 font-medium"
-                      >
-                        {runningCurator ? "Curating..." : "Curate"}
-                      </button>
-                      <button
-                        onClick={handleCleanUpPosts}
-                        disabled={cleaningUpPosts}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {cleaningUpPosts ? "Cleaning Up..." : "Clean Up Posts"}
-                      </button>
-                      <button
-                        onClick={handleRewriteNarratives}
-                        disabled={rewritingNarratives || posts.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {rewritingNarratives ? "Rewriting..." : "Rewrite Narratives"}
-                      </button>
                       <div className="border-t border-stone-100 my-1" />
-                      <button
-                        onClick={handleRemoveAllPosts}
-                        disabled={removingAllPosts || posts.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {removingAllPosts ? "Removing Posts..." : "Remove All Posts"}
-                      </button>
-                      <button
-                        onClick={handleRemoveAllNotes}
-                        disabled={removingAllNotes || notes.length === 0}
-                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                      >
-                        {removingAllNotes ? "Removing Notes..." : "Remove All Notes"}
-                      </button>
                       <button
                         onClick={() => { setMenuOpen(false); handleDelete(); }}
                         className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50"
@@ -684,15 +429,6 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
-          {crawlingAll && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Crawling {sources.length} source{sources.length !== 1 ? "s" : ""}...
-              </span>
-            </div>
-          )}
-
           {regenerating && (
             <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
               <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
@@ -702,97 +438,7 @@ export default function OrganizationDetailPage() {
             </div>
           )}
 
-          {regeneratingPosts && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Regenerating posts for {sources.length} source{sources.length !== 1 ? "s" : ""}...
-              </span>
-            </div>
-          )}
-
-          {generatingNotes && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Generating notes from crawled content...
-              </span>
-            </div>
-          )}
-
-          {extractingOrgPosts && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Extracting posts across all sources...
-              </span>
-            </div>
-          )}
-
-          {runningCurator && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Running curator...
-              </span>
-            </div>
-          )}
-
-          {removingAllPosts && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-red-700">
-                Removing all posts...
-              </span>
-            </div>
-          )}
-
-          {removingAllNotes && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-red-700">
-                Removing all notes...
-              </span>
-            </div>
-          )}
-
-          {cleaningUpPosts && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Cleaning up duplicate and rejected posts...
-              </span>
-            </div>
-          )}
-
-          {rewritingNarratives && (
-            <div className="flex items-center gap-3 mt-4 pt-4 border-t border-stone-200">
-              <div className="animate-spin h-4 w-4 border-2 border-amber-600 border-t-transparent rounded-full" />
-              <span className="text-sm font-medium text-amber-700">
-                Rewriting titles and summaries...
-              </span>
-            </div>
-          )}
-
-          {rewriteResult && (
-            <div className={`mt-4 pt-4 border-t border-stone-200 text-sm font-medium ${rewriteResult.startsWith("Error") ? "text-red-600" : "text-green-700"}`}>
-              {rewriteResult}
-            </div>
-          )}
-
-          <div className="grid grid-cols-4 gap-4 pt-4 mt-4 border-t border-stone-200">
-            <div>
-              <span className="text-xs text-stone-500 uppercase">Websites</span>
-              <p className="text-lg font-semibold text-stone-900">{org.websiteCount}</p>
-            </div>
-            <div>
-              <span className="text-xs text-stone-500 uppercase">Social</span>
-              <p className="text-lg font-semibold text-stone-900">{org.socialProfileCount}</p>
-            </div>
-            <div>
-              <span className="text-xs text-stone-500 uppercase">Snapshots</span>
-              <p className="text-lg font-semibold text-stone-900">{org.snapshotCount}</p>
-            </div>
+          <div className="grid grid-cols-2 gap-4 pt-4 mt-4 border-t border-stone-200">
             <div>
               <span className="text-xs text-stone-500 uppercase">Created</span>
               <p className="text-sm font-medium text-stone-900">
@@ -834,58 +480,6 @@ export default function OrganizationDetailPage() {
               )}
             </div>
           )}
-        </div>
-
-        {/* Sources */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">Sources</h2>
-          {sources.length === 0 ? (
-            <p className="text-stone-500 text-sm">
-              No sources linked. Assign this organization from a source's detail page, or add a social profile below.
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {sources.map((source) => (
-                <Link
-                  key={source.id}
-                  href={`/admin/sources/${source.id}`}
-                  className="flex items-center justify-between p-3 rounded-lg border border-stone-200 hover:bg-stone-50"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                      source.sourceType === "website" ? "bg-blue-100 text-blue-800" :
-                      source.sourceType === "instagram" ? "bg-purple-100 text-purple-800" :
-                      source.sourceType === "facebook" ? "bg-indigo-100 text-indigo-800" :
-                      source.sourceType === "x" ? "bg-stone-800 text-white" :
-                      "bg-stone-100 text-stone-800"
-                    }`}>
-                      {SOURCE_TYPE_LABELS[source.sourceType] || source.sourceType}
-                    </span>
-                    <span className="font-medium text-stone-900">{source.identifier}</span>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                        source.status === "approved"
-                          ? "bg-green-100 text-green-800"
-                          : source.status === "pending_review"
-                            ? "bg-yellow-100 text-yellow-800"
-                            : "bg-stone-100 text-stone-600"
-                      }`}
-                    >
-                      {source.status.replace(/_/g, " ")}
-                    </span>
-                  </div>
-                  <span className="text-sm text-stone-500">
-                    {source.snapshotCount || 0} snapshots
-                  </span>
-                </Link>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 pt-4 border-t border-stone-200">
-            <h3 className="text-sm font-medium text-stone-700 mb-2">Add Social Profile</h3>
-            <AddSocialProfileForm orgId={orgId} />
-          </div>
         </div>
 
         {/* Posts */}
@@ -1209,13 +803,19 @@ function PostRow({
           </select>
         )}
         <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${
-          post.postType === "service"
+          post.postType === "story"
             ? "bg-blue-100 text-blue-800"
-            : post.postType === "opportunity"
-              ? "bg-purple-100 text-purple-800"
-              : post.postType === "business"
+            : post.postType === "exchange"
+              ? "bg-green-100 text-green-800"
+              : post.postType === "event"
                 ? "bg-amber-100 text-amber-800"
-                : "bg-stone-100 text-stone-600"
+                : post.postType === "spotlight"
+                  ? "bg-purple-100 text-purple-800"
+                  : post.postType === "notice"
+                    ? "bg-stone-200 text-stone-700"
+                    : post.postType === "reference"
+                      ? "bg-sky-100 text-sky-800"
+                      : "bg-stone-100 text-stone-600"
         }`}>
           {post.postType}
         </span>
@@ -1235,89 +835,6 @@ function PostRow({
         {new Date(post.createdAt).toLocaleDateString()}
       </span>
     </div>
-  );
-}
-
-function AddSocialProfileForm({
-  orgId,
-}: {
-  orgId: string;
-}) {
-  const [platform, setPlatform] = useState("instagram");
-  const [handle, setHandle] = useState("");
-  const [url, setUrl] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const [, createSocialSource] = useMutation(CreateSocialSourceMutation);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!handle.trim()) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await createSocialSource(
-        {
-          organizationId: orgId,
-          platform: platform,
-          identifier: handle.trim(),
-        },
-        { additionalTypenames: ["Source", "SourceConnection", "Organization"] },
-      );
-      if (result.error) throw result.error;
-      setHandle("");
-      setUrl("");
-    } catch (err: any) {
-      setError(err.message || "Failed to add profile");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <form
-      onSubmit={handleSubmit}
-      className="flex items-center gap-2 bg-stone-50 rounded-lg px-3 py-2"
-    >
-      <select
-        value={platform}
-        onChange={(e) => setPlatform(e.target.value)}
-        className="px-2 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-        disabled={loading}
-      >
-        {PLATFORMS.map((p) => (
-          <option key={p} value={p}>
-            {p.charAt(0).toUpperCase() + p.slice(1)}
-          </option>
-        ))}
-      </select>
-      <input
-        type="text"
-        value={handle}
-        onChange={(e) => setHandle(e.target.value)}
-        placeholder="Handle (e.g. @example)"
-        className="flex-1 px-3 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-        disabled={loading}
-      />
-      <input
-        type="text"
-        value={url}
-        onChange={(e) => setUrl(e.target.value)}
-        placeholder="URL (optional)"
-        className="flex-1 px-3 py-1.5 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
-        disabled={loading}
-      />
-      <button
-        type="submit"
-        disabled={loading || !handle.trim()}
-        className="px-3 py-1.5 bg-amber-600 text-white rounded text-sm font-medium hover:bg-amber-700 disabled:opacity-50 transition-colors"
-      >
-        {loading ? "..." : "Add"}
-      </button>
-      {error && <span className="text-red-600 text-xs">{error}</span>}
-    </form>
   );
 }
 
@@ -1433,7 +950,6 @@ type NoteData = {
   ctaText?: string | null;
   severity: string;
   sourceUrl?: string | null;
-  sourceType?: string | null;
   isPublic: boolean;
   createdBy: string;
   expiredAt?: string | null;
@@ -1546,11 +1062,6 @@ function NoteRow({
           {isExpired && (
             <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
               expired
-            </span>
-          )}
-          {note.sourceType && (
-            <span className="text-xs text-stone-400">
-              via {note.sourceType}
             </span>
           )}
           <span className="text-xs text-stone-400">

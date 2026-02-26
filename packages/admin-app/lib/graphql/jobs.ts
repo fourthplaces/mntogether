@@ -12,8 +12,6 @@ export const JobsListQuery = graphql(`
       modifiedAt
       completedAt
       completionResult
-      websiteDomain
-      websiteId
     }
   }
 `);

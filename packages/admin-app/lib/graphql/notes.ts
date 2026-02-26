@@ -1,22 +1,6 @@
 import { graphql } from "@/gql";
 import "./fragments";
 
-export const EntityProposalsQuery = graphql(`
-  query EntityProposals($entityId: ID!) {
-    entityProposals(entityId: $entityId) {
-      id
-      batchId
-      operation
-      status
-      entityType
-      draftEntityId
-      targetEntityId
-      reason
-      createdAt
-    }
-  }
-`);
-
 export const EntityNotesQuery = graphql(`
   query EntityNotes($noteableType: String!, $noteableId: ID!) {
     entityNotes(noteableType: $noteableType, noteableId: $noteableId) {
@@ -85,54 +69,12 @@ export const UnlinkNoteMutation = graphql(`
   }
 `);
 
-export const GenerateNotesFromSourcesMutation = graphql(`
-  mutation GenerateNotesFromSources($organizationId: ID!) {
-    generateNotesFromSources(organizationId: $organizationId) {
-      notesCreated
-      sourcesScanned
-      postsAttached
-    }
-  }
-`);
-
 export const AutoAttachNotesMutation = graphql(`
   mutation AutoAttachNotes($organizationId: ID!) {
     autoAttachNotes(organizationId: $organizationId) {
       notesCount
       postsCount
       noteablesCreated
-    }
-  }
-`);
-
-export const CreateSocialSourceMutation = graphql(`
-  mutation CreateSocialSource(
-    $organizationId: ID!
-    $platform: String!
-    $identifier: String!
-  ) {
-    createSocialSource(
-      organizationId: $organizationId
-      platform: $platform
-      identifier: $identifier
-    ) {
-      id
-      sourceType
-      identifier
-    }
-  }
-`);
-
-export const CrawlAllOrgSourcesMutation = graphql(`
-  mutation CrawlAllOrgSources($organizationId: ID!) {
-    crawlAllOrgSources(organizationId: $organizationId)
-  }
-`);
-
-export const OrganizationSourcesQuery = graphql(`
-  query OrganizationSources($organizationId: ID!) {
-    organizationSources(organizationId: $organizationId) {
-      ...SourceFields
     }
   }
 `);

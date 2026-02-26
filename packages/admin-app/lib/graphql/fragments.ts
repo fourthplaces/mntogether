@@ -109,28 +109,6 @@ export const OrganizationFields = graphql(`
     name
     description
     status
-    websiteCount
-    socialProfileCount
-    snapshotCount
-    createdAt
-    updatedAt
-  }
-`);
-
-export const SourceFields = graphql(`
-  fragment SourceFields on Source {
-    id
-    sourceType
-    identifier
-    url
-    status
-    active
-    organizationId
-    organizationName
-    scrapeFrequencyHours
-    lastScrapedAt
-    postCount
-    snapshotCount
     createdAt
     updatedAt
   }
@@ -143,8 +121,6 @@ export const NoteFields = graphql(`
     ctaText
     severity
     sourceUrl
-    sourceId
-    sourceType
     isPublic
     createdBy
     expiredAt

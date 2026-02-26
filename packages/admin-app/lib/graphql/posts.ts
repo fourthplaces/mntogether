@@ -62,17 +62,6 @@ export const PostDetailFullQuery = graphql(`
         name
       }
     }
-    entityProposals(entityId: $id) {
-      id
-      batchId
-      operation
-      status
-      entityType
-      draftEntityId
-      targetEntityId
-      reason
-      createdAt
-    }
     entityNotes(noteableType: "post", noteableId: $id) {
       ...NoteFields
     }

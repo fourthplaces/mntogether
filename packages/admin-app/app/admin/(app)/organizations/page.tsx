@@ -139,12 +139,6 @@ function OrganizationsContent() {
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Websites
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Social Profiles
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
                     Created
                   </th>
                 </tr>
@@ -178,12 +172,6 @@ function OrganizationsContent() {
                       >
                         {org.status.replace(/_/g, " ")}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-stone-600">
-                      {org.websiteCount}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-stone-600">
-                      {org.socialProfileCount}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-stone-500 text-sm">
                       {new Date(org.createdAt).toLocaleDateString()}
