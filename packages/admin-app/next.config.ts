@@ -18,7 +18,6 @@ const nextConfig: NextConfig = {
     "@graphql-tools/schema",
     "@graphql-tools/merge",
     "@graphql-tools/utils",
-    "@graphql-tools/load-files",
     "dataloader",
   ],
 
