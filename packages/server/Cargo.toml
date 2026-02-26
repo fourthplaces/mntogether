@@ -81,8 +81,7 @@ dotenvy = { workspace = true }
 # Content hashing (duplicate detection)
 sha2 = { workspace = true }
 
-# Markdown rendering
-pulldown-cmark = "0.9"
+# Hex encoding
 hex = "0.4"
 
 # Base64 encoding (for cursor pagination)
