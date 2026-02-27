@@ -382,6 +382,8 @@ pub struct CreatePost {
     #[builder(default)]
     pub submitted_by_id: Option<Uuid>,
     #[builder(default)]
+    pub description_markdown: Option<String>,
+    #[builder(default)]
     pub source_url: Option<String>,
     #[builder(default)]
     pub revision_of_post_id: Option<PostId>,
@@ -431,6 +433,8 @@ pub struct PostFilters<'a> {
     pub source_id: Option<Uuid>,
     pub agent_id: Option<Uuid>,
     pub search: Option<&'a str>,
+    pub post_type: Option<&'a str>,
+    pub submission_type: Option<&'a str>,
 }
 
 // =============================================================================
@@ -586,6 +590,8 @@ impl Post {
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
                       AND ($6::uuid IS NULL OR a.id = $6)
                       AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
+                      AND ($8::text IS NULL OR p.post_type = $8)
+                      AND ($9::text IS NULL OR p.submission_type = $9)
                     ORDER BY p.id ASC
                     LIMIT $3
                     "#,
@@ -597,6 +603,8 @@ impl Post {
                 .bind(filters.source_id)
                 .bind(filters.agent_id)
                 .bind(&search_pattern)
+                .bind(filters.post_type)
+                .bind(filters.submission_type)
                 .fetch_all(pool)
                 .await?
             }
@@ -616,6 +624,8 @@ impl Post {
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
                       AND ($6::uuid IS NULL OR a.id = $6)
                       AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
+                      AND ($8::text IS NULL OR p.post_type = $8)
+                      AND ($9::text IS NULL OR p.submission_type = $9)
                     ORDER BY p.id DESC
                     LIMIT $3
                     "#,
@@ -627,6 +637,8 @@ impl Post {
                 .bind(filters.source_id)
                 .bind(filters.agent_id)
                 .bind(&search_pattern)
+                .bind(filters.post_type)
+                .bind(filters.submission_type)
                 .fetch_all(pool)
                 .await?;
 
@@ -847,6 +859,7 @@ impl Post {
             INSERT INTO posts (
                 title,
                 description,
+                description_markdown,
                 summary,
                 post_type,
                 category,
@@ -863,12 +876,13 @@ impl Post {
                 revision_of_post_id,
                 translation_of_id,
                 published_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
             RETURNING *
             "#,
         )
         .bind(input.title)
         .bind(input.description)
+        .bind(input.description_markdown)
         .bind(input.summary)
         .bind(input.post_type)
         .bind(input.category)
@@ -1111,6 +1125,8 @@ impl Post {
               AND ($3::uuid IS NULL OR ps.source_id = $3)
               AND ($4::uuid IS NULL OR a.id = $4)
               AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
+              AND ($6::text IS NULL OR p.post_type = $6)
+              AND ($7::text IS NULL OR p.submission_type = $7)
             "#,
         )
         .bind(filters.status)
@@ -1118,6 +1134,8 @@ impl Post {
         .bind(filters.source_id)
         .bind(filters.agent_id)
         .bind(&search_pattern)
+        .bind(filters.post_type)
+        .bind(filters.submission_type)
         .fetch_one(pool)
         .await?;
         Ok(count)
@@ -1474,6 +1492,8 @@ impl Post {
               AND ($4::uuid IS NULL OR ps.source_id = $4)
               AND ($5::uuid IS NULL OR a.id = $5)
               AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+              AND ($10::text IS NULL OR p.post_type = $10)
+              AND ($11::text IS NULL OR p.submission_type = $11)
               AND z.latitude BETWEEN c.latitude - ($7::float8 / 69.0)
                                  AND c.latitude + ($7::float8 / 69.0)
               AND z.longitude BETWEEN c.longitude - ($7::float8 / (69.0 * cos(radians(c.latitude))))
@@ -1496,6 +1516,8 @@ impl Post {
         .bind(radius_miles)           // $7
         .bind(limit + 1)        // $8 - fetch one extra to detect next page
         .bind(offset)           // $9
+        .bind(filters.post_type)      // $10
+        .bind(filters.submission_type) // $11
         .fetch_all(pool)
         .await?;
 
