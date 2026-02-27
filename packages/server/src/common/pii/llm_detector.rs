@@ -71,15 +71,6 @@ pub async fn detect_pii_with_ai(text: &str, ai: &OpenAi) -> Result<Vec<PiiEntity
     Ok(response.entities)
 }
 
-/// Legacy function that takes an API key directly.
-///
-/// Creates an OpenAI client internally. Prefer `detect_pii_with_ai` for
-/// better testability and consistency with the rest of the codebase.
-pub async fn detect_pii_with_gpt(text: &str, openrouter_api_key: &str) -> Result<Vec<PiiEntity>> {
-    let ai = OpenAi::new(openrouter_api_key.to_string(), GPT_5_MINI);
-    detect_pii_with_ai(text, &ai).await
-}
-
 /// Convert LLM-detected entities to PiiFindings format
 /// This allows combining regex and LLM detections
 pub fn entities_to_findings(text: &str, entities: &[PiiEntity]) -> PiiFindings {
@@ -128,36 +119,7 @@ pub fn entities_to_findings(text: &str, entities: &[PiiEntity]) -> PiiFindings {
     findings
 }
 
-/// Hybrid detection: combines regex and LLM
-pub async fn detect_pii_hybrid(text: &str, api_key: &str) -> Result<PiiFindings> {
-    use super::detector::detect_structured_pii;
-
-    // Start with regex detection (fast, reliable for structured data)
-    let mut findings = detect_structured_pii(text);
-
-    // Add LLM detection for unstructured PII
-    let entities = detect_pii_with_gpt(text, api_key).await?;
-    let llm_findings = entities_to_findings(text, &entities);
-
-    // Merge findings (deduplicating overlaps)
-    for new_match in llm_findings.matches {
-        // Check if this overlaps with existing matches
-        let overlaps = findings.matches.iter().any(|existing| {
-            // Check for overlap
-            (new_match.start >= existing.start && new_match.start < existing.end)
-                || (new_match.end > existing.start && new_match.end <= existing.end)
-                || (new_match.start <= existing.start && new_match.end >= existing.end)
-        });
-
-        if !overlaps {
-            findings.matches.push(new_match);
-        }
-    }
-
-    Ok(findings)
-}
-
-/// Hybrid detection with an AI client instance (preferred for testing)
+/// Hybrid detection with an AI client instance
 pub async fn detect_pii_hybrid_with_ai(text: &str, ai: &OpenAi) -> Result<PiiFindings> {
     use super::detector::detect_structured_pii;
 
@@ -223,16 +185,17 @@ mod tests {
         assert!(findings.is_empty());
     }
 
-    // Integration test - requires API key
+    // Integration test - requires OpenAI API key and a running AI client
     #[tokio::test]
     #[ignore] // Only run with: cargo test -- --ignored
-    async fn test_gpt_detection() {
+    async fn test_ai_detection() {
         let api_key = std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY not set");
+        let ai = OpenAi::new(&api_key, GPT_5_MINI);
 
         let text = "My name is Jane Doe and I live at 123 Main Street, Springfield. \
                     Call me at (555) 123-4567 or email jane@example.com";
 
-        let entities = detect_pii_with_gpt(text, &api_key).await.unwrap();
+        let entities = detect_pii_with_ai(text, &ai).await.unwrap();
 
         // Should detect multiple types of PII
         assert!(!entities.is_empty());

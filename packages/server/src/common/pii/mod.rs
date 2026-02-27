@@ -43,5 +43,5 @@ pub mod redactor;
 pub use detector::{
     detect_pii_contextual, detect_structured_pii, DetectionContext, PiiFindings, PiiMatch, PiiType,
 };
-pub use llm_detector::{detect_pii_hybrid, detect_pii_with_gpt, entities_to_findings, PiiEntity};
+pub use llm_detector::{detect_pii_hybrid_with_ai, detect_pii_with_ai, entities_to_findings, PiiEntity};
 pub use redactor::{redact_pii, RedactionStrategy};
