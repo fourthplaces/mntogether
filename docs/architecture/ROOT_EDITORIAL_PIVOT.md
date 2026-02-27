@@ -109,7 +109,7 @@ packages/
 | **social_profile** | Instagram/TikTok tracking → Root Signal |
 | **sync** | Deduplication/merge proposals → Root Signal |
 | **curator** | Content curation/filtering → Root Signal |
-| **newsletter** | Postmark inbound webhook/parsing → Root Signal |
+| **newsletter** | Inbound email webhook/parsing → Root Signal |
 | **providers** | Service provider directory → not needed |
 | **chatrooms** | Real-time chat/comments → not needed for CMS |
 | **contacts** | Generic contact management → minimal/legacy |
@@ -407,7 +407,7 @@ The **MN Together broadsheet** — a 3-column newspaper layout showing the curre
 | 3 | Post type expansion: field-based, tag-based, or hybrid? | Tim + Claude | Needs decision |
 | 4 | Edition data model: what tables do we need? | Tim + Claude | Needs design |
 | 5 | Layout engine: algorithmic placement or manual-only? | Tim | Needs decision |
-| 6 | Email newsletter: what service/tool? (Postmark, Resend, etc.) | Tim | Needs decision |
+| 6 | Email newsletter: Amazon SES (decided — see [ARCHITECTURE_DECISIONS.md](ARCHITECTURE_DECISIONS.md) Decision 3) | Tim | Decided |
 | 7 | Weather API: which provider? How granular? (county vs city) | Tim | Needs decision |
 | 8 | Multi-tenancy: any architectural guardrails needed now? | Tim | Deferred (don't block on this, just don't make it impossible) |
 | 9 | How much of the existing Restate workflow machinery stays for the CMS? | Tim + Claude | Needs audit |

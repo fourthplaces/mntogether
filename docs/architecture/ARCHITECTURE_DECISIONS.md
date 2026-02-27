@@ -10,39 +10,37 @@
 `packages/web-app` becomes a static site build deployed to CDN.
 
 - **Build tool:** Next.js static export, or a lighter alternative (Astro, 11ty)
-- **Hosting:** Cloudflare Pages, Netlify, or Vercel — no Node.js runtime
-- **Rebuild trigger:** Edition publish event triggers a rebuild
+- **Hosting:** CloudFront + S3 (already provisioned in `infra/packages/web-app/`) — no Node.js runtime
+- **Rebuild trigger:** Edition publish event triggers a rebuild and S3 sync + CloudFront invalidation
 - **Consequence:** The public newspaper has zero server-side attack surface
 
 ---
 
-## Decision 2: Platform Form Handling for Community Submissions
+## Decision 2: Lightweight Form Handling for Community Submissions
 
-Public-facing forms (community submissions, tips, event listings) use the hosting platform's built-in form handling rather than a custom backend.
+Public-facing forms (community submissions, tips, event listings) use a minimal serverless function rather than exposing the full backend.
 
-- **Examples:** Cloudflare Workers, Netlify Forms, Vercel Edge Functions
-- **Platform provides:** Spam protection, rate limiting, bot detection
-- **Data flow:** Form submission → platform → webhook → thin API endpoint → creates post with `submission_type='community', status='pending_approval'`
-- **Consequence:** No custom form backend, no CAPTCHA infrastructure, no public API surface
+- **Implementation:** API Gateway + Lambda function behind CloudFront, provisioned via Pulumi in the existing `web-app` stack
+- **Lambda provides:** Input validation, rate limiting (API Gateway throttling), and a write to the Rust server's webhook endpoint
+- **Data flow:** Form submission → API Gateway → Lambda → Rust server webhook → creates post with `submission_type='community', status='pending_approval'`
+- **Consequence:** No custom form backend on the static site, no CAPTCHA infrastructure, minimal public API surface
 
 ---
 
-## Decision 3: Minimal PII, External Email Delivery
+## Decision 3: Minimal PII, Amazon SES for Email Delivery
 
 Root Editorial minimizes PII storage — no user accounts, no browsing data, no profiles.
 
-Email newsletters are a genuine product need: subscribers register an email to a county edition and receive a weekly preview of the published newspaper. But building full email infrastructure in-house (Postmark integration, subscribers table, send workflow, batch processing) is **deferred** — not needed for MVP.
+Email newsletters are a genuine product need: subscribers register an email to a county edition and receive a weekly preview of the published newspaper. But building the full email infrastructure (SES integration, subscribers table, send workflow, batch processing) is **deferred** — not needed for MVP.
 
-When implemented, prefer an external email service that manages subscriber lists and delivery:
+When implemented, email delivery uses **Amazon SES** — the same AWS account and Pulumi IaC stack the rest of the infrastructure runs on. No external vendor relationship, no additional API keys to manage.
 
-- **Option A — Fully external:** A service like Buttondown or Mailchimp holds the email list entirely. Root Editorial generates the email content (edition preview HTML) and pushes it to the service via API. Zero PII stored locally.
-- **Option B — Minimal local storage:** A slim `subscribers` table (email + county_id + status) with external delivery via Postmark or SendGrid. The email list is the only PII, and it's kept minimal.
-
-Either way, the email list is the only PII, and it's either externalized or kept minimal.
+- **Approach:** A slim `subscribers` table (email + county_id + status) with delivery via SES v2. The ECS task role gets `ses:SendEmail` permissions automatically — no secrets to rotate. The email list is the only PII, and it's kept minimal.
+- **Infrastructure:** SES domain identity, DKIM records, and configuration set are provisioned via Pulumi in the `core` stack.
 
 RSS feeds per county serve as a zero-PII complement — readers who prefer feed readers get the same edition content without registering.
 
-> **See also:** [`phase4/EMAIL_NEWSLETTER.md`](phase4/EMAIL_NEWSLETTER.md) — the detailed implementation plan. Its status is **Deferred**, not superseded. The product vision (weekly edition preview emails per county) remains valid; the implementation timing and infrastructure approach are TBD.
+> **See also:** [`phase4/EMAIL_NEWSLETTER.md`](phase4/EMAIL_NEWSLETTER.md) — the detailed implementation plan. Its status is **Deferred**, not superseded. The product vision (weekly edition preview emails per county) remains valid; the implementation timing is TBD.
 
 ---
 

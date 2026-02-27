@@ -4,11 +4,11 @@
 # This is a production-ready configuration with optimized builds and security
 #
 # IMPORTANT: For production, you should:
-# 1. Use managed database services (AWS RDS, DigitalOcean, etc.)
+# 1. Use managed database services (AWS RDS)
 # 2. Set up proper SSL/TLS termination
 # 4. Configure monitoring and logging
 # 5. Set up automated backups
-# 6. Use secrets management (AWS Secrets Manager, HashiCorp Vault, etc.)
+# 6. Use secrets management (AWS Secrets Manager)
 #
 # Usage:
 #   docker compose -f docker-compose.prod.yml up -d

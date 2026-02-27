@@ -1,10 +1,10 @@
-# Phase 4.4: Email Newsletter via Postmark
+# Phase 4.4: Email Newsletter via Amazon SES
 
 **Status:** Deferred (see [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 3)
 **Priority:** 4 of 4 (most infrastructure, least dependency on other subprojects)
 **Depends on:** Phase 3 (Edition System — complete), editions must be publishable
 
-> **Deferred — not superseded.** The product vision (weekly edition preview emails per county) remains valid. Full in-house email infrastructure (Postmark integration, subscribers table, send workflow, batch processing) is deferred in favor of an external email delivery service when the time comes. See Decision 3 in ARCHITECTURE_DECISIONS.md for the two implementation options: fully external (Buttondown/Mailchimp holds the list) vs. minimal local storage with external delivery (Postmark/SendGrid for sending only).
+> **Deferred — not superseded.** The product vision (weekly edition preview emails per county) remains valid. Full in-house email infrastructure (SES integration, subscribers table, send workflow, batch processing) is deferred. When the time comes, it uses Amazon SES — the same AWS account and Pulumi IaC stack the rest of the infrastructure runs on.
 
 ---
 
@@ -12,15 +12,17 @@
 
 When an editor publishes a weekly edition, there is no mechanism to notify subscribers by email. The broadsheet exists in the admin UI and (eventually) the public web-app, but there is no email distribution channel.
 
-Postmark was previously used for inbound email parsing (newsletter domain, removed in Phase 1). This subproject adds outbound email: generating a condensed email version of a published edition and sending it to subscribers via Postmark's transactional API.
+This subproject adds outbound email: generating a condensed email version of a published edition and sending it to subscribers via Amazon SES.
 
 ---
 
 ## Architecture Decisions
 
-### 1. Postmark transactional Messages API (not Broadcasts)
+### 1. Amazon SES v2 API (not a third-party email service)
 
-Postmark has two sending modes: Transactional Messages and Broadcasts. Broadcasts require a separate approval flow and are designed for marketing. Transactional Messages are simpler, allow per-recipient personalization (unsubscribe links), and have no approval overhead. The batch endpoint handles up to 500 messages per call, which is sufficient for early subscriber lists.
+The entire infrastructure runs on AWS via Pulumi. SES keeps email delivery in the same account — no external API keys, no third-party vendor relationship, no additional billing. SES v2's `SendBulkEmail` API handles per-recipient personalization (unsubscribe links) and supports up to 50 messages per call. For larger lists, the workflow batches automatically.
+
+Pulumi provisions the SES configuration set, verified domain identity (mntogether.org), and DKIM records in the existing `core` stack. The ECS task role gets `ses:SendEmail` and `ses:SendBulkEmail` permissions — no secrets to rotate.
 
 ### 2. Simple `subscribers` table, not a mailing list platform
 
@@ -32,11 +34,74 @@ Email HTML requires inline CSS (no external stylesheets). Generating this in Rus
 
 ### 4. Durable `SendNewsletterWorkflow` via Restate
 
-Sending to potentially thousands of subscribers should be durable and resumable. A Restate workflow provides automatic retries, progress tracking, and idempotency per invocation. The workflow: render HTML → load subscribers → create send record → batch-send via Postmark → update progress.
+Sending to potentially thousands of subscribers should be durable and resumable. A Restate workflow provides automatic retries, progress tracking, and idempotency per invocation. The workflow: render HTML → load subscribers → create send record → batch-send via SES → update progress.
 
-### 5. `BasePostmarkService` trait for testability
+### 5. `BaseSesService` trait for testability
 
-Following the established pattern: `BaseTwilioService` trait in `kernel/traits.rs` with `TwilioAdapter` in `kernel/deps.rs`. Create `BasePostmarkService` trait and `PostmarkAdapter` the same way. Tests mock the trait without hitting the real API.
+Following the established pattern: `BaseTwilioService` trait in `kernel/traits.rs` with `TwilioAdapter` in `kernel/deps.rs`. Create `BaseSesService` trait and `SesAdapter` the same way. Tests mock the trait without hitting the real API.
+
+---
+
+## Infrastructure Changes (Pulumi)
+
+### Add to `infra/packages/core/index.ts`
+
+```typescript
+// ─── SES Domain Identity ─────────────────────────────────
+const sesIdentity = new aws.ses.DomainIdentity("ses-identity", {
+    domain: "mntogether.org",
+});
+
+const sesDkim = new aws.ses.DomainDkim("ses-dkim", {
+    domain: sesIdentity.domain,
+});
+
+// Add DKIM CNAME records to Route53
+sesDkim.dkimTokens.apply(tokens => {
+    tokens.forEach((token, i) => {
+        new aws.route53.Record(`ses-dkim-${i}`, {
+            zoneId: hostedZone.zoneId,
+            name: `${token}._domainkey.mntogether.org`,
+            type: "CNAME",
+            records: [`${token}.dkim.amazonses.com`],
+            ttl: 600,
+        });
+    });
+});
+
+// Configuration set for tracking
+const sesConfigSet = new aws.sesv2.ConfigurationSet("newsletter-config-set", {
+    configurationSetName: "newsletter",
+    sendingOptions: { sendingEnabled: true },
+});
+
+export const sesIdentityArn = sesIdentity.arn;
+export const sesConfigSetName = sesConfigSet.configurationSetName;
+```
+
+### Add to `infra/packages/server/index.ts` (ECS task role)
+
+```typescript
+// SES send permissions for newsletter
+new aws.iam.RolePolicyAttachment("ses-send-policy", {
+    role: taskRole,
+    policyArn: new aws.iam.Policy("ses-send", {
+        policy: JSON.stringify({
+            Version: "2012-10-17",
+            Statement: [{
+                Effect: "Allow",
+                Action: ["ses:SendEmail", "ses:SendBulkEmail"],
+                Resource: "*",
+                Condition: {
+                    StringEquals: {
+                        "ses:FromAddress": "newsletter@mntogether.org",
+                    },
+                },
+            }],
+        }),
+    }).arn,
+});
+```
 
 ---
 
@@ -174,70 +239,124 @@ impl NewsletterSend {
 
 ```rust
 #[async_trait]
-pub trait BasePostmarkService: Send + Sync {
-    /// Send a batch of emails (up to 500).
-    async fn send_batch(&self, messages: Vec<PostmarkMessage>) -> Result<Vec<PostmarkSendResult>>;
+pub trait BaseSesService: Send + Sync {
+    /// Send a batch of emails via SES v2.
+    async fn send_batch(&self, messages: Vec<SesMessage>) -> Result<Vec<SesSendResult>>;
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostmarkMessage {
-    pub from: String,
+pub struct SesMessage {
     pub to: String,
     pub subject: String,
     pub html_body: String,
-    pub message_stream: String,  // "outbound" for transactional
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PostmarkSendResult {
+pub struct SesSendResult {
     pub to: String,
-    pub submitted_at: Option<String>,
     pub message_id: Option<String>,
-    pub error_code: i32,
-    pub message: String,
+    pub success: bool,
+    pub error: Option<String>,
 }
 ```
 
 ### Adapter: `packages/server/src/kernel/deps.rs`
 
-Following the `TwilioAdapter` pattern (line ~24):
+Following the `TwilioAdapter` pattern:
 
 ```rust
-pub struct PostmarkAdapter {
-    server_token: String,
-    client: reqwest::Client,
+use aws_sdk_sesv2 as sesv2;
+
+pub struct SesAdapter {
+    client: sesv2::Client,
     from_email: String,
+    config_set: String,
 }
 
-impl PostmarkAdapter {
-    pub fn new(server_token: String, from_email: String) -> Self {
-        Self { server_token, client: reqwest::Client::new(), from_email }
+impl SesAdapter {
+    pub async fn new(from_email: String, config_set: String) -> Self {
+        let config = aws_config::load_defaults(aws_config::BehaviorVersion::latest()).await;
+        Self {
+            client: sesv2::Client::new(&config),
+            from_email,
+            config_set,
+        }
     }
 }
 
 #[async_trait]
-impl BasePostmarkService for PostmarkAdapter {
-    async fn send_batch(&self, messages: Vec<PostmarkMessage>) -> Result<Vec<PostmarkSendResult>> {
-        let response = self.client
-            .post("https://api.postmarkapp.com/email/batch")
-            .header("X-Postmark-Server-Token", &self.server_token)
-            .header("Content-Type", "application/json")
-            .json(&messages)
-            .send()
-            .await?;
-        // Parse response...
+impl BaseSesService for SesAdapter {
+    async fn send_batch(&self, messages: Vec<SesMessage>) -> Result<Vec<SesSendResult>> {
+        let mut results = Vec::with_capacity(messages.len());
+
+        for msg in &messages {
+            let result = self.client
+                .send_email()
+                .from_email_address(&self.from_email)
+                .destination(
+                    sesv2::types::Destination::builder()
+                        .to_addresses(&msg.to)
+                        .build()
+                )
+                .content(
+                    sesv2::types::EmailContent::builder()
+                        .simple(
+                            sesv2::types::Message::builder()
+                                .subject(
+                                    sesv2::types::Content::builder()
+                                        .data(&msg.subject)
+                                        .charset("UTF-8")
+                                        .build()
+                                        .expect("subject content")
+                                )
+                                .body(
+                                    sesv2::types::Body::builder()
+                                        .html(
+                                            sesv2::types::Content::builder()
+                                                .data(&msg.html_body)
+                                                .charset("UTF-8")
+                                                .build()
+                                                .expect("html content")
+                                        )
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .build()
+                )
+                .configuration_set_name(&self.config_set)
+                .send()
+                .await;
+
+            match result {
+                Ok(output) => results.push(SesSendResult {
+                    to: msg.to.clone(),
+                    message_id: output.message_id,
+                    success: true,
+                    error: None,
+                }),
+                Err(e) => results.push(SesSendResult {
+                    to: msg.to.clone(),
+                    message_id: None,
+                    success: false,
+                    error: Some(e.to_string()),
+                }),
+            }
+        }
+
+        Ok(results)
     }
 }
 ```
 
 ### ServerDeps: `packages/server/src/kernel/deps.rs`
 
-Add to `ServerDeps` struct (line ~57):
+Add to `ServerDeps` struct:
 ```rust
-pub postmark: Option<Arc<dyn BasePostmarkService>>,
+pub ses: Option<Arc<dyn BaseSesService>>,
 ```
 
-Update `ServerDeps::new()` to accept the field. Make it `Option` — when `POSTMARK_SERVER_TOKEN` is not set, newsletter features are disabled.
+Make it `Option` — when SES is not configured (no AWS credentials or feature disabled), newsletter features are disabled.
 
 ### Activity: `render.rs`
 
@@ -275,30 +394,29 @@ pub async fn send_newsletter_batch(
     base_unsubscribe_url: &str,
     deps: &ServerDeps,
 ) -> Result<(i32, i32)> {  // (sent_count, failed_count)
-    let postmark = deps.postmark.as_ref()
-        .ok_or_else(|| anyhow::anyhow!("Postmark not configured"))?;
+    let ses = deps.ses.as_ref()
+        .ok_or_else(|| anyhow::anyhow!("SES not configured"))?;
 
     let mut total_sent = 0;
     let mut total_failed = 0;
 
-    for chunk in subscribers.chunks(500) {
-        let messages: Vec<PostmarkMessage> = chunk.iter().map(|sub| {
+    // SES rate: 14 emails/sec by default; batch in chunks of 50
+    for chunk in subscribers.chunks(50) {
+        let messages: Vec<SesMessage> = chunk.iter().map(|sub| {
             let html = html_template.replace(
                 "{{unsubscribe_url}}",
                 &format!("{}?token={}", base_unsubscribe_url, sub.confirm_token.as_deref().unwrap_or("")),
             );
-            PostmarkMessage {
-                from: "MN Together <newsletter@mntogether.org>".into(),
+            SesMessage {
                 to: sub.email.clone(),
                 subject: subject.into(),
                 html_body: html,
-                message_stream: "outbound".into(),
             }
         }).collect();
 
-        let results = postmark.send_batch(messages).await?;
+        let results = ses.send_batch(messages).await?;
         for r in &results {
-            if r.error_code == 0 { total_sent += 1; } else { total_failed += 1; }
+            if r.success { total_sent += 1; } else { total_failed += 1; }
         }
     }
 
@@ -336,7 +454,7 @@ pub trait SendNewsletterWorkflow {
 // 3. Render HTML
 // 4. Load active subscribers for county
 // 5. Create NewsletterSend record
-// 6. Send in 500-recipient batches
+// 6. Send in 50-recipient batches (SES rate limits)
 // 7. Update progress after each batch
 // 8. Mark send as completed
 ```
@@ -344,20 +462,29 @@ pub trait SendNewsletterWorkflow {
 ### Server registration: `packages/server/src/bin/server.rs`
 
 ```rust
-// Load Postmark config
-let postmark: Option<Arc<dyn BasePostmarkService>> = std::env::var("POSTMARK_SERVER_TOKEN")
-    .ok()
-    .map(|token| {
-        let from = std::env::var("POSTMARK_FROM_EMAIL")
-            .unwrap_or_else(|_| "newsletter@mntogether.org".into());
-        Arc::new(PostmarkAdapter::new(token, from)) as Arc<dyn BasePostmarkService>
-    });
+// SES client — uses IAM task role credentials automatically
+let ses: Option<Arc<dyn BaseSesService>> = if std::env::var("NEWSLETTER_ENABLED").unwrap_or_default() == "true" {
+    let from = std::env::var("SES_FROM_EMAIL")
+        .unwrap_or_else(|_| "newsletter@mntogether.org".into());
+    let config_set = std::env::var("SES_CONFIG_SET")
+        .unwrap_or_else(|_| "newsletter".into());
+    Some(Arc::new(SesAdapter::new(from, config_set).await) as Arc<dyn BaseSesService>)
+} else {
+    None
+};
 
 // Add to ServerDeps::new(...)
 
 // Register services
 .bind(NewsletterServiceImpl::with_deps(deps.clone()).serve())
 .bind(SendNewsletterWorkflowImpl::with_deps(deps.clone()).serve())
+```
+
+### Cargo dependency: `packages/server/Cargo.toml`
+
+```toml
+aws-sdk-sesv2 = "1"
+aws-config = "1"
 ```
 
 ---
@@ -525,9 +652,12 @@ Add "Newsletter" to the "Content" nav group, after "Editions".
 
 Add:
 ```
-POSTMARK_SERVER_TOKEN=
-POSTMARK_FROM_EMAIL=newsletter@mntogether.org
+NEWSLETTER_ENABLED=false
+SES_FROM_EMAIL=newsletter@mntogether.org
+SES_CONFIG_SET=newsletter
 ```
+
+No API keys needed — SES authenticates via IAM task role in ECS, and via default AWS credentials locally.
 
 ---
 
@@ -535,10 +665,10 @@ POSTMARK_FROM_EMAIL=newsletter@mntogether.org
 
 | What | Where | How |
 |------|-------|-----|
-| `BaseTwilioService` trait pattern | `kernel/traits.rs:30` | Template for `BasePostmarkService` |
-| `TwilioAdapter` pattern | `kernel/deps.rs:24` | Template for `PostmarkAdapter` |
-| `ServerDeps` struct | `kernel/deps.rs:57` | Add `postmark` field |
-| `reqwest` HTTP client | Already in `Cargo.toml` | For Postmark API calls |
+| `BaseTwilioService` trait pattern | `kernel/traits.rs:30` | Template for `BaseSesService` |
+| `TwilioAdapter` pattern | `kernel/deps.rs:24` | Template for `SesAdapter` |
+| `ServerDeps` struct | `kernel/deps.rs:57` | Add `ses` field |
+| `reqwest` HTTP client | Already in `Cargo.toml` | Not needed — SES uses AWS SDK |
 | `Edition::find_by_id` | `edition.rs:55` | Load edition for rendering |
 | `County::find_by_id` | `county.rs` | Load county for rendering |
 | `EditionRow::find_by_edition` | `edition_row.rs` | Load rows for rendering |
@@ -553,41 +683,46 @@ POSTMARK_FROM_EMAIL=newsletter@mntogether.org
 
 ## Implementation Steps
 
-1. **Migration**: Create `000178_create_newsletter_system.sql` (subscribers + newsletter_sends tables)
-2. **Migration**: Run `make migrate`
-3. **Model**: Create `Subscriber` with all CRUD methods
-4. **Model**: Create `NewsletterSend` with CRUD and progress update
-5. **Trait**: Add `BasePostmarkService` to `kernel/traits.rs`
-6. **Adapter**: Add `PostmarkAdapter` to `kernel/deps.rs`
-7. **ServerDeps**: Add `postmark: Option<Arc<dyn BasePostmarkService>>`
-8. **Activity**: Create `render.rs` — HTML email renderer
-9. **Activity**: Create `send.rs` — batch send logic
-10. **Restate**: Create `NewsletterService` with subscriber CRUD + preview + trigger
-11. **Restate**: Create `SendNewsletterWorkflow` for durable send
-12. **Server**: Register new service and workflow in `server.rs`
-13. **Server**: Load `POSTMARK_SERVER_TOKEN` from env
-14. **GraphQL**: Add types, queries, mutations to `schema.ts`
-15. **GraphQL**: Create `resolvers/newsletter.ts`, register in `index.ts`
-16. **Frontend**: Create `lib/graphql/newsletter.ts` queries
-17. **Frontend**: Create newsletter admin page
-18. **Frontend**: Create newsletter preview page
-19. **Frontend**: Update edition detail with newsletter section
-20. **Frontend**: Update sidebar
-21. **Config**: Update `.env.example`
-22. **Codegen**: Run `yarn codegen` in admin-app
-23. **Rebuild**: `docker compose up -d --build server`
+1. **Pulumi**: Add SES domain identity, DKIM records, configuration set to `infra/packages/core/`
+2. **Pulumi**: Add `ses:SendEmail` IAM policy to ECS task role in `infra/packages/server/`
+3. **Migration**: Create `000178_create_newsletter_system.sql` (subscribers + newsletter_sends tables)
+4. **Migration**: Run `make migrate`
+5. **Cargo**: Add `aws-sdk-sesv2` and `aws-config` dependencies
+6. **Model**: Create `Subscriber` with all CRUD methods
+7. **Model**: Create `NewsletterSend` with CRUD and progress update
+8. **Trait**: Add `BaseSesService` to `kernel/traits.rs`
+9. **Adapter**: Add `SesAdapter` to `kernel/deps.rs`
+10. **ServerDeps**: Add `ses: Option<Arc<dyn BaseSesService>>`
+11. **Activity**: Create `render.rs` — HTML email renderer
+12. **Activity**: Create `send.rs` — batch send logic
+13. **Restate**: Create `NewsletterService` with subscriber CRUD + preview + trigger
+14. **Restate**: Create `SendNewsletterWorkflow` for durable send
+15. **Server**: Register new service and workflow in `server.rs`
+16. **Server**: Initialize SES client from env/IAM
+17. **GraphQL**: Add types, queries, mutations to `schema.ts`
+18. **GraphQL**: Create `resolvers/newsletter.ts`, register in `index.ts`
+19. **Frontend**: Create `lib/graphql/newsletter.ts` queries
+20. **Frontend**: Create newsletter admin page
+21. **Frontend**: Create newsletter preview page
+22. **Frontend**: Update edition detail with newsletter section
+23. **Frontend**: Update sidebar
+24. **Config**: Update `.env.example`
+25. **Codegen**: Run `yarn codegen` in admin-app
+26. **Rebuild**: `docker compose up -d --build server`
 
 ---
 
 ## Verification
 
-1. Run migration — verify `subscribers` and `newsletter_sends` tables exist
-2. Add a subscriber via admin page — verify it appears in the list
-3. Remove a subscriber — verify status changes to `unsubscribed`
-4. Navigate to newsletter preview for a published edition — verify HTML renders in iframe
-5. Subject line should read "{County Name} — Week of {date}"
-6. Email HTML should list post titles and summaries from the edition
-7. Send newsletter (with Postmark test key) — verify send record created with correct counts
-8. Verify send status updates from `pending` → `sending` → `completed`
-9. Edition detail page shows newsletter send status for published editions
-10. With no `POSTMARK_SERVER_TOKEN` set, server starts without error (feature disabled)
+1. Run `pulumi up` for core stack — verify SES identity and DKIM records created
+2. Run migration — verify `subscribers` and `newsletter_sends` tables exist
+3. Add a subscriber via admin page — verify it appears in the list
+4. Remove a subscriber — verify status changes to `unsubscribed`
+5. Navigate to newsletter preview for a published edition — verify HTML renders in iframe
+6. Subject line should read "{County Name} — Week of {date}"
+7. Email HTML should list post titles and summaries from the edition
+8. Send newsletter (SES sandbox mode) — verify send record created with correct counts
+9. Verify send status updates from `pending` → `sending` → `completed`
+10. Edition detail page shows newsletter send status for published editions
+11. With `NEWSLETTER_ENABLED=false`, server starts without error (feature disabled)
+12. In production, verify SES sends from `newsletter@mntogether.org` with DKIM passing

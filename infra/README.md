@@ -1,7 +1,5 @@
 # Root Editorial Infrastructure
 
-> **Note**: This infrastructure documentation predates the Root Editorial pivot. Some references to `admin-spa`, `web-next`, and `web-app` as separate S3-hosted SPAs are outdated. The current app architecture uses `admin-app` (CMS, port 3000) and `web-app` (public site, port 3001), both as Next.js apps. Infrastructure config will need updating before production deployment.
-
 Pulumi-based infrastructure as code for deploying to AWS.
 
 ## Architecture
@@ -11,78 +9,68 @@ Pulumi-based infrastructure as code for deploying to AWS.
 │                        CloudFront                           │
 │  ┌──────────────────┐           ┌──────────────────┐       │
 │  │   admin-app      │           │    web-app       │       │
-│  │ admin.domain.com │           │  app.domain.com  │       │
+│  │ admin.mntogether │           │  app.mntogether  │       │
+│  │      .org        │           │      .org        │       │
 │  └────────┬─────────┘           └────────┬─────────┘       │
 └───────────┼──────────────────────────────┼─────────────────┘
             │                              │
             │  S3 Static Hosting           │  S3 Static Hosting
             │                              │
+┌───────────┴──────────────────────────────────────────────────┐
+│                  Application Load Balancer                    │
+│  ┌─────────────────────────┐                                 │
+│  │   api.mntogether.org    │                                 │
+│  │   (Rust API Server)     │                                 │
+│  └────────┬────────────────┘                                 │
+└───────────┼──────────────────────────────────────────────────┘
             │
 ┌───────────┴──────────────────────────────────────────────────┐
-│                  Application Load Balancers                   │
-│  ┌─────────────────────────┐     ┌──────────────────────┐   │
-│  │   api.domain.com        │     │  www.domain.com      │   │
-│  │   (GraphQL API)         │     │  (Next.js SSR)       │   │
-│  └────────┬────────────────┘     └──────────┬───────────┘   │
-└───────────┼────────────────────────────────┼───────────────┘
-            │                                │
-            │                                │
-┌───────────┴────────────────────────────────┴──────────────────┐
-│                       ECS Fargate                              │
-│  ┌──────────────────────────────┐  ┌──────────────────────┐  │
-│  │  Server (Rust)               │  │  Next.js (Node.js)   │  │
-│  │  - GraphQL API               │  │  - SSR for SEO       │  │
-│  │  - WebSocket support         │  │  - GraphQL client    │  │
-│  │  - Auto-scaling              │  │  - Auto-scaling      │  │
-│  └──────────────┬───────────────┘  └──────────────────────┘  │
-└─────────────────┼─────────────────────────────────────────────┘
+│                       ECS Fargate                             │
+│  ┌──────────────────────────────┐                            │
+│  │  Server (Rust)               │                            │
+│  │  - Restate endpoint (h2c)    │                            │
+│  │  - Auto-scaling              │                            │
+│  └──────────────┬───────────────┘                            │
+└─────────────────┼────────────────────────────────────────────┘
                   │
-                  │
-┌─────────────────┴─────────────────────────────────────────────┐
+┌─────────────────┴────────────────────────────────────────────┐
 │                    RDS PostgreSQL                              │
-│  - pgvector extension                                          │
-│  - Automated backups                                           │
-│  - Encrypted at rest                                           │
-│  - Multi-AZ (prod)                                             │
-└────────────────────────────────────────────────────────────────┘
+│  - pgvector extension                                         │
+│  - Automated backups                                          │
+│  - Encrypted at rest                                          │
+│  - Multi-AZ (prod)                                            │
+└───────────────────────────────────────────────────────────────┘
 ```
 
 ## Stacks
 
-### core
+### core (`infra/packages/core/`)
 Shared infrastructure:
-- **ACM Certificate**: Wildcard SSL certificate (*.domain.com)
+- **ACM Certificate**: Wildcard SSL certificate (*.mntogether.org)
 - **RDS PostgreSQL**: Database with pgvector extension
 - **Secrets Manager**: Database credentials
 - **VPC & Networking**: Default VPC configuration
+- **Route53**: DNS hosted zone
 
-### server
+### server (`infra/packages/server/`)
 API backend deployment:
 - **ECS Fargate**: Containerized Rust server
 - **Application Load Balancer**: HTTPS termination and routing
 - **CloudWatch Logs**: Application logging
 - **Auto Scaling**: Based on CPU/memory metrics
+- **ECR**: Container image repository (`rooteditorial-server`)
 
-### web-app
-Unified web application (public + admin):
+### web-app (`infra/packages/web-app/`)
+Static frontend hosting (both admin and public apps):
 - **S3**: Static file hosting
-- **CloudFront**: CDN distribution
-- **Route53**: DNS configuration (app.domain.com)
-- **Features**: Public pages + admin dashboard at /admin
-
-### web-next
-Next.js application with SSR:
-- **ECS Fargate**: Containerized Next.js server
-- **Application Load Balancer**: HTTPS termination and routing
-- **CloudWatch Logs**: Application logging
-- **Auto Scaling**: Based on CPU/memory metrics
-- **Route53**: DNS configuration (www.domain.com and domain.com)
+- **CloudFront**: CDN distribution with HTTPS
+- **Route53**: DNS configuration (admin.mntogether.org, app.mntogether.org)
 
 ## Prerequisites
 
 1. **AWS Account** with appropriate permissions
 2. **Pulumi Account** (free tier works)
-3. **Domain** registered in Route53
+3. **Domain** registered in Route53 (mntogether.org)
 4. **Tools**:
    - Node.js 22+
    - Yarn 4.1+
@@ -103,38 +91,25 @@ yarn build
 
 ```bash
 aws configure
-# Set your AWS credentials and region
+# Region: us-east-1
 ```
 
 ### 3. Configure Pulumi
 
 ```bash
-# Login to Pulumi
 pulumi login
-
-# Set up Pulumi access token
 export PULUMI_ACCESS_TOKEN=<your-token>
 ```
 
-### 4. Create ECR Repositories
-
-Create ECR repositories for Docker images:
+### 4. Create ECR Repository
 
 ```bash
-# Create repository for server
 aws ecr create-repository \
   --repository-name rooteditorial-server \
-  --region us-east-1
-
-# Create repository for Next.js app
-aws ecr create-repository \
-  --repository-name rooteditorial-web-next \
   --region us-east-1
 ```
 
 ### 5. Configure Stacks
-
-For each environment (dev/prod), configure the domain:
 
 ```bash
 cd packages/core
@@ -158,7 +133,7 @@ pulumi config set aws:region us-east-1
 Deploy all stacks:
 
 ```bash
-./deploy.sh dev all up --yes
+./deploy.sh -e dev -s all
 ```
 
 Deploy specific stack:
@@ -167,7 +142,6 @@ Deploy specific stack:
 ./deploy.sh -e dev -s core
 ./deploy.sh -e dev -s server
 ./deploy.sh -e dev -s web-app
-./deploy.sh -e dev -s web-next
 ```
 
 Preview changes:
@@ -183,17 +157,12 @@ Deployment is triggered automatically:
 **Server**:
 - Push to `main` → deploys to prod
 - Push to `dev` → deploys to dev
-- Changes in `packages/server/**`
+- Triggered by changes in `packages/server/**`
 
-**Web App (SPA)**:
+**Web App (Static)**:
 - After successful server deployment
 - Push to `main`/`dev`
-- Changes in `packages/web-app/**`
-
-**Next.js App**:
-- Push to `main` → deploys to prod
-- Push to `dev` → deploys to dev
-- Changes in `packages/web-next/**`
+- Triggered by changes in `packages/admin-app/**` or `packages/web-app/**`
 
 ### Required GitHub Secrets
 
@@ -201,33 +170,10 @@ Deployment is triggered automatically:
 AWS_ROLE_ARN               # AWS IAM role ARN for GitHub OIDC
 PULUMI_ACCESS_TOKEN        # Pulumi access token
 PULUMI_CONFIG_PASSPHRASE   # Passphrase for Pulumi secrets
-ECR_REPOSITORY             # ECR repository name for Docker images
+ECR_REPOSITORY             # ECR repository name (rooteditorial-server)
 ```
 
-## Configuration
-
-### Stack Configuration Files
-
-Each stack can have environment-specific configuration:
-
-```yaml
-# packages/server/Pulumi.dev.yaml
-config:
-  aws:region: us-east-1
-  rooteditorial-server:apiImageTag: dev-abc123
-  rooteditorial-server:ecrRepoName: rooteditorial-server
-```
-
-### Stack References
-
-Stacks reference each other via `StackReference`:
-
-```typescript
-const coreStack = new pulumi.StackReference(`rooteditorial-core-${config.stack}`);
-const certificateArn = coreStack.getOutput("certificateArn");
-```
-
-## Outputs
+## Stack Outputs
 
 ### core
 - `certificateArn`: ACM certificate ARN
@@ -237,35 +183,31 @@ const certificateArn = coreStack.getOutput("certificateArn");
 - `subnetIds`: List of subnet IDs
 
 ### server
-- `targetUrl`: API URL (https://api.domain.com)
+- `targetUrl`: API URL (https://api.mntogether.org)
 - `albDnsName`: Load balancer DNS name
 - `clusterName`: ECS cluster name
 - `logGroupName`: CloudWatch log group
 
 ### web-app
-- `targetUrl`: Web app URL (https://app.domain.com)
+- `targetUrl`: Web app URL (https://app.mntogether.org)
 - `bucketName`: S3 bucket name
 - `cloudFrontDistributionId`: CloudFront distribution ID
 
-### web-next
-- `targetUrl`: Next.js app URL (https://www.domain.com)
-- `rootUrl`: Root domain URL (https://domain.com)
-- `albDnsName`: Load balancer DNS name
-- `clusterName`: ECS cluster name
-- `logGroupName`: CloudWatch log group
+## Stack References
+
+Stacks reference each other via `StackReference`:
+
+```typescript
+const coreStack = new pulumi.StackReference(`mntogether/rooteditorial-core/${stack}`);
+const certificateArn = coreStack.getOutput("certificateArn");
+```
 
 ## Monitoring
 
 ### CloudWatch Logs
 
-View server logs:
-
 ```bash
-# API server
 aws logs tail /rooteditorial/dev/api --follow
-
-# Next.js app
-aws logs tail /rooteditorial/dev/web-next --follow
 ```
 
 ### CloudWatch Metrics
@@ -280,8 +222,6 @@ Monitor in AWS Console:
 
 ### Database Migrations
 
-Run migrations after deploying the server:
-
 ```bash
 # Connect to ECS task
 aws ecs execute-command \
@@ -295,115 +235,45 @@ aws ecs execute-command \
 sqlx migrate run
 ```
 
-### Update Docker Images
-
-Deploy new server version:
+### Update Server Image
 
 ```bash
-# Build and push new server image
 cd packages/server
 docker build -t <ecr-repo>:new-tag .
 docker push <ecr-repo>:new-tag
 
-# Update Pulumi config
 cd ../../infra/packages/server
 pulumi config set apiImageTag new-tag
 pulumi up --yes
 ```
 
-Deploy new Next.js version:
-
-```bash
-# Build and push new Next.js image
-cd packages/web-next
-docker build -t <ecr-repo>:new-tag .
-docker push <ecr-repo>:new-tag
-
-# Update Pulumi config
-cd ../../infra/packages/web-next
-pulumi config set imageTag new-tag
-pulumi up --yes
-```
-
 ### Invalidate CloudFront Cache
 
-After deploying frontend changes:
-
 ```bash
-# Get distribution ID
 cd infra/packages/web-app
 DIST_ID=$(pulumi stack output cloudFrontDistributionId)
 
-# Invalidate all files
 aws cloudfront create-invalidation \
   --distribution-id $DIST_ID \
   --paths "/*"
 ```
 
-## Troubleshooting
+## Cost Estimates
 
-### Stack Fails to Deploy
+### Development (~$30-50/month)
 
-Check Pulumi logs:
-
-```bash
-cd infra/packages/<stack>
-pulumi logs --follow
-```
-
-### Server Not Starting
-
-1. Check ECS task logs:
-```bash
-aws logs tail /rooteditorial/dev/api --follow
-```
-
-2. Verify environment variables are set correctly
-
-3. Check database connectivity
-
-### Frontend Not Loading
-
-1. Check S3 bucket has files:
-```bash
-aws s3 ls s3://admin.mntogether.org/
-```
-
-2. Check CloudFront distribution status:
-```bash
-aws cloudfront get-distribution --id <dist-id>
-```
-
-3. Verify DNS records in Route53
-
-## Cost Optimization
-
-### Development Environment
-
-- RDS: `db.t3.micro` (free tier eligible)
-- ECS: 1 task, 256 CPU / 512 MB memory
-- CloudWatch logs: 7-day retention
-- CloudFront: Minimal caching
-
-### Production Environment
-
-- RDS: `db.t3.small`, Multi-AZ enabled
-- ECS: 2+ tasks, 512 CPU / 1024 MB memory
-- CloudWatch logs: 30-day retention
-- CloudFront: Aggressive caching
-
-### Monthly Cost Estimate
-
-**Dev**: ~$30-50/month
-- RDS: $15-20
-- ECS: $10-15
+- RDS `db.t3.micro`: $15-20 (free tier eligible)
+- ECS 1 task (256 CPU / 512 MB): $10-15
 - Data transfer: $5-10
+- CloudWatch logs: 7-day retention
 
-**Prod**: ~$100-150/month
-- RDS: $40-60
-- ECS: $40-60
+### Production (~$100-150/month)
+
+- RDS `db.t3.small` Multi-AZ: $40-60
+- ECS 2+ tasks (512 CPU / 1024 MB): $40-60
 - CloudFront: $10-20
 - Data transfer: $10-20
+- CloudWatch logs: 30-day retention
 
 ## Security
 
@@ -412,15 +282,16 @@ aws cloudfront get-distribution --id <dist-id>
 - Secrets stored in AWS Secrets Manager
 - IAM roles with least privilege
 - Security groups restrict access
-- CloudFront protects against DDoS
+- CloudFront DDoS protection
+- GitHub Actions OIDC — no long-lived AWS credentials
 
 ## Backup & Disaster Recovery
 
 ### RDS Backups
 
 - Automated daily backups (7-day retention)
-- Manual snapshots before major changes
 - Point-in-time recovery enabled
+- Manual snapshots before major changes
 
 ### Restore from Backup
 
@@ -435,13 +306,5 @@ aws rds restore-db-instance-from-db-snapshot \
 All infrastructure is version controlled and can be recreated:
 
 ```bash
-./deploy.sh prod all up --yes
+./deploy.sh -e prod -s all
 ```
-
-## Support
-
-For issues or questions:
-- Check Pulumi logs: `pulumi logs`
-- Check AWS CloudWatch logs
-- Review GitHub Actions workflow runs
-- Contact infrastructure team
