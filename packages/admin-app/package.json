@@ -11,6 +11,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@graphql-tools/merge": "^9.1.7",
     "@rooteditorial/shared": "workspace:*",
     "@urql/core": "^6.0.1",
