@@ -12,6 +12,7 @@ use super::post_operations::{self, UpdateAndApprovePost};
 use crate::common::auth::{Actor, AdminCapability};
 use crate::common::{MemberId, PostId};
 use crate::domains::posts::data::{EditPostInput, SubmitPostInput};
+use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::kernel::ServerDeps;
 
 /// Submit a post from user input (public, goes to pending_approval)
@@ -223,7 +224,6 @@ pub async fn track_post_click(post_id: Uuid, deps: &ServerDeps) -> Result<()> {
 use crate::common::{build_page_info, Cursor, ValidatedPaginationArgs};
 use crate::domains::posts::data::{PostConnection, PostEdge, PostType};
 use crate::domains::posts::models::post::PostFilters;
-use crate::domains::posts::models::Post;
 
 /// Get paginated posts with cursor-based pagination (Relay spec)
 ///
@@ -301,4 +301,151 @@ pub async fn get_posts_near_zip(
     let total_count = results.first().map(|r| r.total_count as i32).unwrap_or(0);
 
     Ok((results, total_count, has_more))
+}
+
+/// Create a post from the admin editor. Saves as draft with submission_type = "admin".
+/// Strips markdown to plain text for the `description` field (search/display fallback).
+pub async fn admin_create_post(
+    title: String,
+    description_markdown: String,
+    summary: Option<String>,
+    post_type: Option<String>,
+    weight: Option<String>,
+    priority: Option<i32>,
+    urgency: Option<String>,
+    location: Option<String>,
+    _organization_id: Option<Uuid>,
+    member_id: Uuid,
+    deps: &ServerDeps,
+) -> Result<Post> {
+    info!(title = %title, member_id = %member_id, "Admin creating draft post");
+
+    let plain_description = strip_markdown(&description_markdown);
+
+    let post = Post::create(
+        CreatePost::builder()
+            .title(title)
+            .description(plain_description)
+            .description_markdown(Some(description_markdown))
+            .summary(summary)
+            .status("draft".to_string())
+            .submission_type(Some("admin".to_string()))
+            .submitted_by_id(Some(member_id))
+            .post_type(post_type.unwrap_or_else(|| "notice".to_string()))
+            .weight(weight.unwrap_or_else(|| "medium".to_string()))
+            .priority(priority.unwrap_or(0))
+            .urgency(urgency)
+            .location(location)
+            .build(),
+        &deps.db_pool,
+    )
+    .await?;
+
+    Ok(post)
+}
+
+/// Update post content from the admin editor.
+/// Strips markdown to plain text for the `description` field.
+pub async fn admin_update_post(
+    post_id: Uuid,
+    title: Option<String>,
+    description_markdown: Option<String>,
+    summary: Option<String>,
+    post_type: Option<String>,
+    weight: Option<String>,
+    priority: Option<i32>,
+    urgency: Option<String>,
+    location: Option<String>,
+    _member_id: Uuid,
+    deps: &ServerDeps,
+) -> Result<Post> {
+    let post_id = PostId::from_uuid(post_id);
+    info!(post_id = %post_id, "Admin updating post content");
+
+    // If markdown changed, regenerate plain text description
+    let plain_description = description_markdown.as_ref().map(|md| strip_markdown(md));
+
+    let post = Post::update_content(
+        UpdatePostContent::builder()
+            .id(post_id)
+            .title(title)
+            .description(plain_description)
+            .description_markdown(description_markdown)
+            .summary(summary)
+            .post_type(post_type)
+            .weight(weight)
+            .priority(priority)
+            .urgency(urgency)
+            .location(location)
+            .build(),
+        &deps.db_pool,
+    )
+    .await?;
+
+    Ok(post)
+}
+
+/// Strip markdown formatting to produce plain text for the description field.
+/// Uses a simple regex-based approach — handles the common cases (headings, bold,
+/// italic, links, images, code blocks) without pulling in a full parser.
+fn strip_markdown(md: &str) -> String {
+    use regex::Regex;
+
+    let text = md.to_string();
+
+    // Remove images: ![alt](url)
+    let text = Regex::new(r"!\[([^\]]*)\]\([^)]*\)")
+        .unwrap()
+        .replace_all(&text, "$1")
+        .to_string();
+
+    // Convert links to just their text: [text](url)
+    let text = Regex::new(r"\[([^\]]*)\]\([^)]*\)")
+        .unwrap()
+        .replace_all(&text, "$1")
+        .to_string();
+
+    // Remove headings markers
+    let text = Regex::new(r"(?m)^#{1,6}\s+")
+        .unwrap()
+        .replace_all(&text, "")
+        .to_string();
+
+    // Remove bold/italic markers
+    let text = Regex::new(r"\*{1,3}([^*]+)\*{1,3}")
+        .unwrap()
+        .replace_all(&text, "$1")
+        .to_string();
+
+    // Remove code blocks
+    let text = Regex::new(r"```[\s\S]*?```")
+        .unwrap()
+        .replace_all(&text, "")
+        .to_string();
+
+    // Remove inline code
+    let text = Regex::new(r"`([^`]+)`")
+        .unwrap()
+        .replace_all(&text, "$1")
+        .to_string();
+
+    // Remove blockquote markers
+    let text = Regex::new(r"(?m)^>\s?")
+        .unwrap()
+        .replace_all(&text, "")
+        .to_string();
+
+    // Remove horizontal rules
+    let text = Regex::new(r"(?m)^[-*_]{3,}\s*$")
+        .unwrap()
+        .replace_all(&text, "")
+        .to_string();
+
+    // Clean up extra whitespace
+    let text = Regex::new(r"\n{3,}")
+        .unwrap()
+        .replace_all(&text, "\n\n")
+        .to_string();
+
+    text.trim().to_string()
 }

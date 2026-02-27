@@ -46,6 +46,7 @@ export const postResolvers = {
         status?: string;
         search?: string;
         postType?: string;
+        submissionType?: string;
         zipCode?: string;
         radiusMiles?: number;
         limit?: number;
@@ -57,6 +58,7 @@ export const postResolvers = {
         status: args.status,
         search: args.search,
         post_type: args.postType,
+        submission_type: args.submissionType,
         zip_code: args.zipCode,
         radius_miles: args.radiusMiles,
         first: args.limit,
@@ -234,6 +236,68 @@ export const postResolvers = {
       return ctx.restate.callService("Posts", "batch_score_posts", {
         limit: args.limit,
       });
+    },
+
+    createPost: async (
+      _parent: unknown,
+      args: {
+        input: {
+          title: string;
+          descriptionMarkdown: string;
+          summary?: string;
+          postType?: string;
+          weight?: string;
+          priority?: number;
+          urgency?: string;
+          location?: string;
+          organizationId?: string;
+        };
+      },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService("Posts", "create_post", {
+        title: args.input.title,
+        description_markdown: args.input.descriptionMarkdown,
+        summary: args.input.summary,
+        post_type: args.input.postType,
+        weight: args.input.weight,
+        priority: args.input.priority,
+        urgency: args.input.urgency,
+        location: args.input.location,
+        organization_id: args.input.organizationId,
+      });
+      return result;
+    },
+
+    updatePost: async (
+      _parent: unknown,
+      args: {
+        id: string;
+        input: {
+          title?: string;
+          descriptionMarkdown?: string;
+          summary?: string;
+          postType?: string;
+          weight?: string;
+          priority?: number;
+          urgency?: string;
+          location?: string;
+        };
+      },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.restate.callObject("Post", args.id, "update_content", {
+        title: args.input.title,
+        description_markdown: args.input.descriptionMarkdown,
+        summary: args.input.summary,
+        post_type: args.input.postType,
+        weight: args.input.weight,
+        priority: args.input.priority,
+        urgency: args.input.urgency,
+        location: args.input.location,
+      });
+      ctx.loaders.postById.clear(args.id);
+      return ctx.loaders.postById.load(args.id);
     },
 
   },

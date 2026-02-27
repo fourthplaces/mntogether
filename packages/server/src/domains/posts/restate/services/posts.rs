@@ -35,6 +35,8 @@ pub struct ListPostsRequest {
     pub search: Option<String>,
     pub zip_code: Option<String>,
     pub radius_miles: Option<f64>,
+    pub post_type: Option<String>,
+    pub submission_type: Option<String>,
     pub first: Option<i32>,
     pub offset: Option<i32>,
     pub after: Option<String>,
@@ -428,6 +430,21 @@ pub struct ExpireStalePostsRequest {}
 impl_restate_serde!(ExpireStalePostsRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreatePostRequest {
+    pub title: String,
+    pub description_markdown: String,
+    pub summary: Option<String>,
+    pub post_type: Option<String>,
+    pub weight: Option<String>,
+    pub priority: Option<i32>,
+    pub urgency: Option<String>,
+    pub location: Option<String>,
+    pub organization_id: Option<Uuid>,
+}
+
+impl_restate_serde!(CreatePostRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExpireStalePostsResult {
     pub expired_count: u64,
 }
@@ -477,6 +494,7 @@ pub trait PostsService {
     async fn rewrite_narratives(
         req: RewriteNarrativesRequest,
     ) -> Result<RewriteNarrativesResult, HandlerError>;
+    async fn create_post(req: CreatePostRequest) -> Result<PostResult, HandlerError>;
 }
 
 // =============================================================================
@@ -553,6 +571,8 @@ impl PostsService for PostsServiceImpl {
             source_id: req.source_id,
             agent_id: req.agent_id,
             search: req.search.as_deref(),
+            post_type: req.post_type.as_deref(),
+            submission_type: req.submission_type.as_deref(),
         };
 
         // Branch: zip-based proximity filtering vs standard listing
@@ -1420,6 +1440,37 @@ impl PostsService for PostsServiceImpl {
                     failed,
                     total,
                 })
+            })
+            .await?;
+
+        Ok(result)
+    }
+
+    async fn create_post(
+        &self,
+        ctx: Context<'_>,
+        req: CreatePostRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+
+        let result = ctx
+            .run(|| async {
+                let post = activities::admin_create_post(
+                    req.title.clone(),
+                    req.description_markdown.clone(),
+                    req.summary.clone(),
+                    req.post_type.clone(),
+                    req.weight.clone(),
+                    req.priority,
+                    req.urgency.clone(),
+                    req.location.clone(),
+                    req.organization_id,
+                    user.member_id.into_uuid(),
+                    &self.deps,
+                )
+                .await
+                .map_err(|e| TerminalError::new(e.to_string()))?;
+                Ok(PostResult::from(post))
             })
             .await?;
 

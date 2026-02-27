@@ -163,6 +163,20 @@ pub struct UpdateCapacityStatusRequest {
 
 impl_restate_serde!(UpdateCapacityStatusRequest);
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdatePostContentRequest {
+    pub title: Option<String>,
+    pub description_markdown: Option<String>,
+    pub summary: Option<String>,
+    pub post_type: Option<String>,
+    pub weight: Option<String>,
+    pub priority: Option<i32>,
+    pub urgency: Option<String>,
+    pub location: Option<String>,
+}
+
+impl_restate_serde!(UpdatePostContentRequest);
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -358,6 +372,7 @@ pub trait PostObject {
     async fn update_capacity_status(
         req: UpdateCapacityStatusRequest,
     ) -> Result<PostResult, HandlerError>;
+    async fn update_content(req: UpdatePostContentRequest) -> Result<PostResult, HandlerError>;
     // --- Reads (shared, concurrent) ---
     #[shared]
     async fn get(req: GetPostRequest) -> Result<PostResult, HandlerError>;
@@ -1224,6 +1239,42 @@ impl PostObject for PostObjectImpl {
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?
             .ok_or_else(|| TerminalError::new("Post not found after update_capacity_status"))?;
+
+        Ok(PostResult::from(post))
+    }
+
+    async fn update_content(
+        &self,
+        ctx: ObjectContext<'_>,
+        req: UpdatePostContentRequest,
+    ) -> Result<PostResult, HandlerError> {
+        let user = require_admin(ctx.headers(), &self.deps.jwt_service)?;
+        let post_id = Self::parse_post_id(ctx.key())?;
+
+        ctx.run(|| async {
+            activities::admin_update_post(
+                post_id,
+                req.title.clone(),
+                req.description_markdown.clone(),
+                req.summary.clone(),
+                req.post_type.clone(),
+                req.weight.clone(),
+                req.priority,
+                req.urgency.clone(),
+                req.location.clone(),
+                user.member_id.into_uuid(),
+                &self.deps,
+            )
+            .await
+            .map(|_| ())
+            .map_err(Into::into)
+        })
+        .await?;
+
+        let post = Post::find_by_id(PostId::from_uuid(post_id), &self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?
+            .ok_or_else(|| TerminalError::new("Post not found after update_content"))?;
 
         Ok(PostResult::from(post))
     }
