@@ -25,6 +25,32 @@ New CMS features follow the lighter path where obvious:
 
 ---
 
+## Content Model Reference
+
+> **See [CMS_SYSTEM_SPEC.md](../CMS_SYSTEM_SPEC.md)** for the full post type system, field groups, tags, and layout engine.
+
+The CMS UI is driven by a type config table — each type is a row defining the form preset:
+
+```
+TYPE_CONFIG = {
+  story:     { default_weight: "heavy",  default_groups: ["media", "meta"],                              templates: ["feature", "gazette", "digest"] },
+  notice:    { default_weight: "light",  default_groups: ["meta", "source"],                             templates: ["gazette", "ledger", "bulletin", "ticker", "digest", "feature-reversed"] },
+  exchange:  { default_weight: "medium", default_groups: ["contact", "items", "status"],                 templates: ["gazette", "ledger", "bulletin", "ticker"] },
+  event:     { default_weight: "medium", default_groups: ["datetime", "location", "contact"],            templates: ["gazette", "ledger", "bulletin", "ticker", "feature"] },
+  spotlight: { default_weight: "medium", default_groups: ["person", "media", "location", "contact"],     templates: ["feature", "gazette", "bulletin"] },
+  reference: { default_weight: "medium", default_groups: ["items", "contact", "location", "schedule"],   templates: ["gazette", "ledger", "bulletin"] },
+}
+```
+
+Adding a 7th type means adding a row. No schema migration, no layout engine changes. The type config drives:
+- Which field group collapsibles are open by default in the post editor (§9.2)
+- Which post templates are available in the template override picker (§9.4)
+- The sidebar post type sub-items and their counts (Decision 7 below)
+
+Post templates enforce character limits on the broadsheet preview. See [CMS_SYSTEM_SPEC.md §8](../CMS_SYSTEM_SPEC.md#8-post-templates-and-character-limits) for the truncation model — homepage cards truncate at word boundaries with ellipsis, detail pages show full content.
+
+---
+
 ## Design Philosophy: Harmony, Not Importation
 
 The goal is harmony between the existing admin app's warm earth-tone design system and Decap's editorial patterns. Every component is built with the existing stack:

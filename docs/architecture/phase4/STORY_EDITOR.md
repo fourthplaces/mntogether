@@ -14,13 +14,22 @@ The CMS has no way to create or edit posts. The post detail page at `/admin/post
 
 ## Architecture Decisions
 
-### 1. MDXEditor for WYSIWYG markdown editing
+### 1. Plate.js for WYSIWYG markdown editing
 
-The target users are non-technical community editors. They need a toolbar-based editor, not a split-pane code view. MDXEditor provides WYSIWYG editing that outputs standard markdown, is actively maintained, supports React 19, and has a small bundle size. Alternatives considered:
+> **Updated by [CMS_EXPERIENCE.md](CMS_EXPERIENCE.md), Decision 1.** MDXEditor was the original choice; Plate.js supersedes it.
 
+The target users are non-technical community editors. They need a toolbar-based editor, not a split-pane code view. Plate.js v52+ is built on Slate.js with a modern API, 50+ plugins, and first-class Tailwind/shadcn support. Key capabilities:
+
+- **Markdown round-tripping** via `@platejs/markdown` using remark/mdast
+- **Load from DB**: `editor.api.markdown.deserialize(post.descriptionMarkdown)`
+- **Save to DB**: `editor.api.markdown.serialize()` → store as `description_markdown`
+- **Plugin composition**: `BasicBlocksKit`, `BasicMarksKit`, `LinkPlugin`, `TablePlugin`, `CodeBlockPlugin`, `ImagePlugin`, `MarkdownPlugin`
+- **UI components** install into `components/ui/` via shadcn CLI — same pattern as existing Button, Card, etc.
+
+Alternatives considered:
+- **MDXEditor**: Simpler, but Plate.js provides more control and uses the same Slate foundation as Decap CMS (patterns translate directly)
 - **Tiptap**: Heavier, outputs HTML not markdown, requires a markdown serializer
 - **@uiw/react-md-editor**: Split-pane view, less friendly for non-technical users
-- **Milkdown**: Steeper learning curve, smaller ecosystem
 
 ### 2. `description_markdown` is source of truth
 
@@ -37,11 +46,30 @@ Both reuse a shared `PostForm` component.
 
 Posts created via the admin editor get `submission_type = 'admin'` and `status = 'active'` (with `published_at = NOW()`). They don't need to go through the pending approval queue — the editor *is* the human approver.
 
-### 5. `createPost` via PostsService, `updatePost` via Post virtual object
+### 5. PostForm is type-aware with field group defaults
+
+> **From [CMS_SYSTEM_SPEC.md](../CMS_SYSTEM_SPEC.md) §5 and §9.2.**
+
+When the editor selects a post type in the form, different field groups should be open by default. The 6 post types and their default field groups:
+
+| Type | Default Field Groups | Form Character |
+|------|---------------------|----------------|
+| `story` | media, meta (kicker, byline) | Rich text editor dominates |
+| `notice` | meta (timestamp), source | Short body + source attribution |
+| `exchange` | contact, items, status | Structured form grid, body secondary |
+| `event` | datetime, location, contact | Date/time pickers prominent |
+| `spotlight` | person, media, location, contact | Profile assembly — structured fields |
+| `reference` | items, contact, location, schedule, meta (updated) | Editable item table, body secondary |
+
+Any field group can be toggled on/off regardless of type. Changing the type dropdown re-arranges which field groups are open, but doesn't discard data.
+
+The initial implementation (below) covers universal fields only. Type-specific field group collapsibles are a follow-up tracked in [CMS_EXPERIENCE.md](CMS_EXPERIENCE.md).
+
+### 6. `createPost` via PostsService, `updatePost` via Post virtual object
 
 Creation goes through the stateless `PostsService` (no existing post key). Content updates go through the keyed `Post` virtual object to serialize writes per post, matching the existing `edit_approve` / `approve` / `reject` pattern.
 
-### 6. Backend simplification option
+### 7. Backend simplification option
 
 > **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
 
@@ -299,11 +327,13 @@ posts: async (_parent, args, ctx) => {
 
 ## Frontend Changes
 
-### Install MDXEditor
+### Install Plate.js
 
 ```bash
-cd packages/admin-app && yarn add @mdxeditor/editor
+cd packages/admin-app && yarn add platejs @platejs/markdown @platejs/basic-marks @platejs/basic-blocks @platejs/link @platejs/image
 ```
+
+See [CMS_EXPERIENCE.md](CMS_EXPERIENCE.md) Decision 1 for the full plugin list and shadcn component setup.
 
 ### New component: `packages/admin-app/components/admin/PostForm.tsx`
 
@@ -311,7 +341,7 @@ Shared form component used by both create and edit pages:
 
 - **Fields:**
   - Title (text input)
-  - Description (MDXEditor — WYSIWYG markdown)
+  - Description (Plate.js — WYSIWYG markdown)
   - Summary (textarea, optional)
   - Post Type (select: story/notice/exchange/event/spotlight/reference)
   - Weight (select: heavy/medium/light)
@@ -406,7 +436,7 @@ Add a "New Post" button in the page header that links to `/admin/posts/new`.
 7. **Restate**: Add `UpdatePostContentRequest` + `update_content` handler to `Post` virtual object
 8. **GraphQL**: Add input types, mutations, `submissionType` field to `schema.ts`
 9. **GraphQL**: Add `createPost`, `updatePost` resolvers; update `posts` resolver
-10. **Frontend**: Install `@mdxeditor/editor`
+10. **Frontend**: Install Plate.js and plugins (see above)
 11. **Frontend**: Build `PostForm` component
 12. **Frontend**: Build `/admin/posts/new` page
 13. **Frontend**: Add edit mode to `/admin/posts/[id]` page

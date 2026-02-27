@@ -52,6 +52,43 @@ When Root Signal's API is ready, integration will be a simple webhook — not a 
 
 **No migration needed.** The `submission_type` column already exists and accepts any text value.
 
+### Signal-to-Type Mapping for Mock Data
+
+> **From [CMS_SYSTEM_SPEC.md §10](../CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
+
+The mock data should reflect the expected mapping from Root Signal categories to post types:
+
+| Root Signal Category | Post Type | Tags | Mock Data Guidance |
+|---------------------|-----------|------|--------------------|
+| Tension | `story` | topic-derived | LLM-drafted narrative around a community tension |
+| Situation | `story` | topic-derived | Narrative wrapping multiple signals |
+| Need | `exchange` | `need` + topic | Items/contact/status from signal data |
+| Aid | `exchange` | `aid` + topic | Items/contact/status from signal data |
+| Notice (low severity) | `notice` | topic | Standard informational post |
+| Notice (high severity) | `notice` | `urgent` + topic | High-priority, source attribution |
+| Gathering | `event` | topic, maybe `recurring` | Date/time/location from signal data |
+
+The 10-15 mock items should cover all 6 post types with a realistic distribution: heavier on exchanges and notices (the most common signal types), lighter on stories and events.
+
+### Origin Metadata
+
+> **From [CMS_SYSTEM_SPEC.md §10](../CMS_SYSTEM_SPEC.md#10-root-signal-integration).**
+
+Each signal-originated post can track its Root Signal origin for traceability. The inbox cards should display this when available:
+
+```
+origin: {
+  signal_id:     string?    // Root Signal signal ID
+  situation_id:  string?    // Root Signal situation ID
+  generated:     boolean    // true if body text was LLM-drafted
+  draft_source:  string?    // description of what data the LLM used
+}
+```
+
+For mock data, populate `generated: true` and a `draft_source` like "Synthesized from 3 community reports and 1 official notice" to exercise the UI. The `signal_id` and `situation_id` can be fake UUIDs for now.
+
+This metadata is informational — it helps the editor understand where the content came from and how much editorial judgment was applied upstream.
+
 ### Seed Data: `data/signal_items.json` (new file)
 
 10–15 mock items representing the kinds of content Root Signal would deliver:

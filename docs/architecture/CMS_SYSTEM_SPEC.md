@@ -2,7 +2,7 @@
 
 > **Status:** Design spec, ready for CMS UI design phase
 > **Date:** 2026-02-25
-> **Preceded by:** `docs/post-type-system.md` (raw design discussion with full decision rationale)
+> **Preceded by:** [`POST_TYPE_SYSTEM.md`](POST_TYPE_SYSTEM.md) (design rationale with full decision reasoning)
 > **What this is:** Conclusive specification for the post type system, data model, layout system, and CMS UI requirements. Written as a handoff to enable designing the Root Editorial CMS interface.
 
 ---
@@ -822,7 +822,7 @@ Several decisions were intentionally deferred:
 
 ## 12. Resolved Decisions
 
-Decisions finalized during the design process, with rationale. For the full discussion trail, see `docs/post-type-system.md`.
+Decisions finalized during the design process, with rationale. For the full discussion trail, see [`POST_TYPE_SYSTEM.md`](POST_TYPE_SYSTEM.md).
 
 | # | Decision | Rationale |
 |---|----------|-----------|

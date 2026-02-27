@@ -12,6 +12,25 @@ The current dashboard at `/admin/dashboard` is a placeholder. It fetches up to 1
 
 Editors need a dashboard that answers: *What is the current edition? How complete is it? What needs my attention?* This is the "edition cockpit" — the home screen for the weekly publication cycle.
 
+### Relationship to the Broadsheet Dashboard
+
+[CMS_SYSTEM_SPEC.md §9.1](../CMS_SYSTEM_SPEC.md#91-broadsheet-dashboard-primary-view) describes the full broadsheet dashboard vision: an editable layout preview showing rows, post cards in slots, drag-and-drop reordering, and an unplaced post pool. That is the eventual target — a visual edition editor where the editor can see and manipulate the actual broadsheet layout.
+
+This document describes the **stats-focused first step**: county-level edition completeness, pending post counts, and quick actions. The broadsheet layout editor is a later evolution that builds on this foundation and the row/slot template system from [CMS_SYSTEM_SPEC.md §7](../CMS_SYSTEM_SPEC.md#7-layout-system).
+
+### Row Templates and Post Templates
+
+The edition cockpit will eventually need to display and allow editing of the broadsheet structure. Key concepts from the CMS spec:
+
+| Concept | What It Is | Cockpit Relevance |
+|---------|-----------|-------------------|
+| **Row template** | Column grid definition (e.g., "hero-with-sidebar": 1 heavy + 3 light) | Completeness = filled slots / total slots per row template |
+| **Post template** | Visual treatment (gazette, ledger, feature, etc.) with type compatibility | Edition detail view shows which template renders each post |
+| **Weight** | Column width: heavy/medium/light | Determines which slots a post can fill |
+| **Priority** | Single integer, higher = more prominent | Determines row ordering in the broadsheet |
+
+The `EditionDashboardRow` query (below) already joins `edition_rows`, `row_template_slots`, and `edition_slots` to compute completeness from this structure.
+
 ---
 
 ## Architecture Decisions
