@@ -11,7 +11,7 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart restart-server restart-admin clean build migrate seed shell db-shell test check
+.PHONY: help up down logs restart restart-server restart-admin restart-minio clean build migrate seed shell db-shell test check
 
 # Default target - show help
 help:
@@ -24,11 +24,13 @@ help:
 	@echo "  make restart        - Restart all services (down + up, picks up config changes)"
 	@echo "  make restart-server - Restart server only"
 	@echo "  make restart-admin  - Restart admin app only"
+	@echo "  make restart-minio  - Restart MinIO (S3 storage)"
 	@echo ""
 	@echo "Logs & Monitoring:"
 	@echo "  make logs        - View logs from all services"
 	@echo "  make logs-server - View server logs only"
 	@echo "  make logs-admin  - View admin app logs only"
+	@echo "  make logs-minio  - View MinIO (S3 storage) logs only"
 	@echo "  make logs-db     - View PostgreSQL logs only"
 	@echo ""
 	@echo "Database:"
@@ -80,6 +82,11 @@ restart-admin:
 	docker compose rm -sf admin-app
 	docker compose up -d admin-app
 
+# Restart MinIO (S3 storage)
+restart-minio:
+	docker compose rm -sf minio minio-init
+	docker compose up -d minio minio-init
+
 # Rebuild and start all services
 build:
 	docker compose build --no-cache
@@ -104,6 +111,10 @@ logs-admin:
 # Alias for logs-admin
 logs-next:
 	docker compose logs -f admin-app
+
+# View MinIO (S3 storage) logs
+logs-minio:
+	docker compose logs -f minio
 
 # View PostgreSQL logs
 logs-db:
@@ -170,7 +181,7 @@ clean:
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose down -v; \
-		docker volume rm rooteditorial_postgres_data rooteditorial_rust_target 2>/dev/null || true; \
+		docker volume rm rooteditorial_postgres_data rooteditorial_rust_target rooteditorial_minio_data 2>/dev/null || true; \
 		echo "Cleanup complete."; \
 	else \
 		echo "Cancelled"; \

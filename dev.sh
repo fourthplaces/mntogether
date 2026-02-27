@@ -18,13 +18,17 @@ C_RESTATE="rooteditorial_restate"
 C_SERVER="rooteditorial_server"
 C_ADMIN="rooteditorial_admin_app"
 C_WEBAPP="rooteditorial_web_app"
+C_MINIO="rooteditorial_minio"
 
 # ── Ports ────────────────────────────────────────────────────────────
 P_POSTGRES=5432
 P_RESTATE=8180
+P_RESTATE_UI=9070     # Restate Web UI (Admin API)
 P_SERVER=9080
 P_ADMIN=3000
 P_WEBAPP=3001
+P_MINIO=9000          # S3 API
+P_MINIO_CONSOLE=9001  # MinIO web console
 
 # ── Colors ───────────────────────────────────────────────────────────
 if [[ -t 1 ]]; then
@@ -207,6 +211,14 @@ open_admin() {
   open "http://localhost:$P_ADMIN"
 }
 
+open_minio() {
+  open "http://localhost:$P_MINIO_CONSOLE"
+}
+
+open_restate() {
+  open "http://localhost:$P_RESTATE_UI"
+}
+
 reset_database() {
   echo "Resetting database (drop, migrate, seed)..."
   echo ""
@@ -241,7 +253,12 @@ render_service() {
   local extra="${5:-}"
 
   status_label "$status"
-  printf " %-24s :%-5s" "$label" "$port"
+
+  if [[ "$status" == "ok" ]]; then
+    printf " %-18s ${BOLD}localhost:%-5s${RESET}" "$label" "$port"
+  else
+    printf " %-18s ${DIM}localhost:%-5s${RESET}" "$label" "$port"
+  fi
 
   if [[ -n "$container" ]]; then
     printf "  cpu: "
@@ -259,37 +276,6 @@ render_service() {
   fi
 }
 
-# Render a service with a clickable URL instead of port
-render_service_url() {
-  local status="$1"
-  local label="$2"
-  local port="$3"
-  local container="${4:-}"
-  local extra="${5:-}"
-
-  status_label "$status"
-
-  if [[ "$status" == "ok" ]]; then
-    printf " %-20s --> ${BOLD}http://localhost:%s${RESET}" "$label" "$port"
-  else
-    printf " %-24s :%-5s" "$label" "$port"
-  fi
-
-  if [[ -n "$container" ]]; then
-    printf "  cpu: "
-    format_cpu "$container"
-  fi
-
-  if [[ -n "$extra" ]]; then
-    printf "  ${DIM}%s${RESET}" "$extra"
-  fi
-  echo ""
-
-  if [[ -n "$SERVICE_HINT" && ("$status" == "fail" || "$status" == "starting") ]]; then
-    printf "       ${DIM}%s${RESET}\n" "$SERVICE_HINT"
-  fi
-}
-
 render_dashboard() {
   local clear_screen="${1:-true}"
 
@@ -297,11 +283,12 @@ render_dashboard() {
   refresh_cpu_cache
 
   # Gather all statuses
-  local s_pg s_restate s_server s_admin s_webapp
-  local h_pg h_restate h_server h_admin h_webapp
+  local s_pg s_restate s_minio s_server s_admin s_webapp
+  local h_pg h_restate h_minio h_server h_admin h_webapp
 
   s_pg=$(get_status "$C_POSTGRES" "$P_POSTGRES"); h_pg="$SERVICE_HINT"
   s_restate=$(get_status "$C_RESTATE" "$P_RESTATE"); h_restate="$SERVICE_HINT"
+  s_minio=$(get_status "$C_MINIO" "$P_MINIO"); h_minio="$SERVICE_HINT"
   s_server=$(get_status "$C_SERVER" "$P_SERVER"); h_server="$SERVICE_HINT"
   s_admin=$(get_status "$C_ADMIN" "$P_ADMIN"); h_admin="$SERVICE_HINT"
   s_webapp=$(get_status "$C_WEBAPP" "$P_WEBAPP"); h_webapp="$SERVICE_HINT"
@@ -317,7 +304,8 @@ render_dashboard() {
   printf "  ${BOLD}Infrastructure${RESET}\n"
 
   SERVICE_HINT="$h_pg";      render_service "$s_pg"      "PostgreSQL"    "$P_POSTGRES" "$C_POSTGRES"
-  SERVICE_HINT="$h_restate"; render_service "$s_restate" "Restate"       "$P_RESTATE" "$C_RESTATE"
+  SERVICE_HINT="$h_restate"; render_service "$s_restate" "Restate"    "$P_RESTATE_UI" "$C_RESTATE"
+  SERVICE_HINT="$h_minio";   render_service "$s_minio" "MinIO (S3)"  "$P_MINIO_CONSOLE" "$C_MINIO"
 
   echo ""
   printf "  ${BOLD}Backend${RESET}\n"
@@ -325,15 +313,16 @@ render_dashboard() {
 
   echo ""
   printf "  ${BOLD}Frontend${RESET}\n"
-  SERVICE_HINT="$h_admin";   render_service_url "$s_admin"  "Admin App (CMS)" "$P_ADMIN"  "$C_ADMIN"
-  SERVICE_HINT="$h_webapp";  render_service_url "$s_webapp" "Web App"         "$P_WEBAPP" "$C_WEBAPP"
+  SERVICE_HINT="$h_admin";   render_service "$s_admin"  "Admin App (CMS)" "$P_ADMIN"  "$C_ADMIN"
+  SERVICE_HINT="$h_webapp";  render_service "$s_webapp" "Web App"         "$P_WEBAPP" "$C_WEBAPP"
 
   echo ""
   echo "  -------------------------------------------"
 
   if [[ "$clear_screen" == "true" ]]; then
     printf "  ${DIM}[s]${RESET} start  ${DIM}[r]${RESET} restart  ${DIM}[b]${RESET} rebuild server  ${DIM}[w]${RESET} rebuild web  ${DIM}[a]${RESET} rebuild admin\n"
-    printf "  ${DIM}[d]${RESET} reset db  ${DIM}[1]${RESET} open admin  ${DIM}[2]${RESET} open web  ${DIM}[l]${RESET} logs  ${DIM}[q]${RESET} quit\n"
+    printf "  ${DIM}[d]${RESET} reset db  ${DIM}[1]${RESET} open admin  ${DIM}[2]${RESET} open web  ${DIM}[3]${RESET} open minio  ${DIM}[4]${RESET} open restate\n"
+    printf "  ${DIM}[l]${RESET} logs  ${DIM}[q]${RESET} quit\n"
     printf "  ${DIM}CPU: >100%% ${RESET}${RED}${BOLD}red${RESET}${DIM}  >20%% ${RESET}${YELLOW}yellow${RESET}\n"
     echo ""
     printf "  ${DIM}Updated %s${RESET}\n" "$(date +%H:%M:%S)"
@@ -408,6 +397,12 @@ dashboard_loop() {
       2)
         open_web
         ;;
+      3)
+        open_minio
+        ;;
+      4)
+        open_restate
+        ;;
       d|D)
         printf '\033[2J\033[H'
         reset_database
@@ -470,6 +465,7 @@ case "${1:-}" in
     echo "  [s] start all   [r] restart       [l] logs   [q] quit"
     echo "  [b] rebuild server  [w] rebuild web  [a] rebuild admin"
     echo "  [d] reset db        [1] open admin   [2] open web"
+    echo "  [3] open minio      [4] open restate"
     ;;
   *)
     dashboard_loop
