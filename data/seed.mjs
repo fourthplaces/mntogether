@@ -238,5 +238,31 @@ for (const p of posts) {
   out("");
 }
 
+// --- Sources & Post-Sources (wire orgs → posts) ----------------------------
+// The organizations query (find_approved) joins organizations → sources →
+// post_sources → posts.  We create one "seed" source per org, then link each
+// post whose post_source_attribution.source_name matches an org name.
+
+out("-- Sources: one per organization");
+out(`INSERT INTO sources (source_type, organization_id, status, active)
+SELECT 'seed', o.id, 'approved', true
+FROM organizations o
+WHERE NOT EXISTS (
+    SELECT 1 FROM sources s WHERE s.organization_id = o.id
+);`);
+out("");
+
+out("-- Post-Sources: link posts to their org's source via source_name match");
+out(`INSERT INTO post_sources (post_id, source_type, source_id)
+SELECT psa.post_id, 'seed', s.id
+FROM post_source_attribution psa
+JOIN organizations o ON o.name = psa.source_name
+JOIN sources s ON s.organization_id = o.id AND s.source_type = 'seed'
+WHERE NOT EXISTS (
+    SELECT 1 FROM post_sources ps
+    WHERE ps.post_id = psa.post_id AND ps.source_id = s.id
+);`);
+out("");
+
 out("COMMIT;");
 out("-- Done.");
