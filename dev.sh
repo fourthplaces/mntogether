@@ -82,6 +82,33 @@ is_port_listening() {
   lsof -i ":$port" -sTCP:LISTEN >/dev/null 2>&1
 }
 
+# CPU monitoring — single docker stats call per render, cached in a variable
+_CPU_STATS=""
+refresh_cpu_cache() {
+  _CPU_STATS=$(docker stats --no-stream --format "{{.Name}}\t{{.CPUPerc}}" 2>/dev/null || true)
+}
+
+# Format CPU with color warning when high
+format_cpu() {
+  local container="$1"
+  local cpu
+  cpu=$(echo "$_CPU_STATS" | grep "^${container}" | cut -f2)
+  if [[ -z "$cpu" ]]; then
+    printf "${DIM}--${RESET}"
+    return
+  fi
+  # Extract numeric value for threshold check
+  local num="${cpu%%%*}"
+  # Use awk for floating point comparison (bc may not be available)
+  if awk "BEGIN{exit !($num > 100)}" 2>/dev/null; then
+    printf "${RED}${BOLD}%s${RESET}" "$cpu"
+  elif awk "BEGIN{exit !($num > 20)}" 2>/dev/null; then
+    printf "${YELLOW}%s${RESET}" "$cpu"
+  else
+    printf "${DIM}%s${RESET}" "$cpu"
+  fi
+}
+
 # Get a service status suitable for display
 # Returns: ok, starting, fail, stopped
 # Also sets SERVICE_HINT with recovery text when relevant
@@ -212,10 +239,16 @@ render_service() {
   local status="$1"
   local label="$2"
   local port="$3"
-  local extra="${4:-}"
+  local container="${4:-}"
+  local extra="${5:-}"
 
   status_label "$status"
   printf " %-24s :%-5s" "$label" "$port"
+
+  if [[ -n "$container" ]]; then
+    printf "  cpu: "
+    format_cpu "$container"
+  fi
 
   if [[ -n "$extra" ]]; then
     printf "  ${DIM}%s${RESET}" "$extra"
@@ -233,7 +266,8 @@ render_service_url() {
   local status="$1"
   local label="$2"
   local port="$3"
-  local extra="${4:-}"
+  local container="${4:-}"
+  local extra="${5:-}"
 
   status_label "$status"
 
@@ -241,6 +275,11 @@ render_service_url() {
     printf " %-20s --> ${BOLD}http://localhost:%s${RESET}" "$label" "$port"
   else
     printf " %-24s :%-5s" "$label" "$port"
+  fi
+
+  if [[ -n "$container" ]]; then
+    printf "  cpu: "
+    format_cpu "$container"
   fi
 
   if [[ -n "$extra" ]]; then
@@ -255,6 +294,9 @@ render_service_url() {
 
 render_dashboard() {
   local clear_screen="${1:-true}"
+
+  # Gather CPU stats (single docker stats call for all containers)
+  refresh_cpu_cache
 
   # Gather all statuses
   local s_pg s_redis s_restate s_server s_admin s_webapp
@@ -277,18 +319,18 @@ render_dashboard() {
   echo ""
   printf "  ${BOLD}Infrastructure${RESET}\n"
 
-  SERVICE_HINT="$h_pg";      render_service "$s_pg"      "PostgreSQL"    "$P_POSTGRES"
-  SERVICE_HINT="$h_redis";   render_service "$s_redis"   "Redis"         "$P_REDIS"
-  SERVICE_HINT="$h_restate"; render_service "$s_restate" "Restate"       "$P_RESTATE"
+  SERVICE_HINT="$h_pg";      render_service "$s_pg"      "PostgreSQL"    "$P_POSTGRES" "$C_POSTGRES"
+  SERVICE_HINT="$h_redis";   render_service "$s_redis"   "Redis"         "$P_REDIS"   "$C_REDIS"
+  SERVICE_HINT="$h_restate"; render_service "$s_restate" "Restate"       "$P_RESTATE" "$C_RESTATE"
 
   echo ""
   printf "  ${BOLD}Backend${RESET}\n"
-  SERVICE_HINT="$h_server";  render_service "$s_server"  "Rust Server"   "$P_SERVER"
+  SERVICE_HINT="$h_server";  render_service "$s_server"  "Rust Server"   "$P_SERVER"  "$C_SERVER"
 
   echo ""
   printf "  ${BOLD}Frontend${RESET}\n"
-  SERVICE_HINT="$h_admin";   render_service_url "$s_admin"  "Admin App (CMS)" "$P_ADMIN"
-  SERVICE_HINT="$h_webapp";  render_service_url "$s_webapp" "Web App"         "$P_WEBAPP"
+  SERVICE_HINT="$h_admin";   render_service_url "$s_admin"  "Admin App (CMS)" "$P_ADMIN"  "$C_ADMIN"
+  SERVICE_HINT="$h_webapp";  render_service_url "$s_webapp" "Web App"         "$P_WEBAPP" "$C_WEBAPP"
 
   echo ""
   echo "  -------------------------------------------"
@@ -296,6 +338,7 @@ render_dashboard() {
   if [[ "$clear_screen" == "true" ]]; then
     printf "  ${DIM}[s]${RESET} start  ${DIM}[r]${RESET} restart  ${DIM}[b]${RESET} rebuild server  ${DIM}[w]${RESET} rebuild web  ${DIM}[a]${RESET} rebuild admin\n"
     printf "  ${DIM}[d]${RESET} reset db  ${DIM}[1]${RESET} open admin  ${DIM}[2]${RESET} open web  ${DIM}[l]${RESET} logs  ${DIM}[q]${RESET} quit\n"
+    printf "  ${DIM}CPU: >100%% ${RESET}${RED}${BOLD}red${RESET}${DIM}  >20%% ${RESET}${YELLOW}yellow${RESET}\n"
     echo ""
     printf "  ${DIM}Updated %s${RESET}\n" "$(date +%H:%M:%S)"
   fi
@@ -332,9 +375,10 @@ dashboard_loop() {
   while true; do
     render_dashboard
 
-    # Wait up to 3 seconds for a keypress
+    # Wait up to 10 seconds for a keypress
+    # (docker stats takes ~2s per call, so shorter intervals waste most of the cycle waiting)
     local key=""
-    read -rsn1 -t 3 key 2>/dev/null || true
+    read -rsn1 -t 10 key 2>/dev/null || true
 
     case "$key" in
       s|S)

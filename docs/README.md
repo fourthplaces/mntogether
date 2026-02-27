@@ -52,6 +52,7 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Phase 2: Post Types](status/PHASE_2_POST_TYPES.md)
 - [Phase 3: Edition System](status/PHASE_3_EDITION_SYSTEM.md)
 - [Final Schema Summary](status/FINAL_SCHEMA_SUMMARY.md)
+- [Turbopack CPU Loop Postmortem](status/TURBOPACK_CPU_LOOP_POSTMORTEM.md)
 
 ### Prompts
 - [Prompts Index](prompts/README.md) - LLM prompts used in the codebase

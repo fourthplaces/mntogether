@@ -1,4 +1,4 @@
-.PHONY: help up down logs migrate test seed reset-db
+.PHONY: help up down logs migrate test seed reset-db restart-admin restart-web
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -51,6 +51,12 @@ web-app-shell: ## Open shell in web app container
 
 web-app-restart: ## Restart web app service
 	docker-compose restart web-app
+
+restart-admin: ## Restart admin-app with fresh Turbopack cache (fixes stuck "Compiling...")
+	docker compose down admin-app && docker compose up -d admin-app
+
+restart-web: ## Restart web-app with fresh Turbopack cache
+	docker compose down web-app && docker compose up -d web-app
 
 seed: ## Load seed data from JSON into the database
 	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
