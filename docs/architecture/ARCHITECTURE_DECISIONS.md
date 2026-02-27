@@ -44,14 +44,14 @@ RSS feeds per county serve as a zero-PII complement — readers who prefer feed 
 
 ---
 
-## Decision 4: Bypass Restate for New CRUD Features
+## Decision 4: All Backend Operations Route Through Restate
 
-New features that are pure CRUD (media library, post create/update, dashboard queries) should talk to the database more directly rather than routing through Restate's durable execution framework.
+Every backend operation — CRUD, queries, workflows — routes through Restate service handlers. The architecture is `Next.js → GraphQL → Restate Ingress → Rust Server → PostgreSQL`. No exceptions.
 
-- **Options:** GraphQL resolvers call Rust models via a simpler HTTP API, or Next.js API routes with direct DB access
-- **Keep Restate for:** Genuine workflows — Signal integration, edition generation, any multi-step async operations that benefit from durability guarantees
-- **Existing features:** Not refactored. Restate-routed features work fine and aren't worth rewriting.
-- **Philosophy:** Gradual simplification, not a rewrite. Each new feature chooses the lightest path that fits.
+- **CRUD features** (media library, post create/update, dashboard queries) use Restate `#[service]` handlers. They don't need durable execution, but the consistent routing means one mental model, one call pattern in resolvers, and one place to add observability.
+- **Workflows** (newsletter send, edition generation, Signal integration) use Restate `#[workflow]` handlers with `ctx.run()` for durability guarantees.
+- **Keyed operations** (per-post writes) use Restate virtual objects for write serialization.
+- **Pattern:** GraphQL resolvers always call `ctx.restate.callService(...)` or `ctx.restate.callObject(...)`. Activities are pure functions taking `&ServerDeps`. SQL lives in models.
 
 ---
 

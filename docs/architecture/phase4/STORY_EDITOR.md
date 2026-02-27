@@ -69,11 +69,11 @@ The initial implementation (below) covers universal fields only. Type-specific f
 
 Creation goes through the stateless `PostsService` (no existing post key). Content updates go through the keyed `Post` virtual object to serialize writes per post, matching the existing `edit_approve` / `approve` / `reject` pattern.
 
-### 7. Backend simplification option
+### 7. All operations route through Restate
 
 > **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
 
-`createPost` and `updatePost` are pure CRUD — they don't need Restate's durable execution guarantees. The initial implementation can bypass Restate entirely: GraphQL resolvers call Rust model functions through a simpler HTTP path (direct HTTP to Rust, or Next.js API routes with direct Postgres access via a lightweight client). The Restate path documented above remains a valid option for when Signal integration needs durable guarantees or when write serialization per post becomes important.
+`createPost` and `updatePost` route through Restate like everything else. `createPost` goes through the stateless `PostsService` (Decision 6). `updatePost` goes through the keyed `Post` virtual object, which serializes writes per post and matches the existing `edit_approve` / `approve` / `reject` pattern. GraphQL resolvers call `ctx.restate.callService(...)` and `ctx.restate.callObject(...)` — one consistent pattern for all backend operations.
 
 ---
 

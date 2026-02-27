@@ -16,12 +16,12 @@ This document describes a comprehensive CMS experience for Root Editorial that a
 
 ## Architecture Direction
 
-> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md)** for high-level decisions about slimming the tech stack.
+> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4** — all backend operations route through Restate.
 
-New CMS features follow the lighter path where obvious:
-- **Media library** CRUD bypasses Restate (Decision 4) — direct DB operations via a simpler HTTP path
-- **Kanban status changes** can use existing Restate approve/reject handlers (already built) or direct DB updates
-- **Editor save** (create/update post) can bypass Restate for the initial implementation (see also [STORY_EDITOR.md](STORY_EDITOR.md), Decision 6)
+All CMS features use the standard path: `GraphQL → Restate Ingress → Rust Server → PostgreSQL`.
+- **Media library** CRUD goes through `MediaService` Restate service handlers
+- **Kanban status changes** use existing Restate approve/reject handlers on the `Post` virtual object
+- **Editor save** (create/update post) goes through `PostsService` (create) and the `Post` virtual object (update), matching the existing handler pattern
 
 ---
 

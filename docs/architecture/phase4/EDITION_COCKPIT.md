@@ -51,11 +51,11 @@ The dashboard auto-computes the current publication week (Monday–Sunday) and u
 
 Dashboard stats are edition-centric data. Adding `dashboard_stats` to the existing EditionsService avoids registering a new service and keeps related functionality together.
 
-### 5. Dashboard query can bypass Restate
+### 5. Dashboard query routes through Restate like everything else
 
 > **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
 
-The dashboard aggregation is a read-only SQL query — it doesn't need Restate's durable execution. It could be a direct database query from a Next.js API route or a simpler Rust HTTP endpoint, avoiding the Restate service layer entirely. The Restate path documented above still works if preferred for consistency.
+The dashboard aggregation is a read-only SQL query, but it routes through Restate's `EditionsService` for consistency with the rest of the architecture. All GraphQL resolvers call `ctx.restate.callService(...)` — one pattern, one call path, one place to add observability. The `dashboard_stats` handler delegates to the activity, which runs the SQL query.
 
 ---
 
