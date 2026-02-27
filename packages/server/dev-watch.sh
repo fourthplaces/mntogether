@@ -12,7 +12,6 @@ echo ""
 # Check for required API keys
 echo "[dev-watch] Checking environment variables..."
 MISSING_REQUIRED=0
-MISSING_OPTIONAL=0
 
 # Required API keys
 if [ -z "$OPENAI_API_KEY" ]; then
@@ -40,28 +39,11 @@ if [ -z "$JWT_SECRET" ]; then
     MISSING_REQUIRED=1
 fi
 
-# Optional API keys
-if [ -z "$TAVILY_API_KEY" ]; then
-    echo "INFO: TAVILY_API_KEY is not set (optional)"
-    MISSING_OPTIONAL=1
-fi
-
-if [ -z "$EXPO_ACCESS_TOKEN" ]; then
-    echo "INFO: EXPO_ACCESS_TOKEN is not set (optional)"
-    MISSING_OPTIONAL=1
-fi
-
 if [ $MISSING_REQUIRED -eq 1 ]; then
     echo ""
     echo "ERROR: Required API keys are missing!"
     echo "The server will fail to start without these keys."
     echo "Please set them in docker-compose.yml or a .env file."
-    echo ""
-fi
-
-if [ $MISSING_OPTIONAL -eq 1 ]; then
-    echo ""
-    echo "Note: Optional API keys are not set. Some features may be limited."
     echo ""
 fi
 

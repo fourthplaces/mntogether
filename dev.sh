@@ -14,7 +14,6 @@ cd "$REPO_ROOT" || exit 1
 
 # ── Container names ──────────────────────────────────────────────────
 C_POSTGRES="rooteditorial_postgres"
-C_REDIS="rooteditorial_redis"
 C_RESTATE="rooteditorial_restate"
 C_SERVER="rooteditorial_server"
 C_ADMIN="rooteditorial_admin_app"
@@ -22,7 +21,6 @@ C_WEBAPP="rooteditorial_web_app"
 
 # ── Ports ────────────────────────────────────────────────────────────
 P_POSTGRES=5432
-P_REDIS=6379
 P_RESTATE=8180
 P_SERVER=9080
 P_ADMIN=3000
@@ -299,11 +297,10 @@ render_dashboard() {
   refresh_cpu_cache
 
   # Gather all statuses
-  local s_pg s_redis s_restate s_server s_admin s_webapp
-  local h_pg h_redis h_restate h_server h_admin h_webapp
+  local s_pg s_restate s_server s_admin s_webapp
+  local h_pg h_restate h_server h_admin h_webapp
 
   s_pg=$(get_status "$C_POSTGRES" "$P_POSTGRES"); h_pg="$SERVICE_HINT"
-  s_redis=$(get_status "$C_REDIS" "$P_REDIS"); h_redis="$SERVICE_HINT"
   s_restate=$(get_status "$C_RESTATE" "$P_RESTATE"); h_restate="$SERVICE_HINT"
   s_server=$(get_status "$C_SERVER" "$P_SERVER"); h_server="$SERVICE_HINT"
   s_admin=$(get_status "$C_ADMIN" "$P_ADMIN"); h_admin="$SERVICE_HINT"
@@ -320,7 +317,6 @@ render_dashboard() {
   printf "  ${BOLD}Infrastructure${RESET}\n"
 
   SERVICE_HINT="$h_pg";      render_service "$s_pg"      "PostgreSQL"    "$P_POSTGRES" "$C_POSTGRES"
-  SERVICE_HINT="$h_redis";   render_service "$s_redis"   "Redis"         "$P_REDIS"   "$C_REDIS"
   SERVICE_HINT="$h_restate"; render_service "$s_restate" "Restate"       "$P_RESTATE" "$C_RESTATE"
 
   echo ""
