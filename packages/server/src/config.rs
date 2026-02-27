@@ -17,7 +17,6 @@ pub struct Config {
     pub test_identifier_enabled: bool,
     pub admin_identifiers: Vec<String>,
     pub pii_scrubbing_enabled: bool,
-    pub pii_use_gpt_detection: bool,
 }
 
 impl Config {
@@ -73,10 +72,6 @@ impl Config {
                 .unwrap_or_else(|_| "true".to_string())
                 .parse()
                 .unwrap_or(true),
-            pii_use_gpt_detection: env::var("PII_USE_GPT_DETECTION")
-                .unwrap_or_else(|_| "true".to_string()) // AI detection ON by default
-                .parse()
-                .unwrap_or(true),
         })
     }
 
@@ -98,7 +93,6 @@ impl Config {
             ("TEST_IDENTIFIER_ENABLED", "false"),
             ("ADMIN_IDENTIFIERS", "empty"),
             ("PII_SCRUBBING_ENABLED", "true"),
-            ("PII_USE_GPT_DETECTION", "true"),
         ];
 
         let mut missing_required = Vec::new();

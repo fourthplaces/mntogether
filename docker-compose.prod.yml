@@ -53,7 +53,6 @@ services:
 
       # PII Protection
       PII_SCRUBBING_ENABLED: ${PII_SCRUBBING_ENABLED:-true}
-      PII_USE_GPT_DETECTION: ${PII_USE_GPT_DETECTION:-true}
 
       # Security: MUST be false in production
       TEST_IDENTIFIER_ENABLED: false

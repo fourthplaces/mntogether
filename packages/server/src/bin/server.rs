@@ -80,11 +80,6 @@ async fn main() -> Result<()> {
         .unwrap_or_else(|_| "false".to_string())
         .parse::<bool>()
         .unwrap_or(false);
-    let pii_use_gpt_detection = std::env::var("PII_USE_GPT_DETECTION")
-        .unwrap_or_else(|_| "false".to_string())
-        .parse::<bool>()
-        .unwrap_or(false);
-
     // Create Twilio service
     let twilio_options = TwilioOptions {
         account_sid: twilio_account_sid,
@@ -98,11 +93,7 @@ async fn main() -> Result<()> {
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
-    let pii_detector = server_core::kernel::pii::create_pii_detector(
-        pii_scrubbing_enabled,
-        pii_use_gpt_detection,
-        Some(openai_client.clone()),
-    );
+    let pii_detector = server_core::kernel::pii::create_pii_detector(pii_scrubbing_enabled);
 
     // Create JWT service
     let jwt_service = Arc::new(JwtService::new(&jwt_secret, jwt_issuer));

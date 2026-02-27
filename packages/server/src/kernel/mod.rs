@@ -23,7 +23,7 @@ pub const GPT_5: &str = "gpt-5";
 // Other exports
 pub use deps::{ServerDeps, TwilioAdapter};
 pub use llm_request::CompletionExt;
-pub use pii::{create_pii_detector, HybridPiiDetector, NoopPiiDetector, RegexPiiDetector};
+pub use pii::{create_pii_detector, NoopPiiDetector, RegexPiiDetector};
 pub use stream_hub::StreamHub;
 pub use test_dependencies::TestDependencies;
 pub use traits::*;

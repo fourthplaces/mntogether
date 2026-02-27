@@ -16,7 +16,6 @@ cp .env.example .env
 #   JWT_SECRET=<generate with: openssl rand -base64 32>
 #   TEST_IDENTIFIER_ENABLED=true
 #   PII_SCRUBBING_ENABLED=false
-#   PII_USE_GPT_DETECTION=false
 # API keys (OpenAI, Twilio, etc.) are NOT needed for design/frontend work
 
 # 4. Start services

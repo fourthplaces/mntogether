@@ -478,7 +478,6 @@ A docs audit was performed on 2026-02-24. ~60 dead files were deleted (crawling,
 | `RESTATE_MIGRATION_SUMMARY.md` | Current workflow architecture |
 | `LOCAL_DEV_SETUP.md` | Getting the dev environment running |
 | `INSTITUTIONAL_LEARNINGS.md` | Hard-won lessons from the project |
-| `prompts/pii/pii-detection.md` | PII detection prompt — still active |
 
 ### Needs Edits (5 priority files)
 
