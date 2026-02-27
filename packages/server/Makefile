@@ -1,4 +1,4 @@
-.PHONY: help up down logs migrate test
+.PHONY: help up down logs migrate test seed reset-db
 
 help: ## Show this help message
 	@echo "Available commands:"
@@ -29,7 +29,7 @@ shell: ## Open shell in API container
 	docker-compose exec server /bin/bash
 
 db-shell: ## Open psql shell
-	docker-compose exec postgres psql -U postgres -d mndigitalaid
+	docker-compose exec postgres psql -U postgres -d rooteditorial
 
 redis-cli: ## Open redis-cli
 	docker-compose exec redis redis-cli
@@ -51,3 +51,15 @@ web-app-shell: ## Open shell in web app container
 
 web-app-restart: ## Restart web app service
 	docker-compose restart web-app
+
+seed: ## Load seed data from JSON into the database
+	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
+
+reset-db: ## Drop database, re-migrate, and seed
+	@echo "Dropping and recreating database..."
+	@docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS rooteditorial;" -c "CREATE DATABASE rooteditorial;"
+	@echo "Running migrations..."
+	@docker compose exec server sqlx migrate run --source /app/packages/server/migrations
+	@echo "Seeding..."
+	@$(MAKE) seed
+	@echo "Done."

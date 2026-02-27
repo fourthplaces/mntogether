@@ -4,6 +4,9 @@
   "private": true,
   "main": "./graphql/index.ts",
   "types": "./graphql/index.ts",
+  "exports": {
+    ".": "./graphql/index.ts"
+  },
   "dependencies": {
     "@graphql-tools/merge": "^9.1.7",
     "dataloader": "^2.2.3",

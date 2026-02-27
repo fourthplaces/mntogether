@@ -33,9 +33,9 @@ help:
 	@echo ""
 	@echo "Database:"
 	@echo "  make migrate     - Run database migrations"
-	@echo "  make seed        - Seed database with organizations"
+	@echo "  make seed        - Load seed data from JSON into database"
 	@echo "  make db-shell    - Open PostgreSQL shell"
-	@echo "  make db-reset    - Reset database (drops and recreates)"
+	@echo "  make db-reset    - Drop, migrate, and seed database"
 	@echo ""
 	@echo "Development:"
 	@echo "  make shell       - Open shell in API container"
@@ -122,31 +122,23 @@ logs-redis:
 migrate:
 	docker compose exec server sqlx migrate run
 
-# Seed database with organizations
+# Seed database from JSON files (data/posts.json, data/organizations.json, data/tags.json)
 seed:
-	docker compose exec server cargo run --bin seed_organizations
-
-# Generate embeddings for existing data
-embeddings:
-	docker compose exec server cargo run --bin generate_embeddings
+	@node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial
 
 # Open PostgreSQL shell
 db-shell:
 	docker compose exec postgres psql -U postgres -d rooteditorial
 
-# Reset database (WARNING: drops all data)
+# Reset database: drop, recreate, migrate, seed
 db-reset:
-	@echo "WARNING: This will delete all data!"
-	@read -p "Are you sure? (y/N) " -n 1 -r; \
-	echo; \
-	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
-		docker compose exec postgres psql -U postgres -c "DROP DATABASE IF EXISTS rooteditorial;"; \
-		docker compose exec postgres psql -U postgres -c "CREATE DATABASE rooteditorial;"; \
-		$(MAKE) migrate; \
-		echo "Database reset complete."; \
-	else \
-		echo "Cancelled"; \
-	fi
+	@echo "Dropping and recreating database..."
+	@docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS rooteditorial;" -c "CREATE DATABASE rooteditorial;"
+	@echo "Running migrations..."
+	@docker compose exec server sqlx migrate run --source /app/packages/server/migrations
+	@echo "Seeding..."
+	@$(MAKE) seed
+	@echo "Done."
 
 # ========================================
 # Development Tools

@@ -1,66 +1,67 @@
-# Data Directory
+# Seed Data
 
-## Test Database Snapshot
+Development seed data lives in three JSON files. A Node script converts them to SQL at load time.
 
-The primary test data is in `local_test_db.sql.gz` — a compressed pg_dump snapshot for local development. See [LOCAL_DEV_SETUP.md](../docs/setup/LOCAL_DEV_SETUP.md) for restore instructions.
-
-```bash
-gunzip -c data/local_test_db.sql.gz | docker compose exec -T postgres psql -U postgres -d rooteditorial
-```
-
-## Seed Script (Legacy)
-
-> **Note**: The seed script below requires an `OPENAI_API_KEY` and may be outdated. For local development, restore the test database snapshot instead.
-
-Import organizations from the JSON file:
+## Quick Start
 
 ```bash
-# From project root
-cd packages/server
-cargo run --bin seed_organizations
+# Seed an existing (migrated) database
+make seed
+
+# Full reset: drop DB, run migrations, seed
+make reset-db
+
+# Or from the dev dashboard
+./dev.sh     # then press [d]
 ```
 
-The script will:
-1. Read `data/immigrant_resources_seed.json`
-2. Use OpenAI GPT-4o-mini to extract tags from each organization's description
-3. Create organizations in the database
-4. Create and associate tags (services, languages, communities)
-5. Skip organizations that already exist
+## Files
 
-## Requirements
+| File | Records | Purpose |
+|------|---------|---------|
+| `organizations.json` | 50 orgs | Service providers across 5 metro counties |
+| `posts.json` | 107 posts | Stories, notices, exchanges, events, spotlights, references |
+| `tags.json` | 21 topics, 11 areas, 3 safety | Tag display config (colors, display names) |
+| `seed.mjs` | -- | Reads the 3 JSON files, outputs SQL to stdout |
 
-- `OPENAI_API_KEY` environment variable must be set
-- Database must be running and migrations applied
-- `data/immigrant_resources_seed.json` must exist
+## How It Works
 
-## What Gets Created
+`seed.mjs` reads the JSON files and generates a single SQL transaction with:
 
-For each organization:
-- **Organization record** with name, description, contact info, location
-- **Service tags**: food_assistance, housing_assistance, legal_services, etc.
-- **Language tags**: english, spanish, somali, hmong, etc.
-- **Community tags**: general, latino, somali, hmong, vietnamese, etc.
+1. Tag INSERTs (topic colors, service areas, safety, reserved guards)
+2. Organization INSERTs
+3. Post CTEs — each post gets its own CTE chain that inserts into `posts` + field group tables (`post_meta`, `post_source_attribution`, `post_person`, `schedules`, `post_items`, `post_link`, `post_media`) and wires up `taggables`
 
-Tags are extracted automatically using AI from the `populations_served` field.
+Everything uses `ON CONFLICT DO NOTHING` so the script is idempotent.
 
-## Output
+## Editing Seed Data
 
+Edit the JSON files directly. The schema for each post in `posts.json`:
+
+```json
+{
+  "title": "...",
+  "description": "...",
+  "summary": "...",
+  "postType": "story|notice|exchange|event|spotlight|reference",
+  "category": "community",
+  "weight": "heavy|medium|light",
+  "priority": 50,
+  "location": "City, MN",
+  "meta": { "kicker": "...", "timestamp": "2026-02-20T00:00:00Z" },
+  "source": "Organization Name",
+  "tags": {
+    "topic": ["food", "housing"],
+    "serviceArea": ["hennepin-county"],
+    "reserved": ["need"],
+    "safety": ["no_id_required"]
+  },
+  "person": { "name": "...", "role": "...", "bio": "...", "photoUrl": "...", "quote": "..." },
+  "schedule": [{ "dtstart": "...", "dtend": "...", "rrule": "...", "isAllDay": false }],
+  "items": [{ "name": "...", "detail": "...", "sortOrder": 0 }],
+  "links": [{ "url": "...", "label": "...", "deadline": "2026-03-15" }],
+  "media": [{ "imageUrl": "...", "caption": "...", "credit": "...", "sortOrder": 0 }]
+}
 ```
-+ Connected to database
-+ Loaded 50 organizations from JSON
 
-Starting seed process...
-
-[1/50] Processing: 360 Communities - Burnsville Resource Center & Food Shelf
-  -> Services: ["food_assistance", "emergency_financial_aid"]
-  -> Languages: ["english"]
-  -> Communities: ["general"]
-  + Created organization with 3 tags
-
-...
-
-Seed complete!
-   Created: 50
-   Skipped: 0
-   Total: 50
-```
+Optional fields (`person`, `schedule`, `items`, `links`, `media`, `meta`) can be omitted.

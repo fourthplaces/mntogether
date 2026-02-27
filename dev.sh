@@ -134,7 +134,7 @@ get_status() {
 
 start_services() {
   echo "Starting services..."
-  docker compose up -d 2>&1
+  docker compose up -d --remove-orphans 2>&1
   echo ""
   echo "Services started. Backend may take 1-2 min to compile on first run."
 }
@@ -158,6 +158,40 @@ rebuild_server() {
   docker compose up -d --build server 2>&1
   echo ""
   echo "Server rebuild triggered. Watch the dashboard for status."
+}
+
+rebuild_web() {
+  echo "Rebuilding web app..."
+  docker compose up -d --build web-app 2>&1
+  echo ""
+  echo "Web app rebuild triggered."
+}
+
+rebuild_admin() {
+  echo "Rebuilding admin app..."
+  docker compose up -d --build admin-app 2>&1
+  echo ""
+  echo "Admin app rebuild triggered."
+}
+
+open_web() {
+  open "http://localhost:$P_WEBAPP"
+}
+
+open_admin() {
+  open "http://localhost:$P_ADMIN"
+}
+
+reset_database() {
+  echo "Resetting database (drop, migrate, seed)..."
+  echo ""
+  docker compose exec -T postgres psql -U postgres -c "DROP DATABASE IF EXISTS rooteditorial;" -c "CREATE DATABASE rooteditorial;" 2>&1
+  echo "Running migrations..."
+  docker compose exec server sqlx migrate run --source /app/packages/server/migrations 2>&1
+  echo "Seeding..."
+  node data/seed.mjs | docker compose exec -T postgres psql -U postgres -d rooteditorial 2>&1
+  echo ""
+  echo "Database reset complete."
 }
 
 # ── Display ──────────────────────────────────────────────────────────
@@ -260,7 +294,8 @@ render_dashboard() {
   echo "  -------------------------------------------"
 
   if [[ "$clear_screen" == "true" ]]; then
-    printf "  ${DIM}[s]${RESET} start  ${DIM}[r]${RESET} restart  ${DIM}[b]${RESET} rebuild server  ${DIM}[l]${RESET} logs  ${DIM}[q]${RESET} quit\n"
+    printf "  ${DIM}[s]${RESET} start  ${DIM}[r]${RESET} restart  ${DIM}[b]${RESET} rebuild server  ${DIM}[w]${RESET} rebuild web  ${DIM}[a]${RESET} rebuild admin\n"
+    printf "  ${DIM}[d]${RESET} reset db  ${DIM}[1]${RESET} open admin  ${DIM}[2]${RESET} open web  ${DIM}[l]${RESET} logs  ${DIM}[q]${RESET} quit\n"
     echo ""
     printf "  ${DIM}Updated %s${RESET}\n" "$(date +%H:%M:%S)"
   fi
@@ -317,6 +352,27 @@ dashboard_loop() {
         rebuild_server
         sleep 2
         ;;
+      w|W)
+        printf '\033[2J\033[H'
+        rebuild_web
+        sleep 2
+        ;;
+      a|A)
+        printf '\033[2J\033[H'
+        rebuild_admin
+        sleep 2
+        ;;
+      1)
+        open_admin
+        ;;
+      2)
+        open_web
+        ;;
+      d|D)
+        printf '\033[2J\033[H'
+        reset_database
+        sleep 2
+        ;;
       l|L)
         show_logs
         # After Ctrl+C from logs, resume dashboard
@@ -371,8 +427,9 @@ case "${1:-}" in
     echo "  help       Show this help"
     echo ""
     echo "Dashboard shortcuts:"
-    echo "  [s] start all   [r] restart   [b] rebuild server"
-    echo "  [l] logs        [q] quit"
+    echo "  [s] start all   [r] restart       [l] logs   [q] quit"
+    echo "  [b] rebuild server  [w] rebuild web  [a] rebuild admin"
+    echo "  [d] reset db        [1] open admin   [2] open web"
     ;;
   *)
     dashboard_loop

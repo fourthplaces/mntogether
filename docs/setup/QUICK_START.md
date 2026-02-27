@@ -19,6 +19,10 @@ Dashboard shortcuts:
 - `[s]` start all services
 - `[r]` restart everything
 - `[b]` rebuild the Rust server
+- `[w]` rebuild web app
+- `[a]` rebuild admin app
+- `[1]` open admin app in browser
+- `[2]` open web app in browser
 - `[l]` follow logs (Ctrl+C to return)
 - `[q]` quit
 
@@ -48,6 +52,17 @@ You can also run individual commands:
 With `TEST_IDENTIFIER_ENABLED=true` in `.env`:
 - Phone: `+1234567890`
 - Code: any value
+
+## Dashboard Status Indicators
+
+| Indicator | Meaning |
+|---|---|
+| **OK** (green) | Container healthy or port listening |
+| **..** (yellow) | Container running, waiting for health check or port |
+| **FAIL** (red) | Container unhealthy |
+| **--** (dim) | Container stopped |
+
+The dashboard checks each service every 3 seconds. It reads Docker health status first, then falls back to checking whether the expected port is listening (via `lsof`). The port fallback means locally-run processes (e.g., `yarn dev` outside Docker) are detected too.
 
 ## Common Issues
 

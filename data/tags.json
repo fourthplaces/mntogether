@@ -1,0 +1,43 @@
+{
+  "topic": [
+    { "value": "food", "displayName": "Food", "color": "#ef4444" },
+    { "value": "housing", "displayName": "Housing", "color": "#3b82f6" },
+    { "value": "community", "displayName": "Community", "color": "#f59e0b" },
+    { "value": "education", "displayName": "Education", "color": "#8b5cf6" },
+    { "value": "employment", "displayName": "Employment", "color": "#10b981" },
+    { "value": "health", "displayName": "Health", "color": "#ec4899" },
+    { "value": "legal", "displayName": "Legal", "color": "#6366f1" },
+    { "value": "immigration", "displayName": "Immigration", "color": "#0ea5e9" },
+    { "value": "language-access", "displayName": "Language Access", "color": "#14b8a6" },
+    { "value": "culture", "displayName": "Culture", "color": "#d946ef" },
+    { "value": "voting", "displayName": "Voting", "color": "#f97316" },
+    { "value": "transit", "displayName": "Transit", "color": "#64748b" },
+    { "value": "community-voices", "displayName": "Community Voices", "color": "#a855f7" },
+    { "value": "environment", "displayName": "Environment", "color": "#22c55e" },
+    { "value": "donations", "displayName": "Donations", "color": "#f43f5e" },
+    { "value": "childcare", "displayName": "Childcare", "color": "#06b6d4" },
+    { "value": "winter-gear", "displayName": "Winter Gear", "color": "#84cc16" },
+    { "value": "census", "displayName": "Census", "color": "#eab308" },
+    { "value": "resettlement", "displayName": "Resettlement", "color": "#0284c7" },
+    { "value": "safety", "displayName": "Safety", "color": "#e11d48" },
+    { "value": "restaurant", "displayName": "Restaurant", "color": "#fb923c" }
+  ],
+  "serviceArea": [
+    { "value": "hennepin-county", "displayName": "Hennepin County" },
+    { "value": "ramsey-county", "displayName": "Ramsey County" },
+    { "value": "dakota-county", "displayName": "Dakota County" },
+    { "value": "scott-county", "displayName": "Scott County" },
+    { "value": "washington-county", "displayName": "Washington County" },
+    { "value": "brooklyn-center", "displayName": "Brooklyn Center" },
+    { "value": "phillips", "displayName": "Phillips" },
+    { "value": "north-minneapolis", "displayName": "North Minneapolis" },
+    { "value": "lake-street", "displayName": "Lake Street" },
+    { "value": "statewide", "displayName": "Statewide Minnesota" },
+    { "value": "south-metro", "displayName": "South Metro" }
+  ],
+  "safety": [
+    { "value": "no_id_required", "displayName": "No ID Required" },
+    { "value": "ice_safe", "displayName": "ICE Safe" },
+    { "value": "know_your_rights", "displayName": "Know Your Rights" }
+  ]
+}
