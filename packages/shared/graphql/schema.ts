@@ -77,7 +77,6 @@ type Mutation {
   regeneratePostTags(id: ID!): Post!
   updatePostCapacity(id: ID!, capacityStatus: String!): Post!
   batchScorePosts(limit: Int): BatchScoreResult!
-  addComment(postId: ID!, content: String!, parentMessageId: String): Comment!
 
   # Organizations (admin)
   createOrganization(name: String!, description: String): Organization!
@@ -165,7 +164,6 @@ type Post {
   contacts: [PostContact!]!
   submittedBy: SubmittedByInfo
   urgentNotes: [UrgentNote!]!
-  comments: [Comment!]!
   organization: Organization
 }
 
@@ -312,15 +310,6 @@ type SubmittedByInfo {
 type UrgentNote {
   content: String!
   ctaText: String
-}
-
-type Comment {
-  id: ID!
-  containerId: String!
-  role: String!
-  content: String!
-  parentMessageId: String
-  createdAt: String!
 }
 
 type Note {

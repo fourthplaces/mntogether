@@ -6,7 +6,6 @@ use std::env;
 #[derive(Debug, Clone)]
 pub struct Config {
     pub database_url: String,
-    pub redis_url: String,
     pub port: u16,
     pub openai_api_key: String,
     pub twilio_account_sid: String,
@@ -32,8 +31,6 @@ impl Config {
 
         Ok(Self {
             database_url: env::var("DATABASE_URL").context("DATABASE_URL must be set")?,
-            redis_url: env::var("REDIS_URL")
-                .unwrap_or_else(|_| "redis://localhost:6379".to_string()),
             port: env::var("PORT")
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
@@ -95,7 +92,6 @@ impl Config {
         ];
 
         let optional_vars = vec![
-            ("REDIS_URL", "redis://localhost:6379"),
             ("PORT", "8080"),
             ("JWT_ISSUER", "rooteditorial"),
             ("ALLOWED_ORIGINS", "auto-configured"),

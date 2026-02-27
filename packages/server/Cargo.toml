@@ -109,5 +109,5 @@ axum = "0.8"
 tokio-test = "0.4"
 test-context = "0.3"
 testcontainers = { workspace = true }
-testcontainers-modules = { version = "0.11", features = ["postgres", "redis"] }
+testcontainers-modules = { version = "0.11", features = ["postgres"] }
 indexmap = "2.0"

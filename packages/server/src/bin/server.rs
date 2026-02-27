@@ -23,7 +23,7 @@ use server_core::domains::editions::restate::{EditionsService, EditionsServiceIm
 use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
 use server_core::kernel::{ServerDeps};
 use server_core::common::utils::EmbeddingService;
-use server_core::kernel::{OpenAi, Claude, TwilioAdapter, StreamHub};
+use server_core::kernel::{OpenAi, TwilioAdapter, StreamHub};
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use twilio::{TwilioOptions, TwilioService};
@@ -93,12 +93,8 @@ async fn main() -> Result<()> {
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
 
-    // Create AI clients
+    // Create AI client
     let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
-    let claude_client = std::env::var("ANTHROPIC_API_KEY")
-        .ok()
-        .filter(|k| !k.is_empty())
-        .map(|key| Arc::new(Claude::new(key, "claude-sonnet-4-5-20250929")));
     let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
@@ -118,7 +114,6 @@ async fn main() -> Result<()> {
     let server_deps = Arc::new(ServerDeps::new(
         pool.clone(),
         openai_client,
-        claude_client,
         Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(TwilioAdapter::new(twilio)),
         pii_detector,

@@ -81,13 +81,5 @@ export const PostDetailPublicFields = graphql(`
       content
       ctaText
     }
-    comments {
-      id
-      containerId
-      role
-      content
-      parentMessageId
-      createdAt
-    }
   }
 `);

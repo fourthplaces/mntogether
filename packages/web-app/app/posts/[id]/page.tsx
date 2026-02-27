@@ -7,7 +7,6 @@ import { useQuery, useMutation } from "urql";
 import { useEffect, useState } from "react";
 import { PostDetailPublicQuery, TrackPostViewMutation, TrackPostClickMutation } from "@/lib/graphql/public";
 import { isAuthenticated } from "@/lib/auth/actions";
-import CommentsSection from "@/components/CommentsSection";
 
 function formatCategory(value: string): string {
   return value
@@ -361,10 +360,6 @@ export default function PublicPostDetailPage() {
           </div>
         )}
 
-        {/* Comments — same column as main card on desktop, after sidebar on mobile */}
-        <div className="order-3 md:col-start-1 md:col-end-2">
-          <CommentsSection postId={postId} />
-        </div>
       </div>
     </section>
   );

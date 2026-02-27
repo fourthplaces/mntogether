@@ -236,16 +236,6 @@ export const postResolvers = {
       });
     },
 
-    addComment: async (
-      _parent: unknown,
-      args: { postId: string; content: string; parentMessageId?: string },
-      ctx: GraphQLContext
-    ) => {
-      return ctx.restate.callObject("Post", args.postId, "add_comment", {
-        content: args.content,
-        parent_message_id: args.parentMessageId ?? null,
-      });
-    },
   },
 
   PublicPost: {
@@ -257,10 +247,6 @@ export const postResolvers = {
   Post: {
     urgentNotes: (parent: { urgentNotes?: unknown[] }) => {
       return parent.urgentNotes ?? [];
-    },
-
-    comments: (parent: { id: string }, _args: unknown, ctx: GraphQLContext) => {
-      return ctx.loaders.commentsByPostId.load(parent.id);
     },
 
     organization: async (

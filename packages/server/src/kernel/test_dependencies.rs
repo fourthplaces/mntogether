@@ -268,7 +268,6 @@ impl TestDependencies {
         ServerDeps::new(
             db_pool,
             self.ai,
-            None, // No Claude client in tests
             self.embedding_service,
             Arc::new(TwilioAdapter::new(twilio)),
             self.pii_detector,

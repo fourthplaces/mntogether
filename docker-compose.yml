@@ -24,26 +24,6 @@ services:
       - rooteditorial
 
   # ========================================
-  # Redis for cache and job queue
-  # ========================================
-  redis:
-    image: redis:7-alpine
-    labels:
-      dev.description: "Redis cache"
-    container_name: rooteditorial_redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    networks:
-      - rooteditorial
-
-  # ========================================
   # Restate Runtime for Durable Workflows
   # ========================================
   restate:
@@ -83,7 +63,7 @@ services:
       RESTATE_SELF_URL: http://server:9080
       RUST_LOG: ${RUST_LOG:-info,server_core=debug}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
       TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
       TWILIO_VERIFY_SERVICE_SID: ${TWILIO_VERIFY_SERVICE_SID}
@@ -175,8 +155,6 @@ services:
 volumes:
   postgres_data:
     name: rooteditorial_postgres_data
-  redis_data:
-    name: rooteditorial_redis_data
   rust_target:
     name: rooteditorial_rust_target
 

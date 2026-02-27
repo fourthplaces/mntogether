@@ -3,7 +3,7 @@
 //! This module provides the central dependency container used by all domain effects.
 //! All external services use trait abstractions to enable testing.
 
-use ai_client::{Claude, OpenAi};
+use ai_client::OpenAi;
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::PgPool;
@@ -59,8 +59,6 @@ pub struct ServerDeps {
     /// AI client for all LLM operations. Callers pass specific model constants
     /// (GPT_5_MINI, GPT_5, "gpt-4o") to select the model per-call.
     pub ai: Arc<OpenAi>,
-    /// Claude client for Anthropic models (optional — needs ANTHROPIC_API_KEY).
-    pub claude: Option<Arc<Claude>>,
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub twilio: Arc<dyn BaseTwilioService>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
@@ -78,7 +76,6 @@ impl ServerDeps {
     pub fn new(
         db_pool: PgPool,
         ai: Arc<OpenAi>,
-        claude: Option<Arc<Claude>>,
         embedding_service: Arc<dyn BaseEmbeddingService>,
         twilio: Arc<dyn BaseTwilioService>,
         pii_detector: Arc<dyn BasePiiDetector>,
@@ -90,7 +87,6 @@ impl ServerDeps {
         Self {
             db_pool,
             ai,
-            claude,
             embedding_service,
             twilio,
             pii_detector,

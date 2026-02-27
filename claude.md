@@ -60,7 +60,6 @@ Architecture: `Next.js → Restate Ingress → Rust Server → PostgreSQL`
 | Restate Admin | 9070 | Service discovery, deployments, introspection |
 | Rust Server | 9080 | Restate endpoint (h2c, not directly callable via curl) |
 | PostgreSQL | 5432 | Docker container |
-| Redis | 6379 | Docker container |
 
 The Rust server auto-registers with Restate on startup — no manual `register-workflows.sh` needed after `docker compose up -d --build server`.
 

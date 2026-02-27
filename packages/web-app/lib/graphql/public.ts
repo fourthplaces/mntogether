@@ -90,13 +90,3 @@ export const TrackPostClickMutation = graphql(`
   }
 `);
 
-export const AddCommentMutation = graphql(`
-  mutation AddComment($postId: ID!, $content: String!, $parentMessageId: String) {
-    addComment(postId: $postId, content: $content, parentMessageId: $parentMessageId) {
-      id
-      content
-      parentMessageId
-      createdAt
-    }
-  }
-`);

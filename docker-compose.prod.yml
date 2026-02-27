@@ -5,8 +5,7 @@
 #
 # IMPORTANT: For production, you should:
 # 1. Use managed database services (AWS RDS, DigitalOcean, etc.)
-# 2. Use managed Redis services (AWS ElastiCache, DigitalOcean, etc.)
-# 3. Set up proper SSL/TLS termination
+# 2. Set up proper SSL/TLS termination
 # 4. Configure monitoring and logging
 # 5. Set up automated backups
 # 6. Use secrets management (AWS Secrets Manager, HashiCorp Vault, etc.)
@@ -27,9 +26,8 @@ services:
         BUILDKIT_INLINE_CACHE: 1
     container_name: rooteditorial_api_prod
     environment:
-      # Database & Cache (use external managed services)
+      # Database (use external managed service)
       DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
 
       # Server Config
       PORT: ${PORT:-8080}
@@ -37,10 +35,6 @@ services:
 
       # AI Services
       OPENAI_API_KEY: ${OPENAI_API_KEY}
-      VOYAGE_API_KEY: ${VOYAGE_API_KEY}
-
-      # Search
-      TAVILY_API_KEY: ${TAVILY_API_KEY}
 
       # SMS Authentication
       TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
@@ -55,7 +49,6 @@ services:
       ADMIN_IDENTIFIERS: ${ADMIN_IDENTIFIERS}
 
       # Optional
-      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS}
 
       # PII Protection

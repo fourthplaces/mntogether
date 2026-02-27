@@ -13,19 +13,9 @@ interface PostList {
   hasPreviousPage: boolean;
 }
 
-interface CommentResult {
-  id: string;
-  [key: string]: unknown;
-}
-
-interface CommentList {
-  messages: CommentResult[];
-}
-
 export interface PostLoaders {
   postById: DataLoader<string, PostResult | null>;
   postsByOrgId: DataLoader<string, PostResult[]>;
-  commentsByPostId: DataLoader<string, CommentResult[]>;
 }
 
 export function createPostLoaders(restate: RestateClient): PostLoaders {
@@ -50,23 +40,6 @@ export function createPostLoaders(restate: RestateClient): PostLoaders {
             })
             .then((r) => r.posts)
             .catch(() => [] as PostResult[])
-        )
-      );
-      return results;
-    }),
-
-    commentsByPostId: new DataLoader(async (postIds) => {
-      const results = await Promise.all(
-        postIds.map((postId) =>
-          restate
-            .callObject<CommentList>(
-              "Post",
-              postId as string,
-              "get_comments",
-              {}
-            )
-            .then((r) => r.messages)
-            .catch(() => [] as CommentResult[])
         )
       );
       return results;

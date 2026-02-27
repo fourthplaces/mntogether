@@ -1221,40 +1221,6 @@ impl Post {
         Ok(post)
     }
 
-    /// Get or create a comments container for this post
-    pub async fn get_or_create_comments_container(&self, pool: &PgPool) -> Result<ContainerId> {
-        // Return existing container if set
-        if let Some(container_id) = self.comments_container_id {
-            return Ok(container_id);
-        }
-
-        // Create new container and set the FK on this post
-        let container_id: uuid::Uuid = sqlx::query_scalar(
-            r#"
-            INSERT INTO containers (language)
-            VALUES ($1)
-            RETURNING id
-            "#,
-        )
-        .bind(&self.source_language)
-        .fetch_one(pool)
-        .await?;
-
-        // Update the post with the new container ID
-        sqlx::query("UPDATE posts SET comments_container_id = $1 WHERE id = $2")
-            .bind(container_id)
-            .bind(self.id)
-            .execute(pool)
-            .await?;
-
-        Ok(ContainerId::from(container_id))
-    }
-
-    /// Get comments container ID if it exists
-    pub fn get_comments_container_id(&self) -> Option<ContainerId> {
-        self.comments_container_id
-    }
-
     // =========================================================================
     // Embedding Methods (for semantic search)
     // =========================================================================
