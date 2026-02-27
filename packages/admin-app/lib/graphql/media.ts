@@ -1,0 +1,72 @@
+import { graphql } from "@/gql";
+
+export const MediaLibraryQuery = graphql(`
+  query MediaLibrary($limit: Int, $offset: Int, $contentType: String) {
+    mediaLibrary(limit: $limit, offset: $offset, contentType: $contentType) {
+      media {
+        id
+        filename
+        contentType
+        sizeBytes
+        url
+        storageKey
+        altText
+        width
+        height
+        createdAt
+      }
+      totalCount
+      hasNextPage
+    }
+  }
+`);
+
+export const PresignedUploadQuery = graphql(`
+  query PresignedUpload($filename: String!, $contentType: String!, $sizeBytes: Int!) {
+    presignedUpload(filename: $filename, contentType: $contentType, sizeBytes: $sizeBytes) {
+      uploadUrl
+      storageKey
+      publicUrl
+    }
+  }
+`);
+
+export const ConfirmUploadMutation = graphql(`
+  mutation ConfirmUpload(
+    $storageKey: String!
+    $publicUrl: String!
+    $filename: String!
+    $contentType: String!
+    $sizeBytes: Int!
+    $altText: String
+    $width: Int
+    $height: Int
+  ) {
+    confirmUpload(
+      storageKey: $storageKey
+      publicUrl: $publicUrl
+      filename: $filename
+      contentType: $contentType
+      sizeBytes: $sizeBytes
+      altText: $altText
+      width: $width
+      height: $height
+    ) {
+      id
+      filename
+      contentType
+      sizeBytes
+      url
+      altText
+      width
+      height
+      createdAt
+    }
+  }
+`);
+
+export const DeleteMediaMutation = graphql(`
+  mutation DeleteMedia($id: ID!) {
+    deleteMedia(id: $id)
+  }
+`);
