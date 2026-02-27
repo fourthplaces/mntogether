@@ -6,7 +6,6 @@ Complete guide for running Root Editorial with Docker Compose.
 
 The docker-compose setup includes:
 - **PostgreSQL** (pgvector) - Database with vector search support
-- **Redis** - Caching
 - **API Server** (Rust) - Restate workflow server with hot-reload
 - **Admin App** (Next.js) - CMS admin panel (port 3000)
 - **Web App** (Next.js) - Public-facing site (port 3001)
@@ -37,7 +36,6 @@ The docker-compose setup includes:
    - Web App (Public): http://localhost:3001
    - Restate API: http://localhost:9080
    - PostgreSQL: localhost:5432
-   - Redis: localhost:6379
 
 ## Required Environment Variables
 
@@ -46,7 +44,6 @@ Edit `packages/server/.env`:
 ```env
 # Database (already configured for docker-compose)
 DATABASE_URL=postgresql://postgres:postgres@postgres:5432/rooteditorial
-REDIS_URL=redis://redis:6379
 
 # AI/ML (REQUIRED)
 OPENAI_API_KEY=sk-...                    # Get from https://platform.openai.com/
@@ -184,7 +181,6 @@ If you see "port already in use":
 lsof -i :3000  # Next.js
 lsof -i :9080  # API
 lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
 
 # Stop the conflicting service or use docker-compose down
 ```
@@ -256,14 +252,14 @@ Check that `NEXT_PUBLIC_API_URL` is set correctly:
          ┌────────────────────────────────┐
          │  Rust Server (localhost:9080)  │
          │  Restate Workflows             │
-         └────┬──────────────────┬────────┘
-              │                  │
-              ↓                  ↓
-       ┌─────────────┐    ┌─────────────┐
-       │ PostgreSQL  │    │   Redis     │
-       │ (pgvector)  │    │  (cache)    │
-       │ :5432       │    │   :6379     │
-       └─────────────┘    └─────────────┘
+         └────────────┬──────────────────┘
+                      │
+                      ↓
+               ┌─────────────┐
+               │ PostgreSQL  │
+               │ (pgvector)  │
+               │ :5432       │
+               └─────────────┘
 ```
 
 ## Performance Tips

@@ -20,7 +20,7 @@ Next.js admin panel for the Root Editorial CMS. Built with Next.js, TypeScript, 
 
 ### Option 1: Docker Compose (Recommended)
 
-Run the entire stack (PostgreSQL, Redis, API, Next.js) with Docker Compose:
+Run the entire stack (PostgreSQL, Restate, API, Next.js) with Docker Compose:
 
 ```bash
 # From the server directory

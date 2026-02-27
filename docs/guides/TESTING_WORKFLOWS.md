@@ -25,14 +25,14 @@ How to test Restate workflows end-to-end in development.
            │
            ↓
 ┌─────────────────────┐
-│  PostgreSQL + Redis │  :5432, :6379
+│  PostgreSQL         │  :5432
 └─────────────────────┘
 ```
 
 ## Quick Start
 
 ```bash
-# Start all services (Postgres, Redis, Restate, Rust server)
+# Start all services (Postgres, Restate, Rust server)
 make up
 # or: docker compose up -d
 

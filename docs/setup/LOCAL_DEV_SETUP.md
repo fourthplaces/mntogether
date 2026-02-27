@@ -144,7 +144,6 @@ The `find_public_for_post_ids` query joins `tags.kind` to `tag_kinds.slug` and f
 | Rust Server | 9080 | Restate workflow services |
 | Restate Runtime | 8180 (ingress), 9070 (admin) | Workflow orchestration |
 | PostgreSQL | 5432 | pgvector (see docker-compose.yml for credentials) |
-| Redis | 6379 | Caching |
 
 ## Test Auth
 

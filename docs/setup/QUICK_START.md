@@ -13,7 +13,7 @@ Get the full stack running in 2 minutes.
 ./dev.sh
 ```
 
-This starts all services (PostgreSQL, Redis, Restate, Rust server, Admin app, Web app) and opens a live dashboard showing their status. The first run pulls Docker images and compiles the server -- allow 2-3 minutes.
+This starts all services (PostgreSQL, Restate, Rust server, Admin app, Web app) and opens a live dashboard showing their status. The first run pulls Docker images and compiles the server -- allow 2-3 minutes.
 
 Dashboard shortcuts:
 - `[s]` start all services
@@ -45,7 +45,6 @@ You can also run individual commands:
 | Rust Server | :9080 | Backend API (talks to Restate) |
 | Restate | :8180 | Durable workflow runtime |
 | PostgreSQL | :5432 | Database |
-| Redis | :6379 | Cache |
 
 ## Test Login
 

@@ -152,10 +152,12 @@ let posts = Post::find_active(&deps.db_pool).await?;
 
 `ServerDeps` is the central dependency container, stored as `Arc<ServerDeps>`. It holds:
 - `db_pool` — PostgreSQL connection pool
-- `redis` — Redis client (caching)
+- `ai` — OpenAI client (LLM)
+- `embedding_service` — Embedding service
 - `twilio` — Twilio service (OTP)
+- `pii_detector` — PII detection service
 - `jwt_service` — JWT token management
-- `ai_client` — LLM client
+- `stream_hub` — SSE stream hub
 - Admin identifiers list
 
 All workflow implementations receive `Arc<ServerDeps>` via their constructor.

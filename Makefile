@@ -11,14 +11,14 @@
 #   make restart  - Restart all services
 # ============================================================================
 
-.PHONY: help up down logs restart restart-server restart-admin clean build migrate seed shell db-shell redis-cli test check
+.PHONY: help up down logs restart restart-server restart-admin clean build migrate seed shell db-shell test check
 
 # Default target - show help
 help:
 	@echo "Root Editorial - Development Commands"
 	@echo ""
 	@echo "Getting Started:"
-	@echo "  make up          - Start all services (Postgres, Redis, API, Web App)"
+	@echo "  make up          - Start all services (Postgres, Restate, API, Web App)"
 	@echo "  make up-full     - Start all services including Next.js"
 	@echo "  make down        - Stop all services"
 	@echo "  make restart        - Restart all services (down + up, picks up config changes)"
@@ -39,7 +39,6 @@ help:
 	@echo ""
 	@echo "Development:"
 	@echo "  make shell       - Open shell in API container"
-	@echo "  make redis-cli   - Open Redis CLI"
 	@echo "  make build       - Rebuild all containers"
 	@echo "  make test        - Run Rust tests"
 	@echo "  make check       - Fast compile check without building"
@@ -54,7 +53,7 @@ help:
 # Service Management
 # ========================================
 
-# Start all core services (Postgres, Redis, API, Web App)
+# Start all core services (Postgres, Restate, API, Web App)
 up:
 	docker compose up -d
 
@@ -110,10 +109,6 @@ logs-next:
 logs-db:
 	docker compose logs -f postgres
 
-# View Redis logs
-logs-redis:
-	docker compose logs -f redis
-
 # ========================================
 # Database Operations
 # ========================================
@@ -148,10 +143,6 @@ db-reset:
 shell:
 	docker compose exec server /bin/bash
 
-# Open Redis CLI
-redis-cli:
-	docker compose exec redis redis-cli
-
 # Run Rust tests
 test:
 	docker compose exec server cargo test
@@ -179,7 +170,7 @@ clean:
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose down -v; \
-		docker volume rm rooteditorial_postgres_data rooteditorial_redis_data rooteditorial_rust_target 2>/dev/null || true; \
+		docker volume rm rooteditorial_postgres_data rooteditorial_rust_target 2>/dev/null || true; \
 		echo "Cleanup complete."; \
 	else \
 		echo "Cancelled"; \
@@ -204,9 +195,6 @@ health:
 	@echo ""
 	@echo "PostgreSQL:"
 	@docker compose exec postgres pg_isready -U postgres || echo "  FAIL: Not ready"
-	@echo ""
-	@echo "Redis:"
-	@docker compose exec redis redis-cli ping || echo "  FAIL: Not ready"
 	@echo ""
 	@echo "API Server:"
 	@curl -sf http://localhost:8080/health || echo "  FAIL: Not ready"

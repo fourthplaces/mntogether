@@ -41,11 +41,8 @@ pub struct Tag;
 /// Marker type for Taggable entities (polymorphic tag associations).
 pub struct Taggable;
 
-/// Marker type for Container entities (message containers for chat, comments, discussions).
+/// Marker type for Container entities (legacy — referenced by posts.comments_container_id column).
 pub struct Container;
-
-/// Marker type for Message entities (chat messages).
-pub struct Message;
 
 /// Marker type for ReferralDocument entities (generated referral documents).
 pub struct ReferralDocument;
@@ -141,11 +138,8 @@ pub type TagId = Id<Tag>;
 /// Typed ID for Taggable entities.
 pub type TaggableId = Id<Taggable>;
 
-/// Typed ID for Container entities (message containers for chat, comments, discussions).
+/// Typed ID for Container entities (legacy — referenced by posts.comments_container_id column).
 pub type ContainerId = Id<Container>;
-
-/// Typed ID for Message entities.
-pub type MessageId = Id<Message>;
 
 /// Typed ID for ReferralDocument entities.
 pub type DocumentId = Id<ReferralDocument>;

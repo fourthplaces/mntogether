@@ -87,8 +87,7 @@ pub struct Source {
 |-------------------|--------------------------|
 | Runtime           | Restate SDK 0.4.0        |
 | Database          | PostgreSQL + pgvector     |
-| Cache             | Redis                    |
-| LLM               | OpenAI / OpenRouter (Claude, GPT) |
+| LLM               | OpenAI (GPT)             |
 | Auth              | Twilio Verify (phone/email OTP) |
 | Frontend          | Next.js (App Router)     |
 | Vector search     | pgvector (cosine similarity) |

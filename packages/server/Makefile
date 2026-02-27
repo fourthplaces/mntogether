@@ -31,9 +31,6 @@ shell: ## Open shell in API container
 db-shell: ## Open psql shell
 	docker-compose exec postgres psql -U postgres -d rooteditorial
 
-redis-cli: ## Open redis-cli
-	docker-compose exec redis redis-cli
-
 web-logs: ## Follow Next.js app logs
 	docker-compose logs -f web
 

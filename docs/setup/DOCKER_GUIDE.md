@@ -44,7 +44,6 @@ docker compose up -d
 
 This starts:
 - **PostgreSQL** (port 5432) - Database with pgvector extension
-- **Redis** (port 6379) - Caching
 - **Restate Runtime** (port 9070 admin, 8180 ingress) - Workflow orchestration
 - **Rust Server** (port 9080) - Restate workflow server
 
@@ -80,7 +79,6 @@ make health      # Check service health
 make logs        # All services
 make logs-api    # API server only
 make logs-db     # PostgreSQL only
-make logs-redis  # Redis only
 ```
 
 ### Database Operations
@@ -95,7 +93,6 @@ make db-reset    # Reset database (data loss)
 
 ```bash
 make shell       # Open shell in API container
-make redis-cli   # Open Redis CLI
 make test        # Run Rust tests
 make check       # Fast compile check
 make fmt         # Format Rust code
@@ -152,7 +149,6 @@ Check if ports are already in use:
 ```bash
 # Check port usage
 lsof -i :5432  # PostgreSQL
-lsof -i :6379  # Redis
 lsof -i :9080  # Rust Server
 lsof -i :9070  # Restate Admin
 ```
@@ -227,8 +223,7 @@ docker compose -f docker-compose.prod.yml up -d
 3. **Configure ALLOWED_ORIGINS** explicitly
 4. **Disable TEST_IDENTIFIER_ENABLED**
 5. **Use managed PostgreSQL** (not the Docker image)
-6. **Use managed Redis** (not the Docker image)
-7. **Set up SSL/TLS** termination (nginx, Traefik, or cloud load balancer)
+6. **Set up SSL/TLS** termination (nginx, Traefik, or cloud load balancer)
 8. **Configure logging** (structured logs to stdout)
 9. **Set up monitoring** (health checks, metrics)
 10. **Regular backups** of PostgreSQL data
@@ -249,15 +244,15 @@ docker compose -f docker-compose.prod.yml up -d
          │  Port 9070/8180  │
          └────────┬────────┘
                   ▼
-┌─────────────────┐      ┌─────────────┐      ┌─────────────┐
-│   Rust Server   │─────▶│  PostgreSQL  │      │    Redis    │
-│  (Restate svc)  │      │  (pgvector)  │      │  (caching)  │
-│   Port 9080     │      │  Port 5432   │      │  Port 6379  │
-└─────────────────┘      └─────────────┘      └─────────────┘
+┌─────────────────┐      ┌─────────────┐
+│   Rust Server   │─────▶│  PostgreSQL  │
+│  (Restate svc)  │      │  (pgvector)  │
+│   Port 9080     │      │  Port 5432   │
+└─────────────────┘      └─────────────┘
          │
          │ (External APIs)
-         ├─▶ OpenAI / OpenRouter (LLM)
-         └─▶ Twilio (SMS/email auth)
+         ├─▶ OpenAI (LLM)
+         └─▶ Twilio (SMS auth)
 ```
 
 ## Data Persistence
@@ -265,7 +260,6 @@ docker compose -f docker-compose.prod.yml up -d
 Docker volumes are used for data persistence:
 
 - `rooteditorial_postgres_data` - PostgreSQL database
-- `rooteditorial_redis_data` - Redis data
 - `rooteditorial_rust_target` - Rust build cache
 
 These volumes persist even after `docker compose down`. To remove them:

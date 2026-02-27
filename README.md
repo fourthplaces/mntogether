@@ -88,15 +88,15 @@ With `TEST_IDENTIFIER_ENABLED=true`:
          │  Port 9070/8180  │
          └────────┬────────┘
                   ▼
-┌─────────────────┐      ┌─────────────┐      ┌─────────────┐
-│   Rust Server   │─────▶│  PostgreSQL  │      │    Redis    │
-│  (Restate svc)  │      │  (pgvector)  │      │  (caching)  │
-│   Port 9080     │      │  Port 5432   │      │  Port 6379  │
-└─────────────────┘      └─────────────┘      └─────────────┘
+┌─────────────────┐      ┌─────────────┐
+│   Rust Server   │─────▶│  PostgreSQL  │
+│  (Restate svc)  │      │  (pgvector)  │
+│   Port 9080     │      │  Port 5432   │
+└─────────────────┘      └─────────────┘
          │
          │ (External APIs)
-         ├─▶ OpenAI / OpenRouter (LLM)
-         └─▶ Twilio (SMS/email auth)
+         ├─▶ OpenAI (LLM)
+         └─▶ Twilio (SMS auth)
 ```
 
 ## Workspace Packages
@@ -117,8 +117,7 @@ packages/
 |-----------|-----------|
 | Backend | Rust + Restate SDK 0.4.0 |
 | Database | PostgreSQL + pgvector |
-| Cache | Redis |
-| LLM | OpenAI / OpenRouter |
+| LLM | OpenAI |
 | Auth | Twilio Verify (phone/email OTP) + JWT |
 | Frontend | Next.js (App Router) |
 | GraphQL | Shared schema (packages/shared) |

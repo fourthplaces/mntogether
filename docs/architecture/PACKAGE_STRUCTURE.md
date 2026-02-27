@@ -84,7 +84,7 @@ All domains live in `packages/server/src/domains/`:
 | `source` | Content sources | Services, Objects, Workflows | Yes |
 | `tag` | Tagging/categorization | Services | No |
 
-> **Note**: Additional domains may exist in the codebase from the pre-pivot era (chatrooms, crawling, curator, extraction, etc.). These are dead code scheduled for removal. See [ROOT_EDITORIAL_PIVOT.md](ROOT_EDITORIAL_PIVOT.md).
+> **Note**: Additional domains may exist in the codebase from the pre-pivot era (crawling, curator, extraction, etc.). These are legacy code from Root Signal. See [ROOT_EDITORIAL_PIVOT.md](ROOT_EDITORIAL_PIVOT.md).
 
 ## Dependency Graph
 
@@ -117,5 +117,5 @@ cd packages/admin-app && yarn dev    # Port 3000
 cd packages/web-app && yarn dev      # Port 3001
 
 # Infrastructure
-docker compose up -d postgres redis restate
+docker compose up -d postgres restate
 ```

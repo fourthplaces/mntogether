@@ -122,7 +122,6 @@ packages/
 | Service | Purpose |
 |---------|---------|
 | PostgreSQL + pgvector | Database + semantic search |
-| Redis | Cache (keep for jobs/sessions; pub/sub no longer needed) |
 | Restate | Durable workflow execution |
 | Twilio | SMS OTP authentication |
 | OpenAI / OpenRouter | Embeddings, summaries, editorial AI |
@@ -436,7 +435,7 @@ The **MN Together broadsheet** — a 3-column newspaper layout showing the curre
 │  GraphQL resolvers call into Restate services       │
 ├─────────────────────────────────────────────────────┤
 │  PostgreSQL + pgvector  :5432                       │
-│  Redis :6379  |  Restate :8180                      │
+│  Restate :8180                                      │
 └─────────────────────────────────────────────────────┘
 ```
 
