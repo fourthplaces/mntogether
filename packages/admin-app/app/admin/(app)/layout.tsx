@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { Suspense, useState, useEffect } from "react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
 import { GraphQLErrorBoundary } from "@/components/admin/GraphQLErrorBoundary";
 
@@ -26,12 +26,14 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
 
   return (
     <div className="min-h-screen bg-stone-50 flex">
-      <AdminSidebar
-        collapsed={collapsed}
-        onToggleCollapse={handleToggleCollapse}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
+      <Suspense>
+        <AdminSidebar
+          collapsed={collapsed}
+          onToggleCollapse={handleToggleCollapse}
+          mobileOpen={mobileOpen}
+          onMobileClose={() => setMobileOpen(false)}
+        />
+      </Suspense>
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}

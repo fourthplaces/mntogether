@@ -4,8 +4,8 @@
     {
       "name": "admin-app",
       "runtimeExecutable": "yarn",
-      "runtimeArgs": ["dev"],
-      "port": 3000,
+      "runtimeArgs": ["dev", "--port", "3002"],
+      "port": 3002,
       "cwd": "packages/admin-app"
     },
     {
