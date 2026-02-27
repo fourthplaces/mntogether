@@ -171,6 +171,38 @@ Every API edge must test: happy path, error cases, edge cases, state verificatio
 
 ---
 
+## Debugging Discipline
+
+Learned the hard way from a Turbopack CPU loop that burned 250% for hours before anyone noticed. See [postmortem](docs/status/TURBOPACK_CPU_LOOP_POSTMORTEM.md).
+
+### Never suppress warnings or errors
+
+Warnings exist to surface problems. Disabling them (`devIndicators: false`, `ignoreBuildErrors: true`, `// @ts-ignore`, `eslint-disable`) without understanding the root cause is forbidden. If a warning is genuinely irrelevant, document *why* before suppressing it.
+
+### One variable at a time
+
+When debugging, change exactly one thing, test it, then revert before testing the next hypothesis. Changing two things simultaneously (e.g., migrating a file AND restarting a container) makes it impossible to know which change fixed the problem. If you can't isolate the cause, you haven't found it.
+
+### Restart processes after filesystem changes to watched files
+
+Dev servers (Next.js, cargo-watch) cache file watcher state in memory. Removing or renaming a file that the watcher tracks (middleware.ts, layout.tsx, Cargo.toml) may not take effect without a process restart. Always restart the dev server after structural file changes, then test.
+
+### Say "I don't know" instead of fabricating a narrative
+
+If the fix works but you can't explain why, say so. Don't construct a confident-sounding root cause analysis around a coincidence. "Container restart fixed it, cause unknown" is more useful than a wrong explanation that prevents future investigation.
+
+### Docker dev container recovery
+
+```bash
+# If a Next.js container is stuck (high CPU, "Compiling..." loop):
+docker compose down <service> && docker compose up -d <service>
+
+# If Turbopack is suspect, switch to webpack temporarily:
+# In package.json: "dev": "next dev --webpack"
+```
+
+---
+
 ## Documentation Organization
 
 All documentation goes in `docs/`, not the project root. `README.md` is the only exception.
