@@ -6,41 +6,14 @@ import { Button } from "@/components/ui/Button";
 import { Input, Textarea } from "@/components/ui/Input";
 import { FieldWrapper } from "@/components/admin/FieldWrapper";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
+import {
+  POST_TYPES,
+  WEIGHTS,
+  URGENCIES,
+  type PostFormValues,
+} from "@/lib/post-form-constants";
 
-const POST_TYPES = [
-  { value: "story", label: "Story" },
-  { value: "notice", label: "Notice" },
-  { value: "exchange", label: "Exchange" },
-  { value: "event", label: "Event" },
-  { value: "spotlight", label: "Spotlight" },
-  { value: "reference", label: "Reference" },
-];
-
-const WEIGHTS = [
-  { value: "heavy", label: "Heavy" },
-  { value: "medium", label: "Medium" },
-  { value: "light", label: "Light" },
-];
-
-const URGENCIES = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-];
-
-export interface PostFormValues {
-  title: string;
-  descriptionMarkdown: string;
-  summary: string;
-  postType: string;
-  weight: string;
-  priority: number;
-  urgency: string;
-  location: string;
-  organizationId: string;
-}
+export type { PostFormValues };
 
 interface PostFormProps {
   initialValues?: Partial<PostFormValues>;

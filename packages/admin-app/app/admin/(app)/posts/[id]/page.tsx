@@ -17,10 +17,9 @@ import {
   RemovePostTagMutation,
   RegeneratePostMutation,
   RegeneratePostTagsMutation,
-  UpdatePostMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
-import { PostForm, type PostFormValues } from "@/components/admin/PostForm";
+import { markdownComponents } from "@/lib/markdown-components";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -77,9 +76,8 @@ export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const postId = params.id as string;
-  const [isEditing, setIsEditing] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [showTagModal, setShowTagModal] = useState(false);
   const [selectedKind, setSelectedKind] = useState("");
@@ -117,7 +115,6 @@ export default function PostDetailPage() {
   const [, removePostTag] = useMutation(RemovePostTagMutation);
   const [, regeneratePost] = useMutation(RegeneratePostMutation);
   const [, regeneratePostTags] = useMutation(RegeneratePostTagsMutation);
-  const [{ fetching: isSaving }, updatePost] = useMutation(UpdatePostMutation);
 
   // Tag modal: load kinds and tags
   const [{ data: kindsData }] = useQuery({
@@ -276,28 +273,6 @@ export default function PostDetailPage() {
     }
   };
 
-  const handleSaveEdit = async (values: PostFormValues) => {
-    const result = await updatePost(
-      {
-        id: postId,
-        input: {
-          title: values.title,
-          descriptionMarkdown: values.descriptionMarkdown,
-          summary: values.summary || undefined,
-          postType: values.postType || undefined,
-          weight: values.weight || undefined,
-          priority: values.priority || undefined,
-          urgency: values.urgency || undefined,
-          location: values.location || undefined,
-        },
-      },
-      mutationContext
-    );
-    if (!result.error) {
-      setIsEditing(false);
-    }
-  };
-
   if (isLoading) {
     return <AdminLoader label="Loading post..." />;
   }
@@ -357,14 +332,12 @@ export default function PostDetailPage() {
               <h1 className="text-2xl font-bold text-stone-900 mb-2">{post.title}</h1>
             </div>
             <div className="flex items-center gap-2">
-              {!isEditing && (
-                <button
-                  onClick={() => setIsEditing(true)}
-                  className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-                >
-                  Edit
-                </button>
-              )}
+              <Link
+                href={`/admin/posts/${postId}/edit`}
+                className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+              >
+                Edit
+              </Link>
               <select
                 value={post.status}
                 disabled={actionInProgress !== null}
@@ -569,31 +542,6 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Edit Mode */}
-        {isEditing ? (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-semibold text-stone-900">Edit Post</h2>
-            </div>
-            <PostForm
-              initialValues={{
-                title: post.title,
-                descriptionMarkdown: post.descriptionMarkdown || post.description || "",
-                summary: post.summary || "",
-                postType: post.postType || "notice",
-                weight: post.weight || "medium",
-                priority: post.priority ?? 0,
-                urgency: post.urgency || "",
-                location: post.location || "",
-                organizationId: post.organizationId || "",
-              }}
-              onSubmit={handleSaveEdit}
-              onCancel={() => setIsEditing(false)}
-              loading={isSaving}
-            />
-          </div>
-        ) : (
-        <>
         {/* Contact Info */}
         {post.contacts && post.contacts.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -686,20 +634,7 @@ export default function PostDetailPage() {
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">Description</h2>
           <div className="prose prose-stone max-w-none">
-            <ReactMarkdown
-              components={{
-                p: ({ children }) => <p className="mb-4 text-stone-700">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>,
-                li: ({ children }) => <li className="text-stone-700">{children}</li>,
-                strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                a: ({ href, children }) => (
-                  <a href={href} className="text-blue-600 hover:text-blue-800 underline" target="_blank" rel="noopener noreferrer">
-                    {children}
-                  </a>
-                ),
-              }}
-            >
+            <ReactMarkdown components={markdownComponents}>
               {post.descriptionMarkdown || post.description || ""}
             </ReactMarkdown>
           </div>
@@ -775,8 +710,6 @@ export default function PostDetailPage() {
               })}
             </div>
           </div>
-        )}
-        </>
         )}
       </div>
 

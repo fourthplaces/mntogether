@@ -77,4 +77,17 @@
   --shadow-card: none;
   --shadow-card-hover: none;
   --shadow-dialog: 0 2px 8px 0 rgb(0 0 0 / 0.15);
+
+  /* ===== EDITOR ===== */
+  --color-editor-bg: #FFFFFF;
+  --color-editor-gutter: #F5F5F5;
+  --color-editor-selection: #E5E5E5;
+  --color-editor-divider: #CCCCCC;
+  --color-editor-divider-active: #D97706;
+
+  /* ===== TOOLBAR ===== */
+  --color-toolbar-bg: #FFFFFF;
+  --color-toolbar-border: #E5E5E5;
+  --color-toolbar-button-hover: #F5F5F5;
+  --color-toolbar-button-active: #E5E5E5;
 }
