@@ -186,3 +186,25 @@ export const UpdatePostCapacityMutation = graphql(`
   }
 `);
 
+export const CreatePostMutation = graphql(`
+  mutation CreatePost($input: CreatePostInput!) {
+    createPost(input: $input) {
+      id
+      title
+      status
+      postType
+    }
+  }
+`);
+
+export const UpdatePostMutation = graphql(`
+  mutation UpdatePost($id: ID!, $input: UpdatePostInput!) {
+    updatePost(id: $id, input: $input) {
+      id
+      title
+      status
+      descriptionMarkdown
+    }
+  }
+`);
+

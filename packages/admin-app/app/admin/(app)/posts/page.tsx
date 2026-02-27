@@ -164,6 +164,14 @@ export default function PostsPage() {
         <div className="mb-6">
           <div className="flex items-center justify-between">
             <h1 className="text-3xl font-bold text-stone-900 mb-2">Posts</h1>
+            <div className="flex items-center gap-2">
+            <a
+              href="/admin/posts/new"
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-admin-accent hover:bg-admin-accent-hover rounded-lg transition-colors"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" /></svg>
+              New Post
+            </a>
             <div className="relative" ref={moreMenuRef}>
               <button
                 onClick={() => setMoreMenuOpen(!moreMenuOpen)}
@@ -187,6 +195,7 @@ export default function PostsPage() {
                   </button>
                 </div>
               )}
+            </div>
             </div>
           </div>
           <div className="flex gap-2 mt-3">

@@ -52,6 +52,9 @@ export const PostDetailFields = graphql(`
     distanceMiles
     relevanceScore
     relevanceBreakdown
+    submissionType
+    weight
+    priority
     hasUrgentNotes
     tags {
       id

@@ -17,8 +17,10 @@ import {
   RemovePostTagMutation,
   RegeneratePostMutation,
   RegeneratePostTagsMutation,
+  UpdatePostMutation,
 } from "@/lib/graphql/posts";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
+import { PostForm, type PostFormValues } from "@/components/admin/PostForm";
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
@@ -75,6 +77,7 @@ export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const postId = params.id as string;
+  const [isEditing, setIsEditing] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
@@ -114,6 +117,7 @@ export default function PostDetailPage() {
   const [, removePostTag] = useMutation(RemovePostTagMutation);
   const [, regeneratePost] = useMutation(RegeneratePostMutation);
   const [, regeneratePostTags] = useMutation(RegeneratePostTagsMutation);
+  const [{ fetching: isSaving }, updatePost] = useMutation(UpdatePostMutation);
 
   // Tag modal: load kinds and tags
   const [{ data: kindsData }] = useQuery({
@@ -142,6 +146,8 @@ export default function PostDetailPage() {
         return "bg-amber-100 text-amber-800";
       case "rejected":
         return "bg-red-100 text-red-800";
+      case "draft":
+        return "bg-blue-100 text-blue-800";
       default:
         return "bg-stone-100 text-stone-800";
     }
@@ -270,6 +276,28 @@ export default function PostDetailPage() {
     }
   };
 
+  const handleSaveEdit = async (values: PostFormValues) => {
+    const result = await updatePost(
+      {
+        id: postId,
+        input: {
+          title: values.title,
+          descriptionMarkdown: values.descriptionMarkdown,
+          summary: values.summary || undefined,
+          postType: values.postType || undefined,
+          weight: values.weight || undefined,
+          priority: values.priority || undefined,
+          urgency: values.urgency || undefined,
+          location: values.location || undefined,
+        },
+      },
+      mutationContext
+    );
+    if (!result.error) {
+      setIsEditing(false);
+    }
+  };
+
   if (isLoading) {
     return <AdminLoader label="Loading post..." />;
   }
@@ -329,6 +357,14 @@ export default function PostDetailPage() {
               <h1 className="text-2xl font-bold text-stone-900 mb-2">{post.title}</h1>
             </div>
             <div className="flex items-center gap-2">
+              {!isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  Edit
+                </button>
+              )}
               <select
                 value={post.status}
                 disabled={actionInProgress !== null}
@@ -343,6 +379,7 @@ export default function PostDetailPage() {
                 className={`pl-2.5 py-1 text-xs rounded-full font-medium appearance-none cursor-pointer pr-5 border-0 ${getStatusBadgeClass(post.status)} disabled:opacity-50`}
                 style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
               >
+                <option value="draft">Draft</option>
                 <option value="pending_approval">Pending</option>
                 <option value="active">Active</option>
                 <option value="rejected">Rejected</option>
@@ -532,6 +569,31 @@ export default function PostDetailPage() {
           </div>
         </div>
 
+        {/* Edit Mode */}
+        {isEditing ? (
+          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-lg font-semibold text-stone-900">Edit Post</h2>
+            </div>
+            <PostForm
+              initialValues={{
+                title: post.title,
+                descriptionMarkdown: post.descriptionMarkdown || post.description || "",
+                summary: post.summary || "",
+                postType: post.postType || "notice",
+                weight: post.weight || "medium",
+                priority: post.priority ?? 0,
+                urgency: post.urgency || "",
+                location: post.location || "",
+                organizationId: post.organizationId || "",
+              }}
+              onSubmit={handleSaveEdit}
+              onCancel={() => setIsEditing(false)}
+              loading={isSaving}
+            />
+          </div>
+        ) : (
+        <>
         {/* Contact Info */}
         {post.contacts && post.contacts.length > 0 && (
           <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -713,6 +775,8 @@ export default function PostDetailPage() {
               })}
             </div>
           </div>
+        )}
+        </>
         )}
       </div>
 

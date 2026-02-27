@@ -77,4 +77,27 @@
   --shadow-card: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
   --shadow-card-hover: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-dialog: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+
+  /* ===== EDITOR ===== */
+  --color-editor-bg: #FFFFFF;
+  --color-editor-gutter: #FDFCFA;
+  --color-editor-selection: #F5F1E8;
+  --color-editor-divider: #C4B8A0;
+  --color-editor-divider-active: #D97706;
+
+  /* ===== TOOLBAR ===== */
+  --color-toolbar-bg: #FDFCFA;
+  --color-toolbar-border: #E8DED2;
+  --color-toolbar-button-hover: #F5F1E8;
+  --color-toolbar-button-active: #E8E2D5;
+
+  /* ===== MEDIA LIBRARY ===== */
+  --color-media-checkerboard: #F0EBE0;
+  --color-media-selected-ring: #D97706;
+
+  /* ===== KANBAN ===== */
+  --color-kanban-draft-bg: #F3EFF8;
+  --color-kanban-review-bg: #FDF6EE;
+  --color-kanban-published-bg: #F0F7F3;
+  --color-kanban-drop-highlight: #FEF3CD;
 }
