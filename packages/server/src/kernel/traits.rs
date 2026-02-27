@@ -39,6 +39,27 @@ pub trait BaseTwilioService: Send + Sync {
 // PII Detection Trait (Infrastructure)
 // =============================================================================
 
+// =============================================================================
+// Storage Service Trait (S3-compatible object storage)
+// =============================================================================
+
+#[async_trait]
+pub trait BaseStorageService: Send + Sync {
+    /// Generate a presigned PUT URL for direct browser upload.
+    async fn presigned_upload_url(
+        &self,
+        key: &str,
+        content_type: &str,
+        expires_secs: u64,
+    ) -> Result<String>;
+
+    /// Delete an object by key.
+    async fn delete(&self, key: &str) -> Result<()>;
+
+    /// Construct the public URL for a given key (no network call).
+    fn public_url(&self, key: &str) -> String;
+}
+
 use crate::common::pii::{DetectionContext, PiiFindings, RedactionStrategy};
 
 /// Result of PII detection and redaction

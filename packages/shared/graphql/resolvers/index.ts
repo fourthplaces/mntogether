@@ -5,6 +5,7 @@ import { organizationResolvers } from "./organization";
 import { jobResolvers } from "./job";
 import { noteResolvers } from "./note";
 import { editionResolvers } from "./edition";
+import { mediaResolvers } from "./media";
 
 export const resolvers = mergeResolvers([
   postResolvers,
@@ -13,4 +14,5 @@ export const resolvers = mergeResolvers([
   jobResolvers,
   noteResolvers,
   editionResolvers,
+  mediaResolvers,
 ]);

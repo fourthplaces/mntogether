@@ -271,6 +271,7 @@ impl TestDependencies {
             self.embedding_service,
             Arc::new(TwilioAdapter::new(twilio)),
             self.pii_detector,
+            None, // storage — no S3 in tests
             jwt_service,
             StreamHub::new(),
             true,   // test_identifier_enabled

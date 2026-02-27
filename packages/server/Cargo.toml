@@ -72,6 +72,10 @@ urlencoding = "2.1"
 url = "2.5"
 hyper = { version = "1", features = ["full"] }
 
+# S3-compatible object storage (MinIO / AWS S3 / R2)
+aws-config = { version = "1", features = ["behavior-version-latest"] }
+aws-sdk-s3 = { version = "1", features = ["behavior-version-latest"] }
+
 # RFC 5545 recurrence rules (calendar events)
 rrule = "0.14"
 

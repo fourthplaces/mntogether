@@ -12,6 +12,7 @@ use server_core::domains::member::restate::{
     MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
     RegisterMemberWorkflowImpl,
 };
+use server_core::domains::media::restate::{MediaService, MediaServiceImpl};
 use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
 use server_core::domains::organization::restate::{
     OrganizationsService, OrganizationsServiceImpl,
@@ -101,6 +102,34 @@ async fn main() -> Result<()> {
     // Create StreamHub
     let stream_hub = StreamHub::new();
 
+    // Create S3-compatible storage adapter (optional — only if S3_BUCKET is set)
+    let storage: Option<Arc<dyn server_core::kernel::BaseStorageService>> =
+        if let Ok(bucket) = std::env::var("S3_BUCKET") {
+            let endpoint = std::env::var("S3_ENDPOINT").ok();
+            let presign_endpoint = std::env::var("S3_PRESIGN_ENDPOINT").ok();
+            let region = std::env::var("S3_REGION").unwrap_or_else(|_| "us-east-1".into());
+            let public_url = std::env::var("S3_PUBLIC_URL").unwrap_or_else(|_| {
+                format!(
+                    "{}/{}",
+                    endpoint.as_deref().unwrap_or("http://localhost:9000"),
+                    bucket
+                )
+            });
+            let adapter = server_core::kernel::storage::S3StorageAdapter::new(
+                endpoint.as_deref(),
+                presign_endpoint.as_deref(),
+                &region,
+                &bucket,
+                &public_url,
+            )
+            .await;
+            tracing::info!(bucket = %bucket, "S3 storage adapter initialized");
+            Some(Arc::new(adapter))
+        } else {
+            tracing::info!("No S3_BUCKET set — media uploads disabled");
+            None
+        };
+
     // Build ServerDeps
     let server_deps = Arc::new(ServerDeps::new(
         pool.clone(),
@@ -108,6 +137,7 @@ async fn main() -> Result<()> {
         Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(TwilioAdapter::new(twilio)),
         pii_detector,
+        storage,
         jwt_service,
         stream_hub,
         test_identifier_enabled,
@@ -141,6 +171,8 @@ async fn main() -> Result<()> {
         .bind(HeatMapServiceImpl::with_deps(server_deps.clone()).serve())
         // Jobs
         .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
+        // Media
+        .bind(MediaServiceImpl::with_deps(server_deps.clone()).serve())
         // Notes
         .bind(NotesServiceImpl::with_deps(server_deps.clone()).serve())
         // Organizations

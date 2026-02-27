@@ -1,5 +1,5 @@
 export const typeDefs = /* GraphQL */ `
-enum PostStatus { pending_approval active rejected archived }
+enum PostStatus { draft pending_approval active rejected archived }
 enum PostType { story notice exchange event spotlight reference }
 enum Weight { heavy medium light }
 enum OrganizationStatus { pending_review approved rejected suspended }
@@ -22,6 +22,7 @@ type Query {
     status: String
     search: String
     postType: String
+    submissionType: String
     zipCode: String
     radiusMiles: Float
     limit: Int
@@ -59,6 +60,10 @@ type Query {
   currentEdition(countyId: ID!): Edition
   rowTemplates: [RowTemplate!]!
   postTemplates: [PostTemplateConfig!]!
+
+  # Media Library (admin)
+  mediaLibrary(limit: Int, offset: Int, contentType: String): MediaConnection!
+  presignedUpload(filename: String!, contentType: String!, sizeBytes: Int!): PresignedUpload!
 }
 
 type Mutation {
@@ -77,6 +82,8 @@ type Mutation {
   regeneratePostTags(id: ID!): Post!
   updatePostCapacity(id: ID!, capacityStatus: String!): Post!
   batchScorePosts(limit: Int): BatchScoreResult!
+  createPost(input: CreatePostInput!): Post!
+  updatePost(id: ID!, input: UpdatePostInput!): Post!
 
   # Organizations (admin)
   createOrganization(name: String!, description: String): Organization!
@@ -114,6 +121,10 @@ type Mutation {
   reorderEditionRows(editionId: ID!, rowIds: [ID!]!): [EditionRow!]!
   removePostFromEdition(slotId: ID!): Boolean!
   changeSlotTemplate(slotId: ID!, postTemplate: String!): EditionSlot!
+
+  # Media Library (admin)
+  confirmUpload(storageKey: String!, publicUrl: String!, filename: String!, contentType: String!, sizeBytes: Int!, altText: String, width: Int, height: Int): Media!
+  deleteMedia(id: ID!): Boolean!
 }
 
 type PublicFilters {
@@ -162,6 +173,7 @@ type Post {
   tags: [Tag!]!
   schedules: [PostSchedule!]!
   contacts: [PostContact!]!
+  submissionType: String
   submittedBy: SubmittedByInfo
   urgentNotes: [UrgentNote!]!
   organization: Organization
@@ -417,5 +429,57 @@ type BatchGenerateEditionsResult {
   created: Int!
   failed: Int!
   totalCounties: Int!
+}
+
+input CreatePostInput {
+  title: String!
+  descriptionMarkdown: String!
+  summary: String
+  postType: String
+  weight: String
+  priority: Int
+  urgency: String
+  location: String
+  organizationId: ID
+}
+
+input UpdatePostInput {
+  title: String
+  descriptionMarkdown: String
+  summary: String
+  postType: String
+  weight: String
+  priority: Int
+  urgency: String
+  location: String
+}
+
+# ========================================
+# Media Library
+# ========================================
+
+type Media {
+  id: ID!
+  filename: String!
+  contentType: String!
+  sizeBytes: Int!
+  url: String!
+  storageKey: String!
+  altText: String
+  width: Int
+  height: Int
+  createdAt: String!
+}
+
+type MediaConnection {
+  media: [Media!]!
+  totalCount: Int!
+  hasNextPage: Boolean!
+}
+
+type PresignedUpload {
+  uploadUrl: String!
+  storageKey: String!
+  publicUrl: String!
 }
 `;

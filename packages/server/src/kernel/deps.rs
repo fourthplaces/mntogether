@@ -14,7 +14,8 @@ use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
 use crate::domains::memo::MemoBuilder;
 use crate::kernel::{
-    stream_hub::StreamHub, BaseEmbeddingService, BasePiiDetector, BaseTwilioService,
+    stream_hub::StreamHub, BaseEmbeddingService, BasePiiDetector, BaseStorageService,
+    BaseTwilioService,
 };
 
 // =============================================================================
@@ -62,6 +63,8 @@ pub struct ServerDeps {
     pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub twilio: Arc<dyn BaseTwilioService>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
+    /// S3-compatible storage for media uploads
+    pub storage: Option<Arc<dyn BaseStorageService>>,
     /// JWT service for token creation
     pub jwt_service: Arc<JwtService>,
     /// In-process pub/sub hub for real-time streaming to SSE endpoints
@@ -79,6 +82,7 @@ impl ServerDeps {
         embedding_service: Arc<dyn BaseEmbeddingService>,
         twilio: Arc<dyn BaseTwilioService>,
         pii_detector: Arc<dyn BasePiiDetector>,
+        storage: Option<Arc<dyn BaseStorageService>>,
         jwt_service: Arc<JwtService>,
         stream_hub: StreamHub,
         test_identifier_enabled: bool,
@@ -90,6 +94,7 @@ impl ServerDeps {
             embedding_service,
             twilio,
             pii_detector,
+            storage,
             jwt_service,
             stream_hub,
             test_identifier_enabled,

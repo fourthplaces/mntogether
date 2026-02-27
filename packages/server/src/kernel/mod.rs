@@ -5,6 +5,7 @@ pub mod deps;
 pub mod llm_request;
 pub mod pii;
 pub mod sse;
+pub mod storage;
 pub mod stream_hub;
 pub mod tag;
 pub mod test_dependencies;
