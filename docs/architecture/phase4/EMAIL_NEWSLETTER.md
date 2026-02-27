@@ -1,8 +1,10 @@
 # Phase 4.4: Email Newsletter via Postmark
 
-**Status:** Plan
+**Status:** Deferred (see [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 3)
 **Priority:** 4 of 4 (most infrastructure, least dependency on other subprojects)
 **Depends on:** Phase 3 (Edition System — complete), editions must be publishable
+
+> **Deferred — not superseded.** The product vision (weekly edition preview emails per county) remains valid. Full in-house email infrastructure (Postmark integration, subscribers table, send workflow, batch processing) is deferred in favor of an external email delivery service when the time comes. See Decision 3 in ARCHITECTURE_DECISIONS.md for the two implementation options: fully external (Buttondown/Mailchimp holds the list) vs. minimal local storage with external delivery (Postmark/SendGrid for sending only).
 
 ---
 

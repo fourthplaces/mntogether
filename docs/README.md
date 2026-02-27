@@ -27,6 +27,7 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Simplified Schema](architecture/SIMPLIFIED_SCHEMA.md) - Minimal schema philosophy
 - [Tags vs Fields](architecture/TAGS_VS_FIELDS.md) - Data modeling decisions
 - [Cause Commerce](architecture/CAUSE_COMMERCE_ARCHITECTURE.md) - Cause-driven commerce patterns
+- [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate bypass, webhook integration)
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
 - [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
 

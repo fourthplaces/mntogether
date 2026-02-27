@@ -41,6 +41,12 @@ Posts created via the admin editor get `submission_type = 'admin'` and `status =
 
 Creation goes through the stateless `PostsService` (no existing post key). Content updates go through the keyed `Post` virtual object to serialize writes per post, matching the existing `edit_approve` / `approve` / `reject` pattern.
 
+### 6. Backend simplification option
+
+> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 4.**
+
+`createPost` and `updatePost` are pure CRUD — they don't need Restate's durable execution guarantees. The initial implementation can bypass Restate entirely: GraphQL resolvers call Rust model functions through a simpler HTTP path (direct HTTP to Rust, or Next.js API routes with direct Postgres access via a lightweight client). The Restate path documented above remains a valid option for when Signal integration needs durable guarantees or when write serialization per post becomes important.
+
 ---
 
 ## Database Changes

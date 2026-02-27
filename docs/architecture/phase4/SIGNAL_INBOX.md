@@ -40,6 +40,12 @@ Triage requires quickly reading content, making a decision, and moving on. A car
 
 The inbox has a fundamentally different UX goal than the posts list. The posts page is for managing all content; the inbox is for triaging incoming content. Separate routes allow purpose-built UX without complicating the existing posts page.
 
+### 6. Signal integration will be via webhook
+
+> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md), Decision 5.**
+
+When Root Signal's API is ready, integration will be a simple webhook — not a shared Restate service or service mesh. Signal calls a webhook endpoint on Editorial's backend, which validates a shared secret and inserts a post with `submission_type='signal', status='pending_approval'`. The mock data approach (seeded `signal_items.json`) is correct for building the triage UI now; the real integration swaps the data source without changing the UI.
+
 ---
 
 ## Database Changes

@@ -14,6 +14,17 @@ This document describes a comprehensive CMS experience for Root Editorial that a
 
 ---
 
+## Architecture Direction
+
+> **See [ARCHITECTURE_DECISIONS.md](../ARCHITECTURE_DECISIONS.md)** for high-level decisions about slimming the tech stack.
+
+New CMS features follow the lighter path where obvious:
+- **Media library** CRUD bypasses Restate (Decision 4) — direct DB operations via a simpler HTTP path
+- **Kanban status changes** can use existing Restate approve/reject handlers (already built) or direct DB updates
+- **Editor save** (create/update post) can bypass Restate for the initial implementation (see also [STORY_EDITOR.md](STORY_EDITOR.md), Decision 6)
+
+---
+
 ## Design Philosophy: Harmony, Not Importation
 
 The goal is harmony between the existing admin app's warm earth-tone design system and Decap's editorial patterns. Every component is built with the existing stack:
