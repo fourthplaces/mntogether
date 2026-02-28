@@ -1,0 +1,32 @@
+[package]
+name = "dev-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "dev"
+path = "src/main.rs"
+
+[dependencies]
+# Async runtime
+tokio = { workspace = true }
+
+# TUI framework (bundles crossterm 0.28 backend)
+ratatui = "0.29"
+
+# Terminal events — need direct dep for event-stream feature
+crossterm = { version = "0.28", features = ["event-stream"] }
+
+# Async stream support for crossterm EventStream
+futures = "0.3"
+
+# CLI argument parsing
+clap = { version = "4.5", features = ["derive"] }
+
+# Error handling
+anyhow = { workspace = true }
+
+# Time formatting
+chrono = { workspace = true }

@@ -4,6 +4,7 @@ members = [
     "packages/server",
     "packages/twilio-rs",
     "packages/ai-client",
+    "packages/dev-cli",
 ]
 
 [workspace.package]
