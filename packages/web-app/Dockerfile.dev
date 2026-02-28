@@ -15,8 +15,12 @@ COPY packages/shared ./packages/shared
 # Copy app package
 COPY packages/web-app/package.json ./packages/web-app/
 
-# Install dependencies
+# Install dependencies (baked into image for fast first start)
 RUN yarn install
+
+# Copy entrypoint script that auto-updates deps when yarn.lock changes
+COPY scripts/docker-entrypoint-nextjs.sh /usr/local/bin/docker-entrypoint-nextjs.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint-nextjs.sh
 
 # Expose Next.js dev server port
 EXPOSE 3001
@@ -29,5 +33,6 @@ ENV HOSTNAME="0.0.0.0"
 
 WORKDIR /app/packages/web-app
 
-# Start dev server with hot-reload
+# Entrypoint checks for stale node_modules, then runs CMD
+ENTRYPOINT ["docker-entrypoint-nextjs.sh"]
 CMD ["yarn", "dev"]

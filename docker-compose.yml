@@ -167,6 +167,7 @@ services:
     volumes:
       - ./packages/admin-app:/app/packages/admin-app
       - ./packages/shared:/app/packages/shared
+      - ./yarn.lock:/app/yarn.lock:ro
       - /app/node_modules
       - /app/packages/admin-app/node_modules
       - /app/packages/admin-app/.next
@@ -196,6 +197,7 @@ services:
     volumes:
       - ./packages/web-app:/app/packages/web-app
       - ./packages/shared:/app/packages/shared
+      - ./yarn.lock:/app/yarn.lock:ro
       - /app/node_modules
       - /app/packages/web-app/node_modules
       - /app/packages/web-app/.next
