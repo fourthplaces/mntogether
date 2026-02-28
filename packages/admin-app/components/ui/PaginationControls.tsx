@@ -1,5 +1,7 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
+
 interface PageInfo {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
@@ -32,25 +34,27 @@ export function PaginationControls({
   }
 
   return (
-    <div className="flex items-center justify-between bg-surface-raised border border-border rounded-lg p-4">
-      <div className="text-sm text-text-secondary">
+    <div className="flex items-center justify-between bg-card border border-border rounded-lg p-4">
+      <div className="text-sm text-muted-foreground">
         Showing {startItem}-{endItem} of {totalCount}
       </div>
       <div className="flex gap-2">
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={onPreviousPage}
           disabled={!pageInfo.hasPreviousPage || loading}
-          className="px-4 py-2 bg-surface-muted text-text-secondary rounded hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
         >
           &larr; Previous
-        </button>
-        <button
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
           onClick={onNextPage}
           disabled={!pageInfo.hasNextPage || loading}
-          className="px-4 py-2 bg-surface-muted text-text-secondary rounded hover:bg-surface disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Next &rarr;
-        </button>
+        </Button>
       </div>
     </div>
   );

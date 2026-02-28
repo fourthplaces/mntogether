@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { resolve } from "path";
 
 const securityHeaders = [
   { key: "X-Frame-Options", value: "DENY" },
@@ -8,6 +9,9 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Monorepo root — helps Turbopack resolve hoisted node_modules
+  outputFileTracingRoot: resolve(process.cwd(), "../.."),
+
   // Transpile shared package
   transpilePackages: ["@rooteditorial/shared"],
 

@@ -1,7 +1,16 @@
 "use client";
 
 import { useQuery } from "urql";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { FieldWrapper } from "@/components/admin/FieldWrapper";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import {
@@ -32,9 +41,6 @@ export function PostEditorForm({
     onChange({ ...values, [field]: value });
   }
 
-  const selectClasses =
-    "w-full px-3 py-2 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-focus-ring focus:border-transparent transition-all duration-150";
-
   return (
     <div className="p-6 space-y-0">
       {/* Title — prominent, no label wrapper */}
@@ -45,49 +51,57 @@ export function PostEditorForm({
           onChange={(e) => update("title", e.target.value)}
           placeholder="Post title..."
           disabled={disabled}
-          className={`w-full text-2xl font-semibold text-text-primary bg-transparent border-0 border-b-2 px-0 py-2 focus:outline-none transition-colors placeholder:text-text-faint ${
+          className={`w-full text-2xl font-semibold text-foreground bg-transparent border-0 border-b-2 px-0 py-2 focus:outline-none transition-colors placeholder:text-muted-foreground ${
             errors.title
-              ? "border-danger"
+              ? "border-destructive"
               : "border-transparent focus:border-admin-accent"
           }`}
         />
         {errors.title && (
-          <p className="text-xs text-danger-text mt-1">{errors.title}</p>
+          <p className="text-xs text-destructive mt-1">{errors.title}</p>
         )}
       </div>
 
       {/* Metadata section */}
-      <hr className="border-border-subtle my-5" />
+      <Separator className="my-5" />
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-1">
         <FieldWrapper label="Post Type" className="mb-0">
-          <select
+          <Select
             value={values.postType}
-            onChange={(e) => update("postType", e.target.value)}
-            className={selectClasses}
+            onValueChange={(v) => update("postType", v)}
             disabled={disabled}
           >
-            {POST_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POST_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Weight" className="mb-0">
-          <select
+          <Select
             value={values.weight}
-            onChange={(e) => update("weight", e.target.value)}
-            className={selectClasses}
+            onValueChange={(v) => update("weight", v)}
             disabled={disabled}
           >
-            {WEIGHTS.map((w) => (
-              <option key={w.value} value={w.value}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEIGHTS.map((w) => (
+                <SelectItem key={w.value} value={w.value}>
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Priority" className="mb-0">
@@ -102,18 +116,22 @@ export function PostEditorForm({
 
       <div className="grid grid-cols-2 gap-4 mt-4 mb-1">
         <FieldWrapper label="Urgency" className="mb-0">
-          <select
-            value={values.urgency}
-            onChange={(e) => update("urgency", e.target.value)}
-            className={selectClasses}
+          <Select
+            value={values.urgency || "__none__"}
+            onValueChange={(v) => update("urgency", v === "__none__" ? "" : v)}
             disabled={disabled}
           >
-            {URGENCIES.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {URGENCIES.map((u) => (
+                <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
+                  {u.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Location" className="mb-0">
@@ -128,24 +146,28 @@ export function PostEditorForm({
 
       <div className="mt-4">
         <FieldWrapper label="Organization" className="mb-0">
-          <select
-            value={values.organizationId}
-            onChange={(e) => update("organizationId", e.target.value)}
-            className={selectClasses}
+          <Select
+            value={values.organizationId || "__none__"}
+            onValueChange={(v) => update("organizationId", v === "__none__" ? "" : v)}
             disabled={disabled}
           >
-            <option value="">None</option>
-            {organizations.map((org) => (
-              <option key={org.id} value={org.id}>
-                {org.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
+              {organizations.map((org) => (
+                <SelectItem key={org.id} value={org.id}>
+                  {org.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
       </div>
 
       {/* Summary */}
-      <hr className="border-border-subtle my-5" />
+      <Separator className="my-5" />
 
       <FieldWrapper
         label="Summary"
@@ -162,7 +184,7 @@ export function PostEditorForm({
       </FieldWrapper>
 
       {/* Content — markdown textarea (future Plate.js swap point) */}
-      <hr className="border-border-subtle my-5" />
+      <Separator className="my-5" />
 
       <FieldWrapper
         label="Content"

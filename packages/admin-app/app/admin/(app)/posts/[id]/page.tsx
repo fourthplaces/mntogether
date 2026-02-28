@@ -4,8 +4,32 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "urql";
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import {
   PostDetailFullQuery,
   ApprovePostMutation,
@@ -76,7 +100,6 @@ export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
   const postId = params.id as string;
-  const [menuOpen, setMenuOpen] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [showTagModal, setShowTagModal] = useState(false);
@@ -84,18 +107,6 @@ export default function PostDetailPage() {
   const [tagValue, setTagValue] = useState("");
   const [tagDisplayName, setTagDisplayName] = useState("");
   const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  // Close menu when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setMenuOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   // GraphQL: fetch post detail + notes in single query
   const [{ data: postData, fetching: isLoading, error }] = useQuery({
@@ -135,18 +146,14 @@ export default function PostDetailPage() {
     return new Date(dateString).toLocaleString();
   };
 
-  const getStatusBadgeClass = (status: string) => {
+  const statusBadgeVariant = (status: string): "success" | "warning" | "danger" | "info" | "secondary" => {
     switch (status) {
-      case "active":
-        return "bg-green-100 text-green-800";
-      case "pending_approval":
-        return "bg-amber-100 text-amber-800";
-      case "rejected":
-        return "bg-red-100 text-red-800";
-      case "draft":
-        return "bg-blue-100 text-blue-800";
-      default:
-        return "bg-stone-100 text-stone-800";
+      case "active": return "success";
+      case "pending_approval": return "warning";
+      case "rejected": return "danger";
+      case "draft": return "info";
+      case "archived": return "secondary";
+      default: return "secondary";
     }
   };
 
@@ -194,7 +201,6 @@ export default function PostDetailPage() {
 
   const handleRegenerate = async () => {
     setActionInProgress("regenerate");
-    setMenuOpen(false);
     try {
       await regeneratePost({ id: postId }, mutationContext);
     } catch (err) {
@@ -206,7 +212,6 @@ export default function PostDetailPage() {
 
   const handleRegenerateTags = async () => {
     setActionInProgress("regenerate_tags");
-    setMenuOpen(false);
     try {
       await regeneratePostTags({ id: postId }, mutationContext);
     } catch (err) {
@@ -218,7 +223,6 @@ export default function PostDetailPage() {
 
   const handleArchive = async () => {
     setActionInProgress("archive");
-    setMenuOpen(false);
     try {
       await archivePost({ id: postId }, mutationContext);
     } catch (err) {
@@ -230,7 +234,6 @@ export default function PostDetailPage() {
 
   const handleDelete = async () => {
     setActionInProgress("delete");
-    setMenuOpen(false);
     try {
       await deletePost({ id: postId }, mutationContext);
       router.push("/admin/posts");
@@ -279,12 +282,12 @@ export default function PostDetailPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-stone-50 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Post</h1>
-            <p className="text-stone-600 mb-4">{error.message}</p>
-            <Link href="/admin/posts" className="text-blue-600 hover:text-blue-800">
+            <h1 className="text-2xl font-bold text-danger-text mb-4">Error Loading Post</h1>
+            <p className="text-muted-foreground mb-4">{error.message}</p>
+            <Link href="/admin/posts" className="text-link hover:text-link-hover">
               Back to Posts
             </Link>
           </div>
@@ -295,11 +298,11 @@ export default function PostDetailPage() {
 
   if (!post) {
     return (
-      <div className="min-h-screen bg-stone-50 p-6">
+      <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto">
           <div className="text-center py-12">
-            <h1 className="text-2xl font-bold text-stone-900 mb-4">Post Not Found</h1>
-            <Link href="/admin/posts" className="text-blue-600 hover:text-blue-800">
+            <h1 className="text-2xl font-bold text-foreground mb-4">Post Not Found</h1>
+            <Link href="/admin/posts" className="text-link hover:text-link-hover">
               Back to Posts
             </Link>
           </div>
@@ -315,54 +318,55 @@ export default function PostDetailPage() {
   if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-4xl mx-auto">
         {/* Back Button */}
         <Link
           href="/admin/posts"
-          className="inline-flex items-center text-stone-600 hover:text-stone-900 mb-6"
+          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6"
         >
           {"\u2190"} Back to Posts
         </Link>
 
         {/* Post Header */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div className="bg-card rounded-lg shadow-card p-6 mb-6">
           <div className="flex justify-between items-start mb-4">
             <div className="flex-1">
-              <h1 className="text-2xl font-bold text-stone-900 mb-2">{post.title}</h1>
+              <h1 className="text-2xl font-bold text-foreground mb-2">{post.title}</h1>
             </div>
             <div className="flex items-center gap-2">
-              <Link
-                href={`/admin/posts/${postId}/edit`}
-                className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
-              >
-                Edit
-              </Link>
-              <select
+              <Button asChild variant="outline" size="sm">
+                <Link href={`/admin/posts/${postId}/edit`}>Edit</Link>
+              </Button>
+              <Select
                 value={post.status}
                 disabled={actionInProgress !== null}
-                onChange={(e) => {
-                  const newStatus = e.target.value;
+                onValueChange={(newStatus) => {
                   if (newStatus === post.status) return;
                   if (newStatus === "active") handleApprove();
                   else if (newStatus === "rejected") handleReject();
                   else if (newStatus === "archived") handleArchive();
                   else if (newStatus === "pending_approval") handleReactivate();
                 }}
-                className={`pl-2.5 py-1 text-xs rounded-full font-medium appearance-none cursor-pointer pr-5 border-0 ${getStatusBadgeClass(post.status)} disabled:opacity-50`}
-                style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 12 12'%3E%3Cpath fill='%23666' d='M3 5l3 3 3-3'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 6px center" }}
               >
-                <option value="draft">Draft</option>
-                <option value="pending_approval">Pending</option>
-                <option value="active">Active</option>
-                <option value="rejected">Rejected</option>
-                <option value="archived">Archived</option>
-              </select>
+                <SelectTrigger className="h-7 w-auto min-w-0 gap-1 rounded-full px-2.5 text-xs font-medium">
+                  <Badge variant={statusBadgeVariant(post.status)} className="pointer-events-none">
+                    <SelectValue />
+                  </Badge>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="pending_approval">Pending</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
 
               {post.status === "active" && (
                 <Link
                   href={`/posts/${postId}`}
-                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
                   title="View public page"
                 >
                   {"\u2197"}
@@ -374,139 +378,120 @@ export default function PostDetailPage() {
                   href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-lg"
+                  className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
                   title="View source page"
                 >
                   {"\u{1F517}"}
                 </a>
               )}
 
-              {/* More Actions Dropdown */}
-              <div className="relative" ref={menuRef}>
-                <button
-                  onClick={() => setMenuOpen(!menuOpen)}
-                  disabled={actionInProgress !== null}
-                  className="px-3 py-2 bg-stone-100 text-stone-700 rounded hover:bg-stone-200 disabled:opacity-50"
-                >
-                  {actionInProgress ? "..." : "\u22EF"}
-                </button>
-                {menuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-stone-200 py-1 z-10">
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        setShowTagModal(true);
-                      }}
-                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50"
-                    >
-                      Edit Tags
-                    </button>
-                    <button
-                      onClick={handleRegenerateTags}
+              {/* More Actions — Radix DropdownMenu */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" disabled={actionInProgress !== null}>
+                    {actionInProgress ? "..." : "\u22EF"}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onSelect={() => setShowTagModal(true)}>
+                    Edit Tags
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={handleRegenerateTags}
+                    disabled={actionInProgress !== null}
+                  >
+                    {actionInProgress === "regenerate_tags" ? "Regenerating..." : "Regenerate Tags"}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={handleRegenerate}
+                    disabled={actionInProgress !== null}
+                  >
+                    {actionInProgress === "regenerate" ? "Re-running..." : "Re-run Investigation"}
+                  </DropdownMenuItem>
+                  {post.status === "active" && (
+                    <DropdownMenuItem
+                      onSelect={handleArchive}
                       disabled={actionInProgress !== null}
-                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
                     >
-                      {actionInProgress === "regenerate_tags" ? "Regenerating..." : "Regenerate Tags"}
-                    </button>
-                    <button
-                      onClick={handleRegenerate}
-                      disabled={actionInProgress !== null}
-                      className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                    >
-                      {actionInProgress === "regenerate" ? "Re-running..." : "Re-run Investigation"}
-                    </button>
-                    {post.status === "active" && (
-                      <button
-                        onClick={handleArchive}
-                        disabled={actionInProgress !== null}
-                        className="w-full text-left px-4 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
-                      >
-                        {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}
-                      </button>
-                    )}
-                    <div className="border-t border-stone-100 my-1" />
-                    <button
-                      onClick={handleDelete}
-                      disabled={actionInProgress !== null}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
-                    >
-                      Delete Post
-                    </button>
-                  </div>
-                )}
-              </div>
+                      {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onSelect={handleDelete}
+                    disabled={actionInProgress !== null}
+                  >
+                    Delete Post
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
           {/* Missing Fields Warning */}
           {missingFields.length > 0 && (
-            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <span className="text-sm font-medium text-amber-800">Missing fields: </span>
-              <span className="text-sm text-amber-700">{missingFields.join(", ")}</span>
-            </div>
+            <Alert variant="warning" className="mb-4">
+              <AlertDescription>
+                <span className="font-medium">Missing fields: </span>
+                {missingFields.join(", ")}
+              </AlertDescription>
+            </Alert>
           )}
 
           {/* Relevance Score */}
           {post.relevanceScore != null && (
-            <div className="mb-4 p-3 rounded-lg border border-stone-200 bg-stone-50">
+            <div className="mb-4 p-3 rounded-lg border border-border bg-secondary">
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-stone-500 uppercase font-medium">Relevance Score</span>
-                <span
-                  className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                    post.relevanceScore >= 8
-                      ? "bg-green-100 text-green-800"
-                      : post.relevanceScore >= 5
-                        ? "bg-amber-100 text-amber-800"
-                        : "bg-red-100 text-red-800"
-                  }`}
-                >
+                <span className="text-xs text-muted-foreground uppercase font-medium">Relevance Score</span>
+                <Badge variant={post.relevanceScore >= 8 ? "success" : post.relevanceScore >= 5 ? "warning" : "danger"}>
                   {post.relevanceScore}/10
-                </span>
-                <span className="text-xs text-stone-400">
+                </Badge>
+                <span className="text-xs text-text-faint">
                   {post.relevanceScore >= 8 ? "High confidence" : post.relevanceScore >= 5 ? "Review needed" : "Likely noise"}
                 </span>
               </div>
               {post.relevanceBreakdown && (
-                <p className="text-xs text-stone-600 leading-relaxed whitespace-pre-line mt-1">{post.relevanceBreakdown}</p>
+                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line mt-1">{post.relevanceBreakdown}</p>
               )}
             </div>
           )}
 
           {/* Details Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-stone-200">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
             <div>
-              <span className="text-xs text-stone-500 uppercase">Type</span>
-              <p className="text-sm font-medium text-stone-900">{post.postType}</p>
+              <span className="text-xs text-muted-foreground uppercase">Type</span>
+              <p className="text-sm font-medium text-foreground">{post.postType}</p>
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Category</span>
-              <p className="text-sm font-medium text-stone-900">{post.category}</p>
+              <span className="text-xs text-muted-foreground uppercase">Category</span>
+              <p className="text-sm font-medium text-foreground">{post.category}</p>
             </div>
             {post.urgency && (
               <div>
-                <span className="text-xs text-stone-500 uppercase">Urgency</span>
-                <p className="text-sm font-medium text-stone-900">{post.urgency}</p>
+                <span className="text-xs text-muted-foreground uppercase">Urgency</span>
+                <p className="text-sm font-medium text-foreground">{post.urgency}</p>
               </div>
             )}
             {post.location && (
               <div>
-                <span className="text-xs text-stone-500 uppercase">Location</span>
-                <p className="text-sm font-medium text-stone-900">{post.location}</p>
+                <span className="text-xs text-muted-foreground uppercase">Location</span>
+                <p className="text-sm font-medium text-foreground">{post.location}</p>
               </div>
             )}
             <div>
-              <span className="text-xs text-stone-500 uppercase">{post.publishedAt ? "Published" : "Created"}</span>
-              <p className="text-sm font-medium text-stone-900">{formatDate(post.publishedAt || post.createdAt)}</p>
+              <span className="text-xs text-muted-foreground uppercase">{post.publishedAt ? "Published" : "Created"}</span>
+              <p className="text-sm font-medium text-foreground">{formatDate(post.publishedAt || post.createdAt)}</p>
             </div>
             {post.sourceUrl && (
               <div className="col-span-2">
-                <span className="text-xs text-stone-500 uppercase">Source URL</span>
+                <span className="text-xs text-muted-foreground uppercase">Source URL</span>
                 <p className="text-sm font-medium truncate">
                   <a
                     href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800"
+                    className="text-link hover:text-link-hover"
                   >
                     {post.sourceUrl}
                   </a>
@@ -514,28 +499,28 @@ export default function PostDetailPage() {
               </div>
             )}
             <div>
-              <span className="text-xs text-stone-500 uppercase">Organization</span>
-              <p className="text-sm font-medium text-stone-900">
+              <span className="text-xs text-muted-foreground uppercase">Organization</span>
+              <p className="text-sm font-medium text-foreground">
                 {post.organizationId ? (
-                  <Link href={`/admin/organizations/${post.organizationId}`} className="text-amber-700 hover:text-amber-900">
+                  <Link href={`/admin/organizations/${post.organizationId}`} className="text-admin-accent hover:text-admin-accent-hover">
                     {post.organizationName}
                   </Link>
                 ) : (
-                  <span className="text-stone-400">None</span>
+                  <span className="text-text-faint">None</span>
                 )}
               </p>
             </div>
             <div>
-              <span className="text-xs text-stone-500 uppercase">Submitted By</span>
-              <p className="text-sm font-medium text-stone-900">
+              <span className="text-xs text-muted-foreground uppercase">Submitted By</span>
+              <p className="text-sm font-medium text-foreground">
                 {post.submittedBy?.submitterType === "agent" && post.submittedBy.agentId ? (
-                  <Link href={`/admin/agents/${post.submittedBy.agentId}`} className="text-purple-600 hover:text-purple-800">
+                  <Link href={`/admin/agents/${post.submittedBy.agentId}`} className="text-link hover:text-link-hover">
                     {post.submittedBy.agentName || "Agent"} (AI)
                   </Link>
                 ) : post.submittedBy?.submitterType === "member" ? (
                   <span>Member</span>
                 ) : (
-                  <span className="text-stone-400">Unknown</span>
+                  <span className="text-text-faint">Unknown</span>
                 )}
               </p>
             </div>
@@ -544,23 +529,23 @@ export default function PostDetailPage() {
 
         {/* Contact Info */}
         {post.contacts && post.contacts.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">Contact Info</h2>
+          <div className="bg-card rounded-lg shadow-card p-6 mb-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Contact Info</h2>
             <div className="space-y-2">
               {post.contacts.map((c) => (
                 <div key={c.id} className="flex items-start gap-3">
-                  <span className="text-xs text-stone-500 uppercase w-20 flex-shrink-0 pt-0.5">{c.contactType}</span>
-                  <span className="text-sm text-stone-700">
+                  <span className="text-xs text-muted-foreground uppercase w-20 flex-shrink-0 pt-0.5">{c.contactType}</span>
+                  <span className="text-sm text-text-body">
                     {c.contactType === "email" ? (
-                      <a href={`mailto:${c.contactValue}`} className="text-blue-600 hover:text-blue-800">{c.contactValue}</a>
+                      <a href={`mailto:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
                     ) : c.contactType === "phone" ? (
-                      <a href={`tel:${c.contactValue}`} className="text-blue-600 hover:text-blue-800">{c.contactValue}</a>
+                      <a href={`tel:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
                     ) : c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social" || c.contactType === "intake_form_url" ? (
-                      <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 break-all">{c.contactValue}</a>
+                      <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-link hover:text-link-hover break-all">{c.contactValue}</a>
                     ) : (
                       <span>{c.contactValue}</span>
                     )}
-                    {c.contactLabel && <span className="text-stone-400 ml-2">({c.contactLabel})</span>}
+                    {c.contactLabel && <span className="text-text-faint ml-2">({c.contactLabel})</span>}
                   </span>
                 </div>
               ))}
@@ -569,38 +554,31 @@ export default function PostDetailPage() {
         )}
 
         {/* Tags */}
-        <div id="tags-section" className="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div id="tags-section" className="bg-card rounded-lg shadow-card p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-lg font-semibold text-stone-900">Tags</h2>
-            <button
-              onClick={() => setShowTagModal(true)}
-              className="text-sm text-blue-600 hover:text-blue-800"
-            >
+            <h2 className="text-lg font-semibold text-foreground">Tags</h2>
+            <Button variant="link" size="sm" onClick={() => setShowTagModal(true)}>
               Edit
-            </button>
+            </Button>
           </div>
 
           {tags.length > 0 ? (
             <div className="space-y-3">
               {Object.entries(tagsByKind).map(([kind, kindTags]) => (
                 <div key={kind}>
-                  <span className="text-xs text-stone-500 uppercase">{kind.replace(/_/g, " ")}</span>
+                  <span className="text-xs text-muted-foreground uppercase">{kind.replace(/_/g, " ")}</span>
                   <div className="flex flex-wrap gap-2 mt-1">
                     {kindTags.map((tag) => (
-                      <span
-                        key={tag.id}
-                        className={`px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
-                        style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
-                      >
+                      <Badge key={tag.id} variant="secondary" color={tag.color || undefined}>
                         {tag.value}
-                      </span>
+                      </Badge>
                     ))}
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <span className="text-stone-400 text-sm">No tags</span>
+            <span className="text-text-faint text-sm">No tags</span>
           )}
         </div>
 
@@ -609,17 +587,17 @@ export default function PostDetailPage() {
           const oneOffSchedules = post.schedules!.filter((s) => !s.rrule);
           const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
           return (
-            <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-              <h2 className="text-lg font-semibold text-stone-900 mb-4">Schedule</h2>
+            <div className="bg-card rounded-lg shadow-card p-6 mb-6">
+              <h2 className="text-lg font-semibold text-foreground mb-4">Schedule</h2>
               {allOneOffsExpired && (
-                <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs font-medium text-amber-800">
-                  This event has passed
-                </div>
+                <Alert variant="warning" className="mb-3">
+                  <AlertDescription className="text-xs font-medium">This event has passed</AlertDescription>
+                </Alert>
               )}
               <div className="space-y-2">
                 {post.schedules!.map((s) => (
-                  <div key={s.id} className={`flex items-start gap-2 text-stone-700 ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <div key={s.id} className={`flex items-start gap-2 text-text-body ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <span className="text-sm">{formatSchedule(s)}</span>
@@ -631,8 +609,8 @@ export default function PostDetailPage() {
         })()}
 
         {/* Description */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-lg font-semibold text-stone-900 mb-4">Description</h2>
+        <div className="bg-card rounded-lg shadow-card p-6 mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Description</h2>
           <div className="prose prose-stone max-w-none">
             <ReactMarkdown components={markdownComponents}>
               {post.descriptionMarkdown || post.description || ""}
@@ -642,62 +620,51 @@ export default function PostDetailPage() {
 
         {/* Notes */}
         {notes.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
+          <div className="bg-card rounded-lg shadow-card p-6">
+            <h2 className="text-lg font-semibold text-foreground mb-4">
               Notes ({notes.length})
             </h2>
             <div className="space-y-2">
               {notes.map((note) => {
                 const isExpired = !!note.expiredAt;
-                const severityStyle =
-                  note.severity === "urgent" ? "bg-red-100 text-red-800" :
-                  note.severity === "notice" ? "bg-yellow-100 text-yellow-800" :
-                  "bg-blue-100 text-blue-800";
+                const severityVariant: "danger" | "warning" | "info" =
+                  note.severity === "urgent" ? "danger" :
+                  note.severity === "notice" ? "warning" : "info";
 
                 return (
                   <div
                     key={note.id}
                     className={`p-3 rounded-lg border ${
-                      isExpired ? "border-stone-200 bg-stone-50 opacity-60" : "border-stone-200"
+                      isExpired ? "border-border bg-secondary opacity-60" : "border-border"
                     }`}
                   >
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${severityStyle}`}>
-                        {note.severity}
-                      </span>
-                      {note.isPublic && (
-                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-green-100 text-green-800">
-                          public
-                        </span>
-                      )}
-                      {isExpired && (
-                        <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-stone-200 text-stone-600">
-                          expired
-                        </span>
-                      )}
-                      <span className="text-xs text-stone-400">
+                      <Badge variant={severityVariant}>{note.severity}</Badge>
+                      {note.isPublic && <Badge variant="success">public</Badge>}
+                      {isExpired && <Badge variant="secondary">expired</Badge>}
+                      <span className="text-xs text-text-faint">
                         {note.createdBy} &middot; {new Date(note.createdAt).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="text-sm text-stone-700">{note.content}</p>
+                    <p className="text-sm text-text-body">{note.content}</p>
                     {note.sourceUrl && (
                       <a
                         href={note.sourceUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
+                        className="text-xs text-link hover:text-link-hover mt-1 inline-block"
                       >
                         Source {"\u2197"}
                       </a>
                     )}
                     {note.linkedPosts && note.linkedPosts.filter(p => p.id !== postId).length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 mt-1.5">
-                        <span className="text-xs text-stone-400">Also on:</span>
+                        <span className="text-xs text-text-faint">Also on:</span>
                         {note.linkedPosts.filter(p => p.id !== postId).map((p) => (
                           <Link
                             key={p.id}
                             href={`/admin/posts/${p.id}`}
-                            className="text-xs px-1.5 py-0.5 bg-stone-100 text-stone-600 rounded hover:bg-stone-200 hover:text-stone-800 transition-colors truncate max-w-[200px]"
+                            className="text-xs px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded hover:bg-accent hover:text-accent-foreground transition-colors truncate max-w-[200px]"
                             title={p.title}
                           >
                             {p.title}
@@ -713,154 +680,141 @@ export default function PostDetailPage() {
         )}
       </div>
 
-      {/* Tag Editor Modal */}
-      {showTagModal && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-lg w-full max-h-[80vh] overflow-y-auto shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-stone-900">Edit Tags</h3>
-              <button
-                onClick={() => setShowTagModal(false)}
-                className="text-stone-400 hover:text-stone-600 text-xl leading-none"
-              >
-                &times;
-              </button>
-            </div>
+      {/* Tag Editor Modal — Radix Dialog */}
+      <Dialog open={showTagModal} onOpenChange={setShowTagModal}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Tags</DialogTitle>
+          </DialogHeader>
 
-            {/* Current tags grouped by kind */}
-            {tags.length > 0 ? (
-              <div className="space-y-3 mb-6">
-                {Object.entries(tagsByKind).map(([kind, kindTags]) => (
-                  <div key={kind}>
-                    <span className="text-xs text-stone-500 uppercase font-medium">{kind.replace(/_/g, " ")}</span>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {kindTags.map((tag) => (
-                        <span
-                          key={tag.id}
-                          className={`inline-flex items-center gap-1 px-3 py-1 text-sm rounded-full font-medium ${!tag.color ? "bg-stone-100 text-stone-800" : ""}`}
-                          style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
+          {/* Current tags grouped by kind */}
+          {tags.length > 0 ? (
+            <div className="space-y-3">
+              {Object.entries(tagsByKind).map(([kind, kindTags]) => (
+                <div key={kind}>
+                  <span className="text-xs text-muted-foreground uppercase font-medium">{kind.replace(/_/g, " ")}</span>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {kindTags.map((tag) => (
+                      <Badge key={tag.id} variant="secondary" color={tag.color || undefined} className="gap-1">
+                        {tag.value}
+                        <button
+                          onClick={() => handleRemoveTag(tag.id)}
+                          disabled={isUpdating}
+                          className="hover:text-destructive ml-1 disabled:opacity-50"
                         >
-                          {tag.value}
-                          <button
-                            onClick={() => handleRemoveTag(tag.id)}
-                            disabled={isUpdating}
-                            className="hover:text-red-600 ml-1 disabled:opacity-50"
-                            style={tag.color ? { color: tag.color } : { color: "#a8a29e" }}
-                          >
-                            &times;
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-stone-400 text-sm mb-6">No tags yet.</p>
-            )}
-
-            {/* Add tag form */}
-            <div className="border-t border-stone-200 pt-4">
-              <h4 className="text-sm font-medium text-stone-700 mb-3">Add a tag</h4>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-stone-500 mb-1">Kind</label>
-                  <select
-                    value={selectedKind}
-                    onChange={(e) => {
-                      setSelectedKind(e.target.value);
-                      setTagValue("");
-                      setTagDisplayName("");
-                      setIsCreatingNewTag(false);
-                    }}
-                    className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select a kind...</option>
-                    {availableKinds.map((kind) => (
-                      <option key={kind.id} value={kind.slug}>
-                        {kind.displayName}
-                      </option>
+                          &times;
+                        </button>
+                      </Badge>
                     ))}
-                  </select>
+                  </div>
                 </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-muted-foreground text-sm">No tags yet.</p>
+          )}
 
-                {selectedKind && (
-                  <>
-                    <div>
-                      <label className="block text-xs text-stone-500 mb-1">Value</label>
-                      {isCreatingNewTag ? (
-                        <div className="space-y-2">
-                          <input
-                            value={tagValue}
-                            onChange={(e) => setTagValue(e.target.value)}
-                            placeholder="New tag value..."
-                            className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            autoFocus
+          {/* Add tag form — native <select> retained for "Create new..." toggle */}
+          <div className="border-t border-border pt-4">
+            <h4 className="text-sm font-medium text-foreground mb-3">Add a tag</h4>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-muted-foreground mb-1">Kind</label>
+                <select
+                  value={selectedKind}
+                  onChange={(e) => {
+                    setSelectedKind(e.target.value);
+                    setTagValue("");
+                    setTagDisplayName("");
+                    setIsCreatingNewTag(false);
+                  }}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  <option value="">Select a kind...</option>
+                  {availableKinds.map((kind) => (
+                    <option key={kind.id} value={kind.slug}>
+                      {kind.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedKind && (
+                <>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Value</label>
+                    {isCreatingNewTag ? (
+                      <div className="space-y-2">
+                        <Input
+                          value={tagValue}
+                          onChange={(e) => setTagValue(e.target.value)}
+                          placeholder="New tag value..."
+                          autoFocus
+                        />
+                        <div>
+                          <label className="block text-xs text-muted-foreground mb-1">Display Name</label>
+                          <Input
+                            value={tagDisplayName}
+                            onChange={(e) => setTagDisplayName(e.target.value)}
+                            placeholder="Human-readable name..."
                           />
-                          <div>
-                            <label className="block text-xs text-stone-500 mb-1">Display Name</label>
-                            <input
-                              value={tagDisplayName}
-                              onChange={(e) => setTagDisplayName(e.target.value)}
-                              placeholder="Human-readable name..."
-                              className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            />
-                          </div>
-                          <button
-                            onClick={() => {
-                              setIsCreatingNewTag(false);
+                        </div>
+                        <Button
+                          variant="link"
+                          size="xs"
+                          onClick={() => {
+                            setIsCreatingNewTag(false);
+                            setTagValue("");
+                            setTagDisplayName("");
+                          }}
+                        >
+                          Back to list
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <select
+                          value={tagValue}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "__new__") {
+                              setIsCreatingNewTag(true);
                               setTagValue("");
                               setTagDisplayName("");
-                            }}
-                            className="text-xs text-stone-500 hover:text-stone-700"
-                          >
-                            Back to list
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          <select
-                            value={tagValue}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val === "__new__") {
-                                setIsCreatingNewTag(true);
-                                setTagValue("");
-                                setTagDisplayName("");
-                                return;
-                              }
-                              setTagValue(val);
-                              const match = availableTags.find((t) => t.value === val);
-                              setTagDisplayName(match?.displayName || val);
-                            }}
-                            className="w-full px-3 py-2 border border-stone-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            <option value="">Select a value...</option>
-                            {availableTags.map((tag) => (
-                              <option key={tag.id} value={tag.value}>
-                                {tag.value}
-                              </option>
-                            ))}
-                            <option value="__new__">+ Create new...</option>
-                          </select>
-                        </div>
-                      )}
-                    </div>
+                              return;
+                            }
+                            setTagValue(val);
+                            const match = availableTags.find((t) => t.value === val);
+                            setTagDisplayName(match?.displayName || val);
+                          }}
+                          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                        >
+                          <option value="">Select a value...</option>
+                          {availableTags.map((tag) => (
+                            <option key={tag.id} value={tag.value}>
+                              {tag.value}
+                            </option>
+                          ))}
+                          <option value="__new__">+ Create new...</option>
+                        </select>
+                      </div>
+                    )}
+                  </div>
 
-                    <button
-                      onClick={handleAddTag}
-                      disabled={isUpdating || !tagValue}
-                      className="w-full px-4 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isUpdating ? "Adding..." : "Add Tag"}
-                    </button>
-                  </>
-                )}
-              </div>
+                  <Button
+                    onClick={handleAddTag}
+                    disabled={isUpdating || !tagValue}
+                    loading={isUpdating}
+                    className="w-full"
+                  >
+                    Add Tag
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

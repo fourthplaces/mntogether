@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import type { SplitMode } from "@/components/admin/SplitPane";
 
 // ---------------------------------------------------------------------------
@@ -34,23 +35,17 @@ const icons = {
 };
 
 // ---------------------------------------------------------------------------
-// Status badge colors — matches post detail page
+// Status badge variant mapping — uses shadcn Badge semantic variants
 // ---------------------------------------------------------------------------
 
-function getStatusBadgeClass(status: string): string {
+function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "info" | "secondary" {
   switch (status) {
-    case "active":
-      return "bg-green-100 text-green-800";
-    case "pending_approval":
-      return "bg-amber-100 text-amber-800";
-    case "rejected":
-      return "bg-red-100 text-red-800";
-    case "draft":
-      return "bg-blue-100 text-blue-800";
-    case "archived":
-      return "bg-stone-100 text-stone-600";
-    default:
-      return "bg-stone-100 text-stone-800";
+    case "active": return "success";
+    case "pending_approval": return "warning";
+    case "rejected": return "danger";
+    case "draft": return "info";
+    case "archived": return "secondary";
+    default: return "secondary";
   }
 }
 
@@ -117,9 +112,9 @@ export function EditorTopBar({
           {title || "Untitled"}
         </span>
         {status && (
-          <span className={`px-2 py-0.5 text-xs rounded-full font-medium shrink-0 ${getStatusBadgeClass(status)}`}>
+          <Badge variant={statusBadgeVariant(status)} className="shrink-0">
             {statusLabel(status)}
-          </span>
+          </Badge>
         )}
         {dirty && (
           <span className="w-2 h-2 rounded-full bg-admin-accent shrink-0" title="Unsaved changes" />
@@ -131,18 +126,20 @@ export function EditorTopBar({
         {/* View mode toggles */}
         <div className="hidden md:flex items-center bg-surface-muted rounded-md p-0.5">
           {modeButtons.map(({ key, icon, label }) => (
-            <button
+            <Button
               key={key}
+              variant="ghost"
+              size="icon-xs"
               onClick={() => onModeChange(key)}
               title={label}
-              className={`p-1.5 rounded transition-colors ${
+              className={
                 mode === key
                   ? "bg-surface-raised text-text-primary shadow-sm"
                   : "text-text-muted hover:text-text-primary"
-              }`}
+              }
             >
               {icon}
-            </button>
+            </Button>
           ))}
         </div>
 

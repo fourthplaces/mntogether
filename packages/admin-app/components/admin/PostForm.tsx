@@ -2,8 +2,16 @@
 
 import { useState } from "react";
 import { useQuery } from "urql";
-import { Button } from "@/components/ui/Button";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { FieldWrapper } from "@/components/admin/FieldWrapper";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import {
@@ -73,9 +81,6 @@ export function PostForm({
     });
   }
 
-  const selectClasses =
-    "w-full px-4 py-2.5 text-sm bg-surface-subtle border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-focus-ring focus:border-transparent transition-all duration-150";
-
   return (
     <form onSubmit={handleSubmit}>
       <FieldWrapper label="Title" required error={errors.title}>
@@ -118,33 +123,33 @@ export function PostForm({
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <FieldWrapper label="Post Type" className="mb-0">
-          <select
-            value={postType}
-            onChange={(e) => setPostType(e.target.value)}
-            className={selectClasses}
-            disabled={loading}
-          >
-            {POST_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
+          <Select value={postType} onValueChange={setPostType} disabled={loading}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {POST_TYPES.map((t) => (
+                <SelectItem key={t.value} value={t.value}>
+                  {t.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Weight" className="mb-0">
-          <select
-            value={weight}
-            onChange={(e) => setWeight(e.target.value)}
-            className={selectClasses}
-            disabled={loading}
-          >
-            {WEIGHTS.map((w) => (
-              <option key={w.value} value={w.value}>
-                {w.label}
-              </option>
-            ))}
-          </select>
+          <Select value={weight} onValueChange={setWeight} disabled={loading}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {WEIGHTS.map((w) => (
+                <SelectItem key={w.value} value={w.value}>
+                  {w.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Priority" className="mb-0">
@@ -159,18 +164,22 @@ export function PostForm({
 
       <div className="grid grid-cols-2 gap-4 mb-6">
         <FieldWrapper label="Urgency" className="mb-0">
-          <select
-            value={urgency}
-            onChange={(e) => setUrgency(e.target.value)}
-            className={selectClasses}
+          <Select
+            value={urgency || "__none__"}
+            onValueChange={(v) => setUrgency(v === "__none__" ? "" : v)}
             disabled={loading}
           >
-            {URGENCIES.map((u) => (
-              <option key={u.value} value={u.value}>
-                {u.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {URGENCIES.map((u) => (
+                <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
+                  {u.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </FieldWrapper>
 
         <FieldWrapper label="Location" className="mb-0">
@@ -184,23 +193,27 @@ export function PostForm({
       </div>
 
       <FieldWrapper label="Organization">
-        <select
-          value={organizationId}
-          onChange={(e) => setOrganizationId(e.target.value)}
-          className={selectClasses}
+        <Select
+          value={organizationId || "__none__"}
+          onValueChange={(v) => setOrganizationId(v === "__none__" ? "" : v)}
           disabled={loading}
         >
-          <option value="">None</option>
-          {organizations.map((org) => (
-            <option key={org.id} value={org.id}>
-              {org.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">None</SelectItem>
+            {organizations.map((org) => (
+              <SelectItem key={org.id} value={org.id}>
+                {org.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </FieldWrapper>
 
       <div className="flex items-center gap-3 pt-4 border-t border-border">
-        <Button type="submit" variant="primary" loading={loading}>
+        <Button type="submit" loading={loading}>
           {initialValues ? "Save Changes" : "Create Draft"}
         </Button>
         {onCancel && (

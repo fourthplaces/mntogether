@@ -1,6 +1,6 @@
 @theme {
   /* ===== SURFACE COLORS ===== */
-  --color-surface: #E8E2D5;
+  --color-surface: #FDFCFA;
   --color-surface-raised: #FFFFFF;
   --color-surface-subtle: #FDFCFA;
   --color-surface-muted: #F5F1E8;
@@ -42,9 +42,12 @@
   --color-danger-bg: #FEE2E2;
   --color-danger-text: #991B1B;
 
+  --color-warning: #F59E0B;
+  --color-warning-hover: #D97706;
   --color-warning-bg: #FEF9C3;
   --color-warning-text: #854D0E;
 
+  --color-info: #3B82F6;
   --color-info-bg: #DBEAFE;
   --color-info-text: #1E40AF;
 
