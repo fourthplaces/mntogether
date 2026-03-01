@@ -44,3 +44,12 @@ pub struct BatchGenerateResult {
     pub failed: i32,
     pub total_counties: i32,
 }
+
+/// Kanban stats: counts of editions by status for a given period.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EditionKanbanStats {
+    pub draft: i32,
+    pub in_review: i32,
+    pub approved: i32,
+    pub published: i32,
+}

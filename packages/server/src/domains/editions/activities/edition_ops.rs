@@ -93,7 +93,43 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
         .ok_or_else(|| anyhow!("Edition disappeared after generation"))
 }
 
-/// Publish an edition.
+/// Transition a draft edition to in_review (editor has opened it).
+pub async fn review_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
+    let pool = &deps.db_pool;
+
+    let edition = Edition::find_by_id(edition_id, pool)
+        .await?
+        .ok_or_else(|| anyhow!("Edition not found: {}", edition_id))?;
+
+    if edition.status != "draft" {
+        return Err(anyhow!(
+            "Cannot review a {} edition — only drafts can transition to in_review",
+            edition.status
+        ));
+    }
+
+    Edition::review(edition_id, pool).await
+}
+
+/// Approve an in_review edition (marks it ready for publication).
+pub async fn approve_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
+    let pool = &deps.db_pool;
+
+    let edition = Edition::find_by_id(edition_id, pool)
+        .await?
+        .ok_or_else(|| anyhow!("Edition not found: {}", edition_id))?;
+
+    if edition.status != "in_review" {
+        return Err(anyhow!(
+            "Cannot approve a {} edition — only in_review editions can be approved",
+            edition.status
+        ));
+    }
+
+    Edition::approve(edition_id, pool).await
+}
+
+/// Publish an approved edition.
 pub async fn publish_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edition> {
     let pool = &deps.db_pool;
 
@@ -103,6 +139,13 @@ pub async fn publish_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
 
     if edition.status == "published" {
         return Err(anyhow!("Edition is already published"));
+    }
+
+    if edition.status != "approved" && edition.status != "draft" {
+        return Err(anyhow!(
+            "Cannot publish a {} edition — only approved (or draft) editions can be published",
+            edition.status
+        ));
     }
 
     Edition::publish(edition_id, pool).await
@@ -117,6 +160,30 @@ pub async fn archive_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edit
         .ok_or_else(|| anyhow!("Edition not found: {}", edition_id))?;
 
     Edition::archive(edition_id, pool).await
+}
+
+/// Batch approve multiple in_review editions.
+pub async fn batch_approve_editions(
+    ids: &[Uuid],
+    deps: &ServerDeps,
+) -> Result<(i32, i32)> {
+    let pool = &deps.db_pool;
+    let total = ids.len() as i32;
+    let approved = Edition::batch_approve(ids, pool).await?;
+    let succeeded = approved.len() as i32;
+    Ok((succeeded, total - succeeded))
+}
+
+/// Batch publish multiple approved editions.
+pub async fn batch_publish_editions(
+    ids: &[Uuid],
+    deps: &ServerDeps,
+) -> Result<(i32, i32)> {
+    let pool = &deps.db_pool;
+    let total = ids.len() as i32;
+    let published = Edition::batch_publish(ids, pool).await?;
+    let succeeded = published.len() as i32;
+    Ok((succeeded, total - succeeded))
 }
 
 /// Batch generate editions for ALL 87 counties for a given date range.

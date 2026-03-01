@@ -55,9 +55,10 @@ type Query {
   # Counties + Editions (admin)
   counties: [County!]!
   county(id: ID!): County
-  editions(countyId: ID, status: String, limit: Int, offset: Int): EditionConnection!
+  editions(countyId: ID, status: String, periodStart: String, periodEnd: String, limit: Int, offset: Int): EditionConnection!
   edition(id: ID!): Edition
   currentEdition(countyId: ID!): Edition
+  editionKanbanStats(periodStart: String!, periodEnd: String!): EditionKanbanStats!
   rowTemplates: [RowTemplate!]!
   postTemplates: [PostTemplateConfig!]!
 
@@ -114,13 +115,26 @@ type Mutation {
   # Editions (admin)
   createEdition(countyId: ID!, periodStart: String!, periodEnd: String!, title: String): Edition!
   generateEdition(id: ID!): Edition!
+  reviewEdition(id: ID!): Edition!
+  approveEdition(id: ID!): Edition!
   publishEdition(id: ID!): Edition!
   archiveEdition(id: ID!): Edition!
   batchGenerateEditions(periodStart: String!, periodEnd: String!): BatchGenerateEditionsResult!
+  batchApproveEditions(ids: [ID!]!): BatchEditionsResult!
+  batchPublishEditions(ids: [ID!]!): BatchEditionsResult!
   updateEditionRow(rowId: ID!, rowTemplateSlug: String, sortOrder: Int): EditionRow!
   reorderEditionRows(editionId: ID!, rowIds: [ID!]!): [EditionRow!]!
+  moveSlot(slotId: ID!, targetRowId: ID!, slotIndex: Int!): EditionSlot!
+  addPostToEdition(editionRowId: ID!, postId: ID!, postTemplate: String!, slotIndex: Int!): EditionSlot!
+  addEditionRow(editionId: ID!, rowTemplateSlug: String!, sortOrder: Int!): EditionRow!
+  deleteEditionRow(rowId: ID!): Boolean!
   removePostFromEdition(slotId: ID!): Boolean!
   changeSlotTemplate(slotId: ID!, postTemplate: String!): EditionSlot!
+
+  # Widgets (admin)
+  addWidget(editionRowId: ID!, widgetType: String!, slotIndex: Int!, config: String!): EditionWidget!
+  updateWidget(id: ID!, config: String!): EditionWidget!
+  removeWidget(id: ID!): Boolean!
 
   # Media Library (admin)
   confirmUpload(storageKey: String!, publicUrl: String!, filename: String!, contentType: String!, sizeBytes: Int!, altText: String, width: Int, height: Int): Media!
@@ -390,6 +404,14 @@ type EditionRow {
   rowTemplate: RowTemplate!
   sortOrder: Int!
   slots: [EditionSlot!]!
+  widgets: [EditionWidget!]!
+}
+
+type EditionWidget {
+  id: ID!
+  widgetType: String!
+  slotIndex: Int!
+  config: String!
 }
 
 type EditionSlot {
@@ -429,6 +451,18 @@ type BatchGenerateEditionsResult {
   created: Int!
   failed: Int!
   totalCounties: Int!
+}
+
+type BatchEditionsResult {
+  succeeded: Int!
+  failed: Int!
+}
+
+type EditionKanbanStats {
+  draft: Int!
+  inReview: Int!
+  approved: Int!
+  published: Int!
 }
 
 input CreatePostInput {

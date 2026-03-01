@@ -30,6 +30,14 @@ interface EditionRowData {
   }>;
   sortOrder: number;
   slots: EditionSlotData[];
+  widgets?: EditionWidgetData[];
+}
+
+interface EditionWidgetData {
+  id: string;
+  widgetType: string;
+  slotIndex: number;
+  config: unknown; // JSON object from Rust
 }
 
 interface EditionSlotData {
@@ -75,6 +83,24 @@ export const editionResolvers = {
         description: parent.rowTemplateDescription ?? null,
         slots: parent.rowTemplateSlots ?? [],
       };
+    },
+    widgets: (parent: EditionRowData) => {
+      return parent.widgets ?? [];
+    },
+  },
+
+  // Resolve fields on EditionWidget — config is JSON, serialized to string for GraphQL
+  EditionWidget: {
+    widgetType: (parent: { widgetType?: string; widget_type?: string }) => {
+      return parent.widgetType ?? parent.widget_type ?? "";
+    },
+    slotIndex: (parent: { slotIndex?: number; slot_index?: number }) => {
+      return parent.slotIndex ?? parent.slot_index ?? 0;
+    },
+    config: (parent: { config?: unknown }) => {
+      return typeof parent.config === "string"
+        ? parent.config
+        : JSON.stringify(parent.config ?? {});
     },
   },
 
@@ -158,6 +184,8 @@ export const editionResolvers = {
       args: {
         countyId?: string;
         status?: string;
+        periodStart?: string;
+        periodEnd?: string;
         limit?: number;
         offset?: number;
       },
@@ -166,6 +194,8 @@ export const editionResolvers = {
       return ctx.restate.callService("Editions", "list_editions", {
         county_id: args.countyId ?? null,
         status: args.status ?? null,
+        period_start: args.periodStart ?? null,
+        period_end: args.periodEnd ?? null,
         limit: args.limit ?? null,
         offset: args.offset ?? null,
       });
@@ -196,6 +226,28 @@ export const editionResolvers = {
         county_id: args.countyId,
       });
       return { ...result.edition, rows: result.rows };
+    },
+
+    editionKanbanStats: async (
+      _parent: unknown,
+      args: { periodStart: string; periodEnd: string },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{
+        draft: number;
+        in_review: number;
+        approved: number;
+        published: number;
+      }>("Editions", "edition_kanban_stats", {
+        period_start: args.periodStart,
+        period_end: args.periodEnd,
+      });
+      return {
+        draft: result.draft,
+        inReview: result.in_review,
+        approved: result.approved,
+        published: result.published,
+      };
     },
 
     rowTemplates: async (
@@ -250,6 +302,26 @@ export const editionResolvers = {
       });
     },
 
+    reviewEdition: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "review_edition", {
+        id: args.id,
+      });
+    },
+
+    approveEdition: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "approve_edition", {
+        id: args.id,
+      });
+    },
+
     publishEdition: async (
       _parent: unknown,
       args: { id: string },
@@ -283,6 +355,78 @@ export const editionResolvers = {
           period_end: args.periodEnd,
         }
       );
+    },
+
+    batchApproveEditions: async (
+      _parent: unknown,
+      args: { ids: string[] },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "batch_approve_editions", {
+        ids: args.ids,
+      });
+    },
+
+    batchPublishEditions: async (
+      _parent: unknown,
+      args: { ids: string[] },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "batch_publish_editions", {
+        ids: args.ids,
+      });
+    },
+
+    moveSlot: async (
+      _parent: unknown,
+      args: { slotId: string; targetRowId: string; slotIndex: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "move_slot", {
+        slot_id: args.slotId,
+        target_row_id: args.targetRowId,
+        slot_index: args.slotIndex,
+      });
+    },
+
+    addPostToEdition: async (
+      _parent: unknown,
+      args: {
+        editionRowId: string;
+        postId: string;
+        postTemplate: string;
+        slotIndex: number;
+      },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "add_post_to_edition", {
+        edition_row_id: args.editionRowId,
+        post_id: args.postId,
+        post_template: args.postTemplate,
+        slot_index: args.slotIndex,
+      });
+    },
+
+    addEditionRow: async (
+      _parent: unknown,
+      args: { editionId: string; rowTemplateSlug: string; sortOrder: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "add_edition_row", {
+        edition_id: args.editionId,
+        row_template_slug: args.rowTemplateSlug,
+        sort_order: args.sortOrder,
+      });
+    },
+
+    deleteEditionRow: async (
+      _parent: unknown,
+      args: { rowId: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "delete_edition_row", {
+        row_id: args.rowId,
+      });
     },
 
     updateEditionRow: async (
@@ -329,6 +473,40 @@ export const editionResolvers = {
       return ctx.restate.callService("Editions", "change_slot_template", {
         slot_id: args.slotId,
         post_template: args.postTemplate,
+      });
+    },
+
+    addWidget: async (
+      _parent: unknown,
+      args: { editionRowId: string; widgetType: string; slotIndex: number; config: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "add_widget", {
+        edition_row_id: args.editionRowId,
+        widget_type: args.widgetType,
+        slot_index: args.slotIndex,
+        config: JSON.parse(args.config),
+      });
+    },
+
+    updateWidget: async (
+      _parent: unknown,
+      args: { id: string; config: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "update_widget", {
+        id: args.id,
+        config: JSON.parse(args.config),
+      });
+    },
+
+    removeWidget: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.restate.callService("Editions", "remove_widget", {
+        id: args.id,
       });
     },
   },
