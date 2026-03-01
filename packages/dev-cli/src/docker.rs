@@ -195,6 +195,39 @@ pub async fn compose_down(repo_root: &str) -> anyhow::Result<String> {
     run_compose(repo_root, &["compose", "down"]).await
 }
 
+pub async fn docker_prune() -> anyhow::Result<String> {
+    let builder = Command::new("docker")
+        .args(["builder", "prune", "-a", "-f"])
+        .output()
+        .await?;
+
+    let volumes = Command::new("docker")
+        .args(["volume", "prune", "-f"])
+        .output()
+        .await?;
+
+    let images = Command::new("docker")
+        .args(["image", "prune", "-f"])
+        .output()
+        .await?;
+
+    let mut reclaimed = Vec::new();
+    for out in [&builder, &volumes, &images] {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            if line.contains("Total reclaimed space") {
+                reclaimed.push(line.trim().to_string());
+            }
+        }
+    }
+
+    if reclaimed.is_empty() {
+        Ok("Nothing to reclaim".into())
+    } else {
+        Ok(reclaimed.join(", "))
+    }
+}
+
 pub async fn compose_restart(repo_root: &str, services: &[&str]) -> anyhow::Result<String> {
     let mut args = vec!["compose", "restart"];
     args.extend_from_slice(services);

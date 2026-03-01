@@ -181,16 +181,16 @@ clean:
 	echo; \
 	if [[ $$REPLY =~ ^[Yy]$$ ]]; then \
 		docker compose down -v; \
-		docker volume rm rooteditorial_postgres_data rooteditorial_rust_target rooteditorial_minio_data 2>/dev/null || true; \
 		echo "Cleanup complete."; \
 	else \
 		echo "Cancelled"; \
 	fi
 
-# Clean up Docker build cache
+# Clean up Docker build cache and dangling resources
 prune:
-	docker system prune -f
+	docker builder prune -a -f
 	docker volume prune -f
+	docker image prune -f
 
 # ========================================
 # Status & Health

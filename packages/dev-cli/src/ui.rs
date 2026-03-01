@@ -263,6 +263,8 @@ fn main_menu_line() -> Line<'static> {
         Span::raw(" reset db  "),
         key_span("l"),
         Span::raw(" logs  "),
+        key_span("p"),
+        Span::raw(" prune  "),
         key_span("q"),
         Span::raw(" quit"),
     ])

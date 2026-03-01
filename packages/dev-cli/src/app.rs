@@ -166,6 +166,12 @@ impl App {
             KeyCode::Char('l') | KeyCode::Char('L') => {
                 self.wants_logs = Some(vec![]);
             }
+            KeyCode::Char('p') | KeyCode::Char('P') => {
+                self.spawn_op("Pruning Docker cache", tx, |_root| async move {
+                    let result = docker::docker_prune().await?;
+                    Ok(format!("Pruned — {result}"))
+                });
+            }
             _ => {}
         }
     }
