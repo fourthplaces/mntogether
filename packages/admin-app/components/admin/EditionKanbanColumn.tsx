@@ -31,7 +31,7 @@ export function EditionKanbanColumn({
 
   return (
     <div
-      className={`flex flex-col rounded-xl ${colorClass} min-h-[400px] transition-all ${
+      className={`flex flex-col rounded-xl ${colorClass} w-72 shrink-0 transition-all ${
         isOver ? "ring-2 ring-admin-accent ring-offset-2" : ""
       }`}
     >
@@ -49,7 +49,7 @@ export function EditionKanbanColumn({
       {/* Scrollable card list */}
       <div
         ref={setNodeRef}
-        className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 max-h-[calc(100vh-220px)]"
+        className="flex-1 overflow-y-auto px-3 pb-3 space-y-2 min-h-0"
       >
         <SortableContext
           items={editions.map((e) => e.id)}

@@ -205,9 +205,9 @@ export default function WorkflowPage() {
   const totalCount = data?.editions?.totalCount ?? 0;
 
   return (
-    <div className="p-6">
+    <div className="p-6 h-full flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-semibold text-text-primary">
             Review Board
@@ -248,13 +248,13 @@ export default function WorkflowPage() {
         </div>
       </div>
 
-      {/* Kanban board */}
+      {/* Kanban board — horizontal scroll, fixed-width columns (Trello-style) */}
       <DndContext
         sensors={sensors}
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+        <div className="flex gap-4 overflow-x-auto flex-1 min-h-0 -mx-6 px-6 pb-2">
           {COLUMNS.map((col) => (
             <EditionKanbanColumn
               key={col.id}

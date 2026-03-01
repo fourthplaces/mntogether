@@ -25,7 +25,7 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 flex">
+    <div className="h-screen bg-stone-50 flex overflow-hidden">
       <Suspense>
         <AdminSidebar
           collapsed={collapsed}
@@ -53,7 +53,7 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
           </span>
         </header>
 
-        <main className="flex-1 overflow-y-auto pb-20">
+        <main className="flex-1 overflow-y-auto">
           <GraphQLErrorBoundary>{children}</GraphQLErrorBoundary>
         </main>
       </div>
