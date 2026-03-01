@@ -1,86 +1,280 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragStartEvent,
+  type DragEndEvent,
+} from "@dnd-kit/core";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   EditionDetailQuery,
+  RowTemplatesQuery,
+  PostTemplatesQuery,
   GenerateEditionMutation,
   PublishEditionMutation,
   ArchiveEditionMutation,
+  ReviewEditionMutation,
+  ApproveEditionMutation,
+  MoveSlotMutation,
   RemovePostFromEditionMutation,
+  ChangeSlotTemplateMutation,
+  ReorderEditionRowsMutation,
+  AddEditionRowMutation,
+  DeleteEditionRowMutation,
+  AddWidgetMutation,
+  UpdateWidgetMutation,
+  RemoveWidgetMutation,
 } from "@/lib/graphql/editions";
+import type {
+  EditionDetailQuery as EditionDetailQueryType,
+  RowTemplatesQuery as RowTemplatesQueryType,
+  PostTemplatesQuery as PostTemplatesQueryType,
+} from "@/gql/graphql";
+
+// ─── Type aliases from generated GraphQL types ───────────────────────────────
+
+type Edition = NonNullable<EditionDetailQueryType["edition"]>;
+type EditionRow = Edition["rows"][number];
+type EditionSlot = EditionRow["slots"][number];
+type EditionWidget = EditionRow["widgets"][number];
+type TemplateSlotDef = EditionRow["rowTemplate"]["slots"][number];
+type RowTemplate = RowTemplatesQueryType["rowTemplates"][number];
+type PostTemplate = PostTemplatesQueryType["postTemplates"][number];
+
+const WEIGHT_SPAN: Record<string, number> = { heavy: 2, medium: 1, light: 1 };
+
+// ─── Page export ─────────────────────────────────────────────────────────────
 
 export default function EditionDetailPage() {
-  return <EditionDetailContent />;
+  return <BroadsheetEditor />;
 }
 
-function EditionDetailContent() {
+// ─── Main editor component ───────────────────────────────────────────────────
+
+function BroadsheetEditor() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
   const [actionError, setActionError] = useState<string | null>(null);
+  const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
 
+  // Queries
   const [{ data, fetching, error }, refetchEdition] = useQuery({
     query: EditionDetailQuery,
     variables: { id },
   });
+  const [{ data: rowTemplatesData }] = useQuery({ query: RowTemplatesQuery });
+  const [{ data: postTemplatesData }] = useQuery({ query: PostTemplatesQuery });
 
-  const [{ fetching: generating }, generateEdition] = useMutation(GenerateEditionMutation);
-  const [{ fetching: publishing }, publishEdition] = useMutation(PublishEditionMutation);
-  const [{ fetching: archiving }, archiveEdition] = useMutation(ArchiveEditionMutation);
+  // Mutations
+  const mutCtx = useMemo(
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot"] }),
+    []
+  );
+  const [, generateEdition] = useMutation(GenerateEditionMutation);
+  const [, publishEdition] = useMutation(PublishEditionMutation);
+  const [, archiveEdition] = useMutation(ArchiveEditionMutation);
+  const [, reviewEdition] = useMutation(ReviewEditionMutation);
+  const [, approveEdition] = useMutation(ApproveEditionMutation);
+  const [, moveSlot] = useMutation(MoveSlotMutation);
   const [, removePost] = useMutation(RemovePostFromEditionMutation);
+  const [, changeSlotTemplate] = useMutation(ChangeSlotTemplateMutation);
+  const [, reorderRows] = useMutation(ReorderEditionRowsMutation);
+  const [, addRow] = useMutation(AddEditionRowMutation);
+  const [, deleteRowMut] = useMutation(DeleteEditionRowMutation);
+  const [, addWidgetMut] = useMutation(AddWidgetMutation);
+  const [, updateWidgetMut] = useMutation(UpdateWidgetMutation);
+  const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
 
   const edition = data?.edition;
+  const rowTemplates = rowTemplatesData?.rowTemplates ?? [];
+  const postTemplates = postTemplatesData?.postTemplates ?? [];
 
-  const handleAction = async (
-    action: "generate" | "publish" | "archive",
-  ) => {
-    setActionError(null);
-    try {
-      const fns = { generate: generateEdition, publish: publishEdition, archive: archiveEdition };
-      const result = await fns[action](
-        { id },
-        { additionalTypenames: ["Edition", "EditionConnection"] }
-      );
-      if (result.error) throw result.error;
-      refetchEdition({ requestPolicy: "network-only" });
-    } catch (err: any) {
-      setActionError(err.message || `Failed to ${action} edition`);
+  // Auto-review: opening a draft edition transitions it to in_review
+  const hasAutoReviewed = useRef(false);
+  useEffect(() => {
+    if (edition && edition.status === "draft" && !hasAutoReviewed.current) {
+      hasAutoReviewed.current = true;
+      reviewEdition({ id }, mutCtx).then((res) => {
+        if (!res.error) refetchEdition({ requestPolicy: "network-only" });
+      });
     }
-  };
+  }, [edition?.status, id, mutCtx, reviewEdition, refetchEdition]);
 
-  const handleRemovePost = async (slotId: string) => {
-    setActionError(null);
-    try {
-      const result = await removePost(
-        { slotId },
-        { additionalTypenames: ["Edition"] }
-      );
-      if (result.error) throw result.error;
+  // DnD
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveSlotId(event.active.id as string);
+  }, []);
+
+  const handleDragEnd = useCallback(
+    async (event: DragEndEvent) => {
+      setActiveSlotId(null);
+      const { active, over } = event;
+      if (!over || !edition) return;
+
+      const slotId = active.id as string;
+      const overId = over.id as string;
+
+      if (overId === "remove-zone") {
+        await removePost({ slotId }, mutCtx);
+        refetchEdition({ requestPolicy: "network-only" });
+        return;
+      }
+
+      // Parse droppable: "drop-{rowId}-{slotIndex}" (rowId is a UUID with hyphens)
+      const match = overId.match(/^drop-(.+)-(\d+)$/);
+      if (match) {
+        const targetRowId = match[1];
+        const slotIndex = parseInt(match[2], 10);
+        await moveSlot({ slotId, targetRowId, slotIndex }, mutCtx);
+        refetchEdition({ requestPolicy: "network-only" });
+      }
+    },
+    [edition, moveSlot, removePost, mutCtx, refetchEdition]
+  );
+
+  // Row management
+  const sortedRows = useMemo(
+    () =>
+      edition
+        ? [...edition.rows].sort((a, b) => a.sortOrder - b.sortOrder)
+        : [],
+    [edition]
+  );
+
+  const handleMoveRow = useCallback(
+    async (rowId: string, direction: "up" | "down") => {
+      const idx = sortedRows.findIndex((r) => r.id === rowId);
+      if (idx < 0) return;
+      const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+      if (swapIdx < 0 || swapIdx >= sortedRows.length) return;
+      const newOrder = sortedRows.map((r) => r.id);
+      [newOrder[idx], newOrder[swapIdx]] = [newOrder[swapIdx], newOrder[idx]];
+      await reorderRows({ editionId: edition!.id, rowIds: newOrder }, mutCtx);
       refetchEdition({ requestPolicy: "network-only" });
-    } catch (err: any) {
-      setActionError(err.message || "Failed to remove post");
-    }
-  };
+    },
+    [sortedRows, edition, reorderRows, mutCtx, refetchEdition]
+  );
 
-  // ─── Loading / error ─────────────────────────────────────────────────
-  if (fetching && !edition) {
-    return <AdminLoader label="Loading edition..." />;
-  }
+  const handleDeleteRow = useCallback(
+    async (rowId: string) => {
+      await deleteRowMut({ rowId }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [deleteRowMut, mutCtx, refetchEdition]
+  );
+
+  const handleAddRow = useCallback(
+    async (rowTemplateSlug: string) => {
+      const nextOrder =
+        sortedRows.length > 0
+          ? Math.max(...sortedRows.map((r) => r.sortOrder)) + 1
+          : 0;
+      await addRow(
+        { editionId: edition!.id, rowTemplateSlug, sortOrder: nextOrder },
+        mutCtx
+      );
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [edition, sortedRows, addRow, mutCtx, refetchEdition]
+  );
+
+  const handleStatusAction = useCallback(
+    async (action: "generate" | "approve" | "publish" | "archive") => {
+      setActionError(null);
+      const fns = {
+        generate: generateEdition,
+        approve: approveEdition,
+        publish: publishEdition,
+        archive: archiveEdition,
+      };
+      const result = await fns[action]({ id }, mutCtx);
+      if (result.error) {
+        setActionError(result.error.message);
+      } else {
+        refetchEdition({ requestPolicy: "network-only" });
+      }
+    },
+    [id, mutCtx, generateEdition, approveEdition, publishEdition, archiveEdition, refetchEdition]
+  );
+
+  const handleChangeTemplate = useCallback(
+    async (slotId: string, postTemplate: string) => {
+      await changeSlotTemplate({ slotId, postTemplate }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [changeSlotTemplate, mutCtx, refetchEdition]
+  );
+
+  const handleRemovePost = useCallback(
+    async (slotId: string) => {
+      await removePost({ slotId }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [removePost, mutCtx, refetchEdition]
+  );
+
+  const handleAddWidget = useCallback(
+    async (editionRowId: string, widgetType: string, config: Record<string, unknown>) => {
+      const row = sortedRows.find((r) => r.id === editionRowId);
+      const nextIndex = row ? Math.max(0, ...row.widgets.map((w) => w.slotIndex)) + 1 : 0;
+      await addWidgetMut(
+        { editionRowId, widgetType, slotIndex: nextIndex, config: JSON.stringify(config) },
+        mutCtx
+      );
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [sortedRows, addWidgetMut, mutCtx, refetchEdition]
+  );
+
+  const handleRemoveWidget = useCallback(
+    async (widgetId: string) => {
+      await removeWidgetMut({ id: widgetId }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [removeWidgetMut, mutCtx, refetchEdition]
+  );
+
+  // Loading / error
+  if (fetching && !edition) return <AdminLoader label="Loading broadsheet..." />;
 
   if (error || !edition) {
     return (
-      <div className="min-h-screen bg-stone-50 p-6">
-        <div className="max-w-5xl mx-auto">
+      <div className="min-h-screen bg-[#FDFCFA] p-6">
+        <div className="max-w-6xl mx-auto">
           <button
-            onClick={() => router.push("/admin/editions")}
+            onClick={() => router.push("/admin/workflow")}
             className="text-sm text-stone-500 hover:text-stone-700 mb-4"
           >
-            &larr; Back to Editions
+            &larr; Back to Review Board
           </button>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
             {error?.message || "Edition not found"}
           </div>
         </div>
@@ -88,190 +282,135 @@ function EditionDetailContent() {
     );
   }
 
-  const isActioning = generating || publishing || archiving;
-  const sortedRows = [...edition.rows].sort((a, b) => a.sortOrder - b.sortOrder);
+  const isEditable = edition.status === "in_review" || edition.status === "draft";
 
-  // ─── Render ──────────────────────────────────────────────────────────
+  const activeSlotData = activeSlotId
+    ? sortedRows.flatMap((r) => r.slots).find((s) => s.id === activeSlotId)
+    : null;
+
   return (
-    <div className="min-h-screen bg-stone-50 p-6">
-      <div className="max-w-5xl mx-auto">
-        {/* Back link */}
-        <button
-          onClick={() => router.push("/admin/editions")}
-          className="text-sm text-stone-500 hover:text-stone-700 mb-4 inline-block"
-        >
-          &larr; Back to Editions
-        </button>
-
-        {/* Header card */}
-        <div className="bg-white rounded-lg shadow px-6 py-5 mb-6">
-          <div className="flex items-start justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-stone-900">
-                {edition.title || `${edition.county.name} Edition`}
-              </h1>
-              <div className="flex items-center gap-3 mt-2 text-sm text-stone-500">
-                <span className="font-medium text-stone-700">{edition.county.name} County</span>
-                <span>&middot;</span>
-                <span>
-                  {formatDateLong(edition.periodStart)} — {formatDateLong(edition.periodEnd)}
-                </span>
-                <span>&middot;</span>
-                <StatusBadge status={edition.status} />
-              </div>
-              {edition.publishedAt && (
-                <div className="text-xs text-stone-400 mt-1">
-                  Published {new Date(edition.publishedAt).toLocaleString()}
-                </div>
-              )}
-            </div>
-
-            {/* Action buttons */}
-            <div className="flex gap-2 shrink-0">
-              {edition.status === "draft" && (
-                <>
-                  <button
-                    onClick={() => handleAction("generate")}
-                    disabled={isActioning}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-200 text-stone-700 hover:bg-stone-300 disabled:opacity-50 transition-colors"
-                  >
-                    {generating ? "Regenerating..." : "Regenerate"}
-                  </button>
-                  <button
-                    onClick={() => handleAction("publish")}
-                    disabled={isActioning}
-                    className="px-3 py-1.5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                  >
-                    {publishing ? "Publishing..." : "Publish"}
-                  </button>
-                </>
-              )}
-              {edition.status === "published" && (
-                <button
-                  onClick={() => handleAction("archive")}
-                  disabled={isActioning}
-                  className="px-3 py-1.5 rounded-lg text-sm font-medium bg-stone-200 text-stone-700 hover:bg-stone-300 disabled:opacity-50 transition-colors"
-                >
-                  {archiving ? "Archiving..." : "Archive"}
-                </button>
-              )}
+    <div className="min-h-screen bg-[#FDFCFA] p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-start justify-between mb-6">
+          <div>
+            <button
+              onClick={() => router.push("/admin/workflow")}
+              className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
+            >
+              &larr; Review Board
+            </button>
+            <h1 className="text-2xl font-bold text-stone-900">
+              {edition.county.name} County
+            </h1>
+            <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
+              <span>
+                {formatDateRange(edition.periodStart, edition.periodEnd)}
+              </span>
+              <StatusBadge status={edition.status} />
             </div>
           </div>
-
-          {actionError && (
-            <div className="mt-3 text-sm text-red-600 bg-red-50 px-3 py-2 rounded">
-              {actionError}
-            </div>
-          )}
+          <div className="flex items-center gap-2 pt-8">
+            {isEditable && (
+              <button
+                onClick={() => handleStatusAction("generate")}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
+              >
+                Regenerate
+              </button>
+            )}
+            {edition.status === "in_review" && (
+              <button
+                onClick={() => handleStatusAction("approve")}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+              >
+                Approve
+              </button>
+            )}
+            {edition.status === "approved" && (
+              <button
+                onClick={() => handleStatusAction("publish")}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+              >
+                Publish
+              </button>
+            )}
+            {edition.status === "published" && (
+              <button
+                onClick={() => handleStatusAction("archive")}
+                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
+              >
+                Archive
+              </button>
+            )}
+          </div>
         </div>
+
+        {actionError && (
+          <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
+            {actionError}
+          </div>
+        )}
 
         {/* Summary stats */}
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow px-4 py-3 text-center">
-            <div className="text-2xl font-bold text-stone-900">{sortedRows.length}</div>
-            <div className="text-xs text-stone-500 uppercase tracking-wider">Rows</div>
-          </div>
-          <div className="bg-white rounded-lg shadow px-4 py-3 text-center">
-            <div className="text-2xl font-bold text-stone-900">
-              {sortedRows.reduce((sum, r) => sum + r.slots.length, 0)}
-            </div>
-            <div className="text-xs text-stone-500 uppercase tracking-wider">Posts Placed</div>
-          </div>
-          <div className="bg-white rounded-lg shadow px-4 py-3 text-center">
-            <div className="text-2xl font-bold text-stone-900">
-              {new Set(sortedRows.map((r) => r.rowTemplate.slug)).size}
-            </div>
-            <div className="text-xs text-stone-500 uppercase tracking-wider">Unique Templates</div>
-          </div>
+          <StatCard value={sortedRows.length} label="Rows" />
+          <StatCard
+            value={sortedRows.reduce((sum, r) => sum + r.slots.length, 0)}
+            label="Posts Placed"
+          />
+          <StatCard
+            value={new Set(sortedRows.map((r) => r.rowTemplate.slug)).size}
+            label="Templates"
+          />
         </div>
 
-        {/* Broadsheet rows */}
-        {sortedRows.length === 0 ? (
-          <div className="text-stone-500 text-center py-12 bg-white rounded-lg shadow">
-            <div className="text-4xl mb-2">📄</div>
-            <p>No rows yet. Click &ldquo;Regenerate&rdquo; to populate the layout.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {sortedRows.map((row, rowIdx) => (
-              <div key={row.id} className="bg-white rounded-lg shadow overflow-hidden">
-                {/* Row header */}
-                <div className="px-5 py-3 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-mono text-stone-400 bg-stone-200 rounded px-1.5 py-0.5">
-                      Row {rowIdx + 1}
-                    </span>
-                    <span className="text-sm font-medium text-stone-700">
-                      {row.rowTemplate.displayName}
-                    </span>
-                    <span className="text-xs text-stone-400">
-                      {row.rowTemplate.slug}
-                    </span>
-                  </div>
-                  <span className="text-xs text-stone-400">
-                    {row.slots.length} post{row.slots.length !== 1 ? "s" : ""}
-                  </span>
-                </div>
+        {/* Broadsheet layout with DnD */}
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          {sortedRows.length === 0 ? (
+            <div className="text-stone-500 text-center py-12 bg-white rounded-lg shadow-sm border border-stone-200">
+              <p className="text-lg mb-2">Empty broadsheet</p>
+              <p className="text-sm">
+                Click &ldquo;Regenerate&rdquo; to auto-populate, or add rows
+                manually.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {sortedRows.map((row, idx) => (
+                <RowEditor
+                  key={row.id}
+                  row={row}
+                  rowIndex={idx}
+                  totalRows={sortedRows.length}
+                  isEditable={isEditable}
+                  postTemplates={postTemplates}
+                  onMoveRow={handleMoveRow}
+                  onDeleteRow={handleDeleteRow}
+                  onChangeTemplate={handleChangeTemplate}
+                  onRemovePost={handleRemovePost}
+                  onViewPost={(postId) => router.push(`/admin/posts/${postId}`)}
+                  onAddWidget={handleAddWidget}
+                  onRemoveWidget={handleRemoveWidget}
+                />
+              ))}
+            </div>
+          )}
 
-                {/* Slots */}
-                {row.slots.length === 0 ? (
-                  <div className="px-5 py-4 text-sm text-stone-400 italic">
-                    Empty row — no posts placed
-                  </div>
-                ) : (
-                  <div className="divide-y divide-stone-100">
-                    {[...row.slots]
-                      .sort((a, b) => a.slotIndex - b.slotIndex)
-                      .map((slot) => (
-                        <div
-                          key={slot.id}
-                          className="px-5 py-3 flex items-center justify-between hover:bg-stone-50"
-                        >
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="shrink-0 w-6 h-6 rounded bg-stone-100 text-stone-500 text-xs font-mono flex items-center justify-center">
-                              {slot.slotIndex}
-                            </span>
-                            <div className="min-w-0">
-                              <div className="text-sm font-medium text-stone-900 truncate">
-                                {slot.post.title}
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5">
-                                <PostTypeBadge type={slot.post.postType} />
-                                <WeightBadge weight={slot.post.weight} />
-                                <span className="text-xs text-stone-400">
-                                  template: {slot.postTemplate}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/admin/posts/${slot.post.id}`);
-                              }}
-                              className="text-xs text-amber-600 hover:text-amber-700 font-medium"
-                            >
-                              View Post
-                            </button>
-                            {edition.status === "draft" && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleRemovePost(slot.id);
-                                }}
-                                className="text-xs text-red-500 hover:text-red-700 font-medium"
-                              >
-                                Remove
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-            ))}
+          {activeSlotId && isEditable && <RemoveDropZone />}
+
+          <DragOverlay>
+            {activeSlotData ? <SlotCardOverlay slot={activeSlotData} /> : null}
+          </DragOverlay>
+        </DndContext>
+
+        {isEditable && rowTemplates.length > 0 && (
+          <div className="mt-4">
+            <AddRowButton templates={rowTemplates} onAdd={handleAddRow} />
           </div>
         )}
       </div>
@@ -279,17 +418,529 @@ function EditionDetailContent() {
   );
 }
 
-// ─── Helper components ────────────────────────────────────────────────────────
+// ─── RowEditor ───────────────────────────────────────────────────────────────
+
+function RowEditor({
+  row,
+  rowIndex,
+  totalRows,
+  isEditable,
+  postTemplates,
+  onMoveRow,
+  onDeleteRow,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+  onAddWidget,
+  onRemoveWidget,
+}: {
+  row: EditionRow;
+  rowIndex: number;
+  totalRows: number;
+  isEditable: boolean;
+  postTemplates: PostTemplate[];
+  onMoveRow: (rowId: string, dir: "up" | "down") => void;
+  onDeleteRow: (rowId: string) => void;
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+  onAddWidget: (rowId: string, widgetType: string, config: Record<string, unknown>) => void;
+  onRemoveWidget: (widgetId: string) => void;
+}) {
+  const templateSlots = useMemo(
+    () => [...row.rowTemplate.slots].sort((a, b) => a.slotIndex - b.slotIndex),
+    [row.rowTemplate.slots]
+  );
+
+  const slotsByIndex = useMemo(() => {
+    const map = new Map<number, EditionSlot[]>();
+    for (const slot of row.slots) {
+      const existing = map.get(slot.slotIndex) ?? [];
+      existing.push(slot);
+      map.set(slot.slotIndex, existing);
+    }
+    return map;
+  }, [row.slots]);
+
+  const sortedWidgets = useMemo(
+    () => [...row.widgets].sort((a, b) => a.slotIndex - b.slotIndex),
+    [row.widgets]
+  );
+
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-stone-200 overflow-hidden">
+      {/* Row header */}
+      <div className="px-4 py-2.5 bg-stone-50 border-b border-stone-200 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-mono text-stone-400 bg-stone-200/70 rounded px-1.5 py-0.5">
+            {rowIndex + 1}
+          </span>
+          <span className="text-sm font-semibold text-stone-700">
+            {row.rowTemplate.displayName}
+          </span>
+          <span className="text-xs text-stone-400">{row.rowTemplate.slug}</span>
+        </div>
+        <div className="flex items-center gap-1">
+          {isEditable && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  className="text-[11px] font-medium text-amber-600 hover:text-amber-700 px-2 py-1 rounded hover:bg-amber-50 transition-colors"
+                >
+                  + Widget
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-52">
+                <DropdownMenuItem onClick={() => onAddWidget(row.id, "section_header", { title: "Section Title" })}>
+                  <div>
+                    <div className="font-medium">Section Header</div>
+                    <div className="text-xs text-stone-400">Full-width divider with heading</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onAddWidget(row.id, "weather", {})}>
+                  <div>
+                    <div className="font-medium">Weather</div>
+                    <div className="text-xs text-stone-400">County weather forecast card</div>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onAddWidget(row.id, "hotline_bar", { lines: [{ label: "Crisis Line", phone: "988" }] })}>
+                  <div>
+                    <div className="font-medium">Hotline Bar</div>
+                    <div className="text-xs text-stone-400">Phone numbers and resources</div>
+                  </div>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+          {isEditable && (
+            <>
+              <button
+                onClick={() => onMoveRow(row.id, "up")}
+                disabled={rowIndex === 0}
+                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30 text-sm"
+                title="Move up"
+              >
+                &uarr;
+              </button>
+              <button
+                onClick={() => onMoveRow(row.id, "down")}
+                disabled={rowIndex === totalRows - 1}
+                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30 text-sm"
+                title="Move down"
+              >
+                &darr;
+              </button>
+              <button
+                onClick={() => onDeleteRow(row.id)}
+                className="p-1 text-red-400 hover:text-red-600 ml-2 text-sm"
+                title="Delete row"
+              >
+                &times;
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Widgets above the slot grid */}
+      {sortedWidgets.length > 0 && (
+        <div className="px-4 pt-3 space-y-2">
+          {sortedWidgets.map((widget) => (
+            <WidgetCard
+              key={widget.id}
+              widget={widget}
+              isEditable={isEditable}
+              onRemove={onRemoveWidget}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Slot grid */}
+      <div className="p-4">
+        <div className="grid grid-cols-3 gap-3">
+          {templateSlots.map((tSlot) => (
+            <SlotCell
+              key={tSlot.slotIndex}
+              rowId={row.id}
+              templateSlot={tSlot}
+              editionSlots={slotsByIndex.get(tSlot.slotIndex) ?? []}
+              isEditable={isEditable}
+              postTemplates={postTemplates}
+              onChangeTemplate={onChangeTemplate}
+              onRemovePost={onRemovePost}
+              onViewPost={onViewPost}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── WidgetCard ─────────────────────────────────────────────────────────────
+
+function WidgetCard({
+  widget,
+  isEditable,
+  onRemove,
+}: {
+  widget: EditionWidget;
+  isEditable: boolean;
+  onRemove: (id: string) => void;
+}) {
+  const config = parseWidgetConfig(widget.config);
+
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-stone-200 bg-stone-50/50 px-3 py-2">
+      <WidgetIcon type={widget.widgetType} />
+      <div className="flex-1 min-w-0">
+        <WidgetContent type={widget.widgetType} config={config} />
+      </div>
+      {isEditable && (
+        <button
+          onClick={() => onRemove(widget.id)}
+          className="text-[11px] text-red-400 hover:text-red-600 font-medium shrink-0"
+        >
+          Remove
+        </button>
+      )}
+    </div>
+  );
+}
+
+function WidgetIcon({ type }: { type: string }) {
+  const icons: Record<string, { bg: string; label: string }> = {
+    section_header: { bg: "bg-blue-100 text-blue-700", label: "H" },
+    weather: { bg: "bg-sky-100 text-sky-700", label: "W" },
+    hotline_bar: { bg: "bg-rose-100 text-rose-700", label: "P" },
+  };
+  const icon = icons[type] ?? { bg: "bg-stone-100 text-stone-600", label: "?" };
+  return (
+    <div className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0 ${icon.bg}`}>
+      {icon.label}
+    </div>
+  );
+}
+
+function WidgetContent({ type, config }: { type: string; config: Record<string, unknown> }) {
+  switch (type) {
+    case "section_header":
+      return (
+        <div>
+          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">Section Header</div>
+          <div className="text-sm font-semibold text-stone-800 truncate">
+            {(config.title as string) || "Untitled"}
+          </div>
+          {typeof config.subtitle === "string" && config.subtitle && (
+            <div className="text-xs text-stone-400 truncate">{config.subtitle}</div>
+          )}
+        </div>
+      );
+    case "weather":
+      return (
+        <div>
+          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">Weather</div>
+          <div className="text-sm text-stone-700">
+            {config.location_id ? `Location: ${config.location_id}` : "County default"}
+          </div>
+        </div>
+      );
+    case "hotline_bar": {
+      const lines = Array.isArray(config.lines) ? config.lines : [];
+      return (
+        <div>
+          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">Hotline Bar</div>
+          <div className="text-sm text-stone-700">
+            {lines.length > 0
+              ? lines.map((l: Record<string, unknown>) => (l.label as string) || "Line").join(", ")
+              : "No lines configured"}
+          </div>
+        </div>
+      );
+    }
+    default:
+      return (
+        <div>
+          <div className="text-xs font-medium text-stone-500 uppercase tracking-wide">{type}</div>
+          <div className="text-xs text-stone-400">Unknown widget type</div>
+        </div>
+      );
+  }
+}
+
+function parseWidgetConfig(config: string | null | undefined): Record<string, unknown> {
+  if (!config) return {};
+  try {
+    return JSON.parse(config) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
+// ─── SlotCell (droppable grid cell) ──────────────────────────────────────────
+
+function SlotCell({
+  rowId,
+  templateSlot,
+  editionSlots,
+  isEditable,
+  postTemplates,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+}: {
+  rowId: string;
+  templateSlot: TemplateSlotDef;
+  editionSlots: EditionSlot[];
+  isEditable: boolean;
+  postTemplates: PostTemplate[];
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+}) {
+  const droppableId = `drop-${rowId}-${templateSlot.slotIndex}`;
+  const { isOver, setNodeRef } = useDroppable({
+    id: droppableId,
+    disabled: !isEditable,
+  });
+  const colSpan = WEIGHT_SPAN[templateSlot.weight] ?? 1;
+  const hasRoom = editionSlots.length < templateSlot.count;
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`space-y-2 rounded-lg p-2 transition-colors min-h-[80px] ${
+        isOver
+          ? "bg-amber-50 ring-2 ring-amber-300"
+          : hasRoom && isEditable
+            ? "bg-stone-50/50"
+            : ""
+      }`}
+      style={{ gridColumn: `span ${colSpan}` }}
+    >
+      {editionSlots.map((slot) => (
+        <DraggableSlotCard
+          key={slot.id}
+          slot={slot}
+          isEditable={isEditable}
+          postTemplates={postTemplates}
+          onChangeTemplate={onChangeTemplate}
+          onRemovePost={onRemovePost}
+          onViewPost={onViewPost}
+        />
+      ))}
+      {hasRoom && isEditable && (
+        <div
+          className={`rounded-lg border-2 border-dashed p-3 flex items-center justify-center ${
+            isOver ? "border-amber-400 bg-amber-50/50" : "border-stone-200"
+          }`}
+        >
+          <span className="text-xs text-stone-400">
+            {isOver
+              ? "Drop here"
+              : `${templateSlot.weight} \u00b7 ${templateSlot.count - editionSlots.length} open`}
+          </span>
+        </div>
+      )}
+      {editionSlots.length === 0 && !isEditable && (
+        <div className="rounded-lg border-2 border-dashed border-stone-200 p-4 flex items-center justify-center">
+          <span className="text-xs text-stone-400">Empty</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DraggableSlotCard ───────────────────────────────────────────────────────
+
+function DraggableSlotCard({
+  slot,
+  isEditable,
+  postTemplates,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+}: {
+  slot: EditionSlot;
+  isEditable: boolean;
+  postTemplates: PostTemplate[];
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } =
+    useDraggable({ id: slot.id, disabled: !isEditable });
+
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`rounded-lg border border-stone-200 bg-white p-3 transition-shadow ${
+        isDragging ? "opacity-30 shadow-lg" : "hover:shadow-md"
+      } ${isEditable ? "cursor-grab active:cursor-grabbing" : ""}`}
+      {...(isEditable ? { ...attributes, ...listeners } : {})}
+    >
+      <div className="text-sm font-medium text-stone-900 truncate">
+        {slot.post.title}
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+        <PostTypeBadge type={slot.post.postType} />
+        <WeightBadge weight={slot.post.weight} />
+        <span className="text-[10px] text-stone-400">{slot.postTemplate}</span>
+      </div>
+
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-stone-100">
+        <button
+          onClick={(e) => { e.stopPropagation(); onViewPost(slot.post.id); }}
+          className="text-[11px] text-amber-600 hover:text-amber-700 font-medium"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          View
+        </button>
+        {isEditable && postTemplates.length > 0 && (
+          <Select
+            value={slot.postTemplate}
+            onValueChange={(val) => onChangeTemplate(slot.id, val)}
+          >
+            <SelectTrigger
+              className="h-6 text-[11px] px-2 py-0 min-w-0 w-auto border-stone-200"
+              onPointerDown={(e) => e.stopPropagation()}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {postTemplates.map((pt) => (
+                <SelectItem key={pt.slug} value={pt.slug}>
+                  {pt.displayName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+        {isEditable && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onRemovePost(slot.id); }}
+            className="text-[11px] text-red-500 hover:text-red-700 font-medium ml-auto"
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            Remove
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── RemoveDropZone ──────────────────────────────────────────────────────────
+
+function RemoveDropZone() {
+  const { isOver, setNodeRef } = useDroppable({ id: "remove-zone" });
+  return (
+    <div
+      ref={setNodeRef}
+      className={`mt-6 rounded-lg border-2 border-dashed p-4 text-center transition-colors ${
+        isOver
+          ? "border-red-400 bg-red-50 text-red-600"
+          : "border-stone-300 bg-stone-50 text-stone-400"
+      }`}
+    >
+      <span className="text-sm font-medium">
+        {isOver ? "Release to remove" : "Drag here to remove post"}
+      </span>
+    </div>
+  );
+}
+
+// ─── SlotCardOverlay (drag ghost) ────────────────────────────────────────────
+
+function SlotCardOverlay({ slot }: { slot: EditionSlot }) {
+  return (
+    <div className="rounded-lg border border-amber-300 bg-white shadow-xl p-3 max-w-xs">
+      <div className="text-sm font-medium text-stone-900 truncate">
+        {slot.post.title}
+      </div>
+      <div className="flex items-center gap-1.5 mt-1">
+        <PostTypeBadge type={slot.post.postType} />
+        <WeightBadge weight={slot.post.weight} />
+      </div>
+    </div>
+  );
+}
+
+// ─── AddRowButton ────────────────────────────────────────────────────────────
+
+function AddRowButton({
+  templates,
+  onAdd,
+}: {
+  templates: RowTemplate[];
+  onAdd: (slug: string) => void;
+}) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button className="w-full py-3 rounded-lg border-2 border-dashed border-stone-300 text-sm font-medium text-stone-500 hover:border-stone-400 hover:text-stone-600 transition-colors">
+          + Add Row
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="center" className="w-64">
+        {templates.map((t) => (
+          <DropdownMenuItem key={t.slug} onClick={() => onAdd(t.slug)}>
+            <div>
+              <div className="font-medium">{t.displayName}</div>
+              {t.description && (
+                <div className="text-xs text-stone-400 mt-0.5">
+                  {t.description}
+                </div>
+              )}
+            </div>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+// ─── Shared UI helpers ───────────────────────────────────────────────────────
+
+function StatCard({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-stone-200 px-4 py-3 text-center">
+      <div className="text-2xl font-bold text-stone-900">{value}</div>
+      <div className="text-xs text-stone-500 uppercase tracking-wider">
+        {label}
+      </div>
+    </div>
+  );
+}
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     draft: "bg-yellow-100 text-yellow-800",
+    in_review: "bg-amber-100 text-amber-800",
+    approved: "bg-emerald-100 text-emerald-800",
     published: "bg-green-100 text-green-800",
     archived: "bg-stone-100 text-stone-600",
   };
+  const labels: Record<string, string> = {
+    draft: "Draft",
+    in_review: "In Review",
+    approved: "Approved",
+    published: "Published",
+    archived: "Archived",
+  };
   return (
-    <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${styles[status] || "bg-stone-100 text-stone-600"}`}>
-      {status}
+    <span
+      className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+        styles[status] || "bg-stone-100 text-stone-600"
+      }`}
+    >
+      {labels[status] || status}
     </span>
   );
 }
@@ -305,7 +956,11 @@ function PostTypeBadge({ type }: { type: string | null | undefined }) {
     reference: "bg-stone-100 text-stone-600",
   };
   return (
-    <span className={`px-1.5 py-0.5 text-[10px] rounded font-medium ${colors[type] || "bg-stone-100 text-stone-600"}`}>
+    <span
+      className={`px-1.5 py-0.5 text-[10px] rounded font-medium ${
+        colors[type] || "bg-stone-100 text-stone-600"
+      }`}
+    >
       {type}
     </span>
   );
@@ -319,13 +974,22 @@ function WeightBadge({ weight }: { weight: string | null | undefined }) {
     light: "bg-stone-200 text-stone-600",
   };
   return (
-    <span className={`px-1.5 py-0.5 text-[10px] rounded font-medium ${colors[weight] || "bg-stone-100 text-stone-600"}`}>
+    <span
+      className={`px-1.5 py-0.5 text-[10px] rounded font-medium ${
+        colors[weight] || "bg-stone-100 text-stone-600"
+      }`}
+    >
       {weight}
     </span>
   );
 }
 
-function formatDateLong(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
-  return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
+function formatDateRange(start: string, end: string): string {
+  const s = new Date(start + "T00:00:00");
+  const e = new Date(end + "T00:00:00");
+  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  if (s.getFullYear() !== e.getFullYear()) {
+    return `${s.toLocaleDateString("en-US", { ...opts, year: "numeric" })} \u2013 ${e.toLocaleDateString("en-US", { ...opts, year: "numeric" })}`;
+  }
+  return `${s.toLocaleDateString("en-US", opts)} \u2013 ${e.toLocaleDateString("en-US", { ...opts, year: "numeric" })}`;
 }

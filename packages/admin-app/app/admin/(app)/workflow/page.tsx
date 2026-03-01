@@ -12,107 +12,135 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import { WorkflowColumn } from "@/components/admin/WorkflowColumn";
-import { WorkflowCardOverlay } from "@/components/admin/WorkflowCard";
+import { EditionKanbanColumn } from "@/components/admin/EditionKanbanColumn";
 import {
-  PostsListQuery,
-  ApprovePostMutation,
-  ReactivatePostMutation,
-} from "@/lib/graphql/posts";
+  EditionKanbanCardOverlay,
+  type EditionCardData,
+} from "@/components/admin/EditionKanbanCard";
+import {
+  EditionsListQuery,
+  ReviewEditionMutation,
+  ApproveEditionMutation,
+  PublishEditionMutation,
+  BatchPublishEditionsMutation,
+} from "@/lib/graphql/editions";
 
-// Column definitions with their target statuses
+// ─── Week helpers ──────────────────────────────────────────────────────────
+
+function getWeekBounds(date: Date): { start: string; end: string } {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(d);
+  monday.setDate(d.getDate() + diffToMonday);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    start: monday.toISOString().split("T")[0],
+    end: sunday.toISOString().split("T")[0],
+  };
+}
+
+function formatWeekLabel(start: string): string {
+  const d = new Date(start + "T00:00:00");
+  return `Week of ${d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
+}
+
+// ─── Column config ─────────────────────────────────────────────────────────
+
 const COLUMNS = [
-  { id: "draft", label: "Drafts", status: "draft", color: "bg-kanban-draft-bg" },
-  { id: "pending_approval", label: "In Review", status: "pending_approval", color: "bg-kanban-review-bg" },
-  { id: "active", label: "Published", status: "active", color: "bg-kanban-published-bg" },
+  { id: "published", label: "Live", status: "published", color: "bg-green-50" },
+  { id: "draft", label: "Ready for Review", status: "draft", color: "bg-kanban-draft-bg" },
+  { id: "in_review", label: "In Review", status: "in_review", color: "bg-kanban-review-bg" },
+  { id: "approved", label: "Approved", status: "approved", color: "bg-kanban-published-bg" },
 ] as const;
 
 type ColumnId = (typeof COLUMNS)[number]["id"];
 
-interface PostItem {
-  id: string;
-  title: string;
-  status: string;
-  postType?: string | null;
-  urgency?: string | null;
-  createdAt: string;
-}
+// ─── Component ─────────────────────────────────────────────────────────────
 
 export default function WorkflowPage() {
-  const [activeCard, setActiveCard] = useState<PostItem | null>(null);
-  const [typeFilter, setTypeFilter] = useState("");
+  const [weekOffset, setWeekOffset] = useState(0);
+  const [activeCard, setActiveCard] = useState<EditionCardData | null>(null);
+
+  // Compute current week bounds
+  const { periodStart, periodEnd, weekLabel } = useMemo(() => {
+    const now = new Date();
+    now.setDate(now.getDate() + weekOffset * 7);
+    const bounds = getWeekBounds(now);
+    return {
+      periodStart: bounds.start,
+      periodEnd: bounds.end,
+      weekLabel: formatWeekLabel(bounds.start),
+    };
+  }, [weekOffset]);
 
   const mutationContext = {
-    additionalTypenames: ["Post", "PostConnection", "PostStats"],
+    additionalTypenames: ["Edition", "EditionConnection"],
   };
 
-  // Fetch posts for each column
-  const [{ data: draftData, fetching: f1 }] = useQuery({
-    query: PostsListQuery,
-    variables: { status: "draft", limit: 50, postType: typeFilter || undefined },
-  });
-  const [{ data: reviewData, fetching: f2 }] = useQuery({
-    query: PostsListQuery,
-    variables: { status: "pending_approval", limit: 50, postType: typeFilter || undefined },
-  });
-  const [{ data: activeData, fetching: f3 }] = useQuery({
-    query: PostsListQuery,
-    variables: { status: "active", limit: 50, postType: typeFilter || undefined },
+  // Fetch all editions for this period (up to 100 covers all 87 counties)
+  const [{ data, fetching }] = useQuery({
+    query: EditionsListQuery,
+    variables: { periodStart, periodEnd, limit: 100 },
   });
 
-  const [, approvePost] = useMutation(ApprovePostMutation);
-  const [, reactivatePost] = useMutation(ReactivatePostMutation);
+  const [, reviewEdition] = useMutation(ReviewEditionMutation);
+  const [, approveEdition] = useMutation(ApproveEditionMutation);
+  const [, publishEdition] = useMutation(PublishEditionMutation);
+  const [{ fetching: batchPublishing }, batchPublishEditions] = useMutation(
+    BatchPublishEditionsMutation
+  );
 
-  const isLoading = f1 && f2 && f3;
+  // Map editions to card data grouped by status
+  const editionsByColumn = useMemo(() => {
+    const allEditions = data?.editions?.editions ?? [];
+    const result: Record<ColumnId, EditionCardData[]> = {
+      published: [],
+      draft: [],
+      in_review: [],
+      approved: [],
+    };
 
-  // Build post lists per column
-  const postsByColumn = useMemo(() => {
-    const drafts: PostItem[] = (draftData?.posts?.posts ?? []).map((p) => ({
-      id: p.id,
-      title: p.title,
-      status: "draft",
-      postType: p.postType,
-      urgency: p.urgency,
-      createdAt: p.createdAt,
-    }));
-    const reviews: PostItem[] = (reviewData?.posts?.posts ?? []).map((p) => ({
-      id: p.id,
-      title: p.title,
-      status: "pending_approval",
-      postType: p.postType,
-      urgency: p.urgency,
-      createdAt: p.createdAt,
-    }));
-    const published: PostItem[] = (activeData?.posts?.posts ?? []).map((p) => ({
-      id: p.id,
-      title: p.title,
-      status: "active",
-      postType: p.postType,
-      urgency: p.urgency,
-      createdAt: p.createdAt,
-    }));
+    for (const e of allEditions) {
+      const card: EditionCardData = {
+        id: e.id,
+        countyName: e.county.name,
+        periodStart: e.periodStart,
+        periodEnd: e.periodEnd,
+        status: e.status,
+        filledSlots: e.rows.length, // row count as proxy for now
+        totalSlots: 0, // not available from list query
+      };
 
-    return {
-      draft: drafts,
-      pending_approval: reviews,
-      active: published,
-    } as Record<ColumnId, PostItem[]>;
-  }, [draftData, reviewData, activeData]);
+      const status = e.status as ColumnId;
+      if (result[status]) {
+        result[status].push(card);
+      }
+    }
 
-  // Find which column a post belongs to
-  const findColumnForPost = useCallback(
-    (postId: string): ColumnId | null => {
+    // Sort each column alphabetically by county name
+    for (const col of Object.values(result)) {
+      col.sort((a, b) => a.countyName.localeCompare(b.countyName));
+    }
+
+    return result;
+  }, [data]);
+
+  // Find which column an edition belongs to
+  const findColumnForEdition = useCallback(
+    (editionId: string): ColumnId | null => {
       for (const col of COLUMNS) {
-        if (postsByColumn[col.id].some((p) => p.id === postId)) {
+        if (editionsByColumn[col.id].some((e) => e.id === editionId)) {
           return col.id;
         }
       }
       return null;
     },
-    [postsByColumn]
+    [editionsByColumn]
   );
 
-  // DnD sensors — slight activation distance to avoid accidental drags
+  // DnD sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
@@ -121,14 +149,14 @@ export default function WorkflowPage() {
     (event: DragStartEvent) => {
       const id = event.active.id as string;
       for (const col of COLUMNS) {
-        const post = postsByColumn[col.id].find((p) => p.id === id);
-        if (post) {
-          setActiveCard(post);
+        const edition = editionsByColumn[col.id].find((e) => e.id === id);
+        if (edition) {
+          setActiveCard(edition);
           return;
         }
       }
     },
-    [postsByColumn]
+    [editionsByColumn]
   );
 
   const handleDragEnd = useCallback(
@@ -138,57 +166,86 @@ export default function WorkflowPage() {
       const { active, over } = event;
       if (!over) return;
 
-      const postId = active.id as string;
-      const sourceColumn = findColumnForPost(postId);
+      const editionId = active.id as string;
+      const sourceColumn = findColumnForEdition(editionId);
 
-      // The drop target could be a column ID or a card ID (within a column)
+      // Determine target column
       let targetColumn: ColumnId | null = null;
       if (COLUMNS.some((c) => c.id === over.id)) {
         targetColumn = over.id as ColumnId;
       } else {
-        // Dropped on a card — find which column it belongs to
-        targetColumn = findColumnForPost(over.id as string);
+        targetColumn = findColumnForEdition(over.id as string);
       }
 
       if (!targetColumn || targetColumn === sourceColumn) return;
 
-      // Perform status transition via Restate
-      if (targetColumn === "active") {
-        // Moving to Published → approve
-        await approvePost({ id: postId }, mutationContext);
-      } else if (targetColumn === "pending_approval") {
-        // Moving to In Review → reactivate (from draft or other)
-        await reactivatePost({ id: postId }, mutationContext);
+      // Perform status transition
+      if (sourceColumn === "draft" && targetColumn === "in_review") {
+        await reviewEdition({ id: editionId }, mutationContext);
+      } else if (sourceColumn === "in_review" && targetColumn === "approved") {
+        await approveEdition({ id: editionId }, mutationContext);
+      } else if (sourceColumn === "approved" && targetColumn === "published") {
+        await publishEdition({ id: editionId }, mutationContext);
       }
-      // Moving to Drafts would need a "set to draft" mutation — not yet wired.
-      // For now, only Published and In Review transitions are supported.
+      // Other transitions (e.g., backwards) are not supported
     },
-    [findColumnForPost, approvePost, reactivatePost, mutationContext]
+    [findColumnForEdition, reviewEdition, approveEdition, publishEdition, mutationContext]
   );
 
-  if (isLoading) {
-    return <AdminLoader label="Loading workflow..." />;
+  const handleApproveAll = useCallback(async () => {
+    const approvedIds = editionsByColumn.approved.map((e) => e.id);
+    if (approvedIds.length === 0) return;
+    await batchPublishEditions({ ids: approvedIds }, mutationContext);
+  }, [editionsByColumn, batchPublishEditions, mutationContext]);
+
+  if (fetching && !data) {
+    return <AdminLoader label="Loading review board..." />;
   }
+
+  const totalCount = data?.editions?.totalCount ?? 0;
 
   return (
     <div className="p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-text-primary">Workflow</h1>
+        <div>
+          <h1 className="text-2xl font-semibold text-text-primary">
+            Review Board
+          </h1>
+          <p className="text-sm text-text-secondary mt-0.5">
+            {weekLabel} &middot; {totalCount} edition{totalCount !== 1 ? "s" : ""}
+          </p>
+        </div>
 
-        <select
-          value={typeFilter}
-          onChange={(e) => setTypeFilter(e.target.value)}
-          className="px-3 py-1.5 text-sm border border-border rounded-lg bg-surface-raised focus:outline-none focus:ring-2 focus:ring-focus-ring"
-        >
-          <option value="">All types</option>
-          <option value="story">Stories</option>
-          <option value="notice">Notices</option>
-          <option value="exchange">Exchanges</option>
-          <option value="event">Events</option>
-          <option value="spotlight">Spotlights</option>
-          <option value="reference">References</option>
-        </select>
+        <div className="flex items-center gap-3">
+          {/* Week navigation */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => setWeekOffset((w) => w - 1)}
+              className="p-1.5 rounded-lg text-text-muted hover:bg-surface-muted transition-colors"
+              title="Previous week"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setWeekOffset(0)}
+              className="px-2.5 py-1 rounded-lg text-xs font-medium text-text-secondary hover:bg-surface-muted transition-colors"
+            >
+              This Week
+            </button>
+            <button
+              onClick={() => setWeekOffset((w) => w + 1)}
+              className="p-1.5 rounded-lg text-text-muted hover:bg-surface-muted transition-colors"
+              title="Next week"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Kanban board */}
@@ -197,32 +254,46 @@ export default function WorkflowPage() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {COLUMNS.map((col) => (
-            <WorkflowColumn
+            <EditionKanbanColumn
               key={col.id}
               id={col.id}
               label={col.label}
-              count={postsByColumn[col.id].length}
+              count={editionsByColumn[col.id].length}
               colorClass={col.color}
-              posts={postsByColumn[col.id]}
+              editions={editionsByColumn[col.id]}
+              action={
+                col.id === "approved" && editionsByColumn.approved.length > 0 ? (
+                  <button
+                    onClick={handleApproveAll}
+                    disabled={batchPublishing}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+                  >
+                    {batchPublishing ? "Publishing..." : "Publish All"}
+                  </button>
+                ) : undefined
+              }
             />
           ))}
         </div>
 
-        {/* Drag overlay — renders the ghost card outside the normal flow */}
+        {/* Drag overlay */}
         <DragOverlay>
-          {activeCard ? (
-            <WorkflowCardOverlay
-              id={activeCard.id}
-              title={activeCard.title}
-              postType={activeCard.postType}
-              urgency={activeCard.urgency}
-              createdAt={activeCard.createdAt}
-            />
-          ) : null}
+          {activeCard ? <EditionKanbanCardOverlay {...activeCard} /> : null}
         </DragOverlay>
       </DndContext>
+
+      {/* Empty state */}
+      {totalCount === 0 && !fetching && (
+        <div className="text-center py-16 text-text-faint">
+          <div className="text-4xl mb-3">📋</div>
+          <p className="text-sm">
+            No editions for this week. Use &ldquo;Batch Generate&rdquo; on the
+            Editions page to create broadsheets.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

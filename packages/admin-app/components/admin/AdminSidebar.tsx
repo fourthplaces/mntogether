@@ -4,8 +4,10 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "urql";
+import { useMemo } from "react";
 import { logout } from "@/lib/auth/actions";
 import { PostStatsQuery } from "@/lib/graphql/posts";
+import { EditionKanbanStatsQuery } from "@/lib/graphql/editions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -112,6 +114,8 @@ const buildNavGroups = (): NavGroup[] => [
   {
     label: "Content",
     items: [
+      { href: "/admin/workflow", label: "Review Board", icon: icons.workflow },
+      { href: "/admin/editions", label: "Editions", icon: icons.editions },
       {
         href: "/admin/posts",
         label: "Posts",
@@ -126,8 +130,6 @@ const buildNavGroups = (): NavGroup[] => [
           { href: "/admin/posts", label: "References", queryParam: "reference" },
         ],
       },
-      { href: "/admin/workflow", label: "Workflow", icon: icons.workflow },
-      { href: "/admin/editions", label: "Editions", icon: icons.editions },
       { href: "/admin/media", label: "Media", icon: icons.media },
     ],
   },
@@ -232,6 +234,29 @@ export function AdminSidebar({
   const [{ data: statsData }] = useQuery({ query: PostStatsQuery });
   const postStats = statsData?.postStats;
 
+  // Edition stats for Review Board badge (current week)
+  const weekBounds = useMemo(() => {
+    const d = new Date();
+    const day = d.getDay();
+    const diffToMonday = day === 0 ? -6 : 1 - day;
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + diffToMonday);
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    return {
+      periodStart: monday.toISOString().split("T")[0],
+      periodEnd: sunday.toISOString().split("T")[0],
+    };
+  }, []);
+  const [{ data: editionStatsData }] = useQuery({
+    query: EditionKanbanStatsQuery,
+    variables: weekBounds,
+  });
+  const reviewBadge = editionStatsData?.editionKanbanStats
+    ? (editionStatsData.editionKanbanStats.draft ?? 0) +
+      (editionStatsData.editionKanbanStats.inReview ?? 0)
+    : undefined;
+
   // Close on Escape
   useEffect(() => {
     if (!mobileOpen) return;
@@ -313,7 +338,12 @@ export function AdminSidebar({
                 const active = isItemActive(item);
                 const hasChildren = item.children && item.children.length > 0;
                 const isExpanded = hasChildren && expanded[item.href] !== false; // default expanded
-                const itemBadge = item.href === "/admin/posts" ? postStats?.total : item.badge;
+                const itemBadge =
+                  item.href === "/admin/posts"
+                    ? postStats?.total
+                    : item.href === "/admin/workflow"
+                      ? reviewBadge
+                      : item.badge;
 
                 if (hasChildren && !collapsed) {
                   // Parent item with expandable children
