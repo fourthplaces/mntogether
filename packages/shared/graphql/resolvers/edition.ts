@@ -179,6 +179,18 @@ export const editionResolvers = {
       });
     },
 
+    latestEditions: async (
+      _parent: unknown,
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.restate.callService<{
+        editions: EditionData[];
+        total_count: number;
+      }>("Editions", "latest_editions", {});
+      return result.editions;
+    },
+
     editions: async (
       _parent: unknown,
       args: {

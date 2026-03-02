@@ -3,6 +3,13 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import {
+  getWeeksOld,
+  getStalenessLevel,
+  getStalenessLabel,
+  STALENESS_BORDER,
+  STALENESS_TEXT,
+} from "@/lib/staleness";
 
 export interface EditionCardData {
   id: string;
@@ -18,31 +25,10 @@ interface EditionKanbanCardProps extends EditionCardData {
   isDragOverlay?: boolean;
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  draft: "border-l-amber-400",
-  in_review: "border-l-blue-400",
-  approved: "border-l-emerald-400",
-  published: "border-l-green-600",
-};
-
-function formatPeriod(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const sMonth = s.toLocaleDateString("en-US", { month: "short" });
-  const eMonth = e.toLocaleDateString("en-US", { month: "short" });
-  if (sMonth === eMonth) {
-    return `${sMonth} ${s.getDate()}–${e.getDate()}`;
-  }
-  return `${sMonth} ${s.getDate()} – ${eMonth} ${e.getDate()}`;
-}
-
 export function EditionKanbanCard({
   id,
   countyName,
-  periodStart,
   periodEnd,
-  filledSlots,
-  totalSlots,
   isDragOverlay,
 }: EditionKanbanCardProps) {
   const {
@@ -60,14 +46,17 @@ export function EditionKanbanCard({
     opacity: isDragging ? 0.4 : 1,
   };
 
-  const fillPercent = totalSlots > 0 ? Math.round((filledSlots / totalSlots) * 100) : 0;
-  const borderColor = STATUS_COLORS[isDragOverlay ? "" : ""] ?? "";
+  const weeksOld = getWeeksOld(periodEnd);
+  const level = getStalenessLevel(weeksOld);
+  const label = getStalenessLabel(weeksOld);
+  const borderClass = STALENESS_BORDER[level];
+  const textClass = STALENESS_TEXT[level];
 
   const card = (
     <div
       ref={isDragOverlay ? undefined : setNodeRef}
       style={isDragOverlay ? undefined : style}
-      className={`bg-surface-raised border border-border border-l-[3px] ${STATUS_COLORS[isDragOverlay ? "draft" : "draft"]} rounded-lg px-3 py-2 shadow-sm hover:shadow-card-hover transition-shadow group ${
+      className={`bg-surface-raised border border-border border-l-[3px] ${borderClass} rounded-lg px-3 py-2 shadow-sm hover:shadow-card-hover transition-shadow group ${
         isDragOverlay ? "shadow-dialog rotate-1 scale-[1.02]" : ""
       }`}
       {...(isDragOverlay ? {} : attributes)}
@@ -95,31 +84,17 @@ export function EditionKanbanCard({
             {countyName}
           </p>
 
-          {/* Period + fill rate */}
+          {/* Staleness label */}
           <div className="flex items-center gap-2 mt-1">
-            <span className="text-[10px] text-text-faint">
-              {formatPeriod(periodStart, periodEnd)}
-            </span>
-            <span className="text-[10px] text-text-muted ml-auto">
-              {filledSlots}/{totalSlots}
+            <span className={`text-[10px] font-medium ${textClass}`}>
+              {level === "alert" && (
+                <svg className="w-3 h-3 inline-block mr-0.5 -mt-px" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-2.694-.833-3.464 0L3.34 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              )}
+              {label}
             </span>
           </div>
-
-          {/* Fill bar */}
-          {totalSlots > 0 && (
-            <div className="mt-1.5 h-1 bg-stone-200 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all ${
-                  fillPercent === 100
-                    ? "bg-emerald-500"
-                    : fillPercent >= 50
-                      ? "bg-amber-500"
-                      : "bg-stone-400"
-                }`}
-                style={{ width: `${fillPercent}%` }}
-              />
-            </div>
-          )}
         </div>
 
         {/* Edit link (visible on hover) */}

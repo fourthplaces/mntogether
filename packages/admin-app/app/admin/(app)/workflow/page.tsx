@@ -18,41 +18,21 @@ import {
   type EditionCardData,
 } from "@/components/admin/EditionKanbanCard";
 import {
-  EditionsListQuery,
+  LatestEditionsQuery,
   ReviewEditionMutation,
   ApproveEditionMutation,
   PublishEditionMutation,
   BatchPublishEditionsMutation,
 } from "@/lib/graphql/editions";
+import { getWeeksOld } from "@/lib/staleness";
 
-// ─── Week helpers ──────────────────────────────────────────────────────────
-
-function getWeekBounds(date: Date): { start: string; end: string } {
-  const d = new Date(date);
-  const day = d.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
-  };
-}
-
-function formatWeekLabel(start: string): string {
-  const d = new Date(start + "T00:00:00");
-  return `Week of ${d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`;
-}
-
-// ─── Column config ─────────────────────────────────────────────────────────
+// ─── Column config (left-to-right = editorial flow) ─────────────────────────
 
 const COLUMNS = [
-  { id: "published", label: "Live", status: "published", color: "bg-green-50" },
   { id: "draft", label: "Ready for Review", status: "draft", color: "bg-kanban-draft-bg" },
   { id: "in_review", label: "In Review", status: "in_review", color: "bg-kanban-review-bg" },
   { id: "approved", label: "Approved", status: "approved", color: "bg-kanban-published-bg" },
+  { id: "published", label: "Live", status: "published", color: "bg-green-50" },
 ] as const;
 
 type ColumnId = (typeof COLUMNS)[number]["id"];
@@ -60,29 +40,15 @@ type ColumnId = (typeof COLUMNS)[number]["id"];
 // ─── Component ─────────────────────────────────────────────────────────────
 
 export default function WorkflowPage() {
-  const [weekOffset, setWeekOffset] = useState(0);
   const [activeCard, setActiveCard] = useState<EditionCardData | null>(null);
-
-  // Compute current week bounds
-  const { periodStart, periodEnd, weekLabel } = useMemo(() => {
-    const now = new Date();
-    now.setDate(now.getDate() + weekOffset * 7);
-    const bounds = getWeekBounds(now);
-    return {
-      periodStart: bounds.start,
-      periodEnd: bounds.end,
-      weekLabel: formatWeekLabel(bounds.start),
-    };
-  }, [weekOffset]);
 
   const mutationContext = {
     additionalTypenames: ["Edition", "EditionConnection"],
   };
 
-  // Fetch all editions for this period (up to 100 covers all 87 counties)
+  // Fetch latest edition per county (87 results, no period filter)
   const [{ data, fetching }] = useQuery({
-    query: EditionsListQuery,
-    variables: { periodStart, periodEnd, limit: 100 },
+    query: LatestEditionsQuery,
   });
 
   const [, reviewEdition] = useMutation(ReviewEditionMutation);
@@ -92,14 +58,14 @@ export default function WorkflowPage() {
     BatchPublishEditionsMutation
   );
 
-  // Map editions to card data grouped by status
+  // Map editions to card data grouped by status, sorted by staleness (most stale first)
   const editionsByColumn = useMemo(() => {
-    const allEditions = data?.editions?.editions ?? [];
+    const allEditions = data?.latestEditions ?? [];
     const result: Record<ColumnId, EditionCardData[]> = {
-      published: [],
       draft: [],
       in_review: [],
       approved: [],
+      published: [],
     };
 
     for (const e of allEditions) {
@@ -109,8 +75,8 @@ export default function WorkflowPage() {
         periodStart: e.periodStart,
         periodEnd: e.periodEnd,
         status: e.status,
-        filledSlots: e.rows.length, // row count as proxy for now
-        totalSlots: 0, // not available from list query
+        filledSlots: e.rows.length,
+        totalSlots: 0,
       };
 
       const status = e.status as ColumnId;
@@ -119,13 +85,25 @@ export default function WorkflowPage() {
       }
     }
 
-    // Sort each column alphabetically by county name
+    // Sort: most stale first, then alphabetically within same staleness
     for (const col of Object.values(result)) {
-      col.sort((a, b) => a.countyName.localeCompare(b.countyName));
+      col.sort((a, b) => {
+        const staleA = getWeeksOld(a.periodEnd);
+        const staleB = getWeeksOld(b.periodEnd);
+        if (staleA !== staleB) return staleB - staleA; // most stale first
+        return a.countyName.localeCompare(b.countyName);
+      });
     }
 
     return result;
   }, [data]);
+
+  // Progress stats
+  const totalCount = data?.latestEditions?.length ?? 0;
+  const reviewedCount = useMemo(() => {
+    return (editionsByColumn.approved?.length ?? 0) +
+           (editionsByColumn.published?.length ?? 0);
+  }, [editionsByColumn]);
 
   // Find which column an edition belongs to
   const findColumnForEdition = useCallback(
@@ -179,7 +157,7 @@ export default function WorkflowPage() {
 
       if (!targetColumn || targetColumn === sourceColumn) return;
 
-      // Perform status transition
+      // Perform status transition (forward-only)
       if (sourceColumn === "draft" && targetColumn === "in_review") {
         await reviewEdition({ id: editionId }, mutationContext);
       } else if (sourceColumn === "in_review" && targetColumn === "approved") {
@@ -187,12 +165,11 @@ export default function WorkflowPage() {
       } else if (sourceColumn === "approved" && targetColumn === "published") {
         await publishEdition({ id: editionId }, mutationContext);
       }
-      // Other transitions (e.g., backwards) are not supported
     },
     [findColumnForEdition, reviewEdition, approveEdition, publishEdition, mutationContext]
   );
 
-  const handleApproveAll = useCallback(async () => {
+  const handlePublishAll = useCallback(async () => {
     const approvedIds = editionsByColumn.approved.map((e) => e.id);
     if (approvedIds.length === 0) return;
     await batchPublishEditions({ ids: approvedIds }, mutationContext);
@@ -201,8 +178,6 @@ export default function WorkflowPage() {
   if (fetching && !data) {
     return <AdminLoader label="Loading review board..." />;
   }
-
-  const totalCount = data?.editions?.totalCount ?? 0;
 
   return (
     <div className="p-6 h-full flex flex-col overflow-hidden">
@@ -213,38 +188,8 @@ export default function WorkflowPage() {
             Review Board
           </h1>
           <p className="text-sm text-text-secondary mt-0.5">
-            {weekLabel} &middot; {totalCount} edition{totalCount !== 1 ? "s" : ""}
+            {reviewedCount} of {totalCount} counties reviewed
           </p>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* Week navigation */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setWeekOffset((w) => w - 1)}
-              className="p-1.5 rounded-lg text-text-muted hover:bg-surface-muted transition-colors"
-              title="Previous week"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <button
-              onClick={() => setWeekOffset(0)}
-              className="px-2.5 py-1 rounded-lg text-xs font-medium text-text-secondary hover:bg-surface-muted transition-colors"
-            >
-              This Week
-            </button>
-            <button
-              onClick={() => setWeekOffset((w) => w + 1)}
-              className="p-1.5 rounded-lg text-text-muted hover:bg-surface-muted transition-colors"
-              title="Next week"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
         </div>
       </div>
 
@@ -266,7 +211,7 @@ export default function WorkflowPage() {
               action={
                 col.id === "approved" && editionsByColumn.approved.length > 0 ? (
                   <button
-                    onClick={handleApproveAll}
+                    onClick={handlePublishAll}
                     disabled={batchPublishing}
                     className="text-xs font-medium px-2.5 py-1 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                   >
@@ -286,10 +231,10 @@ export default function WorkflowPage() {
 
       {/* Empty state */}
       {totalCount === 0 && !fetching && (
-        <div className="text-center py-16 text-text-faint">
+        <div className="text-center py-16 text-text-faint shrink-0">
           <div className="text-4xl mb-3">📋</div>
           <p className="text-sm">
-            No editions for this week. Use &ldquo;Batch Generate&rdquo; on the
+            No editions found. Use &ldquo;Batch Generate&rdquo; on the
             Editions page to create broadsheets.
           </p>
         </div>

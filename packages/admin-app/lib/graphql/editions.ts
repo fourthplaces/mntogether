@@ -52,6 +52,26 @@ export const EditionsListQuery = graphql(`
   }
 `);
 
+export const LatestEditionsQuery = graphql(`
+  query LatestEditions {
+    latestEditions {
+      id
+      county {
+        id
+        name
+      }
+      periodStart
+      periodEnd
+      status
+      publishedAt
+      rows {
+        id
+      }
+      createdAt
+    }
+  }
+`);
+
 export const EditionDetailQuery = graphql(`
   query EditionDetail($id: ID!) {
     edition(id: $id) {

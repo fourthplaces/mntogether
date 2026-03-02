@@ -6,8 +6,9 @@ import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { DashboardQuery } from "@/lib/graphql/dashboard";
 import { BatchGenerateEditionsMutation } from "@/lib/graphql/editions";
+import { getWeeksOld } from "@/lib/staleness";
 
-// ─── Week helpers ────────────────────────────────────────────────────────────
+// ─── Week helpers (still needed for batch generate) ─────────────────────────
 
 function getWeekBounds(date: Date): { start: string; end: string } {
   const d = new Date(date);
@@ -23,53 +24,48 @@ function getWeekBounds(date: Date): { start: string; end: string } {
   };
 }
 
-function formatWeekRange(start: string, end: string): string {
-  const s = new Date(start + "T00:00:00");
-  const e = new Date(end + "T00:00:00");
-  const opts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  return `${s.toLocaleDateString("en-US", opts)} \u2013 ${e.toLocaleDateString("en-US", { ...opts, year: "numeric" })}`;
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { periodStart, periodEnd } = useMemo(() => {
-    const bounds = getWeekBounds(new Date());
-    return { periodStart: bounds.start, periodEnd: bounds.end };
-  }, []);
-
   const [{ data, fetching }] = useQuery({
     query: DashboardQuery,
-    variables: { periodStart, periodEnd },
   });
 
   const [{ fetching: generating }, batchGenerate] = useMutation(
     BatchGenerateEditionsMutation
   );
 
-  if (fetching) {
-    return <AdminLoader label="Loading dashboard..." />;
-  }
+  // Derive stats from latest editions
+  const { draft, inReview, approved, published, staleCount, totalEditions } = useMemo(() => {
+    const editions = data?.latestEditions ?? [];
+    let draft = 0, inReview = 0, approved = 0, published = 0, staleCount = 0;
+    for (const e of editions) {
+      if (e.status === "draft") draft++;
+      else if (e.status === "in_review") inReview++;
+      else if (e.status === "approved") approved++;
+      else if (e.status === "published") published++;
 
-  const stats = data?.editionKanbanStats;
+      if (getWeeksOld(e.periodEnd) >= 2) staleCount++;
+    }
+    return { draft, inReview, approved, published, staleCount, totalEditions: editions.length };
+  }, [data]);
+
   const pendingPosts = data?.pendingPosts;
   const totalPosts = data?.allPosts?.totalCount ?? 0;
-
-  const needsReview = (stats?.draft ?? 0) + (stats?.inReview ?? 0);
-  const readyToPublish = stats?.approved ?? 0;
-  const live = stats?.published ?? 0;
-  const totalEditions =
-    (stats?.draft ?? 0) +
-    (stats?.inReview ?? 0) +
-    (stats?.approved ?? 0) +
-    (stats?.published ?? 0);
+  const needsReview = draft + inReview;
+  const upToDate = approved + published;
 
   const handleBatchGenerate = async () => {
+    const bounds = getWeekBounds(new Date());
     await batchGenerate(
-      { periodStart, periodEnd },
+      { periodStart: bounds.start, periodEnd: bounds.end },
       { additionalTypenames: ["Edition", "EditionConnection"] }
     );
   };
+
+  if (fetching) {
+    return <AdminLoader label="Loading dashboard..." />;
+  }
 
   return (
     <div className="min-h-screen bg-[#FDFCFA] p-6">
@@ -80,7 +76,7 @@ export default function DashboardPage() {
             Edition Cockpit
           </h1>
           <p className="text-stone-500">
-            Week of {formatWeekRange(periodStart, periodEnd)}
+            {upToDate} of {totalEditions || 87} counties up to date
           </p>
         </div>
 
@@ -97,7 +93,7 @@ export default function DashboardPage() {
                   review
                 </span>
                 <p className="text-amber-700 text-sm mt-0.5">
-                  {stats?.draft ?? 0} draft, {stats?.inReview ?? 0} in review
+                  {draft} draft, {inReview} in review
                 </p>
               </div>
               <span className="text-amber-600 text-sm font-medium">
@@ -107,29 +103,51 @@ export default function DashboardPage() {
           </Link>
         )}
 
+        {/* Stale editions warning */}
+        {staleCount > 0 && (
+          <Link
+            href="/admin/workflow"
+            className="block mb-6 bg-red-50 border border-red-200 rounded-lg px-5 py-4 hover:bg-red-100 transition-colors"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-red-800 font-semibold text-lg">
+                  {staleCount} county edition{staleCount !== 1 ? "s" : ""} stale
+                </span>
+                <p className="text-red-700 text-sm mt-0.5">
+                  2+ weeks old &mdash; consider regenerating
+                </p>
+              </div>
+              <span className="text-red-600 text-sm font-medium">
+                View on Review Board &rarr;
+              </span>
+            </div>
+          </Link>
+        )}
+
         {/* Edition stats cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
-            value={live}
+            value={published}
             label="Live"
             color="bg-green-500"
-            subtitle={`of ${totalEditions > 0 ? totalEditions : 87} editions`}
+            subtitle={`of ${totalEditions || 87} counties`}
           />
           <StatCard
-            value={stats?.draft ?? 0}
+            value={draft}
             label="Ready for Review"
             color="bg-yellow-500"
           />
           <StatCard
-            value={stats?.inReview ?? 0}
+            value={inReview}
             label="In Review"
             color="bg-amber-500"
           />
           <StatCard
-            value={readyToPublish}
+            value={approved}
             label="Approved"
             color="bg-emerald-500"
-            subtitle={readyToPublish > 0 ? "Ready to publish" : undefined}
+            subtitle={approved > 0 ? "Ready to publish" : undefined}
           />
         </div>
 
@@ -167,7 +185,7 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* Two-column bottom: pending posts + system info */}
+        {/* Two-column bottom: pending posts + content summary */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Pending posts */}
           <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-5">
@@ -208,7 +226,7 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Summary */}
+          {/* Content summary */}
           <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-5">
             <h2 className="text-lg font-semibold text-stone-900 mb-4">
               Content Summary
@@ -222,16 +240,16 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-stone-600">
-                  Editions this week
+                  Counties tracked
                 </span>
                 <span className="text-sm font-semibold text-stone-900">
-                  {totalEditions}
+                  {totalEditions || 87}
                 </span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-stone-600">Published</span>
                 <span className="text-sm font-semibold text-green-700">
-                  {live}
+                  {published}
                 </span>
               </div>
               <div className="flex items-center justify-between">
@@ -242,6 +260,16 @@ export default function DashboardPage() {
                   {pendingPosts?.totalCount ?? 0}
                 </span>
               </div>
+              {staleCount > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-stone-600">
+                    Stale editions
+                  </span>
+                  <span className="text-sm font-semibold text-red-600">
+                    {staleCount}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

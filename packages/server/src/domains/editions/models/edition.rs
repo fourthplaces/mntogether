@@ -94,6 +94,21 @@ impl Edition {
         .map_err(Into::into)
     }
 
+    /// Returns the most recent edition for every county (one row per county).
+    /// Uses PostgreSQL DISTINCT ON to efficiently pick the latest per county_id.
+    pub async fn latest_per_county(pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT DISTINCT ON (county_id) *
+            FROM editions
+            ORDER BY county_id, period_start DESC, created_at DESC
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// List editions with optional filters.
     pub async fn list(filters: &EditionFilters, pool: &PgPool) -> Result<(Vec<Self>, i64)> {
         let limit = filters.limit.unwrap_or(20);

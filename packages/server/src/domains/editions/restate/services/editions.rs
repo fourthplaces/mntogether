@@ -34,6 +34,10 @@ pub struct GetCountyRequest {
 impl_restate_serde!(GetCountyRequest);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LatestEditionsRequest {}
+impl_restate_serde!(LatestEditionsRequest);
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ListEditionsRequest {
     pub county_id: Option<Uuid>,
     pub status: Option<String>,
@@ -372,6 +376,9 @@ pub trait EditionsService {
     async fn list_counties(req: ListCountiesRequest) -> Result<CountyListResult, HandlerError>;
     async fn get_county(req: GetCountyRequest) -> Result<CountyResult, HandlerError>;
     async fn list_editions(req: ListEditionsRequest) -> Result<EditionListResult, HandlerError>;
+    async fn latest_editions(
+        req: LatestEditionsRequest,
+    ) -> Result<EditionListResult, HandlerError>;
     async fn get_edition(req: GetEditionRequest) -> Result<EditionDetailResult, HandlerError>;
     async fn current_edition(
         req: CurrentEditionRequest,
@@ -590,6 +597,23 @@ impl EditionsService for EditionsServiceImpl {
         let (editions, total_count) = Edition::list(&filters, &self.deps.db_pool)
             .await
             .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        Ok(EditionListResult {
+            editions: editions.iter().map(Self::edition_to_result).collect(),
+            total_count,
+        })
+    }
+
+    async fn latest_editions(
+        &self,
+        _ctx: Context<'_>,
+        _req: LatestEditionsRequest,
+    ) -> Result<EditionListResult, HandlerError> {
+        let editions = Edition::latest_per_county(&self.deps.db_pool)
+            .await
+            .map_err(|e| TerminalError::new(e.to_string()))?;
+
+        let total_count = editions.len() as i64;
 
         Ok(EditionListResult {
             editions: editions.iter().map(Self::edition_to_result).collect(),

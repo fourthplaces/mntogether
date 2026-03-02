@@ -56,6 +56,7 @@ type Query {
   counties: [County!]!
   county(id: ID!): County
   editions(countyId: ID, status: String, periodStart: String, periodEnd: String, limit: Int, offset: Int): EditionConnection!
+  latestEditions: [Edition!]!
   edition(id: ID!): Edition
   currentEdition(countyId: ID!): Edition
   editionKanbanStats(periodStart: String!, periodEnd: String!): EditionKanbanStats!
