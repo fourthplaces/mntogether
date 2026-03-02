@@ -16,8 +16,6 @@ export const PostListFields = graphql(`
     createdAt
     publishedAt
     distanceMiles
-    relevanceScore
-    relevanceBreakdown
     organizationId
     organizationName
     tags {
@@ -50,8 +48,6 @@ export const PostDetailFields = graphql(`
     organizationId
     organizationName
     distanceMiles
-    relevanceScore
-    relevanceBreakdown
     submissionType
     weight
     priority

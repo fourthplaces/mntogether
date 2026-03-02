@@ -16,7 +16,6 @@ interface EditionKanbanColumnProps {
   count: number;
   colorClass: string;
   editions: EditionCardData[];
-  action?: React.ReactNode;
 }
 
 export function EditionKanbanColumn({
@@ -25,7 +24,6 @@ export function EditionKanbanColumn({
   count,
   colorClass,
   editions,
-  action,
 }: EditionKanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
 
@@ -43,7 +41,6 @@ export function EditionKanbanColumn({
             {count}
           </span>
         </div>
-        {action}
       </div>
 
       {/* Scrollable card list */}

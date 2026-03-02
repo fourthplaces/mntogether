@@ -21,7 +21,6 @@ interface PostReviewCardPost {
   urgency?: string | null;
   location?: string | null;
   sourceUrl?: string | null;
-  relevanceScore?: number | null;
   distanceMiles?: number | null;
   tags: Array<{
     id: string;
@@ -65,12 +64,6 @@ export function PostReviewCard({
 }: PostReviewCardProps) {
   const [expanded, setExpanded] = useState(false);
 
-  const getScoreColor = (score: number) => {
-    if (score >= 8) return "bg-green-100 text-green-800";
-    if (score >= 5) return "bg-amber-100 text-amber-800";
-    return "bg-red-100 text-red-800";
-  };
-
   const tags = post.tags || [];
 
   return (
@@ -91,11 +84,6 @@ export function PostReviewCard({
               <Badge variant="secondary">
                 {post.category}
               </Badge>
-            )}
-            {post.relevanceScore != null && (
-              <span className={`px-2 py-1 text-xs font-bold rounded ${getScoreColor(post.relevanceScore)}`}>
-                {post.relevanceScore}/10
-              </span>
             )}
           </div>
           <Link href={`/admin/posts/${post.id}`} className="text-lg font-semibold text-foreground hover:text-admin-accent transition-colors">

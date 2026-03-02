@@ -17,17 +17,5 @@ export const DashboardQuery = graphql(`
       }
       createdAt
     }
-    pendingPosts: posts(status: "pending_approval", limit: 5) {
-      posts {
-        id
-        title
-        status
-        createdAt
-      }
-      totalCount
-    }
-    allPosts: posts(limit: 1) {
-      totalCount
-    }
   }
 `);

@@ -167,16 +167,6 @@ export const RegeneratePostTagsMutation = graphql(`
   }
 `);
 
-export const BatchScorePostsMutation = graphql(`
-  mutation BatchScorePosts($limit: Int) {
-    batchScorePosts(limit: $limit) {
-      scored
-      failed
-      remaining
-    }
-  }
-`);
-
 export const UpdatePostCapacityMutation = graphql(`
   mutation UpdatePostCapacity($id: ID!, $capacityStatus: String!) {
     updatePostCapacity(id: $id, capacityStatus: $capacityStatus) {

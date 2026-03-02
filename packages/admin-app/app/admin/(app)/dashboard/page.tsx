@@ -1,17 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { DashboardQuery } from "@/lib/graphql/dashboard";
 import { BatchGenerateEditionsMutation } from "@/lib/graphql/editions";
-import { getWeeksOld } from "@/lib/staleness";
 
-// ─── Week helpers (still needed for batch generate) ─────────────────────────
+// ─── Week helpers ────────────────────────────────────────────────────────────
 
-function getWeekBounds(date: Date): { start: string; end: string } {
-  const d = new Date(date);
+function getWeekBounds(): { start: string; end: string } {
+  const d = new Date();
   const day = d.getDay();
   const diffToMonday = day === 0 ? -6 : 1 - day;
   const monday = new Date(d);
@@ -27,40 +26,92 @@ function getWeekBounds(date: Date): { start: string; end: string } {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [{ data, fetching }] = useQuery({
-    query: DashboardQuery,
-  });
+  const [{ data, fetching }] = useQuery({ query: DashboardQuery });
 
+  // Batch generate state
+  const [batchResult, setBatchResult] = useState<{
+    created: number;
+    failed: number;
+    totalCounties: number;
+  } | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
   const [{ fetching: generating }, batchGenerate] = useMutation(
     BatchGenerateEditionsMutation
   );
 
   // Derive stats from latest editions
-  const { draft, inReview, approved, published, staleCount, totalEditions } = useMemo(() => {
+  const stats = useMemo(() => {
     const editions = data?.latestEditions ?? [];
-    let draft = 0, inReview = 0, approved = 0, published = 0, staleCount = 0;
+    let draft = 0,
+      inReview = 0,
+      approved = 0,
+      published = 0;
     for (const e of editions) {
       if (e.status === "draft") draft++;
       else if (e.status === "in_review") inReview++;
       else if (e.status === "approved") approved++;
       else if (e.status === "published") published++;
-
-      if (getWeeksOld(e.periodEnd) >= 2) staleCount++;
     }
-    return { draft, inReview, approved, published, staleCount, totalEditions: editions.length };
+    return {
+      draft,
+      inReview,
+      approved,
+      published,
+      total: editions.length,
+    };
   }, [data]);
 
-  const pendingPosts = data?.pendingPosts;
-  const totalPosts = data?.allPosts?.totalCount ?? 0;
-  const needsReview = draft + inReview;
-  const upToDate = approved + published;
+  const needsReview = stats.draft + stats.inReview;
+  const kanbanCount = needsReview + stats.approved;
 
-  const handleBatchGenerate = async () => {
-    const bounds = getWeekBounds(new Date());
-    await batchGenerate(
-      { periodStart: bounds.start, periodEnd: bounds.end },
-      { additionalTypenames: ["Edition", "EditionConnection"] }
-    );
+  // Workflow guidance
+  const guidance = useMemo(() => {
+    if (stats.total === 0) return null;
+
+    if (kanbanCount === 0) {
+      return {
+        message: "All counties are published and up to date.",
+        tone: "success" as const,
+      };
+    }
+    if (stats.approved === kanbanCount) {
+      return {
+        message: `All ${stats.approved} editions reviewed — ready to publish!`,
+        tone: "ready" as const,
+      };
+    }
+    if (needsReview > 0) {
+      const reviewed = stats.approved;
+      if (reviewed > 0) {
+        return {
+          message: `${reviewed} of ${kanbanCount} editions reviewed`,
+          tone: "progress" as const,
+        };
+      }
+      return {
+        message: `${needsReview} edition${needsReview !== 1 ? "s" : ""} ready for review`,
+        tone: "action" as const,
+      };
+    }
+    return null;
+  }, [stats, kanbanCount, needsReview]);
+
+  const handleGenerate = async () => {
+    setBatchError(null);
+    setBatchResult(null);
+    const bounds = getWeekBounds();
+    try {
+      const result = await batchGenerate(
+        { periodStart: bounds.start, periodEnd: bounds.end },
+        { additionalTypenames: ["Edition", "EditionConnection"] }
+      );
+      if (result.error) throw result.error;
+      if (result.data?.batchGenerateEditions) {
+        setBatchResult(result.data.batchGenerateEditions);
+      }
+    } catch (err: any) {
+      setBatchError(err.message || "Batch generation failed");
+    }
   };
 
   if (fetching) {
@@ -71,88 +122,137 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#FDFCFA] p-6">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-stone-900 mb-1">
-            Edition Cockpit
-          </h1>
-          <p className="text-stone-500">
-            {upToDate} of {totalEditions || 87} counties up to date
-          </p>
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-stone-900 mb-1">
+              Dashboard
+            </h1>
+            <p className="text-stone-500">
+              {stats.published + stats.approved} of {stats.total || 87} counties
+              up to date
+            </p>
+          </div>
+          <button
+            onClick={handleGenerate}
+            disabled={generating}
+            className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
+          >
+            {generating ? "Generating..." : "Generate This Week"}
+          </button>
         </div>
 
-        {/* Alert banner */}
-        {needsReview > 0 && (
+        {/* Batch result / error */}
+        {batchError && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+            {batchError}
+            <button
+              onClick={() => setBatchError(null)}
+              className="ml-2 font-medium hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+        {batchResult && (
+          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+            <span>
+              Created{" "}
+              <span className="font-semibold">{batchResult.created}</span>{" "}
+              editions
+              {batchResult.failed > 0 && (
+                <>
+                  ,{" "}
+                  <span className="font-semibold text-red-600">
+                    {batchResult.failed}
+                  </span>{" "}
+                  failed
+                </>
+              )}{" "}
+              out of {batchResult.totalCounties} counties.
+            </span>
+            <button
+              onClick={() => setBatchResult(null)}
+              className="ml-2 font-medium hover:underline"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
+        {/* Workflow guidance banner */}
+        {guidance && guidance.tone !== "success" && (
           <Link
             href="/admin/workflow"
-            className="block mb-6 bg-amber-50 border border-amber-200 rounded-lg px-5 py-4 hover:bg-amber-100 transition-colors"
+            className={`block mb-6 rounded-lg px-5 py-4 transition-colors ${
+              guidance.tone === "ready"
+                ? "bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
+                : guidance.tone === "action"
+                  ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
+                  : "bg-stone-50 border border-stone-200 hover:bg-stone-100"
+            }`}
           >
             <div className="flex items-center justify-between">
-              <div>
-                <span className="text-amber-800 font-semibold text-lg">
-                  {needsReview} edition{needsReview !== 1 ? "s" : ""} need
-                  review
-                </span>
-                <p className="text-amber-700 text-sm mt-0.5">
-                  {draft} draft, {inReview} in review
-                </p>
-              </div>
-              <span className="text-amber-600 text-sm font-medium">
+              <span
+                className={`font-semibold text-lg ${
+                  guidance.tone === "ready"
+                    ? "text-emerald-800"
+                    : guidance.tone === "action"
+                      ? "text-amber-800"
+                      : "text-stone-800"
+                }`}
+              >
+                {guidance.message}
+              </span>
+              <span
+                className={`text-sm font-medium ${
+                  guidance.tone === "ready"
+                    ? "text-emerald-600"
+                    : guidance.tone === "action"
+                      ? "text-amber-600"
+                      : "text-stone-600"
+                }`}
+              >
                 Go to Review Board &rarr;
               </span>
             </div>
           </Link>
         )}
-
-        {/* Stale editions warning */}
-        {staleCount > 0 && (
-          <Link
-            href="/admin/workflow"
-            className="block mb-6 bg-red-50 border border-red-200 rounded-lg px-5 py-4 hover:bg-red-100 transition-colors"
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <span className="text-red-800 font-semibold text-lg">
-                  {staleCount} county edition{staleCount !== 1 ? "s" : ""} stale
-                </span>
-                <p className="text-red-700 text-sm mt-0.5">
-                  2+ weeks old &mdash; consider regenerating
-                </p>
-              </div>
-              <span className="text-red-600 text-sm font-medium">
-                View on Review Board &rarr;
-              </span>
-            </div>
-          </Link>
+        {guidance && guidance.tone === "success" && (
+          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg px-5 py-4">
+            <span className="text-green-800 font-semibold text-lg">
+              {guidance.message}
+            </span>
+          </div>
         )}
 
-        {/* Edition stats cards */}
+        {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
-            value={published}
-            label="Live"
-            color="bg-green-500"
-            subtitle={`of ${totalEditions || 87} counties`}
-          />
-          <StatCard
-            value={draft}
+            value={stats.draft}
             label="Ready for Review"
             color="bg-yellow-500"
           />
           <StatCard
-            value={inReview}
+            value={stats.inReview}
             label="In Review"
             color="bg-amber-500"
           />
           <StatCard
-            value={approved}
+            value={stats.approved}
             label="Approved"
             color="bg-emerald-500"
-            subtitle={approved > 0 ? "Ready to publish" : undefined}
+            subtitle={stats.approved > 0 ? "Ready to publish" : undefined}
+          />
+          <StatCard
+            value={stats.published}
+            label="Published"
+            color="bg-green-500"
+            subtitle={`of ${stats.total || 87} counties`}
           />
         </div>
 
         {/* Quick actions */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Link
             href="/admin/workflow"
             className="bg-amber-600 hover:bg-amber-700 text-white rounded-lg shadow-sm p-5 transition-colors"
@@ -171,107 +271,6 @@ export default function DashboardPage() {
               Browse and filter all county editions
             </p>
           </Link>
-          <button
-            onClick={handleBatchGenerate}
-            disabled={generating}
-            className="bg-white hover:bg-stone-50 text-stone-800 border border-stone-200 rounded-lg shadow-sm p-5 transition-colors text-left disabled:opacity-50"
-          >
-            <div className="text-lg font-semibold mb-1">
-              {generating ? "Generating..." : "Batch Generate"}
-            </div>
-            <p className="text-stone-500 text-sm">
-              Auto-generate editions for all 87 counties this week
-            </p>
-          </button>
-        </div>
-
-        {/* Two-column bottom: pending posts + content summary */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Pending posts */}
-          <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-stone-900">
-                Pending Posts
-              </h2>
-              {(pendingPosts?.totalCount ?? 0) > 0 && (
-                <Link
-                  href="/admin/posts?status=pending_approval"
-                  className="text-sm text-amber-600 hover:text-amber-700 font-medium"
-                >
-                  View all ({pendingPosts?.totalCount}) &rarr;
-                </Link>
-              )}
-            </div>
-            {pendingPosts?.posts && pendingPosts.posts.length > 0 ? (
-              <div className="space-y-2">
-                {pendingPosts.posts.map((post) => (
-                  <Link
-                    key={post.id}
-                    href={`/admin/posts/${post.id}`}
-                    className="block px-3 py-2 rounded-lg hover:bg-stone-50 transition-colors"
-                  >
-                    <div className="text-sm font-medium text-stone-900 truncate">
-                      {post.title}
-                    </div>
-                    <div className="text-xs text-stone-400 mt-0.5">
-                      {new Date(post.createdAt).toLocaleDateString()}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-stone-400">
-                No posts pending approval
-              </p>
-            )}
-          </div>
-
-          {/* Content summary */}
-          <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-5">
-            <h2 className="text-lg font-semibold text-stone-900 mb-4">
-              Content Summary
-            </h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-stone-600">Total posts</span>
-                <span className="text-sm font-semibold text-stone-900">
-                  {totalPosts}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-stone-600">
-                  Counties tracked
-                </span>
-                <span className="text-sm font-semibold text-stone-900">
-                  {totalEditions || 87}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-stone-600">Published</span>
-                <span className="text-sm font-semibold text-green-700">
-                  {published}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-stone-600">
-                  Pending approval
-                </span>
-                <span className="text-sm font-semibold text-amber-700">
-                  {pendingPosts?.totalCount ?? 0}
-                </span>
-              </div>
-              {staleCount > 0 && (
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-stone-600">
-                    Stale editions
-                  </span>
-                  <span className="text-sm font-semibold text-red-600">
-                    {staleCount}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       </div>
     </div>

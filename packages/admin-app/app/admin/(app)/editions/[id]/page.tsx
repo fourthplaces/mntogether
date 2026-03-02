@@ -68,23 +68,104 @@ const WEIGHT_SPAN: Record<string, number> = { heavy: 2, medium: 1, light: 1 };
 // ─── Page export ─────────────────────────────────────────────────────────────
 
 export default function EditionDetailPage() {
-  return <BroadsheetEditor />;
-}
-
-// ─── Main editor component ───────────────────────────────────────────────────
-
-function BroadsheetEditor() {
+  const [activeTab, setActiveTab] = useState<"layout" | "posts">("layout");
   const params = useParams();
-  const router = useRouter();
   const id = params.id as string;
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
 
-  // Queries
+  // Shared edition query — used by both tabs
   const [{ data, fetching, error }, refetchEdition] = useQuery({
     query: EditionDetailQuery,
     variables: { id },
   });
+
+  // Auto-review: opening a draft edition transitions it to in_review
+  const [, reviewEdition] = useMutation(ReviewEditionMutation);
+  const mutCtx = useMemo(
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot"] }),
+    []
+  );
+  const hasAutoReviewed = useRef(false);
+  const edition = data?.edition;
+  useEffect(() => {
+    if (edition && edition.status === "draft" && !hasAutoReviewed.current) {
+      hasAutoReviewed.current = true;
+      reviewEdition({ id }, mutCtx).then((res) => {
+        if (!res.error) refetchEdition({ requestPolicy: "network-only" });
+      });
+    }
+  }, [edition?.status, id, mutCtx, reviewEdition, refetchEdition]);
+
+  if (fetching && !edition) {
+    return <AdminLoader label="Loading edition..." />;
+  }
+
+  if (error || !edition) {
+    return (
+      <div className="min-h-screen bg-[#FDFCFA] p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            {error?.message || "Edition not found"}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-[#FDFCFA] p-6">
+      <div className="max-w-6xl mx-auto">
+        {/* Tab bar */}
+        <div className="flex gap-1 mb-6 border-b border-stone-200">
+          <button
+            onClick={() => setActiveTab("layout")}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "layout"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-stone-500 hover:text-stone-700"
+            }`}
+          >
+            Layout
+          </button>
+          <button
+            onClick={() => setActiveTab("posts")}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "posts"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-stone-500 hover:text-stone-700"
+            }`}
+          >
+            Posts
+          </button>
+        </div>
+
+        {activeTab === "layout" ? (
+          <BroadsheetEditor
+            edition={edition}
+            refetchEdition={refetchEdition}
+          />
+        ) : (
+          <EditionPostsView edition={edition} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Main editor component ───────────────────────────────────────────────────
+
+function BroadsheetEditor({
+  edition,
+  refetchEdition,
+}: {
+  edition: Edition;
+  refetchEdition: (opts?: any) => void;
+}) {
+  const router = useRouter();
+  const id = edition.id;
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
+
+  // Queries (templates only — edition comes from parent)
   const [{ data: rowTemplatesData }] = useQuery({ query: RowTemplatesQuery });
   const [{ data: postTemplatesData }] = useQuery({ query: PostTemplatesQuery });
 
@@ -108,20 +189,8 @@ function BroadsheetEditor() {
   const [, updateWidgetMut] = useMutation(UpdateWidgetMutation);
   const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
 
-  const edition = data?.edition;
   const rowTemplates = rowTemplatesData?.rowTemplates ?? [];
   const postTemplates = postTemplatesData?.postTemplates ?? [];
-
-  // Auto-review: opening a draft edition transitions it to in_review
-  const hasAutoReviewed = useRef(false);
-  useEffect(() => {
-    if (edition && edition.status === "draft" && !hasAutoReviewed.current) {
-      hasAutoReviewed.current = true;
-      reviewEdition({ id }, mutCtx).then((res) => {
-        if (!res.error) refetchEdition({ requestPolicy: "network-only" });
-      });
-    }
-  }, [edition?.status, id, mutCtx, reviewEdition, refetchEdition]);
 
   // DnD
   const sensors = useSensors(
@@ -261,27 +330,6 @@ function BroadsheetEditor() {
     [removeWidgetMut, mutCtx, refetchEdition]
   );
 
-  // Loading / error
-  if (fetching && !edition) return <AdminLoader label="Loading broadsheet..." />;
-
-  if (error || !edition) {
-    return (
-      <div className="min-h-screen bg-[#FDFCFA] p-6">
-        <div className="max-w-6xl mx-auto">
-          <button
-            onClick={() => router.push("/admin/workflow")}
-            className="text-sm text-stone-500 hover:text-stone-700 mb-4"
-          >
-            &larr; Back to Review Board
-          </button>
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
-            {error?.message || "Edition not found"}
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   const isEditable = edition.status === "in_review" || edition.status === "draft";
 
   const activeSlotData = activeSlotId
@@ -289,62 +337,61 @@ function BroadsheetEditor() {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#FDFCFA] p-6">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <button
-              onClick={() => router.push("/admin/workflow")}
-              className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
-            >
-              &larr; Review Board
-            </button>
-            <h1 className="text-2xl font-bold text-stone-900">
-              {edition.county.name} County
-            </h1>
-            <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
-              <span>
-                {formatDateRange(edition.periodStart, edition.periodEnd)}
-              </span>
-              <StatusBadge status={edition.status} />
-            </div>
-          </div>
-          <div className="flex items-center gap-2 pt-8">
-            {isEditable && (
-              <button
-                onClick={() => handleStatusAction("generate")}
-                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
-              >
-                Regenerate
-              </button>
-            )}
-            {edition.status === "in_review" && (
-              <button
-                onClick={() => handleStatusAction("approve")}
-                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
-              >
-                Approve
-              </button>
-            )}
-            {edition.status === "approved" && (
-              <button
-                onClick={() => handleStatusAction("publish")}
-                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
-              >
-                Publish
-              </button>
-            )}
-            {edition.status === "published" && (
-              <button
-                onClick={() => handleStatusAction("archive")}
-                className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
-              >
-                Archive
-              </button>
-            )}
+    <>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <button
+            onClick={() => router.push("/admin/workflow")}
+            className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
+          >
+            &larr; Review Board
+          </button>
+          <h1 className="text-2xl font-bold text-stone-900">
+            {edition.county.name} County
+          </h1>
+          <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
+            <span>
+              {formatDateRange(edition.periodStart, edition.periodEnd)}
+            </span>
+            <StatusBadge status={edition.status} />
           </div>
         </div>
+        <div className="flex items-center gap-2 pt-8">
+          {isEditable && (
+            <button
+              onClick={() => handleStatusAction("generate")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
+            >
+              Regenerate
+            </button>
+          )}
+          {edition.status === "in_review" && (
+            <button
+              onClick={() => handleStatusAction("approve")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-amber-100 text-amber-800 hover:bg-amber-200 transition-colors"
+            >
+              Approve
+            </button>
+          )}
+          {edition.status === "approved" && (
+            <button
+              onClick={() => handleStatusAction("publish")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+            >
+              Publish
+            </button>
+          )}
+          {edition.status === "published" && (
+            <button
+              onClick={() => handleStatusAction("archive")}
+              className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
+            >
+              Archive
+            </button>
+          )}
+        </div>
+      </div>
 
         {actionError && (
           <div className="mb-4 text-sm text-red-600 bg-red-50 border border-red-200 px-4 py-2 rounded-lg">
@@ -408,13 +455,113 @@ function BroadsheetEditor() {
           </DragOverlay>
         </DndContext>
 
-        {isEditable && rowTemplates.length > 0 && (
-          <div className="mt-4">
-            <AddRowButton templates={rowTemplates} onAdd={handleAddRow} />
+      {isEditable && rowTemplates.length > 0 && (
+        <div className="mt-4">
+          <AddRowButton templates={rowTemplates} onAdd={handleAddRow} />
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Edition Posts View ─────────────────────────────────────────────────────
+
+function EditionPostsView({ edition }: { edition: Edition }) {
+  const router = useRouter();
+
+  // Extract all posts from edition slots
+  const posts = useMemo(() => {
+    const allPosts: Array<{
+      id: string;
+      title: string;
+      postType: string | null | undefined;
+      weight: string | null | undefined;
+      status: string;
+      rowTemplate: string;
+      slotIndex: number;
+    }> = [];
+
+    for (const row of edition.rows) {
+      for (const slot of row.slots) {
+        if (slot.post) {
+          allPosts.push({
+            id: slot.post.id,
+            title: slot.post.title,
+            postType: slot.post.postType,
+            weight: slot.post.weight,
+            status: slot.post.status,
+            rowTemplate: row.rowTemplate.displayName,
+            slotIndex: slot.slotIndex,
+          });
+        }
+      }
+    }
+
+    return allPosts.sort((a, b) => a.title.localeCompare(b.title));
+  }, [edition]);
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
+        <div>
+          <button
+            onClick={() => router.push("/admin/workflow")}
+            className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
+          >
+            &larr; Review Board
+          </button>
+          <h1 className="text-2xl font-bold text-stone-900">
+            {edition.county.name} County &mdash; Posts
+          </h1>
+          <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
+            <span>
+              {formatDateRange(edition.periodStart, edition.periodEnd)}
+            </span>
+            <StatusBadge status={edition.status} />
+            <span>{posts.length} post{posts.length !== 1 ? "s" : ""} placed</span>
           </div>
-        )}
+        </div>
       </div>
-    </div>
+
+      {posts.length === 0 ? (
+        <div className="text-stone-500 text-center py-12 text-sm">
+          No posts placed in this edition yet.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {posts.map((post) => (
+            <div
+              key={post.id}
+              onClick={() => router.push(`/admin/posts/${post.id}`)}
+              className="bg-white rounded-lg border border-stone-200 p-4 hover:shadow-md transition-shadow cursor-pointer"
+            >
+              <div className="text-sm font-medium text-stone-900 mb-2">
+                {post.title}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <PostTypeBadge type={post.postType} />
+                {post.weight && <WeightBadge weight={post.weight} />}
+                <span className="text-xs text-stone-400">
+                  {post.rowTemplate}
+                </span>
+                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
+                  post.status === "active"
+                    ? "bg-green-100 text-green-800"
+                    : post.status === "pending_approval"
+                      ? "bg-yellow-100 text-yellow-800"
+                      : post.status === "rejected"
+                        ? "bg-red-100 text-red-800"
+                        : "bg-stone-100 text-stone-600"
+                }`}>
+                  {post.status === "pending_approval" ? "Pending" : post.status}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -928,7 +1075,7 @@ function StatusBadge({ status }: { status: string }) {
     archived: "bg-stone-100 text-stone-600",
   };
   const labels: Record<string, string> = {
-    draft: "Draft",
+    draft: "Ready for Review",
     in_review: "In Review",
     approved: "Approved",
     published: "Published",

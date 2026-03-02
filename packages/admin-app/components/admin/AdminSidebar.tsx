@@ -1,13 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { useQuery } from "urql";
-import { useMemo } from "react";
 import { logout } from "@/lib/auth/actions";
-import { PostStatsQuery } from "@/lib/graphql/posts";
-import { EditionKanbanStatsQuery } from "@/lib/graphql/editions";
+import { LatestEditionsQuery } from "@/lib/graphql/editions";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -17,14 +15,6 @@ interface NavItem {
   href: string;
   label: string;
   icon: React.ReactNode;
-  badge?: number;
-  children?: NavChild[];
-}
-
-interface NavChild {
-  href: string;
-  label: string;
-  queryParam?: string; // appended as ?postType=value
   badge?: number;
 }
 
@@ -43,11 +33,6 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1" />
     </svg>
   ),
-  posts: (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" />
-    </svg>
-  ),
   workflow: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
@@ -56,6 +41,11 @@ const icons = {
   editions: (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v12a2 2 0 01-2 2zM3 8h18M7 8v12M17 8v12" />
+    </svg>
+  ),
+  posts: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   ),
   media: (
@@ -93,11 +83,6 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
     </svg>
   ),
-  chevronDown: (
-    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-    </svg>
-  ),
 };
 
 // ---------------------------------------------------------------------------
@@ -112,24 +97,11 @@ const buildNavGroups = (): NavGroup[] => [
     ],
   },
   {
-    label: "Content",
+    label: "Editorial",
     items: [
       { href: "/admin/workflow", label: "Review Board", icon: icons.workflow },
       { href: "/admin/editions", label: "Editions", icon: icons.editions },
-      {
-        href: "/admin/posts",
-        label: "Posts",
-        icon: icons.posts,
-        children: [
-          { href: "/admin/posts", label: "All Posts", queryParam: undefined },
-          { href: "/admin/posts", label: "Stories", queryParam: "story" },
-          { href: "/admin/posts", label: "Notices", queryParam: "notice" },
-          { href: "/admin/posts", label: "Exchanges", queryParam: "exchange" },
-          { href: "/admin/posts", label: "Events", queryParam: "event" },
-          { href: "/admin/posts", label: "Spotlights", queryParam: "spotlight" },
-          { href: "/admin/posts", label: "References", queryParam: "reference" },
-        ],
-      },
+      { href: "/admin/posts", label: "Posts", icon: icons.posts },
       { href: "/admin/media", label: "Media", icon: icons.media },
     ],
   },
@@ -149,54 +121,6 @@ const buildNavGroups = (): NavGroup[] => [
 ];
 
 // ---------------------------------------------------------------------------
-// localStorage helpers for expanded parent items
-// ---------------------------------------------------------------------------
-
-const EXPANDED_KEY = "admin-sidebar-expanded";
-
-function loadExpandedState(): Record<string, boolean> {
-  try {
-    const raw = localStorage.getItem(EXPANDED_KEY);
-    return raw ? JSON.parse(raw) : {};
-  } catch {
-    return {};
-  }
-}
-
-function saveExpandedState(state: Record<string, boolean>) {
-  localStorage.setItem(EXPANDED_KEY, JSON.stringify(state));
-}
-
-// ---------------------------------------------------------------------------
-// Badge helper — maps PostStats fields to child queryParam values
-// ---------------------------------------------------------------------------
-
-function childBadge(
-  queryParam: string | undefined,
-  stats: { total: number; stories: number; notices: number; exchanges: number; events: number; spotlights: number; references: number } | undefined,
-): number | undefined {
-  if (!stats) return undefined;
-  switch (queryParam) {
-    case undefined:
-      return stats.total || undefined;
-    case "story":
-      return stats.stories || undefined;
-    case "notice":
-      return stats.notices || undefined;
-    case "exchange":
-      return stats.exchanges || undefined;
-    case "event":
-      return stats.events || undefined;
-    case "spotlight":
-      return stats.spotlights || undefined;
-    case "reference":
-      return stats.references || undefined;
-    default:
-      return undefined;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
@@ -214,47 +138,13 @@ export function AdminSidebar({
   onMobileClose,
 }: AdminSidebarProps) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
-  // Expanded parent items state (for items with children)
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  useEffect(() => {
-    setExpanded(loadExpandedState());
-  }, []);
-
-  const toggleExpanded = useCallback((key: string) => {
-    setExpanded((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      saveExpandedState(next);
-      return next;
-    });
-  }, []);
-
-  // Post stats for badges
-  const [{ data: statsData }] = useQuery({ query: PostStatsQuery });
-  const postStats = statsData?.postStats;
-
-  // Edition stats for Review Board badge (current week)
-  const weekBounds = useMemo(() => {
-    const d = new Date();
-    const day = d.getDay();
-    const diffToMonday = day === 0 ? -6 : 1 - day;
-    const monday = new Date(d);
-    monday.setDate(d.getDate() + diffToMonday);
-    const sunday = new Date(monday);
-    sunday.setDate(monday.getDate() + 6);
-    return {
-      periodStart: monday.toISOString().split("T")[0],
-      periodEnd: sunday.toISOString().split("T")[0],
-    };
-  }, []);
-  const [{ data: editionStatsData }] = useQuery({
-    query: EditionKanbanStatsQuery,
-    variables: weekBounds,
-  });
-  const reviewBadge = editionStatsData?.editionKanbanStats
-    ? (editionStatsData.editionKanbanStats.draft ?? 0) +
-      (editionStatsData.editionKanbanStats.inReview ?? 0)
+  // Derive review badge from latest editions (count of draft + in_review)
+  const [{ data: editionsData }] = useQuery({ query: LatestEditionsQuery });
+  const reviewBadge = editionsData?.latestEditions
+    ? editionsData.latestEditions.filter(
+        (e) => e.status === "draft" || e.status === "in_review"
+      ).length || undefined
     : undefined;
 
   // Close on Escape
@@ -269,24 +159,9 @@ export function AdminSidebar({
 
   const navGroups = buildNavGroups();
 
-  // Check if a nav item (or any of its children) is active
+  // Check if a nav item is active
   const isItemActive = (item: NavItem) => {
-    if (item.children) {
-      // Parent is active if pathname matches and no child queryParam is set,
-      // or if pathname starts with the href
-      return pathname === item.href || pathname.startsWith(`${item.href}/`);
-    }
     return pathname === item.href || pathname.startsWith(`${item.href}/`);
-  };
-
-  const isChildActive = (child: NavChild) => {
-    if (!pathname.startsWith(child.href)) return false;
-    const currentType = searchParams.get("postType");
-    if (child.queryParam === undefined) {
-      // "All Posts" is active when on /admin/posts with no postType filter
-      return pathname === child.href && !currentType;
-    }
-    return currentType === child.queryParam;
   };
 
   // Render a badge pill
@@ -336,76 +211,9 @@ export function AdminSidebar({
             <div className="space-y-0.5 px-2">
               {group.items.map((item) => {
                 const active = isItemActive(item);
-                const hasChildren = item.children && item.children.length > 0;
-                const isExpanded = hasChildren && expanded[item.href] !== false; // default expanded
                 const itemBadge =
-                  item.href === "/admin/posts"
-                    ? postStats?.total
-                    : item.href === "/admin/workflow"
-                      ? reviewBadge
-                      : item.badge;
+                  item.href === "/admin/workflow" ? reviewBadge : item.badge;
 
-                if (hasChildren && !collapsed) {
-                  // Parent item with expandable children
-                  return (
-                    <div key={item.href}>
-                      <button
-                        onClick={() => toggleExpanded(item.href)}
-                        className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                          active
-                            ? "bg-amber-50 text-amber-800"
-                            : "text-stone-600 hover:bg-stone-100 hover:text-stone-900"
-                        }`}
-                      >
-                        <span className="shrink-0">{item.icon}</span>
-                        <span>{item.label}</span>
-                        {renderBadge(itemBadge)}
-                        <span
-                          className={`ml-auto transition-transform duration-150 text-stone-400 ${
-                            isExpanded ? "" : "-rotate-90"
-                          }`}
-                        >
-                          {icons.chevronDown}
-                        </span>
-                      </button>
-
-                      {/* Children */}
-                      <div
-                        className={`overflow-hidden transition-all duration-150 ${
-                          isExpanded ? "max-h-96 opacity-100" : "max-h-0 opacity-0"
-                        }`}
-                      >
-                        <div className="ml-5 pl-3 border-l border-stone-200 mt-0.5 space-y-0.5">
-                          {item.children!.map((child) => {
-                            const childActive = isChildActive(child);
-                            const childHref = child.queryParam
-                              ? `${child.href}?postType=${child.queryParam}`
-                              : child.href;
-                            const badge = childBadge(child.queryParam, postStats ?? undefined);
-
-                            return (
-                              <Link
-                                key={child.queryParam ?? "all"}
-                                href={childHref}
-                                onClick={mobileOpen ? onMobileClose : undefined}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-colors ${
-                                  childActive
-                                    ? "bg-amber-100 text-amber-800 font-medium"
-                                    : "text-stone-500 hover:bg-stone-50 hover:text-stone-700"
-                                }`}
-                              >
-                                <span className="truncate">{child.label}</span>
-                                {renderBadge(badge)}
-                              </Link>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Regular item (no children, or sidebar is collapsed)
                 return (
                   <Link
                     key={item.href}

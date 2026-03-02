@@ -35,6 +35,14 @@ export function getStalenessLabel(weeksOld: number): string {
   return `${weeksOld} weeks old`;
 }
 
+/** Contextual period label for edition tables ("This week", "Last week", etc.). */
+export function formatPeriodLabel(periodEnd: string): string {
+  const weeksOld = getWeeksOld(periodEnd);
+  if (weeksOld === 0) return "This week";
+  if (weeksOld === 1) return "Last week";
+  return `${weeksOld} weeks ago`;
+}
+
 // ─── Tailwind class maps ─────────────────────────────────────────────────────
 
 export const STALENESS_BORDER: Record<StalenessLevel, string> = {

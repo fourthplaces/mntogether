@@ -439,24 +439,6 @@ export default function PostDetailPage() {
             </Alert>
           )}
 
-          {/* Relevance Score */}
-          {post.relevanceScore != null && (
-            <div className="mb-4 p-3 rounded-lg border border-border bg-secondary">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs text-muted-foreground uppercase font-medium">Relevance Score</span>
-                <Badge variant={post.relevanceScore >= 8 ? "success" : post.relevanceScore >= 5 ? "warning" : "danger"}>
-                  {post.relevanceScore}/10
-                </Badge>
-                <span className="text-xs text-text-faint">
-                  {post.relevanceScore >= 8 ? "High confidence" : post.relevanceScore >= 5 ? "Review needed" : "Likely noise"}
-                </span>
-              </div>
-              {post.relevanceBreakdown && (
-                <p className="text-xs text-text-secondary leading-relaxed whitespace-pre-line mt-1">{post.relevanceBreakdown}</p>
-              )}
-            </div>
-          )}
-
           {/* Details Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-border">
             <div>

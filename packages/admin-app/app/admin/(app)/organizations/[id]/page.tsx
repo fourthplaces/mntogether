@@ -28,7 +28,6 @@ import {
   RejectPostMutation,
   ReactivatePostMutation,
   UpdatePostCapacityMutation,
-  BatchScorePostsMutation,
 } from "@/lib/graphql/posts";
 
 const orgMutationContext = { additionalTypenames: ["Organization", "Checklist"] };
@@ -585,7 +584,6 @@ type PostData = {
   status: string;
   postType?: string | null;
   capacityStatus?: string | null;
-  relevanceScore?: number | null;
   createdAt: string;
 };
 
@@ -597,29 +595,6 @@ function PostsSection({
   organizationId: string;
 }) {
   const [tab, setTab] = useState<PostStatusTab>("pending_approval");
-  const [scoring, setScoring] = useState(false);
-  const [scoreResult, setScoreResult] = useState<string | null>(null);
-
-  const [, batchScorePosts] = useMutation(BatchScorePostsMutation);
-
-  const handleScorePosts = async () => {
-    setScoring(true);
-    setScoreResult(null);
-    try {
-      const result = await batchScorePosts({ limit: 200 }, postMutationContext);
-      if (result.error) throw result.error;
-      const data = result.data?.batchScorePosts;
-      if (data) {
-        setScoreResult(`Scored ${data.scored} posts${data.failed > 0 ? `, ${data.failed} failed` : ""}${data.remaining > 0 ? `, ${data.remaining} remaining` : ""}`);
-      }
-    } catch (err: any) {
-      setScoreResult(`Error: ${err.message || "Failed to score posts"}`);
-    } finally {
-      setScoring(false);
-    }
-  };
-
-  const unscoredCount = posts.filter((p) => p.status === "active" && p.relevanceScore == null).length;
 
   const counts = {
     pending_approval: posts.filter((p) => p.status === "pending_approval").length,
@@ -635,21 +610,7 @@ function PostsSection({
         <h2 className="text-lg font-semibold text-stone-900">
           Posts {posts.length > 0 && <span className="text-stone-400 font-normal">({posts.length})</span>}
         </h2>
-        {unscoredCount > 0 && (
-          <button
-            onClick={handleScorePosts}
-            disabled={scoring}
-            className="px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 disabled:opacity-50 transition-colors"
-          >
-            {scoring ? "Scoring..." : `Score ${unscoredCount} Unscored`}
-          </button>
-        )}
       </div>
-      {scoreResult && (
-        <div className={`mb-3 px-3 py-2 rounded text-xs ${scoreResult.startsWith("Error") ? "bg-red-50 text-red-700" : "bg-green-50 text-green-700"}`}>
-          {scoreResult}
-        </div>
-      )}
       <div className="flex gap-1 mb-4">
         {POST_STATUS_TABS.map((t) => (
           <button
@@ -819,17 +780,6 @@ function PostRow({
         }`}>
           {post.postType}
         </span>
-        {post.relevanceScore != null && (
-          <span className={`px-1.5 py-0.5 text-xs rounded font-bold shrink-0 ${
-            post.relevanceScore >= 8
-              ? "bg-green-100 text-green-800"
-              : post.relevanceScore >= 5
-                ? "bg-amber-100 text-amber-800"
-                : "bg-red-100 text-red-800"
-          }`}>
-            {post.relevanceScore}
-          </span>
-        )}
       </div>
       <span className="text-sm text-stone-500 shrink-0 ml-3">
         {new Date(post.createdAt).toLocaleDateString()}
