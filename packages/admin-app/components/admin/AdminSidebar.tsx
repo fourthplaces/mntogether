@@ -114,7 +114,6 @@ const buildNavGroups = (): NavGroup[] => [
   {
     label: "System",
     items: [
-      { href: "/admin/jobs", label: "Jobs", icon: icons.jobs },
       { href: "/admin/tags", label: "Tags", icon: icons.tags },
     ],
   },

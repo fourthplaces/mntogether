@@ -39,9 +39,6 @@ type Query {
   tagKinds: [TagKind!]!
   tags(kind: String): [Tag!]!
 
-  # Jobs (admin)
-  jobs(status: String, limit: Int): [Job!]!
-
   # Notes (admin)
   entityNotes(noteableType: String!, noteableId: ID!): [Note!]!
 
@@ -362,18 +359,6 @@ type AutoAttachNotesResult {
   notesCount: Int!
   postsCount: Int!
   noteablesCreated: Int!
-}
-
-type Job {
-  id: ID!
-  workflowName: String!
-  workflowKey: String!
-  status: String!
-  progress: String
-  createdAt: String
-  modifiedAt: String
-  completedAt: String
-  completionResult: String
 }
 
 type County {

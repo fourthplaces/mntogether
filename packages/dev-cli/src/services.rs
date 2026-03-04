@@ -42,7 +42,6 @@ impl Layer {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ServiceId {
     Postgres,
-    Restate,
     Minio,
     Server,
     AdminApp,
@@ -57,7 +56,7 @@ pub struct ServiceDef {
     pub compose_name: &'static str,
     /// Port used for health/liveness checks (the actual listening port).
     pub port: u16,
-    /// Port shown in the dashboard UI (may differ — e.g. Restate UI on 9070, not ingress 8180).
+    /// Port shown in the dashboard UI (may differ from health-check port).
     pub display_port: u16,
     /// URL to open in the browser, if applicable.
     pub url: Option<&'static str>,
@@ -74,16 +73,6 @@ pub const SERVICES: &[ServiceDef] = &[
         port: 5432,
         display_port: 5432,
         url: None,
-    },
-    ServiceDef {
-        id: ServiceId::Restate,
-        layer: Layer::Infra,
-        label: "Restate",
-        container: "rooteditorial_restate",
-        compose_name: "restate",
-        port: 8180,
-        display_port: 9070,
-        url: Some("http://localhost:9070"),
     },
     ServiceDef {
         id: ServiceId::Minio,

@@ -1,7 +1,7 @@
 //! Lightweight SSE server for streaming events to clients.
 //!
 //! Subscribes to StreamHub topics and forwards events as SSE.
-//! Runs alongside the Restate workflow server on a separate port.
+//! Runs on the main Axum server.
 //! Requires a valid JWT token via `?token=` query parameter.
 
 use std::collections::HashMap;

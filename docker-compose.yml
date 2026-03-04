@@ -24,28 +24,6 @@ services:
       - rooteditorial
 
   # ========================================
-  # Restate Runtime for Durable Workflows
-  # ========================================
-  restate:
-    image: docker.io/restatedev/restate:latest
-    labels:
-      dev.description: "Restate runtime for durable workflows"
-    container_name: rooteditorial_restate
-    ports:
-      - "8180:8080"  # Ingress endpoint (for service invocations)
-      - "9070:9070"  # Admin API (for registering deployments)
-    environment:
-      RESTATE_OBSERVABILITY__LOG__FORMAT: compact
-      RESTATE_OBSERVABILITY__LOG__FILTER: info,restate=debug
-    networks:
-      - rooteditorial
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9070/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-
-  # ========================================
   # MinIO — S3-compatible object storage (local dev)
   # ========================================
   minio:
@@ -91,21 +69,19 @@ services:
       - rooteditorial
 
   # ========================================
-  # Server (Restate Services)
+  # Server (Axum HTTP API)
   # ========================================
   server:
     build:
       context: .
       dockerfile: packages/server/Dockerfile.dev
     labels:
-      dev.description: "Restate services"
+      dev.description: "Rust API server"
       dev.shell: "bash"
     container_name: rooteditorial_server
     environment:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/rooteditorial
       SERVER_PORT: 9080
-      RESTATE_ADMIN_URL: http://restate:9070
-      RESTATE_SELF_URL: http://server:9080
       RUST_LOG: ${RUST_LOG:-info,server_core=debug}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 
@@ -130,8 +106,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      restate:
-        condition: service_healthy
       minio-init:
         condition: service_completed_successfully
     volumes:
@@ -155,7 +129,7 @@ services:
       dev.description: "Next.js admin app (SSR)"
     container_name: rooteditorial_admin_app
     environment:
-      RESTATE_INGRESS_URL: http://restate:8080
+      API_URL: http://server:9080
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-in-production}
       NODE_ENV: development
       PORT: 3000
@@ -186,7 +160,7 @@ services:
       dev.description: "Next.js public web app (SSR)"
     container_name: rooteditorial_web_app
     environment:
-      RESTATE_INGRESS_URL: http://restate:8080
+      API_URL: http://server:9080
       NODE_ENV: development
       PORT: 3001
       HOSTNAME: "0.0.0.0"

@@ -1,6 +1,6 @@
 //! Posts domain activities - entry-point business logic
 //!
-//! Called from Restate virtual objects.
+//! Called from HTTP handlers.
 //! Activities are self-contained: they take raw input, handle ID parsing,
 //! auth checks, and return final models/results.
 

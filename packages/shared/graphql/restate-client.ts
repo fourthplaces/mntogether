@@ -1,9 +1,7 @@
 import { GraphQLError } from "graphql";
 import { snakeToCamel } from "./util";
 
-const RESTATE_INGRESS_URL =
-  process.env.RESTATE_INGRESS_URL || "http://localhost:8180";
-const RESTATE_AUTH_TOKEN = process.env.RESTATE_AUTH_TOKEN || "";
+const API_URL = process.env.API_URL || "http://localhost:9080";
 
 export class RestateClient {
   private token: string | null;
@@ -31,11 +29,9 @@ export class RestateClient {
 
   private async call<T>(path: string, body?: unknown): Promise<T> {
     const headers: HeadersInit = { "Content-Type": "application/json" };
-    if (RESTATE_AUTH_TOKEN)
-      headers["Authorization"] = `Bearer ${RESTATE_AUTH_TOKEN}`;
     if (this.token) headers["X-User-Token"] = this.token;
 
-    const response = await fetch(`${RESTATE_INGRESS_URL}/${path}`, {
+    const response = await fetch(`${API_URL}/${path}`, {
       method: "POST",
       headers,
       body: JSON.stringify(body ?? {}),

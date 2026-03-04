@@ -1,30 +1,13 @@
-//! Restate Workflow Server — Root Editorial CMS
+//! Root Editorial CMS — Axum HTTP API Server
 
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use restate_sdk::prelude::*;
-use server_core::domains::auth::restate::{AuthService, AuthServiceImpl};
 use server_core::domains::auth::JwtService;
-use server_core::domains::heat_map::restate::{HeatMapService, HeatMapServiceImpl};
-use server_core::domains::jobs::restate::{JobsService, JobsServiceImpl};
-use server_core::domains::member::restate::{
-    MemberObject, MemberObjectImpl, MembersService, MembersServiceImpl, RegisterMemberWorkflow,
-    RegisterMemberWorkflowImpl,
-};
-use server_core::domains::media::restate::{MediaService, MediaServiceImpl};
-use server_core::domains::notes::restate::{NotesService, NotesServiceImpl};
-use server_core::domains::organization::restate::{
-    OrganizationsService, OrganizationsServiceImpl,
-};
-use server_core::domains::posts::restate::{
-    PostObject, PostObjectImpl, PostsService, PostsServiceImpl,
-};
-use server_core::domains::editions::restate::{EditionsService, EditionsServiceImpl};
-use server_core::domains::tag::restate::{TagsService, TagsServiceImpl};
-use server_core::kernel::{ServerDeps};
+use server_core::kernel::ServerDeps;
 use server_core::common::utils::EmbeddingService;
 use server_core::kernel::{OpenAi, TwilioAdapter, StreamHub};
+use server_core::kernel::sse::SseState;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use twilio::{TwilioOptions, TwilioService};
@@ -35,7 +18,7 @@ async fn main() -> Result<()> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "info,server_core=debug,restate_sdk=debug".into()),
+                .unwrap_or_else(|_| "info,server_core=debug".into()),
         )
         .with(
             tracing_subscriber::fmt::layer()
@@ -138,8 +121,8 @@ async fn main() -> Result<()> {
         Arc::new(TwilioAdapter::new(twilio)),
         pii_detector,
         storage,
-        jwt_service,
-        stream_hub,
+        jwt_service.clone(),
+        stream_hub.clone(),
         test_identifier_enabled,
         admin_identifiers,
     ));
@@ -150,93 +133,26 @@ async fn main() -> Result<()> {
         .parse::<u16>()
         .context("Invalid SERVER_PORT")?;
 
+    // Build Axum router with API routes + SSE streams
+    let app_state = server_core::api::state::AppState {
+        deps: server_deps.clone(),
+    };
+    let sse_state = SseState {
+        stream_hub: stream_hub,
+        jwt_service: jwt_service,
+    };
+
+    let app = server_core::api::router(app_state)
+        .merge(server_core::kernel::sse::router(sse_state));
+
     let addr = format!("0.0.0.0:{}", port);
     tracing::info!("Server listening on {}", addr);
 
-    // Build Restate endpoint with all domain services
-    let mut builder = Endpoint::builder();
+    let listener = tokio::net::TcpListener::bind(&addr)
+        .await
+        .context("Failed to bind listener")?;
 
-    // Configure Restate request identity verification
-    if let Ok(identity_key) = std::env::var("RESTATE_IDENTITY_KEY") {
-        tracing::info!("Restate identity key configured");
-        builder = builder
-            .identity_key(&identity_key)
-            .context("Invalid Restate identity key")?;
-    }
-
-    let endpoint = builder
-        // Auth
-        .bind(AuthServiceImpl::with_deps(server_deps.clone()).serve())
-        // Heat map
-        .bind(HeatMapServiceImpl::with_deps(server_deps.clone()).serve())
-        // Jobs
-        .bind(JobsServiceImpl::with_deps(server_deps.clone()).serve())
-        // Media
-        .bind(MediaServiceImpl::with_deps(server_deps.clone()).serve())
-        // Notes
-        .bind(NotesServiceImpl::with_deps(server_deps.clone()).serve())
-        // Organizations
-        .bind(OrganizationsServiceImpl::with_deps(server_deps.clone()).serve())
-        // Members
-        .bind(MemberObjectImpl::with_deps(server_deps.clone()).serve())
-        .bind(MembersServiceImpl::with_deps(server_deps.clone()).serve())
-        .bind(RegisterMemberWorkflowImpl::with_deps(server_deps.clone()).serve())
-        // Posts
-        .bind(PostObjectImpl::with_deps(server_deps.clone()).serve())
-        .bind(PostsServiceImpl::with_deps(server_deps.clone()).serve())
-        // Editions
-        .bind(EditionsServiceImpl::with_deps(server_deps.clone()).serve())
-        // Tags
-        .bind(TagsServiceImpl::with_deps(server_deps.clone()).serve())
-        .build();
-
-    // Auto-register with Restate runtime if RESTATE_ADMIN_URL is set
-    if let Ok(admin_url) = std::env::var("RESTATE_ADMIN_URL") {
-        let self_url = std::env::var("RESTATE_SELF_URL")
-            .unwrap_or_else(|_| format!("http://localhost:{}", port));
-        let auth_token = std::env::var("RESTATE_AUTH_TOKEN").ok();
-        tokio::spawn(async move {
-            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            tracing::info!(
-                admin_url = %admin_url,
-                self_url = %self_url,
-                "Auto-registering with Restate"
-            );
-            let client = reqwest::Client::new();
-            let mut request =
-                client
-                    .post(format!("{}/deployments", admin_url))
-                    .json(&serde_json::json!({
-                        "uri": self_url,
-                        "force": true
-                    }));
-            if let Some(token) = &auth_token {
-                request = request.bearer_auth(token);
-            }
-            match request.send().await {
-                Ok(resp) if resp.status().is_success() => {
-                    tracing::info!("Restate registration successful");
-                }
-                Ok(resp) => {
-                    let status = resp.status();
-                    let body = resp.text().await.unwrap_or_default();
-                    tracing::warn!(
-                        status = %status,
-                        body = %body,
-                        "Restate registration failed"
-                    );
-                }
-                Err(e) => {
-                    tracing::warn!(error = %e, "Failed to connect to Restate admin");
-                }
-            }
-        });
-    }
-
-    // Start HTTP server
-    HttpServer::new(endpoint)
-        .listen_and_serve(addr.parse()?)
-        .await;
+    axum::serve(listener, app).await.context("Server error")?;
 
     Ok(())
 }

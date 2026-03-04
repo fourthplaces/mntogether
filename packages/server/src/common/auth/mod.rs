@@ -20,7 +20,6 @@ mod capability;
 /// This pattern keeps authorization logic in the effect layer where it belongs,
 /// not in the API handler layer.
 mod errors;
-pub mod restate_auth;
 
 pub use builder::{Actor, CapabilityBuilder, HasAuthContext};
 pub use capability::AdminCapability;

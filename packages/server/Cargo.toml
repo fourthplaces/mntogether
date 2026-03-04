@@ -42,9 +42,6 @@ chrono = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-# Durable execution with Restate
-restate-sdk = "0.4.0"
-
 # Authentication
 twilio = { path = "../twilio-rs" }
 jsonwebtoken = "9"
@@ -56,9 +53,6 @@ md5 = "0.7"
 sqlx = { workspace = true, features = ["migrate"] }
 dataloader = "0.18"
 pgvector = { version = "0.4", features = ["sqlx", "serde"] }
-
-# Byte buffers (used by Restate serde bridge)
-bytes = "1"
 
 # JSON Schema generation (used by AI tool definitions and structured extraction)
 schemars = "0.8"
@@ -102,10 +96,10 @@ rust_decimal = { version = "1.40.0", features = ["db-postgres", "serde", "std"] 
 # CLI (for migrate_cli)
 clap = { version = "4.5", features = ["derive"] }
 
-# Restate HTTP server
+# HTTP types (used by axum)
 http = "1"
 
-# HTTP server (webhook endpoints)
+# HTTP server
 axum = "0.8"
 
 [dev-dependencies]

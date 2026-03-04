@@ -1,7 +1,7 @@
 //! Auth domain - handles authentication via OTP (phone number)
 //!
-//! Architecture (Restate workflows):
-//!   API → Restate workflow → workflow orchestrates activities
+//! Architecture:
+//!   API → HTTP handler → activities
 //!
 //! Responsibilities:
 //! - Phone-based OTP authentication via Twilio
@@ -11,9 +11,7 @@
 pub mod activities;
 pub mod jwt;
 pub mod models;
-pub mod restate;
 pub mod types;
 
 pub use jwt::{Claims, JwtService};
-pub use restate::*;
 pub use types::{OtpSent, OtpVerified};

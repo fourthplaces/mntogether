@@ -1,6 +1,6 @@
 //! Post tag actions - entry-point functions for tag operations
 //!
-//! These are called from Restate virtual objects.
+//! These are called from HTTP handlers.
 //! Actions are self-contained: they take raw input, handle ID parsing, and return results.
 //! Authorization is handled at the API layer.
 

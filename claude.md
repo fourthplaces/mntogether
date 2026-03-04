@@ -30,7 +30,7 @@ Derive `FromRow` on structs. Use `.bind()` for params. `Option<T>` for nullable 
 
 ### SQL queries live in models
 
-All database queries go in `domains/*/models/`. Never in Restate handlers or activities.
+All database queries go in `domains/*/models/`. Never in HTTP handlers or activities.
 
 ### Avoid JSONB
 
@@ -46,9 +46,9 @@ pub async fn approve_post(post_id: PostId, deps: &ServerDeps) -> Result<PostId> 
 
 ---
 
-## Restate Workflows
+## Architecture
 
-Architecture: `Next.js → Restate Ingress → Rust Server → PostgreSQL`
+`Next.js → GraphQL → Axum HTTP Server (9080) → Activities → PostgreSQL`
 
 ### Ports
 
@@ -56,57 +56,46 @@ Architecture: `Next.js → Restate Ingress → Rust Server → PostgreSQL`
 |---|---|---|
 | Admin app (Next.js) | 3000 | `packages/admin-app` — default `next dev` port |
 | Web app (Next.js) | 3001 | `packages/web-app` — runs with `--port 3001` |
-| Restate Ingress | 8180 | HTTP API for service calls (mapped from container 8080) |
-| Restate Admin | 9070 | Service discovery, deployments, introspection |
-| Rust Server | 9080 | Restate endpoint (h2c, not directly callable via curl) |
+| Rust Server (Axum) | 9080 | HTTP/JSON API + SSE streams |
 | PostgreSQL | 5432 | Docker container |
 
-The Rust server auto-registers with Restate on startup — no manual `register-workflows.sh` needed after `docker compose up -d --build server`.
-
-### Pattern
+### HTTP Handler Pattern
 
 ```rust
-// 1. Request type with Restate serde
-#[derive(Debug, Clone, Serialize, Deserialize)]
+// 1. Request/response types with standard serde
+#[derive(Debug, Deserialize)]
 pub struct MyRequest { pub id: Uuid }
-impl_restate_serde!(MyRequest);
 
-// 2. Trait (no &self or ctx in signature)
-#[restate_sdk::workflow]
-pub trait MyWorkflow {
-    async fn run(req: MyRequest) -> Result<MyResponse, HandlerError>;
+#[derive(Debug, Serialize)]
+pub struct MyResponse { pub name: String }
+
+// 2. Axum handler — thin wrapper calling activities
+async fn my_handler(
+    State(state): State<AppState>,
+    user: AdminUser,                    // Auth extractor (or AuthenticatedUser, OptionalUser)
+    Json(req): Json<MyRequest>,
+) -> ApiResult<Json<MyResponse>> {
+    let result = activities::do_thing(req.id, &state.deps).await?;
+    Ok(Json(result))
 }
 
-// 3. Impl with Arc<ServerDeps>
-pub struct MyWorkflowImpl { deps: Arc<ServerDeps> }
-impl MyWorkflowImpl {
-    pub fn with_deps(deps: Arc<ServerDeps>) -> Self { Self { deps } }
+// 3. Register in api/routes/{domain}.rs
+pub fn router() -> Router<AppState> {
+    Router::new()
+        .route("/MyService/my_handler", post(my_handler))
 }
-
-// 4. Implementation adds &self and ctx
-impl MyWorkflow for MyWorkflowImpl {
-    async fn run(&self, ctx: WorkflowContext<'_>, req: MyRequest) -> Result<MyResponse, HandlerError> {
-        ctx.run(|| async {
-            activities::do_thing(req.id, &self.deps).await.map_err(Into::into)
-        }).await
-    }
-}
-
-// 5. Register in server.rs
-.bind(MyWorkflowImpl::with_deps(deps.clone()).serve())
 ```
 
 Key rules:
-- `impl_restate_serde!` on all request/response types (bridges Restate SDK serde ≠ serde)
-- Wrap external calls in `ctx.run()` for durability
-- Keep workflows thin — delegate to activities
-- Import both trait and impl for `.serve()` to compile
+- Handlers are thin — delegate business logic to `domains/*/activities/`
+- Three auth extractors: `AdminUser`, `AuthenticatedUser`, `OptionalUser`
+- `ApiError` returns `{"message": "..."}` JSON (Unauthorized/Forbidden/NotFound/BadRequest/Internal)
+- URL paths follow `/{Service}/{handler}` or `/{Object}/{id}/{handler}` convention
 
 ### Dev Setup
 
 ```bash
 docker compose up -d                          # All infrastructure + Rust server
-# Server auto-registers with Restate on startup
 
 # Frontend (run from repo root):
 cd packages/admin-app && yarn dev             # Admin on :3000
@@ -128,7 +117,7 @@ After new migrations: `make migrate` then rebuild server
 
 ### Hard Rule: API Edge Testing Only
 
-Test through Restate service/object handlers and GraphQL endpoints. Verify via API response AND model queries. Mock external services via `TestDependencies`.
+Test through Axum HTTP handlers and GraphQL endpoints. Verify via API response AND model queries. Mock external services via `TestDependencies`.
 
 **Never** bypass the API with direct database manipulation, test internal implementation details, or call private functions.
 

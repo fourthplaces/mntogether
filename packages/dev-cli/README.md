@@ -27,7 +27,7 @@ dev logs [svc]   # Follow logs (all or specific service)
 
 | Key | Action |
 |-----|--------|
-| `i` | Manage Infrastructure (Postgres, Restate, MinIO) |
+| `i` | Manage Infrastructure (Postgres, MinIO) |
 | `b` | Manage Backend (Rust Server) |
 | `f` | Manage Frontend (Admin App, Web App) |
 | `a` | Manage All Services |

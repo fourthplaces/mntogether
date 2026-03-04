@@ -1,6 +1,6 @@
 //! Media model — represents uploaded files in the media library.
 //!
-//! All SQL queries live here (never in Restate handlers or activities).
+//! All SQL queries live here (never in HTTP handlers or activities).
 
 use anyhow::Result;
 use chrono::{DateTime, Utc};

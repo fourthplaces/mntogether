@@ -2,7 +2,6 @@ pub mod activities;
 pub mod data;
 pub mod loader;
 pub mod models;
-pub mod restate;
 
 // Re-export data types
 pub use crate::domains::tag::TagData;
@@ -14,6 +13,3 @@ pub use data::types::{
 
 // Re-export models (domain models)
 pub use models::post::Post;
-
-// Re-export restate types
-pub use restate::*;

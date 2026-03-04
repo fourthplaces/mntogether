@@ -1,4 +1,4 @@
-//! Edition-specific data transfer types used by activities and Restate services.
+//! Edition-specific data transfer types used by activities and HTTP handlers.
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;

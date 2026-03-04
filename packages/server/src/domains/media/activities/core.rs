@@ -1,6 +1,6 @@
 //! Media activities — entry-point functions for media operations.
 //!
-//! Called from Restate service handlers. Activities are pure functions
+//! Called from Axum HTTP handlers. Activities are pure functions
 //! that take `&ServerDeps` explicitly.
 
 use anyhow::Result;

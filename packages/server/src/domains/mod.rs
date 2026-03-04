@@ -4,7 +4,6 @@ pub mod auth;
 pub mod contacts;
 pub mod editions;
 pub mod heat_map;
-pub mod jobs;
 pub mod locations;
 pub mod media;
 pub mod member;

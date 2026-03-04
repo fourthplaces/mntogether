@@ -1,11 +1,9 @@
-// Server-side Restate client for Next.js Server Actions
-// Calls Restate ingress directly (no proxy needed server-side)
+// Server-side API client for Next.js Server Actions
+// Calls the Rust Axum server directly
 
 import { cookies } from "next/headers";
 
-const RESTATE_INGRESS_URL =
-  process.env.RESTATE_INGRESS_URL || "http://localhost:8180";
-const RESTATE_AUTH_TOKEN = process.env.RESTATE_AUTH_TOKEN || "";
+const API_URL = process.env.API_URL || "http://localhost:9080";
 
 /**
  * Get the auth token from cookies (server-side)
@@ -16,7 +14,7 @@ export async function getAuthToken(): Promise<string | null> {
 }
 
 /**
- * Call a Restate service handler from the server
+ * Call a service handler from the server
  *
  * Usage:
  *   const result = await restateCall<OtpSent>("Auth/send_otp", { phone_number: "..." });
@@ -31,19 +29,14 @@ export async function restateCall<T>(
     "Content-Type": "application/json",
   };
 
-  // Restate Cloud requires its own auth token for ingress
-  if (RESTATE_AUTH_TOKEN) {
-    headers["Authorization"] = `Bearer ${RESTATE_AUTH_TOKEN}`;
-  }
-
-  // Pass user's JWT as a separate header for the backend to read
+  // Pass user's JWT for the backend to read
   if (token) {
     headers["X-User-Token"] = token;
   }
 
-  const url = `${RESTATE_INGRESS_URL}/${path}`;
-  console.log(`[restate] RESTATE_INGRESS_URL=${process.env.RESTATE_INGRESS_URL || "(NOT SET)"}`);
-  console.log(`[restate] POST ${url}`);
+  const url = `${API_URL}/${path}`;
+  console.log(`[api] API_URL=${process.env.API_URL || "(NOT SET)"}`);
+  console.log(`[api] POST ${url}`);
 
   let response: Response;
   try {
@@ -54,7 +47,7 @@ export async function restateCall<T>(
       cache: "no-store",
     });
   } catch (err) {
-    console.error(`[restate] fetch failed for ${url}:`, err);
+    console.error(`[api] fetch failed for ${url}:`, err);
     throw err;
   }
 
@@ -67,14 +60,14 @@ export async function restateCall<T>(
     } catch {
       message = text;
     }
-    throw new Error(message || `Restate request failed: ${response.statusText}`);
+    throw new Error(message || `API request failed: ${response.statusText}`);
   }
 
   return response.json();
 }
 
 /**
- * Call a Restate virtual object handler from the server
+ * Call a keyed object handler from the server
  *
  * Usage:
  *   const result = await restateObjectCall<Post>("Post", postId, "get", {});
