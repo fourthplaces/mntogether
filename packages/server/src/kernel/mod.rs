@@ -1,13 +1,11 @@
 //! Kernel module - server infrastructure and dependencies.
 
-pub mod ai_tools;
 pub mod deps;
 pub mod llm_request;
 pub mod pii;
 pub mod sse;
 pub mod storage;
 pub mod stream_hub;
-pub mod tag;
 pub mod test_dependencies;
 pub mod traits;
 
@@ -28,6 +26,3 @@ pub use pii::{create_pii_detector, NoopPiiDetector, RegexPiiDetector};
 pub use stream_hub::StreamHub;
 pub use test_dependencies::TestDependencies;
 pub use traits::*;
-
-// AI Tools for agentic workflows
-pub use ai_tools::SearchPostsTool;

@@ -23,10 +23,3 @@ pub enum AdminCapability {
     FullAdmin,
 }
 
-impl AdminCapability {
-    /// Check if this capability requires admin access
-    pub fn requires_admin(&self) -> bool {
-        // All capabilities in this system require admin access
-        true
-    }
-}
