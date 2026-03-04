@@ -151,8 +151,7 @@ impl MigrationEntry {
 /// Add new migrations to this function.
 pub fn all_migrations() -> Vec<MigrationEntry> {
     vec![
-        // Register migrations here:
-        MigrationEntry::new(example::ExampleMigration),
+        // Register migrations here (see example.rs for the pattern):
         MigrationEntry::new(normalize_website_urls::NormalizeWebsiteUrlsMigration),
         MigrationEntry::new(backfill_audience_roles::BackfillAudienceRolesMigration),
     ]
