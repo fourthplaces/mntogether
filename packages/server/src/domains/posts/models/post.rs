@@ -149,18 +149,6 @@ pub struct PostSearchResultWithLocation {
     pub similarity: f64,
 }
 
-/// Post with source type info for cross-source deduplication
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct PostWithSourceType {
-    pub id: PostId,
-    pub title: String,
-    pub description: String,
-    pub summary: Option<String>,
-    pub status: String,
-    pub source_type: String,
-    pub source_id: Uuid,
-}
-
 // =============================================================================
 // Enums for type-safe edges
 // =============================================================================
@@ -466,37 +454,6 @@ impl Post {
         )
     "#;
 
-    /// Find all posts created by a specific agent (joins through agents.member_id).
-    pub async fn find_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT p.* FROM posts p
-            JOIN agents a ON a.member_id = p.submitted_by_id
-            WHERE a.id = $1 AND p.deleted_at IS NULL
-            ORDER BY p.created_at DESC
-            "#,
-        )
-        .bind(agent_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Count posts created by a specific agent (joins through agents.member_id).
-    pub async fn count_by_agent(agent_id: Uuid, pool: &PgPool) -> Result<i64> {
-        sqlx::query_scalar::<_, i64>(
-            r#"
-            SELECT COUNT(*) FROM posts p
-            JOIN agents a ON a.member_id = p.submitted_by_id
-            WHERE a.id = $1 AND p.deleted_at IS NULL
-            "#,
-        )
-        .bind(agent_id)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Batch-load posts by IDs (for DataLoader)
     pub async fn find_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<Self>> {
         sqlx::query_as::<_, Self>("SELECT * FROM posts WHERE id = ANY($1) AND deleted_at IS NULL")
@@ -504,29 +461,6 @@ impl Post {
             .fetch_all(pool)
             .await
             .map_err(Into::into)
-    }
-
-    /// Batch-load post titles by IDs (includes soft-deleted posts, for display purposes)
-    pub async fn find_titles_by_ids(ids: &[Uuid], pool: &PgPool) -> Result<Vec<(Uuid, String)>> {
-        sqlx::query_as::<_, (Uuid, String)>("SELECT id, title FROM posts WHERE id = ANY($1)")
-            .bind(ids)
-            .fetch_all(pool)
-            .await
-            .map_err(Into::into)
-    }
-
-    /// Batch-load titles and relevance scores for a set of post IDs.
-    pub async fn find_titles_and_scores_by_ids(
-        ids: &[Uuid],
-        pool: &PgPool,
-    ) -> Result<Vec<(Uuid, String, Option<i32>)>> {
-        sqlx::query_as::<_, (Uuid, String, Option<i32>)>(
-            "SELECT id, title, relevance_score FROM posts WHERE id = ANY($1)",
-        )
-        .bind(ids)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
     }
 
     /// Find listing by ID
@@ -661,78 +595,6 @@ impl Post {
         Ok((results, has_more))
     }
 
-    /// Find listings by listing type
-    pub async fn find_by_type(
-        post_type: &str,
-        limit: i64,
-        offset: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let sql = format!(
-            "SELECT p.* FROM posts p
-             WHERE p.post_type = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
-             {}
-             ORDER BY p.created_at DESC
-             LIMIT $2 OFFSET $3",
-            Self::SCHEDULE_ACTIVE_FILTER
-        );
-        let listings = sqlx::query_as::<_, Post>(&sql)
-            .bind(post_type)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(pool)
-            .await?;
-        Ok(listings)
-    }
-
-    /// Find listings by category
-    pub async fn find_by_category(
-        category: &str,
-        limit: i64,
-        offset: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let sql = format!(
-            "SELECT p.* FROM posts p
-             WHERE p.category = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
-             {}
-             ORDER BY p.created_at DESC
-             LIMIT $2 OFFSET $3",
-            Self::SCHEDULE_ACTIVE_FILTER
-        );
-        let listings = sqlx::query_as::<_, Post>(&sql)
-            .bind(category)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(pool)
-            .await?;
-        Ok(listings)
-    }
-
-    /// Find listings by capacity status
-    pub async fn find_by_capacity(
-        capacity_status: &str,
-        limit: i64,
-        offset: i64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        let sql = format!(
-            "SELECT p.* FROM posts p
-             WHERE p.capacity_status = $1 AND p.status = 'active' AND p.deleted_at IS NULL AND p.revision_of_post_id IS NULL AND p.translation_of_id IS NULL
-             {}
-             ORDER BY p.created_at DESC
-             LIMIT $2 OFFSET $3",
-            Self::SCHEDULE_ACTIVE_FILTER
-        );
-        let listings = sqlx::query_as::<_, Post>(&sql)
-            .bind(capacity_status)
-            .bind(limit)
-            .bind(offset)
-            .fetch_all(pool)
-            .await?;
-        Ok(listings)
-    }
-
     /// Find active posts for an organization (joins through post_sources → sources)
     pub async fn find_by_organization_id(
         organization_id: Uuid,
@@ -786,36 +648,6 @@ impl Post {
             "#,
         )
         .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find posts by source (via post_sources join), excludes soft-deleted and revisions
-    pub async fn find_by_source(
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Post>(
-            r#"
-            SELECT p.* FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE ps.source_type = $1 AND ps.source_id = $2
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-              AND p.translation_of_id IS NULL
-              AND NOT EXISTS (
-                SELECT 1 FROM sync_proposals sp
-                JOIN sync_batches sb ON sb.id = sp.batch_id
-                WHERE sp.draft_entity_id = p.id
-                  AND sp.status = 'pending'
-                  AND sb.status IN ('pending', 'partially_reviewed')
-              )
-            "#,
-        )
-        .bind(source_type)
-        .bind(source_id)
         .fetch_all(pool)
         .await
         .map_err(Into::into)
@@ -983,21 +815,6 @@ impl Post {
         Ok(post)
     }
 
-    /// Mark listings as disappeared (for sync)
-    pub async fn mark_disappeared(post_ids: &[PostId], pool: &PgPool) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
-            UPDATE posts
-            SET disappeared_at = NOW(), status = 'expired', updated_at = NOW()
-            WHERE id = ANY($1) AND disappeared_at IS NULL
-            "#,
-        )
-        .bind(post_ids)
-        .execute(pool)
-        .await?;
-        Ok(result.rows_affected())
-    }
-
     /// Mark posts as expired when all their schedules have passed.
     /// Only affects posts that have schedules (evergreen posts are untouched).
     pub async fn expire_by_schedule(pool: &PgPool) -> Result<u64> {
@@ -1022,87 +839,6 @@ impl Post {
         .execute(pool)
         .await?;
         Ok(result.rows_affected())
-    }
-
-    /// Update last_seen_at timestamp
-    pub async fn update_last_seen(post_ids: &[PostId], pool: &PgPool) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
-            UPDATE posts
-            SET last_seen_at = NOW(), updated_at = NOW()
-            WHERE id = ANY($1)
-            "#,
-        )
-        .bind(post_ids)
-        .execute(pool)
-        .await?;
-        Ok(result.rows_affected())
-    }
-
-    /// Find existing active listings from a source (for sync)
-    pub async fn find_reviewable_by_source(
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Post>(
-            r#"
-            SELECT p.*
-            FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE ps.source_type = $1 AND ps.source_id = $2
-              AND p.status IN ('pending_approval', 'active')
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-            "#,
-        )
-        .bind(source_type)
-        .bind(source_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find listing by source and title (for sync - detecting changed listings)
-    pub async fn find_by_source_and_title(
-        source_type: &str,
-        source_id: Uuid,
-        title: &str,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Post>(
-            r#"
-            SELECT p.*
-            FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE ps.source_type = $1 AND ps.source_id = $2
-              AND p.title = $3
-              AND p.status IN ('pending_approval', 'active')
-              AND p.deleted_at IS NULL
-            LIMIT 1
-            "#,
-        )
-        .bind(source_type)
-        .bind(source_id)
-        .bind(title)
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Update last_seen_at for a specific listing
-    pub async fn touch_last_seen(id: PostId, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            r#"
-            UPDATE posts
-            SET last_seen_at = NOW(), updated_at = NOW()
-            WHERE id = $1
-            "#,
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
     }
 
     /// Count listings by status (for pagination)
@@ -1164,17 +900,6 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Ensure listing is active (for operations that require active status)
-    pub fn ensure_active(&self) -> Result<()> {
-        if self.status != "active" {
-            anyhow::bail!(
-                "Listing must be active to perform this operation (current status: {})",
-                self.status
-            );
-        }
-        Ok(())
-    }
-
     /// Delete all posts for an organization (hard delete via post_sources → sources join).
     /// Returns the count of deleted posts.
     pub async fn delete_all_for_organization(organization_id: Uuid, pool: &PgPool) -> Result<i64> {
@@ -1195,48 +920,13 @@ impl Post {
         Ok(result.rows_affected() as i64)
     }
 
-    /// Delete a listing by ID (hard delete - use soft_delete instead for link preservation)
+    /// Delete a listing by ID (hard delete)
     pub async fn delete(id: PostId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM posts WHERE id = $1")
             .bind(id)
             .execute(pool)
             .await?;
         Ok(())
-    }
-
-    /// Soft delete a listing (preserves the record for link continuity)
-    /// reason should explain why, e.g. "Duplicate of post <uuid>"
-    pub async fn soft_delete(id: PostId, reason: &str, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            r#"
-            UPDATE posts
-            SET deleted_at = NOW(),
-                deleted_reason = $2,
-                updated_at = NOW()
-            WHERE id = $1
-            "#,
-        )
-        .bind(id)
-        .bind(reason)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
-    /// Mark listing as verified
-    pub async fn mark_verified(id: PostId, pool: &PgPool) -> Result<Self> {
-        let post = sqlx::query_as::<_, Post>(
-            r#"
-            UPDATE posts
-            SET verified_at = NOW(), updated_at = NOW()
-            WHERE id = $1
-            RETURNING *
-            "#,
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
-        Ok(post)
     }
 
     // =========================================================================
@@ -1571,42 +1261,6 @@ impl Post {
         .map_err(Into::into)
     }
 
-    /// Delete a revision and update the original post with the revision's content
-    /// Returns the updated original post
-    pub async fn apply_revision(revision_id: PostId, pool: &PgPool) -> Result<Self> {
-        let revision = Self::find_by_id(revision_id, pool)
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("Revision not found"))?;
-
-        let original_id = revision
-            .revision_of_post_id
-            .ok_or_else(|| anyhow::anyhow!("Not a revision post"))?;
-
-        // Copy revision fields to original (including type system fields)
-        let updated = Self::update_content(
-            UpdatePostContent::builder()
-                .id(original_id)
-                .title(Some(revision.title))
-                .description(Some(revision.description))
-                .description_markdown(revision.description_markdown)
-                .summary(revision.summary)
-                .post_type(Some(revision.post_type))
-                .category(Some(revision.category))
-                .weight(Some(revision.weight))
-                .priority(Some(revision.priority))
-                .urgency(revision.urgency)
-                .location(revision.location)
-                .build(),
-            pool,
-        )
-        .await?;
-
-        // Delete the revision
-        Self::delete(revision_id, pool).await?;
-
-        Ok(updated)
-    }
-
     // =========================================================================
     // Event Schedule Queries (joins against tags)
     // =========================================================================
@@ -1626,103 +1280,6 @@ impl Post {
         .fetch_all(pool)
         .await
         .map_err(Into::into)
-    }
-
-    // =========================================================================
-    // Translation Methods
-    // =========================================================================
-
-    /// Find all translations of a given post
-    pub async fn find_translations_for_post(post_id: PostId, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM posts WHERE translation_of_id = $1 AND deleted_at IS NULL",
-        )
-        .bind(post_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find pending (non-deleted, non-revision) posts for a source
-    pub async fn find_pending_by_source(
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT p.* FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE ps.source_type = $1 AND ps.source_id = $2
-              AND p.status = 'pending_approval'
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-            ORDER BY p.created_at DESC
-            "#,
-        )
-        .bind(source_type)
-        .bind(source_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find only active (published) posts for a source, excluding pending
-    pub async fn find_active_only_by_source(
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT p.* FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE ps.source_type = $1 AND ps.source_id = $2
-              AND p.status = 'active'
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-            ORDER BY p.created_at DESC
-            "#,
-        )
-        .bind(source_type)
-        .bind(source_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Create a revision post by copying content from a source post, pointing at original_id.
-    /// Also copies all post_sources from the source post.
-    pub async fn create_revision_from(
-        source: &Post,
-        original_id: PostId,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        let revision = Post::create(
-            CreatePost::builder()
-                .title(source.title.clone())
-                .description(source.description.clone())
-                .summary(source.summary.clone())
-                .post_type(source.post_type.clone())
-                .category(source.category.clone())
-                .weight(source.weight.clone())
-                .priority(source.priority)
-                .urgency(source.urgency.clone())
-                .location(source.location.clone())
-                .source_language(source.source_language.clone())
-                .submission_type(Some("revision".to_string()))
-                .source_url(source.source_url.clone())
-                .revision_of_post_id(Some(original_id))
-                .published_at(source.published_at)
-                .build(),
-            pool,
-        )
-        .await?;
-
-        // Copy sources from the source post to the revision
-        super::PostSource::copy_sources(source.id, revision.id, pool).await?;
-
-        Ok(revision)
     }
 
     // =========================================================================
@@ -1897,77 +1454,9 @@ impl Post {
             .map_err(Into::into)
     }
 
-    /// Find a translation of a post in a specific language
-    pub async fn find_translation(
-        post_id: PostId,
-        language: &str,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM posts WHERE translation_of_id = $1 AND source_language = $2 AND deleted_at IS NULL LIMIT 1",
-        )
-        .bind(post_id)
-        .bind(language)
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     // =========================================================================
     // Cross-Source Deduplication
     // =========================================================================
-
-    /// Find active/pending posts for an organization with their source type info.
-    /// Used for cross-source deduplication (detecting same resource from website + Instagram, etc.)
-    pub async fn find_active_pending_by_organization_with_source(
-        organization_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<PostWithSourceType>> {
-        sqlx::query_as::<_, PostWithSourceType>(
-            r#"
-            SELECT DISTINCT ON (p.id)
-                p.id, p.title, p.description, p.summary, p.status,
-                s.source_type, s.id as source_id
-            FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            JOIN sources s ON ps.source_id = s.id
-            WHERE s.organization_id = $1
-              AND p.status IN ('pending_approval', 'active')
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-              AND p.duplicate_of_id IS NULL
-            ORDER BY p.id, s.source_type
-            "#,
-        )
-        .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find rejected posts for an organization (for cleanup/purge).
-    /// Joins through post_sources → sources to find org membership.
-    pub async fn find_rejected_by_organization(
-        organization_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT DISTINCT ON (p.id) p.*
-            FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            JOIN sources s ON ps.source_id = s.id
-            WHERE s.organization_id = $1
-              AND p.status = 'rejected'
-              AND p.deleted_at IS NULL
-            ORDER BY p.id
-            "#,
-        )
-        .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
 
     /// Mark a post as a duplicate of another post.
     /// Sets duplicate_of_id, soft-deletes, and records the reason.
@@ -2011,17 +1500,6 @@ impl Post {
         )
         .bind(score)
         .bind(breakdown)
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
-    /// Clear relevance score (e.g. when content changes)
-    pub async fn clear_relevance_score(id: PostId, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            "UPDATE posts SET relevance_score = NULL, relevance_breakdown = NULL, scored_at = NULL, updated_at = NOW() WHERE id = $1",
-        )
         .bind(id)
         .execute(pool)
         .await?;
