@@ -62,7 +62,6 @@ ai-client = { path = "../ai-client" }
 
 # HTTP client
 reqwest = { workspace = true }
-urlencoding = "2.1"
 url = "2.5"
 hyper = { version = "1", features = ["full"] }
 

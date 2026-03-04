@@ -1,14 +1,13 @@
-//! Register member action - handles member registration with geocoding
+//! Register member action
 
 use anyhow::Result;
-use tracing::{debug, error, info};
+use tracing::{debug, info};
 use uuid::Uuid;
 
-use crate::common::utils::geocoding::geocode_city;
 use crate::domains::member::models::member::Member;
 use crate::kernel::ServerDeps;
 
-/// Register a new member with geocoding.
+/// Register a new member.
 ///
 /// Returns the member ID (new or existing).
 pub async fn register_member(
@@ -29,43 +28,21 @@ pub async fn register_member(
         return Ok(existing.id);
     }
 
-    // Geocode city to lat/lng
-    let (latitude, longitude, location_name) = match geocode_city(&city, &state).await {
-        Ok(location) => (
-            Some(location.latitude),
-            Some(location.longitude),
-            Some(location.display_name),
-        ),
-        Err(e) => {
-            error!("Geocoding failed for {}, {}: {}", city, state, e);
-            (None, None, None)
-        }
-    };
-
-    debug!(
-        "Geocoded {}, {} → ({:?}, {:?})",
-        city, state, latitude, longitude
-    );
-
     // Create member record
     let member = Member {
         id: Uuid::new_v4(),
         expo_push_token: expo_push_token.clone(),
         searchable_text,
-        latitude,
-        longitude,
-        location_name: location_name.clone(),
+        latitude: None,
+        longitude: None,
+        location_name: None,
         active: true,
         notification_count_this_week: 0,
         paused_until: None,
         created_at: chrono::Utc::now(),
     };
 
-    // Insert into database
-    let created = member.insert(&deps.db_pool).await.map_err(|e| {
-        error!("Failed to insert member: {}", e);
-        anyhow::anyhow!("Database error: {}", e)
-    })?;
+    let created = member.insert(&deps.db_pool).await?;
 
     info!("Member registered successfully: {}", created.id);
 

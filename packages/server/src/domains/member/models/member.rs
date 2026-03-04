@@ -58,32 +58,6 @@ impl Member {
         .map_err(Into::into)
     }
 
-    /// Find active members within radius of a location (for matching)
-    ///
-    /// Uses Haversine distance function. Returns members sorted by vector similarity.
-    pub async fn find_within_radius(
-        center_lat: f64,
-        center_lng: f64,
-        radius_km: f64,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT m.*
-             FROM members m
-             WHERE m.active = true
-               AND m.latitude IS NOT NULL
-               AND m.longitude IS NOT NULL
-               AND haversine_distance($1, $2, m.latitude, m.longitude) <= $3
-             ORDER BY m.created_at DESC",
-        )
-        .bind(center_lat)
-        .bind(center_lng)
-        .bind(radius_km)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Insert new member
     pub async fn insert(&self, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
