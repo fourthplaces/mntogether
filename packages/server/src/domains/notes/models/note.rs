@@ -70,46 +70,6 @@ impl Note {
         .map_err(Into::into)
     }
 
-    /// Create a draft note (status = 'draft') for curator proposals.
-    /// Draft notes are not visible until approved.
-    pub async fn create_draft(
-        content: &str,
-        severity: &str,
-        source_url: Option<&str>,
-        source_id: Option<Uuid>,
-        source_type: Option<&str>,
-        cta_text: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            INSERT INTO notes (content, severity, source_url, source_id, source_type, is_public, created_by, cta_text, status)
-            VALUES ($1, $2, $3, $4, $5, true, 'curator', $6, 'draft')
-            RETURNING *
-            "#,
-        )
-        .bind(content)
-        .bind(severity)
-        .bind(source_url)
-        .bind(source_id)
-        .bind(source_type)
-        .bind(cta_text)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Activate a draft note (draft → active).
-    pub async fn activate(id: NoteId, pool: &PgPool) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            "UPDATE notes SET status = 'active', updated_at = NOW() WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     pub async fn find_by_id(id: NoteId, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>("SELECT * FROM notes WHERE id = $1")
             .bind(id)
@@ -157,16 +117,6 @@ impl Note {
         .map_err(Into::into)
     }
 
-    pub async fn unexpire(id: NoteId, pool: &PgPool) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            "UPDATE notes SET expired_at = NULL, updated_at = now() WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Update embedding for a note (for semantic matching against posts).
     pub async fn update_embedding(id: NoteId, embedding: &[f32], pool: &PgPool) -> Result<()> {
         use pgvector::Vector;
@@ -177,32 +127,6 @@ impl Note {
             .execute(pool)
             .await?;
         Ok(())
-    }
-
-    /// Delete all system-generated notes for an entity.
-    /// Manual/admin notes (created_by != 'system') are preserved.
-    /// Noteables cascade-delete automatically.
-    pub async fn delete_system_notes_for_entity(
-        noteable_type: &str,
-        noteable_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<u64> {
-        let result = sqlx::query(
-            r#"
-            DELETE FROM notes
-            WHERE id IN (
-                SELECT n.id FROM notes n
-                INNER JOIN noteables nb ON nb.note_id = n.id
-                WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
-                  AND n.created_by = 'system'
-            )
-            "#,
-        )
-        .bind(noteable_type)
-        .bind(noteable_id)
-        .execute(pool)
-        .await?;
-        Ok(result.rows_affected())
     }
 
     /// Find all notes linked to an entity (including expired).
@@ -241,32 +165,6 @@ impl Note {
             FROM notes n
             INNER JOIN noteables nb ON nb.note_id = n.id
             WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
-              AND n.expired_at IS NULL
-            ORDER BY
-                CASE n.severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
-                n.created_at DESC
-            "#,
-        )
-        .bind(noteable_type)
-        .bind(noteable_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find public, active notes for an entity (for public display).
-    pub async fn find_public_for_entity(
-        noteable_type: &str,
-        noteable_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT n.*
-            FROM notes n
-            INNER JOIN noteables nb ON nb.note_id = n.id
-            WHERE nb.noteable_type = $1 AND nb.noteable_id = $2
-              AND n.is_public = true
               AND n.expired_at IS NULL
             ORDER BY
                 CASE n.severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
@@ -356,22 +254,6 @@ impl Note {
         .await?;
         Ok(result)
     }
-
-    /// Find notes by source (for deduplication and refresh).
-    pub async fn find_by_source(
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM notes WHERE source_type = $1 AND source_id = $2 ORDER BY created_at DESC",
-        )
-        .bind(source_type)
-        .bind(source_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
 }
 
 // =============================================================================
@@ -419,17 +301,6 @@ impl Noteable {
         .execute(pool)
         .await?;
         Ok(())
-    }
-
-    /// Find all linked entities for a note.
-    pub async fn find_for_note(note_id: NoteId, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM noteables WHERE note_id = $1 ORDER BY added_at DESC",
-        )
-        .bind(note_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
     }
 
     /// Find all linked posts for a batch of notes (avoids N+1).
