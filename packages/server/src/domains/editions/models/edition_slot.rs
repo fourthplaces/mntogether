@@ -83,15 +83,6 @@ impl EditionSlot {
         .map_err(Into::into)
     }
 
-    /// Find a single slot by ID.
-    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>("SELECT * FROM edition_slots WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(Into::into)
-    }
-
     /// Move a slot to a different row / position.
     pub async fn move_to(
         id: Uuid,

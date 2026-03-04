@@ -81,12 +81,4 @@ impl EditionWidget {
         .map_err(Into::into)
     }
 
-    /// Find a single widget by ID.
-    pub async fn find_by_id(id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>("SELECT * FROM edition_widgets WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(Into::into)
-    }
 }

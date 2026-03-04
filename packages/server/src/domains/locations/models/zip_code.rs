@@ -20,14 +20,4 @@ impl ZipCode {
             .map_err(Into::into)
     }
 
-    pub async fn find_by_city(city: &str, state: &str, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM zip_codes WHERE LOWER(city) = LOWER($1) AND state = $2 ORDER BY zip_code",
-        )
-        .bind(city)
-        .bind(state)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
 }

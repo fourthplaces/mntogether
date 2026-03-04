@@ -89,36 +89,6 @@ impl Locationable {
         .map_err(Into::into)
     }
 
-    /// Find all locationable links for an entity.
-    pub async fn find_links_for_entity(
-        locatable_type: &str,
-        locatable_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM locationables WHERE locatable_type = $1 AND locatable_id = $2 ORDER BY is_primary DESC, added_at ASC",
-        )
-        .bind(locatable_type)
-        .bind(locatable_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find all entities at a given location.
-    pub async fn find_entities_at_location(
-        location_id: LocationId,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM locationables WHERE location_id = $1 ORDER BY added_at ASC",
-        )
-        .bind(location_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Delete all location links for an entity.
     pub async fn delete_all_for_entity(
         locatable_type: &str,

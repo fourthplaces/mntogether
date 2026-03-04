@@ -155,11 +155,6 @@ impl Schedule {
         Self::find_for_entity("post", post_id, pool).await
     }
 
-    /// Find all schedules for a location
-    pub async fn find_for_location(location_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
-        Self::find_for_entity("location", location_id, pool).await
-    }
-
     /// Expand this schedule's next N occurrences using rrule (computed, not stored).
     pub fn next_occurrences(&self, limit: usize) -> Vec<DateTime<Utc>> {
         let now = Utc::now();

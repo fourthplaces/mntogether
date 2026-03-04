@@ -92,14 +92,4 @@ impl OrganizationChecklistItem {
         Ok(())
     }
 
-    /// Check whether all required items are checked for an organization.
-    pub async fn all_checked(organization_id: OrganizationId, pool: &PgPool) -> Result<bool> {
-        let count = sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(DISTINCT checklist_key) FROM organization_checklist_items WHERE organization_id = $1",
-        )
-        .bind(organization_id)
-        .fetch_one(pool)
-        .await?;
-        Ok(count as usize >= CHECKLIST_KEYS.len())
-    }
 }

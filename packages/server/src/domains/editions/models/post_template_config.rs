@@ -37,17 +37,6 @@ impl PostTemplateConfig {
             .map_err(Into::into)
     }
 
-    /// Find all post templates compatible with a given post type.
-    pub async fn find_compatible(post_type: &str, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM post_template_configs WHERE $1 = ANY(compatible_types) ORDER BY sort_order ASC",
-        )
-        .bind(post_type)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Check if this template is compatible with a given post type.
     pub fn is_compatible(&self, post_type: &str) -> bool {
         self.compatible_types.iter().any(|t| t == post_type)

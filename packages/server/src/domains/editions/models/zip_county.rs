@@ -23,28 +23,4 @@ impl ZipCounty {
         .map_err(Into::into)
     }
 
-    /// Find the primary county for a zip code.
-    pub async fn find_primary_county_for_zip(
-        zip_code: &str,
-        pool: &PgPool,
-    ) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM zip_counties WHERE zip_code = $1 AND is_primary = true LIMIT 1",
-        )
-        .bind(zip_code)
-        .fetch_optional(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find all zip codes mapped to a given county.
-    pub async fn find_zips_for_county(county_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM zip_counties WHERE county_id = $1 ORDER BY zip_code ASC",
-        )
-        .bind(county_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
 }

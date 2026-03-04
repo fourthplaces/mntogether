@@ -240,40 +240,6 @@ impl Organization {
         .map_err(Into::into)
     }
 
-    /// Find or create an organization by name (exact match).
-    /// If exists, updates description only if the new one is non-null.
-    /// System-created orgs default to 'pending_review'.
-    pub async fn find_or_create_by_name(
-        name: &str,
-        description: Option<&str>,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            INSERT INTO organizations (name, description, submitter_type, status)
-            VALUES ($1, $2, 'system', 'pending_review')
-            ON CONFLICT (name) DO UPDATE
-            SET description = COALESCE(EXCLUDED.description, organizations.description)
-            RETURNING *
-            "#,
-        )
-        .bind(name)
-        .bind(description)
-        .fetch_one(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    pub async fn update_last_extracted(id: OrganizationId, pool: &PgPool) -> Result<()> {
-        sqlx::query(
-            "UPDATE organizations SET last_extracted_at = NOW(), updated_at = NOW() WHERE id = $1",
-        )
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
     pub async fn delete(id: OrganizationId, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM organizations WHERE id = $1")
             .bind(id)

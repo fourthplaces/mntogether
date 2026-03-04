@@ -115,16 +115,4 @@ impl Media {
         Ok(())
     }
 
-    /// Update alt text for a media record.
-    pub async fn update_alt_text(id: Uuid, alt_text: &str, pool: &PgPool) -> Result<Self> {
-        let row = sqlx::query_as::<_, Self>(
-            "UPDATE media SET alt_text = $2, updated_at = NOW() WHERE id = $1 RETURNING *",
-        )
-        .bind(id)
-        .bind(alt_text)
-        .fetch_one(pool)
-        .await?;
-
-        Ok(row)
-    }
 }

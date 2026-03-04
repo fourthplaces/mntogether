@@ -43,22 +43,6 @@ impl HeatMapPoint {
         .map_err(Into::into)
     }
 
-    /// Return latest points filtered by entity type.
-    pub async fn find_latest_by_type(entity_type: &str, pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT * FROM heat_map_points
-            WHERE generated_at = (SELECT MAX(generated_at) FROM heat_map_points)
-              AND entity_type = $1
-            ORDER BY weight DESC
-            "#,
-        )
-        .bind(entity_type)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Atomically replace the snapshot: DELETE all + batch INSERT in a transaction.
     pub async fn truncate_and_insert(rows: &[HeatMapRow], pool: &PgPool) -> Result<usize> {
         let mut tx = pool.begin().await?;

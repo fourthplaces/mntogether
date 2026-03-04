@@ -79,12 +79,4 @@ impl MemoCache {
         Ok(())
     }
 
-    /// Delete expired entries. Call from a periodic cleanup job if desired.
-    pub async fn evict_expired(pool: &PgPool) -> Result<u64> {
-        let result =
-            sqlx::query("DELETE FROM memo_cache WHERE expires_at IS NOT NULL AND expires_at <= now()")
-                .execute(pool)
-                .await?;
-        Ok(result.rows_affected())
-    }
 }

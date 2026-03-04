@@ -1,10 +1,9 @@
 use anyhow::Result;
-use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{MemberId, PaginationDirection, Readable, ValidatedPaginationArgs};
+use crate::common::{PaginationDirection, ValidatedPaginationArgs};
 
 /// Member model - SQL persistence layer
 ///
@@ -48,16 +47,6 @@ impl Member {
             .map_err(Into::into)
     }
 
-    /// Find all active members
-    pub async fn find_active(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            "SELECT * FROM members WHERE active = true ORDER BY created_at DESC",
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
     /// Insert new member
     pub async fn insert(&self, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
@@ -93,56 +82,6 @@ impl Member {
             .fetch_one(pool)
             .await
             .map_err(Into::into)
-    }
-
-    /// Increment notification count (for throttling)
-    ///
-    /// Returns the updated member if successful (count < 3), None if limit reached
-    ///
-    /// IMPORTANT: This uses SELECT FOR UPDATE to prevent race conditions where
-    /// concurrent transactions could both see count=2 and both increment to 3+.
-    /// The row lock ensures atomic check-and-increment.
-    pub async fn increment_notification_count(id: MemberId, pool: &PgPool) -> Result<Option<Self>> {
-        // Start transaction for atomic check-and-increment
-        let mut tx = pool.begin().await?;
-
-        // Lock the row with SELECT FOR UPDATE to prevent concurrent modifications
-        let current: Option<Self> =
-            sqlx::query_as("SELECT * FROM members WHERE id = $1 FOR UPDATE")
-                .bind(id.into_uuid())
-                .fetch_optional(&mut *tx)
-                .await?;
-
-        // Check if member exists
-        let current = match current {
-            Some(m) => m,
-            None => {
-                tx.rollback().await?;
-                return Ok(None);
-            }
-        };
-
-        // Check throttle limit
-        if current.notification_count_this_week >= 3 {
-            tx.rollback().await?;
-            return Ok(None);
-        }
-
-        // Increment count (row is locked, safe to increment)
-        let updated: Self = sqlx::query_as(
-            "UPDATE members
-             SET notification_count_this_week = notification_count_this_week + 1
-             WHERE id = $1
-             RETURNING *",
-        )
-        .bind(id.into_uuid())
-        .fetch_one(&mut *tx)
-        .await?;
-
-        // Commit transaction
-        tx.commit().await?;
-
-        Ok(Some(updated))
     }
 
     /// Reset weekly notification counts (called by weekly cron job)
@@ -210,20 +149,6 @@ impl Member {
         let has_more = results.len() > args.limit as usize;
         let results = results.into_iter().take(args.limit as usize).collect();
         Ok((results, has_more))
-    }
-}
-
-/// Implement Readable for deferred database reads via ReadResult<Member>
-#[async_trait]
-impl Readable for Member {
-    type Id = Uuid;
-
-    async fn read_by_id(id: Self::Id, pool: &PgPool) -> Result<Option<Self>> {
-        sqlx::query_as::<_, Self>("SELECT * FROM members WHERE id = $1")
-            .bind(id)
-            .fetch_optional(pool)
-            .await
-            .map_err(Into::into)
     }
 }
 
