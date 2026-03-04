@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{PostId, ProviderId, TagId, TaggableId, WebsiteId};
+use crate::common::{PostId, TagId, TaggableId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -252,57 +252,6 @@ impl Tag {
         Ok(tags)
     }
 
-    /// Find all tags for a website
-    pub async fn find_for_website(website_id: WebsiteId, pool: &PgPool) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            r#"
-            SELECT t.*
-            FROM tags t
-            INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'website' AND tg.taggable_id = $1
-            ORDER BY t.kind, t.value
-            "#,
-        )
-        .bind(website_id.as_uuid())
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
-
-    /// Find all tags for a referral document
-    pub async fn find_for_document(document_id: Uuid, pool: &PgPool) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            r#"
-            SELECT t.*
-            FROM tags t
-            INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'referral_document' AND tg.taggable_id = $1
-            ORDER BY t.kind, t.value
-            "#,
-        )
-        .bind(document_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
-
-    /// Find all tags for a provider
-    pub async fn find_for_provider(provider_id: ProviderId, pool: &PgPool) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            r#"
-            SELECT t.*
-            FROM tags t
-            INNER JOIN taggables tg ON tg.tag_id = t.id
-            WHERE tg.taggable_type = 'provider' AND tg.taggable_id = $1
-            ORDER BY t.kind, t.value
-            "#,
-        )
-        .bind(provider_id.as_uuid())
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
-
     /// Find distinct ServiceOffered tags that are attached to active posts, with counts.
     /// Powers the dynamic category pills on the public home page.
     pub async fn find_active_categories(pool: &PgPool) -> Result<Vec<ActiveCategory>> {
@@ -354,32 +303,6 @@ impl Tag {
             .await?;
         Ok(())
     }
-
-    // =========================================================================
-    // Hierarchy Queries
-    // =========================================================================
-
-    /// Find all child tags of a parent
-    pub async fn find_children(parent_id: TagId, pool: &PgPool) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            "SELECT * FROM tags WHERE parent_tag_id = $1 ORDER BY kind, value",
-        )
-        .bind(parent_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
-
-    /// Find top-level tags (no parent) of a specific kind
-    pub async fn find_roots_by_kind(kind: &str, pool: &PgPool) -> Result<Vec<Self>> {
-        let tags = sqlx::query_as::<_, Tag>(
-            "SELECT * FROM tags WHERE kind = $1 AND parent_tag_id IS NULL ORDER BY value",
-        )
-        .bind(kind)
-        .fetch_all(pool)
-        .await?;
-        Ok(tags)
-    }
 }
 
 // =============================================================================
@@ -390,33 +313,6 @@ impl Taggable {
     /// Associate a tag with a post
     pub async fn create_post_tag(post_id: PostId, tag_id: TagId, pool: &PgPool) -> Result<Self> {
         Self::create(tag_id, "post", post_id.as_uuid(), pool).await
-    }
-
-    /// Associate a tag with a website
-    pub async fn create_website_tag(
-        website_id: WebsiteId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        Self::create(tag_id, "website", website_id.as_uuid(), pool).await
-    }
-
-    /// Associate a tag with a referral document
-    pub async fn create_document_tag(
-        document_id: Uuid,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        Self::create(tag_id, "referral_document", &document_id, pool).await
-    }
-
-    /// Associate a tag with a provider
-    pub async fn create_provider_tag(
-        provider_id: ProviderId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        Self::create(tag_id, "provider", provider_id.as_uuid(), pool).await
     }
 
     /// Generic create method
@@ -448,33 +344,6 @@ impl Taggable {
         Self::delete(tag_id, "post", post_id.as_uuid(), pool).await
     }
 
-    /// Remove a tag from a website
-    pub async fn delete_website_tag(
-        website_id: WebsiteId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<()> {
-        Self::delete(tag_id, "website", website_id.as_uuid(), pool).await
-    }
-
-    /// Remove a tag from a referral document
-    pub async fn delete_document_tag(
-        document_id: Uuid,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<()> {
-        Self::delete(tag_id, "referral_document", &document_id, pool).await
-    }
-
-    /// Remove a tag from a provider
-    pub async fn delete_provider_tag(
-        provider_id: ProviderId,
-        tag_id: TagId,
-        pool: &PgPool,
-    ) -> Result<()> {
-        Self::delete(tag_id, "provider", provider_id.as_uuid(), pool).await
-    }
-
     /// Generic delete method
     async fn delete(
         tag_id: TagId,
@@ -500,36 +369,5 @@ impl Taggable {
             .execute(pool)
             .await?;
         Ok(())
-    }
-
-    /// Remove all tags from a provider
-    pub async fn delete_all_for_provider(provider_id: ProviderId, pool: &PgPool) -> Result<()> {
-        sqlx::query("DELETE FROM taggables WHERE taggable_type = 'provider' AND taggable_id = $1")
-            .bind(provider_id.as_uuid())
-            .execute(pool)
-            .await?;
-        Ok(())
-    }
-
-    /// Find all posts with a specific tag
-    pub async fn find_posts_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
-        let ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'post'",
-        )
-        .bind(tag_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(ids.into_iter().map(|(id,)| id).collect())
-    }
-
-    /// Find all providers with a specific tag
-    pub async fn find_providers_with_tag(tag_id: TagId, pool: &PgPool) -> Result<Vec<Uuid>> {
-        let ids: Vec<(Uuid,)> = sqlx::query_as(
-            "SELECT taggable_id FROM taggables WHERE tag_id = $1 AND taggable_type = 'provider'",
-        )
-        .bind(tag_id)
-        .fetch_all(pool)
-        .await?;
-        Ok(ids.into_iter().map(|(id,)| id).collect())
     }
 }

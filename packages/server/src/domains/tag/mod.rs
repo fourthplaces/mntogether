@@ -5,4 +5,4 @@ pub mod models;
 
 // Re-export commonly used types
 pub use data::TagData;
-pub use models::{Tag, Taggable, TaggableType, TaxonomyCrosswalk};
+pub use models::{Tag, Taggable, TaggableType};

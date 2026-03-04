@@ -68,9 +68,6 @@ pub struct PostLocation;
 /// Marker type for Schedule entities (operating hours and calendar events).
 pub struct Schedule;
 
-/// Marker type for TaxonomyCrosswalk entities (external taxonomy mapping).
-pub struct TaxonomyCrosswalk;
-
 /// Marker type for SyncBatch entities (groups of AI-proposed changes).
 pub struct SyncBatch;
 
@@ -158,9 +155,6 @@ pub type PostLocationId = Id<PostLocation>;
 
 /// Typed ID for Schedule entities.
 pub type ScheduleId = Id<Schedule>;
-
-/// Typed ID for TaxonomyCrosswalk entities.
-pub type TaxonomyCrosswalkId = Id<TaxonomyCrosswalk>;
 
 /// Typed ID for SyncBatch entities.
 pub type SyncBatchId = Id<SyncBatch>;
