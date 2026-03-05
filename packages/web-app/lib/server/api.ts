@@ -17,9 +17,9 @@ export async function getAuthToken(): Promise<string | null> {
  * Call a service handler from the server
  *
  * Usage:
- *   const result = await restateCall<OtpSent>("Auth/send_otp", { phone_number: "..." });
+ *   const result = await serverCall<OtpSent>("Auth/send_otp", { phone_number: "..." });
  */
-export async function restateCall<T>(
+export async function serverCall<T>(
   path: string,
   body?: unknown
 ): Promise<T> {
@@ -70,13 +70,13 @@ export async function restateCall<T>(
  * Call a keyed object handler from the server
  *
  * Usage:
- *   const result = await restateObjectCall<Post>("Post", postId, "get", {});
+ *   const result = await serverObjectCall<Post>("Post", postId, "get", {});
  */
-export async function restateObjectCall<T>(
+export async function serverObjectCall<T>(
   object: string,
   key: string,
   handler: string,
   body?: unknown
 ): Promise<T> {
-  return restateCall<T>(`${object}/${key}/${handler}`, body);
+  return serverCall<T>(`${object}/${key}/${handler}`, body);
 }
