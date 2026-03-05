@@ -2,7 +2,7 @@
 
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { restateCall } from "../restate/server";
+import { serverCall } from "../server/api";
 
 interface OtpSent {
   phone_number: string;
@@ -34,7 +34,7 @@ interface VerifyCodeResult {
  */
 export async function sendVerificationCode(phoneNumber: string): Promise<SendCodeResult> {
   try {
-    await restateCall<OtpSent>("Auth/send_otp", {
+    await serverCall<OtpSent>("Auth/send_otp", {
       phone_number: phoneNumber,
     });
     return { success: true };
@@ -51,7 +51,7 @@ export async function sendVerificationCode(phoneNumber: string): Promise<SendCod
  */
 export async function verifyCode(phoneNumber: string, code: string): Promise<VerifyCodeResult> {
   try {
-    const result = await restateCall<OtpVerified>("Auth/verify_otp", {
+    const result = await serverCall<OtpVerified>("Auth/verify_otp", {
       phone_number: phoneNumber,
       code,
     });
