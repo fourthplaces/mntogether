@@ -3,7 +3,7 @@ import { snakeToCamel } from "./util";
 
 const API_URL = process.env.API_URL || "http://localhost:9080";
 
-export class RestateClient {
+export class ServerClient {
   private token: string | null;
 
   constructor({ token }: { token: string | null }) {

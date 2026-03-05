@@ -1,5 +1,5 @@
 import DataLoader from "dataloader";
-import type { RestateClient } from "../restate-client";
+import type { ServerClient } from "../server-client";
 
 interface PostResult {
   id: string;
@@ -18,12 +18,12 @@ export interface PostLoaders {
   postsByOrgId: DataLoader<string, PostResult[]>;
 }
 
-export function createPostLoaders(restate: RestateClient): PostLoaders {
+export function createPostLoaders(server: ServerClient): PostLoaders {
   return {
     postById: new DataLoader(async (ids) => {
       const results = await Promise.all(
         ids.map((id) =>
-          restate
+          server
             .callObject<PostResult>("Post", id as string, "get", {})
             .catch(() => null)
         )
@@ -34,7 +34,7 @@ export function createPostLoaders(restate: RestateClient): PostLoaders {
     postsByOrgId: new DataLoader(async (orgIds) => {
       const results = await Promise.all(
         orgIds.map((orgId) =>
-          restate
+          server
             .callService<PostList>("Posts", "list", {
               organization_id: orgId,
             })

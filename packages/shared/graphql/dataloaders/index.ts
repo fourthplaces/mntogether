@@ -1,10 +1,10 @@
-import type { RestateClient } from "../restate-client";
+import type { ServerClient } from "../server-client";
 import { createPostLoaders, type PostLoaders } from "./post";
 
 export interface DataLoaders extends PostLoaders {}
 
-export function createLoaders(restate: RestateClient): DataLoaders {
+export function createLoaders(server: ServerClient): DataLoaders {
   return {
-    ...createPostLoaders(restate),
+    ...createPostLoaders(server),
   };
 }

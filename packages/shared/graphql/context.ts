@@ -1,10 +1,10 @@
 import type { YogaInitialContext } from "graphql-yoga";
-import { RestateClient } from "./restate-client";
+import { ServerClient } from "./server-client";
 import { createLoaders, type DataLoaders } from "./dataloaders";
 import { parseCookie } from "./util";
 
 export interface GraphQLContext {
-  restate: RestateClient;
+  server: ServerClient;
   loaders: DataLoaders;
 }
 
@@ -15,10 +15,10 @@ export async function createContext(
     initialContext.request.headers.get("cookie") || "";
   const token = parseCookie(cookieHeader, "auth_token");
 
-  const restate = new RestateClient({ token });
+  const server = new ServerClient({ token });
 
   return {
-    restate,
-    loaders: createLoaders(restate),
+    server,
+    loaders: createLoaders(server),
   };
 }
