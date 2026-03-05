@@ -1,7 +1,7 @@
 import type { GraphQLContext } from "../context";
 
 // =============================================================================
-// Helper types for Restate response shapes (after snakeToCamel transform)
+// Helper types for server response shapes (after snakeToCamel transform)
 // =============================================================================
 
 interface EditionData {
@@ -53,7 +53,7 @@ interface EditionSlotData {
 }
 
 // =============================================================================
-// Type resolvers — bridge Restate flat data → GraphQL nested types
+// Type resolvers — bridge server flat data → GraphQL nested types
 // =============================================================================
 
 export const editionResolvers = {
@@ -61,7 +61,7 @@ export const editionResolvers = {
   Edition: {
     county: async (parent: EditionData, _args: unknown, ctx: GraphQLContext) => {
       // countyId is always present (FK constraint in DB)
-      return ctx.restate.callService("Editions", "get_county", {
+      return ctx.server.callService("Editions", "get_county", {
         id: parent.countyId,
       });
     },
@@ -163,7 +163,7 @@ export const editionResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         counties: unknown[];
       }>("Editions", "list_counties", {});
       return result.counties;
@@ -174,7 +174,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "get_county", {
+      return ctx.server.callService("Editions", "get_county", {
         id: args.id,
       });
     },
@@ -184,7 +184,7 @@ export const editionResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         editions: EditionData[];
         total_count: number;
       }>("Editions", "latest_editions", {});
@@ -203,7 +203,7 @@ export const editionResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "list_editions", {
+      return ctx.server.callService("Editions", "list_editions", {
         county_id: args.countyId ?? null,
         status: args.status ?? null,
         period_start: args.periodStart ?? null,
@@ -218,7 +218,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         edition: EditionData;
         rows: EditionRowData[];
       }>("Editions", "get_edition", { id: args.id });
@@ -231,7 +231,7 @@ export const editionResolvers = {
       args: { countyId: string },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         edition: EditionData;
         rows: EditionRowData[];
       }>("Editions", "current_edition", {
@@ -245,7 +245,7 @@ export const editionResolvers = {
       args: { periodStart: string; periodEnd: string },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         draft: number;
         in_review: number;
         approved: number;
@@ -267,7 +267,7 @@ export const editionResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         templates: unknown[];
       }>("Editions", "row_templates", {});
       return result.templates;
@@ -278,7 +278,7 @@ export const editionResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         templates: unknown[];
       }>("Editions", "post_templates", {});
       return result.templates;
@@ -296,7 +296,7 @@ export const editionResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "create_edition", {
+      return ctx.server.callService("Editions", "create_edition", {
         county_id: args.countyId,
         period_start: args.periodStart,
         period_end: args.periodEnd,
@@ -309,7 +309,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "generate_edition", {
+      return ctx.server.callService("Editions", "generate_edition", {
         id: args.id,
       });
     },
@@ -319,7 +319,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "review_edition", {
+      return ctx.server.callService("Editions", "review_edition", {
         id: args.id,
       });
     },
@@ -329,7 +329,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "approve_edition", {
+      return ctx.server.callService("Editions", "approve_edition", {
         id: args.id,
       });
     },
@@ -339,7 +339,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "publish_edition", {
+      return ctx.server.callService("Editions", "publish_edition", {
         id: args.id,
       });
     },
@@ -349,7 +349,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "archive_edition", {
+      return ctx.server.callService("Editions", "archive_edition", {
         id: args.id,
       });
     },
@@ -359,7 +359,7 @@ export const editionResolvers = {
       args: { periodStart: string; periodEnd: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService(
+      return ctx.server.callService(
         "Editions",
         "batch_generate",
         {
@@ -374,7 +374,7 @@ export const editionResolvers = {
       args: { ids: string[] },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "batch_approve_editions", {
+      return ctx.server.callService("Editions", "batch_approve_editions", {
         ids: args.ids,
       });
     },
@@ -384,7 +384,7 @@ export const editionResolvers = {
       args: { ids: string[] },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "batch_publish_editions", {
+      return ctx.server.callService("Editions", "batch_publish_editions", {
         ids: args.ids,
       });
     },
@@ -394,7 +394,7 @@ export const editionResolvers = {
       args: { slotId: string; targetRowId: string; slotIndex: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "move_slot", {
+      return ctx.server.callService("Editions", "move_slot", {
         slot_id: args.slotId,
         target_row_id: args.targetRowId,
         slot_index: args.slotIndex,
@@ -411,7 +411,7 @@ export const editionResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "add_post_to_edition", {
+      return ctx.server.callService("Editions", "add_post_to_edition", {
         edition_row_id: args.editionRowId,
         post_id: args.postId,
         post_template: args.postTemplate,
@@ -424,7 +424,7 @@ export const editionResolvers = {
       args: { editionId: string; rowTemplateSlug: string; sortOrder: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "add_edition_row", {
+      return ctx.server.callService("Editions", "add_edition_row", {
         edition_id: args.editionId,
         row_template_slug: args.rowTemplateSlug,
         sort_order: args.sortOrder,
@@ -436,7 +436,7 @@ export const editionResolvers = {
       args: { rowId: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "delete_edition_row", {
+      return ctx.server.callService("Editions", "delete_edition_row", {
         row_id: args.rowId,
       });
     },
@@ -446,7 +446,7 @@ export const editionResolvers = {
       args: { rowId: string; rowTemplateSlug?: string; sortOrder?: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "update_edition_row", {
+      return ctx.server.callService("Editions", "update_edition_row", {
         row_id: args.rowId,
         row_template_slug: args.rowTemplateSlug ?? null,
         sort_order: args.sortOrder ?? null,
@@ -458,7 +458,7 @@ export const editionResolvers = {
       args: { editionId: string; rowIds: string[] },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         rows: unknown[];
       }>("Editions", "reorder_rows", {
         edition_id: args.editionId,
@@ -472,7 +472,7 @@ export const editionResolvers = {
       args: { slotId: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "remove_post", {
+      return ctx.server.callService("Editions", "remove_post", {
         slot_id: args.slotId,
       });
     },
@@ -482,7 +482,7 @@ export const editionResolvers = {
       args: { slotId: string; postTemplate: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "change_slot_template", {
+      return ctx.server.callService("Editions", "change_slot_template", {
         slot_id: args.slotId,
         post_template: args.postTemplate,
       });
@@ -493,7 +493,7 @@ export const editionResolvers = {
       args: { editionRowId: string; widgetType: string; slotIndex: number; config: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "add_widget", {
+      return ctx.server.callService("Editions", "add_widget", {
         edition_row_id: args.editionRowId,
         widget_type: args.widgetType,
         slot_index: args.slotIndex,
@@ -506,7 +506,7 @@ export const editionResolvers = {
       args: { id: string; config: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "update_widget", {
+      return ctx.server.callService("Editions", "update_widget", {
         id: args.id,
         config: JSON.parse(args.config),
       });
@@ -517,7 +517,7 @@ export const editionResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Editions", "remove_widget", {
+      return ctx.server.callService("Editions", "remove_widget", {
         id: args.id,
       });
     },

@@ -7,7 +7,7 @@ export const noteResolvers = {
       args: { noteableType: string; noteableId: string },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         notes: unknown[];
       }>("Notes", "list_for_entity", {
         noteable_type: args.noteableType,
@@ -21,7 +21,7 @@ export const noteResolvers = {
       args: { organizationId: string; limit?: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService(
+      return ctx.server.callService(
         "Posts",
         "list_by_organization",
         {
@@ -46,7 +46,7 @@ export const noteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Notes", "create", {
+      return ctx.server.callService("Notes", "create", {
         noteable_type: args.noteableType,
         noteable_id: args.noteableId,
         content: args.content,
@@ -70,7 +70,7 @@ export const noteResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Notes", "update", {
+      return ctx.server.callService("Notes", "update", {
         id: args.id,
         content: args.content,
         severity: args.severity,
@@ -86,7 +86,7 @@ export const noteResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Notes", "delete", {
+      await ctx.server.callService("Notes", "delete", {
         id: args.id,
       });
       return true;
@@ -97,7 +97,7 @@ export const noteResolvers = {
       args: { noteId: string; postId: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Notes", "unlink", {
+      await ctx.server.callService("Notes", "unlink", {
         note_id: args.noteId,
         noteable_type: "post",
         noteable_id: args.postId,
@@ -110,7 +110,7 @@ export const noteResolvers = {
       args: { organizationId: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService(
+      return ctx.server.callService(
         "Notes",
         "auto_attach_notes",
         { organization_id: args.organizationId }

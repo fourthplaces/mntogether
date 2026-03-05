@@ -14,7 +14,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Posts", "public_list", {
+      return ctx.server.callService("Posts", "public_list", {
         post_type: args.postType,
         category: args.category,
         limit: args.limit,
@@ -29,7 +29,7 @@ export const postResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Posts", "public_filters", {});
+      return ctx.server.callService("Posts", "public_filters", {});
     },
 
     post: async (
@@ -54,7 +54,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Posts", "list", {
+      return ctx.server.callService("Posts", "list", {
         status: args.status,
         search: args.search,
         post_type: args.postType,
@@ -71,7 +71,7 @@ export const postResolvers = {
       args: { status?: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Posts", "stats", {
+      return ctx.server.callService("Posts", "stats", {
         status: args.status,
       });
     },
@@ -84,7 +84,7 @@ export const postResolvers = {
       ctx: GraphQLContext
     ) => {
       try {
-        await ctx.restate.callObject(
+        await ctx.server.callObject(
           "Post",
           args.postId,
           "track_view",
@@ -102,7 +102,7 @@ export const postResolvers = {
       ctx: GraphQLContext
     ) => {
       try {
-        await ctx.restate.callObject(
+        await ctx.server.callObject(
           "Post",
           args.postId,
           "track_click",
@@ -119,7 +119,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "approve", {});
+      await ctx.server.callObject("Post", args.id, "approve", {});
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
@@ -129,7 +129,7 @@ export const postResolvers = {
       args: { id: string; reason?: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "reject", {
+      await ctx.server.callObject("Post", args.id, "reject", {
         reason: args.reason ?? "Rejected by admin",
       });
       ctx.loaders.postById.clear(args.id);
@@ -141,7 +141,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "archive", {});
+      await ctx.server.callObject("Post", args.id, "archive", {});
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
@@ -151,7 +151,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "delete", {});
+      await ctx.server.callObject("Post", args.id, "delete", {});
       return true;
     },
 
@@ -160,7 +160,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "reactivate", {});
+      await ctx.server.callObject("Post", args.id, "reactivate", {});
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
@@ -175,7 +175,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.postId, "add_tag", {
+      await ctx.server.callObject("Post", args.postId, "add_tag", {
         tag_kind: args.tagKind,
         tag_value: args.tagValue,
         display_name: args.displayName ?? args.tagValue,
@@ -189,7 +189,7 @@ export const postResolvers = {
       args: { postId: string; tagId: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.postId, "remove_tag", {
+      await ctx.server.callObject("Post", args.postId, "remove_tag", {
         tag_id: args.tagId,
       });
       ctx.loaders.postById.clear(args.postId);
@@ -201,7 +201,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "regenerate", {});
+      await ctx.server.callObject("Post", args.id, "regenerate", {});
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
@@ -211,7 +211,7 @@ export const postResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "regenerate_tags", {});
+      await ctx.server.callObject("Post", args.id, "regenerate_tags", {});
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);
     },
@@ -221,7 +221,7 @@ export const postResolvers = {
       args: { id: string; capacityStatus: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "update_capacity", {
+      await ctx.server.callObject("Post", args.id, "update_capacity", {
         capacity_status: args.capacityStatus,
       });
       ctx.loaders.postById.clear(args.id);
@@ -233,7 +233,7 @@ export const postResolvers = {
       args: { limit?: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Posts", "batch_score_posts", {
+      return ctx.server.callService("Posts", "batch_score_posts", {
         limit: args.limit,
       });
     },
@@ -255,7 +255,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService("Posts", "create_post", {
+      const result = await ctx.server.callService("Posts", "create_post", {
         title: args.input.title,
         description_markdown: args.input.descriptionMarkdown,
         summary: args.input.summary,
@@ -286,7 +286,7 @@ export const postResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callObject("Post", args.id, "update_content", {
+      await ctx.server.callObject("Post", args.id, "update_content", {
         title: args.input.title,
         description_markdown: args.input.descriptionMarkdown,
         summary: args.input.summary,
@@ -319,7 +319,7 @@ export const postResolvers = {
       ctx: GraphQLContext
     ) => {
       if (!parent.organizationId) return null;
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: parent.organizationId,
       });
     },

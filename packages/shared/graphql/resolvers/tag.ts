@@ -7,7 +7,7 @@ export const tagResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{ kinds: unknown[] }>(
+      const result = await ctx.server.callService<{ kinds: unknown[] }>(
         "Tags",
         "list_kinds",
         {}
@@ -20,7 +20,7 @@ export const tagResolvers = {
       args: { kind?: string },
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{ tags: unknown[] }>(
+      const result = await ctx.server.callService<{ tags: unknown[] }>(
         "Tags",
         "list_tags",
         { kind: args.kind }
@@ -42,7 +42,7 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Tags", "create_kind", {
+      return ctx.server.callService("Tags", "create_kind", {
         slug: args.slug,
         display_name: args.displayName,
         description: args.description ?? null,
@@ -64,7 +64,7 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Tags", "update_kind", {
+      return ctx.server.callService("Tags", "update_kind", {
         id: args.id,
         display_name: args.displayName,
         description: args.description,
@@ -79,7 +79,7 @@ export const tagResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Tags", "delete_kind", { id: args.id });
+      await ctx.server.callService("Tags", "delete_kind", { id: args.id });
       return true;
     },
 
@@ -95,7 +95,7 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Tags", "create_tag", {
+      return ctx.server.callService("Tags", "create_tag", {
         kind: args.kind,
         value: args.value,
         display_name: args.displayName ?? null,
@@ -116,7 +116,7 @@ export const tagResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Tags", "update_tag", {
+      return ctx.server.callService("Tags", "update_tag", {
         id: args.id,
         display_name: args.displayName,
         color: args.color,
@@ -130,7 +130,7 @@ export const tagResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Tags", "delete_tag", { id: args.id });
+      await ctx.server.callService("Tags", "delete_tag", { id: args.id });
       return true;
     },
   },

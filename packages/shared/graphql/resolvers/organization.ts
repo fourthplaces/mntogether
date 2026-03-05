@@ -7,7 +7,7 @@ export const organizationResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         organizations: unknown[];
       }>("Organizations", "list", {});
       return result.organizations;
@@ -18,7 +18,7 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -28,7 +28,7 @@ export const organizationResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{
+      const result = await ctx.server.callService<{
         organizations: unknown[];
       }>("Organizations", "public_list", {});
       return result.organizations;
@@ -39,7 +39,7 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Organizations", "public_get", {
+      return ctx.server.callService("Organizations", "public_get", {
         id: args.id,
       });
     },
@@ -49,7 +49,7 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Organizations", "get_checklist", {
+      return ctx.server.callService("Organizations", "get_checklist", {
         id: args.id,
       });
     },
@@ -61,7 +61,7 @@ export const organizationResolvers = {
       args: { name: string; description?: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Organizations", "create", {
+      return ctx.server.callService("Organizations", "create", {
         name: args.name,
         description: args.description ?? null,
       });
@@ -72,12 +72,12 @@ export const organizationResolvers = {
       args: { id: string; name: string; description?: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "update", {
+      await ctx.server.callService("Organizations", "update", {
         id: args.id,
         name: args.name,
         description: args.description ?? null,
       });
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -87,7 +87,7 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "delete", {
+      await ctx.server.callService("Organizations", "delete", {
         id: args.id,
       });
       return true;
@@ -98,10 +98,10 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "approve", {
+      await ctx.server.callService("Organizations", "approve", {
         id: args.id,
       });
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -111,11 +111,11 @@ export const organizationResolvers = {
       args: { id: string; reason: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "reject", {
+      await ctx.server.callService("Organizations", "reject", {
         id: args.id,
         reason: args.reason,
       });
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -125,11 +125,11 @@ export const organizationResolvers = {
       args: { id: string; reason: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "suspend", {
+      await ctx.server.callService("Organizations", "suspend", {
         id: args.id,
         reason: args.reason,
       });
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -139,12 +139,12 @@ export const organizationResolvers = {
       args: { id: string; status: string; reason?: string },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService("Organizations", "set_status", {
+      await ctx.server.callService("Organizations", "set_status", {
         id: args.id,
         status: args.status,
         reason: args.reason ?? null,
       });
-      return ctx.restate.callService("Organizations", "get", {
+      return ctx.server.callService("Organizations", "get", {
         id: args.id,
       });
     },
@@ -158,7 +158,7 @@ export const organizationResolvers = {
       },
       ctx: GraphQLContext
     ) => {
-      await ctx.restate.callService(
+      await ctx.server.callService(
         "Organizations",
         "toggle_checklist_item",
         {
@@ -167,7 +167,7 @@ export const organizationResolvers = {
           checked: args.checked,
         }
       );
-      return ctx.restate.callService("Organizations", "get_checklist", {
+      return ctx.server.callService("Organizations", "get_checklist", {
         id: args.organizationId,
       });
     },
@@ -177,7 +177,7 @@ export const organizationResolvers = {
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService("Organizations", "regenerate", {
+      return ctx.server.callService("Organizations", "regenerate", {
         id: args.id,
       });
     },
@@ -190,7 +190,7 @@ export const organizationResolvers = {
       args: { limit?: number },
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService(
+      return ctx.server.callService(
         "Posts",
         "list_by_organization",
         {
@@ -205,7 +205,7 @@ export const organizationResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      const result = await ctx.restate.callService<{ notes: unknown[] }>(
+      const result = await ctx.server.callService<{ notes: unknown[] }>(
         "Notes",
         "list_for_entity",
         { noteable_type: "organization", noteable_id: parent.id }
@@ -218,7 +218,7 @@ export const organizationResolvers = {
       _args: unknown,
       ctx: GraphQLContext
     ) => {
-      return ctx.restate.callService(
+      return ctx.server.callService(
         "Organizations",
         "get_checklist",
         { id: parent.id }
