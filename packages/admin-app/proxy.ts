@@ -9,7 +9,7 @@ const publicAdminRoutes = ["/admin/login"];
 /**
  * Decode JWT payload and check if expired.
  * No signature verification — just reads the exp claim.
- * Real auth validation happens in the Restate backend.
+ * Real auth validation happens in the Axum backend.
  */
 function isTokenExpired(token: string): boolean {
   try {

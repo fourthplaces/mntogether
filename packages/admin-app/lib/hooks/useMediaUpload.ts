@@ -14,7 +14,7 @@ export interface UploadingFile {
 
 /**
  * Hook for the 3-step presigned upload flow:
- * 1. Request presigned URL from server (via Restate)
+ * 1. Request presigned URL from server
  * 2. PUT file directly to S3/MinIO
  * 3. Confirm upload — creates the Media record in the DB
  */

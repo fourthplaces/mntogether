@@ -86,14 +86,11 @@ services:
     build:
       context: ./packages/admin-app
       dockerfile: Dockerfile
-      args:
-        RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
     container_name: rooteditorial_admin_app_prod
     environment:
       NODE_ENV: production
       PORT: 3000
       HOSTNAME: "0.0.0.0"
-      RESTATE_INGRESS_URL: ${RESTATE_INGRESS_URL}
       JWT_SECRET: ${JWT_SECRET}
     ports:
       - "3000:3000"
