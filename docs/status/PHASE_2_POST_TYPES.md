@@ -221,14 +221,14 @@ The `Post::apply_revision` method copies revision content to the original post b
 
 4. **String enums are invisible to the type checker**. Both Rust (`post_type: String`) and TypeScript use strings for post types, so stale value comparisons compile fine. Consider a future refactor to use typed enums in SQL queries (e.g., SQLx type-checked queries or TypeScript `as const` narrowing) so the compiler can catch value drift.
 
-## Remaining Work (Not in Scope for Phase 2)
+## Remaining Work — Resolved
 
-- **Run migration 000173** on the database
-- Wire field group models into GraphQL resolvers (Phase 3-4)
-- Build per-type CMS editor forms with field group UI (Phase 4)
-- Broadsheet/edition system: rows, slots, templates (Phase 3)
+- ~~Run migration 000173 on the database~~ — **Done.** Migration ran successfully; later migrations (174-179) depend on it.
+- ~~Wire field group models into GraphQL resolvers~~ — **Deferred to Phase 4+ CMS editor forms.** DB tables exist; Rust models were not created in Phase 2 (the 6 model files referenced in the postmortem were part of the plan, not the codebase). Will be built when the per-type editor UI is implemented.
+- ~~Broadsheet/edition system~~ — **Done.** Completed in Phase 3.
+- ~~Remove `allowPartialOutputs` from codegen.ts~~ — **Done.** Removed 2026-03-08; codegen passes cleanly without it.
+- Build per-type CMS editor forms with field group UI (Phase 4+)
 - Post template character limits / truncation (Phase 5)
-- Remove `allowPartialOutputs` from codegen.ts after confirming no more dead queries exist
 
 ## Stats Summary
 

@@ -174,12 +174,14 @@ The `OrganizationsService` had 6 handlers (~390 lines) that were dead — they c
 
 3. **The chatrooms near-miss** could have been avoided with a pre-deletion script: `for domain in $DOMAINS_TO_DELETE; do grep -r "use crate::domains::$domain" --include="*.rs" src/ | grep -v "src/domains/$domain"; done`
 
-## Remaining Cleanup (Not in Scope for Phase 1)
+## Remaining Cleanup — Resolved
 
-- Stubbed handlers should eventually be removed from Restate traits + GraphQL schema (Phase 2+)
-- Dead database tables from deleted domains still exist (separate migration task)
-- `packages/web/` was not deleted (still has references — separate cleanup)
-- `data_migrations/normalize_website_urls.rs` is a no-op migration (safe to leave, annotated)
+All items originally deferred from Phase 1 have been completed:
+
+- ~~Stubbed handlers should eventually be removed from Restate traits + GraphQL schema~~ — **Done.** All stubs removed or replaced with proper error responses during the Restate→HTTP migration.
+- ~~Dead database tables from deleted domains still exist~~ — **Done.** Dropped in earlier migrations (149, 148, 136, etc.).
+- ~~`packages/web/` was not deleted~~ — **Done.** Deleted 2026-03-08 (only contained empty build cache dirs).
+- `data_migrations/normalize_website_urls.rs` is a no-op migration (safe to leave, annotated).
 
 ## Stats Summary
 

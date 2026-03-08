@@ -11,8 +11,6 @@ const config: CodegenConfig = {
     "!./gql/**/*",
   ],
   ignoreNoDocuments: true,
-  // TODO: Remove after cleaning up dead GraphQL queries from Phase 1 dead code removal
-  allowPartialOutputs: true,
   generates: {
     "./gql/": {
       preset: "client",
