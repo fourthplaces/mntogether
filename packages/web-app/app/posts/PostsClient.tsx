@@ -20,8 +20,8 @@ export function PostsClient() {
   };
 
   return (
-    <section className="max-w-[1200px] mx-auto px-6 md:px-12 pt-10 pb-20">
-      <Link href="/" className="inline-block text-sm text-text-secondary hover:text-text-primary mb-6">
+    <section className="page-section">
+      <Link href="/" className="back-link">
         &larr; Back to Home
       </Link>
 

@@ -23,13 +23,14 @@ export function PostCard({ post }: { post: PublicPost }) {
 
   return (
     <>
-      <div className="bg-surface-raised p-6 border border-border hover:border-border-strong block relative">
+      <div className="post-card">
         {post.organizationName && (
-          <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-0.5">
+          <p className="org-label" style={{ marginBottom: "0.125rem" }}>
             {post.organizationId ? (
               <Link
                 href={`/organizations/${post.organizationId}`}
-                className="hover:text-text-primary relative z-10"
+                className="z-above"
+                style={{ display: "inline" }}
               >
                 {post.organizationName}
               </Link>
@@ -41,11 +42,11 @@ export function PostCard({ post }: { post: PublicPost }) {
         {/* Stretched link — covers the whole card, sits below z-10 interactive elements */}
         <Link
           href={`/posts/${post.id}`}
-          className="absolute inset-0 z-0"
+          className="post-card-stretched-link"
           aria-label={post.title}
         />
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="text-xl font-bold text-text-primary">{post.title}</h3>
+        <div className="post-card-header">
+          <h3 className="card-title">{post.title}</h3>
           {urgentNotes.length > 0 && (
             <button
               type="button"
@@ -54,17 +55,17 @@ export function PostCard({ post }: { post: PublicPost }) {
                 e.stopPropagation();
                 setShowUrgent(true);
               }}
-              className="px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800 shrink-0 hover:bg-red-200 relative z-10"
+              className="badge-urgent badge-urgent--interactive"
             >
               Urgent
             </button>
           )}
         </div>
         {(post.location || post.distanceMiles != null) && (
-          <p className="text-sm text-text-muted mb-1">
+          <p className="post-card-location">
             {post.location}
             {post.distanceMiles != null && (
-              <span className="ml-2 font-medium">
+              <span className="post-card-distance">
                 {post.distanceMiles < 1
                   ? "< 1 mi"
                   : `${Math.round(post.distanceMiles)} mi`}
@@ -72,14 +73,14 @@ export function PostCard({ post }: { post: PublicPost }) {
             )}
           </p>
         )}
-        <p className="text-text-secondary text-base leading-relaxed mb-3">
+        <p className="post-card-summary">
           {post.summary || post.description}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="post-card-tags">
           {postTypeTag && (
             <span
               title={`${postTypeTag.kind}: ${postTypeTag.value}`}
-              className={`px-3 py-1 text-xs font-medium ${!postTypeTag.color ? "bg-surface-muted text-text-secondary" : ""}`}
+              className={`tag ${!postTypeTag.color ? "tag--muted" : ""}`}
               style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
             >
               {postTypeTag.displayName || formatCategory(postTypeTag.value)}
@@ -89,7 +90,7 @@ export function PostCard({ post }: { post: PublicPost }) {
             <span
               key={tag.value}
               title={`${tag.kind}: ${tag.value}`}
-              className={`px-3 py-1 text-xs font-medium ${!tag.color ? "bg-surface-muted text-text-secondary" : ""}`}
+              className={`tag ${!tag.color ? "tag--muted" : ""}`}
               style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
             >
               {tag.displayName || formatCategory(tag.value)}
@@ -102,39 +103,39 @@ export function PostCard({ post }: { post: PublicPost }) {
       {showUrgent && (
         <>
           <div
-            className="fixed inset-0 z-40 bg-black/30"
+            className="backdrop--light"
             onClick={() => setShowUrgent(false)}
           />
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-surface-raised border border-border w-full max-w-md">
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-0.5 text-xs font-medium bg-red-100 text-red-800">
+          <div className="dialog">
+            <div className="dialog-content">
+              <div className="dialog-header">
+                <div className="dialog-header-title">
+                  <span className="badge-urgent">
                     Urgent
                   </span>
-                  <h2 className="text-lg font-semibold text-text-primary">Notes</h2>
+                  <h2 className="group-title--semi">Notes</h2>
                 </div>
                 <button
                   onClick={() => setShowUrgent(false)}
-                  className="text-text-muted hover:text-text-primary text-xl leading-none"
+                  className="dialog-close"
                 >
                   &times;
                 </button>
               </div>
-              <div className="p-5 space-y-3 max-h-80 overflow-y-auto">
+              <div className="dialog-body">
                 {urgentNotes.map((note, i) => (
                   <div key={i}>
                     {note.ctaText && (
-                      <p className="text-sm font-semibold text-red-900">{note.ctaText}</p>
+                      <p className="urgent-cta">{note.ctaText}</p>
                     )}
-                    <p className="text-sm text-text-body leading-relaxed">{note.content}</p>
+                    <p className="text-body" style={{ fontSize: "0.875rem" }}>{note.content}</p>
                   </div>
                 ))}
               </div>
-              <div className="px-5 py-3 border-t border-border flex justify-end">
+              <div className="dialog-footer">
                 <button
                   onClick={() => setShowUrgent(false)}
-                  className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text-primary"
+                  className="btn-text"
                 >
                   Close
                 </button>
@@ -149,13 +150,13 @@ export function PostCard({ post }: { post: PublicPost }) {
 
 export function PostCardSkeleton() {
   return (
-    <div className="bg-surface-raised border border-border p-6">
-      <div className="animate-pulse">
-        <div className="h-6 w-3/4 bg-border rounded mb-2" />
-        <div className="h-4 w-1/3 bg-border rounded mb-2" />
-        <div className="h-4 w-full bg-border rounded mb-1" />
-        <div className="h-4 w-5/6 bg-border rounded mb-3" />
-        <div className="h-6 w-20 bg-border" />
+    <div className="card">
+      <div className="skeleton">
+        <div className="skeleton-line" style={{ height: "1.5rem", width: "75%", marginBottom: "0.5rem" }} />
+        <div className="skeleton-line" style={{ height: "1rem", width: "33%", marginBottom: "0.5rem" }} />
+        <div className="skeleton-line" style={{ height: "1rem", width: "100%", marginBottom: "0.25rem" }} />
+        <div className="skeleton-line" style={{ height: "1rem", width: "83%", marginBottom: "0.75rem" }} />
+        <div className="skeleton-line" style={{ height: "1.5rem", width: "5rem" }} />
       </div>
     </div>
   );

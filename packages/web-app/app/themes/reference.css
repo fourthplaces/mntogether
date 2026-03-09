@@ -1,4 +1,4 @@
-@theme {
+:root {
   /* ===== SURFACE COLORS ===== */
   --color-surface: #FFFFFF;
   --color-surface-raised: #FFFFFF;
@@ -47,6 +47,20 @@
 
   --color-info-bg: #DBEAFE;
   --color-info-text: #1E40AF;
+
+  /* ===== URGENT NOTES ===== */
+  --color-urgent-bg: #fef2f2;
+  --color-urgent-border: #fecaca;
+  --color-urgent-badge: #fee2e2;
+  --color-urgent-text: #991b1b;
+  --color-urgent-cta: #7f1d1d;
+  --color-urgent-badge-hover: #fecaca;
+
+  /* ===== PROMPT BUTTONS ===== */
+  --color-prompt-bg: #f9fafb;
+  --color-prompt-border: #e5e7eb;
+  --color-prompt-hover: #f3f4f6;
+  --color-prompt-text: #374151;
 
   /* ===== PATHWAY CARDS ===== */
   --color-pathway-warm: #FFFFFF;

@@ -116,16 +116,16 @@ export default function PublicPostDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="max-w-[1100px] mx-auto px-6 md:px-12 pt-10 pb-20 animate-pulse">
-        <div className="h-4 w-24 bg-border-strong mb-8" />
-        <div className="bg-surface-raised border border-border p-8">
-          <div className="h-8 w-3/4 bg-border mb-4" />
-          <div className="h-4 w-1/3 bg-border mb-6" />
-          <div className="h-16 w-full bg-surface-muted mb-6" />
-          <div className="space-y-3">
-            <div className="h-4 w-full bg-border" />
-            <div className="h-4 w-5/6 bg-border" />
-            <div className="h-4 w-4/6 bg-border" />
+      <div className="page-section page-section--content skeleton">
+        <div className="skeleton-line skeleton-line--strong" style={{ height: "1rem", width: "6rem", marginBottom: "2rem" }} />
+        <div className="card" style={{ padding: "2rem" }}>
+          <div className="skeleton-line" style={{ height: "2rem", width: "75%", marginBottom: "1rem" }} />
+          <div className="skeleton-line" style={{ height: "1rem", width: "33%", marginBottom: "1.5rem" }} />
+          <div className="skeleton-line" style={{ height: "4rem", width: "100%", marginBottom: "1.5rem" }} />
+          <div className="schedule-list">
+            <div className="skeleton-line" style={{ height: "1rem", width: "100%" }} />
+            <div className="skeleton-line" style={{ height: "1rem", width: "83%" }} />
+            <div className="skeleton-line" style={{ height: "1rem", width: "66%" }} />
           </div>
         </div>
       </div>
@@ -134,11 +134,11 @@ export default function PublicPostDetailPage() {
 
   if (!post) {
     return (
-      <div className="max-w-[800px] mx-auto px-6 md:px-12 pt-16 text-center">
-        <h1 className="text-xl font-semibold text-text-primary mb-2">
+      <div className="page-section page-section--narrow page-section--centered">
+        <h1 className="card-title--semi" style={{ marginBottom: "0.5rem" }}>
           Post not found
         </h1>
-        <Link href="/" className="text-sm text-text-secondary hover:text-text-primary">
+        <Link href="/" className="post-detail-back-link">
           &larr; Back to Home
         </Link>
       </div>
@@ -152,16 +152,16 @@ export default function PublicPostDetailPage() {
   const hasDetails = (post.schedules && post.schedules.length > 0) || post.sourceUrl || (post.contacts && post.contacts.length > 0);
 
   return (
-    <section className="max-w-[1100px] mx-auto px-6 md:px-12 pt-10 pb-20">
+    <section className="page-section page-section--content">
       {/* Back link */}
-      <div className="flex items-center justify-between mb-8">
-        <Link href="/posts" className="text-sm text-text-secondary hover:text-text-primary">
+      <div className="post-detail-back-row">
+        <Link href="/posts" className="post-detail-back-link">
           &larr; Back to Resources
         </Link>
         {isAdmin && (
           <Link
             href={`/admin/posts/${postId}`}
-            className="text-xs font-medium text-text-muted hover:text-text-primary border border-border px-2 py-1"
+            className="btn-edit"
           >
             Edit
           </Link>
@@ -169,23 +169,23 @@ export default function PublicPostDetailPage() {
       </div>
 
       {/* Two-column: Content + Sidebar */}
-      <div className={`grid gap-5 ${hasDetails ? "md:grid-cols-[1fr_280px]" : ""}`}>
+      <div className={`post-detail-grid ${hasDetails ? "post-detail-grid--sidebar" : ""}`}>
         {/* Main content card */}
-        <div className="order-1">
-          <div className="bg-surface-raised border border-border p-6 sm:p-8">
+        <div className="post-detail-main">
+          <div className="card card--padded">
             {/* Urgent notes */}
             {post.urgentNotes && post.urgentNotes.length > 0 && (
-              <div className="mb-4 px-4 py-3 bg-red-50 border border-red-200">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="px-2 py-0.5 text-xs font-medium bg-red-100 text-red-800">Urgent</span>
+              <div className="urgent-section">
+                <div className="urgent-section-header">
+                  <span className="badge-urgent">Urgent</span>
                 </div>
-                <div className="space-y-1.5 mt-2">
+                <div className="urgent-notes">
                   {post.urgentNotes.map((note, i) => (
                     <div key={i}>
                       {note.ctaText && (
-                        <p className="text-sm font-semibold text-red-900">{note.ctaText}</p>
+                        <p className="urgent-cta">{note.ctaText}</p>
                       )}
-                      <p className="text-sm text-red-800 leading-relaxed">{note.content}</p>
+                      <p className="urgent-text">{note.content}</p>
                     </div>
                   ))}
                 </div>
@@ -194,12 +194,9 @@ export default function PublicPostDetailPage() {
 
             {/* Organization */}
             {post.organizationName && (
-              <p className="text-xs font-medium text-text-muted uppercase tracking-wide mb-1">
+              <p className="org-label" style={{ marginBottom: "0.25rem" }}>
                 {post.organizationId ? (
-                  <Link
-                    href={`/organizations/${post.organizationId}`}
-                    className="hover:text-text-primary"
-                  >
+                  <Link href={`/organizations/${post.organizationId}`}>
                     {post.organizationName}
                   </Link>
                 ) : (
@@ -209,12 +206,12 @@ export default function PublicPostDetailPage() {
             )}
 
             {/* Title */}
-            <h1 className="text-2xl sm:text-3xl font-bold text-text-primary leading-tight mb-3">
+            <h1 className="post-title">
               {post.title}
             </h1>
 
             {/* Meta */}
-            <div className="flex flex-wrap items-center gap-4 text-sm text-text-muted mb-3">
+            <div className="post-meta">
               <span>{formatTimeAgo(post.publishedAt || post.createdAt)}</span>
               {post.location && (
                 <span>{post.location}</span>
@@ -222,28 +219,12 @@ export default function PublicPostDetailPage() {
             </div>
 
             {/* Description */}
-            <div className="prose max-w-none">
+            <div className="prose">
               <ReactMarkdown
                 components={{
-                  p: ({ children }) => (
-                    <p className="mb-4 text-text-body leading-relaxed">{children}</p>
-                  ),
-                  ul: ({ children }) => (
-                    <ul className="list-disc pl-6 mb-4 space-y-1">{children}</ul>
-                  ),
-                  ol: ({ children }) => (
-                    <ol className="list-decimal pl-6 mb-4 space-y-1">{children}</ol>
-                  ),
-                  li: ({ children }) => (
-                    <li className="text-text-body">{children}</li>
-                  ),
-                  strong: ({ children }) => (
-                    <strong className="font-semibold text-text-primary">{children}</strong>
-                  ),
                   a: ({ href, children }) => (
                     <a
                       href={href}
-                      className="text-link hover:text-link-hover underline"
                       target="_blank"
                       rel="noopener noreferrer"
                     >
@@ -251,13 +232,13 @@ export default function PublicPostDetailPage() {
                     </a>
                   ),
                   h1: ({ children }) => (
-                    <h2 className="text-xl font-bold text-text-primary mt-6 mb-3">{children}</h2>
+                    <h2>{children}</h2>
                   ),
                   h2: ({ children }) => (
-                    <h3 className="text-lg font-bold text-text-primary mt-5 mb-2">{children}</h3>
+                    <h3>{children}</h3>
                   ),
                   h3: ({ children }) => (
-                    <h4 className="text-base font-semibold text-text-primary mt-4 mb-2">{children}</h4>
+                    <h4>{children}</h4>
                   ),
                 }}
               >
@@ -267,11 +248,11 @@ export default function PublicPostDetailPage() {
 
             {/* Tags */}
             {(postTypeTag || displayTags.length > 0) && (
-              <div className="flex flex-wrap gap-2 mt-6 pt-6 border-t border-border">
+              <div className="post-tags">
                 {postTypeTag && (
                   <span
                     title={`${postTypeTag.kind}: ${postTypeTag.value}`}
-                    className={`px-3 py-1 text-xs font-medium ${!postTypeTag.color ? "bg-surface-muted text-text-secondary" : ""}`}
+                    className={`tag ${!postTypeTag.color ? "tag--muted" : ""}`}
                     style={postTypeTag.color ? { backgroundColor: postTypeTag.color + "20", color: postTypeTag.color } : undefined}
                   >
                     {postTypeTag.displayName || formatCategory(postTypeTag.value)}
@@ -281,7 +262,7 @@ export default function PublicPostDetailPage() {
                   <span
                     key={tag.id}
                     title={`${tag.kind}: ${tag.value}`}
-                    className={`px-3 py-1 text-xs font-medium ${!tag.color ? "bg-surface-muted text-text-secondary" : ""}`}
+                    className={`tag ${!tag.color ? "tag--muted" : ""}`}
                     style={tag.color ? { backgroundColor: tag.color + "20", color: tag.color } : undefined}
                   >
                     {tag.displayName || formatCategory(tag.value)}
@@ -294,22 +275,22 @@ export default function PublicPostDetailPage() {
 
         {/* Sidebar */}
         {hasDetails && (
-          <div className="order-2 flex flex-col gap-5">
+          <div className="post-detail-sidebar">
             {/* Schedule card */}
             {post.schedules && post.schedules.length > 0 && (() => {
               const oneOffSchedules = post.schedules!.filter((s) => !s.rrule);
               const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
               return (
-                <div className="bg-surface-raised border border-border p-5">
-                  <h3 className="text-xs font-semibold text-text-label uppercase tracking-wider mb-3">Schedule</h3>
+                <div className="card--sidebar">
+                  <h3 className="sidebar-heading">Schedule</h3>
                   {allOneOffsExpired && (
-                    <div className="mb-3 px-3 py-2 bg-surface-muted border border-border text-xs font-medium text-text-muted">
+                    <div className="notice-box">
                       This event has passed
                     </div>
                   )}
-                  <div className="space-y-3">
+                  <div className="schedule-list">
                     {post.schedules!.map((s) => (
-                      <div key={s.id} className={`text-sm text-text-body ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
+                      <div key={s.id} className={`schedule-item ${isScheduleExpired(s) ? "schedule-item--expired" : ""}`}>
                         {formatSchedule(s)}
                       </div>
                     ))}
@@ -320,18 +301,18 @@ export default function PublicPostDetailPage() {
 
             {/* Contacts card */}
             {post.contacts && post.contacts.length > 0 && (
-              <div className="bg-surface-raised border border-border p-5">
-                <h3 className="text-xs font-semibold text-text-label uppercase tracking-wider mb-3">Contact</h3>
-                <div className="space-y-2">
+              <div className="card--sidebar">
+                <h3 className="sidebar-heading">Contact</h3>
+                <div className="contact-list">
                   {post.contacts.map((c) => (
-                    <div key={c.id} className="text-sm text-text-body">
-                      {c.contactLabel && <span className="text-xs text-text-label block">{c.contactLabel}</span>}
+                    <div key={c.id} className="contact-item">
+                      {c.contactLabel && <span className="contact-item-label">{c.contactLabel}</span>}
                       {c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social" ? (
-                        <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-link hover:text-link-hover underline break-all">{c.contactValue}</a>
+                        <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="body-link" style={{ wordBreak: "break-all" }}>{c.contactValue}</a>
                       ) : c.contactType === "email" ? (
-                        <a href={`mailto:${c.contactValue}`} className="text-link hover:text-link-hover underline">{c.contactValue}</a>
+                        <a href={`mailto:${c.contactValue}`} className="body-link">{c.contactValue}</a>
                       ) : c.contactType === "phone" ? (
-                        <a href={`tel:${c.contactValue}`} className="text-link hover:text-link-hover underline">{c.contactValue}</a>
+                        <a href={`tel:${c.contactValue}`} className="body-link">{c.contactValue}</a>
                       ) : (
                         <span>{c.contactValue}</span>
                       )}
@@ -352,7 +333,7 @@ export default function PublicPostDetailPage() {
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={handleSourceClick}
-                className="block text-center bg-action text-text-on-action text-sm font-semibold px-4 py-2 hover:bg-action-hover"
+                className="btn-primary--block"
               >
                 Visit Source
               </a>

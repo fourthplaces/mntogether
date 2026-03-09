@@ -21,7 +21,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <GraphQLProvider>
-          <div className="min-h-screen bg-surface text-text-primary">
+          <div className="app-shell">
             <Header />
             <main>{children}</main>
             <Footer />

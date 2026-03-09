@@ -2,14 +2,14 @@ import Link from "next/link";
 
 export function Header() {
   return (
-    <header className="border-b border-border px-4 py-3 flex justify-between items-center">
-      <Link href="/" className="font-bold text-text-primary">
+    <header className="site-header">
+      <Link href="/" className="site-header-logo">
         MN Together
       </Link>
-      <nav className="hidden md:flex gap-6 items-center text-sm">
-        <Link href="/about" className="text-text-primary hover:underline">About</Link>
-        <Link href="/organizations" className="text-text-primary hover:underline">Organizations</Link>
-        <Link href="/contact" className="text-text-primary hover:underline">Contact</Link>
+      <nav className="site-nav">
+        <Link href="/about" className="nav-link">About</Link>
+        <Link href="/organizations" className="nav-link">Organizations</Link>
+        <Link href="/contact" className="nav-link">Contact</Link>
       </nav>
     </header>
   );

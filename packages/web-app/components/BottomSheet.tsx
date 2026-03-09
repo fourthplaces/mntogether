@@ -39,30 +39,26 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
   if (!render) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
+    <div className="overlay">
       {/* Backdrop */}
       <div
-        className={`absolute inset-0 bg-black/40 transition-opacity duration-300 ${
-          visible ? "opacity-100" : "opacity-0"
-        }`}
+        className={`backdrop ${visible ? "backdrop--visible" : "backdrop--hidden"}`}
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className={`absolute bottom-0 left-1/2 -translate-x-1/2 w-full max-w-2xl bg-surface-raised rounded-t-2xl max-h-[90vh] flex flex-col transition-transform duration-300 ease-out ${
-          visible ? "translate-y-0" : "translate-y-full"
-        }`}
+        className={`bottom-sheet-panel ${visible ? "bottom-sheet-panel--visible" : "bottom-sheet-panel--hidden"}`}
         onTransitionEnd={handleTransitionEnd}
       >
         {/* Drag handle + close */}
-        <div className="flex items-center justify-between px-4 pt-3 pb-2 flex-shrink-0">
-          <div className="flex-1" />
-          <div className="w-10 h-1 bg-border-strong rounded-full" />
-          <div className="flex-1 flex justify-end">
+        <div className="bottom-sheet-handle-bar">
+          <div className="bottom-sheet-spacer" />
+          <div className="bottom-sheet-handle" />
+          <div className="bottom-sheet-close-wrapper">
             <button
               onClick={onClose}
-              className="p-1 text-text-muted hover:text-text-primary transition-colors"
+              className="btn-close"
               aria-label="Close"
             >
               &times;
@@ -72,13 +68,13 @@ export function BottomSheet({ isOpen, onClose, title, children }: BottomSheetPro
 
         {/* Optional title */}
         {title && (
-          <div className="px-4 pb-3 flex-shrink-0">
-            <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+          <div className="bottom-sheet-title">
+            <h2>{title}</h2>
           </div>
         )}
 
         {/* Content */}
-        <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
+        <div className="bottom-sheet-content">{children}</div>
       </div>
     </div>
   );

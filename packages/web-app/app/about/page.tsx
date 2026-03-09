@@ -2,43 +2,43 @@ import Link from "next/link";
 
 export default function AboutPage() {
   return (
-    <section className="max-w-[800px] mx-auto px-6 md:px-12 pt-10 pb-20">
-      <Link href="/" className="inline-block text-sm text-text-secondary hover:text-text-primary mb-6">
+    <section className="page-section page-section--narrow">
+      <Link href="/" className="back-link">
         &larr; Back to Home
       </Link>
 
-      <h1 className="text-3xl font-bold text-text-primary leading-tight tracking-tight mb-4">About MN Together</h1>
+      <h1 className="page-title" style={{ marginBottom: "1rem" }}>About MN Together</h1>
 
-      <div className="space-y-6 text-text-body text-base leading-relaxed">
-        <p className="text-lg">
+      <div className="about-content">
+        <p className="about-lead">
           MN Together is a community hub connecting Minneapolis neighbors with
           resources, support, and each other. Find help when you need it, offer
           support when you can, and stay connected to your community.
         </p>
 
-        <h2 className="text-2xl font-bold text-text-primary pt-4">What We Do</h2>
+        <h2>What We Do</h2>
         <p>We bring together essential resources in one accessible place:</p>
         <p>
-          <strong className="text-text-primary">For those seeking help</strong> — Find
+          <strong>For those seeking help</strong> — Find
           food assistance, shelter, legal aid, healthcare, and other vital
           services. No judgment, no barriers.
         </p>
         <p>
-          <strong className="text-text-primary">For those wanting to give</strong> — Discover
+          <strong>For those wanting to give</strong> — Discover
           volunteer opportunities and ways to support your neighbors through
           time, donations, or skills.
         </p>
         <p>
-          <strong className="text-text-primary">For staying connected</strong> — Learn
+          <strong>For staying connected</strong> — Learn
           about community events, gatherings, and opportunities to come together.
         </p>
         <p>
-          <strong className="text-text-primary">For service workers</strong> — Access
+          <strong>For service workers</strong> — Access
           professional tools, referral resources, and multilingual materials to
           better serve your clients.
         </p>
 
-        <h2 className="text-2xl font-bold text-text-primary pt-4">Why We Exist</h2>
+        <h2>Why We Exist</h2>
         <p>
           During times of uncertainty, people need a trusted place to turn. MN
           Together was created to be that place — where anyone can find help,
@@ -49,13 +49,14 @@ export default function AboutPage() {
           right resources can be overwhelming. We&apos;re here to make it easier.
         </p>
 
-        <h2 className="text-2xl font-bold text-text-primary pt-4">Contact Us</h2>
+        <h2>Contact Us</h2>
         <p>
           Questions, suggestions, or want to get involved?
         </p>
         <Link
           href="/contact"
-          className="inline-block mt-2 px-6 py-2 bg-action text-text-on-action text-sm font-semibold hover:bg-action-hover"
+          className="btn-primary"
+          style={{ marginTop: "0.5rem" }}
         >
           Reach Out
         </Link>

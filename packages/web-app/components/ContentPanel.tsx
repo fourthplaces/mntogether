@@ -8,12 +8,12 @@ interface ContentPanelProps {
 
 export function ContentPanel({ onSuggestedPrompt }: ContentPanelProps) {
   return (
-    <div className="flex flex-col items-center justify-center h-full p-6">
-      <div className="max-w-2xl w-full text-center mb-8">
-        <h1 className="text-3xl sm:text-4xl font-bold text-text-primary mb-3">
+    <div className="content-panel">
+      <div className="content-panel-inner">
+        <h1 className="hero-title">
           MN Together
         </h1>
-        <p className="text-text-secondary text-lg mb-8">
+        <p className="hero-subtitle">
           Find services, volunteer opportunities, and community resources
           across Minnesota.
         </p>

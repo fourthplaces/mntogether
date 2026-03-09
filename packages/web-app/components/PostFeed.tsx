@@ -57,20 +57,16 @@ export function PostFeed({
     setActiveZip(null);
   };
 
-  const tabClass = (isActive: boolean) =>
-    `px-3 py-1 text-sm border whitespace-nowrap ${
-      isActive
-        ? "bg-action text-text-on-action border-action"
-        : "bg-transparent text-text-secondary border-border hover:border-border-strong"
-    }`;
+  const tabClassName = (isActive: boolean) =>
+    `tab ${isActive ? "tab--active" : "tab--inactive"}`;
 
   return (
     <div>
       {/* Title + Zip + Tabs */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
-        <div className="flex items-center gap-3">
-          <h2 className="text-2xl font-bold text-text-primary">{title}</h2>
-          <div className="relative flex items-center">
+      <div className="post-feed-toolbar">
+        <div className="post-feed-title-group">
+          <h2 className="section-title">{title}</h2>
+          <div className="zip-input-wrapper">
             <input
               type="text"
               inputMode="numeric"
@@ -83,14 +79,12 @@ export function PostFeed({
               onKeyDown={(e) => {
                 if (e.key === "Enter") handleZipSearch();
               }}
-              className={`w-28 px-4 py-2 border text-sm text-text-primary placeholder-text-muted focus:outline-none focus:border-action ${
-                activeZip ? "border-action bg-surface-muted" : "border-border"
-              }`}
+              className={`input-zip ${activeZip ? "input-zip--active" : ""}`}
             />
             {activeZip && (
               <button
                 onClick={clearZip}
-                className="absolute right-3 text-text-muted hover:text-text-primary text-lg leading-none"
+                className="zip-clear"
                 aria-label="Clear zip code"
               >
                 &times;
@@ -98,13 +92,13 @@ export function PostFeed({
             )}
           </div>
         </div>
-        <div className="flex gap-3 overflow-x-auto scrollbar-hide">
+        <div className="post-feed-tabs scrollbar-hide">
           {postTypes.map((pt) =>
             onFilterChange ? (
               <button
                 key={pt.value}
                 onClick={() => onFilterChange(effectivePostType === pt.value ? null : pt.value)}
-                className={tabClass(effectivePostType === pt.value)}
+                className={tabClassName(effectivePostType === pt.value)}
               >
                 {pt.displayName}
               </button>
@@ -112,7 +106,7 @@ export function PostFeed({
               <Link
                 key={pt.value}
                 href={`/posts?post_type=${pt.value}`}
-                className={tabClass(effectivePostType === pt.value)}
+                className={tabClassName(effectivePostType === pt.value)}
               >
                 {pt.displayName}
               </Link>
@@ -121,12 +115,12 @@ export function PostFeed({
           {onFilterChange ? (
             <button
               onClick={() => onFilterChange(null)}
-              className={tabClass(effectivePostType == null)}
+              className={tabClassName(effectivePostType == null)}
             >
               All
             </button>
           ) : (
-            <Link href="/posts?post_type=all" className={tabClass(effectivePostType == null)}>
+            <Link href="/posts?post_type=all" className={tabClassName(effectivePostType == null)}>
               All
             </Link>
           )}
@@ -134,14 +128,14 @@ export function PostFeed({
       </div>
 
       {/* Post List */}
-      <div className="flex flex-col gap-4">
+      <div className="post-feed-list">
         {isLoading ? (
           Array.from({ length: skeletonCount }).map((_, i) => (
             <PostCardSkeleton key={i} />
           ))
         ) : posts.length === 0 ? (
-          <div className="py-16 text-center">
-            <p className="text-text-muted text-sm">
+          <div className="post-feed-empty">
+            <p className="text-muted-sm">
               {activeZip
                 ? `No resources found within 25 miles of ${activeZip}. Try a different zip code.`
                 : "No resources found. Try a different filter."}
@@ -153,10 +147,10 @@ export function PostFeed({
               <PostCard key={post.id} post={post} />
             ))}
             {showSeeMore && (
-              <div className="text-center pt-4">
+              <div className="post-feed-see-more">
                 <Link
                   href="/posts"
-                  className="inline-block px-4 py-2 text-sm border border-border text-text-secondary hover:border-border-strong"
+                  className="btn-outline"
                 >
                   See More
                 </Link>
@@ -168,7 +162,7 @@ export function PostFeed({
 
       {/* Result count */}
       {showResultCount && !isLoading && posts.length > 0 && (
-        <p className="text-center text-sm text-text-muted mt-6">
+        <p className="post-feed-count">
           Showing {posts.length} of {listData?.publicPosts?.totalCount ?? posts.length} results
         </p>
       )}
