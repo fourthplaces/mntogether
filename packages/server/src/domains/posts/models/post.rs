@@ -265,22 +265,18 @@ impl std::str::FromStr for CapacityStatus {
     }
 }
 
-/// Urgency enum
+/// Urgency enum — NULL means no urgency (info-level)
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum Urgency {
-    Low,
-    Medium,
-    High,
+    Notice,
     Urgent,
 }
 
 impl std::fmt::Display for Urgency {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Urgency::Low => write!(f, "low"),
-            Urgency::Medium => write!(f, "medium"),
-            Urgency::High => write!(f, "high"),
+            Urgency::Notice => write!(f, "notice"),
             Urgency::Urgent => write!(f, "urgent"),
         }
     }
@@ -291,9 +287,7 @@ impl std::str::FromStr for Urgency {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
-            "low" => Ok(Urgency::Low),
-            "medium" => Ok(Urgency::Medium),
-            "high" => Ok(Urgency::High),
+            "notice" => Ok(Urgency::Notice),
             "urgent" => Ok(Urgency::Urgent),
             _ => Err(anyhow::anyhow!("Invalid urgency: {}", s)),
         }

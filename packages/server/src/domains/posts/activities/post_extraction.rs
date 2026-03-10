@@ -261,7 +261,7 @@ For each listing, provide:
    - Write: "Families are skipping meals and falling behind on rent because they're afraid to go to work. Your donation keeps them housed and fed."
 3. **description**: Write for someone ready to act but needing details. Structure: (1) context — what's happening and why it matters now, (2) the ask — exactly what someone can do, (3) logistics — date, time, full address, how to sign up, (4) friction-reducing details — parking, what to expect, who to contact. Use **bold** for critical details, bullet lists for multiple items, short paragraphs. Avoid nonprofit jargon, passive voice, and vague calls to action.
 4. **contact**: Any contact information (phone, email, website)
-5. **urgency**: Estimate urgency ("urgent", "high", "medium", or "low")
+5. **urgency**: Estimate urgency ("urgent", "notice", or null for routine)
 6. **confidence**: Your confidence in this extraction ("high", "medium", or "low")
    - "high": Explicitly stated listing with clear details
    - "medium": Mentioned but some details are inferred

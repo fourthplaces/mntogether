@@ -21,7 +21,7 @@ use crate::domains::schedules::models::{
 use crate::domains::tag::models::{Tag, Taggable};
 
 /// Valid urgency values per database constraint
-const VALID_URGENCY_VALUES: &[&str] = &["low", "medium", "high", "urgent"];
+const VALID_URGENCY_VALUES: &[&str] = &["notice", "urgent"];
 
 /// Normalize urgency value to a valid database value.
 /// Returns None if the input is invalid or None.

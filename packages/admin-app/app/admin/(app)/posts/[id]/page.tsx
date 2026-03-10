@@ -46,7 +46,7 @@ import {
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 import { markdownComponents } from "@/lib/markdown-components";
-import { POST_TYPES, WEIGHTS } from "@/lib/post-form-constants";
+import { POST_TYPES, WEIGHTS, URGENCIES } from "@/lib/post-form-constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -341,7 +341,7 @@ export default function PostDetailPage() {
   if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
   if (!post.zipCode) missingFields.push("zip code");
 
-  const isUrgent = post.urgency === "urgent";
+  const urgencyValue = post.urgency || "";
 
   // ---------------------------------------------------------------------------
   // Render
@@ -620,27 +620,27 @@ export default function PostDetailPage() {
               </div>
             </div>
 
-            {/* Urgent toggle */}
+            {/* Urgency */}
             <div className="border-t border-border pt-4">
               <div className="flex items-center justify-between">
-                <SectionLabel>Urgent</SectionLabel>
-                <button
-                  onClick={() => inlineUpdate({ urgency: isUrgent ? "" : "urgent" })}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
-                    isUrgent ? "bg-red-500" : "bg-secondary border border-border"
-                  }`}
-                  role="switch"
-                  aria-checked={isUrgent}
-                  aria-label="Toggle urgent"
+                <SectionLabel>Urgency</SectionLabel>
+                <Select
+                  value={urgencyValue || "__none__"}
+                  onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
                 >
-                  <span
-                    className={`inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                      isUrgent ? "translate-x-6" : "translate-x-1"
-                    }`}
-                  />
-                </button>
+                  <SelectTrigger className="h-7 w-auto min-w-0 gap-1 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {URGENCIES.map((u) => (
+                      <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
+                        {u.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-              {isUrgent && (
+              {urgencyValue === "urgent" && (
                 <p className="text-xs text-red-600 mt-1">This post is flagged as urgent and will display an Urgent label in the broadsheet.</p>
               )}
             </div>
