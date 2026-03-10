@@ -1,0 +1,29 @@
+import type { Post } from '@/lib/broadsheet/types';
+import { getSourceLine, getTagLabel } from '@/lib/broadsheet/display';
+import { MTag } from '@/lib/broadsheet/molecules';
+
+interface TickerExchangeProps {
+  data: Post;
+}
+
+export function TickerExchange({ data: d }: TickerExchangeProps) {
+  if (d.tags?.includes('need')) {
+    const c = 'tick-request';
+    return (
+      <div className={c} data-debug={`Post.${c}`}>
+        <MTag text={getTagLabel(d)} prefix={c} />
+        <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
+        <span className={`${c}__meta mono-sm`}>{getSourceLine(d)}</span>
+      </div>
+    );
+  }
+
+  const c = 'tick-offer';
+  return (
+    <div className={c} data-debug={`Post.${c}`}>
+      <MTag text={getTagLabel(d)} prefix={c} />
+      <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
+      <span className={`${c}__meta mono-sm`}>{d.status?.state || getSourceLine(d)}</span>
+    </div>
+  );
+}

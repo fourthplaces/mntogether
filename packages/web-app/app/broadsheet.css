@@ -1,0 +1,3616 @@
+/* ═══════════════════════════════════════════════
+   DESIGN TOKENS
+   ═══════════════════════════════════════════════ */
+:root {
+  --mn-blue: #003865;
+  --mn-green: #78BE21;
+  --mn-teal: #008EAA;
+  --mn-deep-teal: #0D5257;
+  --mn-rust: #8D3F2B;
+  --mn-plum: #5D295F;
+  --mn-gold: #FFC845;
+  --mn-cream: #F5E1A4;
+  --mn-sky: #9BCBEB;
+  --mn-blue-gray: #A4BCC2;
+  --mn-dk-gray: #53565A;
+  --mn-md-gray: #97999B;
+  --mn-lt-gray: #D9D9D6;
+  --mn-red: #A6192E;
+  --mn-orange: #E57200;
+  --mn-teal-alt: #0B7A8E;
+  --mn-orange-alt: #C96200;
+  --deep-forest: #1A3320;
+  --moss: #3D5A3E;
+  --ink: #1C1008;
+  --ink-hover: #241509;
+  --tobacco: #6B4226;
+  --sienna: #A05C34;
+  --ochre: #B5891A;
+  --slate: #3A3A34;
+  --pebble: #5C5C52;
+  --graphite: #332A24;
+  --chalk: #d2cecc;
+  --white-ink: #F7EBE3;
+  --deep-teal-hover: #0a4447;
+  --font-display: var(--font-feature-deck), Georgia, serif;
+  --font-condensed: var(--font-feature-deck-condensed), 'Arial Narrow', sans-serif;
+  --font-body: var(--font-feature-text), Georgia, serif;
+  --font-mono: var(--font-geist-mono), 'IBM Plex Mono', monospace;
+  --font-script: var(--font-blissful-radiance), cursive;
+  --col-gap: 24px;
+  --row-pad: 28px;
+  --paper: #d2cecc;
+  --border-w: 50px;
+  --offscreen: 5px;
+
+  /* ── Post type semantic tokens ── */
+  --type-story: var(--deep-forest);
+  --type-urgent: var(--mn-red);
+  --type-action: var(--mn-deep-teal);
+  --type-update: var(--slate);
+  --type-event: var(--mn-plum);
+  --type-need: var(--mn-rust);
+  --type-aid: var(--moss);
+  --type-reference: var(--mn-blue);
+  --type-spotlight: var(--ochre);
+
+  /* ── Post type tints (hover / container backgrounds) ── */
+  --type-urgent-tint: rgba(166, 25, 46, 0.06);
+  --type-urgent-tint-strong: rgba(166, 25, 46, 0.08);
+  --type-event-tint: rgba(93, 41, 95, 0.06);
+  --type-need-tint: rgba(141, 63, 43, 0.08);
+  --type-reference-tint: rgba(0, 56, 101, 0.06);
+  --type-reference-tint-strong: rgba(0, 56, 101, 0.10);
+  --type-spotlight-tint: rgba(181, 137, 26, 0.06);
+  --type-spotlight-tint-strong: rgba(181, 137, 26, 0.10);
+}
+
+/* body styles handled by app globals.css */
+
+
+/* ═══════════════════════════════════════════════
+   NEWSPAPER CONTAINER & PAPER TEXTURE
+   5-layer system: border-image edges, dual crease
+   overlays, paper background, grain texture.
+   ═══════════════════════════════════════════════ */
+
+.newspaper {
+  position: relative;
+  max-width: calc(1200px + 2 * var(--border-w) + 2 * (var(--border-w) - var(--offscreen)));
+  margin-left: auto; margin-right: auto;
+  padding: calc(var(--border-w) - var(--offscreen) - 20px);
+  padding-top: calc(var(--border-w) - var(--offscreen) - 30px);
+  padding-left: calc(var(--border-w) - var(--offscreen) - 22px);
+  padding-right: calc(var(--border-w) - var(--offscreen) - 18px);
+  border: var(--border-w) solid transparent;
+  background: var(--paper);
+  --over-opacity: 1; --over-blend: soft-light; --over-brightness: 1; --over-contrast: 1; --over-saturate: 1; --over-rotate: 180deg;
+  --under-opacity: 1; --under-blend: soft-light; --under-brightness: 1; --under-contrast: 1; --under-saturate: 1; --under-rotate: 0deg;
+  --grain-opacity: 1; --grain-blend: normal; --grain-brightness: 1; --grain-contrast: 1;
+}
+.newspaper::before {
+  content: ''; position: absolute;
+  top: calc(-1 * var(--border-w)); left: calc(-1 * var(--border-w));
+  right: calc(-1 * var(--border-w)); bottom: calc(-1 * var(--border-w));
+  border: var(--border-w) solid transparent;
+  border-image-source: url("/textures/Slice9Edges@2x.png"); border-image-slice: 100 fill;
+  border-image-width: var(--border-w); border-image-repeat: stretch;
+  pointer-events: none; z-index: 10;
+}
+.newspaper::after {
+  content: ''; position: absolute; inset: -25px;
+  background: url("/textures/Slice9Creases@2x.png") no-repeat center / 100% 100%;
+  pointer-events: none; z-index: 5;
+  opacity: var(--over-opacity); mix-blend-mode: var(--over-blend);
+  filter: brightness(var(--over-brightness)) contrast(var(--over-contrast)) saturate(var(--over-saturate));
+  transform: rotate(var(--over-rotate));
+}
+.crease-under {
+  position: absolute; inset: -25px;
+  background: url("/textures/Slice9Creases@2x.png") no-repeat center / 100% 100%;
+  pointer-events: none; z-index: 0;
+  opacity: var(--under-opacity); mix-blend-mode: var(--under-blend);
+  filter: brightness(var(--under-brightness)) contrast(var(--under-contrast)) saturate(var(--under-saturate));
+  transform: rotate(var(--under-rotate));
+}
+.content {
+  position: relative; z-index: 1;
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+.content::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: url('/textures/paper-grain-1024x1024-fs8@2x.png') repeat;
+  background-size: 512px 512px;
+  pointer-events: none; z-index: 2;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend);
+  filter: brightness(var(--grain-brightness)) contrast(var(--grain-contrast));
+}
+@media (max-width: 1400px) { .newspaper { max-width: none; margin-left: calc(-1 * var(--offscreen)); margin-right: calc(-1 * var(--offscreen)); } }
+@media (max-width: 640px) { .newspaper { --offscreen: 45px; padding-left: calc(var(--border-w) - var(--offscreen)); padding-right: calc(var(--border-w) - var(--offscreen)); } }
+
+/* ── Newsprint photo treatment ── */
+.newsprint-photo {
+  filter: saturate(0.95) contrast(0.77) brightness(0.96);
+  background-color: #d2cecc;
+  background-blend-mode: multiply;
+  mix-blend-mode: lighten;
+}
+
+
+/* ═══════════════════════════════════════════════
+   NEWSPAPER CHROME
+   ═══════════════════════════════════════════════ */
+
+.masthead { text-align: center; padding: 28px 0 48px; margin-bottom: 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
+.masthead h1 { font-family: var(--font-display); font-weight: 400; font-size: 5.75em; line-height: 1; letter-spacing: -0.01em; color: var(--ink); }
+.masthead .dateline { font-family: var(--font-mono); font-size: 0.92rem; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 52px; color: var(--pebble); }
+.masthead .dateline .handwritten { font-family: 'Blissful Radiance', cursive; text-transform: none; font-size: 1.7rem; letter-spacing: -0.03em; vertical-align: baseline; position: relative; top: 1px; color: var(--graphite); text-decoration: none; }
+.masthead .dateline .handwritten:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.edition-bar { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--pebble); border-top: 2px solid var(--ink); border-bottom: 1px solid rgba(0,0,0,0.1); padding: 8px 0; margin-bottom: 24px; }
+.edition-bar a { color: var(--pebble); text-decoration: none; }
+.edition-bar a:hover { color: var(--ink); }
+
+
+/* ═══════════════════════════════════════════════
+   ROW SYSTEM — 6-column CSS grid
+   ═══════════════════════════════════════════════ */
+
+.row {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  column-gap: calc(var(--col-gap) * 2);
+  align-items: stretch;
+  min-height: 0;
+}
+.row + .row { border-top: 1px solid rgba(0, 0, 0, 0.08); }
+.row > .cell {
+  min-width: 0;
+  padding: var(--row-pad) 0;
+  position: relative;
+}
+.row > .cell:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: var(--row-pad);
+  bottom: var(--row-pad);
+  right: calc(-1 * var(--col-gap));
+  width: 1px;
+  background: rgba(0, 0, 0, 0.08);
+}
+.cell--span-1 { grid-column: span 1; }
+.cell--span-2 { grid-column: span 2; }
+.cell--span-3 { grid-column: span 3; }
+.cell--span-4 { grid-column: span 4; }
+.cell--span-6 { grid-column: span 6; }
+.row--rule { border-top: 2px solid var(--ink) !important; }
+.row--lead { }
+.row--lead-stack { }
+.row--pair { }
+.row--pair-stack { }
+.row--trio { }
+.row--trio-mixed { }
+.row--full { }
+
+
+/* ═══════════════════════════════════════════════
+   TEXT CLAMPING
+   ═══════════════════════════════════════════════ */
+
+.clamp-2, .clamp-3, .clamp-4, .clamp-5, .clamp-6, .clamp-8, .clamp-10 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-2 { -webkit-line-clamp: 2; }
+.clamp-3 { -webkit-line-clamp: 3; }
+.clamp-4 { -webkit-line-clamp: 4; }
+.clamp-5 { -webkit-line-clamp: 5; }
+.clamp-6 { -webkit-line-clamp: 6; }
+.clamp-8 { -webkit-line-clamp: 8; }
+.clamp-10 { -webkit-line-clamp: 10; }
+.col-flow-2 { column-count: 2; column-gap: 24px; }
+
+
+/* ═══════════════════════════════════════════════
+   TYPOGRAPHIC UTILITIES
+   ═══════════════════════════════════════════════ */
+
+.mono-sm { font-family: var(--font-mono); font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; }
+.mono-md { font-family: var(--font-mono); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+.condensed { font-family: var(--font-condensed); font-weight: 500; }
+.post-tag {
+  display: inline-block;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  padding: 3px 9px;
+  margin-bottom: 8px;
+  color: var(--chalk);
+}
+/* Ticker tags: smaller font */
+.tick-story__tag, .tick-urgent__tag, .tick-event__tag,
+.tick-request__tag, .tick-offer__tag, .tick-update__tag { font-size: 0.72rem; }
+/* Urgent tags: wider spacing */
+.gaz-urgent__tag, .led-urgent__tag, .bul-urgent__tag, .tick-urgent__tag { letter-spacing: 0.14em; }
+.drop-cap::first-letter {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 4.2em;
+  float: left;
+  line-height: 0.75;
+  margin-right: 0.08em;
+  margin-top: 0.06em;
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════
+   PENCIL MARK DECORATIONS
+   ═══════════════════════════════════════════════ */
+
+/* ── Hand-drawn flanking asterisks ── */
+.pencil-mark { position: relative; display: inline; }
+.pencil-mark::before,
+.pencil-mark::after {
+  content: '';
+  display: block;
+  width: 1.2em;
+  height: 1.2em;
+  background: var(--graphite);
+  pointer-events: none;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.pencil-mark::before {
+  right: calc(100% + 0.15em);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 25 22' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.852 16.08C24.452 16.56 24.572 17.28 24.812 17.88C24.812 18.12 24.692 18.36 24.452 18.48C23.972 18.96 23.252 19.2 22.532 19.44C22.412 19.44 22.052 19.44 21.932 19.2C21.692 18.6 21.212 18.36 20.852 18C19.532 16.68 18.092 15.72 16.532 14.76C16.052 14.4 15.572 14.04 14.972 13.68C14.852 13.68 14.732 13.56 14.612 13.68C14.492 13.68 14.492 13.92 14.612 14.04C14.732 15.48 14.972 17.04 15.212 18.48C15.212 18.72 15.212 19.08 15.332 19.32C15.692 19.92 15.572 20.52 15.572 21.12C15.572 21.48 15.332 21.6 15.092 21.72C14.492 22.08 13.892 21.96 13.292 21.96C13.052 21.96 12.932 21.84 12.812 21.6C12.692 21.36 12.572 21.12 12.572 20.76C12.452 20.16 12.212 19.56 12.212 18.84C12.332 17.28 11.612 15.84 11.852 14.4C11.852 14.28 11.852 14.16 11.732 14.16C11.612 13.8 11.732 13.44 11.492 13.2C11.132 13.08 10.652 13.56 10.532 14.16C10.412 14.4 10.292 14.52 10.052 14.64C9.33197 15.24 8.97197 15.96 8.49197 16.56C8.13197 17.04 7.77195 17.52 7.29195 17.88C7.17195 18 6.93197 18.12 6.81197 17.88C6.69197 17.52 6.45197 17.52 6.09197 17.52C5.37197 17.76 4.89197 17.16 4.65197 16.68C4.41197 16.2 4.65196 15.72 4.89196 15.36C5.25196 14.88 5.61197 14.52 6.21197 14.4C6.45197 14.28 6.69197 14.04 6.93197 13.92C7.65197 12.84 8.37196 11.76 9.45196 11.04C9.57196 10.92 9.57195 10.8 9.69195 10.68C9.69195 10.56 9.81195 10.44 9.69195 10.2C9.57195 10.08 9.45196 10.08 9.33196 10.2C8.49196 10.44 7.65197 10.56 6.81197 10.68C5.49197 10.68 4.17196 11.28 2.73196 11.4C2.61196 11.4 2.37195 11.52 2.25195 11.64C1.65195 11.88 1.17195 11.88 0.691949 11.64C0.0919482 11.4 -0.148027 11.04 0.0919729 10.44C0.211973 10.32 0.211963 10.2 0.331963 10.2C0.931963 10.08 1.41196 9.72 2.01196 10.08C2.61196 10.32 2.97197 10.32 3.21197 9.84C3.33197 9.72001 3.45195 9.59999 3.57195 9.47999C3.69195 9.23999 3.93196 9.12 4.17196 9.24C4.41196 9.48 4.77196 9.35999 4.89196 9.47999C5.37196 9.71999 5.73195 9.48 5.97195 9.24C6.09195 9.12 6.21196 8.99998 6.33196 8.87998C6.81196 8.39998 7.29196 8.28 8.01196 8.52H8.25198C8.37198 8.4 8.25198 8.27998 8.25198 8.15998C8.01198 7.91998 7.89197 7.68 7.65197 7.56001C6.45197 6.24 5.37195 4.8 4.29195 3.24C3.93195 2.76 3.93195 2.51999 4.41195 2.03999C5.25195 1.19999 5.25195 1.31998 5.85195 2.15998C6.69195 3.11998 7.53197 4.19998 8.37197 5.15998C8.49197 5.39998 8.73195 5.63998 8.85195 5.99998C8.97195 6.23998 9.09195 6.47999 9.57195 6.47999C9.69195 6.47999 9.93196 6.60001 10.052 6.84C10.172 6.96001 10.292 7.2 10.652 7.07999C10.892 6.96 10.772 6.71999 10.772 6.47999C10.532 4.67999 10.652 2.99999 10.772 1.19999C10.772 0.83999 10.892 0.360003 11.372 0.120003C11.732 4.35114e-06 12.092 -0.120005 12.452 0.239998C12.692 0.479995 13.052 0.83999 12.932 1.19999C12.812 1.67999 12.812 2.04 12.812 2.52C12.812 2.76 12.812 3.11999 12.812 3.35999C12.932 3.71999 12.212 3.95999 12.572 4.31998C12.812 4.55998 12.932 4.92 12.932 5.28001C12.932 5.64001 13.052 5.99999 13.172 6.35999C13.292 6.59999 13.412 6.71999 13.652 6.47999C14.252 5.75999 15.0919 5.28001 15.6919 4.56001C15.9319 4.32 16.1719 4.31999 16.4119 4.07999C17.0119 3.6 17.732 3.23999 18.212 2.52C18.572 1.8 19.292 1.19998 19.772 0.599983C20.012 0.359983 20.132 0.239998 20.372 0.239998C20.852 -2.563e-06 20.972 0.119989 21.212 0.479988C21.932 1.67999 21.932 1.67999 21.092 2.75999C20.852 3.11999 20.492 3.35998 20.252 3.71998C20.132 3.83998 20.012 3.96 19.652 3.84C19.292 3.72 19.052 3.95998 19.052 4.43998C19.172 4.91998 18.932 5.15999 18.572 5.52C17.972 5.88 17.492 6.36001 17.012 6.84C17.012 6.96001 16.892 7.07999 16.892 7.19999C16.772 7.43999 16.772 7.67999 17.012 7.8C17.252 7.91999 17.372 7.68 17.492 7.56001C17.612 7.20001 17.732 7.07999 18.212 7.07999C18.812 7.2 19.532 7.08 20.132 6.96C20.7319 6.96 21.212 7.07998 21.812 7.43998C21.932 7.55998 22.052 7.67999 21.932 7.91999C21.812 8.15999 21.6919 8.28 21.6919 8.4C21.6919 8.64 21.932 9 21.572 9.24C21.212 9.48 20.852 9.59998 20.372 9.59998C19.532 9.47998 18.692 9.83998 17.852 9.59998C16.892 9.59998 15.812 9.83998 14.852 9.71998C14.732 9.71998 14.612 9.72001 14.612 9.84C14.372 9.84 14.372 9.96 14.492 10.08C14.852 10.44 15.2119 10.8 15.6919 11.04C17.8519 12.24 20.132 13.32 22.172 14.88C22.652 15.24 23.252 15.72 23.852 16.08Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 25 22' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M23.852 16.08C24.452 16.56 24.572 17.28 24.812 17.88C24.812 18.12 24.692 18.36 24.452 18.48C23.972 18.96 23.252 19.2 22.532 19.44C22.412 19.44 22.052 19.44 21.932 19.2C21.692 18.6 21.212 18.36 20.852 18C19.532 16.68 18.092 15.72 16.532 14.76C16.052 14.4 15.572 14.04 14.972 13.68C14.852 13.68 14.732 13.56 14.612 13.68C14.492 13.68 14.492 13.92 14.612 14.04C14.732 15.48 14.972 17.04 15.212 18.48C15.212 18.72 15.212 19.08 15.332 19.32C15.692 19.92 15.572 20.52 15.572 21.12C15.572 21.48 15.332 21.6 15.092 21.72C14.492 22.08 13.892 21.96 13.292 21.96C13.052 21.96 12.932 21.84 12.812 21.6C12.692 21.36 12.572 21.12 12.572 20.76C12.452 20.16 12.212 19.56 12.212 18.84C12.332 17.28 11.612 15.84 11.852 14.4C11.852 14.28 11.852 14.16 11.732 14.16C11.612 13.8 11.732 13.44 11.492 13.2C11.132 13.08 10.652 13.56 10.532 14.16C10.412 14.4 10.292 14.52 10.052 14.64C9.33197 15.24 8.97197 15.96 8.49197 16.56C8.13197 17.04 7.77195 17.52 7.29195 17.88C7.17195 18 6.93197 18.12 6.81197 17.88C6.69197 17.52 6.45197 17.52 6.09197 17.52C5.37197 17.76 4.89197 17.16 4.65197 16.68C4.41197 16.2 4.65196 15.72 4.89196 15.36C5.25196 14.88 5.61197 14.52 6.21197 14.4C6.45197 14.28 6.69197 14.04 6.93197 13.92C7.65197 12.84 8.37196 11.76 9.45196 11.04C9.57196 10.92 9.57195 10.8 9.69195 10.68C9.69195 10.56 9.81195 10.44 9.69195 10.2C9.57195 10.08 9.45196 10.08 9.33196 10.2C8.49196 10.44 7.65197 10.56 6.81197 10.68C5.49197 10.68 4.17196 11.28 2.73196 11.4C2.61196 11.4 2.37195 11.52 2.25195 11.64C1.65195 11.88 1.17195 11.88 0.691949 11.64C0.0919482 11.4 -0.148027 11.04 0.0919729 10.44C0.211973 10.32 0.211963 10.2 0.331963 10.2C0.931963 10.08 1.41196 9.72 2.01196 10.08C2.61196 10.32 2.97197 10.32 3.21197 9.84C3.33197 9.72001 3.45195 9.59999 3.57195 9.47999C3.69195 9.23999 3.93196 9.12 4.17196 9.24C4.41196 9.48 4.77196 9.35999 4.89196 9.47999C5.37196 9.71999 5.73195 9.48 5.97195 9.24C6.09195 9.12 6.21196 8.99998 6.33196 8.87998C6.81196 8.39998 7.29196 8.28 8.01196 8.52H8.25198C8.37198 8.4 8.25198 8.27998 8.25198 8.15998C8.01198 7.91998 7.89197 7.68 7.65197 7.56001C6.45197 6.24 5.37195 4.8 4.29195 3.24C3.93195 2.76 3.93195 2.51999 4.41195 2.03999C5.25195 1.19999 5.25195 1.31998 5.85195 2.15998C6.69195 3.11998 7.53197 4.19998 8.37197 5.15998C8.49197 5.39998 8.73195 5.63998 8.85195 5.99998C8.97195 6.23998 9.09195 6.47999 9.57195 6.47999C9.69195 6.47999 9.93196 6.60001 10.052 6.84C10.172 6.96001 10.292 7.2 10.652 7.07999C10.892 6.96 10.772 6.71999 10.772 6.47999C10.532 4.67999 10.652 2.99999 10.772 1.19999C10.772 0.83999 10.892 0.360003 11.372 0.120003C11.732 4.35114e-06 12.092 -0.120005 12.452 0.239998C12.692 0.479995 13.052 0.83999 12.932 1.19999C12.812 1.67999 12.812 2.04 12.812 2.52C12.812 2.76 12.812 3.11999 12.812 3.35999C12.932 3.71999 12.212 3.95999 12.572 4.31998C12.812 4.55998 12.932 4.92 12.932 5.28001C12.932 5.64001 13.052 5.99999 13.172 6.35999C13.292 6.59999 13.412 6.71999 13.652 6.47999C14.252 5.75999 15.0919 5.28001 15.6919 4.56001C15.9319 4.32 16.1719 4.31999 16.4119 4.07999C17.0119 3.6 17.732 3.23999 18.212 2.52C18.572 1.8 19.292 1.19998 19.772 0.599983C20.012 0.359983 20.132 0.239998 20.372 0.239998C20.852 -2.563e-06 20.972 0.119989 21.212 0.479988C21.932 1.67999 21.932 1.67999 21.092 2.75999C20.852 3.11999 20.492 3.35998 20.252 3.71998C20.132 3.83998 20.012 3.96 19.652 3.84C19.292 3.72 19.052 3.95998 19.052 4.43998C19.172 4.91998 18.932 5.15999 18.572 5.52C17.972 5.88 17.492 6.36001 17.012 6.84C17.012 6.96001 16.892 7.07999 16.892 7.19999C16.772 7.43999 16.772 7.67999 17.012 7.8C17.252 7.91999 17.372 7.68 17.492 7.56001C17.612 7.20001 17.732 7.07999 18.212 7.07999C18.812 7.2 19.532 7.08 20.132 6.96C20.7319 6.96 21.212 7.07998 21.812 7.43998C21.932 7.55998 22.052 7.67999 21.932 7.91999C21.812 8.15999 21.6919 8.28 21.6919 8.4C21.6919 8.64 21.932 9 21.572 9.24C21.212 9.48 20.852 9.59998 20.372 9.59998C19.532 9.47998 18.692 9.83998 17.852 9.59998C16.892 9.59998 15.812 9.83998 14.852 9.71998C14.732 9.71998 14.612 9.72001 14.612 9.84C14.372 9.84 14.372 9.96 14.492 10.08C14.852 10.44 15.2119 10.8 15.6919 11.04C17.8519 12.24 20.132 13.32 22.172 14.88C22.652 15.24 23.252 15.72 23.852 16.08Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.pencil-mark::after {
+  left: calc(100% + 0.15em);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 25 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24.4352 14.5674C24.6752 15.0474 24.6752 15.1674 24.3152 15.4074C23.8352 15.7674 23.5952 16.1274 23.7152 16.7274C23.8352 17.0874 23.4752 17.2074 23.2352 17.3274C22.5152 17.3274 21.9152 17.3274 21.3152 17.2074C20.5952 17.0874 19.8752 17.0874 19.1552 17.2074C17.8352 17.2074 16.5152 17.0873 15.1952 17.0873C14.9552 17.0873 14.7152 17.0873 14.3552 17.0873C14.3552 17.0873 14.2351 17.0874 14.2351 17.2074C14.1151 17.3274 14.2352 17.4474 14.3552 17.4474C15.3152 18.1674 16.3952 18.8874 17.3552 19.7274C18.3152 20.5674 19.1552 21.4074 19.8752 22.4874C20.1152 22.8474 19.8752 23.3274 20.1152 23.6874C20.2352 23.8074 20.1152 23.8074 19.9952 23.9274C19.5152 24.4074 18.7952 24.2874 18.4352 24.6474C18.3152 24.7674 18.1952 24.7674 18.0752 24.6474C17.5952 24.2874 17.2352 23.8074 17.3552 23.2074C17.3552 22.9674 17.3552 22.7274 17.3552 22.6074C17.3552 22.2474 17.2352 22.0074 16.9952 22.0074C16.0352 22.1274 15.4352 21.4074 14.7152 20.9274C14.4752 20.9274 14.3552 20.6874 14.1152 20.9274C13.9952 21.1674 13.6352 21.2874 13.8752 21.6474C14.3552 22.2474 14.2352 22.9674 14.3552 23.8074C14.3552 24.4073 14.3552 24.8874 14.5952 25.4874C14.8352 26.4474 14.8352 27.4073 14.8352 28.3673C14.7152 29.0873 14.3552 29.2074 13.5152 29.2074C13.1552 29.2074 12.7952 29.3274 12.4352 29.3274C11.4752 29.3274 11.3552 29.2073 11.1152 28.3673C10.7552 27.4073 10.8752 26.4474 10.7552 25.4874C10.9952 24.7674 10.6352 23.9274 10.8752 23.2074C10.9952 22.9674 10.8752 22.6073 10.8752 22.3673C10.7552 21.5273 10.7552 20.6874 10.6352 19.9674C10.5152 19.6074 10.3952 19.4874 10.1552 19.7274C9.79516 19.9674 9.43517 20.0874 9.31517 20.5674C9.31517 20.6874 9.19518 20.9274 9.07518 21.0474C8.23518 21.7674 7.63518 22.4874 6.79518 23.3274C6.55518 23.6874 6.07516 24.0474 5.71516 24.4074C5.35516 24.7674 4.99515 25.1273 4.39515 25.3673C3.43515 26.0873 3.19516 26.0874 2.59516 25.0074C2.35516 24.6474 2.23516 24.2874 1.87516 24.1674C1.63516 24.0474 1.51517 23.8074 1.63517 23.4474C1.99517 23.0874 2.23516 22.6073 2.59516 22.3673C2.83516 22.1273 3.19516 22.2474 3.55516 22.1274C3.67516 22.1274 3.79516 22.1274 3.55516 21.7674C3.43516 21.6474 3.55515 21.5274 3.67515 21.5274C4.15515 21.0474 4.75518 20.5673 5.23518 20.0873C5.35518 19.9674 5.47516 19.9674 5.59516 19.8474C6.19516 18.8874 7.03516 18.0474 7.87516 17.3274C7.99516 17.2074 8.11515 17.0874 8.11515 16.8474C7.99515 16.7274 7.87517 16.7274 7.63517 16.6074C7.27517 16.4874 6.79517 16.7274 6.31517 16.4874C6.19517 16.4874 6.07518 16.4874 6.07518 16.2474C6.07518 16.1274 6.19517 16.0074 6.31517 16.0074C6.43517 16.0074 6.67518 16.0074 6.79518 15.8874C6.91518 15.8874 6.91518 15.6473 6.79518 15.5274C6.67518 15.4073 6.55516 15.2874 6.43516 15.4074C6.07516 15.6474 5.83517 16.1274 5.35517 16.0074C4.75517 16.3674 4.03516 16.1274 3.43516 16.0074C2.47516 15.8874 1.63518 15.4074 0.795177 15.2874C0.195177 15.1674 -0.164825 14.0874 0.0751753 13.6074C0.315175 13.2474 0.795157 13.2474 1.27516 13.1274C1.39516 13.1274 1.63517 13.1274 1.75517 13.2474C2.71517 13.3674 3.55515 13.4874 4.39515 13.7274C5.11515 13.8474 5.71517 13.7274 6.31517 13.9674C6.43517 14.0874 6.55516 13.9674 6.55516 13.8474C6.55516 13.8474 6.55516 13.7274 6.55516 13.6074C5.95516 13.2474 5.59518 12.7674 5.23518 12.1674C4.87518 11.5674 4.39517 11.2074 3.91517 10.7274C2.95517 9.64736 1.99516 8.56735 1.15516 7.36735C0.795161 6.88735 0.915156 6.28735 0.555156 5.68735C0.435156 5.56736 0.555177 5.32737 0.795177 5.32737C0.915177 5.20737 1.15515 5.08735 1.39515 5.08735C1.99515 4.84735 1.99515 4.84737 2.23515 5.32737C2.59515 6.16737 3.07518 7.00737 3.79518 7.60737C4.27518 7.96737 4.63516 8.32735 4.87516 8.80735C4.99516 8.92735 4.99515 9.04736 5.11515 9.16737C6.43515 10.1274 7.27517 11.4474 8.47517 12.2874C8.95517 12.7674 9.31518 13.2474 9.79518 13.7274C9.91518 13.7274 10.0352 13.8474 10.1552 13.7274C10.2752 13.7274 10.2752 13.6074 10.2752 13.4874C10.1552 12.8874 10.2752 12.2874 10.0352 11.8073C10.0352 11.6874 9.91517 11.5674 10.0352 11.4474C10.3952 10.8474 10.0352 10.3674 9.91517 9.76737C9.67517 8.92737 9.43518 8.08736 9.79518 7.12736C9.91518 6.88736 9.79515 6.76737 9.67515 6.64738C9.55515 6.28737 9.43516 5.92736 9.43516 5.56736C9.43516 4.48736 9.43516 3.28737 9.55516 2.20737C9.55516 1.84738 9.55515 1.48736 9.67515 1.12736C9.67515 0.527354 10.1552 0.167369 10.7552 0.0473704C11.3552 -0.19263 12.1952 0.527354 11.9551 1.12736C11.7151 2.08736 11.8352 2.92736 11.8352 3.88737C11.8352 4.00737 11.8352 4.24735 11.8352 4.24735C11.1152 4.60735 11.5952 4.96737 11.8352 5.32737C12.0752 5.68737 12.1952 5.92736 12.1952 6.28736C12.1952 7.24736 12.4352 8.20736 12.6752 9.16737C12.7952 9.88736 12.9152 10.4873 12.9152 11.0873C12.9152 11.4473 13.1552 11.5674 13.3952 11.3274C13.8752 10.9674 14.4752 10.6074 14.8352 10.1274C15.4352 9.52736 15.9152 9.04735 16.6352 8.68735C16.9952 8.44735 17.3552 8.20736 17.5952 7.72736C17.9552 7.12736 18.6752 6.76736 19.1552 6.16737C19.1552 6.16737 19.2752 6.16737 19.3952 6.16737C19.6351 6.16737 19.7552 6.16738 19.7552 5.92738C19.6352 5.20737 20.1152 4.84735 20.5952 4.36735C20.5952 4.24735 20.8351 4.24735 20.9551 4.24735C21.4351 4.48735 21.9152 4.60735 22.2752 5.08735C22.5152 5.56735 22.3952 6.16735 21.7952 6.52735C21.5552 6.64735 21.3152 6.76736 21.3152 7.00736C21.3152 7.12736 21.3152 7.24735 21.1952 7.36735C20.2352 8.20735 19.8752 9.52735 18.7952 10.2474C18.1952 10.6074 17.7152 11.3273 17.1152 11.8073C16.6352 12.4073 16.2752 12.8874 15.6752 13.2474C15.5552 13.3674 15.4352 13.4874 15.4352 13.4874C15.3152 13.6074 15.1952 13.7274 15.3152 13.8474C15.4352 13.9674 15.5552 14.0873 15.6752 14.0873C16.3952 13.8474 17.1152 14.3274 17.7152 13.9674C18.7952 14.2074 19.7552 13.9674 20.7152 13.9674C21.3152 13.8474 21.7952 13.8474 22.2752 13.4874C22.5152 13.2474 22.8752 13.3674 23.1152 13.6074C23.5952 13.8474 24.0752 14.0874 24.4352 14.5674Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg viewBox='0 0 25 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M24.4352 14.5674C24.6752 15.0474 24.6752 15.1674 24.3152 15.4074C23.8352 15.7674 23.5952 16.1274 23.7152 16.7274C23.8352 17.0874 23.4752 17.2074 23.2352 17.3274C22.5152 17.3274 21.9152 17.3274 21.3152 17.2074C20.5952 17.0874 19.8752 17.0874 19.1552 17.2074C17.8352 17.2074 16.5152 17.0873 15.1952 17.0873C14.9552 17.0873 14.7152 17.0873 14.3552 17.0873C14.3552 17.0873 14.2351 17.0874 14.2351 17.2074C14.1151 17.3274 14.2352 17.4474 14.3552 17.4474C15.3152 18.1674 16.3952 18.8874 17.3552 19.7274C18.3152 20.5674 19.1552 21.4074 19.8752 22.4874C20.1152 22.8474 19.8752 23.3274 20.1152 23.6874C20.2352 23.8074 20.1152 23.8074 19.9952 23.9274C19.5152 24.4074 18.7952 24.2874 18.4352 24.6474C18.3152 24.7674 18.1952 24.7674 18.0752 24.6474C17.5952 24.2874 17.2352 23.8074 17.3552 23.2074C17.3552 22.9674 17.3552 22.7274 17.3552 22.6074C17.3552 22.2474 17.2352 22.0074 16.9952 22.0074C16.0352 22.1274 15.4352 21.4074 14.7152 20.9274C14.4752 20.9274 14.3552 20.6874 14.1152 20.9274C13.9952 21.1674 13.6352 21.2874 13.8752 21.6474C14.3552 22.2474 14.2352 22.9674 14.3552 23.8074C14.3552 24.4073 14.3552 24.8874 14.5952 25.4874C14.8352 26.4474 14.8352 27.4073 14.8352 28.3673C14.7152 29.0873 14.3552 29.2074 13.5152 29.2074C13.1552 29.2074 12.7952 29.3274 12.4352 29.3274C11.4752 29.3274 11.3552 29.2073 11.1152 28.3673C10.7552 27.4073 10.8752 26.4474 10.7552 25.4874C10.9952 24.7674 10.6352 23.9274 10.8752 23.2074C10.9952 22.9674 10.8752 22.6073 10.8752 22.3673C10.7552 21.5273 10.7552 20.6874 10.6352 19.9674C10.5152 19.6074 10.3952 19.4874 10.1552 19.7274C9.79516 19.9674 9.43517 20.0874 9.31517 20.5674C9.31517 20.6874 9.19518 20.9274 9.07518 21.0474C8.23518 21.7674 7.63518 22.4874 6.79518 23.3274C6.55518 23.6874 6.07516 24.0474 5.71516 24.4074C5.35516 24.7674 4.99515 25.1273 4.39515 25.3673C3.43515 26.0873 3.19516 26.0874 2.59516 25.0074C2.35516 24.6474 2.23516 24.2874 1.87516 24.1674C1.63516 24.0474 1.51517 23.8074 1.63517 23.4474C1.99517 23.0874 2.23516 22.6073 2.59516 22.3673C2.83516 22.1273 3.19516 22.2474 3.55516 22.1274C3.67516 22.1274 3.79516 22.1274 3.55516 21.7674C3.43516 21.6474 3.55515 21.5274 3.67515 21.5274C4.15515 21.0474 4.75518 20.5673 5.23518 20.0873C5.35518 19.9674 5.47516 19.9674 5.59516 19.8474C6.19516 18.8874 7.03516 18.0474 7.87516 17.3274C7.99516 17.2074 8.11515 17.0874 8.11515 16.8474C7.99515 16.7274 7.87517 16.7274 7.63517 16.6074C7.27517 16.4874 6.79517 16.7274 6.31517 16.4874C6.19517 16.4874 6.07518 16.4874 6.07518 16.2474C6.07518 16.1274 6.19517 16.0074 6.31517 16.0074C6.43517 16.0074 6.67518 16.0074 6.79518 15.8874C6.91518 15.8874 6.91518 15.6473 6.79518 15.5274C6.67518 15.4073 6.55516 15.2874 6.43516 15.4074C6.07516 15.6474 5.83517 16.1274 5.35517 16.0074C4.75517 16.3674 4.03516 16.1274 3.43516 16.0074C2.47516 15.8874 1.63518 15.4074 0.795177 15.2874C0.195177 15.1674 -0.164825 14.0874 0.0751753 13.6074C0.315175 13.2474 0.795157 13.2474 1.27516 13.1274C1.39516 13.1274 1.63517 13.1274 1.75517 13.2474C2.71517 13.3674 3.55515 13.4874 4.39515 13.7274C5.11515 13.8474 5.71517 13.7274 6.31517 13.9674C6.43517 14.0874 6.55516 13.9674 6.55516 13.8474C6.55516 13.8474 6.55516 13.7274 6.55516 13.6074C5.95516 13.2474 5.59518 12.7674 5.23518 12.1674C4.87518 11.5674 4.39517 11.2074 3.91517 10.7274C2.95517 9.64736 1.99516 8.56735 1.15516 7.36735C0.795161 6.88735 0.915156 6.28735 0.555156 5.68735C0.435156 5.56736 0.555177 5.32737 0.795177 5.32737C0.915177 5.20737 1.15515 5.08735 1.39515 5.08735C1.99515 4.84735 1.99515 4.84737 2.23515 5.32737C2.59515 6.16737 3.07518 7.00737 3.79518 7.60737C4.27518 7.96737 4.63516 8.32735 4.87516 8.80735C4.99516 8.92735 4.99515 9.04736 5.11515 9.16737C6.43515 10.1274 7.27517 11.4474 8.47517 12.2874C8.95517 12.7674 9.31518 13.2474 9.79518 13.7274C9.91518 13.7274 10.0352 13.8474 10.1552 13.7274C10.2752 13.7274 10.2752 13.6074 10.2752 13.4874C10.1552 12.8874 10.2752 12.2874 10.0352 11.8073C10.0352 11.6874 9.91517 11.5674 10.0352 11.4474C10.3952 10.8474 10.0352 10.3674 9.91517 9.76737C9.67517 8.92737 9.43518 8.08736 9.79518 7.12736C9.91518 6.88736 9.79515 6.76737 9.67515 6.64738C9.55515 6.28737 9.43516 5.92736 9.43516 5.56736C9.43516 4.48736 9.43516 3.28737 9.55516 2.20737C9.55516 1.84738 9.55515 1.48736 9.67515 1.12736C9.67515 0.527354 10.1552 0.167369 10.7552 0.0473704C11.3552 -0.19263 12.1952 0.527354 11.9551 1.12736C11.7151 2.08736 11.8352 2.92736 11.8352 3.88737C11.8352 4.00737 11.8352 4.24735 11.8352 4.24735C11.1152 4.60735 11.5952 4.96737 11.8352 5.32737C12.0752 5.68737 12.1952 5.92736 12.1952 6.28736C12.1952 7.24736 12.4352 8.20736 12.6752 9.16737C12.7952 9.88736 12.9152 10.4873 12.9152 11.0873C12.9152 11.4473 13.1552 11.5674 13.3952 11.3274C13.8752 10.9674 14.4752 10.6074 14.8352 10.1274C15.4352 9.52736 15.9152 9.04735 16.6352 8.68735C16.9952 8.44735 17.3552 8.20736 17.5952 7.72736C17.9552 7.12736 18.6752 6.76736 19.1552 6.16737C19.1552 6.16737 19.2752 6.16737 19.3952 6.16737C19.6351 6.16737 19.7552 6.16738 19.7552 5.92738C19.6352 5.20737 20.1152 4.84735 20.5952 4.36735C20.5952 4.24735 20.8351 4.24735 20.9551 4.24735C21.4351 4.48735 21.9152 4.60735 22.2752 5.08735C22.5152 5.56735 22.3952 6.16735 21.7952 6.52735C21.5552 6.64735 21.3152 6.76736 21.3152 7.00736C21.3152 7.12736 21.3152 7.24735 21.1952 7.36735C20.2352 8.20735 19.8752 9.52735 18.7952 10.2474C18.1952 10.6074 17.7152 11.3273 17.1152 11.8073C16.6352 12.4073 16.2752 12.8874 15.6752 13.2474C15.5552 13.3674 15.4352 13.4874 15.4352 13.4874C15.3152 13.6074 15.1952 13.7274 15.3152 13.8474C15.4352 13.9674 15.5552 14.0873 15.6752 14.0873C16.3952 13.8474 17.1152 14.3274 17.7152 13.9674C18.7952 14.2074 19.7552 13.9674 20.7152 13.9674C21.3152 13.8474 21.7952 13.8474 22.2752 13.4874C22.5152 13.2474 22.8752 13.3674 23.1152 13.6074C23.5952 13.8474 24.0752 14.0874 24.4352 14.5674Z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+/* ── Pencil star/heart/smile/line/circle ── */
+.mono-sm .pencil-star::after, .mono-sm.pencil-star::after,
+.gaz-urgent .pencil-star::after, .bul-urgent .pencil-star::after,
+.feat-urgent .pencil-star::after, .feat-cta .pencil-star::after,
+.alert-urgent .pencil-star::after { display: none; }
+.pencil-star::after {
+  content: ''; display: inline-block; width: 0.84em; height: 0.84em;
+  background: url('/pencils/pencil-star.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
+}
+
+.mono-sm .pencil-heart::after, .mono-sm.pencil-heart::after,
+.gaz-urgent .pencil-heart::after, .bul-urgent .pencil-heart::after,
+.feat-urgent .pencil-heart::after, .feat-cta .pencil-heart::after,
+.alert-urgent .pencil-heart::after { display: none; }
+.pencil-heart::after {
+  content: ''; display: inline-block; width: 0.84em; height: 0.89em;
+  background: url('/pencils/pencil-heart.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
+}
+
+.mono-sm .pencil-smile::after, .mono-sm.pencil-smile::after,
+.gaz-urgent .pencil-smile::after, .bul-urgent .pencil-smile::after,
+.feat-urgent .pencil-smile::after, .feat-cta .pencil-smile::after,
+.alert-urgent .pencil-smile::after { display: none; }
+.pencil-smile::after {
+  content: ''; display: inline-block; width: 1.2em; height: 1.2em;
+  background: url('/pencils/pencil-smile.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
+}
+
+.pencil-line {
+  background-image: url('/pencils/pencil-underline.svg');
+  background-position: left bottom; background-repeat: no-repeat;
+  background-size: 100% 0.14em; padding-bottom: 0.07em;
+  display: inline-block; transform: rotate(var(--tilt, 0deg));
+  -webkit-box-decoration-break: clone; box-decoration-break: clone;
+}
+.mono-sm .pencil-line, .mono-sm.pencil-line,
+.gaz-urgent .pencil-line, .bul-urgent .pencil-line,
+.feat-urgent .pencil-line, .feat-cta .pencil-line,
+.alert-urgent .pencil-line { background-image: none; }
+
+.pencil-circle { position: relative; display: inline-block; z-index: 2; }
+.pencil-circle::before {
+  content: ''; position: absolute; inset: -11px -14px;
+  background: url('/pencils/pencil-circle.svg') no-repeat center / 100% 100%;
+  pointer-events: none; z-index: 2;
+}
+.pencil-circle::after {
+  content: attr(data-label);
+  font-family: 'Blissful Radiance', cursive; font-size: 1.7rem;
+  color: var(--graphite); position: absolute;
+  right: -4.8em; top: 0em;
+  transform: rotate(var(--tilt, -6deg));
+  white-space: nowrap; pointer-events: none; z-index: 2;
+}
+.feat-event .pencil-circle::before { inset: -4px -19px; }
+.feat-event .pencil-circle::after { font-size: 1.7rem; right: -6.8rem; }
+
+/* ═══════════════════════════════════════════════
+   COMPONENT STYLES
+   61 renderers across 8 component families.
+
+   CSS CLASS → SPEC TYPE MAP
+   ──────────────────────────────────────────────
+   Legacy CSS classes (left) map to CMS spec types (right).
+   JS methods already use spec names; CSS keeps legacy names
+   for backward compat in this prototype.
+
+   Suffix        Spec Type           Tag Variant
+   ──────        ─────────           ───────────
+   *-story       story
+   *-urgent      notice              urgent
+   *-cta         notice              action
+   *-update      notice              (default)
+   *-event       event
+   *-request     exchange            need
+   *-offer       exchange            aid
+   *-resource    reference
+   *-local       spotlight
+
+   Families: gaz (gazette), bul (bulletin), led (ledger),
+   tick (ticker), feat (feature), dig (digest),
+   broad-* (broadsheet one-offs), widget-* (widgets)
+
+   Next.js target: rename to spec-aligned BEM, e.g.
+   .gaz-urgent  → .gaz-notice--urgent
+   .gaz-request → .gaz-exchange--need
+   .gaz-resource → .gaz-reference
+   .gaz-local   → .gaz-spotlight
+   ═══════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────
+   BASE POST PRIMITIVES (global)
+   ───────────────────────────────────────────── */
+
+.gaz-story__body p,
+.led-story__body p { margin-bottom: 0.75em; text-align: justify; hyphens: auto; }
+.gaz-story__body p:last-child,
+.led-story__body p:last-child { margin-bottom: 0; }
+
+.read-more {
+  font-size: 0.8rem;
+  color: var(--chalk);
+  background: var(--deep-forest);
+  text-decoration: none;
+  margin-top: 12px;
+  padding: 7px 14px;
+  display: inline-block;
+}
+.read-more:hover { background: var(--ink); }
+
+/* ─────────────────────────────────────────────
+   SECTION SEPARATOR — full-width editorial band
+   Title + subtitle row, bordered top and bottom.
+   ───────────────────────────────────────────── */
+
+.section-sep {
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 14px 0;
+  margin: 0;
+}
+.section-sep__title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.section-sep__sub {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-top: 2px;
+}
+
+/* ═════════════════════════════════════════════
+   GAZETTE VARIANTS
+   Top-border tabbed frame. 3–5px colored top
+   accent. Section header / file folder tab feel.
+   ═════════════════════════════════════════════ */
+
+/* ── GAZETTE STORY ── */
+.gaz-story {
+  padding-top: 16px;
+  border-top: 3px solid var(--type-story);
+  cursor: pointer;
+}
+.gaz-story:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-story:hover .gaz-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-story__tag { background: var(--type-story); }
+.gaz-story__kicker {
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  color: var(--sienna);
+  margin-bottom: 4px;
+}
+.gaz-story__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.85rem;
+  line-height: 1.12;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.gaz-story__meta {
+  font-size: 0.82rem;
+  color: var(--sienna);
+  margin-bottom: 14px;
+  line-height: 1.5;
+}
+.gaz-story__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-story__drop-cap::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: 3.7em;
+  line-height: 0.8;
+  padding-right: 6px;
+  padding-top: 4px;
+  font-weight: bold;
+  color: var(--type-story);
+}
+.gaz-story__pull-quote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.2rem;
+  line-height: 1.35;
+  color: var(--type-story);
+  border-top: 2px solid var(--type-story);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  padding: 12px 0;
+  margin: 14px 0;
+}
+
+/* ── GAZETTE URGENT ── spec: notice (urgent) */
+
+.gaz-urgent {
+  background: var(--ink);
+  color: var(--chalk);
+  padding: 20px 22px 18px;
+  border-top: 4px solid var(--type-urgent);
+  cursor: pointer;
+
+}
+.gaz-urgent:hover { background: var(--ink-hover); }
+.gaz-urgent:hover .gaz-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: rgba(255, 255, 255, 0.4); }
+
+.gaz-urgent__tag { background: var(--type-urgent); color: var(--white-ink); font-weight: 500; }
+.gaz-urgent__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  line-height: 1.22;
+  color: var(--chalk);
+  margin-bottom: 6px;
+}
+.gaz-urgent__meta {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-urgent__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+.gaz-urgent .read-more { background: var(--type-urgent); color: var(--white-ink); }
+.gaz-urgent .read-more:hover { background: rgba(255, 255, 255, 0.15); }
+
+/* ── GAZETTE UPDATE ── spec: notice (default)
+   Dotted top rule, prominent timestamp,
+   compact but readable card.
+   ───────────────────────────────────────────── */
+
+.gaz-update {
+  border-top: 2px dotted rgba(0, 0, 0, 0.15);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-update:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-update:hover .gaz-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-update__tag { background: var(--type-update); }
+.gaz-update__time {
+  font-size: 0.78rem;
+  color: var(--type-need);
+  margin-bottom: 4px;
+}
+.gaz-update__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.gaz-update__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.gaz-update__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--pebble);
+}
+
+/* ═════════════════════════════════════════════
+   BULLETIN VARIANTS
+   All-around border, boxed card. Self-contained
+   posted notices. Community board feel.
+   ═════════════════════════════════════════════ */
+
+/* ── BULLETIN EVENT ──
+   Tear-off calendar visual on left, details right.
+   Time/place footer strip for at-a-glance info.
+   ───────────────────────────────────────────── */
+
+.bul-event {
+  display: flex;
+  gap: 14px;
+  cursor: pointer;
+}
+.bul-event:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-event:hover .bul-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-event__cal {
+  flex-shrink: 0;
+  width: 56px;
+  text-align: center;
+}
+.bul-event__month {
+  display: block;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  background: var(--type-event);
+  color: var(--chalk);
+  padding: 3px 0;
+}
+.bul-event__day {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--type-event);
+  padding: 5px 0 7px;
+  line-height: 1;
+  border: 1px solid rgba(93, 41, 95, 0.2);
+  border-top: none;
+  background: var(--type-event-tint);
+}
+.bul-event__info {
+  flex: 1;
+  min-width: 0;
+}
+.bul-event__tag { background: var(--type-event); }
+.bul-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.bul-event__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-event__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-event__when {
+  font-size: 0.8rem;
+  color: var(--type-event);
+  margin-top: 8px;
+}
+
+/* ── BULLETIN REQUEST ── spec: exchange (need)
+   Left border accent, rust tones.
+   "Needed" indicator — a community call.
+   ───────────────────────────────────────────── */
+
+.bul-request {
+  border-left: 4px solid var(--type-need);
+  padding-left: 16px;
+  cursor: pointer;
+}
+.bul-request:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-request:hover .bul-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-request__tag { background: var(--type-need); }
+.bul-request__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.bul-request__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-request__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-request__contact {
+  font-size: 0.8rem;
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: var(--type-need-tint);
+  color: var(--type-need);
+}
+.bul-request__contact strong { color: var(--ink); }
+
+/* ── BULLETIN OFFER ── spec: exchange (aid)
+   Green tones — the giving mirror of request.
+   "Available" feel — generous, open.
+   ───────────────────────────────────────────── */
+
+.bul-offer {
+  border-left: 4px solid var(--type-aid);
+  padding-left: 16px;
+  cursor: pointer;
+}
+.bul-offer:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-offer:hover .bul-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-offer__tag { background: var(--type-aid); }
+.bul-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.bul-offer__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-offer__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-offer__status {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--chalk);
+  background: var(--type-aid);
+  padding: 4px 10px;
+  margin-top: 10px;
+}
+
+/* ── BULLETIN RESOURCE ── spec: reference
+   Reference card — "clip and save" feel.
+   Blue tint, structured info blocks.
+   ───────────────────────────────────────────── */
+
+.bul-resource {
+  background: var(--type-reference-tint);
+  border-left: 4px solid var(--type-reference);
+  padding: 18px 20px;
+  position: relative;
+  cursor: pointer;
+}
+.bul-resource:hover { background: var(--type-reference-tint-strong); }
+.bul-resource:hover .bul-resource__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-resource__tag { background: var(--type-reference); }
+.bul-resource__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--type-reference);
+  margin-bottom: 6px;
+}
+.bul-resource__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-resource__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-resource__list {
+  list-style: none;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.bul-resource__list li {
+  padding: 5px 0;
+  font-family: var(--font-body);
+  color: var(--slate);
+}
+.bul-resource__list li strong {
+  color: var(--type-reference);
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.bul-resource__updated {
+  font-size: 0.78rem;
+  color: var(--type-reference);
+  opacity: 0.6;
+  margin-top: 10px;
+}
+
+/* ── GAZETTE CTA ── spec: notice (action)
+   Bold teal accent. "Act now" energy.
+   Heavy bottom button, editorial appeal style.
+   ───────────────────────────────────────────── */
+
+.gaz-cta {
+  border-top: 3px solid var(--type-action);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-cta:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-cta:hover .gaz-cta__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-cta__tag { background: var(--type-action); }
+.gaz-cta__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--type-action);
+  margin-bottom: 6px;
+}
+.gaz-cta__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-cta__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-cta__link {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--chalk);
+  background: var(--mn-deep-teal);
+  padding: 10px 16px;
+  margin-top: 12px;
+  text-decoration: none;
+}
+.gaz-cta__link:hover { background: var(--deep-teal-hover); }
+
+/* ── GAZETTE LOCAL ── spec: spotlight
+   "Featured listing" / classified ad feel.
+   Warm bg, business-card energy.
+   ───────────────────────────────────────────── */
+
+.gaz-local {
+  background: rgba(181, 137, 26, 0.05);
+  padding: 18px 20px;
+  border-top: 2px solid var(--type-spotlight);
+  cursor: pointer;
+}
+.gaz-local:hover { background: var(--type-spotlight-tint-strong); }
+.gaz-local:hover .gaz-local__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-local__tag { background: var(--type-spotlight); }
+.gaz-local__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--tobacco);
+  margin-bottom: 6px;
+}
+.gaz-local__tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--sienna);
+  margin-bottom: 8px;
+}
+.gaz-local__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-local__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-local__details {
+  font-size: 0.8rem;
+  color: var(--chalk);
+  background: var(--type-spotlight);
+  padding: 5px 10px;
+  margin-top: 10px;
+  display: inline-block;
+}
+
+/* ═════════════════════════════════════════════
+   LEDGER POST VARIANTS
+   Classifieds-style: uniform left-border frame,
+   color-coded per type. Simpler, denser feel.
+   ═════════════════════════════════════════════ */
+
+/* ─────────────────────────────────────────────
+   LEDGER STORY
+   ───────────────────────────────────────────── */
+
+.led-story {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-story);
+  cursor: pointer;
+}
+.led-story:hover { background: rgba(0, 0, 0, 0.02); }
+.led-story:hover .led-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-story__tag { background: var(--type-story); }
+.led-story__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.72rem;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-story__meta {
+  font-size: 0.82rem;
+  color: var(--sienna);
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+.led-story__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-story__drop-cap::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: 3.7em;
+  line-height: 0.8;
+  padding-right: 6px;
+  padding-top: 4px;
+  font-weight: bold;
+  color: var(--type-story);
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER EVENT
+   ───────────────────────────────────────────── */
+
+.led-event {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-event);
+  cursor: pointer;
+}
+.led-event:hover { background: rgba(0, 0, 0, 0.02); }
+.led-event:hover .led-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-event__tag { background: var(--type-event); }
+.led-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-event__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-event__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-event__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.led-event__date {
+  font-size: 0.8rem;
+  color: var(--type-event);
+}
+.led-event__when {
+  font-size: 0.8rem;
+  color: var(--type-event);
+  margin-top: 8px;
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER UPDATE
+   ───────────────────────────────────────────── */
+
+.led-update {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-update);
+  cursor: pointer;
+}
+.led-update:hover { background: rgba(0, 0, 0, 0.02); }
+.led-update:hover .led-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-update__tag { background: var(--type-update); }
+.led-update__time {
+  font-size: 0.78rem;
+  color: var(--type-need);
+  margin-bottom: 4px;
+}
+.led-update__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-update__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-update__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER URGENT
+   ───────────────────────────────────────────── */
+
+.led-urgent {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-urgent);
+  cursor: pointer;
+}
+.led-urgent:hover { background: rgba(0, 0, 0, 0.02); }
+.led-urgent:hover .led-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-urgent__tag { background: var(--type-urgent); color: var(--white-ink); }
+.led-urgent__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-urgent__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-urgent__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-urgent__action {
+  background: var(--type-urgent);
+  color: var(--white-ink);
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER REQUEST
+   ───────────────────────────────────────────── */
+
+.led-request {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-need);
+  cursor: pointer;
+}
+.led-request:hover { background: rgba(0, 0, 0, 0.02); }
+.led-request:hover .led-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-request__tag { background: var(--type-need); }
+.led-request__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-request__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-request__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-request__contact {
+  font-size: 0.8rem;
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: var(--type-need-tint);
+  color: var(--type-need);
+}
+.led-request__contact strong { color: var(--ink); }
+
+/* ─────────────────────────────────────────────
+   LEDGER OFFER
+   ───────────────────────────────────────────── */
+
+.led-offer {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-aid);
+  cursor: pointer;
+}
+.led-offer:hover { background: rgba(0, 0, 0, 0.02); }
+.led-offer:hover .led-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-offer__tag { background: var(--type-aid); }
+.led-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.led-offer__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-offer__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-offer__status {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--chalk);
+  background: var(--type-aid);
+  padding: 4px 10px;
+  margin-top: 10px;
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER RESOURCE
+   ───────────────────────────────────────────── */
+
+.led-resource {
+  padding: 14px 16px;
+  border-left: 4px solid var(--type-reference);
+  background: var(--type-reference-tint);
+  cursor: pointer;
+}
+.led-resource:hover { background: var(--type-reference-tint-strong); }
+.led-resource:hover .led-resource__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-resource__tag { background: var(--type-reference); }
+.led-resource__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--type-reference);
+  margin-bottom: 6px;
+}
+.led-resource__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-resource__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-resource__list {
+  list-style: none;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.led-resource__list li {
+  padding: 5px 0;
+  font-family: var(--font-body);
+  color: var(--slate);
+}
+.led-resource__list li strong { color: var(--type-reference); font-family: var(--font-display); font-weight: 500; }
+.led-resource__updated {
+  font-size: 0.78rem;
+  color: var(--type-reference);
+  opacity: 0.6;
+  margin-top: 10px;
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER CTA
+   ───────────────────────────────────────────── */
+
+.led-cta {
+  padding: 0 0 0 16px;
+  border-left: 4px solid var(--type-action);
+  cursor: pointer;
+}
+.led-cta:hover { background: rgba(0, 0, 0, 0.02); }
+.led-cta:hover .led-cta__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-cta__tag { background: var(--type-action); }
+.led-cta__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--type-action);
+  margin-bottom: 6px;
+}
+.led-cta__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-cta__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.led-cta__link {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--chalk);
+  background: var(--type-action);
+  padding: 10px 16px;
+  margin-top: 12px;
+  text-decoration: none;
+}
+.led-cta__link:hover { background: var(--ink); }
+
+/* ─────────────────────────────────────────────
+   LEDGER LOCAL
+   ───────────────────────────────────────────── */
+
+.led-local {
+  padding: 14px 16px;
+  border-left: 4px solid var(--type-spotlight);
+  background: var(--type-spotlight-tint);
+  cursor: pointer;
+}
+.led-local:hover { background: var(--type-spotlight-tint-strong); }
+.led-local:hover .led-local__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.led-local__tag { background: var(--type-spotlight); }
+.led-local__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--tobacco);
+  margin-bottom: 6px;
+}
+.led-local__tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--sienna);
+  margin-bottom: 8px;
+}
+.led-local__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.led-local__details {
+  font-size: 0.8rem;
+  color: var(--pebble);
+  margin-top: 8px;
+}
+.led-local__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+
+/* ─────────────────────────────────────────────
+   LEDGER SECTION BREAK
+   ───────────────────────────────────────────── */
+
+.led-section-break {
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 14px 0;
+  text-align: center;
+}
+.led-section-break__title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.led-section-break__sub {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  font-style: italic;
+  color: var(--pebble);
+  margin-top: 2px;
+}
+
+/* ═════════════════════════════════════════════
+   GAZETTE VARIANTS — NEW TYPES
+   Top-border tabbed frame. 3px colored top
+   accent per type color.
+   ═════════════════════════════════════════════ */
+
+/* ── GAZETTE EVENT ── */
+.gaz-event {
+  border-top: 3px solid var(--type-event);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-event:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-event:hover .gaz-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-event__tag { background: var(--type-event); }
+.gaz-event__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.gaz-event__date {
+  font-size: 0.8rem;
+  color: var(--type-event);
+}
+.gaz-event__when {
+  font-size: 0.8rem;
+  color: var(--type-event);
+  margin-top: 8px;
+}
+.gaz-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.gaz-event__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-event__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+
+/* ── GAZETTE REQUEST ── spec: exchange (need) */
+.gaz-request {
+  border-top: 3px solid var(--type-need);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-request:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-request:hover .gaz-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-request__tag { background: var(--type-need); }
+.gaz-request__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.gaz-request__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-request__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-request__contact {
+  font-size: 0.8rem;
+  margin-top: 10px;
+  padding: 5px 10px;
+  background: var(--type-need-tint);
+  color: var(--type-need);
+}
+.gaz-request__contact strong { color: var(--ink); }
+
+/* ── GAZETTE OFFER ── spec: exchange (aid) */
+.gaz-offer {
+  border-top: 3px solid var(--type-aid);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-offer:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-offer:hover .gaz-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-offer__tag { background: var(--type-aid); }
+.gaz-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.gaz-offer__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-offer__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-offer__status {
+  display: inline-block;
+  font-size: 0.78rem;
+  color: var(--type-aid);
+  margin-top: 10px;
+}
+
+/* ── GAZETTE RESOURCE ── spec: reference */
+.gaz-resource {
+  border-top: 3px solid var(--type-reference);
+  padding-top: 14px;
+  cursor: pointer;
+}
+.gaz-resource:hover { background: rgba(0, 0, 0, 0.02); }
+.gaz-resource:hover .gaz-resource__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.gaz-resource__tag { background: var(--type-reference); }
+.gaz-resource__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.gaz-resource__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.gaz-resource__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.gaz-resource__list {
+  list-style: none;
+  padding: 0;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+.gaz-resource__list li {
+  padding: 5px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+  font-family: var(--font-body);
+  color: var(--slate);
+}
+.gaz-resource__list li:last-child { border-bottom: none; }
+.gaz-resource__list li strong { color: var(--type-reference); font-family: var(--font-display); font-weight: 500; }
+.gaz-resource__updated {
+  font-size: 0.78rem;
+  color: var(--type-reference);
+  opacity: 0.6;
+  margin-top: 10px;
+}
+
+/* ═════════════════════════════════════════════
+   TICKER VARIANTS
+   Compact single-line flex rows. Bottom border
+   divider, inline tag + title + meta layout.
+   ═════════════════════════════════════════════ */
+
+/* ── TICKER STORY ── */
+.tick-story {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-story:hover { background: rgba(0, 0, 0, 0.02); }
+.tick-story:hover .tick-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-story__tag { background: var(--type-story); padding: 2px 6px; flex-shrink: 0; }
+.tick-story__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-story__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── TICKER URGENT ── spec: notice (urgent) */
+.tick-urgent {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-urgent:hover { background: var(--type-urgent-tint); }
+.tick-urgent:hover .tick-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-urgent__tag { background: var(--type-urgent); color: var(--white-ink); padding: 2px 6px; flex-shrink: 0; }
+.tick-urgent__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-urgent__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── TICKER UPDATE ── spec: notice (default) */
+.tick-update {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-update:hover { background: rgba(0, 0, 0, 0.02); }
+.tick-update:hover .tick-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-update__tag { background: var(--type-update); padding: 2px 6px; flex-shrink: 0; }
+.tick-update__time {
+  font-size: 0.78rem;
+  color: var(--type-need);
+  flex-shrink: 0;
+}
+.tick-update__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-update__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── TICKER EVENT ── */
+.tick-event {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-event:hover { background: rgba(0, 0, 0, 0.02); }
+.tick-event:hover .tick-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-event__tag { background: var(--type-event); padding: 2px 6px; flex-shrink: 0; }
+.tick-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-event__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── TICKER REQUEST ── spec: exchange (need) */
+.tick-request {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-request:hover { background: rgba(0, 0, 0, 0.02); }
+.tick-request:hover .tick-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-request__tag { background: var(--type-need); padding: 2px 6px; flex-shrink: 0; }
+.tick-request__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-request__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ── TICKER OFFER ── spec: exchange (aid) */
+.tick-offer {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding: 8px 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  cursor: pointer;
+}
+.tick-offer:hover { background: rgba(0, 0, 0, 0.02); }
+.tick-offer:hover .tick-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.tick-offer__tag { background: var(--type-aid); padding: 2px 6px; flex-shrink: 0; }
+.tick-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  color: var(--ink);
+  flex: 1;
+}
+.tick-offer__meta {
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* ═════════════════════════════════════════════
+   BULLETIN VARIANTS — NEW TYPES
+   Boxed frame with 1px border. Standard
+   stacked internal layout per type.
+   ═════════════════════════════════════════════ */
+
+/* ── BULLETIN STORY ── */
+.bul-story {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  cursor: pointer;
+}
+.bul-story:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-story:hover .bul-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-story__tag { background: var(--type-story); }
+.bul-story__kicker {
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  color: var(--sienna);
+  margin-bottom: 4px;
+}
+.bul-story__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.4rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.bul-story__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-story__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-story__drop-cap::first-letter {
+  float: left;
+  font-family: var(--font-display);
+  font-size: 3.7em;
+  line-height: 0.8;
+  padding-right: 6px;
+  padding-top: 4px;
+  font-weight: bold;
+  color: var(--type-story);
+}
+
+/* ── BULLETIN URGENT ── spec: notice (urgent) */
+.bul-urgent {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  background: var(--ink);
+  color: var(--chalk);
+  cursor: pointer;
+}
+.bul-urgent:hover { background: var(--ink-hover); }
+.bul-urgent:hover .bul-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; text-decoration-color: rgba(255, 255, 255, 0.4); }
+
+.bul-urgent__tag { background: var(--type-urgent); color: var(--white-ink); font-weight: 500; }
+.bul-urgent__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--chalk);
+  margin-bottom: 6px;
+}
+.bul-urgent__meta {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-urgent__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* Neutral-tag modifier: recolors urgent tag from mn-red to deep-forest */
+.neutral-tag .bul-urgent__tag { background: var(--deep-forest); }
+
+/* ── BULLETIN UPDATE ── spec: notice (default) */
+.bul-update {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  cursor: pointer;
+}
+.bul-update:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-update:hover .bul-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-update__tag { background: var(--type-update); }
+.bul-update__time {
+  font-size: 0.78rem;
+  color: var(--mn-rust);
+  margin-bottom: 4px;
+}
+.bul-update__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.bul-update__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+.bul-update__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--pebble);
+}
+
+/* ── BULLETIN CTA ── spec: notice (action) */
+.bul-cta {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  cursor: pointer;
+}
+.bul-cta:hover { background: rgba(0, 0, 0, 0.02); }
+.bul-cta:hover .bul-cta__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-cta__tag { background: var(--type-action); }
+.bul-cta__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--type-action);
+  margin-bottom: 6px;
+}
+.bul-cta__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-cta__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-cta__link {
+  display: block;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+  color: var(--chalk);
+  background: var(--type-action);
+  padding: 10px 16px;
+  margin-top: 12px;
+  text-decoration: none;
+}
+.bul-cta__link:hover { background: var(--ink); }
+
+/* ── BULLETIN LOCAL ── spec: spotlight */
+.bul-local {
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  padding: 16px;
+  background: var(--type-spotlight-tint);
+  cursor: pointer;
+}
+.bul-local:hover { background: var(--type-spotlight-tint-strong); }
+.bul-local:hover .bul-local__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+.bul-local__tag { background: var(--type-spotlight); }
+.bul-local__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  color: var(--tobacco);
+  margin-bottom: 6px;
+}
+.bul-local__tagline {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--sienna);
+  margin-bottom: 8px;
+}
+.bul-local__meta {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+.bul-local__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.bul-local__details {
+  font-size: 0.8rem;
+  color: var(--type-spotlight);
+  margin-top: 10px;
+}
+
+/* ═════════════════════════════════════════════
+   BROADSHEET VARIANTS
+   Wild broadsheet explorations. Mix and match.
+   ═════════════════════════════════════════════ */
+
+/* ── BANNER URGENT ── spec: notice (urgent)
+   Full-width reverse-out black band.
+   ALL-CAPS condensed headline, massive.
+   Think front-page wartime headline. */
+.feat-urgent {
+  background: var(--ink);
+  color: var(--chalk);
+  padding: 28px 28px 24px;
+  cursor: pointer;
+
+}
+.feat-urgent:hover { background: var(--ink-hover); }
+.feat-urgent:hover .feat-urgent__title { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.feat-urgent__kicker {
+  font-size: 0.82rem;
+  letter-spacing: 0.2em;
+  color: var(--mn-red);
+  margin-bottom: 8px;
+}
+.feat-urgent__title {
+  font-size: 2.6rem;
+  line-height: 1.0;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  margin-bottom: 12px;
+}
+.feat-urgent__body {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.55;
+  color: rgba(255,255,255,0.75);
+  max-width: 680px;
+}
+.feat-urgent__action {
+  display: inline-block;
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  background: var(--ochre);
+  padding: 8px 18px;
+  margin-top: 16px;
+  text-decoration: none;
+}
+
+/* ── WHISPER UPDATE ── spec: notice (default)
+   Minimal. Italic serif headline, no tag,
+   just a timestamp and a single quiet line.
+   Lots of white space. Think "correction" notices. */
+.whisper-update {
+  padding: 20px 0;
+  cursor: pointer;
+}
+.whisper-update:hover .whisper-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.whisper-update__time {
+  font-size: 0.78rem;
+  color: var(--mn-rust);
+  letter-spacing: 0.1em;
+  margin-bottom: 6px;
+}
+.whisper-update__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.3rem;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.whisper-update__body {
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--pebble);
+}
+
+/* ── BROADSHEET STORY ──
+   Condensed ALL-CAPS headline, small-caps byline,
+   oversized drop cap, pull-quote with giant marks.
+   The big feature treatment. */
+.feat-story {
+  cursor: pointer;
+}
+.feat-story:hover .feat-story__title { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.feat-story__rule {
+  border-top: 4px solid var(--ink);
+  padding-top: 6px;
+  margin-bottom: 4px;
+}
+.feat-story__kicker {
+  font-size: 0.82rem;
+  letter-spacing: 0.15em;
+  color: var(--sienna);
+  margin-bottom: 6px;
+}
+.feat-story__title {
+  font-size: 2.8rem;
+  line-height: 0.95;
+  color: var(--ink);
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.feat-story__deck {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.35;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  padding-bottom: 10px;
+}
+.feat-story__byline {
+  font-size: 0.78rem;
+  color: var(--pebble);
+  margin-bottom: 14px;
+}
+.feat-story__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.feat-story__body p { margin-bottom: 0.75em; text-align: justify; hyphens: auto; }
+.feat-story__body .drop-cap::first-letter {
+  float: left; font-family: var(--font-condensed); font-size: 5em;
+  line-height: 0.75; padding-right: 8px; padding-top: 6px;
+  font-weight: 500; color: var(--ink);
+}
+.feat-story__pullquote {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.4rem;
+  line-height: 1.3;
+  color: var(--deep-forest);
+  padding: 20px 0 20px 0;
+  margin: 16px 0;
+  border-top: 2px solid var(--ink);
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+  position: relative;
+  text-indent: -0.45em;
+}
+
+/* ── CARD EVENT ──
+   Plum color block header with white text date,
+   body below on white. Bold, punchy. */
+.card-event {
+  cursor: pointer;
+}
+.card-event:hover .card-event__title { text-decoration: underline; text-underline-offset: 2px; }
+.card-event__header {
+  border-top: 3px solid var(--mn-plum);
+  padding: 10px 0 8px;
+  color: var(--mn-plum);
+}
+.card-event__date {
+  font-size: 2.2rem;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.card-event__dow {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+  margin-top: 2px;
+}
+.card-event__content {
+  padding: 14px 0 0;
+}
+.card-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.2rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.card-event__meta {
+  font-size: 0.78rem;
+  color: var(--mn-plum);
+  margin-bottom: 8px;
+}
+.card-event__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--slate);
+}
+.card-event__when {
+  font-size: 0.82rem;
+  color: var(--mn-plum);
+  margin-top: 10px;
+}
+
+/* ── CONDENSED REQUEST ── spec: exchange (need)
+   Dense, all-caps condensed title.
+   Indented body. Contact on colored strip.
+   Looks like an actual classified ad. */
+.dig-request {
+  border-top: 2px solid var(--ink);
+  padding-top: 10px;
+  cursor: pointer;
+}
+.dig-request:hover .dig-request__title { text-decoration: underline; text-underline-offset: 2px; }
+.dig-request__cat {
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--mn-rust);
+  margin-bottom: 4px;
+}
+.dig-request__title {
+  font-size: 1.35rem;
+  line-height: 1.15;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.dig-request__body {
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--slate);
+  padding-left: 16px;
+  border-left: 2px solid rgba(0,0,0,0.06);
+}
+.dig-request__contact {
+  font-size: 0.8rem;
+  color: var(--chalk);
+  background: var(--mn-rust);
+  padding: 6px 12px;
+  margin-top: 10px;
+  display: inline-block;
+}
+
+/* ── GENEROUS OFFER ── spec: exchange (aid)
+   Big friendly feel. Green header band,
+   large readable title, generous padding.
+   Status as a prominent badge. */
+.generous-offer {
+  cursor: pointer;
+}
+.generous-offer:hover .generous-offer__title { text-decoration: underline; text-underline-offset: 2px; }
+.generous-offer__header {
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  color: var(--moss);
+  border-top: 3px solid var(--moss);
+  padding: 8px 0 0;
+}
+.generous-offer__content {
+  padding: 10px 0 0;
+}
+.generous-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+.generous-offer__meta {
+  font-size: 0.78rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+}
+.generous-offer__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--slate);
+}
+.generous-offer__status {
+  font-size: 1.1rem;
+  text-transform: uppercase;
+  color: var(--moss);
+  margin-top: 10px;
+  letter-spacing: 0.02em;
+}
+
+/* ── DIRECTORY RESOURCE ── spec: reference
+   No left border. Top ruled. Items as a tight
+   list with alternating subtle bg stripes.
+   Footer with update timestamp. */
+.directory-resource {
+  border-top: 3px solid var(--mn-blue);
+  padding-top: 12px;
+  cursor: pointer;
+}
+.directory-resource:hover .directory-resource__title { text-decoration: underline; text-underline-offset: 2px; }
+.directory-resource__title {
+  font-size: 1.4rem;
+  text-transform: uppercase;
+  color: var(--mn-blue);
+  margin-bottom: 2px;
+  letter-spacing: -0.01em;
+}
+.directory-resource__meta {
+  font-size: 0.78rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+}
+.directory-resource__list {
+  list-style: none;
+  padding: 0;
+}
+.directory-resource__list li {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--slate);
+  padding: 6px 8px;
+}
+.directory-resource__list li:nth-child(odd) {
+  background: rgba(0, 56, 101, 0.04);
+}
+.directory-resource__list li strong {
+  color: var(--mn-blue);
+  font-family: var(--font-display);
+  font-weight: 500;
+}
+.directory-resource__updated {
+  font-size: 0.78rem;
+  color: var(--mn-blue);
+  opacity: 0.5;
+  margin-top: 8px;
+}
+
+/* ── SPOTLIGHT LOCAL ── spec: spotlight
+   Big quote/tagline treatment. Warm bg fills
+   the whole card. Name in condensed caps.
+   Business-card meets editorial feature. */
+.spotlight-local {
+  background: var(--type-spotlight-tint);
+  padding: 22px 20px;
+  border-top: 3px solid var(--type-spotlight);
+  cursor: pointer;
+}
+.spotlight-local:hover { background: var(--type-spotlight-tint-strong); }
+.spotlight-local:hover .spotlight-local__name { text-decoration: underline; text-underline-offset: 3px; }
+.spotlight-local__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  color: var(--type-spotlight);
+  margin-bottom: 8px;
+}
+.spotlight-local__name {
+  font-size: 1.8rem;
+  line-height: 1.05;
+  text-transform: uppercase;
+  color: var(--tobacco);
+  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+}
+.spotlight-local__tagline {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.1rem;
+  color: var(--sienna);
+  margin-bottom: 12px;
+}
+.spotlight-local__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--slate);
+}
+.spotlight-local__address {
+  font-size: 0.8rem;
+  color: var(--chalk);
+  background: var(--type-spotlight);
+  padding: 6px 12px;
+  margin-top: 14px;
+  display: inline-block;
+}
+
+/* ── BILLBOARD CTA ── spec: notice (action)
+   Full reverse-out teal. BIG condensed title.
+   Centered. Commanding. "ACT NOW" energy. */
+.feat-cta {
+  background: var(--type-action);
+  color: var(--chalk);
+  padding: 28px 24px;
+  text-align: center;
+  cursor: pointer;
+
+}
+.feat-cta:hover { background: var(--deep-teal-hover); }
+.feat-cta__title {
+  font-size: 2.0rem;
+  line-height: 1.05;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+.feat-cta__body {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.75);
+  max-width: 400px;
+  margin: 0 auto 14px;
+}
+.feat-cta__link {
+  display: inline-block;
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--mn-deep-teal);
+  background: var(--chalk);
+  padding: 10px 24px;
+  text-decoration: none;
+}
+.feat-cta__link:hover { background: rgba(255,255,255,0.85); }
+
+/* ── TICKER UPDATE ── spec: notice (default)
+   Single-line ALL-CAPS condensed.
+   Time on left, title on right, all on one line.
+   Like a news ticker / wire service flash. */
+.ticker-update {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer;
+}
+.ticker-update:hover .ticker-update__title { text-decoration: underline; }
+.ticker-update__time {
+  font-size: 0.78rem;
+  color: var(--mn-rust);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ticker-update__title {
+  font-size: 1.05rem;
+  text-transform: uppercase;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.ticker-update__source {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+/* ── POSTER EVENT ──
+   Date HUGE. Condensed, 4rem+.
+   Minimal info below. Like a torn-off flyer. */
+.feat-event {
+  text-align: center;
+  padding: 16px 8px;
+  cursor: pointer;
+}
+.feat-event:hover .feat-event__title { text-decoration: underline; text-underline-offset: 2px; }
+.feat-event__month {
+  font-size: 0.82rem;
+  letter-spacing: 0.2em;
+  color: var(--mn-plum);
+}
+.feat-event__day {
+  font-size: 5rem;
+  line-height: 0.85;
+  color: var(--mn-plum);
+  letter-spacing: -0.03em;
+}
+.feat-event__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  color: var(--ink);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+.feat-event__meta {
+  font-size: 0.75rem;
+  color: var(--pebble);
+}
+.feat-event__when {
+  font-size: 0.78rem;
+  color: var(--mn-plum);
+  margin-top: 8px;
+}
+
+/* ── EDITORIAL STORY ──
+   Oversized initial + indented first few lines.
+   No border, no tag. Just pure editorial typography.
+   Headline in regular weight, large. Quiet authority. */
+.feat-editorial {
+  cursor: pointer;
+}
+.feat-editorial:hover .feat-editorial__title { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.feat-editorial__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 2.2rem;
+  line-height: 1.1;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.feat-editorial__byline {
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  color: var(--pebble);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+.feat-editorial__body {
+  font-family: var(--font-body);
+  font-size: 1.0rem;
+  line-height: 1.6;
+  color: var(--slate);
+}
+.feat-editorial__body p { margin-bottom: 0.75em; text-align: justify; hyphens: auto; }
+.feat-editorial__body .lead-in { font-variant: small-caps; font-size: 1.05rem; }
+.feat-editorial__body .drop-cap::first-letter {
+  float: left; font-family: var(--font-display); font-size: 4.5em;
+  line-height: 0.78; padding-right: 8px; padding-top: 5px;
+  font-weight: 400; color: var(--ink);
+}
+
+/* ── ALERT URGENT ── spec: notice (urgent)
+   Compact sidebar-friendly alert. Thick red left border,
+   pulsing-red dot (CSS only), tight typography.
+   Think: breaking-news sidebar widget. */
+.alert-urgent {
+  border-left: 5px solid var(--type-urgent);
+  padding: 16px 20px;
+  background: rgba(166, 25, 46, 0.04);
+  cursor: pointer;
+}
+.alert-urgent:hover { background: var(--type-urgent-tint-strong); }
+.alert-urgent:hover .alert-urgent__title { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 2px; }
+.alert-urgent__flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--type-urgent);
+  margin-bottom: 8px;
+}
+.alert-urgent__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 2rem;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.alert-urgent__body {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--slate);
+}
+.alert-urgent__meta {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-top: 8px;
+}
+
+/* ── PINBOARD OFFER ── spec: exchange (aid)
+   Sticky-note / pinboard feel. Slight rotation,
+   soft shadow, warm background. Bulletin-board charm. */
+.pinboard-offer {
+  background: rgba(181, 137, 26, 0.06);
+  padding: 20px;
+  cursor: pointer;
+}
+.pinboard-offer:hover { background: rgba(181, 137, 26, 0.10); }
+.pinboard-offer:hover .pinboard-offer__title { text-decoration: underline; text-underline-offset: 2px; }
+.pinboard-offer__tag {
+  font-size: 0.75rem;
+  color: var(--moss);
+  margin-bottom: 10px;
+}
+.pinboard-offer__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.pinboard-offer__detail {
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--slate);
+  font-style: italic;
+}
+.pinboard-offer__body {
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--slate);
+  margin-top: 8px;
+}
+.pinboard-offer__status {
+  font-size: 0.85rem;
+  color: var(--moss);
+  margin-top: 10px;
+}
+.pinboard-offer__status.condensed {
+  font-size: 1.1rem;
+}
+
+/* ── QUICKREF RESOURCE ── spec: reference
+   Compact reference card. Big bold number or icon area,
+   title, and a tight list. Think: "5 Things to Know". */
+.quickref-resource {
+  border-top: 3px solid var(--type-reference);
+  padding-top: 16px;
+  cursor: pointer;
+}
+.quickref-resource:hover .quickref-resource__title { text-decoration: underline; text-underline-offset: 2px; }
+.quickref-resource__count {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--type-reference);
+  margin-bottom: 4px;
+}
+.quickref-resource__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  line-height: 1.25;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.quickref-resource__meta {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+}
+.quickref-resource__list {
+  list-style: none;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--slate);
+}
+.quickref-resource__list li {
+  padding: 4px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+.quickref-resource__list li:last-child { border-bottom: none; }
+.quickref-resource__list li strong { color: var(--type-reference); }
+
+/* ── BADGE LOCAL ── spec: spotlight
+   Compact business badge. Thick top color bar,
+   bold name, tagline in italic, then a one-line detail.
+   Think: business card on a corkboard. */
+.dig-local {
+  border-top: 5px solid var(--type-spotlight);
+  background: rgba(181, 137, 26, 0.04);
+  padding: 16px 18px;
+  cursor: pointer;
+}
+.dig-local:hover { background: var(--type-spotlight-tint-strong); }
+.dig-local:hover .dig-local__name { text-decoration: underline; text-underline-offset: 2px; }
+.dig-local__label {
+  font-size: 0.75rem;
+  color: var(--type-spotlight);
+  margin-bottom: 8px;
+}
+.dig-local__name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.dig-local__tagline {
+  font-style: italic;
+  font-size: 0.92rem;
+  color: var(--tobacco);
+  margin-top: 4px;
+}
+.dig-local__detail {
+  font-size: 0.78rem;
+  color: var(--type-spotlight);
+  margin-top: 10px;
+}
+
+/* ── PULL QUOTE ──
+   Not embedded in a story — a standalone component.
+   Big italic serif quote with attribution.
+   Use between sections as visual breathing room. */
+.pull-quote {
+  padding: 28px 0;
+  text-align: center;
+}
+.pull-quote__text {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 1.3rem;
+  line-height: 1.55;
+  color: var(--ink);
+  max-width: 680px;
+  margin: 0 auto;
+}
+.pull-quote__attribution {
+  font-size: 0.78rem;
+  color: var(--pebble);
+  margin-top: 12px;
+}
+.pull-quote__attribution strong {
+  color: var(--slate);
+  font-weight: 500;
+}
+
+/* ── DATELINE UPDATE ── spec: notice (default)
+   A more structured update than whisper or ticker.
+   Date prominent on left, then headline + source.
+   Think: "Feb 14 — City Council votes to..." */
+.dig-update {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer;
+}
+.dig-update:hover .dig-update__title { text-decoration: underline; text-underline-offset: 2px; }
+.dig-update__date {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: var(--mn-plum);
+  flex-shrink: 0;
+  min-width: 55px;
+}
+.dig-update__content { flex: 1; min-width: 0; }
+.dig-update__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1rem;
+  line-height: 1.3;
+  color: var(--ink);
+}
+.dig-update__source {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-top: 2px;
+}
+
+/* ── DIGEST STORY ──
+   Ultra-compact story teaser. No body text — just
+   kicker + headline + byline. For "more stories" sections
+   where you need many headlines in little space. */
+.dig-story {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  padding: 14px 0;
+  cursor: pointer;
+}
+.dig-story:first-child { border-top: none; }
+.dig-story:hover .dig-story__title { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 2px; }
+.dig-story__kicker {
+  font-size: 0.75rem;
+  color: var(--sienna);
+  margin-bottom: 4px;
+}
+.dig-story__title {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.15rem;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.dig-story__meta {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-top: 4px;
+}
+
+/* ── STAT CARD ──
+   Big number + label + context. For displaying
+   impact metrics, counts, or key figures.
+   Think: "247 families housed this month". */
+.stat-card {
+  text-align: center;
+  padding: 24px 16px;
+  border: 1px solid rgba(0,0,0,0.06);
+  cursor: pointer;
+}
+.stat-card:hover { background: rgba(0,0,0,0.015); }
+.stat-card__number {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 3rem;
+  line-height: 1;
+  color: var(--mn-deep-teal);
+}
+.stat-card__label {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1rem;
+  color: var(--ink);
+  margin-top: 8px;
+}
+.stat-card__context {
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-top: 6px;
+  line-height: 1.4;
+}
+
+
+/* ── WEATHER FORECAST ──
+   Full-width daily forecast block. Big current temp
+   on the left, 5-day strip on the right. Deep blue
+   background — the one place color + icons go wild.
+   Think: newspaper weather page meets data dashboard. */
+.weather-forecast {
+  background: rgba(0, 56, 101, 0.05);
+  color: var(--ink);
+  border-top: 4px solid var(--mn-blue);
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  overflow: hidden;
+}
+.weather-forecast__current {
+  padding: 32px 32px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.weather-forecast__location {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.weather-forecast__temp {
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  font-size: 6rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.weather-forecast__condition {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 400;
+  margin-top: 4px;
+}
+.weather-forecast__detail {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  margin-top: 10px;
+  letter-spacing: 0.04em;
+}
+.weather-forecast__days {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: rgba(0,0,0,0.06);
+}
+.weather-forecast__day {
+  padding: 20px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.weather-forecast__day-name {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.weather-forecast__day-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+.weather-forecast__day-hi {
+  font-family: var(--font-condensed);
+  font-weight: 700;
+  font-size: 1.5rem;
+  line-height: 1;
+}
+.weather-forecast__day-lo {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.weather-forecast__advisory {
+  grid-column: 1 / -1;
+  background: rgba(166, 25, 46, 0.9);
+  color: var(--white-ink);
+  padding: 8px 20px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+@media (max-width: 960px) {
+  .weather-forecast { grid-template-columns: 1fr; }
+  .weather-forecast__days { grid-template-columns: repeat(5, 1fr); }
+  .weather-forecast__temp { font-size: 4.5rem; }
+}
+@media (max-width: 640px) {
+  .weather-forecast__current { padding: 24px 20px 20px; }
+  .weather-forecast__temp { font-size: 3.5rem; }
+  .weather-forecast__days { grid-template-columns: repeat(5, 1fr); }
+  .weather-forecast__day { padding: 14px 4px; }
+  .weather-forecast__day-icon { font-size: 1.2rem; }
+  .weather-forecast__day-hi { font-size: 1.1rem; }
+}
+
+/* ── WEATHER LINE ──
+   1/3 current conditions + 2/3 SVG line chart.
+   Smooth Catmull-Rom curves for highs/lows with
+   filled gradient area between. */
+.weather-line {
+  border-top: 4px solid var(--mn-blue);
+  background: rgba(0, 56, 101, 0.04);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  grid-template-rows: auto auto;
+}
+.weather-line__info {
+  padding: 24px 28px 20px;
+  display: flex; flex-direction: column; justify-content: center;
+  border-right: 1px solid rgba(0,0,0,0.08);
+}
+.weather-line__location {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.15em; text-transform: uppercase; color: var(--pebble);
+  margin-bottom: 4px;
+}
+.weather-line__temp {
+  font-family: var(--font-condensed); font-weight: 700;
+  font-size: 4.5rem; line-height: 1; letter-spacing: -0.03em;
+}
+.weather-line__condition {
+  font-family: var(--font-display); font-size: 1.15rem;
+  margin-top: 4px;
+}
+.weather-line__detail {
+  font-family: var(--font-mono); font-size: 0.68rem;
+  letter-spacing: 0.04em; color: var(--pebble); margin-top: 10px;
+  max-width: 210px;
+}
+.weather-line__legend {
+  display: flex; gap: 14px; align-items: center;
+  margin-top: 12px;
+}
+.weather-line__legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 0.62rem;
+  letter-spacing: 0.08em; text-transform: uppercase; color: var(--pebble);
+}
+.weather-line__legend-swatch {
+  width: 16px; height: 3px; border-radius: 1px;
+}
+.weather-line__chart {
+  position: relative;
+  padding: 0;
+  display: flex; align-items: center;
+}
+.weather-line__chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.weather-line__advisory {
+  grid-column: 1 / -1;
+  background: rgba(166, 25, 46, 0.9); color: var(--white-ink);
+  padding: 8px 20px;
+  font-family: var(--font-mono); font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+@media (max-width: 960px) {
+  .weather-line { grid-template-columns: 1fr; }
+  .weather-line__info { border-right: none; border-bottom: 1px solid rgba(0,0,0,0.08); }
+}
+@media (max-width: 640px) {
+  .weather-line__temp { font-size: 2.5rem; }
+}
+
+
+/* ── WEATHER ALMANAC ──
+   Newspaper weather-page style — prominent current
+   conditions with structured 7-day table and inline
+   temperature range bars. */
+.weather-almanac {
+  border-top: 4px solid var(--mn-blue);
+  background: rgba(0, 56, 101, 0.04);
+  display: grid;
+  grid-template-columns: auto 1fr;
+  overflow: hidden;
+}
+.weather-almanac__current {
+  padding: 28px 32px;
+  border-right: 1px solid rgba(0,0,0,0.1);
+  display: flex; flex-direction: column; justify-content: center;
+  min-width: 220px;
+}
+.weather-almanac__location {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.15em; text-transform: uppercase; color: var(--pebble);
+  margin-bottom: 4px;
+}
+.weather-almanac__temp {
+  font-family: var(--font-condensed); font-weight: 700;
+  font-size: 5rem; line-height: 1; letter-spacing: -0.03em;
+}
+.weather-almanac__condition {
+  font-family: var(--font-display); font-size: 1.15rem; margin-top: 2px;
+}
+.weather-almanac__detail {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.04em; color: var(--pebble); margin-top: 10px;
+  max-width: 200px;
+}
+.weather-almanac__table {
+  display: flex; flex-direction: column;
+}
+.weather-almanac__table-header {
+  display: grid;
+  grid-template-columns: 60px 44px 1fr 56px 56px;
+  padding: 8px 16px;
+  border-bottom: 2px solid var(--ink);
+  font-family: var(--font-mono); font-size: 0.65rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--pebble);
+  align-items: center;
+}
+.weather-almanac__row {
+  display: grid;
+  grid-template-columns: 60px 44px 1fr 56px 56px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  align-items: center;
+}
+.weather-almanac__row:last-child { border-bottom: none; }
+.weather-almanac__row-day {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.weather-almanac__row-icon { font-size: 1.3rem; line-height: 1; }
+.weather-almanac__row-bar {
+  position: relative; height: 8px;
+  margin: 0 12px;
+}
+.weather-almanac__row-bar-track {
+  position: absolute; top: 3px; left: 0; right: 0;
+  height: 2px; background: rgba(0,0,0,0.08);
+}
+.weather-almanac__row-bar-fill {
+  position: absolute; top: 0; height: 8px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--mn-blue), var(--rust));
+  opacity: 0.55;
+}
+.weather-almanac__row-hi {
+  font-family: var(--font-condensed); font-weight: 700;
+  font-size: 1.25rem; line-height: 1; text-align: right;
+}
+.weather-almanac__row-lo {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  color: var(--pebble); text-align: right;
+}
+.weather-almanac__advisory {
+  grid-column: 1 / -1;
+  background: rgba(166, 25, 46, 0.9); color: var(--white-ink);
+  padding: 8px 20px;
+  font-family: var(--font-mono); font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+@media (max-width: 960px) {
+  .weather-almanac { grid-template-columns: 1fr; }
+  .weather-almanac__current { border-right: none; border-bottom: 1px solid rgba(0,0,0,0.1); }
+}
+@media (max-width: 640px) {
+  .weather-almanac__temp { font-size: 3.5rem; }
+}
+
+
+/* ── WEATHER THERMO ──
+   Horizontal range bars on a shared temperature scale.
+   Each day is a colored bar showing lo–hi range.
+   Compact, scannable, shows relative warmth at a glance. */
+.weather-thermo {
+  border-top: 4px solid var(--mn-blue);
+  background: rgba(0, 56, 101, 0.04);
+  overflow: hidden;
+}
+.weather-thermo__top {
+  display: flex; justify-content: space-between; align-items: flex-end;
+  padding: 20px 28px 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.1);
+}
+.weather-thermo__current {
+  display: flex; align-items: baseline; gap: 12px;
+}
+.weather-thermo__temp {
+  font-family: var(--font-condensed); font-weight: 700;
+  font-size: 3rem; line-height: 1; letter-spacing: -0.02em;
+}
+.weather-thermo__condition {
+  font-family: var(--font-display); font-size: 1rem; line-height: 1.2;
+}
+.weather-thermo__detail-line {
+  font-family: var(--font-mono); font-size: 0.68rem;
+  color: var(--pebble); letter-spacing: 0.04em;
+}
+.weather-thermo__location {
+  font-family: var(--font-mono); font-size: 0.72rem;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--pebble);
+}
+.weather-thermo__scale {
+  display: flex; justify-content: space-between;
+  padding: 12px 28px 0;
+  padding-left: 100px;
+  font-family: var(--font-mono); font-size: 0.65rem;
+  letter-spacing: 0.08em; color: var(--pebble);
+}
+.weather-thermo__rows {
+  padding: 4px 28px 20px;
+}
+.weather-thermo__row {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px dashed rgba(0,0,0,0.06);
+}
+.weather-thermo__row:last-child { border-bottom: none; }
+.weather-thermo__row-label {
+  display: flex; align-items: center; gap: 6px;
+}
+.weather-thermo__row-day {
+  font-family: var(--font-mono); font-size: 0.78rem;
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+.weather-thermo__row-icon { font-size: 1.1rem; line-height: 1; }
+.weather-thermo__row-track {
+  position: relative; height: 20px;
+}
+.weather-thermo__row-track-bg {
+  position: absolute; top: 9px; left: 0; right: 0;
+  height: 2px; background: rgba(0,0,0,0.04);
+}
+.weather-thermo__row-bar {
+  position: absolute; top: 4px; height: 12px;
+  border-radius: 6px;
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 0 6px;
+  min-width: 50px;
+}
+.weather-thermo__row-bar-lo,
+.weather-thermo__row-bar-hi {
+  font-family: var(--font-mono); font-size: 0.62rem;
+  letter-spacing: 0.04em; line-height: 1;
+}
+.weather-thermo__row-bar-lo { color: var(--mn-blue); }
+.weather-thermo__row-bar-hi { color: var(--rust); }
+.weather-thermo__advisory {
+  background: rgba(166, 25, 46, 0.9); color: var(--white-ink);
+  padding: 8px 20px;
+  font-family: var(--font-mono); font-size: 0.78rem;
+  letter-spacing: 0.06em;
+}
+@media (max-width: 640px) {
+  .weather-thermo__temp { font-size: 2.2rem; }
+  .weather-thermo__scale { padding-left: 80px; }
+  .weather-thermo__row { grid-template-columns: 52px 1fr; }
+}
+
+
+/* ── HERO STORY ──
+   Full-width image background with gradient overlay.
+   Big condensed headline punches through the photo.
+   Think: front-page above-the-fold splash. */
+.feat-hero {
+  position: relative;
+  min-height: 340px;
+  overflow: hidden;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+.feat-hero:hover .feat-hero__title { text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 2px; }
+.feat-hero__image {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  z-index: 0;
+}
+.feat-hero__image::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(28,16,8,0.92) 0%, rgba(28,16,8,0.6) 40%, rgba(28,16,8,0.1) 100%);
+}
+.feat-hero__content {
+  position: relative;
+  z-index: 1;
+  padding: 32px 32px 28px;
+  color: var(--chalk);
+}
+.feat-hero__kicker {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--chalk);
+  margin-bottom: 8px;
+}
+.feat-hero__title {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 4.4rem;
+  line-height: 1.0;
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+  max-width: 680px;
+}
+.feat-hero__deck {
+  font-family: var(--font-body);
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.75);
+  max-width: 560px;
+  margin-bottom: 14px;
+}
+.feat-hero__meta {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: rgba(255,255,255,0.4);
+  letter-spacing: 0.06em;
+}
+@media (max-width: 640px) {
+  .feat-hero { min-height: 280px; }
+  .feat-hero__content { padding: 24px 20px 22px; }
+  .feat-hero__title { font-size: 2.4rem; }
+}
+
+/* ── FEATURE PROFILE ── spec: spotlight
+   Community profile with image.
+   Photo on one side, pull-quote + bio on other.
+   Color bar accent. Think: Sunday edition profile. */
+.feat-profile {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  cursor: pointer;
+}
+.feat-profile:hover .feat-profile__name { text-decoration: underline; text-underline-offset: 3px; }
+.feat-profile__photo {
+  width: 100%;
+  aspect-ratio: 3/4;
+  background-size: cover;
+  background-position: center top;
+  background-color: #b88fba;
+  background-blend-mode: multiply;
+  border-top: 4px solid var(--mn-plum);
+}
+.feat-profile__content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.feat-profile__label {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--mn-plum);
+  margin-bottom: 8px;
+}
+.feat-profile__name {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 1.8rem;
+  line-height: 1.1;
+  text-transform: uppercase;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.feat-profile__role {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.05rem;
+  color: var(--pebble);
+  margin-bottom: 12px;
+}
+.feat-profile__quote {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.15rem;
+  line-height: 1.45;
+  color: var(--ink);
+  border-left: 3px solid var(--mn-plum);
+  padding-left: 16px;
+  margin-bottom: 12px;
+}
+.feat-profile__bio {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--pebble);
+}
+@media (max-width: 960px) {
+  .feat-profile { grid-template-columns: 1fr; gap: 16px; }
+  .feat-profile__photo { max-width: 200px; }
+  .feat-profile__name { font-size: 1.4rem; }
+  .feat-profile__quote { font-size: 1rem; }
+}
+
+/* ── PHOTO BANNER ──
+   Full-width landscape photo with floating caption.
+   No headline overlay — just the image speaks.
+   Thin credit line. Think: photojournalism spread. */
+.feat-photo {
+  position: relative;
+  overflow: hidden;
+}
+.feat-photo__image {
+  width: 100%;
+  aspect-ratio: 21/9;
+  background-size: cover;
+  background-position: center;
+  display: block;
+}
+.feat-photo__caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
+  padding: 40px 24px 14px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 20px;
+}
+.feat-photo__text {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 0.95rem;
+  color: rgba(255,255,255,0.85);
+  max-width: 560px;
+}
+.feat-photo__credit {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .feat-photo__image { aspect-ratio: 16/9; }
+  .feat-photo__caption { padding: 30px 16px 10px; }
+  .feat-photo__text { font-size: 0.85rem; }
+}
+
+/* ── NUMBER BLOCK ──
+   Giant number in a bold color field.
+   Single stat, eye-catching. Pairs in Row.pair.
+   Think: infographic callout. */
+.number-block {
+  padding: 32px 28px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.number-block--rust { background: rgba(141,63,43, 0.12); color: var(--mn-rust); }
+.number-block--forest { background: rgba(26,51,32, 0.10); color: var(--deep-forest); }
+.number-block--teal { background: rgba(13,82,87, 0.10); color: var(--mn-deep-teal); }
+.number-block--plum { background: rgba(93,41,95, 0.10); color: var(--mn-plum); }
+.number-block--blue { background: rgba(0,56,101, 0.10); color: var(--mn-blue); }
+.number-block__number {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 5rem;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.number-block__label {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 1.3rem;
+  line-height: 1.2;
+  text-transform: uppercase;
+  margin-top: 6px;
+  opacity: 0.9;
+}
+.number-block__detail {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  margin-top: 10px;
+  opacity: 0.65;
+}
+@media (max-width: 640px) {
+  .number-block__number { font-size: 3.5rem; }
+  .number-block__label { font-size: 1.1rem; }
+}
+
+
+
+/* ─────────────────────────────────────────────
+   RESOURCE BAR — horizontal reference strip
+   ───────────────────────────────────────────── */
+
+.resource-bar {
+  display: flex;
+  gap: 0;
+  background: var(--type-reference-tint);
+  border-left: 4px solid var(--type-reference);
+  padding: 12px 20px;
+  font-size: 0.85rem;
+  color: var(--slate);
+  flex-wrap: wrap;
+  margin: var(--row-pad) 0;
+}
+.resource-bar .rb-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--type-reference);
+  margin-right: 20px;
+  flex-shrink: 0;
+}
+.resource-bar .rb-item { margin-right: 24px; white-space: nowrap; }
+.resource-bar .rb-item strong { color: var(--ink); }
+
+/* ─────────────────────────────────────────────
+   FOOTER
+   ───────────────────────────────────────────── */
+
+.footer-rule {
+  margin-top: 40px;
+  padding: 16px 0 8px;
+  border-top: 1px solid rgba(0,0,0,0.08);
+  font-size: 0.82rem;
+  letter-spacing: 0.1em;
+  color: var(--pebble);
+  text-align: center;
+}
+
+/* ─────────────────────────────────────────────
+   POSTCARD WELCOME — sits in the green, above paper
+   ───────────────────────────────────────────── */
+
+.postcard-welcome {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 64px 32px 48px;
+  display: flex;
+  justify-content: center;
+}
+.postcard-welcome__frame {
+  position: relative;
+  display: inline-block;
+  max-width: 1010px;
+  width: 100%;
+  container-type: inline-size;
+  transform: rotate(0.5deg);
+  color: var(--graphite);
+}
+.postcard-welcome__frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.postcard-welcome__text {
+  position: absolute;
+  top: 11%;
+  left: 7%;
+  width: 67%;
+  font-family: 'Blissful Radiance', cursive;
+  font-size: 3.1cqi;
+  line-height: 1.2;
+  font-kerning: normal;
+  letter-spacing: -0.06em;    /* Photoshop tracking -60 = -60/1000em */
+  font-variant-ligatures: common-ligatures;
+  font-feature-settings: "liga" 1, "calt" 1;  /* ligatures + contextual alternates */
+  transform: rotate(-0.5deg);
+}
+.postcard-welcome__line {
+  display: block;
+  margin-bottom: 0.4em;
+}
+.postcard-welcome__line--stanza {
+  margin-bottom: 1.0em;
+}
+.mobile-br { display: none; }
+.postcard-welcome__addressee {
+  position: absolute;
+  bottom: 8%;
+  right: 6%;
+  font-family: 'Blissful Radiance', cursive;
+  font-size: 3.0cqi;
+  line-height: 1.19;
+  font-kerning: normal;
+  letter-spacing: -0.06em;
+}
+@media (max-width: 640px) {
+  .postcard-welcome { padding: 32px 16px 24px; }
+  .postcard-welcome__frame {
+    /* Portrait container: width = available, height = width × 1.464 (inverted aspect) */
+    aspect-ratio: 690 / 1010;
+  }
+  .postcard-welcome__frame img {
+    /* Rotate landscape image to fill portrait container.
+       Container aspect is 690:1010 (portrait).
+       Image width (1010) must equal container height after rotation.
+       Container height = width × 1010/690, so image width = 146.4% of container width. */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 146.4%;
+    height: auto;
+    max-width: none;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .postcard-welcome__text {
+    top: 6%;
+    left: 6%;
+    width: 88%;
+    font-size: 5cqi;
+    line-height: 1.1;
+  }
+  .mobile-br { display: inline; }
+  .postcard-welcome__addressee {
+    bottom: 5%;
+    right: auto;
+    left: 7%;
+    font-size: 5cqi;
+  }
+}
+
+/* ─────────────────────────────────────────────
+   SEO FOOTER — sits in the green, below paper
+   ───────────────────────────────────────────── */
+
+.site-footer {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 48px 32px 56px;
+  color: rgba(255, 255, 255, 0.45);
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.6;
+}
+
+.site-footer__brand {
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.site-footer__brand h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 1.5rem;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0 0 6px;
+}
+.site-footer__brand p {
+  margin: 0;
+  max-width: 520px;
+}
+.site-footer__brand p + p {
+  margin-top: 8px;
+}
+.site-footer__brand a {
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.2);
+  text-underline-offset: 2px;
+}
+.site-footer__brand a:hover {
+  color: rgba(255, 255, 255, 0.85);
+  text-decoration-color: rgba(255, 255, 255, 0.4);
+}
+
+.site-footer__columns {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 32px 40px;
+  margin-bottom: 40px;
+}
+
+.site-footer__col-title {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.3);
+  margin-bottom: 14px;
+}
+
+.site-footer__links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.site-footer__links li {
+  margin-bottom: 8px;
+}
+.site-footer__links a {
+  color: rgba(255, 255, 255, 0.45);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.site-footer__links a:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.site-footer__bottom {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.25);
+}
+.site-footer__bottom a {
+  color: rgba(255, 255, 255, 0.3);
+  text-decoration: none;
+}
+.site-footer__bottom a:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+.site-footer__bottom-links {
+  display: flex;
+  gap: 20px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   RESPONSIVE BREAKPOINTS
+   ═══════════════════════════════════════════════ */
+
+/* ── MEDIUM: 2 columns ── */
+@media (max-width: 960px) {
+  .row { grid-template-columns: repeat(2, 1fr); }
+  .cell--span-2 { grid-column: span 1; }
+  .cell--span-3 { grid-column: span 1; }
+  .cell--span-4 { grid-column: span 1; }
+  .cell--span-6 { grid-column: span 2; }
+  .row > .cell:nth-child(2n)::after { display: none; }
+  .row > .cell:last-child::after { display: none; }
+  .row > .cell:nth-child(n+3) { border-top: 1px solid rgba(0,0,0,0.06); }
+  .col-flow-2 { column-count: 1; }
+  .site-footer__columns { grid-template-columns: repeat(2, 1fr); }
+  .feat-urgent__title { font-size: 2.0rem; }
+  .feat-story__title { font-size: 2.2rem; }
+}
+
+/* ── SMALL: 1 column ── */
+@media (max-width: 640px) {
+  :root { --col-gap: 14px; --row-pad: 18px; }
+  .row { grid-template-columns: 1fr; }
+  .row > .cell { grid-column: span 1 !important; }
+  .row > .cell:not(:last-child)::after { display: none; }
+  .row > .cell + .cell { border-top: 1px solid rgba(0,0,0,0.06); }
+  .cell--span-6 { grid-column: span 1; }
+  .masthead h1 { font-size: 2.8rem; }
+  .masthead { padding: 20px 0 16px; }
+  .masthead .dateline { margin-top: 16px; }
+  .gaz-story .gaz-story__title { font-size: 1.45rem; }
+  .feat-urgent__title { font-size: 1.6rem; }
+  .feat-story__title { font-size: 1.8rem; }
+  .site-footer { padding: 32px 20px 40px; }
+  .site-footer__columns { grid-template-columns: 1fr; gap: 24px; }
+  .site-footer__bottom { flex-direction: column; gap: 8px; }
+}
+
+
+/* ═══════════════════════════════════════════════
+   DEBUG LABELS (?labels flag)
+   Activate: add ?labels to URL.
+   Shows colored tags on posts, rows, and cells.
+   ═══════════════════════════════════════════════ */
+[data-debug]::before { display: none; }
+
+body.show-labels [data-debug] { position: relative; }
+body.show-labels [data-debug]::before {
+  content: attr(data-debug);
+  display: block;
+  position: absolute;
+  top: -16px;
+  left: 0;
+  z-index: 20;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+  width: fit-content;
+  pointer-events: none;
+}
+/* Post components — blue */
+body.show-labels [data-debug^="Post."]::before,
+body.show-labels [data-debug^="Widget."]::before {
+  background: rgba(0, 56, 101, 0.12);
+  color: var(--mn-blue);
+  border: 1px solid rgba(0, 56, 101, 0.2);
+}
+/* Row layouts — purple (double offset to clear child labels) */
+body.show-labels [data-debug^="Row"]::before {
+  top: -32px;
+  background: rgba(120, 0, 80, 0.1);
+  color: #780050;
+  border: 1px solid rgba(120, 0, 80, 0.18);
+}
+/* Cell spans — green */
+body.show-labels [data-debug^="Cell"]::before {
+  background: rgba(0, 120, 60, 0.08);
+  color: #00663a;
+  border: 1px solid rgba(0, 120, 60, 0.15);
+  font-size: 0.55rem;
+}

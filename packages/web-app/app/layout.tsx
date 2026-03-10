@@ -1,16 +1,28 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import GraphQLProvider from "@/lib/urql-provider";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import {
+  featureDeck,
+  featureDeckCondensed,
+  featureText,
+  blissfulRadiance,
+  geistMono,
+} from "./broadsheet-fonts";
 import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "MN Together - Find help. Give help. Come together.",
   description: "Connecting volunteers with organizations and communities in need",
 };
+
+const fontVariables = [
+  featureDeck.variable,
+  featureDeckCondensed.variable,
+  featureText.variable,
+  blissfulRadiance.variable,
+  geistMono.variable,
+].join(" ");
 
 export default function RootLayout({
   children,
@@ -18,8 +30,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={inter.className}>
+    <html lang="en" className={fontVariables} suppressHydrationWarning>
+      <body>
         <GraphQLProvider>
           <div className="app-shell">
             <Header />
