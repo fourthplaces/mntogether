@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import GraphQLProvider from "@/lib/urql-provider";
-import { Header } from "@/components/Header";
-import { Footer } from "@/components/Footer";
 import {
   featureDeck,
   featureDeckCondensed,
@@ -10,6 +8,7 @@ import {
   geistMono,
 } from "./broadsheet-fonts";
 import "./globals.css";
+import "./broadsheet.css";
 
 export const metadata: Metadata = {
   title: "MN Together - Find help. Give help. Come together.",
@@ -33,11 +32,7 @@ export default function RootLayout({
     <html lang="en" className={fontVariables} suppressHydrationWarning>
       <body>
         <GraphQLProvider>
-          <div className="app-shell">
-            <Header />
-            <main>{children}</main>
-            <Footer />
-          </div>
+          {children}
         </GraphQLProvider>
       </body>
     </html>

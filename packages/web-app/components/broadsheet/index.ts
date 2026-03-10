@@ -1,3 +1,6 @@
+// Renderer (main entry point)
+export { BroadsheetRenderer } from './BroadsheetRenderer';
+
 // Layout primitives
 export { Row } from './layout/Row';
 export { Cell } from './layout/Cell';
@@ -6,7 +9,7 @@ export { DebugLabels } from './layout/DebugLabels';
 
 // Chrome
 export { Masthead } from './chrome/Masthead';
-export { EditionBar } from './chrome/EditionBar';
+export { BroadsheetHeader } from './chrome/EditionBar';
 export { PostcardWelcome } from './chrome/PostcardWelcome';
 export { SiteFooter } from './chrome/SiteFooter';
 

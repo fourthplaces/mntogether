@@ -85,9 +85,9 @@ interface MReadMoreProps {
 
 export function MReadMore({ href, text }: MReadMoreProps) {
   return (
-    <a href={href || '#'} className="read-more mono-sm">
+    <span className="read-more mono-sm">
       {text || 'Read more'} &rarr;
-    </a>
+    </span>
   );
 }
 
