@@ -52,8 +52,11 @@ export function preparePost(
 
   // Tags: extract tag values as string[] for the broadsheet type system
   const tagValues = gqlPost.tags.map((t) => t.value);
-  // Also check urgent notes → add 'urgent' tag
-  if (gqlPost.urgentNotes.length > 0 && !tagValues.includes('urgent')) {
+  // Check urgent notes OR urgency field → add 'urgent' tag
+  if (
+    (gqlPost.urgentNotes.length > 0 || gqlPost.urgency === 'urgent') &&
+    !tagValues.includes('urgent')
+  ) {
     tagValues.push('urgent');
   }
 

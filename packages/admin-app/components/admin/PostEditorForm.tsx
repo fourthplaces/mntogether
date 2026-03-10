@@ -1,24 +1,9 @@
 "use client";
 
-import { useQuery } from "urql";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { FieldWrapper } from "@/components/admin/FieldWrapper";
-import { OrganizationsListQuery } from "@/lib/graphql/organizations";
-import {
-  POST_TYPES,
-  WEIGHTS,
-  URGENCIES,
-  type PostFormValues,
-} from "@/lib/post-form-constants";
+import type { PostFormValues } from "@/lib/post-form-constants";
 
 interface PostEditorFormProps {
   values: PostFormValues;
@@ -33,9 +18,6 @@ export function PostEditorForm({
   errors,
   disabled = false,
 }: PostEditorFormProps) {
-  const [{ data: orgsData }] = useQuery({ query: OrganizationsListQuery });
-  const organizations = orgsData?.organizations ?? [];
-
   // Helper to update a single field
   function update<K extends keyof PostFormValues>(field: K, value: PostFormValues[K]) {
     onChange({ ...values, [field]: value });
@@ -60,110 +42,6 @@ export function PostEditorForm({
         {errors.title && (
           <p className="text-xs text-destructive mt-1">{errors.title}</p>
         )}
-      </div>
-
-      {/* Metadata section */}
-      <Separator className="my-5" />
-
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-1">
-        <FieldWrapper label="Post Type" className="mb-0">
-          <Select
-            value={values.postType}
-            onValueChange={(v) => update("postType", v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {POST_TYPES.map((t) => (
-                <SelectItem key={t.value} value={t.value}>
-                  {t.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
-
-        <FieldWrapper label="Weight" className="mb-0">
-          <Select
-            value={values.weight}
-            onValueChange={(v) => update("weight", v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {WEIGHTS.map((w) => (
-                <SelectItem key={w.value} value={w.value}>
-                  {w.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
-
-        <FieldWrapper label="Priority" className="mb-0">
-          <Input
-            type="number"
-            value={values.priority}
-            onChange={(e) => update("priority", Number(e.target.value))}
-            disabled={disabled}
-          />
-        </FieldWrapper>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4 mt-4 mb-1">
-        <FieldWrapper label="Urgency" className="mb-0">
-          <Select
-            value={values.urgency || "__none__"}
-            onValueChange={(v) => update("urgency", v === "__none__" ? "" : v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {URGENCIES.map((u) => (
-                <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
-
-        <FieldWrapper label="Location" className="mb-0">
-          <Input
-            value={values.location}
-            onChange={(e) => update("location", e.target.value)}
-            placeholder="e.g. Minneapolis, MN"
-            disabled={disabled}
-          />
-        </FieldWrapper>
-      </div>
-
-      <div className="mt-4">
-        <FieldWrapper label="Organization" className="mb-0">
-          <Select
-            value={values.organizationId || "__none__"}
-            onValueChange={(v) => update("organizationId", v === "__none__" ? "" : v)}
-            disabled={disabled}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">None</SelectItem>
-              {organizations.map((org) => (
-                <SelectItem key={org.id} value={org.id}>
-                  {org.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FieldWrapper>
       </div>
 
       {/* Summary */}

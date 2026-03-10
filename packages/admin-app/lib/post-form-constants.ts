@@ -1,4 +1,5 @@
 // Shared constants and types for post forms (PostForm + PostEditorForm)
+// POST_TYPES and WEIGHTS are also used on the detail page for inline dropdowns.
 
 export const POST_TYPES = [
   { value: "story", label: "Story" },
@@ -15,36 +16,16 @@ export const WEIGHTS = [
   { value: "light", label: "Light" },
 ] as const;
 
-export const URGENCIES = [
-  { value: "", label: "None" },
-  { value: "low", label: "Low" },
-  { value: "medium", label: "Medium" },
-  { value: "high", label: "High" },
-  { value: "urgent", label: "Urgent" },
-] as const;
-
 export interface PostFormValues {
   title: string;
   descriptionMarkdown: string;
   summary: string;
-  postType: string;
-  weight: string;
-  priority: number;
-  urgency: string;
-  location: string;
-  organizationId: string;
 }
 
 export const DEFAULT_VALUES: PostFormValues = {
   title: "",
   descriptionMarkdown: "",
   summary: "",
-  postType: "notice",
-  weight: "medium",
-  priority: 0,
-  urgency: "",
-  location: "",
-  organizationId: "",
 };
 
 export function validatePostForm(values: PostFormValues): Record<string, string> {

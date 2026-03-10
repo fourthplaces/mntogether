@@ -43,6 +43,7 @@ pub struct Post {
     pub location: Option<String>,
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
+    pub zip_code: Option<String>,
 
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped', 'admin', 'org_submitted'
@@ -411,6 +412,8 @@ pub struct UpdatePostContent {
     pub urgency: Option<String>,
     #[builder(default)]
     pub location: Option<String>,
+    #[builder(default)]
+    pub zip_code: Option<String>,
 }
 
 // =============================================================================
@@ -796,6 +799,7 @@ impl Post {
                 priority = COALESCE($9, priority),
                 urgency = COALESCE($10, urgency),
                 location = COALESCE($11, location),
+                zip_code = COALESCE($12, zip_code),
                 relevance_score = NULL,
                 relevance_breakdown = NULL,
                 scored_at = NULL,
@@ -815,6 +819,7 @@ impl Post {
         .bind(input.priority)
         .bind(input.urgency)
         .bind(input.location)
+        .bind(input.zip_code)
         .fetch_one(pool)
         .await?;
         Ok(post)

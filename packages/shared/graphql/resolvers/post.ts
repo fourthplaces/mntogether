@@ -282,6 +282,7 @@ export const postResolvers = {
           priority?: number;
           urgency?: string;
           location?: string;
+          zipCode?: string;
         };
       },
       ctx: GraphQLContext
@@ -295,6 +296,7 @@ export const postResolvers = {
         priority: args.input.priority,
         urgency: args.input.urgency,
         location: args.input.location,
+        zip_code: args.input.zipCode,
       });
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);

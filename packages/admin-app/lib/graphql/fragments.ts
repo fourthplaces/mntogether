@@ -8,7 +8,6 @@ export const PostListFields = graphql(`
     summary
     status
     postType
-    category
     capacityStatus
     urgency
     location
@@ -18,6 +17,7 @@ export const PostListFields = graphql(`
     distanceMiles
     organizationId
     organizationName
+    weight
     tags {
       id
       kind
@@ -37,10 +37,10 @@ export const PostDetailFields = graphql(`
     summary
     status
     postType
-    category
     capacityStatus
     urgency
     location
+    zipCode
     sourceUrl
     createdAt
     updatedAt
@@ -52,6 +52,9 @@ export const PostDetailFields = graphql(`
     weight
     priority
     hasUrgentNotes
+    bodyHeavy
+    bodyMedium
+    bodyLight
     tags {
       id
       kind

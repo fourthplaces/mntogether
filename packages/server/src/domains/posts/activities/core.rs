@@ -356,6 +356,7 @@ pub async fn admin_update_post(
     priority: Option<i32>,
     urgency: Option<String>,
     location: Option<String>,
+    zip_code: Option<String>,
     _member_id: Uuid,
     deps: &ServerDeps,
 ) -> Result<Post> {
@@ -377,6 +378,7 @@ pub async fn admin_update_post(
             .priority(priority)
             .urgency(urgency)
             .location(location)
+            .zip_code(zip_code)
             .build(),
         &deps.db_pool,
     )

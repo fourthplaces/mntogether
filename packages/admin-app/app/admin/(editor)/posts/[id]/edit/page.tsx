@@ -46,12 +46,6 @@ export default function EditPostPage() {
         title: post.title || "",
         descriptionMarkdown: post.descriptionMarkdown || post.description || "",
         summary: post.summary || "",
-        postType: post.postType || "notice",
-        weight: post.weight || "medium",
-        priority: post.priority ?? 0,
-        urgency: post.urgency || "",
-        location: post.location || "",
-        organizationId: post.organizationId || "",
       });
     }
   }, [post]);
@@ -81,11 +75,6 @@ export default function EditPostPage() {
           title: values.title.trim(),
           descriptionMarkdown: values.descriptionMarkdown.trim(),
           summary: values.summary.trim() || undefined,
-          postType: values.postType || undefined,
-          weight: values.weight || undefined,
-          priority: values.priority || undefined,
-          urgency: values.urgency || undefined,
-          location: values.location.trim() || undefined,
         },
       },
       mutationContext

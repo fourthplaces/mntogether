@@ -202,6 +202,10 @@ type Post {
   submittedBy: SubmittedByInfo
   urgentNotes: [UrgentNote!]!
   organization: Organization
+  bodyHeavy: String
+  bodyMedium: String
+  bodyLight: String
+  zipCode: String
 }
 
 type PostConnection {
@@ -538,6 +542,7 @@ type BroadsheetPost {
   description: String!
   postType: String!
   weight: String!
+  urgency: String
   location: String
   sourceUrl: String
   organizationName: String
@@ -577,6 +582,7 @@ input UpdatePostInput {
   priority: Int
   urgency: String
   location: String
+  zipCode: String
 }
 
 # ========================================

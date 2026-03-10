@@ -190,10 +190,7 @@ export const CreatePostMutation = graphql(`
 export const UpdatePostMutation = graphql(`
   mutation UpdatePost($id: ID!, $input: UpdatePostInput!) {
     updatePost(id: $id, input: $input) {
-      id
-      title
-      status
-      descriptionMarkdown
+      ...PostDetailFields
     }
   }
 `);
