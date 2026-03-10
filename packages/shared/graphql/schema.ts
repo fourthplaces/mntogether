@@ -91,7 +91,6 @@ type Mutation {
   removePostTag(postId: ID!, tagId: ID!): Post!
   regeneratePost(id: ID!): Post!
   regeneratePostTags(id: ID!): Post!
-  updatePostCapacity(id: ID!, capacityStatus: String!): Post!
   batchScorePosts(limit: Int): BatchScoreResult!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: ID!, input: UpdatePostInput!): Post!
@@ -189,7 +188,6 @@ type Post {
   weight: Weight
   priority: Int
   category: String
-  capacityStatus: String
   urgency: String
   location: String
   sourceUrl: String

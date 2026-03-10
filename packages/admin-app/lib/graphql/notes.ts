@@ -115,7 +115,6 @@ export const OrganizationPostsQuery = graphql(`
         status
         postType
         category
-        capacityStatus
         createdAt
         organizationId
         organizationName

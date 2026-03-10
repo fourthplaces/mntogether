@@ -12,7 +12,6 @@ pub struct PostData {
     // Hot path fields
     pub post_type: String,
     pub category: String,
-    pub capacity_status: Option<String>,
     pub urgency: Option<String>,
     pub status: String,
 
@@ -71,7 +70,6 @@ impl From<Post> for PostData {
             summary: post.summary,
             post_type: post.post_type,
             category: post.category,
-            capacity_status: post.capacity_status,
             urgency: post.urgency,
             status: post.status,
             verified_at: post.verified_at.map(|dt| dt.to_rfc3339()),

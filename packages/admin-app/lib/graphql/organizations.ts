@@ -27,7 +27,6 @@ export const OrganizationDetailFullQuery = graphql(`
           title
           status
           postType
-          capacityStatus
           relevanceScore
           createdAt
           organizationId

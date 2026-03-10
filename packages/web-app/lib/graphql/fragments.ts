@@ -38,7 +38,6 @@ export const PostDetailPublicFields = graphql(`
     status
     postType
     category
-    capacityStatus
     urgency
     location
     sourceUrl

@@ -223,15 +223,6 @@ export const RegeneratePostTagsMutation = graphql(`
   }
 `);
 
-export const UpdatePostCapacityMutation = graphql(`
-  mutation UpdatePostCapacity($id: ID!, $capacityStatus: String!) {
-    updatePostCapacity(id: $id, capacityStatus: $capacityStatus) {
-      id
-      capacityStatus
-    }
-  }
-`);
-
 export const CreatePostMutation = graphql(`
   mutation CreatePost($input: CreatePostInput!) {
     createPost(input: $input) {

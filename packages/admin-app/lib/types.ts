@@ -36,7 +36,6 @@ export interface ContactInfo {
 
 export type PostType = "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
-export type CapacityStatus = "accepting" | "paused" | "at_capacity";
 export type Urgency = "urgent" | "high" | "medium" | "low";
 
 export interface Post {
@@ -47,7 +46,6 @@ export interface Post {
   descriptionMarkdown?: string;
   postType?: PostType;
   category?: string;
-  capacityStatus?: CapacityStatus;
   urgency?: Urgency;
   status: PostStatus;
   location?: string;

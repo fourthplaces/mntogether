@@ -273,11 +273,6 @@ pub struct DeleteScheduleRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct UpdateCapacityStatusRequest {
-    pub capacity_status: String,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct UpdatePostContentRequest {
     pub title: Option<String>,
     pub description_markdown: Option<String>,
@@ -347,7 +342,6 @@ pub struct PostResult {
     pub status: String,
     pub post_type: String,
     pub category: String,
-    pub capacity_status: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -401,7 +395,6 @@ impl From<Post> for PostResult {
             status: p.status,
             post_type: p.post_type,
             category: p.category,
-            capacity_status: p.capacity_status,
             urgency: p.urgency,
             location: p.location,
             zip_code: p.zip_code,
@@ -875,7 +868,6 @@ async fn list(
                         status: pwd.status,
                         post_type: pwd.post_type,
                         category: pwd.category,
-                        capacity_status: None,
                         urgency: pwd.urgency,
                         location: pwd.location,
                         source_url: pwd.source_url,
@@ -953,7 +945,6 @@ async fn list(
                         status: e.node.status.to_string(),
                         post_type: e.node.post_type,
                         category: e.node.category,
-                        capacity_status: None,
                         urgency: e.node.urgency,
                         location: e.node.location,
                         source_url: e.node.source_url,
@@ -1015,7 +1006,6 @@ async fn search_nearby(
                     status: pwd.status,
                     post_type: pwd.post_type,
                     category: pwd.category,
-                    capacity_status: None,
                     urgency: pwd.urgency,
                     location: pwd.location,
                     source_url: pwd.source_url,
@@ -1294,7 +1284,6 @@ async fn list_by_organization(
                     status: p.status,
                     post_type: p.post_type,
                     category: p.category,
-                    capacity_status: p.capacity_status,
                     urgency: p.urgency,
                     location: p.location,
                     zip_code: p.zip_code,
@@ -2109,37 +2098,6 @@ async fn regenerate_tags(
     Ok(Json(PostResult::from(post)))
 }
 
-async fn update_capacity_status(
-    State(state): State<AppState>,
-    Path(post_id): Path<Uuid>,
-    _user: AdminUser,
-    Json(req): Json<UpdateCapacityStatusRequest>,
-) -> ApiResult<Json<PostResult>> {
-    let valid = ["accepting", "paused", "at_capacity"];
-    if !valid.contains(&req.capacity_status.as_str()) {
-        return Err(ApiError::BadRequest(format!(
-            "Invalid capacity status: {}. Must be one of: {}",
-            req.capacity_status,
-            valid.join(", ")
-        )));
-    }
-
-    Post::update_capacity_status(
-        PostId::from_uuid(post_id),
-        &req.capacity_status,
-        &state.deps.db_pool,
-    )
-    .await?;
-
-    let post = Post::find_by_id(PostId::from_uuid(post_id), &state.deps.db_pool)
-        .await?
-        .ok_or_else(|| {
-            ApiError::NotFound("Post not found after update_capacity_status".into())
-        })?;
-
-    Ok(Json(PostResult::from(post)))
-}
-
 async fn update_content(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2259,7 +2217,6 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/reject_revision", post(reject_revision))
         .route("/Post/{id}/regenerate", post(regenerate))
         .route("/Post/{id}/regenerate_tags", post(regenerate_tags))
-        .route("/Post/{id}/update_capacity_status", post(update_capacity_status))
         .route("/Post/{id}/update_content", post(update_content))
         .route("/Post/{id}/get_reports", post(get_reports))
         .route("/Post/{id}/get_revision", post(get_revision))

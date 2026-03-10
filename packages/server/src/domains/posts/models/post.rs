@@ -29,8 +29,7 @@ pub struct Post {
     pub category: String,
     pub weight: String,  // 'heavy', 'medium', 'light' — layout column width
     pub priority: i32,   // editorial importance (higher = more prominent)
-    pub capacity_status: Option<String>, // 'accepting', 'paused', 'at_capacity'
-    pub urgency: Option<String>,         // 'low', 'medium', 'high', 'urgent'
+    pub urgency: Option<String>,         // 'none', 'notice', 'urgent'
     pub status: String, // 'draft', 'active', 'filled', 'rejected', 'expired', 'archived'
 
     // Verification
@@ -362,8 +361,6 @@ pub struct CreatePost {
     #[builder(default)]
     pub priority: i32,
     #[builder(default)]
-    pub capacity_status: Option<String>,
-    #[builder(default)]
     pub urgency: Option<String>,
     #[builder(default)]
     pub location: Option<String>,
@@ -687,7 +684,6 @@ impl Post {
                 category,
                 weight,
                 priority,
-                capacity_status,
                 urgency,
                 location,
                 status,
@@ -698,7 +694,7 @@ impl Post {
                 revision_of_post_id,
                 translation_of_id,
                 published_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
             RETURNING *
             "#,
         )
@@ -710,7 +706,6 @@ impl Post {
         .bind(input.category)
         .bind(input.weight)
         .bind(input.priority)
-        .bind(input.capacity_status)
         .bind(input.urgency)
         .bind(input.location)
         .bind(input.status)
@@ -738,27 +733,6 @@ impl Post {
             "#,
         )
         .bind(status)
-        .bind(id)
-        .fetch_one(pool)
-        .await?;
-        Ok(post)
-    }
-
-    /// Update capacity status
-    pub async fn update_capacity_status(
-        id: PostId,
-        capacity_status: &str,
-        pool: &PgPool,
-    ) -> Result<Self> {
-        let post = sqlx::query_as::<_, Post>(
-            r#"
-            UPDATE posts
-            SET capacity_status = $1, updated_at = NOW()
-            WHERE id = $2
-            RETURNING *
-            "#,
-        )
-        .bind(capacity_status)
         .bind(id)
         .fetch_one(pool)
         .await?;

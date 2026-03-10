@@ -534,7 +534,6 @@ type PostData = {
   title: string;
   status: string;
   postType?: string | null;
-  capacityStatus?: string | null;
   createdAt: string;
 };
 
@@ -612,7 +611,6 @@ function postStatusBadgeVariant(status: string): "success" | "info" | "danger" |
 
 function PostRow({ post }: { post: PostData }) {
   const status = post.status;
-  const capacityStatus = post.capacityStatus || "accepting";
 
   return (
     <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/30 transition-colors min-w-0">
@@ -621,13 +619,6 @@ function PostRow({ post }: { post: PostData }) {
       </Link>
       <div className="flex items-center gap-1.5 shrink-0 ml-auto">
         <Badge variant={postStatusBadgeVariant(status)}>{status}</Badge>
-        {status === "active" && (
-          <Badge
-            variant={capacityStatus === "accepting" ? "success" : capacityStatus === "paused" ? "warning" : "danger"}
-          >
-            {capacityStatus === "at_capacity" ? "at capacity" : capacityStatus}
-          </Badge>
-        )}
         <Badge variant={postTypeBadgeVariant(post.postType)}>{post.postType || "unknown"}</Badge>
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatDate(post.createdAt)}

@@ -70,7 +70,6 @@ pub async fn create_post(
             .title(title)
             .description(description)
             .summary(Some(summary))
-            .capacity_status(Some("accepting".to_string()))
             .urgency(urgency)
             .location(location)
             .submission_type(Some(submission_type))

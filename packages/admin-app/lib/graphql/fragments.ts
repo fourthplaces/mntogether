@@ -8,7 +8,6 @@ export const PostListFields = graphql(`
     summary
     status
     postType
-    capacityStatus
     urgency
     location
     sourceUrl
@@ -38,7 +37,6 @@ export const PostDetailFields = graphql(`
     summary
     status
     postType
-    capacityStatus
     urgency
     location
     zipCode

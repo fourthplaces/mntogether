@@ -222,18 +222,6 @@ export const postResolvers = {
       return ctx.loaders.postById.load(args.id);
     },
 
-    updatePostCapacity: async (
-      _parent: unknown,
-      args: { id: string; capacityStatus: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.server.callObject("Post", args.id, "update_capacity", {
-        capacity_status: args.capacityStatus,
-      });
-      ctx.loaders.postById.clear(args.id);
-      return ctx.loaders.postById.load(args.id);
-    },
-
     batchScorePosts: async (
       _parent: unknown,
       args: { limit?: number },

@@ -64,7 +64,6 @@ pub async fn create_extracted_post(
             .title(post.title.clone())
             .description(post.description.clone())
             .summary(Some(post.summary.clone()))
-            .capacity_status(Some("accepting".to_string()))
             .urgency(urgency)
             .location(post.location.clone())
             .submission_type(Some("scraped".to_string()))
