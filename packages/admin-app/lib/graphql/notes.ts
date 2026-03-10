@@ -1,6 +1,25 @@
 import { graphql } from "@/gql";
 import "./fragments";
 
+export const NotesListQuery = graphql(`
+  query NotesList($severity: String, $isPublic: Boolean, $limit: Int, $offset: Int) {
+    notes(severity: $severity, isPublic: $isPublic, limit: $limit, offset: $offset) {
+      notes {
+        ...NoteFields
+      }
+      totalCount
+    }
+  }
+`);
+
+export const NoteDetailQuery = graphql(`
+  query NoteDetail($id: ID!) {
+    note(id: $id) {
+      ...NoteFields
+    }
+  }
+`);
+
 export const EntityNotesQuery = graphql(`
   query EntityNotes($noteableType: String!, $noteableId: ID!) {
     entityNotes(noteableType: $noteableType, noteableId: $noteableId) {

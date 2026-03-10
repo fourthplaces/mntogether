@@ -123,5 +123,9 @@ export const NoteFields = graphql(`
       id
       title
     }
+    linkedOrgs {
+      id
+      name
+    }
   }
 `);

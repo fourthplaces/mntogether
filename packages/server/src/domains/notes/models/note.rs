@@ -232,6 +232,56 @@ impl Note {
         .map_err(Into::into)
     }
 
+    /// List all notes with optional filtering by severity and is_public, ordered newest first.
+    pub async fn find_all(
+        severity: Option<&str>,
+        is_public: Option<bool>,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT *
+            FROM notes
+            WHERE ($1::text IS NULL OR severity = $1)
+              AND ($2::bool IS NULL OR is_public = $2)
+            ORDER BY
+                CASE severity WHEN 'urgent' THEN 0 WHEN 'notice' THEN 1 ELSE 2 END,
+                created_at DESC
+            LIMIT $3 OFFSET $4
+            "#,
+        )
+        .bind(severity)
+        .bind(is_public)
+        .bind(limit)
+        .bind(offset)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Count all notes with optional filtering.
+    pub async fn count_all(
+        severity: Option<&str>,
+        is_public: Option<bool>,
+        pool: &PgPool,
+    ) -> Result<i64> {
+        sqlx::query_scalar::<_, i64>(
+            r#"
+            SELECT COUNT(*)
+            FROM notes
+            WHERE ($1::text IS NULL OR severity = $1)
+              AND ($2::bool IS NULL OR is_public = $2)
+            "#,
+        )
+        .bind(severity)
+        .bind(is_public)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Delete all notes linked to an organization (via noteables).
     /// Returns the number of notes deleted.
     pub async fn delete_all_for_organization(org_id: Uuid, pool: &PgPool) -> Result<i64> {
@@ -329,6 +379,30 @@ impl Noteable {
         .await
         .map_err(Into::into)
     }
+    /// Find all linked organizations for a batch of notes (avoids N+1).
+    pub async fn find_linked_orgs_for_notes(
+        note_ids: &[NoteId],
+        pool: &PgPool,
+    ) -> Result<Vec<NoteLinkedOrg>> {
+        if note_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let uuids: Vec<Uuid> = note_ids.iter().map(|id| (*id).into()).collect();
+        sqlx::query_as::<_, NoteLinkedOrg>(
+            r#"
+            SELECT nb.note_id, o.id AS org_id, o.name AS org_name
+            FROM noteables nb
+            INNER JOIN organizations o ON o.id = nb.noteable_id
+            WHERE nb.noteable_type = 'organization'
+              AND nb.note_id = ANY($1)
+            ORDER BY o.name
+            "#,
+        )
+        .bind(&uuids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -336,4 +410,11 @@ pub struct NoteLinkedPost {
     pub note_id: NoteId,
     pub post_id: Uuid,
     pub post_title: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+pub struct NoteLinkedOrg {
+    pub note_id: NoteId,
+    pub org_id: Uuid,
+    pub org_name: String,
 }

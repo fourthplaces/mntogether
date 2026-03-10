@@ -2,6 +2,34 @@ import type { GraphQLContext } from "../context";
 
 export const noteResolvers = {
   Query: {
+    notes: async (
+      _parent: unknown,
+      args: { severity?: string; isPublic?: boolean; limit?: number; offset?: number },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{
+        notes: unknown[];
+        totalCount: number;
+      }>("Notes", "list", {
+        severity: args.severity ?? null,
+        is_public: args.isPublic ?? null,
+        limit: args.limit ?? 50,
+        offset: args.offset ?? 0,
+      });
+      return {
+        notes: result.notes,
+        totalCount: result.totalCount,
+      };
+    },
+
+    note: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Notes", "get", { id: args.id });
+    },
+
     entityNotes: async (
       _parent: unknown,
       args: { noteableType: string; noteableId: string },

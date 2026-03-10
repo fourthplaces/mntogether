@@ -43,6 +43,8 @@ type Query {
   tags(kind: String): [Tag!]!
 
   # Notes (admin)
+  note(id: ID!): Note
+  notes(severity: String, isPublic: Boolean, limit: Int, offset: Int): NoteConnection!
   entityNotes(noteableType: String!, noteableId: ID!): [Note!]!
 
   # Organization detail queries (admin)
@@ -369,11 +371,22 @@ type Note {
   createdAt: String!
   updatedAt: String!
   linkedPosts: [LinkedPost!]
+  linkedOrgs: [LinkedOrg!]
 }
 
 type LinkedPost {
   id: ID!
   title: String!
+}
+
+type LinkedOrg {
+  id: ID!
+  name: String!
+}
+
+type NoteConnection {
+  notes: [Note!]!
+  totalCount: Int!
 }
 
 type AutoAttachNotesResult {
