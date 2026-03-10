@@ -12,7 +12,6 @@ use twilio::TwilioService;
 
 use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
-use crate::domains::memo::MemoBuilder;
 use crate::kernel::{
     stream_hub::StreamHub, BaseEmbeddingService, BasePiiDetector, BaseStorageService,
     BaseTwilioService,
@@ -100,24 +99,6 @@ impl ServerDeps {
             test_identifier_enabled,
             admin_identifiers,
         }
-    }
-}
-
-impl ServerDeps {
-    /// Create a memoized computation builder.
-    ///
-    /// ```ignore
-    /// let result: MyType = deps.memo("my_func_v1", &input)
-    ///     .ttl(86_400_000) // optional, ms
-    ///     .get_or(|| async { expensive_call().await })
-    ///     .await?;
-    /// ```
-    pub fn memo<'a, K: serde::Serialize>(
-        &'a self,
-        function_name: &'a str,
-        key: K,
-    ) -> MemoBuilder<'a, K> {
-        MemoBuilder::new(function_name, key, &self.db_pool)
     }
 }
 

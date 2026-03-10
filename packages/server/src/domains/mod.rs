@@ -6,7 +6,6 @@ pub mod heat_map;
 pub mod locations;
 pub mod media;
 pub mod member;
-pub mod memo;
 pub mod notes;
 pub mod organization;
 pub mod posts;
