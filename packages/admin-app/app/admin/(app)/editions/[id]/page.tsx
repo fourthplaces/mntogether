@@ -46,6 +46,10 @@ import {
   AddWidgetMutation,
   UpdateWidgetMutation,
   RemoveWidgetMutation,
+  AddSectionMutation,
+  UpdateSectionMutation,
+  DeleteSectionMutation,
+  AssignRowToSectionMutation,
 } from "@/lib/graphql/editions";
 import type {
   EditionDetailQuery as EditionDetailQueryType,
@@ -59,6 +63,7 @@ type Edition = NonNullable<EditionDetailQueryType["edition"]>;
 type EditionRow = Edition["rows"][number];
 type EditionSlot = EditionRow["slots"][number];
 type EditionWidget = EditionRow["widgets"][number];
+type EditionSection = Edition["sections"][number];
 type TemplateSlotDef = EditionRow["rowTemplate"]["slots"][number];
 type RowTemplate = RowTemplatesQueryType["rowTemplates"][number];
 type PostTemplate = PostTemplatesQueryType["postTemplates"][number];
@@ -163,6 +168,7 @@ function BroadsheetEditor({
   const router = useRouter();
   const id = edition.id;
   const [actionError, setActionError] = useState<string | null>(null);
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
 
   // Queries (templates only — edition comes from parent)
@@ -171,7 +177,7 @@ function BroadsheetEditor({
 
   // Mutations
   const mutCtx = useMemo(
-    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot"] }),
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot", "EditionSection"] }),
     []
   );
   const [, generateEdition] = useMutation(GenerateEditionMutation);
@@ -188,9 +194,17 @@ function BroadsheetEditor({
   const [, addWidgetMut] = useMutation(AddWidgetMutation);
   const [, updateWidgetMut] = useMutation(UpdateWidgetMutation);
   const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
+  const [, addSectionMut] = useMutation(AddSectionMutation);
+  const [, updateSectionMut] = useMutation(UpdateSectionMutation);
+  const [, deleteSectionMut] = useMutation(DeleteSectionMutation);
+  const [, assignRowToSectionMut] = useMutation(AssignRowToSectionMutation);
 
   const rowTemplates = rowTemplatesData?.rowTemplates ?? [];
   const postTemplates = postTemplatesData?.postTemplates ?? [];
+  const sections = useMemo(
+    () => edition ? [...edition.sections].sort((a, b) => a.sortOrder - b.sortOrder) : [],
+    [edition]
+  );
 
   // DnD
   const sensors = useSensors(
@@ -277,17 +291,27 @@ function BroadsheetEditor({
   const handleStatusAction = useCallback(
     async (action: "generate" | "approve" | "publish" | "archive") => {
       setActionError(null);
+      setActionSuccess(null);
       const fns = {
         generate: generateEdition,
         approve: approveEdition,
         publish: publishEdition,
         archive: archiveEdition,
       };
+      const labels: Record<string, string> = {
+        generate: "Layout regenerated",
+        approve: "Edition approved",
+        publish: "Edition published",
+        archive: "Edition archived",
+      };
       const result = await fns[action]({ id }, mutCtx);
       if (result.error) {
         setActionError(result.error.message);
       } else {
+        setActionSuccess(labels[action] ?? "Done");
         refetchEdition({ requestPolicy: "network-only" });
+        // Auto-dismiss success after 4s
+        setTimeout(() => setActionSuccess(null), 4000);
       }
     },
     [id, mutCtx, generateEdition, approveEdition, publishEdition, archiveEdition, refetchEdition]
@@ -330,6 +354,45 @@ function BroadsheetEditor({
     [removeWidgetMut, mutCtx, refetchEdition]
   );
 
+  // Section handlers
+  const handleAddSection = useCallback(
+    async (title: string) => {
+      const nextOrder = sections.length > 0
+        ? Math.max(...sections.map((s) => s.sortOrder)) + 1
+        : 0;
+      await addSectionMut(
+        { editionId: edition!.id, title, sortOrder: nextOrder },
+        mutCtx
+      );
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [edition, sections, addSectionMut, mutCtx, refetchEdition]
+  );
+
+  const handleUpdateSection = useCallback(
+    async (sectionId: string, title: string, subtitle?: string) => {
+      await updateSectionMut({ id: sectionId, title, subtitle }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [updateSectionMut, mutCtx, refetchEdition]
+  );
+
+  const handleDeleteSection = useCallback(
+    async (sectionId: string) => {
+      await deleteSectionMut({ id: sectionId }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [deleteSectionMut, mutCtx, refetchEdition]
+  );
+
+  const handleAssignRowToSection = useCallback(
+    async (rowId: string, sectionId: string | null) => {
+      await assignRowToSectionMut({ rowId, sectionId }, mutCtx);
+      refetchEdition({ requestPolicy: "network-only" });
+    },
+    [assignRowToSectionMut, mutCtx, refetchEdition]
+  );
+
   const isEditable = edition.status === "in_review" || edition.status === "draft";
 
   const activeSlotData = activeSlotId
@@ -358,6 +421,14 @@ function BroadsheetEditor({
           </div>
         </div>
         <div className="flex items-center gap-2 pt-8">
+          <a
+            href={`${process.env.NEXT_PUBLIC_WEB_APP_URL || "http://localhost:3001"}/preview/${edition.id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-indigo-100 text-indigo-800 hover:bg-indigo-200 transition-colors"
+          >
+            Preview Broadsheet ↗
+          </a>
           {isEditable && (
             <button
               onClick={() => handleStatusAction("generate")}
@@ -399,12 +470,28 @@ function BroadsheetEditor({
           </div>
         )}
 
+        {actionSuccess && (
+          <div className="mb-4 text-sm text-green-700 bg-green-50 border border-green-200 px-4 py-2 rounded-lg flex items-center justify-between">
+            <span>✓ {actionSuccess}</span>
+            <button
+              onClick={() => setActionSuccess(null)}
+              className="text-green-400 hover:text-green-600 text-xs ml-4"
+            >
+              dismiss
+            </button>
+          </div>
+        )}
+
         {/* Summary stats */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <StatCard value={sortedRows.length} label="Rows" />
           <StatCard
             value={sortedRows.reduce((sum, r) => sum + r.slots.length, 0)}
             label="Posts Placed"
+          />
+          <StatCard
+            value={sections.length}
+            label="Sections"
           />
           <StatCard
             value={new Set(sortedRows.map((r) => r.rowTemplate.slug)).size}
@@ -427,25 +514,22 @@ function BroadsheetEditor({
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {sortedRows.map((row, idx) => (
-                <RowEditor
-                  key={row.id}
-                  row={row}
-                  rowIndex={idx}
-                  totalRows={sortedRows.length}
-                  isEditable={isEditable}
-                  postTemplates={postTemplates}
-                  onMoveRow={handleMoveRow}
-                  onDeleteRow={handleDeleteRow}
-                  onChangeTemplate={handleChangeTemplate}
-                  onRemovePost={handleRemovePost}
-                  onViewPost={(postId) => router.push(`/admin/posts/${postId}`)}
-                  onAddWidget={handleAddWidget}
-                  onRemoveWidget={handleRemoveWidget}
-                />
-              ))}
-            </div>
+            <SectionGroupedLayout
+              rows={sortedRows}
+              sections={sections}
+              isEditable={isEditable}
+              postTemplates={postTemplates}
+              onMoveRow={handleMoveRow}
+              onDeleteRow={handleDeleteRow}
+              onChangeTemplate={handleChangeTemplate}
+              onRemovePost={handleRemovePost}
+              onViewPost={(postId) => router.push(`/admin/posts/${postId}`)}
+              onAddWidget={handleAddWidget}
+              onRemoveWidget={handleRemoveWidget}
+              onUpdateSection={handleUpdateSection}
+              onDeleteSection={handleDeleteSection}
+              onAssignRowToSection={handleAssignRowToSection}
+            />
           )}
 
           {activeSlotId && isEditable && <RemoveDropZone />}
@@ -455,9 +539,12 @@ function BroadsheetEditor({
           </DragOverlay>
         </DndContext>
 
-      {isEditable && rowTemplates.length > 0 && (
-        <div className="mt-4">
-          <AddRowButton templates={rowTemplates} onAdd={handleAddRow} />
+      {isEditable && (
+        <div className="mt-4 flex gap-3">
+          {rowTemplates.length > 0 && (
+            <AddRowButton templates={rowTemplates} onAdd={handleAddRow} />
+          )}
+          <AddSectionButton onAdd={handleAddSection} />
         </div>
       )}
     </>
@@ -573,6 +660,7 @@ function RowEditor({
   totalRows,
   isEditable,
   postTemplates,
+  sections,
   onMoveRow,
   onDeleteRow,
   onChangeTemplate,
@@ -580,12 +668,14 @@ function RowEditor({
   onViewPost,
   onAddWidget,
   onRemoveWidget,
+  onAssignRowToSection,
 }: {
   row: EditionRow;
   rowIndex: number;
   totalRows: number;
   isEditable: boolean;
   postTemplates: PostTemplate[];
+  sections?: EditionSection[];
   onMoveRow: (rowId: string, dir: "up" | "down") => void;
   onDeleteRow: (rowId: string) => void;
   onChangeTemplate: (slotId: string, template: string) => void;
@@ -593,6 +683,7 @@ function RowEditor({
   onViewPost: (postId: string) => void;
   onAddWidget: (rowId: string, widgetType: string, config: Record<string, unknown>) => void;
   onRemoveWidget: (widgetId: string) => void;
+  onAssignRowToSection?: (rowId: string, sectionId: string | null) => void;
 }) {
   const templateSlots = useMemo(
     () => [...row.rowTemplate.slots].sort((a, b) => a.slotIndex - b.slotIndex),
@@ -658,6 +749,24 @@ function RowEditor({
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+          )}
+          {isEditable && sections && sections.length > 0 && onAssignRowToSection && (
+            <Select
+              value={row.sectionId ?? "__none__"}
+              onValueChange={(val) => onAssignRowToSection(row.id, val === "__none__" ? null : val)}
+            >
+              <SelectTrigger className="h-6 text-[10px] px-2 py-0 min-w-0 w-auto border-stone-200 max-w-[140px]">
+                <SelectValue placeholder="No section" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">No section</SelectItem>
+                {sections.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           )}
           {isEditable && (
             <>
@@ -823,6 +932,330 @@ function parseWidgetConfig(config: string | null | undefined): Record<string, un
   } catch {
     return {};
   }
+}
+
+// ─── SectionGroupedLayout ────────────────────────────────────────────────────
+
+function SectionGroupedLayout({
+  rows,
+  sections,
+  isEditable,
+  postTemplates,
+  onMoveRow,
+  onDeleteRow,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+  onAddWidget,
+  onRemoveWidget,
+  onUpdateSection,
+  onDeleteSection,
+  onAssignRowToSection,
+}: {
+  rows: EditionRow[];
+  sections: EditionSection[];
+  isEditable: boolean;
+  postTemplates: PostTemplate[];
+  onMoveRow: (rowId: string, dir: "up" | "down") => void;
+  onDeleteRow: (rowId: string) => void;
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+  onAddWidget: (rowId: string, widgetType: string, config: Record<string, unknown>) => void;
+  onRemoveWidget: (widgetId: string) => void;
+  onUpdateSection: (sectionId: string, title: string, subtitle?: string) => void;
+  onDeleteSection: (sectionId: string) => void;
+  onAssignRowToSection: (rowId: string, sectionId: string | null) => void;
+}) {
+  // Partition rows: ungrouped (no sectionId) + grouped by section
+  const ungroupedRows = rows.filter((r) => !r.sectionId);
+  const rowsBySection = useMemo(() => {
+    const map = new Map<string, EditionRow[]>();
+    for (const row of rows) {
+      if (row.sectionId) {
+        const bucket = map.get(row.sectionId) ?? [];
+        bucket.push(row);
+        map.set(row.sectionId, bucket);
+      }
+    }
+    return map;
+  }, [rows]);
+
+  return (
+    <div className="space-y-4">
+      {/* Above the fold — ungrouped rows */}
+      {ungroupedRows.length > 0 && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 px-1">
+            <span className="text-xs font-semibold text-stone-400 uppercase tracking-wider">
+              Above the Fold
+            </span>
+            <span className="text-xs text-stone-300">
+              ({ungroupedRows.length} row{ungroupedRows.length !== 1 ? "s" : ""})
+            </span>
+          </div>
+          {ungroupedRows.map((row, idx) => (
+            <RowEditor
+              key={row.id}
+              row={row}
+              rowIndex={idx}
+              totalRows={rows.length}
+              isEditable={isEditable}
+              postTemplates={postTemplates}
+              sections={sections}
+              onMoveRow={onMoveRow}
+              onDeleteRow={onDeleteRow}
+              onChangeTemplate={onChangeTemplate}
+              onRemovePost={onRemovePost}
+              onViewPost={onViewPost}
+              onAddWidget={onAddWidget}
+              onRemoveWidget={onRemoveWidget}
+              onAssignRowToSection={onAssignRowToSection}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Topic sections */}
+      {sections.map((section) => {
+        const sectionRows = rowsBySection.get(section.id) ?? [];
+        return (
+          <SectionBlock
+            key={section.id}
+            section={section}
+            rows={sectionRows}
+            allRows={rows}
+            sections={sections}
+            isEditable={isEditable}
+            postTemplates={postTemplates}
+            onMoveRow={onMoveRow}
+            onDeleteRow={onDeleteRow}
+            onChangeTemplate={onChangeTemplate}
+            onRemovePost={onRemovePost}
+            onViewPost={onViewPost}
+            onAddWidget={onAddWidget}
+            onRemoveWidget={onRemoveWidget}
+            onUpdateSection={onUpdateSection}
+            onDeleteSection={onDeleteSection}
+            onAssignRowToSection={onAssignRowToSection}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── SectionBlock ────────────────────────────────────────────────────────────
+
+function SectionBlock({
+  section,
+  rows,
+  allRows,
+  sections,
+  isEditable,
+  postTemplates,
+  onMoveRow,
+  onDeleteRow,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+  onAddWidget,
+  onRemoveWidget,
+  onUpdateSection,
+  onDeleteSection,
+  onAssignRowToSection,
+}: {
+  section: EditionSection;
+  rows: EditionRow[];
+  allRows: EditionRow[];
+  sections: EditionSection[];
+  isEditable: boolean;
+  postTemplates: PostTemplate[];
+  onMoveRow: (rowId: string, dir: "up" | "down") => void;
+  onDeleteRow: (rowId: string) => void;
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+  onAddWidget: (rowId: string, widgetType: string, config: Record<string, unknown>) => void;
+  onRemoveWidget: (widgetId: string) => void;
+  onUpdateSection: (sectionId: string, title: string, subtitle?: string) => void;
+  onDeleteSection: (sectionId: string) => void;
+  onAssignRowToSection: (rowId: string, sectionId: string | null) => void;
+}) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(section.title);
+  const [editSubtitle, setEditSubtitle] = useState(section.subtitle ?? "");
+
+  const handleSave = () => {
+    onUpdateSection(section.id, editTitle, editSubtitle || undefined);
+    setIsEditing(false);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Section header */}
+      <div className="flex items-center gap-3 px-1 py-2 border-b-2 border-amber-300">
+        <button
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="text-stone-400 hover:text-stone-600 text-sm w-5 text-center"
+        >
+          {isCollapsed ? "\u25B6" : "\u25BC"}
+        </button>
+
+        {isEditing ? (
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="text-sm font-semibold text-stone-800 border border-stone-300 rounded px-2 py-1 flex-1 max-w-xs"
+              placeholder="Section title"
+              autoFocus
+            />
+            <input
+              value={editSubtitle}
+              onChange={(e) => setEditSubtitle(e.target.value)}
+              className="text-xs text-stone-500 border border-stone-300 rounded px-2 py-1 flex-1 max-w-xs"
+              placeholder="Subtitle (optional)"
+            />
+            <button
+              onClick={handleSave}
+              className="text-xs font-medium text-green-600 hover:text-green-700 px-2 py-1"
+            >
+              Save
+            </button>
+            <button
+              onClick={() => setIsEditing(false)}
+              className="text-xs font-medium text-stone-400 hover:text-stone-600 px-2 py-1"
+            >
+              Cancel
+            </button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 flex-1">
+            <span className="text-sm font-semibold text-stone-800">
+              {section.title}
+            </span>
+            {section.subtitle && (
+              <span className="text-xs text-stone-400">&mdash; {section.subtitle}</span>
+            )}
+            {section.topicSlug && (
+              <span className="text-[10px] font-mono text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">
+                {section.topicSlug}
+              </span>
+            )}
+            <span className="text-xs text-stone-300">
+              ({rows.length} row{rows.length !== 1 ? "s" : ""})
+            </span>
+          </div>
+        )}
+
+        {isEditable && !isEditing && (
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => {
+                setEditTitle(section.title);
+                setEditSubtitle(section.subtitle ?? "");
+                setIsEditing(true);
+              }}
+              className="text-[11px] font-medium text-stone-400 hover:text-stone-600 px-2 py-1"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDeleteSection(section.id)}
+              className="text-[11px] font-medium text-red-400 hover:text-red-600 px-2 py-1"
+            >
+              Delete
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Section rows (collapsible) */}
+      {!isCollapsed && (
+        <div className="space-y-4 pl-4 border-l-2 border-amber-100">
+          {rows.length === 0 ? (
+            <div className="text-xs text-stone-400 py-4 text-center">
+              No rows in this section. Drag rows here or assign from row menus.
+            </div>
+          ) : (
+            rows.map((row, idx) => (
+              <RowEditor
+                key={row.id}
+                row={row}
+                rowIndex={idx}
+                totalRows={allRows.length}
+                isEditable={isEditable}
+                postTemplates={postTemplates}
+                sections={sections}
+                onMoveRow={onMoveRow}
+                onDeleteRow={onDeleteRow}
+                onChangeTemplate={onChangeTemplate}
+                onRemovePost={onRemovePost}
+                onViewPost={onViewPost}
+                onAddWidget={onAddWidget}
+                onRemoveWidget={onRemoveWidget}
+                onAssignRowToSection={onAssignRowToSection}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── AddSectionButton ────────────────────────────────────────────────────────
+
+function AddSectionButton({ onAdd }: { onAdd: (title: string) => void }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [title, setTitle] = useState("");
+
+  const handleSubmit = () => {
+    if (title.trim()) {
+      onAdd(title.trim());
+      setTitle("");
+      setIsOpen(false);
+    }
+  };
+
+  if (!isOpen) {
+    return (
+      <button
+        onClick={() => setIsOpen(true)}
+        className="flex-1 py-3 rounded-lg border-2 border-dashed border-amber-300 text-sm font-medium text-amber-600 hover:border-amber-400 hover:text-amber-700 transition-colors"
+      >
+        + Add Section
+      </button>
+    );
+  }
+
+  return (
+    <div className="flex-1 flex items-center gap-2 py-2 px-3 rounded-lg border border-amber-300 bg-amber-50/50">
+      <input
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+        placeholder="Section title..."
+        className="text-sm flex-1 bg-transparent border-none outline-none text-stone-800 placeholder-stone-400"
+        autoFocus
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!title.trim()}
+        className="text-xs font-medium text-amber-700 hover:text-amber-800 disabled:text-stone-300 px-2 py-1"
+      >
+        Add
+      </button>
+      <button
+        onClick={() => { setIsOpen(false); setTitle(""); }}
+        className="text-xs font-medium text-stone-400 hover:text-stone-600 px-2 py-1"
+      >
+        Cancel
+      </button>
+    </div>
+  );
 }
 
 // ─── SlotCell (droppable grid cell) ──────────────────────────────────────────

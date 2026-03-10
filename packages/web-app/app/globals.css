@@ -100,9 +100,9 @@ ul, ol {
   padding-top: 4rem;
 }
 
-/* ========== SITE HEADER ========== */
+/* ========== SITE HEADER (app shell only) ========== */
 
-.site-header {
+.app-shell .site-header {
   border-bottom: 1px solid var(--color-border);
   padding: 0.75rem 1rem;
   display: flex;
@@ -110,12 +110,12 @@ ul, ol {
   align-items: center;
 }
 
-.site-header-logo {
+.app-shell .site-header-logo {
   font-weight: bold;
   color: var(--color-text-primary);
 }
 
-.site-nav {
+.app-shell .site-nav {
   display: none;
   gap: 1.5rem;
   align-items: center;
@@ -123,27 +123,27 @@ ul, ol {
 }
 
 @media (min-width: 768px) {
-  .site-nav {
+  .app-shell .site-nav {
     display: flex;
   }
 }
 
-.nav-link {
+.app-shell .nav-link {
   color: var(--color-text-primary);
 }
 
-.nav-link:hover {
+.app-shell .nav-link:hover {
   text-decoration: underline;
 }
 
-/* ========== SITE FOOTER ========== */
+/* ========== SITE FOOTER (app shell only) ========== */
 
-.site-footer {
+.app-shell .site-footer {
   padding: 2rem 1rem 1.5rem;
   margin-top: 2.5rem;
 }
 
-.footer-grid {
+.app-shell .footer-grid {
   max-width: 960px;
   margin: 0 auto;
   display: grid;
@@ -153,28 +153,28 @@ ul, ol {
 }
 
 @media (min-width: 768px) {
-  .footer-grid {
+  .app-shell .footer-grid {
     grid-template-columns: repeat(4, 1fr);
   }
 }
 
-.footer-heading {
+.app-shell .footer-heading {
   margin-bottom: 0.5rem;
   font-weight: bold;
   color: var(--color-text-primary);
 }
 
-.footer-link {
+.app-shell .footer-link {
   display: block;
   color: var(--color-text-secondary);
   margin-bottom: 0.25rem;
 }
 
-.footer-link:hover {
+.app-shell .footer-link:hover {
   text-decoration: underline;
 }
 
-.footer-copyright {
+.app-shell .footer-copyright {
   text-align: center;
   margin-top: 1.5rem;
   padding-top: 1rem;

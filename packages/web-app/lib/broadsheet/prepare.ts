@@ -20,13 +20,23 @@ import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
 
 // Post template configs from the CMS — mirrors post_template_configs seed data
 const TEMPLATE_CONFIGS: Record<string, { bodyTarget: number; bodyMax: number }> = {
-  feature:          { bodyTarget: 400, bodyMax: 600 },
-  'feature-reversed': { bodyTarget: 350, bodyMax: 500 },
-  gazette:          { bodyTarget: 160, bodyMax: 250 },
-  ledger:           { bodyTarget: 120, bodyMax: 180 },
-  bulletin:         { bodyTarget: 80, bodyMax: 120 },
-  ticker:           { bodyTarget: 60, bodyMax: 80 },
-  digest:           { bodyTarget: 100, bodyMax: 150 },
+  feature:              { bodyTarget: 400, bodyMax: 600 },
+  'feature-reversed':   { bodyTarget: 350, bodyMax: 500 },
+  gazette:              { bodyTarget: 160, bodyMax: 250 },
+  ledger:               { bodyTarget: 120, bodyMax: 180 },
+  bulletin:             { bodyTarget: 80, bodyMax: 120 },
+  ticker:               { bodyTarget: 60, bodyMax: 80 },
+  digest:               { bodyTarget: 100, bodyMax: 150 },
+  // Specialty templates (from migration 000182)
+  'alert-notice':       { bodyTarget: 180, bodyMax: 240 },
+  'pinboard-exchange':  { bodyTarget: 180, bodyMax: 240 },
+  'card-event':         { bodyTarget: 160, bodyMax: 220 },
+  'quick-ref':          { bodyTarget: 0, bodyMax: 0 },
+  'directory-ref':      { bodyTarget: 0, bodyMax: 0 },
+  'generous-exchange':  { bodyTarget: 180, bodyMax: 240 },
+  'whisper-notice':     { bodyTarget: 120, bodyMax: 160 },
+  'spotlight-local':    { bodyTarget: 180, bodyMax: 240 },
+  'ticker-update':      { bodyTarget: 0, bodyMax: 0 },
 };
 
 /**
@@ -50,8 +60,8 @@ export function preparePost(
   // Contacts: flatten into PostContact shape
   const contact = buildContact(gqlPost.contacts);
 
-  // Body: truncate description to bodyMax, split into paragraphs for features
-  const bodyHtml = gqlPost.description;
+  // Body: use weight-specific text from Root Signal if available, else fall back to description
+  const bodyHtml = selectWeightBody(gqlPost, postTemplate) ?? gqlPost.description;
   const paragraphs = splitParagraphs(bodyHtml);
 
   // Compute clamp based on template body target (chars → approximate line count)
@@ -160,14 +170,22 @@ function computeClamp(postTemplate: string): number | undefined {
   // Map templates to approximate CSS clamp line counts
   switch (postTemplate) {
     case 'ticker':
+    case 'ticker-update':
       return 2;
     case 'bulletin':
+    case 'whisper-notice':
+    case 'quick-ref':
       return 3;
     case 'digest':
-      return 4;
     case 'ledger':
       return 4;
     case 'gazette':
+    case 'alert-notice':
+    case 'pinboard-exchange':
+    case 'card-event':
+    case 'generous-exchange':
+    case 'directory-ref':
+    case 'spotlight-local':
       return 6;
     default:
       return undefined; // features don't clamp
@@ -198,4 +216,46 @@ function deriveTagLabel(tags: string[], postType: PostType): string {
   };
 
   return typeLabels[postType] || '';
+}
+
+// Template weight tier mapping — which weight tier does each template belong to?
+const TEMPLATE_WEIGHT_TIER: Record<string, 'heavy' | 'medium' | 'light'> = {
+  feature: 'heavy',
+  'feature-reversed': 'heavy',
+  gazette: 'medium',
+  bulletin: 'medium',
+  ledger: 'light',
+  ticker: 'light',
+  digest: 'light',
+  'alert-notice': 'medium',
+  'pinboard-exchange': 'medium',
+  'card-event': 'medium',
+  'quick-ref': 'light',
+  'directory-ref': 'medium',
+  'generous-exchange': 'medium',
+  'whisper-notice': 'light',
+  'spotlight-local': 'medium',
+  'ticker-update': 'light',
+};
+
+/**
+ * Select the weight-appropriate body text from Root Signal data.
+ * Returns null if no weight-specific body exists for this template's tier.
+ */
+function selectWeightBody(
+  gqlPost: BroadsheetPost,
+  postTemplate: string
+): string | null {
+  const tier = TEMPLATE_WEIGHT_TIER[postTemplate] ?? 'medium';
+
+  switch (tier) {
+    case 'heavy':
+      return gqlPost.bodyHeavy ?? null;
+    case 'medium':
+      return gqlPost.bodyMedium ?? null;
+    case 'light':
+      return gqlPost.bodyLight ?? null;
+    default:
+      return null;
+  }
 }

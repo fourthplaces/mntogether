@@ -20,12 +20,20 @@ type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
 type BroadsheetRowData = BroadsheetData['rows'][number];
 type BroadsheetSlotData = BroadsheetRowData['slots'][number];
 type BroadsheetWidgetData = BroadsheetRowData['widgets'][number];
+type BroadsheetSectionData = BroadsheetData['sections'][number];
 
 interface BroadsheetRendererProps {
   edition: BroadsheetData;
 }
 
 export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
+  // Group rows by section: ungrouped rows (sectionId=null) render above the fold,
+  // then each section renders a SectionSep divider followed by its rows.
+  const { ungroupedRows, sectionGroups } = groupRowsBySections(
+    edition.rows,
+    edition.sections
+  );
+
   return (
     <NewspaperFrame>
       <DebugLabels />
@@ -49,9 +57,22 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
         </div>
       </header>
 
-      {/* Rows */}
-      {edition.rows.map((row, rowIdx) => (
-        <BroadsheetRow key={rowIdx} row={row} />
+      {/* Above the fold — rows without a section */}
+      {ungroupedRows.map((row, rowIdx) => (
+        <BroadsheetRow key={`ungrouped-${rowIdx}`} row={row} />
+      ))}
+
+      {/* Topic sections — SectionSep divider + section rows */}
+      {sectionGroups.map((group) => (
+        <div key={group.section.id} data-section={group.section.topicSlug ?? group.section.id}>
+          <SectionSep
+            title={group.section.title}
+            sub={group.section.subtitle ?? undefined}
+          />
+          {group.rows.map((row, rowIdx) => (
+            <BroadsheetRow key={`section-${group.section.id}-${rowIdx}`} row={row} />
+          ))}
+        </div>
       ))}
     </NewspaperFrame>
   );
@@ -62,7 +83,7 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
 // =============================================================================
 
 function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
-  const layout = getRowLayout(row.rowTemplateSlug);
+  const layout = getRowLayout(row.layoutVariant ?? 'full', row.slots.length);
 
   // Widgets that go BEFORE posts (e.g., section headers at slot 0)
   const preWidgets = row.widgets.filter((w) => w.slotIndex === 0);
@@ -181,4 +202,48 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
+}
+
+// =============================================================================
+// Section grouping — partitions rows into ungrouped + section groups
+// =============================================================================
+
+interface SectionGroup {
+  section: BroadsheetSectionData;
+  rows: BroadsheetRowData[];
+}
+
+function groupRowsBySections(
+  rows: readonly BroadsheetRowData[],
+  sections: readonly BroadsheetSectionData[]
+): { ungroupedRows: BroadsheetRowData[]; sectionGroups: SectionGroup[] } {
+  // If no sections, all rows are ungrouped (backward compat)
+  if (sections.length === 0) {
+    return { ungroupedRows: [...rows], sectionGroups: [] };
+  }
+
+  const ungroupedRows: BroadsheetRowData[] = [];
+  const rowsBySection = new Map<string, BroadsheetRowData[]>();
+
+  for (const row of rows) {
+    if (!row.sectionId) {
+      ungroupedRows.push(row);
+    } else {
+      const bucket = rowsBySection.get(row.sectionId) ?? [];
+      bucket.push(row);
+      rowsBySection.set(row.sectionId, bucket);
+    }
+  }
+
+  // Build section groups in sort order
+  const sortedSections = [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
+  const sectionGroups: SectionGroup[] = sortedSections
+    .map((section) => ({
+      section,
+      rows: rowsBySection.get(section.id) ?? [],
+    }))
+    // Only include sections that have rows
+    .filter((group) => group.rows.length > 0);
+
+  return { ungroupedRows, sectionGroups };
 }

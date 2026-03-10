@@ -4,7 +4,7 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// A post visual treatment template (e.g. "feature", "gazette", "ticker").
-/// Defines which post types it can render and character limits for truncation.
+/// Defines which post types it can render, character limits, and weight tier.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PostTemplateConfig {
     pub id: Uuid,
@@ -16,6 +16,7 @@ pub struct PostTemplateConfig {
     pub body_max: i32,
     pub title_max: i32,
     pub sort_order: i32,
+    pub weight: String,
     pub created_at: DateTime<Utc>,
 }
 

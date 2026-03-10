@@ -279,8 +279,30 @@ impl Edition {
         Ok(())
     }
 
+    /// Reset an edition back to draft status (used when regenerating a reviewed/approved edition).
+    pub async fn reset_to_draft(id: Uuid, pool: &PgPool) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE editions
+            SET status = 'draft', updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Clear all rows and slots for an edition (used before re-generating).
     pub async fn clear_layout(id: Uuid, pool: &PgPool) -> Result<()> {
+        // Delete sections first (ON DELETE SET NULL will unlink rows from sections)
+        sqlx::query("DELETE FROM edition_sections WHERE edition_id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        // Then delete rows (cascades to slots and widgets)
         sqlx::query("DELETE FROM edition_rows WHERE edition_id = $1")
             .bind(id)
             .execute(pool)

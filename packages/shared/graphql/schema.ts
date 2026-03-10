@@ -52,6 +52,9 @@ type Query {
   # Public broadsheet (no auth)
   publicBroadsheet(countyId: ID!): PublicBroadsheet
 
+  # Broadsheet preview (admin auth required, any edition status)
+  editionPreview(editionId: ID!): PublicBroadsheet
+
   # Counties + Editions (admin)
   counties: [County!]!
   county(id: ID!): County
@@ -136,6 +139,13 @@ type Mutation {
   addWidget(editionRowId: ID!, widgetType: String!, slotIndex: Int!, config: String!): EditionWidget!
   updateWidget(id: ID!, config: String!): EditionWidget!
   removeWidget(id: ID!): Boolean!
+
+  # Sections (admin)
+  addSection(editionId: ID!, title: String!, subtitle: String, topicSlug: String, sortOrder: Int!): EditionSection!
+  updateSection(id: ID!, title: String, subtitle: String, topicSlug: String): EditionSection!
+  reorderSections(editionId: ID!, sectionIds: [ID!]!): [EditionSection!]!
+  deleteSection(id: ID!): Boolean!
+  assignRowToSection(rowId: ID!, sectionId: ID): Boolean!
 
   # Media Library (admin)
   confirmUpload(storageKey: String!, publicUrl: String!, filename: String!, contentType: String!, sizeBytes: Int!, altText: String, width: Int, height: Int): Media!
@@ -380,6 +390,17 @@ type Edition {
   status: String!
   publishedAt: String
   rows: [EditionRow!]!
+  sections: [EditionSection!]!
+  createdAt: String!
+}
+
+type EditionSection {
+  id: ID!
+  editionId: ID!
+  title: String!
+  subtitle: String
+  topicSlug: String
+  sortOrder: Int!
   createdAt: String!
 }
 
@@ -392,6 +413,7 @@ type EditionRow {
   id: ID!
   rowTemplate: RowTemplate!
   sortOrder: Int!
+  sectionId: ID
   slots: [EditionSlot!]!
   widgets: [EditionWidget!]!
 }
@@ -415,6 +437,7 @@ type RowTemplate {
   slug: String!
   displayName: String!
   description: String
+  layoutVariant: String!
   slots: [RowTemplateSlotDef!]!
 }
 
@@ -423,6 +446,7 @@ type RowTemplateSlotDef {
   weight: Weight!
   count: Int!
   accepts: [PostType!]
+  postTemplateSlug: String
 }
 
 type PostTemplateConfig {
@@ -434,6 +458,7 @@ type PostTemplateConfig {
   bodyTarget: Int!
   bodyMax: Int!
   titleMax: Int!
+  weight: Weight!
 }
 
 type BatchGenerateEditionsResult {
@@ -467,6 +492,15 @@ type PublicBroadsheet {
   publishedAt: String
   county: BroadsheetCounty!
   rows: [BroadsheetRow!]!
+  sections: [BroadsheetSection!]!
+}
+
+type BroadsheetSection {
+  id: ID!
+  title: String!
+  subtitle: String
+  topicSlug: String
+  sortOrder: Int!
 }
 
 type BroadsheetCounty {
@@ -478,7 +512,9 @@ type BroadsheetCounty {
 
 type BroadsheetRow {
   rowTemplateSlug: String!
+  layoutVariant: String!
   sortOrder: Int!
+  sectionId: ID
   slots: [BroadsheetSlot!]!
   widgets: [BroadsheetWidget!]!
 }
@@ -509,6 +545,9 @@ type BroadsheetPost {
   tags: [PublicTag!]!
   contacts: [BroadsheetContact!]!
   urgentNotes: [UrgentNote!]!
+  bodyHeavy: String
+  bodyMedium: String
+  bodyLight: String
 }
 
 type BroadsheetContact {

@@ -19,6 +19,11 @@ pub struct Post {
     pub description_markdown: Option<String>,
     pub summary: Option<String>,
 
+    // Weight-specific body text (populated by Root Signal)
+    pub body_heavy: Option<String>,
+    pub body_medium: Option<String>,
+    pub body_light: Option<String>,
+
     // Type system (Phase 2)
     pub post_type: String, // 'story', 'notice', 'exchange', 'event', 'spotlight', 'reference'
     pub category: String,

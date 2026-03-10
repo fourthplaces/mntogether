@@ -52,6 +52,16 @@ import {
   DigestNotice,
   DigestExchange,
   DigestSpotlight,
+  // Specialty components
+  AlertNotice,
+  PinboardExchange,
+  CardEvent,
+  QuickRef,
+  DirectoryRef,
+  GenerousExchange,
+  WhisperNotice,
+  BroadsheetSpotlight,
+  BroadsheetTickerNotice,
 } from '@/components/broadsheet';
 
 type PostComponent = ComponentType<{ data: Post }>;
@@ -109,6 +119,34 @@ const registry: Record<string, Record<string, PostComponent>> = {
     notice: DigestNotice,
     exchange: DigestExchange,
     spotlight: DigestSpotlight,
+  },
+  // Specialty templates — each maps to a single post type
+  'alert-notice': {
+    notice: AlertNotice,
+  },
+  'pinboard-exchange': {
+    exchange: PinboardExchange,
+  },
+  'card-event': {
+    event: CardEvent,
+  },
+  'quick-ref': {
+    reference: QuickRef,
+  },
+  'directory-ref': {
+    reference: DirectoryRef,
+  },
+  'generous-exchange': {
+    exchange: GenerousExchange,
+  },
+  'whisper-notice': {
+    notice: WhisperNotice,
+  },
+  'spotlight-local': {
+    spotlight: BroadsheetSpotlight,
+  },
+  'ticker-update': {
+    notice: BroadsheetTickerNotice,
   },
 };
 

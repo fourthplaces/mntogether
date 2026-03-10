@@ -15,6 +15,7 @@ use crate::domains::editions::activities;
 use crate::domains::editions::models::county::County;
 use crate::domains::editions::models::edition::{Edition, EditionFilters};
 use crate::domains::editions::models::edition_row::EditionRow;
+use crate::domains::editions::models::edition_section::EditionSection;
 use crate::domains::editions::models::edition_slot::EditionSlot;
 use crate::domains::editions::models::edition_widget::EditionWidget;
 use crate::domains::editions::models::post_template_config::PostTemplateConfig;
@@ -180,6 +181,41 @@ pub struct RemoveWidgetRequest {
     pub id: Uuid,
 }
 
+// Section CRUD requests
+#[derive(Debug, Deserialize)]
+pub struct AddSectionRequest {
+    pub edition_id: Uuid,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub topic_slug: Option<String>,
+    pub sort_order: i32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateSectionRequest {
+    pub id: Uuid,
+    pub title: Option<String>,
+    pub subtitle: Option<Option<String>>,
+    pub topic_slug: Option<Option<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReorderSectionsRequest {
+    pub edition_id: Uuid,
+    pub section_ids: Vec<Uuid>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DeleteSectionRequest {
+    pub id: Uuid,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AssignRowToSectionRequest {
+    pub row_id: Uuid,
+    pub section_id: Option<Uuid>,
+}
+
 // =============================================================================
 // Response types
 // =============================================================================
@@ -219,17 +255,21 @@ pub struct EditionListResult {
 pub struct EditionDetailResult {
     pub edition: EditionResult,
     pub rows: Vec<EditionRowResult>,
+    pub sections: Vec<EditionSectionResult>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EditionRowResult {
     pub id: Uuid,
     pub row_template_slug: String,
+    pub layout_variant: String,
     pub row_template_id: Uuid,
     pub row_template_display_name: String,
     pub row_template_description: Option<String>,
     pub row_template_slots: Vec<RowTemplateSlotResult>,
     pub sort_order: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub section_id: Option<Uuid>,
     pub slots: Vec<EditionSlotResult>,
     pub widgets: Vec<EditionWidgetResult>,
 }
@@ -260,6 +300,7 @@ pub struct RowTemplateResult {
     pub slug: String,
     pub display_name: String,
     pub description: Option<String>,
+    pub layout_variant: String,
     pub slots: Vec<RowTemplateSlotResult>,
 }
 
@@ -269,6 +310,7 @@ pub struct RowTemplateSlotResult {
     pub weight: String,
     pub count: i32,
     pub accepts: Option<Vec<String>>,
+    pub post_template_slug: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -285,6 +327,7 @@ pub struct PostTemplateResult {
     pub body_target: i32,
     pub body_max: i32,
     pub title_max: i32,
+    pub weight: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -327,12 +370,15 @@ pub struct PublicBroadsheetResult {
     pub edition: EditionResult,
     pub county: CountyResult,
     pub rows: Vec<PublicBroadsheetRowResult>,
+    pub sections: Vec<EditionSectionResult>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PublicBroadsheetRowResult {
     pub row_template_slug: String,
+    pub layout_variant: String,
     pub sort_order: i32,
+    pub section_id: Option<Uuid>,
     pub slots: Vec<PublicBroadsheetSlotResult>,
     pub widgets: Vec<EditionWidgetResult>,
 }
@@ -359,6 +405,13 @@ pub struct PublicBroadsheetPostResult {
     pub contacts: Vec<BroadsheetContactResult>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub urgent_notes: Vec<UrgentNoteInfo>,
+    // Weight-specific body text from Root Signal
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_heavy: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_medium: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub body_light: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -366,6 +419,29 @@ pub struct BroadsheetContactResult {
     pub contact_type: String,
     pub contact_value: String,
     pub contact_label: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EditionSectionResult {
+    pub id: Uuid,
+    pub edition_id: Uuid,
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub topic_slug: Option<String>,
+    pub sort_order: i32,
+    pub created_at: String,
+}
+
+fn section_to_result(s: &EditionSection) -> EditionSectionResult {
+    EditionSectionResult {
+        id: s.id,
+        edition_id: s.edition_id,
+        title: s.title.clone(),
+        subtitle: s.subtitle.clone(),
+        topic_slug: s.topic_slug.clone(),
+        sort_order: s.sort_order,
+        created_at: s.created_at.to_rfc3339(),
+    }
 }
 
 // =============================================================================
@@ -408,6 +484,7 @@ async fn load_edition_detail(
                 weight: s.weight.clone(),
                 count: s.count,
                 accepts: s.accepts.clone(),
+                post_template_slug: s.post_template_slug.clone(),
             })
             .collect();
 
@@ -418,6 +495,7 @@ async fn load_edition_detail(
         row_results.push(EditionRowResult {
             id: row.id,
             row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
+            layout_variant: template.map(|t| t.layout_variant.clone()).unwrap_or_else(|| "full".to_string()),
             row_template_id: row.row_template_config_id,
             row_template_display_name: template
                 .map(|t| t.display_name.clone())
@@ -425,6 +503,7 @@ async fn load_edition_detail(
             row_template_description: template.and_then(|t| t.description.clone()),
             row_template_slots: template_slot_results,
             sort_order: row.sort_order,
+            section_id: row.section_id,
             slots: slots
                 .iter()
                 .map(|s| EditionSlotResult {
@@ -450,9 +529,12 @@ async fn load_edition_detail(
         });
     }
 
+    let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+
     Ok(EditionDetailResult {
         edition: edition_to_result(edition),
         rows: row_results,
+        sections: sections.iter().map(section_to_result).collect(),
     })
 }
 
@@ -474,6 +556,10 @@ async fn build_row_result(
             .as_ref()
             .map(|t| t.slug.clone())
             .unwrap_or_default(),
+        layout_variant: template
+            .as_ref()
+            .map(|t| t.layout_variant.clone())
+            .unwrap_or_else(|| "full".to_string()),
         row_template_id: row.row_template_config_id,
         row_template_display_name: template
             .as_ref()
@@ -487,9 +573,11 @@ async fn build_row_result(
                 weight: s.weight.clone(),
                 count: s.count,
                 accepts: s.accepts.clone(),
+                post_template_slug: s.post_template_slug.clone(),
             })
             .collect(),
         sort_order: row.sort_order,
+        section_id: row.section_id,
         slots: slots
             .iter()
             .map(|s| EditionSlotResult {
@@ -748,6 +836,7 @@ async fn row_templates(
                     weight: s.weight.clone(),
                     count: s.count,
                     accepts: s.accepts.clone(),
+                    post_template_slug: s.post_template_slug.clone(),
                 })
                 .collect();
             RowTemplateResult {
@@ -755,6 +844,7 @@ async fn row_templates(
                 slug: c.slug,
                 display_name: c.display_name,
                 description: c.description,
+                layout_variant: c.layout_variant,
                 slots,
             }
         })
@@ -781,6 +871,7 @@ async fn post_templates(
                 body_target: c.body_target,
                 body_max: c.body_max,
                 title_max: c.title_max,
+                weight: c.weight,
             })
             .collect(),
     }))
@@ -837,6 +928,7 @@ async fn reorder_rows(
                 weight: s.weight.clone(),
                 count: s.count,
                 accepts: s.accepts.clone(),
+                post_template_slug: s.post_template_slug.clone(),
             })
             .collect();
 
@@ -845,6 +937,7 @@ async fn reorder_rows(
         results.push(EditionRowResult {
             id: row.id,
             row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
+            layout_variant: template.map(|t| t.layout_variant.clone()).unwrap_or_else(|| "full".to_string()),
             row_template_id: row.row_template_config_id,
             row_template_display_name: template
                 .map(|t| t.display_name.clone())
@@ -852,6 +945,7 @@ async fn reorder_rows(
             row_template_description: template.and_then(|t| t.description.clone()),
             row_template_slots: template_slot_results,
             sort_order: row.sort_order,
+            section_id: row.section_id,
             slots: slots
                 .iter()
                 .map(|s| EditionSlotResult {
@@ -953,6 +1047,7 @@ async fn add_edition_row(
     Ok(Json(EditionRowResult {
         id: row.id,
         row_template_slug: template.slug,
+        layout_variant: template.layout_variant,
         row_template_id: template.id,
         row_template_display_name: template.display_name,
         row_template_description: template.description,
@@ -963,9 +1058,11 @@ async fn add_edition_row(
                 weight: s.weight.clone(),
                 count: s.count,
                 accepts: s.accepts.clone(),
+                post_template_slug: s.post_template_slug.clone(),
             })
             .collect(),
         sort_order: row.sort_order,
+        section_id: row.section_id,
         slots: vec![],
         widgets: vec![],
     }))
@@ -1199,6 +1296,9 @@ async fn public_current_broadsheet(
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
                         contacts: contacts_by_post.remove(&id).unwrap_or_default(),
                         urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        body_heavy: post.body_heavy.clone(),
+                        body_medium: post.body_medium.clone(),
+                        body_light: post.body_light.clone(),
                     },
                 })
             })
@@ -1206,7 +1306,9 @@ async fn public_current_broadsheet(
 
         row_results.push(PublicBroadsheetRowResult {
             row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
+            layout_variant: template.map(|t| t.layout_variant.clone()).unwrap_or_else(|| "full".to_string()),
             sort_order: row.sort_order,
+            section_id: row.section_id,
             slots: slot_results,
             widgets: widgets
                 .iter()
@@ -1220,6 +1322,13 @@ async fn public_current_broadsheet(
         });
     }
 
+    // Load sections for the edition
+    let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+    let section_results: Vec<EditionSectionResult> = sections
+        .iter()
+        .map(|s| section_to_result(s))
+        .collect();
+
     Ok(Json(PublicBroadsheetResult {
         edition: edition_to_result(&edition),
         county: CountyResult {
@@ -1229,7 +1338,228 @@ async fn public_current_broadsheet(
             state: county.state,
         },
         rows: row_results,
+        sections: section_results,
     }))
+}
+
+// =============================================================================
+// Preview broadsheet (admin auth required, any edition status)
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct PreviewBroadsheetRequest {
+    pub edition_id: Uuid,
+}
+
+async fn preview_broadsheet(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<PreviewBroadsheetRequest>,
+) -> ApiResult<Json<PublicBroadsheetResult>> {
+    let pool = &state.deps.db_pool;
+
+    let edition = Edition::find_by_id(req.edition_id, pool)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!("Edition not found: {}", req.edition_id))
+        })?;
+
+    let county = County::find_by_id(edition.county_id, pool)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!("County not found: {}", edition.county_id))
+        })?;
+
+    let rows = EditionRow::find_by_edition(edition.id, pool).await?;
+    let all_templates = RowTemplateConfig::find_all(pool).await?;
+
+    // Collect all post IDs across all rows for batch loading
+    let mut all_slots_by_row: Vec<Vec<EditionSlot>> = Vec::new();
+    let mut all_post_ids: Vec<Uuid> = Vec::new();
+
+    for row in &rows {
+        let slots = EditionSlot::find_by_row(row.id, pool).await?;
+        for slot in &slots {
+            all_post_ids.push(slot.post_id);
+        }
+        all_slots_by_row.push(slots);
+    }
+
+    // Batch load full post data, tags, urgent notes, and org info
+    let posts_by_id: HashMap<Uuid, Post> = if !all_post_ids.is_empty() {
+        Post::find_by_ids(&all_post_ids, pool)
+            .await?
+            .into_iter()
+            .map(|p| (p.id.into_uuid(), p))
+            .collect()
+    } else {
+        HashMap::new()
+    };
+
+    let (mut tags_by_post, mut urgent_notes_by_post) =
+        load_tags_and_notes(&all_post_ids, &state.deps).await?;
+
+    let mut org_info = Post::find_org_info_for_posts(&all_post_ids, pool).await?;
+
+    // Batch load contacts for all posts
+    let all_contacts = Contact::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut contacts_by_post: HashMap<Uuid, Vec<BroadsheetContactResult>> = HashMap::new();
+    for c in all_contacts {
+        contacts_by_post
+            .entry(c.contactable_id)
+            .or_default()
+            .push(BroadsheetContactResult {
+                contact_type: c.contact_type,
+                contact_value: c.contact_value,
+                contact_label: c.contact_label,
+            });
+    }
+
+    // Assemble rows
+    let mut row_results = Vec::new();
+    for (row, slots) in rows.iter().zip(all_slots_by_row.iter()) {
+        let template = all_templates
+            .iter()
+            .find(|t| t.id == row.row_template_config_id);
+
+        let widgets = EditionWidget::find_by_row(row.id, pool).await?;
+
+        let slot_results: Vec<PublicBroadsheetSlotResult> = slots
+            .iter()
+            .filter_map(|slot| {
+                let post = posts_by_id.get(&slot.post_id)?;
+                let id = post.id.into_uuid();
+                let org_name = org_info.remove(&id).map(|(_, name)| name);
+
+                Some(PublicBroadsheetSlotResult {
+                    post_template: slot.post_template.clone(),
+                    slot_index: slot.slot_index,
+                    post: PublicBroadsheetPostResult {
+                        id,
+                        title: post.title.clone(),
+                        description: post.description.clone(),
+                        post_type: post.post_type.clone(),
+                        weight: post.weight.clone(),
+                        location: post.location.clone(),
+                        source_url: post.source_url.clone(),
+                        organization_name: org_name,
+                        published_at: post.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        contacts: contacts_by_post.remove(&id).unwrap_or_default(),
+                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                        body_heavy: post.body_heavy.clone(),
+                        body_medium: post.body_medium.clone(),
+                        body_light: post.body_light.clone(),
+                    },
+                })
+            })
+            .collect();
+
+        row_results.push(PublicBroadsheetRowResult {
+            row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
+            layout_variant: template.map(|t| t.layout_variant.clone()).unwrap_or_else(|| "full".to_string()),
+            sort_order: row.sort_order,
+            section_id: row.section_id,
+            slots: slot_results,
+            widgets: widgets
+                .iter()
+                .map(|w| EditionWidgetResult {
+                    id: w.id,
+                    widget_type: w.widget_type.clone(),
+                    slot_index: w.slot_index,
+                    config: w.config.clone(),
+                })
+                .collect(),
+        });
+    }
+
+    // Load sections for the edition
+    let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+    let section_results: Vec<EditionSectionResult> = sections
+        .iter()
+        .map(|s| section_to_result(s))
+        .collect();
+
+    Ok(Json(PublicBroadsheetResult {
+        edition: edition_to_result(&edition),
+        county: CountyResult {
+            id: county.id,
+            fips_code: county.fips_code,
+            name: county.name,
+            state: county.state,
+        },
+        rows: row_results,
+        sections: section_results,
+    }))
+}
+
+// =============================================================================
+// Section CRUD handlers
+// =============================================================================
+
+async fn add_section(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<AddSectionRequest>,
+) -> ApiResult<Json<EditionSectionResult>> {
+    let pool = &state.deps.db_pool;
+    let section = EditionSection::create(
+        req.edition_id,
+        &req.title,
+        req.subtitle.as_deref(),
+        req.topic_slug.as_deref(),
+        req.sort_order,
+        pool,
+    )
+    .await?;
+    Ok(Json(section_to_result(&section)))
+}
+
+async fn update_section(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<UpdateSectionRequest>,
+) -> ApiResult<Json<EditionSectionResult>> {
+    let pool = &state.deps.db_pool;
+    let section = EditionSection::update(
+        req.id,
+        req.title.as_deref(),
+        req.subtitle.as_ref().map(|s| s.as_deref()),
+        req.topic_slug.as_ref().map(|s| s.as_deref()),
+        pool,
+    )
+    .await?;
+    Ok(Json(section_to_result(&section)))
+}
+
+async fn reorder_sections(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<ReorderSectionsRequest>,
+) -> ApiResult<Json<Vec<EditionSectionResult>>> {
+    let pool = &state.deps.db_pool;
+    let sections = EditionSection::reorder(req.edition_id, &req.section_ids, pool).await?;
+    Ok(Json(sections.iter().map(section_to_result).collect()))
+}
+
+async fn delete_section(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<DeleteSectionRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let pool = &state.deps.db_pool;
+    EditionSection::delete(req.id, pool).await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+async fn assign_row_to_section(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<AssignRowToSectionRequest>,
+) -> ApiResult<Json<serde_json::Value>> {
+    let pool = &state.deps.db_pool;
+    EditionRow::assign_to_section(req.row_id, req.section_id, pool).await?;
+    Ok(Json(serde_json::json!({ "success": true })))
 }
 
 // =============================================================================
@@ -1279,4 +1609,12 @@ pub fn router() -> Router<AppState> {
         .route("/Editions/add_widget", post(add_widget))
         .route("/Editions/update_widget", post(update_widget))
         .route("/Editions/remove_widget", post(remove_widget))
+        // Preview
+        .route("/Editions/preview_broadsheet", post(preview_broadsheet))
+        // Section CRUD
+        .route("/Editions/add_section", post(add_section))
+        .route("/Editions/update_section", post(update_section))
+        .route("/Editions/reorder_sections", post(reorder_sections))
+        .route("/Editions/delete_section", post(delete_section))
+        .route("/Editions/assign_row_to_section", post(assign_row_to_section))
 }

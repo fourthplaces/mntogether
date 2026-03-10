@@ -3,7 +3,11 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// A slot definition within a row template. Defines weight constraint, post count,
-/// and optional type filter for the slot.
+/// optional type filter, and the default post template for this slot.
+///
+/// `post_template_slug` is the "good default" — the layout engine uses it when
+/// filling slots. Editors can override the template per-slot in the admin UI
+/// without changing the underlying recipe.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct RowTemplateSlot {
     pub id: Uuid,
@@ -12,6 +16,7 @@ pub struct RowTemplateSlot {
     pub weight: String,
     pub count: i32,
     pub accepts: Option<Vec<String>>,
+    pub post_template_slug: Option<String>,
 }
 
 impl RowTemplateSlot {

@@ -88,18 +88,28 @@ export const EditionDetailQuery = graphql(`
       status
       publishedAt
       createdAt
+      sections {
+        id
+        title
+        subtitle
+        topicSlug
+        sortOrder
+      }
       rows {
         id
+        sectionId
         rowTemplate {
           id
           slug
           displayName
           description
+          layoutVariant
           slots {
             slotIndex
             weight
             count
             accepts
+            postTemplateSlug
           }
         }
         sortOrder
@@ -133,11 +143,13 @@ export const RowTemplatesQuery = graphql(`
       slug
       displayName
       description
+      layoutVariant
       slots {
         slotIndex
         weight
         count
         accepts
+        postTemplateSlug
       }
     }
   }
@@ -154,6 +166,7 @@ export const PostTemplatesQuery = graphql(`
       bodyTarget
       bodyMax
       titleMax
+      weight
     }
   }
 `);
@@ -348,5 +361,52 @@ export const UpdateWidgetMutation = graphql(`
 export const RemoveWidgetMutation = graphql(`
   mutation RemoveWidget($id: ID!) {
     removeWidget(id: $id)
+  }
+`);
+
+// ─── Section Mutations ────────────────────────────────────────────────────────
+
+export const AddSectionMutation = graphql(`
+  mutation AddSection($editionId: ID!, $title: String!, $subtitle: String, $topicSlug: String, $sortOrder: Int!) {
+    addSection(editionId: $editionId, title: $title, subtitle: $subtitle, topicSlug: $topicSlug, sortOrder: $sortOrder) {
+      id
+      title
+      subtitle
+      topicSlug
+      sortOrder
+    }
+  }
+`);
+
+export const UpdateSectionMutation = graphql(`
+  mutation UpdateSection($id: ID!, $title: String, $subtitle: String, $topicSlug: String) {
+    updateSection(id: $id, title: $title, subtitle: $subtitle, topicSlug: $topicSlug) {
+      id
+      title
+      subtitle
+      topicSlug
+      sortOrder
+    }
+  }
+`);
+
+export const ReorderSectionsMutation = graphql(`
+  mutation ReorderSections($editionId: ID!, $sectionIds: [ID!]!) {
+    reorderSections(editionId: $editionId, sectionIds: $sectionIds) {
+      id
+      sortOrder
+    }
+  }
+`);
+
+export const DeleteSectionMutation = graphql(`
+  mutation DeleteSection($id: ID!) {
+    deleteSection(id: $id)
+  }
+`);
+
+export const AssignRowToSectionMutation = graphql(`
+  mutation AssignRowToSection($rowId: ID!, $sectionId: ID) {
+    assignRowToSection(rowId: $rowId, sectionId: $sectionId)
   }
 `);

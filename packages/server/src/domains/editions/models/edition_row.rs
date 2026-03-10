@@ -4,12 +4,14 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 /// An ordered row within an edition, referencing a row template.
+/// Optionally belongs to an edition section (null = above the fold).
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct EditionRow {
     pub id: Uuid,
     pub edition_id: Uuid,
     pub row_template_config_id: Uuid,
     pub sort_order: i32,
+    pub section_id: Option<Uuid>,
     pub created_at: DateTime<Utc>,
 }
 
@@ -94,6 +96,26 @@ impl EditionRow {
         }
 
         Self::find_by_edition(edition_id, pool).await
+    }
+
+    /// Assign a row to a section (or ungroup it by passing None).
+    pub async fn assign_to_section(
+        id: Uuid,
+        section_id: Option<Uuid>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            UPDATE edition_rows SET section_id = $2
+            WHERE id = $1
+            RETURNING *
+            "#,
+        )
+        .bind(id)
+        .bind(section_id)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Delete a row (cascades to its slots).

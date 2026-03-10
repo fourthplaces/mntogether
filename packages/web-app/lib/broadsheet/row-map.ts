@@ -19,88 +19,65 @@ export interface RowLayout {
 }
 
 /**
- * Map a CMS row template slug to a broadsheet RowLayout.
+ * Map a layout variant + slot count to a broadsheet RowLayout.
  *
- * Backend row templates (from migration 000174):
- *   hero-with-sidebar      → 1 heavy + 3 light  (4 posts total)
- *   hero-full              → 1 heavy             (1 post)
- *   three-column           → 3 medium            (3 posts, 1 per col)
- *   two-column-wide-narrow → 1 heavy + 1 medium  (2 posts)
- *   classifieds            → 6 light             (6 posts, 2 per col)
- *   ticker                 → up to 8 light       (rendered as standalone strips)
- *   single-medium          → 1 medium            (1 post)
+ * Layout variants are CSS grid configurations shared by many row template
+ * recipes. For example, "hero-feature-digest" and "hero-feature-ticker" both
+ * use the `lead-stack` variant — they differ only in which post templates
+ * the slots use, not the grid.
+ *
+ * Layout variants:
+ *   lead-stack → 4+2 grid: span-4 hero + span-2 sidebar stacking items
+ *   trio       → 2+2+2 grid: three equal columns
+ *   full       → 6 grid: full-width single column
+ *   lead       → 4+2 grid: wide lead + narrow companion
+ *   pair       → 3+3 grid: two equal columns
  */
-export function getRowLayout(slug: string): RowLayout {
-  switch (slug) {
-    case 'hero-with-sidebar':
-      // Prototype: lead-stack with span=4 hero + span=2 sidebar stacking up to 3 items
+export function getRowLayout(layoutVariant: string, slotCount?: number): RowLayout {
+  switch (layoutVariant) {
+    case 'lead-stack':
       return {
         variant: 'lead-stack',
         cells: [4, 2],
-        postsPerCell: [1, 3],
+        postsPerCell: [1, Math.max((slotCount ?? 4) - 1, 1)],
       };
 
-    case 'hero-full':
-      return {
-        variant: 'full',
-        cells: [6],
-        postsPerCell: [1],
-      };
-
-    case 'three-column':
-      // Prototype: trio with exactly 1 post per span=2 column
+    case 'trio':
+      // Distribute slots evenly across 3 columns
+      if (slotCount && slotCount > 3) {
+        const perCol = Math.ceil(slotCount / 3);
+        return {
+          variant: 'trio',
+          cells: [2, 2, 2],
+          postsPerCell: [perCol, perCol, perCol],
+        };
+      }
       return {
         variant: 'trio',
         cells: [2, 2, 2],
         postsPerCell: [1, 1, 1],
       };
 
-    case 'two-column-wide-narrow':
-      // Prototype: lead with 1 heavy in span=4 + 1 medium in span=2
+    case 'lead':
       return {
         variant: 'lead',
         cells: [4, 2],
         postsPerCell: [1, 1],
       };
 
-    case 'four-column':
-      // Deleted in migration 000176 — kept as fallback
+    case 'pair':
       return {
         variant: 'pair',
         cells: [3, 3],
         postsPerCell: [2, 2],
       };
 
-    case 'classifieds':
-      // 6 light posts in 3 columns, 2 stacked per column
-      return {
-        variant: 'trio',
-        cells: [2, 2, 2],
-        postsPerCell: [2, 2, 2],
-      };
-
-    case 'ticker':
-      // Ticker items are full-width standalone strips.
-      // postsPerCell is generous so nothing gets dropped.
-      return {
-        variant: 'full',
-        cells: [6],
-        postsPerCell: [10],
-      };
-
-    case 'single-medium':
-      return {
-        variant: 'full',
-        cells: [6],
-        postsPerCell: [1],
-      };
-
+    case 'full':
     default:
-      // Unknown template — fall back to full-width single cell
       return {
         variant: 'full',
         cells: [6],
-        postsPerCell: [10],
+        postsPerCell: [Math.max(slotCount ?? 1, 1)],
       };
   }
 }

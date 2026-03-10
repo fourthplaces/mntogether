@@ -8,6 +8,7 @@ use crate::domains::editions::data::types::BatchGenerateResult;
 use crate::domains::editions::models::county::County;
 use crate::domains::editions::models::edition::Edition;
 use crate::domains::editions::models::edition_row::EditionRow;
+use crate::domains::editions::models::edition_section::EditionSection;
 use crate::domains::editions::models::edition_slot::EditionSlot;
 use crate::kernel::ServerDeps;
 
@@ -54,11 +55,16 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
         .await?
         .ok_or_else(|| anyhow!("Edition not found: {}", edition_id))?;
 
-    if edition.status != "draft" {
+    if edition.status == "published" || edition.status == "archived" {
         return Err(anyhow!(
-            "Cannot regenerate a {} edition — only drafts can be regenerated",
+            "Cannot regenerate a {} edition — only draft, in_review, or approved editions can be regenerated",
             edition.status
         ));
+    }
+
+    // Reset to draft if the edition was in review or approved
+    if edition.status != "draft" {
+        Edition::reset_to_draft(edition_id, pool).await?;
     }
 
     // Clear existing layout
@@ -74,6 +80,7 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
     .await?;
 
     // Persist the broadsheet draft
+    let mut edition_row_ids: Vec<Uuid> = Vec::new();
     for (sort_order, row) in draft.rows.iter().enumerate() {
         let edition_row =
             EditionRow::create(edition_id, row.row_template_id, sort_order as i32, pool).await?;
@@ -85,6 +92,26 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
             .collect();
 
         EditionSlot::replace_for_row(edition_row.id, &slot_data, pool).await?;
+        edition_row_ids.push(edition_row.id);
+    }
+
+    // Persist sections and assign rows
+    for (sort_order, section) in draft.sections.iter().enumerate() {
+        let es = EditionSection::create(
+            edition_id,
+            &section.title,
+            section.subtitle.as_deref(),
+            section.topic_slug.as_deref(),
+            sort_order as i32,
+            pool,
+        )
+        .await?;
+
+        for &row_idx in &section.row_indices {
+            if let Some(&row_id) = edition_row_ids.get(row_idx) {
+                EditionRow::assign_to_section(row_id, Some(es.id), pool).await?;
+            }
+        }
     }
 
     // Re-fetch to return up-to-date edition

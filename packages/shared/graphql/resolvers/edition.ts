@@ -4,6 +4,16 @@ import type { GraphQLContext } from "../context";
 // Helper types for server response shapes (after snakeToCamel transform)
 // =============================================================================
 
+interface EditionSectionData {
+  id: string;
+  editionId: string;
+  title: string;
+  subtitle?: string;
+  topicSlug?: string;
+  sortOrder: number;
+  createdAt: string;
+}
+
 interface EditionData {
   id: string;
   countyId: string;
@@ -14,6 +24,7 @@ interface EditionData {
   publishedAt?: string;
   createdAt: string;
   rows?: EditionRowData[];
+  sections?: EditionSectionData[];
 }
 
 interface EditionRowData {
@@ -22,13 +33,16 @@ interface EditionRowData {
   rowTemplateId: string;
   rowTemplateDisplayName: string;
   rowTemplateDescription?: string;
+  layoutVariant: string;
   rowTemplateSlots: Array<{
     slotIndex: number;
     weight: string;
     count: number;
     accepts?: string[] | null;
+    postTemplateSlug?: string | null;
   }>;
   sortOrder: number;
+  sectionId?: string;
   slots: EditionSlotData[];
   widgets?: EditionWidgetData[];
 }
@@ -60,15 +74,26 @@ interface EditionSlotData {
 // Helper types for public broadsheet response
 // =============================================================================
 
+interface PublicBroadsheetSectionData {
+  id: string;
+  title: string;
+  subtitle?: string;
+  topicSlug?: string;
+  sortOrder: number;
+}
+
 interface PublicBroadsheetData {
   edition: EditionData;
   county: { id: string; fipsCode?: string; fips_code?: string; name: string; state: string };
   rows: PublicBroadsheetRowData[];
+  sections: PublicBroadsheetSectionData[];
 }
 
 interface PublicBroadsheetRowData {
   rowTemplateSlug: string;
+  layoutVariant: string;
   sortOrder: number;
+  sectionId?: string;
   slots: PublicBroadsheetSlotData[];
   widgets: EditionWidgetData[];
 }
@@ -92,6 +117,9 @@ interface PublicBroadsheetPostData {
   tags: Array<{ kind: string; value: string; displayName?: string; color?: string }>;
   contacts: Array<{ contactType: string; contactValue: string; contactLabel?: string }>;
   urgentNotes: Array<{ content: string; ctaText?: string }>;
+  bodyHeavy?: string;
+  bodyMedium?: string;
+  bodyLight?: string;
 }
 
 export const editionResolvers = {
@@ -108,6 +136,9 @@ export const editionResolvers = {
       // but may be absent from list_editions results
       return parent.rows ?? [];
     },
+    sections: (parent: EditionData) => {
+      return parent.sections ?? [];
+    },
   },
 
   // Resolve nested objects on EditionRow — template data is embedded from Rust service
@@ -119,6 +150,7 @@ export const editionResolvers = {
         slug: parent.rowTemplateSlug,
         displayName: parent.rowTemplateDisplayName ?? parent.rowTemplateSlug,
         description: parent.rowTemplateDescription ?? null,
+        layoutVariant: parent.layoutVariant ?? 'full',
         slots: parent.rowTemplateSlots ?? [],
       };
     },
@@ -229,11 +261,31 @@ export const editionResolvers = {
           "current_broadsheet",
           { county_id: args.countyId }
         );
-      // Flatten edition fields + county + rows into a single PublicBroadsheet object
+      // Flatten edition fields + county + rows + sections into a single PublicBroadsheet object
       return {
         ...result.edition,
         county: result.county,
         rows: result.rows,
+        sections: result.sections ?? [],
+      };
+    },
+
+    editionPreview: async (
+      _parent: unknown,
+      args: { editionId: string },
+      ctx: GraphQLContext
+    ) => {
+      const result =
+        await ctx.server.callService<PublicBroadsheetData>(
+          "Editions",
+          "preview_broadsheet",
+          { edition_id: args.editionId }
+        );
+      return {
+        ...result.edition,
+        county: result.county,
+        rows: result.rows,
+        sections: result.sections ?? [],
       };
     },
 
@@ -300,9 +352,10 @@ export const editionResolvers = {
       const result = await ctx.server.callService<{
         edition: EditionData;
         rows: EditionRowData[];
+        sections: EditionSectionData[];
       }>("Editions", "get_edition", { id: args.id });
-      // Merge edition fields with rows for the GraphQL Edition type
-      return { ...result.edition, rows: result.rows };
+      // Merge edition fields with rows + sections for the GraphQL Edition type
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
     },
 
     currentEdition: async (
@@ -313,10 +366,11 @@ export const editionResolvers = {
       const result = await ctx.server.callService<{
         edition: EditionData;
         rows: EditionRowData[];
+        sections: EditionSectionData[];
       }>("Editions", "current_edition", {
         county_id: args.countyId,
       });
-      return { ...result.edition, rows: result.rows };
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
     },
 
     editionKanbanStats: async (
@@ -599,6 +653,67 @@ export const editionResolvers = {
       return ctx.server.callService("Editions", "remove_widget", {
         id: args.id,
       });
+    },
+
+    addSection: async (
+      _parent: unknown,
+      args: { editionId: string; title: string; subtitle?: string; topicSlug?: string; sortOrder: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "add_section", {
+        edition_id: args.editionId,
+        title: args.title,
+        subtitle: args.subtitle ?? null,
+        topic_slug: args.topicSlug ?? null,
+        sort_order: args.sortOrder,
+      });
+    },
+
+    updateSection: async (
+      _parent: unknown,
+      args: { id: string; title?: string; subtitle?: string; topicSlug?: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "update_section", {
+        id: args.id,
+        title: args.title ?? null,
+        subtitle: args.subtitle !== undefined ? args.subtitle : null,
+        topic_slug: args.topicSlug !== undefined ? args.topicSlug : null,
+      });
+    },
+
+    reorderSections: async (
+      _parent: unknown,
+      args: { editionId: string; sectionIds: string[] },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "reorder_sections", {
+        edition_id: args.editionId,
+        section_ids: args.sectionIds,
+      });
+    },
+
+    deleteSection: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Editions", "delete_section", {
+        id: args.id,
+      });
+      return true;
+    },
+
+    assignRowToSection: async (
+      _parent: unknown,
+      args: { rowId: string; sectionId?: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Editions", "assign_row_to_section", {
+        row_id: args.rowId,
+        section_id: args.sectionId ?? null,
+      });
+      return true;
     },
   },
 };

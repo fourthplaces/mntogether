@@ -7,6 +7,17 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BroadsheetDraft {
     pub rows: Vec<BroadsheetRow>,
+    pub sections: Vec<BroadsheetSection>,
+}
+
+/// A topic section in the broadsheet draft (created from Root Signal topic data).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BroadsheetSection {
+    pub title: String,
+    pub subtitle: Option<String>,
+    pub topic_slug: Option<String>,
+    /// Indices into BroadsheetDraft.rows that belong to this section.
+    pub row_indices: Vec<usize>,
 }
 
 /// A single row in the broadsheet draft.
@@ -35,6 +46,8 @@ pub struct LayoutPost {
     pub post_type: String,
     pub weight: String,
     pub priority: i32,
+    /// Topic slug from Root Signal (via tags with kind='topic').
+    pub topic_slug: Option<String>,
 }
 
 /// Result of batch edition generation.

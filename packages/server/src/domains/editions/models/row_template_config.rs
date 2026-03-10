@@ -5,14 +5,18 @@ use uuid::Uuid;
 
 use super::row_template_slot::RowTemplateSlot;
 
-/// A row layout template for the broadsheet (e.g. "hero-with-sidebar", "three-column").
-/// Each template defines how many slots of which weight it contains.
+/// A row layout template (recipe) for the broadsheet.
+/// Each template defines a CSS grid layout (`layout_variant`) and slot definitions
+/// with default post templates. Many templates can share the same layout_variant
+/// while using different post template pairings (e.g., "Feature + Digest sidebar"
+/// and "Feature + Ticker sidebar" both use `lead-stack` layout).
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct RowTemplateConfig {
     pub id: Uuid,
     pub slug: String,
     pub display_name: String,
     pub description: Option<String>,
+    pub layout_variant: String,
     pub sort_order: i32,
     pub created_at: DateTime<Utc>,
 }
