@@ -86,8 +86,6 @@ export const PostDetailFields = graphql(`
     }
     submittedBy {
       submitterType
-      agentId
-      agentName
     }
     urgentNotes {
       content

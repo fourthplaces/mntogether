@@ -351,8 +351,6 @@ type PostContact {
 
 type SubmittedByInfo {
   submitterType: String!
-  agentId: String
-  agentName: String
 }
 
 type UrgentNote {

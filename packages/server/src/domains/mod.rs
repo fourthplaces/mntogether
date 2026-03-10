@@ -1,5 +1,4 @@
 // Business domains — Root Editorial CMS
-pub mod agents;
 pub mod auth;
 pub mod contacts;
 pub mod editions;

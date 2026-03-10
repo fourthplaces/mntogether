@@ -48,7 +48,7 @@ pub struct Post {
     // Submission tracking
     pub submission_type: Option<String>, // 'scraped', 'admin', 'org_submitted'
 
-    // Who submitted this post (member FK — both humans and agents are members)
+    // Who submitted this post (member FK)
     pub submitted_by_id: Option<Uuid>,
 
     // Source tracking (for scraped listings)
@@ -141,7 +141,7 @@ pub struct PostWithDistanceAndCount {
     pub total_count: i64,
 }
 
-/// Search result with location info (for chat agent tool)
+/// Search result with location info
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct PostSearchResultWithLocation {
     pub post_id: PostId,
@@ -427,7 +427,6 @@ pub struct PostFilters<'a> {
     pub status: Option<&'a str>,
     pub source_type: Option<&'a str>,
     pub source_id: Option<Uuid>,
-    pub agent_id: Option<Uuid>,
     pub search: Option<&'a str>,
     pub post_type: Option<&'a str>,
     pub submission_type: Option<&'a str>,
@@ -508,7 +507,6 @@ impl Post {
     ///
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
-    /// When agent_id is provided, filters via JOIN through agents.member_id.
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn find_paginated(
@@ -524,7 +522,6 @@ impl Post {
                 sqlx::query_as::<_, Self>(
                     r#"
                     SELECT DISTINCT p.* FROM posts p
-                    LEFT JOIN agents a ON a.member_id = p.submitted_by_id
                     LEFT JOIN post_sources ps ON ps.post_id = p.id
                     WHERE ($1::text IS NULL OR p.status = $1)
                       AND p.deleted_at IS NULL
@@ -533,16 +530,15 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id > $2)
                       AND ($4::text IS NULL OR ps.source_type = $4)
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
-                      AND ($6::uuid IS NULL OR a.id = $6)
-                      AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
-                      AND ($8::text IS NULL OR p.post_type = $8)
-                      AND ($9::text IS NULL OR p.submission_type = $9)
-                      AND ($10::uuid IS NULL OR EXISTS (
+                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($7::text IS NULL OR p.post_type = $7)
+                      AND ($8::text IS NULL OR p.submission_type = $8)
+                      AND ($9::uuid IS NULL OR EXISTS (
                           SELECT 1 FROM zip_counties zc
-                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $10
+                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $9
                       ))
-                      AND ($11::bool IS NOT TRUE OR p.zip_code IS NULL)
-                      AND ($12::text IS NULL OR p.submission_type IS DISTINCT FROM $12)
+                      AND ($10::bool IS NOT TRUE OR p.zip_code IS NULL)
+                      AND ($11::text IS NULL OR p.submission_type IS DISTINCT FROM $11)
                     ORDER BY p.id ASC
                     LIMIT $3
                     "#,
@@ -552,7 +548,6 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(filters.source_type)
                 .bind(filters.source_id)
-                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
@@ -567,7 +562,6 @@ impl Post {
                 let mut rows = sqlx::query_as::<_, Self>(
                     r#"
                     SELECT DISTINCT p.* FROM posts p
-                    LEFT JOIN agents a ON a.member_id = p.submitted_by_id
                     LEFT JOIN post_sources ps ON ps.post_id = p.id
                     WHERE ($1::text IS NULL OR p.status = $1)
                       AND p.deleted_at IS NULL
@@ -576,16 +570,15 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id < $2)
                       AND ($4::text IS NULL OR ps.source_type = $4)
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
-                      AND ($6::uuid IS NULL OR a.id = $6)
-                      AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
-                      AND ($8::text IS NULL OR p.post_type = $8)
-                      AND ($9::text IS NULL OR p.submission_type = $9)
-                      AND ($10::uuid IS NULL OR EXISTS (
+                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($7::text IS NULL OR p.post_type = $7)
+                      AND ($8::text IS NULL OR p.submission_type = $8)
+                      AND ($9::uuid IS NULL OR EXISTS (
                           SELECT 1 FROM zip_counties zc
-                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $10
+                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $9
                       ))
-                      AND ($11::bool IS NOT TRUE OR p.zip_code IS NULL)
-                      AND ($12::text IS NULL OR p.submission_type IS DISTINCT FROM $12)
+                      AND ($10::bool IS NOT TRUE OR p.zip_code IS NULL)
+                      AND ($11::text IS NULL OR p.submission_type IS DISTINCT FROM $11)
                     ORDER BY p.id DESC
                     LIMIT $3
                     "#,
@@ -595,7 +588,6 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(filters.source_type)
                 .bind(filters.source_id)
-                .bind(filters.agent_id)
                 .bind(&search_pattern)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
@@ -677,37 +669,6 @@ impl Post {
             "#,
         )
         .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find posts for a specific agent on a specific source.
-    /// Joins through agents to match by agent_id → member_id → submitted_by_id.
-    pub async fn find_by_agent_and_source(
-        agent_id: Uuid,
-        source_type: &str,
-        source_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Post>(
-            r#"
-            SELECT p.*
-            FROM posts p
-            JOIN agents a ON a.member_id = p.submitted_by_id
-            JOIN post_sources ps ON ps.post_id = p.id
-            WHERE a.id = $1
-              AND ps.source_type = $2
-              AND ps.source_id = $3
-              AND p.deleted_at IS NULL
-              AND p.revision_of_post_id IS NULL
-              AND p.translation_of_id IS NULL
-            ORDER BY p.created_at DESC
-            "#,
-        )
-        .bind(agent_id)
-        .bind(source_type)
-        .bind(source_id)
         .fetch_all(pool)
         .await
         .map_err(Into::into)
@@ -873,7 +834,6 @@ impl Post {
     }
 
     /// Count listings by status (for pagination)
-    /// When agent_id is provided, filters via JOIN through agents.member_id.
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
     /// When search is provided, filters by ILIKE on title and description.
     pub async fn count_by_status(filters: &PostFilters<'_>, pool: &PgPool) -> Result<i64> {
@@ -882,7 +842,6 @@ impl Post {
             r#"
             SELECT COUNT(DISTINCT p.id)
             FROM posts p
-            LEFT JOIN agents a ON a.member_id = p.submitted_by_id
             LEFT JOIN post_sources ps ON ps.post_id = p.id
             WHERE ($1::text IS NULL OR p.status = $1)
               AND p.deleted_at IS NULL
@@ -890,16 +849,14 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($2::text IS NULL OR ps.source_type = $2)
               AND ($3::uuid IS NULL OR ps.source_id = $3)
-              AND ($4::uuid IS NULL OR a.id = $4)
-              AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
-              AND ($6::text IS NULL OR p.post_type = $6)
-              AND ($7::text IS NULL OR p.submission_type = $7)
+              AND ($4::text IS NULL OR p.title ILIKE $4 OR p.description ILIKE $4)
+              AND ($5::text IS NULL OR p.post_type = $5)
+              AND ($6::text IS NULL OR p.submission_type = $6)
             "#,
         )
         .bind(filters.status)
         .bind(filters.source_type)
         .bind(filters.source_id)
-        .bind(filters.agent_id)
         .bind(&search_pattern)
         .bind(filters.post_type)
         .bind(filters.submission_type)
@@ -1202,7 +1159,6 @@ impl Post {
             INNER JOIN post_locations pl ON pl.post_id = p.id
             INNER JOIN locations l ON l.id = pl.location_id
             INNER JOIN zip_codes z ON l.postal_code = z.zip_code
-            LEFT JOIN agents a ON a.member_id = p.submitted_by_id
             LEFT JOIN post_sources ps ON ps.post_id = p.id
             CROSS JOIN center c
             WHERE p.deleted_at IS NULL
@@ -1211,39 +1167,37 @@ impl Post {
               AND ($2::text IS NULL OR p.status = $2)
               AND ($3::text IS NULL OR ps.source_type = $3)
               AND ($4::uuid IS NULL OR ps.source_id = $4)
-              AND ($5::uuid IS NULL OR a.id = $5)
-              AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
-              AND ($10::text IS NULL OR p.post_type = $10)
-              AND ($11::text IS NULL OR p.submission_type = $11)
-              AND ($12::uuid IS NULL OR EXISTS (
+              AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
+              AND ($9::text IS NULL OR p.post_type = $9)
+              AND ($10::text IS NULL OR p.submission_type = $10)
+              AND ($11::uuid IS NULL OR EXISTS (
                   SELECT 1 FROM zip_counties zc
-                  WHERE zc.zip_code = p.zip_code AND zc.county_id = $12
+                  WHERE zc.zip_code = p.zip_code AND zc.county_id = $11
               ))
-              AND z.latitude BETWEEN c.latitude - ($7::float8 / 69.0)
-                                 AND c.latitude + ($7::float8 / 69.0)
-              AND z.longitude BETWEEN c.longitude - ($7::float8 / (69.0 * cos(radians(c.latitude))))
-                                  AND c.longitude + ($7::float8 / (69.0 * cos(radians(c.latitude))))
+              AND z.latitude BETWEEN c.latitude - ($6::float8 / 69.0)
+                                 AND c.latitude + ($6::float8 / 69.0)
+              AND z.longitude BETWEEN c.longitude - ($6::float8 / (69.0 * cos(radians(c.latitude))))
+                                  AND c.longitude + ($6::float8 / (69.0 * cos(radians(c.latitude))))
             GROUP BY p.id, p.title, p.description, p.description_markdown, p.summary,
                      p.post_type, p.category, p.status, p.urgency, p.location,
                      p.submission_type, p.source_url, p.created_at, p.published_at, p.updated_at,
                      c.latitude, c.longitude
-            HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $7
+            HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $6
             ORDER BY distance_miles ASC
-            LIMIT $8 OFFSET $9
+            LIMIT $7 OFFSET $8
             "#,
         )
         .bind(center_zip)             // $1
         .bind(filters.status)         // $2
         .bind(filters.source_type)    // $3
         .bind(filters.source_id)      // $4
-        .bind(filters.agent_id)       // $5
-        .bind(&search_pattern)        // $6
-        .bind(radius_miles)           // $7
-        .bind(limit + 1)        // $8 - fetch one extra to detect next page
-        .bind(offset)           // $9
-        .bind(filters.post_type)      // $10
-        .bind(filters.submission_type) // $11
-        .bind(filters.county_id)      // $12
+        .bind(&search_pattern)        // $5
+        .bind(radius_miles)           // $6
+        .bind(limit + 1)             // $7 - fetch one extra to detect next page
+        .bind(offset)                // $8
+        .bind(filters.post_type)      // $9
+        .bind(filters.submission_type) // $10
+        .bind(filters.county_id)      // $11
         .fetch_all(pool)
         .await?;
 

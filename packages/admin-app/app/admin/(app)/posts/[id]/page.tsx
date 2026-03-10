@@ -579,11 +579,7 @@ export default function PostDetailPage() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Submitted by</span>
                   <span className="text-foreground font-medium">
-                    {post.submittedBy?.submitterType === "agent" && post.submittedBy.agentId ? (
-                      <Link href={`/admin/agents/${post.submittedBy.agentId}`} className="text-link hover:text-link-hover">
-                        {post.submittedBy.agentName || "Agent"} (AI)
-                      </Link>
-                    ) : post.submittedBy?.submitterType === "member" ? (
+                    {post.submittedBy?.submitterType === "member" ? (
                       "Member"
                     ) : (
                       <span className="text-text-faint">Unknown</span>

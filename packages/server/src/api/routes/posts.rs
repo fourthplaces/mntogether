@@ -14,7 +14,6 @@ use crate::api::auth::{AdminUser, OptionalUser};
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::state::AppState;
 use crate::common::{PaginationArgs, PostId, ScheduleId};
-use crate::domains::agents::models::Agent;
 use crate::domains::contacts::Contact;
 use crate::domains::locations::models::ZipCode;
 use crate::domains::notes::models::note::Note;
@@ -41,7 +40,6 @@ pub struct ListPostsRequest {
     pub status: Option<String>,
     pub source_type: Option<String>,
     pub source_id: Option<Uuid>,
-    pub agent_id: Option<Uuid>,
     pub search: Option<String>,
     pub zip_code: Option<String>,
     pub radius_miles: Option<f64>,
@@ -316,8 +314,6 @@ pub struct PostContactResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmittedByInfo {
     pub submitter_type: String,
-    pub agent_id: Option<Uuid>,
-    pub agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -726,22 +722,9 @@ async fn build_post_result(
     };
 
     // Resolve who submitted this post
-    let submitted_by = if let Some(member_id) = post.submitted_by_id {
-        match Agent::find_by_member_id(member_id, &deps.db_pool).await {
-            Ok(Some(agent)) => Some(SubmittedByInfo {
-                submitter_type: "agent".to_string(),
-                agent_id: Some(agent.id),
-                agent_name: Some(agent.display_name),
-            }),
-            _ => Some(SubmittedByInfo {
-                submitter_type: "member".to_string(),
-                agent_id: None,
-                agent_name: None,
-            }),
-        }
-    } else {
-        None
-    };
+    let submitted_by = post.submitted_by_id.map(|_| SubmittedByInfo {
+        submitter_type: "member".to_string(),
+    });
 
     // Load schedules
     let schedules = Schedule::find_for_post(post_id, &deps.db_pool).await?;
@@ -844,7 +827,6 @@ async fn list(
         status: req.status.as_deref(),
         source_type: req.source_type.as_deref(),
         source_id: req.source_id,
-        agent_id: req.agent_id,
         search: req.search.as_deref(),
         post_type: req.post_type.as_deref(),
         submission_type: req.submission_type.as_deref(),
