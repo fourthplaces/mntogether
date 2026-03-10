@@ -630,7 +630,7 @@ export default function PostDetailPage() {
               <div className="flex items-center justify-between">
                 <SectionLabel>Urgent</SectionLabel>
                 <button
-                  onClick={() => inlineUpdate({ urgency: isUrgent ? null : "urgent" })}
+                  onClick={() => inlineUpdate({ urgency: isUrgent ? "" : "urgent" })}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                     isUrgent ? "bg-red-500" : "bg-secondary border border-border"
                   }`}
