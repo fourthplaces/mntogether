@@ -16,16 +16,34 @@ export const WEIGHTS = [
   { value: "light", label: "Light" },
 ] as const;
 
+export const URGENCIES = [
+  { value: "", label: "None" },
+  { value: "notice", label: "Notice" },
+  { value: "urgent", label: "Urgent" },
+] as const;
+
 export interface PostFormValues {
   title: string;
   descriptionMarkdown: string;
   summary: string;
+  postType: string;
+  weight: string;
+  priority: number;
+  urgency: string;
+  location: string;
+  organizationId: string;
 }
 
 export const DEFAULT_VALUES: PostFormValues = {
   title: "",
   descriptionMarkdown: "",
   summary: "",
+  postType: "notice",
+  weight: "medium",
+  priority: 0,
+  urgency: "",
+  location: "",
+  organizationId: "",
 };
 
 export function validatePostForm(values: PostFormValues): Record<string, string> {

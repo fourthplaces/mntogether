@@ -43,6 +43,7 @@ export default function EditPostPage() {
     if (post && !initialized.current) {
       initialized.current = true;
       setValues({
+        ...DEFAULT_VALUES,
         title: post.title || "",
         descriptionMarkdown: post.descriptionMarkdown || post.description || "",
         summary: post.summary || "",
