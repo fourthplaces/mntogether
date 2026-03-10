@@ -431,7 +431,14 @@ function BroadsheetEditor({
           </a>
           {isEditable && (
             <button
-              onClick={() => handleStatusAction("generate")}
+              onClick={() => {
+                const ok = window.confirm(
+                  "Regenerating will replace all rows, posts, sections, and widgets " +
+                  "with a fresh layout. Any manual edits to the broadsheet will be lost.\n\n" +
+                  "Continue?"
+                );
+                if (ok) handleStatusAction("generate");
+              }}
               className="px-3 py-1.5 text-sm font-medium rounded-lg bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors"
             >
               Regenerate

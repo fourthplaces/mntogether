@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "urql";
 import { EditionPreviewQuery } from "@/lib/graphql/broadsheet";
@@ -16,11 +17,15 @@ const STATUS_LABELS: Record<string, string> = {
 export default function PreviewPage() {
   const { editionId } = useParams<{ editionId: string }>();
 
-  const [{ data, fetching, error }] = useQuery({
+  const [{ data, fetching, error }, reexecuteQuery] = useQuery({
     query: EditionPreviewQuery,
     variables: { editionId },
     pause: !editionId,
   });
+
+  const handleRefresh = useCallback(() => {
+    reexecuteQuery({ requestPolicy: "network-only" });
+  }, [reexecuteQuery]);
 
   const edition = data?.editionPreview;
 
@@ -57,8 +62,8 @@ export default function PreviewPage() {
     );
   }
 
-  // Loading state
-  if (fetching) {
+  // Loading state (initial only)
+  if (fetching && !edition) {
     return (
       <div className="broadsheet-page" style={{ textAlign: "center", padding: "6rem 1rem" }}>
         <p className="mono-sm" style={{ color: "rgba(255,255,255,0.5)" }}>
@@ -87,35 +92,49 @@ export default function PreviewPage() {
   return (
     <div className="broadsheet-page">
       {/* Preview banner */}
-      {edition.status !== "published" && (
-        <div
+      <div
+        style={{
+          background: "#b45309",
+          color: "#fff",
+          padding: "0.5rem 1rem",
+          fontSize: "0.8125rem",
+          fontFamily: "var(--font-geist-mono), monospace",
+          letterSpacing: "0.05em",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "0.75rem",
+        }}
+      >
+        <span
           style={{
-            background: "#b45309",
-            color: "#fff",
-            textAlign: "center",
-            padding: "0.5rem 1rem",
-            fontSize: "0.8125rem",
-            fontFamily: "var(--font-geist-mono), monospace",
-            letterSpacing: "0.05em",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.75rem",
+            background: "rgba(255,255,255,0.2)",
+            padding: "0.125rem 0.5rem",
+            borderRadius: "4px",
+            fontWeight: 600,
           }}
         >
-          <span
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              padding: "0.125rem 0.5rem",
-              borderRadius: "4px",
-              fontWeight: 600,
-            }}
-          >
-            {statusLabel}
-          </span>
-          <span>PREVIEW — Not Published</span>
-        </div>
-      )}
+          {statusLabel}
+        </span>
+        <span>
+          {edition.status !== "published" ? "PREVIEW — Not Published" : "PREVIEW"}
+        </span>
+        <button
+          onClick={handleRefresh}
+          style={{
+            background: "rgba(255,255,255,0.15)",
+            border: "1px solid rgba(255,255,255,0.25)",
+            borderRadius: "4px",
+            color: "#fff",
+            padding: "0.125rem 0.5rem",
+            fontSize: "0.75rem",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
+          {fetching ? "⟳" : "Refresh"}
+        </button>
+      </div>
       <BroadsheetRenderer edition={edition} />
       <SiteFooter />
     </div>

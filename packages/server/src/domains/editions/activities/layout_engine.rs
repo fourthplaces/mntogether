@@ -180,14 +180,15 @@ fn place_posts(
     let mut placed: Vec<bool> = vec![false; posts.len()];
     let mut broadsheet_rows: Vec<BroadsheetRow> = Vec::new();
 
-    // Global slot counter — each post gets a unique slot_index within its row
+    // Place posts into row slots — slot_index matches the template slot definition
+    // so the admin UI can group edition slots by their template slot correctly.
     for (template, template_with_slots) in &selected_rows {
         let mut row_slots: Vec<BroadsheetSlot> = Vec::new();
         let mut row_max_priority: i32 = 0;
-        let mut next_slot_index: i32 = 0;
 
         for slot_def in &template_with_slots.slots {
-            // Fill this slot group with `count` posts of matching weight
+            // Fill this slot group with `count` posts of matching weight.
+            // All posts in this group share the same slot_index (the template slot's index).
             let mut filled = 0;
             for (i, post) in posts.iter().enumerate() {
                 if filled >= slot_def.count {
@@ -222,9 +223,8 @@ fn place_posts(
                     row_slots.push(BroadsheetSlot {
                         post_id: post.id,
                         post_template_slug: pt_slug,
-                        slot_index: next_slot_index,
+                        slot_index: slot_def.slot_index,
                     });
-                    next_slot_index += 1;
                     placed[i] = true;
                     filled += 1;
                     if post.priority > row_max_priority {
