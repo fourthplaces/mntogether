@@ -1,43 +1,15 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "urql";
+import { useQuery } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { DashboardQuery } from "@/lib/graphql/dashboard";
-import { BatchGenerateEditionsMutation } from "@/lib/graphql/editions";
-
-// ─── Week helpers ────────────────────────────────────────────────────────────
-
-function getWeekBounds(): { start: string; end: string } {
-  const d = new Date();
-  const day = d.getDay();
-  const diffToMonday = day === 0 ? -6 : 1 - day;
-  const monday = new Date(d);
-  monday.setDate(d.getDate() + diffToMonday);
-  const sunday = new Date(monday);
-  sunday.setDate(monday.getDate() + 6);
-  return {
-    start: monday.toISOString().split("T")[0],
-    end: sunday.toISOString().split("T")[0],
-  };
-}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
   const [{ data, fetching }] = useQuery({ query: DashboardQuery });
-
-  // Batch generate state
-  const [batchResult, setBatchResult] = useState<{
-    created: number;
-    failed: number;
-    totalCounties: number;
-  } | null>(null);
-  const [batchError, setBatchError] = useState<string | null>(null);
-  const [{ fetching: generating }, batchGenerate] = useMutation(
-    BatchGenerateEditionsMutation
-  );
 
   // Derive stats from latest editions
   const stats = useMemo(() => {
@@ -61,59 +33,6 @@ export default function DashboardPage() {
     };
   }, [data]);
 
-  const needsReview = stats.draft + stats.inReview;
-  const kanbanCount = needsReview + stats.approved;
-
-  // Workflow guidance
-  const guidance = useMemo(() => {
-    if (stats.total === 0) return null;
-
-    if (kanbanCount === 0) {
-      return {
-        message: "All counties are published and up to date.",
-        tone: "success" as const,
-      };
-    }
-    if (stats.approved === kanbanCount) {
-      return {
-        message: `All ${stats.approved} editions reviewed — ready to publish!`,
-        tone: "ready" as const,
-      };
-    }
-    if (needsReview > 0) {
-      const reviewed = stats.approved;
-      if (reviewed > 0) {
-        return {
-          message: `${reviewed} of ${kanbanCount} editions reviewed`,
-          tone: "progress" as const,
-        };
-      }
-      return {
-        message: `${needsReview} edition${needsReview !== 1 ? "s" : ""} ready for review`,
-        tone: "action" as const,
-      };
-    }
-    return null;
-  }, [stats, kanbanCount, needsReview]);
-
-  const handleGenerate = async () => {
-    setBatchError(null);
-    setBatchResult(null);
-    const bounds = getWeekBounds();
-    try {
-      const result = await batchGenerate(
-        { periodStart: bounds.start, periodEnd: bounds.end },
-        { additionalTypenames: ["Edition", "EditionConnection"] }
-      );
-      if (result.error) throw result.error;
-      if (result.data?.batchGenerateEditions) {
-        setBatchResult(result.data.batchGenerateEditions);
-      }
-    } catch (err: any) {
-      setBatchError(err.message || "Batch generation failed");
-    }
-  };
-
   if (fetching) {
     return <AdminLoader label="Loading dashboard..." />;
   }
@@ -122,133 +41,76 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-[#FDFCFA] p-6">
       <div className="max-w-5xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-stone-900 mb-1">
-              Dashboard
-            </h1>
-            <p className="text-stone-500">
-              {stats.published + stats.approved} of {stats.total || 87} counties
-              up to date
-            </p>
-          </div>
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50 transition-colors"
-          >
-            {generating ? "Generating..." : "Generate This Week"}
-          </button>
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-stone-900 mb-1">
+            Dashboard
+          </h1>
+          <p className="text-stone-500">
+            {stats.published + stats.approved} of {stats.total || 87} counties
+            up to date
+          </p>
         </div>
-
-        {/* Batch result / error */}
-        {batchError && (
-          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-            {batchError}
-            <button
-              onClick={() => setBatchError(null)}
-              className="ml-2 font-medium hover:underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-        {batchResult && (
-          <div className="mb-6 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
-            <span>
-              Created{" "}
-              <span className="font-semibold">{batchResult.created}</span>{" "}
-              editions
-              {batchResult.failed > 0 && (
-                <>
-                  ,{" "}
-                  <span className="font-semibold text-red-600">
-                    {batchResult.failed}
-                  </span>{" "}
-                  failed
-                </>
-              )}{" "}
-              out of {batchResult.totalCounties} counties.
-            </span>
-            <button
-              onClick={() => setBatchResult(null)}
-              className="ml-2 font-medium hover:underline"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-
-        {/* Workflow guidance banner */}
-        {guidance && guidance.tone !== "success" && (
-          <Link
-            href="/admin/workflow"
-            className={`block mb-6 rounded-lg px-5 py-4 transition-colors ${
-              guidance.tone === "ready"
-                ? "bg-emerald-50 border border-emerald-200 hover:bg-emerald-100"
-                : guidance.tone === "action"
-                  ? "bg-amber-50 border border-amber-200 hover:bg-amber-100"
-                  : "bg-stone-50 border border-stone-200 hover:bg-stone-100"
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <span
-                className={`font-semibold text-lg ${
-                  guidance.tone === "ready"
-                    ? "text-emerald-800"
-                    : guidance.tone === "action"
-                      ? "text-amber-800"
-                      : "text-stone-800"
-                }`}
-              >
-                {guidance.message}
-              </span>
-              <span
-                className={`text-sm font-medium ${
-                  guidance.tone === "ready"
-                    ? "text-emerald-600"
-                    : guidance.tone === "action"
-                      ? "text-amber-600"
-                      : "text-stone-600"
-                }`}
-              >
-                Go to Review Board &rarr;
-              </span>
-            </div>
-          </Link>
-        )}
-        {guidance && guidance.tone === "success" && (
-          <div className="mb-6 bg-green-50 border border-green-200 rounded-lg px-5 py-4">
-            <span className="text-green-800 font-semibold text-lg">
-              {guidance.message}
-            </span>
-          </div>
-        )}
 
         {/* Stat cards */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard
             value={stats.draft}
-            label="Ready for Review"
+            label="Draft"
             color="bg-yellow-500"
+            href="/admin/editions?status=draft"
           />
           <StatCard
             value={stats.inReview}
-            label="In Review"
+            label="Reviewing"
             color="bg-amber-500"
+            href="/admin/editions?status=in_review"
           />
           <StatCard
             value={stats.approved}
             label="Approved"
             color="bg-emerald-500"
             subtitle={stats.approved > 0 ? "Ready to publish" : undefined}
+            href="/admin/editions?status=approved"
           />
           <StatCard
             value={stats.published}
             label="Published"
             color="bg-green-500"
             subtitle={`of ${stats.total || 87} counties`}
+            href="/admin/editions"
           />
+        </div>
+
+        {/* Ingestion — empty state */}
+        <div className="bg-white rounded-lg shadow-sm border border-stone-200 mb-8">
+          <div className="px-6 py-4 border-b border-stone-100">
+            <h2 className="text-lg font-semibold text-stone-900">
+              Root Signal Ingestion
+            </h2>
+          </div>
+          <div className="px-6 py-12 flex flex-col items-center text-center">
+            <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mb-4">
+              <svg className="w-6 h-6 text-stone-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+              </svg>
+            </div>
+            <h3 className="text-base font-medium text-stone-900 mb-1">
+              No signals this week
+            </h3>
+            <p className="text-sm text-stone-500 max-w-sm mb-5">
+              When Root Signal delivers new stories and topics, they'll appear here
+              for triage before edition drafts are generated.
+            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 border border-stone-200 text-xs text-stone-500">
+                <span className="w-1.5 h-1.5 rounded-full bg-stone-300" />
+                Waiting for data
+              </div>
+              <span className="text-xs text-stone-400">
+                Last checked: never
+              </span>
+            </div>
+          </div>
         </div>
 
         {/* Quick actions */}
@@ -284,14 +146,19 @@ function StatCard({
   label,
   color,
   subtitle,
+  href,
 }: {
   value: number;
   label: string;
   color: string;
   subtitle?: string;
+  href: string;
 }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-stone-200 p-5">
+    <Link
+      href={href}
+      className="bg-white rounded-lg shadow-sm border border-stone-200 p-5 hover:border-stone-300 hover:shadow transition-all"
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-stone-500 uppercase tracking-wide">
           {label}
@@ -302,6 +169,6 @@ function StatCard({
       {subtitle && (
         <div className="text-xs text-stone-400 mt-1">{subtitle}</div>
       )}
-    </div>
+    </Link>
   );
 }

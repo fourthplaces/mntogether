@@ -62,6 +62,26 @@ impl Edition {
             .map_err(Into::into)
     }
 
+    /// Find an edition for a specific county and period (exact match on period_start).
+    pub async fn find_by_county_and_period(
+        county_id: Uuid,
+        period_start: NaiveDate,
+        pool: &PgPool,
+    ) -> Result<Option<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM editions
+            WHERE county_id = $1 AND period_start = $2
+            LIMIT 1
+            "#,
+        )
+        .bind(county_id)
+        .bind(period_start)
+        .fetch_optional(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Find the current (latest) published edition for a county.
     pub async fn find_published(county_id: Uuid, pool: &PgPool) -> Result<Option<Self>> {
         sqlx::query_as::<_, Self>(

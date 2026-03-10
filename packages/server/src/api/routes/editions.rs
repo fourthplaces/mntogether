@@ -243,6 +243,8 @@ pub struct EditionResult {
     pub status: String,
     pub published_at: Option<String>,
     pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub row_count: Option<i64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -338,6 +340,8 @@ pub struct PostTemplateListResult {
 #[derive(Debug, Serialize)]
 pub struct BatchGenerateEditionsResult {
     pub created: i32,
+    pub regenerated: i32,
+    pub skipped: i32,
     pub failed: i32,
     pub total_counties: i32,
 }
@@ -459,6 +463,7 @@ fn edition_to_result(e: &Edition) -> EditionResult {
         status: e.status.clone(),
         published_at: e.published_at.map(|t| t.to_rfc3339()),
         created_at: e.created_at.to_rfc3339(),
+        row_count: None,
     }
 }
 
@@ -715,8 +720,22 @@ async fn latest_editions(
     let editions = Edition::latest_per_county(&state.deps.db_pool).await?;
     let total_count = editions.len() as i64;
 
+    // Batch-load row counts for all editions (single query)
+    let edition_ids: Vec<Uuid> = editions.iter().map(|e| e.id).collect();
+    let row_counts = EditionRow::count_by_edition_ids(&edition_ids, &state.deps.db_pool).await?;
+    let count_map: HashMap<Uuid, i64> = row_counts.into_iter().collect();
+
+    let results = editions
+        .iter()
+        .map(|e| {
+            let mut result = edition_to_result(e);
+            result.row_count = Some(*count_map.get(&e.id).unwrap_or(&0));
+            result
+        })
+        .collect();
+
     Ok(Json(EditionListResult {
-        editions: editions.iter().map(edition_to_result).collect(),
+        editions: results,
         total_count,
     }))
 }
@@ -812,6 +831,8 @@ async fn batch_generate(
 
     Ok(Json(BatchGenerateEditionsResult {
         created: result.created,
+        regenerated: result.regenerated,
+        skipped: result.skipped,
         failed: result.failed,
         total_counties: result.total_counties,
     }))

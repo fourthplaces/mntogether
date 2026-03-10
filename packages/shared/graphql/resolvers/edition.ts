@@ -23,6 +23,7 @@ interface EditionData {
   status: string;
   publishedAt?: string;
   createdAt: string;
+  rowCount?: number;
   rows?: EditionRowData[];
   sections?: EditionSectionData[];
 }
@@ -131,6 +132,10 @@ export const editionResolvers = {
       return ctx.server.callService("Editions", "get_county", {
         id: parent.countyId,
       });
+    },
+    rowCount: (parent: EditionData) => {
+      // Use explicit row_count from list endpoints, or fall back to rows array length
+      return parent.rowCount ?? parent.rows?.length ?? 0;
     },
     rows: (parent: EditionData) => {
       // Rows are already present from get_edition / current_edition,
@@ -324,7 +329,11 @@ export const editionResolvers = {
 
       return counties.map((county: { id: string; fipsCode: string; name: string; state: string }) => {
         const edition = editionByCounty.get(county.id) || null;
-        const isStale = !edition || edition.periodStart < currentMondayStr || edition.status === "draft";
+        // Stale = the county has no published broadsheet for the current week.
+        // Separate from editorial state (draft/reviewing/approved are all still "stale" publicly).
+        const isStale = !edition
+          || edition.periodStart < currentMondayStr
+          || edition.status !== "published";
         const lastPublishedAt = edition?.publishedAt || null;
 
         return {

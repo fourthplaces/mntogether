@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface PageInfo {
@@ -45,7 +46,7 @@ export function PaginationControls({
           onClick={onPreviousPage}
           disabled={!pageInfo.hasPreviousPage || loading}
         >
-          &larr; Previous
+          <ArrowLeft className="w-4 h-4 mr-1" /> Previous
         </Button>
         <Button
           variant="outline"
@@ -53,7 +54,7 @@ export function PaginationControls({
           onClick={onNextPage}
           disabled={!pageInfo.hasNextPage || loading}
         >
-          Next &rarr;
+          Next <ArrowRight className="w-4 h-4 ml-1" />
         </Button>
       </div>
     </div>

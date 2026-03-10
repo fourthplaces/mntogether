@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { X } from "lucide-react";
 import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
 import { CountiesQuery } from "@/lib/graphql/editions";
 
@@ -208,19 +209,19 @@ export default function SignalPage() {
             {countyId && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 County: {countyId === "__statewide__" ? "Statewide" : counties.find((c) => c.id === countyId)?.name || countyId}
-                <button onClick={() => setCountyId("")} className="hover:text-foreground">&times;</button>
+                <button onClick={() => setCountyId("")} className="hover:text-foreground"><X className="w-3 h-3" /></button>
               </span>
             )}
             {postType && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 Type: <span className="capitalize">{postType}</span>
-                <button onClick={() => setPostType("")} className="hover:text-foreground">&times;</button>
+                <button onClick={() => setPostType("")} className="hover:text-foreground"><X className="w-3 h-3" /></button>
               </span>
             )}
             {searchQuery && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 Search: {searchQuery}
-                <button onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-foreground">&times;</button>
+                <button onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-foreground"><X className="w-3 h-3" /></button>
               </span>
             )}
           </div>

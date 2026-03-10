@@ -214,7 +214,9 @@ pub async fn batch_publish_editions(
 }
 
 /// Batch generate editions for ALL 87 counties for a given date range.
-/// Creates draft editions and runs the layout engine for each.
+/// - Counties with no edition for this period: create + generate (counted as `created`)
+/// - Counties with a draft edition: regenerate layout (counted as `regenerated`)
+/// - Counties with reviewing/approved/published editions: skip (counted as `skipped`)
 pub async fn batch_generate_editions(
     period_start: NaiveDate,
     period_end: NaiveDate,
@@ -224,19 +226,62 @@ pub async fn batch_generate_editions(
     let counties = County::find_all(pool).await?;
     let total = counties.len() as i32;
     let mut created = 0;
+    let mut regenerated = 0;
+    let mut skipped = 0;
     let mut failed = 0;
 
     for county in counties {
-        match create_and_generate_single(county.id, &county.name, period_start, period_end, deps)
-            .await
-        {
-            Ok(_) => created += 1,
+        match Edition::find_by_county_and_period(county.id, period_start, pool).await {
+            Ok(Some(existing)) => match existing.status.as_str() {
+                "draft" => {
+                    // Regenerate existing draft with fresh layout
+                    match generate_edition(existing.id, deps).await {
+                        Ok(_) => regenerated += 1,
+                        Err(e) => {
+                            tracing::error!(
+                                county_name = %county.name,
+                                county_id = %county.id,
+                                error = %e,
+                                "Failed to regenerate draft edition"
+                            );
+                            failed += 1;
+                        }
+                    }
+                }
+                _ => {
+                    // in_review, approved, published, archived — don't overwrite
+                    skipped += 1;
+                }
+            },
+            Ok(None) => {
+                // No edition for this period — create + generate
+                match create_and_generate_single(
+                    county.id,
+                    &county.name,
+                    period_start,
+                    period_end,
+                    deps,
+                )
+                .await
+                {
+                    Ok(_) => created += 1,
+                    Err(e) => {
+                        tracing::error!(
+                            county_name = %county.name,
+                            county_id = %county.id,
+                            error = %e,
+                            "Failed to create edition for county"
+                        );
+                        failed += 1;
+                    }
+                }
+            }
             Err(e) => {
                 tracing::error!(
                     county_name = %county.name,
                     county_id = %county.id,
                     error = %e,
-                    "Failed to generate edition for county"
+                    "Failed to look up edition for county"
                 );
                 failed += 1;
             }
@@ -245,6 +290,8 @@ pub async fn batch_generate_editions(
 
     Ok(BatchGenerateResult {
         created,
+        regenerated,
+        skipped,
         failed,
         total_counties: total,
     })

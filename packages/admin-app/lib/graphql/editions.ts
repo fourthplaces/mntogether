@@ -28,9 +28,7 @@ export const CountyDashboardQuery = graphql(`
         periodEnd
         status
         publishedAt
-        rows {
-          id
-        }
+        rowCount
       }
       lastPublishedAt
       isStale
@@ -266,6 +264,8 @@ export const BatchGenerateEditionsMutation = graphql(`
   mutation BatchGenerateEditions($periodStart: String!, $periodEnd: String!) {
     batchGenerateEditions(periodStart: $periodStart, periodEnd: $periodEnd) {
       created
+      regenerated
+      skipped
       failed
       totalCounties
     }

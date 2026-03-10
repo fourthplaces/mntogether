@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
@@ -300,7 +301,7 @@ export default function OrganizationDetailPage() {
           href="/admin/organizations"
           className="inline-flex items-center text-stone-600 hover:text-stone-900 mb-6"
         >
-          {"\u2190"} Back to Organizations
+          <ArrowLeft className="w-4 h-4 mr-1" /> Back to Organizations
         </Link>
 
         {/* Header */}
@@ -1029,7 +1030,7 @@ function NoteRow({
             rel="noopener noreferrer"
             className="text-xs text-blue-600 hover:text-blue-800 mt-1 inline-block"
           >
-            Source {"\u2197"}
+            Source <ExternalLink className="inline w-3 h-3 ml-0.5" />
           </a>
         )}
         {note.linkedPosts && note.linkedPosts.length > 0 && (

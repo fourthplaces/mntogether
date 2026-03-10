@@ -126,4 +126,24 @@ impl EditionRow {
             .await?;
         Ok(())
     }
+
+    /// Count rows for multiple editions in a single query.
+    /// Returns a vec of (edition_id, count) pairs.
+    pub async fn count_by_edition_ids(
+        edition_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<(Uuid, i64)>> {
+        sqlx::query_as::<_, (Uuid, i64)>(
+            r#"
+            SELECT edition_id, COUNT(*)::bigint
+            FROM edition_rows
+            WHERE edition_id = ANY($1)
+            GROUP BY edition_id
+            "#,
+        )
+        .bind(edition_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
 }

@@ -6,6 +6,7 @@ import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ArrowLeft, ExternalLink, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -40,7 +41,6 @@ import {
   ReactivatePostMutation,
   AddPostTagMutation,
   RemovePostTagMutation,
-  RegeneratePostMutation,
   RegeneratePostTagsMutation,
 } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
@@ -229,7 +229,6 @@ export default function PostDetailPage() {
   const [, reactivatePost] = useMutation(ReactivatePostMutation);
   const [, addPostTag] = useMutation(AddPostTagMutation);
   const [, removePostTag] = useMutation(RemovePostTagMutation);
-  const [, regeneratePost] = useMutation(RegeneratePostMutation);
   const [, regeneratePostTags] = useMutation(RegeneratePostTagsMutation);
 
   // Tag modal: load kinds and tags
@@ -295,7 +294,6 @@ export default function PostDetailPage() {
     try { await fn(); } catch (err) { console.error(`Failed to ${name}:`, err); } finally { setActionInProgress(null); }
   };
 
-  const handleRegenerate = withAction("regenerate", () => regeneratePost({ id: postId }, mutationContext));
   const handleRegenerateTags = withAction("regenerate_tags", () => regeneratePostTags({ id: postId }, mutationContext));
   const handleArchive = withAction("archive", () => archivePost({ id: postId }, mutationContext));
   const handleReactivate = withAction("reactivate", () => reactivatePost({ id: postId }, mutationContext));
@@ -359,7 +357,7 @@ export default function PostDetailPage() {
             href="/admin/posts"
             className="inline-flex items-center text-muted-foreground hover:text-foreground text-sm"
           >
-            {"\u2190"} Back to Posts
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Posts
           </Link>
 
           <div className="flex items-center gap-2">
@@ -397,7 +395,7 @@ export default function PostDetailPage() {
                 className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
                 title="View public page"
               >
-                {"\u2197"}
+                <ExternalLink className="w-4 h-4" />
               </Link>
             )}
 
@@ -423,9 +421,6 @@ export default function PostDetailPage() {
                 <DropdownMenuItem onSelect={() => setShowTagModal(true)}>Edit Tags</DropdownMenuItem>
                 <DropdownMenuItem onSelect={handleRegenerateTags} disabled={actionInProgress !== null}>
                   {actionInProgress === "regenerate_tags" ? "Regenerating..." : "Regenerate Tags"}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleRegenerate} disabled={actionInProgress !== null}>
-                  {actionInProgress === "regenerate" ? "Re-running..." : "Re-run Investigation"}
                 </DropdownMenuItem>
                 {post.status === "active" && (
                   <DropdownMenuItem onSelect={handleArchive} disabled={actionInProgress !== null}>
@@ -756,7 +751,7 @@ export default function PostDetailPage() {
                         <p className="text-sm text-text-body">{note.content}</p>
                         {note.sourceUrl && (
                           <a href={note.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-link hover:text-link-hover mt-1 inline-block">
-                            Source {"\u2197"}
+                            Source <ExternalLink className="inline w-3 h-3 ml-0.5" />
                           </a>
                         )}
                         {note.linkedPosts && note.linkedPosts.filter(p => p.id !== postId).length > 0 && (
@@ -805,7 +800,7 @@ export default function PostDetailPage() {
                           disabled={isUpdating}
                           className="hover:text-destructive ml-1 disabled:opacity-50"
                         >
-                          &times;
+                          <X className="w-3 h-3" />
                         </button>
                       </Badge>
                     ))}

@@ -54,6 +54,8 @@ pub struct LayoutPost {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BatchGenerateResult {
     pub created: i32,
+    pub regenerated: i32,
+    pub skipped: i32,
     pub failed: i32,
     pub total_counties: i32,
 }

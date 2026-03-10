@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface MediaCardProps {
@@ -105,7 +106,7 @@ export function MediaCard({
           className="absolute top-2 left-2 w-6 h-6 bg-danger text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity text-xs"
           title="Delete"
         >
-          &times;
+          <X className="w-3 h-3" />
         </button>
       )}
     </div>

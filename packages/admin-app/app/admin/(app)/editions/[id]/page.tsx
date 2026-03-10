@@ -21,6 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ArrowLeft, ChevronUp, ChevronDown, X } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -420,7 +421,7 @@ function BroadsheetEditor({
             onClick={() => router.push("/admin/workflow")}
             className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
           >
-            &larr; Review Board
+            <ArrowLeft className="inline w-4 h-4 mr-1" /> Review Board
           </button>
           <h1 className="text-2xl font-bold text-stone-900">
             {edition.county.name} County
@@ -615,7 +616,7 @@ function EditionPostsView({ edition }: { edition: Edition }) {
             onClick={() => router.push("/admin/workflow")}
             className="text-sm text-stone-500 hover:text-stone-700 mb-2 block"
           >
-            &larr; Review Board
+            <ArrowLeft className="inline w-4 h-4 mr-1" /> Review Board
           </button>
           <h1 className="text-2xl font-bold text-stone-900">
             {edition.county.name} County &mdash; Posts
@@ -1043,25 +1044,25 @@ function RowEditor({
               <button
                 onClick={() => onMoveRow(row.id, "up")}
                 disabled={rowIndex === 0}
-                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30 text-sm"
+                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30"
                 title="Move up"
               >
-                &uarr;
+                <ChevronUp className="w-4 h-4" />
               </button>
               <button
                 onClick={() => onMoveRow(row.id, "down")}
                 disabled={rowIndex === totalRows - 1}
-                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30 text-sm"
+                className="p-1 text-stone-400 hover:text-stone-600 disabled:opacity-30"
                 title="Move down"
               >
-                &darr;
+                <ChevronDown className="w-4 h-4" />
               </button>
               <button
                 onClick={() => onDeleteRow(row.id)}
-                className="p-1 text-red-400 hover:text-red-600 ml-2 text-sm"
+                className="p-1 text-red-400 hover:text-red-600 ml-2"
                 title="Delete row"
               >
-                &times;
+                <X className="w-4 h-4" />
               </button>
             </>
           )}
@@ -1778,8 +1779,8 @@ function StatusBadge({ status }: { status: string }) {
     archived: "bg-stone-100 text-stone-600",
   };
   const labels: Record<string, string> = {
-    draft: "Ready for Review",
-    in_review: "In Review",
+    draft: "Draft",
+    in_review: "Reviewing",
     approved: "Approved",
     published: "Published",
     archived: "Archived",

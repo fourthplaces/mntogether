@@ -404,6 +404,7 @@ type Edition {
   periodEnd: String!
   status: String!
   publishedAt: String
+  rowCount: Int!
   rows: [EditionRow!]!
   sections: [EditionSection!]!
   createdAt: String!
@@ -478,6 +479,8 @@ type PostTemplateConfig {
 
 type BatchGenerateEditionsResult {
   created: Int!
+  regenerated: Int!
+  skipped: Int!
   failed: Int!
   totalCounties: Int!
 }

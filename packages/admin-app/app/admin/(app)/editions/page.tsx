@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import {
@@ -15,6 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 
 // ─── Week helpers ────────────────────────────────────────────────────────────
 
@@ -43,6 +45,24 @@ function formatPeriod(start: string, end: string): string {
   return `${sMonth} ${s.getDate()} \u2013 ${eMonth} ${e.getDate()}`;
 }
 
+function liveEditionAge(periodStart: string | undefined, isStale: boolean): string {
+  if (!periodStart) return "Never";
+  const now = new Date();
+  const day = now.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + diffToMonday);
+  monday.setHours(0, 0, 0, 0);
+
+  const edStart = new Date(periodStart + "T12:00:00");
+  const diffMs = monday.getTime() - edStart.getTime();
+  const weeks = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+
+  if (weeks <= 0) return isStale ? "Not yet published" : "This week";
+  if (weeks === 1) return "1 week ago";
+  return `${weeks} weeks ago`;
+}
+
 // ─── Status config ───────────────────────────────────────────────────────────
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
@@ -55,7 +75,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   draft: "Draft",
-  in_review: "In Review",
+  in_review: "Reviewing",
   approved: "Approved",
   published: "Published",
   archived: "Archived",
@@ -63,11 +83,9 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_FILTERS = [
   { value: "", label: "All" },
-  { value: "stale", label: "Stale" },
   { value: "draft", label: "Draft" },
-  { value: "in_review", label: "In Review" },
+  { value: "in_review", label: "Reviewing" },
   { value: "approved", label: "Approved" },
-  { value: "published", label: "Published" },
 ];
 
 // ─── Freshness indicators ────────────────────────────────────────────────────
@@ -87,7 +105,7 @@ function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: st
     return <span className="text-emerald-600" title="Approved">●</span>;
   }
   if (status === "in_review") {
-    return <span className="text-amber-500" title="In review">●</span>;
+    return <span className="text-amber-500" title="Reviewing">●</span>;
   }
   // draft
   return <span className="text-stone-400" title="Draft">○</span>;
@@ -97,8 +115,11 @@ function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: st
 
 export default function CountiesDashboardPage() {
   const router = useRouter();
-  const [statusFilter, setStatusFilter] = useState("");
+  const searchParams = useSearchParams();
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "");
   const [searchQuery, setSearchQuery] = useState("");
+  const [onlyStale, setOnlyStale] = useState(false);
+  const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [historyCountyId, setHistoryCountyId] = useState<string | null>(null);
   const [historyCountyName, setHistoryCountyName] = useState("");
 
@@ -123,19 +144,24 @@ export default function CountiesDashboardPage() {
       result = result.filter((r) => r.county.name.toLowerCase().includes(q));
     }
 
-    // Status filter
-    if (statusFilter === "stale") {
-      result = result.filter((r) => r.isStale);
-    } else if (statusFilter) {
+    // Status filter (editorial state)
+    if (statusFilter) {
       result = result.filter((r) => r.currentEdition?.status === statusFilter);
     }
 
+    // Independent stale toggle (county-level freshness)
+    if (onlyStale) {
+      result = result.filter((r) => r.isStale);
+    }
+
     return result;
-  }, [rows, searchQuery, statusFilter]);
+  }, [rows, searchQuery, statusFilter, onlyStale]);
 
   // ─── Batch generate ───────────────────────────────────────────────
   const [batchResult, setBatchResult] = useState<{
     created: number;
+    regenerated: number;
+    skipped: number;
     failed: number;
     totalCounties: number;
   } | null>(null);
@@ -143,6 +169,45 @@ export default function CountiesDashboardPage() {
   const [{ fetching: batching }, batchGenerate] = useMutation(
     BatchGenerateEditionsMutation
   );
+
+  // Preview what batch generate will do (computed from loaded dashboard data)
+  const generatePreview = useMemo(() => {
+    const bounds = getWeekBounds();
+    let toCreate = 0;
+    let toRegenerate = 0;
+    let toSkip = 0;
+    const skipReasons = { reviewing: 0, approved: 0, published: 0 };
+
+    for (const row of rows) {
+      const ed = row.currentEdition;
+      if (!ed || ed.periodStart < bounds.start) {
+        toCreate++;
+      } else {
+        switch (ed.status) {
+          case "draft":
+            toRegenerate++;
+            break;
+          case "in_review":
+            toSkip++;
+            skipReasons.reviewing++;
+            break;
+          case "approved":
+            toSkip++;
+            skipReasons.approved++;
+            break;
+          case "published":
+            toSkip++;
+            skipReasons.published++;
+            break;
+          default:
+            toSkip++;
+            break;
+        }
+      }
+    }
+
+    return { toCreate, toRegenerate, toSkip, skipReasons };
+  }, [rows]);
 
   const handleGenerate = async () => {
     setBatchError(null);
@@ -187,11 +252,11 @@ export default function CountiesDashboardPage() {
             </p>
           </div>
           <button
-            onClick={handleGenerate}
+            onClick={() => setShowGenerateModal(true)}
             disabled={batching}
             className="px-4 py-2 rounded-lg text-sm font-medium bg-admin-accent text-white hover:bg-admin-accent-hover disabled:opacity-50 transition-colors"
           >
-            {batching ? "Generating..." : "Generate This Week"}
+            {batching ? "Generating..." : "Generate Drafts"}
           </button>
         </div>
 
@@ -207,9 +272,15 @@ export default function CountiesDashboardPage() {
         {batchResult && (
           <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
             <span>
-              Created <span className="font-semibold">{batchResult.created}</span> editions
+              Created <span className="font-semibold">{batchResult.created}</span>
+              {batchResult.regenerated > 0 && (
+                <>, regenerated <span className="font-semibold">{batchResult.regenerated}</span></>
+              )}
+              {batchResult.skipped > 0 && (
+                <>, skipped <span className="font-semibold">{batchResult.skipped}</span></>
+              )}
               {batchResult.failed > 0 && (
-                <>, <span className="font-semibold text-red-600">{batchResult.failed}</span> failed</>
+                <>, <span className="font-semibold text-red-600">{batchResult.failed} failed</span></>
               )}{" "}
               out of {batchResult.totalCounties} counties.
             </span>
@@ -245,6 +316,19 @@ export default function CountiesDashboardPage() {
           </div>
         </div>
 
+        {/* Stale toggle — independent of editorial status filter */}
+        <div className="flex items-center gap-2 mb-4">
+          <Switch
+            id="stale-toggle"
+            checked={onlyStale}
+            onCheckedChange={setOnlyStale}
+          />
+          <Label htmlFor="stale-toggle" className="text-sm text-muted-foreground cursor-pointer">
+            Only stale counties
+            <span className="text-xs ml-1">({staleCount})</span>
+          </Label>
+        </div>
+
         {/* Error */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
@@ -261,13 +345,13 @@ export default function CountiesDashboardPage() {
                   County
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Current Edition
+                  Live Edition
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Draft Edition
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
-                </th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-muted-foreground uppercase tracking-wider w-16">
-                  Fresh
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Rows
@@ -291,6 +375,14 @@ export default function CountiesDashboardPage() {
                     <td className="px-6 py-3 whitespace-nowrap">
                       <span className="font-medium text-foreground">{row.county.name}</span>
                     </td>
+                    <td className="px-6 py-3 whitespace-nowrap text-sm">
+                      <span className="inline-flex items-center gap-1.5">
+                        <FreshnessIndicator isStale={row.isStale} status={ed?.status} />
+                        <span className={row.isStale ? "text-muted-foreground" : "text-foreground"}>
+                          {liveEditionAge(ed?.periodStart, row.isStale)}
+                        </span>
+                      </span>
+                    </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
                       {ed ? formatPeriod(ed.periodStart, ed.periodEnd) : "—"}
                     </td>
@@ -307,11 +399,8 @@ export default function CountiesDashboardPage() {
                         <span className="text-muted-foreground text-sm">—</span>
                       )}
                     </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-center text-lg">
-                      <FreshnessIndicator isStale={row.isStale} status={ed?.status} />
-                    </td>
                     <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
-                      {ed ? `${ed.rows.length}` : "—"}
+                      {ed ? `${ed.rowCount}` : "—"}
                     </td>
                     <td className="px-3 py-3 whitespace-nowrap">
                       <button
@@ -345,6 +434,76 @@ export default function CountiesDashboardPage() {
           {filteredRows.length} of {rows.length} counties
         </p>
       </div>
+
+      {/* ── Generate Drafts Confirmation Modal ─────────────────────────── */}
+      <Dialog open={showGenerateModal} onOpenChange={setShowGenerateModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Generate Drafts</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">
+              This will generate broadsheet drafts for the current week across all counties:
+            </p>
+            <ul className="space-y-1.5">
+              {generatePreview.toCreate > 0 && (
+                <li className="flex items-center gap-2">
+                  <span className="text-green-600 font-medium text-base">+</span>
+                  <span><strong>{generatePreview.toCreate}</strong> new {generatePreview.toCreate === 1 ? "draft" : "drafts"} will be created</span>
+                </li>
+              )}
+              {generatePreview.toRegenerate > 0 && (
+                <li className="flex items-center gap-2">
+                  <span className="text-amber-600 font-medium text-base">↻</span>
+                  <span><strong>{generatePreview.toRegenerate}</strong> existing {generatePreview.toRegenerate === 1 ? "draft" : "drafts"} will be regenerated</span>
+                </li>
+              )}
+              {generatePreview.toSkip > 0 && (
+                <li className="flex items-center gap-2 text-muted-foreground">
+                  <span className="font-medium text-base">—</span>
+                  <span>
+                    <strong>{generatePreview.toSkip}</strong> {generatePreview.toSkip === 1 ? "county" : "counties"} skipped
+                    {[
+                      generatePreview.skipReasons.reviewing > 0 && `${generatePreview.skipReasons.reviewing} reviewing`,
+                      generatePreview.skipReasons.approved > 0 && `${generatePreview.skipReasons.approved} approved`,
+                      generatePreview.skipReasons.published > 0 && `${generatePreview.skipReasons.published} published`,
+                    ].filter(Boolean).length > 0 && (
+                      <> ({[
+                        generatePreview.skipReasons.reviewing > 0 && `${generatePreview.skipReasons.reviewing} reviewing`,
+                        generatePreview.skipReasons.approved > 0 && `${generatePreview.skipReasons.approved} approved`,
+                        generatePreview.skipReasons.published > 0 && `${generatePreview.skipReasons.published} published`,
+                      ].filter(Boolean).join(", ")})</>
+                    )}
+                  </span>
+                </li>
+              )}
+              {generatePreview.toCreate === 0 && generatePreview.toRegenerate === 0 && (
+                <li className="text-muted-foreground">
+                  Nothing to generate — all counties already have non-draft editions for this week.
+                </li>
+              )}
+            </ul>
+          </div>
+          <div className="flex justify-end gap-3 mt-2">
+            <button
+              onClick={() => setShowGenerateModal(false)}
+              className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-secondary transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                setShowGenerateModal(false);
+                handleGenerate();
+              }}
+              disabled={generatePreview.toCreate === 0 && generatePreview.toRegenerate === 0}
+              className="px-4 py-2 text-sm rounded-lg font-medium bg-admin-accent text-white hover:bg-admin-accent-hover disabled:opacity-50 transition-colors"
+            >
+              Generate
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Edition History Modal ──────────────────────────────────────── */}
       <Dialog

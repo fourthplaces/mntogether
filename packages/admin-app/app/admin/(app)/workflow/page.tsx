@@ -27,8 +27,8 @@ import {
 // ─── Column config (left-to-right = editorial flow) ─────────────────────────
 
 const COLUMNS = [
-  { id: "draft", label: "Ready for Review", status: "draft", color: "bg-kanban-draft-bg" },
-  { id: "in_review", label: "In Review", status: "in_review", color: "bg-kanban-review-bg" },
+  { id: "draft", label: "Draft", status: "draft", color: "bg-kanban-draft-bg" },
+  { id: "in_review", label: "Reviewing", status: "in_review", color: "bg-kanban-review-bg" },
   { id: "approved", label: "Approved", status: "approved", color: "bg-kanban-published-bg" },
 ] as const;
 
