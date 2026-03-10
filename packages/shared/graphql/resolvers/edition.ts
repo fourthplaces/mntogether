@@ -56,6 +56,44 @@ interface EditionSlotData {
 // Type resolvers — bridge server flat data → GraphQL nested types
 // =============================================================================
 
+// =============================================================================
+// Helper types for public broadsheet response
+// =============================================================================
+
+interface PublicBroadsheetData {
+  edition: EditionData;
+  county: { id: string; fipsCode?: string; fips_code?: string; name: string; state: string };
+  rows: PublicBroadsheetRowData[];
+}
+
+interface PublicBroadsheetRowData {
+  rowTemplateSlug: string;
+  sortOrder: number;
+  slots: PublicBroadsheetSlotData[];
+  widgets: EditionWidgetData[];
+}
+
+interface PublicBroadsheetSlotData {
+  postTemplate: string;
+  slotIndex: number;
+  post: PublicBroadsheetPostData;
+}
+
+interface PublicBroadsheetPostData {
+  id: string;
+  title: string;
+  description: string;
+  postType: string;
+  weight: string;
+  location?: string;
+  sourceUrl?: string;
+  organizationName?: string;
+  publishedAt?: string;
+  tags: Array<{ kind: string; value: string; displayName?: string; color?: string }>;
+  contacts: Array<{ contactType: string; contactValue: string; contactLabel?: string }>;
+  urgentNotes: Array<{ content: string; ctaText?: string }>;
+}
+
 export const editionResolvers = {
   // Resolve nested objects on the Edition type
   Edition: {
@@ -157,7 +195,48 @@ export const editionResolvers = {
     },
   },
 
+  // Public broadsheet type resolvers
+  BroadsheetCounty: {
+    fipsCode: (parent: { fipsCode?: string; fips_code?: string }) => {
+      return parent.fipsCode ?? parent.fips_code ?? "";
+    },
+  },
+
+  // Coerce nullable arrays to empty arrays for non-nullable schema fields
+  BroadsheetPost: {
+    urgentNotes: (parent: PublicBroadsheetPostData) => parent.urgentNotes ?? [],
+    tags: (parent: PublicBroadsheetPostData) => parent.tags ?? [],
+    contacts: (parent: PublicBroadsheetPostData) => parent.contacts ?? [],
+  },
+
+  BroadsheetWidget: {
+    config: (parent: { config?: unknown }) => {
+      return typeof parent.config === "string"
+        ? parent.config
+        : JSON.stringify(parent.config ?? {});
+    },
+  },
+
   Query: {
+    publicBroadsheet: async (
+      _parent: unknown,
+      args: { countyId: string },
+      ctx: GraphQLContext
+    ) => {
+      const result =
+        await ctx.server.callService<PublicBroadsheetData>(
+          "Public",
+          "current_broadsheet",
+          { county_id: args.countyId }
+        );
+      // Flatten edition fields + county + rows into a single PublicBroadsheet object
+      return {
+        ...result.edition,
+        county: result.county,
+        rows: result.rows,
+      };
+    },
+
     counties: async (
       _parent: unknown,
       _args: unknown,

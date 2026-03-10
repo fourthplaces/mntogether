@@ -5,8 +5,11 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use std::collections::HashMap;
+
 use crate::api::auth::AdminUser;
 use crate::api::error::{ApiError, ApiResult};
+use crate::api::routes::posts::{load_tags_and_notes, PublicTagResult, UrgentNoteInfo};
 use crate::api::state::AppState;
 use crate::domains::editions::activities;
 use crate::domains::editions::models::county::County;
@@ -17,6 +20,8 @@ use crate::domains::editions::models::edition_widget::EditionWidget;
 use crate::domains::editions::models::post_template_config::PostTemplateConfig;
 use crate::domains::editions::models::row_template_config::RowTemplateConfig;
 use crate::domains::editions::models::row_template_slot::RowTemplateSlot;
+use crate::domains::contacts::models::contact::Contact;
+use crate::domains::posts::models::post::Post;
 
 // =============================================================================
 // Request types
@@ -311,6 +316,56 @@ pub struct EditionKanbanStatsResult {
     pub in_review: i32,
     pub approved: i32,
     pub published: i32,
+}
+
+// =============================================================================
+// Public broadsheet result types (unauthenticated, full post data)
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct PublicBroadsheetResult {
+    pub edition: EditionResult,
+    pub county: CountyResult,
+    pub rows: Vec<PublicBroadsheetRowResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublicBroadsheetRowResult {
+    pub row_template_slug: String,
+    pub sort_order: i32,
+    pub slots: Vec<PublicBroadsheetSlotResult>,
+    pub widgets: Vec<EditionWidgetResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublicBroadsheetSlotResult {
+    pub post_template: String,
+    pub slot_index: i32,
+    pub post: PublicBroadsheetPostResult,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublicBroadsheetPostResult {
+    pub id: Uuid,
+    pub title: String,
+    pub description: String,
+    pub post_type: String,
+    pub weight: String,
+    pub location: Option<String>,
+    pub source_url: Option<String>,
+    pub organization_name: Option<String>,
+    pub published_at: Option<String>,
+    pub tags: Vec<PublicTagResult>,
+    pub contacts: Vec<BroadsheetContactResult>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub urgent_notes: Vec<UrgentNoteInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct BroadsheetContactResult {
+    pub contact_type: String,
+    pub contact_value: String,
+    pub contact_label: Option<String>,
 }
 
 // =============================================================================
@@ -1042,11 +1097,150 @@ async fn remove_widget(
 }
 
 // =============================================================================
+// Public broadsheet handler (no auth required)
+// =============================================================================
+
+async fn public_current_broadsheet(
+    State(state): State<AppState>,
+    // No AdminUser — public endpoint
+    Json(req): Json<CurrentEditionRequest>,
+) -> ApiResult<Json<PublicBroadsheetResult>> {
+    let pool = &state.deps.db_pool;
+
+    let edition = Edition::find_published(req.county_id, pool)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!(
+                "No published edition for county: {}",
+                req.county_id
+            ))
+        })?;
+
+    let county = County::find_by_id(edition.county_id, pool)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound(format!("County not found: {}", edition.county_id))
+        })?;
+
+    let rows = EditionRow::find_by_edition(edition.id, pool).await?;
+    let all_templates = RowTemplateConfig::find_all(pool).await?;
+
+    // Collect all post IDs across all rows for batch loading
+    let mut all_slots_by_row: Vec<Vec<EditionSlot>> = Vec::new();
+    let mut all_post_ids: Vec<Uuid> = Vec::new();
+
+    for row in &rows {
+        let slots = EditionSlot::find_by_row(row.id, pool).await?;
+        for slot in &slots {
+            all_post_ids.push(slot.post_id);
+        }
+        all_slots_by_row.push(slots);
+    }
+
+    // Batch load full post data, tags, urgent notes, and org info
+    let posts_by_id: HashMap<Uuid, Post> = if !all_post_ids.is_empty() {
+        Post::find_by_ids(&all_post_ids, pool)
+            .await?
+            .into_iter()
+            .map(|p| (p.id.into_uuid(), p))
+            .collect()
+    } else {
+        HashMap::new()
+    };
+
+    let (mut tags_by_post, mut urgent_notes_by_post) =
+        load_tags_and_notes(&all_post_ids, &state.deps).await?;
+
+    let mut org_info = Post::find_org_info_for_posts(&all_post_ids, pool).await?;
+
+    // Batch load contacts for all posts
+    let all_contacts = Contact::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut contacts_by_post: HashMap<Uuid, Vec<BroadsheetContactResult>> = HashMap::new();
+    for c in all_contacts {
+        contacts_by_post
+            .entry(c.contactable_id)
+            .or_default()
+            .push(BroadsheetContactResult {
+                contact_type: c.contact_type,
+                contact_value: c.contact_value,
+                contact_label: c.contact_label,
+            });
+    }
+
+    // Assemble rows
+    let mut row_results = Vec::new();
+    for (row, slots) in rows.iter().zip(all_slots_by_row.iter()) {
+        let template = all_templates
+            .iter()
+            .find(|t| t.id == row.row_template_config_id);
+
+        let widgets = EditionWidget::find_by_row(row.id, pool).await?;
+
+        let slot_results: Vec<PublicBroadsheetSlotResult> = slots
+            .iter()
+            .filter_map(|slot| {
+                let post = posts_by_id.get(&slot.post_id)?;
+                let id = post.id.into_uuid();
+                let org_name = org_info.remove(&id).map(|(_, name)| name);
+
+                Some(PublicBroadsheetSlotResult {
+                    post_template: slot.post_template.clone(),
+                    slot_index: slot.slot_index,
+                    post: PublicBroadsheetPostResult {
+                        id,
+                        title: post.title.clone(),
+                        description: post.description.clone(),
+                        post_type: post.post_type.clone(),
+                        weight: post.weight.clone(),
+                        location: post.location.clone(),
+                        source_url: post.source_url.clone(),
+                        organization_name: org_name,
+                        published_at: post.published_at.map(|dt| dt.to_rfc3339()),
+                        tags: tags_by_post.remove(&id).unwrap_or_default(),
+                        contacts: contacts_by_post.remove(&id).unwrap_or_default(),
+                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                    },
+                })
+            })
+            .collect();
+
+        row_results.push(PublicBroadsheetRowResult {
+            row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
+            sort_order: row.sort_order,
+            slots: slot_results,
+            widgets: widgets
+                .iter()
+                .map(|w| EditionWidgetResult {
+                    id: w.id,
+                    widget_type: w.widget_type.clone(),
+                    slot_index: w.slot_index,
+                    config: w.config.clone(),
+                })
+                .collect(),
+        });
+    }
+
+    Ok(Json(PublicBroadsheetResult {
+        edition: edition_to_result(&edition),
+        county: CountyResult {
+            id: county.id,
+            fips_code: county.fips_code,
+            name: county.name,
+            state: county.state,
+        },
+        rows: row_results,
+    }))
+}
+
+// =============================================================================
 // Router
 // =============================================================================
 
 pub fn router() -> Router<AppState> {
     Router::new()
+        // Public (no auth)
+        .route("/Public/current_broadsheet", post(public_current_broadsheet))
+        // Admin
         .route("/Editions/list_counties", post(list_counties))
         .route("/Editions/get_county", post(get_county))
         .route("/Editions/list_editions", post(list_editions))

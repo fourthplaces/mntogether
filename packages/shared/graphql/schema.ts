@@ -49,6 +49,9 @@ type Query {
   publicOrganizations: [PublicOrganization!]!
   publicOrganization(id: ID!): PublicOrganization
 
+  # Public broadsheet (no auth)
+  publicBroadsheet(countyId: ID!): PublicBroadsheet
+
   # Counties + Editions (admin)
   counties: [County!]!
   county(id: ID!): County
@@ -449,6 +452,69 @@ type EditionKanbanStats {
   inReview: Int!
   approved: Int!
   published: Int!
+}
+
+# ========================================
+# Public Broadsheet (rendered homepage)
+# ========================================
+
+type PublicBroadsheet {
+  id: ID!
+  title: String
+  periodStart: String!
+  periodEnd: String!
+  status: String!
+  publishedAt: String
+  county: BroadsheetCounty!
+  rows: [BroadsheetRow!]!
+}
+
+type BroadsheetCounty {
+  id: ID!
+  fipsCode: String!
+  name: String!
+  state: String!
+}
+
+type BroadsheetRow {
+  rowTemplateSlug: String!
+  sortOrder: Int!
+  slots: [BroadsheetSlot!]!
+  widgets: [BroadsheetWidget!]!
+}
+
+type BroadsheetWidget {
+  id: ID!
+  widgetType: String!
+  slotIndex: Int!
+  config: String!
+}
+
+type BroadsheetSlot {
+  postTemplate: String!
+  slotIndex: Int!
+  post: BroadsheetPost!
+}
+
+type BroadsheetPost {
+  id: ID!
+  title: String!
+  description: String!
+  postType: String!
+  weight: String!
+  location: String
+  sourceUrl: String
+  organizationName: String
+  publishedAt: String
+  tags: [PublicTag!]!
+  contacts: [BroadsheetContact!]!
+  urgentNotes: [UrgentNote!]!
+}
+
+type BroadsheetContact {
+  contactType: String!
+  contactValue: String!
+  contactLabel: String
 }
 
 input CreatePostInput {

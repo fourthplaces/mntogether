@@ -220,6 +220,22 @@ impl Contact {
         Self::find_by_entity("post", post_id.into_uuid(), pool).await
     }
 
+    /// Find all contacts for multiple posts (batch query, avoids N+1).
+    pub async fn find_by_post_ids(
+        post_ids: &[Uuid],
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM contacts
+             WHERE contactable_type = 'post' AND contactable_id = ANY($1)
+             ORDER BY contactable_id, display_order, contact_type",
+        )
+        .bind(post_ids)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// Create contacts from JSON for a post
     pub async fn create_from_json_for_post(
         post_id: PostId,

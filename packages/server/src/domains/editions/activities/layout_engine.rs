@@ -163,8 +163,8 @@ fn place_posts(
                     continue;
                 }
 
-                // Find a compatible post template
-                if let Some(pt_slug) = find_compatible_post_template(post, post_templates) {
+                // Find a compatible post template (weight-aware)
+                if let Some(pt_slug) = find_compatible_post_template(post, &slot_def.weight, post_templates) {
                     row_slots.push(BroadsheetSlot {
                         post_id: post.id,
                         post_template_slug: pt_slug,
@@ -267,22 +267,41 @@ fn select_row_templates<'a>(
     selected
 }
 
-/// Find the first compatible post template for a post.
+/// Find the best compatible post template for a post, based on slot weight.
+///
+/// Weight-aware preferences (matching broadsheet design families):
+///   heavy  → feature (premium editorial), feature-reversed (dark/urgent notices)
+///   medium → gazette (standard card), bulletin (boxed community feel)
+///   light  → digest (headline-only), ticker (single-line), ledger (compact classifieds)
+///
+/// Falls back to any compatible template if none of the preferred families match.
 fn find_compatible_post_template(
     post: &LayoutPost,
+    slot_weight: &str,
     post_templates: &[PostTemplateConfig],
 ) -> Option<String> {
-    // Prefer 'gazette' as the default template (most versatile)
-    // Then fall back to any compatible template
-    for pt in post_templates {
-        if pt.slug == "gazette" && pt.is_compatible(&post.post_type) {
-            return Some(pt.slug.clone());
+    let preferred: &[&str] = match slot_weight {
+        "heavy" => &["feature", "feature-reversed"],
+        "medium" => &["gazette", "bulletin"],
+        "light" => &["digest", "ticker", "ledger"],
+        _ => &["gazette"],
+    };
+
+    // First pass: try preferred templates for this weight class
+    for &slug in preferred {
+        for pt in post_templates {
+            if pt.slug == slug && pt.is_compatible(&post.post_type) {
+                return Some(pt.slug.clone());
+            }
         }
     }
+
+    // Fallback: any compatible template (gazette is most versatile)
     for pt in post_templates {
         if pt.is_compatible(&post.post_type) {
             return Some(pt.slug.clone());
         }
     }
+
     None
 }

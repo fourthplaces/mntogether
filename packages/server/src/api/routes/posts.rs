@@ -645,7 +645,7 @@ pub struct OptionalPostResult {
 // Helper: batch-load public tags and urgent notes for a set of post IDs
 // =============================================================================
 
-async fn load_tags_and_notes(
+pub(crate) async fn load_tags_and_notes(
     post_ids: &[Uuid],
     deps: &ServerDeps,
 ) -> ApiResult<(
