@@ -1,5 +1,5 @@
 export const typeDefs = /* GraphQL */ `
-enum PostStatus { draft pending_approval active rejected archived }
+enum PostStatus { draft active rejected expired archived filled }
 enum PostType { story notice exchange event spotlight reference }
 enum Weight { heavy medium light }
 enum OrganizationStatus { pending_review approved rejected suspended }
@@ -23,6 +23,9 @@ type Query {
     search: String
     postType: String
     submissionType: String
+    excludeSubmissionType: String
+    countyId: ID
+    statewideOnly: Boolean
     zipCode: String
     radiusMiles: Float
     limit: Int
@@ -56,6 +59,7 @@ type Query {
   editionPreview(editionId: ID!): PublicBroadsheet
 
   # Counties + Editions (admin)
+  countyDashboard: [CountyDashboardRow!]!
   counties: [County!]!
   county(id: ID!): County
   editions(countyId: ID, status: String, periodStart: String, periodEnd: String, limit: Int, offset: Int): EditionConnection!
@@ -383,6 +387,13 @@ type County {
   fipsCode: String!
   name: String!
   state: String!
+}
+
+type CountyDashboardRow {
+  county: County!
+  currentEdition: Edition
+  lastPublishedAt: String
+  isStale: Boolean!
 }
 
 type Edition {

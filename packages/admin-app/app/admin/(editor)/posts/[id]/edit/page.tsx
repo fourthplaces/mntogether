@@ -140,7 +140,7 @@ export default function EditPostPage() {
     );
   }
 
-  const showPublish = post.status === "draft" || post.status === "pending_approval";
+  const showPublish = post.status === "draft";
 
   return (
     <>

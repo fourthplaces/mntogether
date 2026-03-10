@@ -193,6 +193,9 @@ export default function WorkflowPage() {
         <div>
           <h1 className="text-2xl font-semibold text-text-primary">
             Review Board
+            <span className="ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-amber-100 text-amber-700 align-middle">
+              Beta
+            </span>
           </h1>
           {guidanceMessage && (
             <p className="text-sm text-text-secondary mt-0.5">

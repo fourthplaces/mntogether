@@ -6,22 +6,12 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import {
-  EditorialPostsQuery,
-  ArchivePostMutation,
-  DeletePostMutation,
-} from "@/lib/graphql/posts";
+import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
+import { CountiesQuery } from "@/lib/graphql/editions";
 
-// ─── Types & config ─────────────────────────────────────────────────────────
+// ─── Types ──────────────────────────────────────────────────────────────────
 
-type StatusTab = "draft" | "active" | "archived";
 type PostTypeFilter = "" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
-
-const STATUS_TABS: { key: StatusTab; label: string }[] = [
-  { key: "draft", label: "Drafts" },
-  { key: "active", label: "Active" },
-  { key: "archived", label: "Archived" },
-];
 
 const POST_TYPE_OPTIONS: { value: PostTypeFilter; label: string }[] = [
   { value: "", label: "All Types" },
@@ -65,26 +55,34 @@ function timeAgo(dateStr: string): string {
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-export default function EditorialPage() {
+export default function SignalPage() {
   const router = useRouter();
-  const [statusTab, setStatusTab] = useState<StatusTab>("draft");
+  const [countyId, setCountyId] = useState("");
   const [postType, setPostType] = useState<PostTypeFilter>("");
-  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchInput, setSearchInput] = useState("");
+  const [showRejected, setShowRejected] = useState(false);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
-  const pagination = useOffsetPagination({ pageSize: 20 });
+  const pagination = useOffsetPagination({ pageSize: 25 });
 
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [statusTab, postType, searchQuery]);
+  }, [countyId, postType, searchQuery, showRejected]);
 
   // ─── Queries ──────────────────────────────────────────────────────
 
+  const [{ data: countiesData }] = useQuery({ query: CountiesQuery });
+  const counties = countiesData?.counties || [];
+
+  const isStatewide = countyId === "__statewide__";
   const [{ data, fetching, error }] = useQuery({
-    query: EditorialPostsQuery,
+    query: SignalPostsQuery,
     variables: {
-      status: statusTab,
+      status: showRejected ? "rejected" : "active",
+      countyId: countyId && !isStatewide ? countyId : null,
+      statewideOnly: isStatewide || null,
       postType: postType || null,
       search: searchQuery || null,
       limit: pagination.variables.first,
@@ -92,8 +90,7 @@ export default function EditorialPage() {
     },
   });
 
-  const [, archivePost] = useMutation(ArchivePostMutation);
-  const [, deletePost] = useMutation(DeletePostMutation);
+  const [, rejectPost] = useMutation(RejectPostMutation);
 
   const posts = data?.posts?.posts || [];
   const totalCount = data?.posts?.totalCount || 0;
@@ -102,21 +99,20 @@ export default function EditorialPage() {
 
   // ─── Actions ──────────────────────────────────────────────────────
 
-  const handleArchive = async (postId: string, e: React.MouseEvent) => {
+  const handleReject = async (postId: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    await archivePost(
-      { id: postId },
-      { additionalTypenames: ["Post", "PostConnection"] }
-    );
-  };
-
-  const handleDelete = async (postId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!confirm("Delete this post permanently?")) return;
-    await deletePost(
-      { id: postId },
-      { additionalTypenames: ["Post", "PostConnection"] }
-    );
+    if (!confirm("Reject this post? It will be removed from broadsheet eligibility.")) return;
+    setRejectingId(postId);
+    try {
+      await rejectPost(
+        { id: postId, reason: "Rejected by editor from Signal view" },
+        { additionalTypenames: ["Post", "PostConnection"] }
+      );
+    } catch (err) {
+      console.error("Failed to reject post:", err);
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   // ─── Render ───────────────────────────────────────────────────────
@@ -125,43 +121,33 @@ export default function EditorialPage() {
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">Editorial</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">
-              Human-authored posts &middot; {totalCount.toLocaleString()} {statusTab} posts
-            </p>
-          </div>
-          <a
-            href="/admin/posts/new"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-admin-accent hover:bg-admin-accent-hover rounded-lg transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-            </svg>
-            New Post
-          </a>
-        </div>
-
-        {/* Status tabs */}
-        <div className="flex gap-1 mb-4">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusTab(tab.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                statusTab === tab.key
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-foreground">Signal</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">
+            Posts ingested from Root Signal &middot; {totalCount.toLocaleString()} posts
+          </p>
         </div>
 
         {/* Filters row */}
-        <div className="flex gap-3 mb-4 items-center">
+        <div className="flex flex-wrap gap-3 mb-4 items-center">
+          {/* County dropdown (primary filter) */}
+          <select
+            value={countyId}
+            onChange={(e) => setCountyId(e.target.value)}
+            className="px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-52"
+          >
+            <option value="">All Counties</option>
+            <option value="__statewide__">Statewide</option>
+            {counties
+              .slice()
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </select>
+
           {/* Type dropdown */}
           <select
             value={postType}
@@ -203,7 +189,42 @@ export default function EditorialPage() {
               </button>
             )}
           </form>
+
+          {/* Show rejected toggle */}
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showRejected}
+              onChange={(e) => setShowRejected(e.target.checked)}
+              className="rounded border-border"
+            />
+            Show rejected
+          </label>
         </div>
+
+        {/* Active filter pills */}
+        {(countyId || postType || searchQuery) && (
+          <div className="flex gap-2 flex-wrap mb-4">
+            {countyId && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
+                County: {countyId === "__statewide__" ? "Statewide" : counties.find((c) => c.id === countyId)?.name || countyId}
+                <button onClick={() => setCountyId("")} className="hover:text-foreground">&times;</button>
+              </span>
+            )}
+            {postType && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
+                Type: <span className="capitalize">{postType}</span>
+                <button onClick={() => setPostType("")} className="hover:text-foreground">&times;</button>
+              </span>
+            )}
+            {searchQuery && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
+                Search: {searchQuery}
+                <button onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-foreground">&times;</button>
+              </span>
+            )}
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -214,28 +235,20 @@ export default function EditorialPage() {
 
         {/* Loading */}
         {fetching && posts.length === 0 && (
-          <AdminLoader label="Loading editorial posts..." />
+          <AdminLoader label="Loading signal posts..." />
         )}
 
-        {/* Table or empty */}
+        {/* Table */}
         {!fetching && !error && posts.length === 0 ? (
           <div className="bg-card border border-border rounded-lg p-12 text-center">
-            <h3 className="text-lg font-semibold text-foreground mb-1">
-              {statusTab === "draft" ? "No drafts yet" : "No posts found"}
-            </h3>
+            <h3 className="text-lg font-semibold text-foreground mb-1">No posts found</h3>
             <p className="text-muted-foreground text-sm">
-              {statusTab === "draft"
-                ? "Create a new post to get started."
-                : `No ${statusTab} editorial posts${postType ? ` of type "${postType}"` : ""}.`}
+              {searchQuery || countyId || postType
+                ? "Try adjusting your filters."
+                : showRejected
+                ? "No rejected signal posts."
+                : "No active signal posts in the system."}
             </p>
-            {statusTab === "draft" && (
-              <a
-                href="/admin/posts/new"
-                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-medium text-white bg-admin-accent hover:bg-admin-accent-hover rounded-lg transition-colors"
-              >
-                New Post
-              </a>
-            )}
           </div>
         ) : posts.length > 0 && (
           <>
@@ -252,10 +265,13 @@ export default function EditorialPage() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
                       Weight
                     </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">
-                      Updated
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      Source
                     </th>
-                    <th className="w-20" />
+                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
+                      Date
+                    </th>
+                    <th className="w-12" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -266,12 +282,12 @@ export default function EditorialPage() {
                       className="hover:bg-secondary cursor-pointer transition-colors"
                     >
                       <td className="px-6 py-3">
-                        <div className="font-medium text-foreground text-sm truncate max-w-lg">
+                        <div className="font-medium text-foreground text-sm truncate max-w-md">
                           {post.title}
                         </div>
-                        {post.organizationName && (
-                          <div className="text-xs text-muted-foreground mt-0.5">
-                            {post.organizationName}
+                        {post.location && (
+                          <div className="text-xs text-muted-foreground truncate max-w-md mt-0.5">
+                            {post.location}
                           </div>
                         )}
                       </td>
@@ -297,30 +313,39 @@ export default function EditorialPage() {
                           </span>
                         )}
                       </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground truncate max-w-[160px]">
+                        {post.organizationName || "—"}
+                      </td>
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
                         {timeAgo(post.createdAt)}
                       </td>
-                      <td className="px-3 py-3 whitespace-nowrap flex gap-1">
-                        {statusTab !== "archived" && (
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {!showRejected && (
                           <button
-                            onClick={(e) => handleArchive(post.id, e)}
-                            className="p-1 text-muted-foreground hover:text-amber-600 rounded"
-                            title="Archive"
+                            onClick={(e) => handleReject(post.id, e)}
+                            disabled={rejectingId === post.id}
+                            className="p-1 text-muted-foreground hover:text-red-600 rounded disabled:opacity-50"
+                            title="Reject post"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
                             </svg>
                           </button>
                         )}
-                        <button
-                          onClick={(e) => handleDelete(post.id, e)}
-                          className="p-1 text-muted-foreground hover:text-red-600 rounded"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
+                        {post.sourceUrl && (
+                          <a
+                            href={post.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="p-1 text-muted-foreground hover:text-foreground rounded inline-block"
+                            title="View source"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          </a>
+                        )}
                       </td>
                     </tr>
                   ))}

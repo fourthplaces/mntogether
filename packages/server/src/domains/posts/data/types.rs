@@ -51,12 +51,14 @@ impl From<Post> for PostType {
             post_type: post.post_type,
             category: post.category,
             status: match post.status.as_str() {
+                "draft" => PostStatusData::Draft,
                 "pending_approval" => PostStatusData::PendingApproval,
                 "active" => PostStatusData::Active,
                 "rejected" => PostStatusData::Rejected,
                 "expired" => PostStatusData::Expired,
                 "filled" => PostStatusData::Filled,
-                _ => PostStatusData::PendingApproval, // default fallback
+                "archived" => PostStatusData::Archived,
+                _ => PostStatusData::Active, // default fallback
             },
             urgency: post.urgency,
             location: post.location,
@@ -82,21 +84,25 @@ pub struct NearbyPostType {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PostStatusData {
-    PendingApproval,
+    Draft,
+    PendingApproval, // Legacy — kept for backward compat
     Active,
     Rejected,
     Expired,
     Filled,
+    Archived,
 }
 
 impl std::fmt::Display for PostStatusData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            PostStatusData::Draft => write!(f, "draft"),
             PostStatusData::PendingApproval => write!(f, "pending_approval"),
             PostStatusData::Active => write!(f, "active"),
             PostStatusData::Rejected => write!(f, "rejected"),
             PostStatusData::Expired => write!(f, "expired"),
             PostStatusData::Filled => write!(f, "filled"),
+            PostStatusData::Archived => write!(f, "archived"),
         }
     }
 }

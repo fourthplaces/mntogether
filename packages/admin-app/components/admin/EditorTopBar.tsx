@@ -41,7 +41,7 @@ const icons = {
 function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "info" | "secondary" {
   switch (status) {
     case "active": return "success";
-    case "pending_approval": return "warning";
+    case "pending_approval": return "warning"; // legacy
     case "rejected": return "danger";
     case "draft": return "info";
     case "archived": return "secondary";

@@ -73,7 +73,7 @@ const WEIGHT_SPAN: Record<string, number> = { heavy: 2, medium: 1, light: 1 };
 // ─── Page export ─────────────────────────────────────────────────────────────
 
 export default function EditionDetailPage() {
-  const [activeTab, setActiveTab] = useState<"layout" | "posts">("layout");
+  const [activeTab, setActiveTab] = useState<"layout" | "posts" | "widgets">("layout");
   const params = useParams();
   const id = params.id as string;
 
@@ -141,6 +141,16 @@ export default function EditionDetailPage() {
           >
             Posts
           </button>
+          <button
+            onClick={() => setActiveTab("widgets")}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "widgets"
+                ? "border-amber-600 text-amber-700"
+                : "border-transparent text-stone-500 hover:text-stone-700"
+            }`}
+          >
+            Widgets
+          </button>
         </div>
 
         {activeTab === "layout" ? (
@@ -148,8 +158,10 @@ export default function EditionDetailPage() {
             edition={edition}
             refetchEdition={refetchEdition}
           />
-        ) : (
+        ) : activeTab === "posts" ? (
           <EditionPostsView edition={edition} />
+        ) : (
+          <EditionWidgetsView edition={edition} refetchEdition={refetchEdition} />
         )}
       </div>
     </div>
@@ -642,14 +654,265 @@ function EditionPostsView({ edition }: { edition: Edition }) {
                 <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${
                   post.status === "active"
                     ? "bg-green-100 text-green-800"
-                    : post.status === "pending_approval"
-                      ? "bg-yellow-100 text-yellow-800"
+                    : post.status === "draft"
+                      ? "bg-blue-100 text-blue-800"
                       : post.status === "rejected"
                         ? "bg-red-100 text-red-800"
                         : "bg-stone-100 text-stone-600"
                 }`}>
-                  {post.status === "pending_approval" ? "Pending" : post.status}
+                  {post.status}
                 </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Edition Widgets View ───────────────────────────────────────────────────
+
+function EditionWidgetsView({
+  edition,
+  refetchEdition,
+}: {
+  edition: Edition;
+  refetchEdition: (opts?: any) => void;
+}) {
+  const [, addWidgetMut] = useMutation(AddWidgetMutation);
+  const [, updateWidgetMut] = useMutation(UpdateWidgetMutation);
+  const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
+  const mutCtx = useMemo(
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionWidget"] }),
+    []
+  );
+
+  const [addingToRow, setAddingToRow] = useState<string | null>(null);
+  const [newWidgetType, setNewWidgetType] = useState("info_box");
+  const [newWidgetConfig, setNewWidgetConfig] = useState("{}");
+  const [editingWidget, setEditingWidget] = useState<string | null>(null);
+  const [editConfig, setEditConfig] = useState("");
+
+  // Collect all widgets across rows
+  const allWidgets = useMemo(() => {
+    const widgets: Array<{
+      widget: EditionWidget;
+      row: (typeof edition.rows)[number];
+    }> = [];
+    for (const row of edition.rows) {
+      for (const widget of row.widgets) {
+        widgets.push({ widget, row });
+      }
+    }
+    return widgets;
+  }, [edition]);
+
+  const isEditable = edition.status !== "published" && edition.status !== "archived";
+
+  const handleAdd = async () => {
+    if (!addingToRow) return;
+    try {
+      JSON.parse(newWidgetConfig); // validate
+    } catch {
+      alert("Invalid JSON config");
+      return;
+    }
+    const row = edition.rows.find((r) => r.id === addingToRow);
+    const nextIndex = row ? Math.max(0, ...row.widgets.map((w) => w.slotIndex), -1) + 1 : 0;
+    await addWidgetMut(
+      { editionRowId: addingToRow, widgetType: newWidgetType, slotIndex: nextIndex, config: newWidgetConfig },
+      mutCtx
+    );
+    refetchEdition({ requestPolicy: "network-only" });
+    setAddingToRow(null);
+    setNewWidgetConfig("{}");
+  };
+
+  const handleUpdate = async (widgetId: string) => {
+    try {
+      JSON.parse(editConfig);
+    } catch {
+      alert("Invalid JSON config");
+      return;
+    }
+    await updateWidgetMut({ id: widgetId, config: editConfig }, mutCtx);
+    refetchEdition({ requestPolicy: "network-only" });
+    setEditingWidget(null);
+  };
+
+  const handleRemove = async (widgetId: string) => {
+    if (!confirm("Remove this widget?")) return;
+    await removeWidgetMut({ id: widgetId }, mutCtx);
+    refetchEdition({ requestPolicy: "network-only" });
+  };
+
+  return (
+    <>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">
+            {edition.county.name} County &mdash; Widgets
+          </h1>
+          <div className="flex items-center gap-3 mt-1 text-sm text-stone-500">
+            <span>{formatDateRange(edition.periodStart, edition.periodEnd)}</span>
+            <StatusBadge status={edition.status} />
+            <span>{allWidgets.length} widget{allWidgets.length !== 1 ? "s" : ""}</span>
+          </div>
+        </div>
+        {isEditable && (
+          <div>
+            <select
+              value={addingToRow || ""}
+              onChange={(e) => setAddingToRow(e.target.value || null)}
+              className="px-3 py-2 border border-stone-300 rounded-lg text-sm mr-2"
+            >
+              <option value="">Select row...</option>
+              {edition.rows
+                .slice()
+                .sort((a, b) => a.sortOrder - b.sortOrder)
+                .map((r) => (
+                  <option key={r.id} value={r.id}>
+                    Row {r.sortOrder + 1}: {r.rowTemplate.displayName}
+                  </option>
+                ))}
+            </select>
+            {addingToRow && (
+              <button
+                onClick={handleAdd}
+                className="px-3 py-2 bg-admin-accent text-white rounded-lg text-sm font-medium hover:bg-admin-accent-hover transition-colors"
+              >
+                + Add Widget
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Add widget form */}
+      {addingToRow && (
+        <div className="bg-white rounded-lg border border-stone-200 p-4 mb-4">
+          <h3 className="text-sm font-medium text-stone-700 mb-3">New Widget</h3>
+          <div className="flex gap-3 items-start">
+            <div>
+              <label className="text-xs text-stone-500 block mb-1">Type</label>
+              <select
+                value={newWidgetType}
+                onChange={(e) => setNewWidgetType(e.target.value)}
+                className="px-3 py-2 border border-stone-300 rounded-lg text-sm"
+              >
+                <option value="info_box">Info Box</option>
+                <option value="weather">Weather</option>
+                <option value="calendar">Calendar</option>
+                <option value="advertisement">Advertisement</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+            <div className="flex-1">
+              <label className="text-xs text-stone-500 block mb-1">Config (JSON)</label>
+              <textarea
+                value={newWidgetConfig}
+                onChange={(e) => setNewWidgetConfig(e.target.value)}
+                className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono h-20 resize-none"
+                placeholder='{"title": "...", "content": "..."}'
+              />
+            </div>
+            <div className="pt-5">
+              <button
+                onClick={() => setAddingToRow(null)}
+                className="px-3 py-2 text-sm text-stone-500 hover:text-stone-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Widgets list */}
+      {allWidgets.length === 0 ? (
+        <div className="text-stone-500 text-center py-12 text-sm">
+          No widgets in this edition yet.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {allWidgets.map(({ widget, row }) => (
+            <div
+              key={widget.id}
+              className="bg-white rounded-lg border border-stone-200 p-4"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="px-2 py-0.5 text-xs rounded-full font-medium bg-violet-100 text-violet-800">
+                      {widget.widgetType}
+                    </span>
+                    <span className="text-xs text-stone-400">
+                      Row {row.sortOrder + 1}: {row.rowTemplate.displayName} &middot; Slot {widget.slotIndex}
+                    </span>
+                  </div>
+
+                  {editingWidget === widget.id ? (
+                    <div className="mt-2">
+                      <textarea
+                        value={editConfig}
+                        onChange={(e) => setEditConfig(e.target.value)}
+                        className="w-full px-3 py-2 border border-stone-300 rounded-lg text-sm font-mono h-24 resize-none"
+                      />
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          onClick={() => handleUpdate(widget.id)}
+                          className="px-3 py-1.5 bg-admin-accent text-white rounded text-sm font-medium"
+                        >
+                          Save
+                        </button>
+                        <button
+                          onClick={() => setEditingWidget(null)}
+                          className="px-3 py-1.5 text-sm text-stone-500 hover:text-stone-700"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <pre className="mt-1 text-xs text-stone-600 bg-stone-50 rounded p-2 overflow-x-auto max-w-lg">
+                      {(() => {
+                        try {
+                          return JSON.stringify(JSON.parse(widget.config), null, 2);
+                        } catch {
+                          return widget.config;
+                        }
+                      })()}
+                    </pre>
+                  )}
+                </div>
+
+                {isEditable && editingWidget !== widget.id && (
+                  <div className="flex gap-1 ml-3 shrink-0">
+                    <button
+                      onClick={() => {
+                        setEditingWidget(widget.id);
+                        setEditConfig(widget.config);
+                      }}
+                      className="p-1.5 text-stone-400 hover:text-stone-600 rounded"
+                      title="Edit config"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => handleRemove(widget.id)}
+                      className="p-1.5 text-stone-400 hover:text-red-600 rounded"
+                      title="Remove widget"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           ))}

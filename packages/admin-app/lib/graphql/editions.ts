@@ -14,6 +14,30 @@ export const CountiesQuery = graphql(`
   }
 `);
 
+export const CountyDashboardQuery = graphql(`
+  query CountyDashboard {
+    countyDashboard {
+      county {
+        id
+        name
+        fipsCode
+      }
+      currentEdition {
+        id
+        periodStart
+        periodEnd
+        status
+        publishedAt
+        rows {
+          id
+        }
+      }
+      lastPublishedAt
+      isStale
+    }
+  }
+`);
+
 export const EditionsListQuery = graphql(`
   query EditionsList(
     $countyId: ID
@@ -68,6 +92,24 @@ export const LatestEditionsQuery = graphql(`
         id
       }
       createdAt
+    }
+  }
+`);
+
+export const EditionHistoryQuery = graphql(`
+  query EditionHistory($countyId: ID, $limit: Int) {
+    editions(countyId: $countyId, limit: $limit) {
+      editions {
+        id
+        periodStart
+        periodEnd
+        status
+        publishedAt
+        rows {
+          id
+        }
+      }
+      totalCount
     }
   }
 `);

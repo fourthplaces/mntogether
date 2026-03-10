@@ -16,6 +16,7 @@ interface NavItem {
   label: string;
   icon: React.ReactNode;
   badge?: number;
+  labelSuffix?: string;
 }
 
 interface NavGroup {
@@ -68,6 +69,21 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" />
     </svg>
   ),
+  signal: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.348 14.652a3.75 3.75 0 010-5.304m5.304 0a3.75 3.75 0 010 5.304m-7.425 2.121a6.75 6.75 0 010-9.546m9.546 0a6.75 6.75 0 010 9.546M5.106 18.894c-3.808-3.808-3.808-9.98 0-13.788m13.788 0c3.808 3.808 3.808 9.98 0 13.788M12 12h.008v.008H12V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+    </svg>
+  ),
+  editorial: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+    </svg>
+  ),
+  counties: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 6.75V15m6-6v8.25m.503 3.498l4.875-2.437c.381-.19.622-.58.622-1.006V4.82c0-.836-.88-1.38-1.628-1.006l-3.869 1.934c-.317.159-.69.159-1.006 0L9.503 3.252a1.125 1.125 0 00-1.006 0L3.622 5.689C3.24 5.88 3 6.27 3 6.695V19.18c0 .836.88 1.38 1.628 1.006l3.869-1.934c.317-.159.69-.159 1.006 0l4.994 2.497c.317.158.69.158 1.006 0z" />
+    </svg>
+  ),
   viewSite: (
     <svg className="w-5 h-5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -97,11 +113,17 @@ const buildNavGroups = (): NavGroup[] => [
     ],
   },
   {
-    label: "Editorial",
+    label: "Broadsheet",
     items: [
-      { href: "/admin/workflow", label: "Review Board", icon: icons.workflow },
-      { href: "/admin/editions", label: "Editions", icon: icons.editions },
-      { href: "/admin/posts", label: "Posts", icon: icons.posts },
+      { href: "/admin/editions", label: "Counties", icon: icons.counties },
+      { href: "/admin/workflow", label: "Review Board", icon: icons.workflow, labelSuffix: "Beta" },
+    ],
+  },
+  {
+    label: "Content",
+    items: [
+      { href: "/admin/signal", label: "Signal", icon: icons.signal },
+      { href: "/admin/posts", label: "Editorial", icon: icons.editorial },
       { href: "/admin/media", label: "Media", icon: icons.media },
     ],
   },
@@ -231,6 +253,11 @@ export function AdminSidebar({
                     {!collapsed && (
                       <>
                         <span>{item.label}</span>
+                        {item.labelSuffix && (
+                          <span className="text-[10px] font-medium bg-stone-200 text-stone-500 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                            {item.labelSuffix}
+                          </span>
+                        )}
                         {renderBadge(itemBadge)}
                       </>
                     )}

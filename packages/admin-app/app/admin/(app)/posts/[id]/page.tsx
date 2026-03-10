@@ -107,7 +107,8 @@ function formatDate(dateString: string) {
 function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "info" | "secondary" {
   switch (status) {
     case "active": return "success";
-    case "pending_approval": return "warning";
+    case "pending_approval": return "warning"; // legacy
+    case "draft": return "info";
     case "rejected": return "danger";
     case "draft": return "info";
     case "archived": return "secondary";
@@ -374,7 +375,7 @@ export default function PostDetailPage() {
                 if (newStatus === "active") handleApprove();
                 else if (newStatus === "rejected") handleReject();
                 else if (newStatus === "archived") handleArchive();
-                else if (newStatus === "pending_approval") handleReactivate();
+                else if (newStatus === "draft" || newStatus === "pending_approval") handleReactivate();
               }}
             >
               <SelectTrigger className="h-7 w-auto min-w-0 gap-1 rounded-full px-2.5 text-xs font-medium">
@@ -384,7 +385,6 @@ export default function PostDetailPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="draft">Draft</SelectItem>
-                <SelectItem value="pending_approval">Pending</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="rejected">Rejected</SelectItem>
                 <SelectItem value="archived">Archived</SelectItem>

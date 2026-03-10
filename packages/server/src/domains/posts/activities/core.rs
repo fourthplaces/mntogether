@@ -15,7 +15,7 @@ use crate::domains::posts::data::{EditPostInput, SubmitPostInput};
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
 use crate::kernel::ServerDeps;
 
-/// Submit a post from user input (public, goes to pending_approval)
+/// Submit a post from user input (public, goes to active)
 /// Returns the created PostId.
 pub async fn submit_post(
     input: SubmitPostInput,

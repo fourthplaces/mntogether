@@ -17,6 +17,7 @@ export const PostListFields = graphql(`
     distanceMiles
     organizationId
     organizationName
+    submissionType
     weight
     tags {
       id

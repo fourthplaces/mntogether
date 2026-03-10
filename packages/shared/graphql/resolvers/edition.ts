@@ -290,6 +290,55 @@ export const editionResolvers = {
       };
     },
 
+    countyDashboard: async (
+      _parent: unknown,
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      // Fetch counties and latest editions in parallel
+      const [countiesResult, editionsResult] = await Promise.all([
+        ctx.server.callService<{ counties: Array<{ id: string; fipsCode: string; name: string; state: string }> }>(
+          "Editions", "list_counties", {}
+        ),
+        ctx.server.callService<{ editions: EditionData[]; total_count: number }>(
+          "Editions", "latest_editions", {}
+        ),
+      ]);
+
+      const counties = countiesResult.counties;
+      const editions = editionsResult.editions;
+
+      // Build a map of county_id → latest edition
+      const editionByCounty = new Map<string, EditionData>();
+      for (const edition of editions) {
+        editionByCounty.set(edition.countyId, edition);
+      }
+
+      // Current period: determine if an edition is stale
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun
+      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+      const currentMonday = new Date(now);
+      currentMonday.setDate(now.getDate() + mondayOffset);
+      const currentMondayStr = currentMonday.toISOString().split("T")[0];
+
+      return counties.map((county: { id: string; fipsCode: string; name: string; state: string }) => {
+        const edition = editionByCounty.get(county.id) || null;
+        const isStale = !edition || edition.periodStart < currentMondayStr || edition.status === "draft";
+        const lastPublishedAt = edition?.publishedAt || null;
+
+        return {
+          county,
+          currentEdition: edition ? {
+            ...edition,
+            county,
+          } : null,
+          lastPublishedAt,
+          isStale,
+        };
+      });
+    },
+
     counties: async (
       _parent: unknown,
       _args: unknown,

@@ -47,6 +47,9 @@ pub struct ListPostsRequest {
     pub radius_miles: Option<f64>,
     pub post_type: Option<String>,
     pub submission_type: Option<String>,
+    pub exclude_submission_type: Option<String>,
+    pub county_id: Option<Uuid>,
+    pub statewide_only: Option<bool>,
     pub first: Option<i32>,
     pub offset: Option<i32>,
     pub after: Option<String>,
@@ -845,6 +848,9 @@ async fn list(
         search: req.search.as_deref(),
         post_type: req.post_type.as_deref(),
         submission_type: req.submission_type.as_deref(),
+        exclude_submission_type: req.exclude_submission_type.as_deref(),
+        county_id: req.county_id,
+        statewide_only: req.statewide_only.unwrap_or(false),
     };
 
     if let Some(ref zip_code) = req.zip_code {
@@ -1810,7 +1816,7 @@ async fn reactivate(
     _user: AdminUser,
     Json(_req): Json<EmptyRequest>,
 ) -> ApiResult<Json<PostResult>> {
-    Post::update_status(PostId::from_uuid(post_id), "pending_approval", &state.deps.db_pool)
+    Post::update_status(PostId::from_uuid(post_id), "active", &state.deps.db_pool)
         .await?;
 
     let post = Post::find_by_id(PostId::from_uuid(post_id), &state.deps.db_pool)

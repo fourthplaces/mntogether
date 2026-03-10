@@ -47,6 +47,9 @@ export const postResolvers = {
         search?: string;
         postType?: string;
         submissionType?: string;
+        excludeSubmissionType?: string;
+        countyId?: string;
+        statewideOnly?: boolean;
         zipCode?: string;
         radiusMiles?: number;
         limit?: number;
@@ -59,6 +62,9 @@ export const postResolvers = {
         search: args.search,
         post_type: args.postType,
         submission_type: args.submissionType,
+        exclude_submission_type: args.excludeSubmissionType,
+        county_id: args.countyId,
+        statewide_only: args.statewideOnly,
         zip_code: args.zipCode,
         radius_miles: args.radiusMiles,
         first: args.limit,

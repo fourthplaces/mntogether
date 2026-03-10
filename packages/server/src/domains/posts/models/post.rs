@@ -31,7 +31,7 @@ pub struct Post {
     pub priority: i32,   // editorial importance (higher = more prominent)
     pub capacity_status: Option<String>, // 'accepting', 'paused', 'at_capacity'
     pub urgency: Option<String>,         // 'low', 'medium', 'high', 'urgent'
-    pub status: String, // 'pending_approval', 'active', 'filled', 'rejected', 'expired'
+    pub status: String, // 'draft', 'active', 'filled', 'rejected', 'expired', 'archived'
 
     // Verification
     pub verified_at: Option<DateTime<Utc>>,
@@ -304,21 +304,25 @@ impl std::str::FromStr for Urgency {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum PostStatus {
-    PendingApproval,
+    Draft,
+    PendingApproval, // Legacy — kept for backward compat, not used for new posts
     Active,
     Filled,
     Rejected,
     Expired,
+    Archived,
 }
 
 impl std::fmt::Display for PostStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            PostStatus::Draft => write!(f, "draft"),
             PostStatus::PendingApproval => write!(f, "pending_approval"),
             PostStatus::Active => write!(f, "active"),
             PostStatus::Filled => write!(f, "filled"),
             PostStatus::Rejected => write!(f, "rejected"),
             PostStatus::Expired => write!(f, "expired"),
+            PostStatus::Archived => write!(f, "archived"),
         }
     }
 }
@@ -328,11 +332,13 @@ impl std::str::FromStr for PostStatus {
 
     fn from_str(s: &str) -> Result<Self> {
         match s {
+            "draft" => Ok(PostStatus::Draft),
             "pending_approval" => Ok(PostStatus::PendingApproval),
             "active" => Ok(PostStatus::Active),
             "filled" => Ok(PostStatus::Filled),
             "rejected" => Ok(PostStatus::Rejected),
             "expired" => Ok(PostStatus::Expired),
+            "archived" => Ok(PostStatus::Archived),
             _ => Err(anyhow::anyhow!("Invalid listing status: {}", s)),
         }
     }
@@ -367,7 +373,7 @@ pub struct CreatePost {
     pub urgency: Option<String>,
     #[builder(default)]
     pub location: Option<String>,
-    #[builder(default = "pending_approval".to_string())]
+    #[builder(default = "active".to_string())]
     pub status: String,
     #[builder(default = "en".to_string())]
     pub source_language: String,
@@ -431,6 +437,9 @@ pub struct PostFilters<'a> {
     pub search: Option<&'a str>,
     pub post_type: Option<&'a str>,
     pub submission_type: Option<&'a str>,
+    pub exclude_submission_type: Option<&'a str>,
+    pub county_id: Option<Uuid>,
+    pub statewide_only: bool,
 }
 
 // =============================================================================
@@ -534,6 +543,12 @@ impl Post {
                       AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
                       AND ($8::text IS NULL OR p.post_type = $8)
                       AND ($9::text IS NULL OR p.submission_type = $9)
+                      AND ($10::uuid IS NULL OR EXISTS (
+                          SELECT 1 FROM zip_counties zc
+                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $10
+                      ))
+                      AND ($11::bool IS NOT TRUE OR p.zip_code IS NULL)
+                      AND ($12::text IS NULL OR p.submission_type IS DISTINCT FROM $12)
                     ORDER BY p.id ASC
                     LIMIT $3
                     "#,
@@ -547,6 +562,9 @@ impl Post {
                 .bind(&search_pattern)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
+                .bind(filters.county_id)
+                .bind(filters.statewide_only)
+                .bind(filters.exclude_submission_type)
                 .fetch_all(pool)
                 .await?
             }
@@ -568,6 +586,12 @@ impl Post {
                       AND ($7::text IS NULL OR p.title ILIKE $7 OR p.description ILIKE $7)
                       AND ($8::text IS NULL OR p.post_type = $8)
                       AND ($9::text IS NULL OR p.submission_type = $9)
+                      AND ($10::uuid IS NULL OR EXISTS (
+                          SELECT 1 FROM zip_counties zc
+                          WHERE zc.zip_code = p.zip_code AND zc.county_id = $10
+                      ))
+                      AND ($11::bool IS NOT TRUE OR p.zip_code IS NULL)
+                      AND ($12::text IS NULL OR p.submission_type IS DISTINCT FROM $12)
                     ORDER BY p.id DESC
                     LIMIT $3
                     "#,
@@ -581,6 +605,9 @@ impl Post {
                 .bind(&search_pattern)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
+                .bind(filters.county_id)
+                .bind(filters.statewide_only)
+                .bind(filters.exclude_submission_type)
                 .fetch_all(pool)
                 .await?;
 
@@ -1194,6 +1221,10 @@ impl Post {
               AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
               AND ($10::text IS NULL OR p.post_type = $10)
               AND ($11::text IS NULL OR p.submission_type = $11)
+              AND ($12::uuid IS NULL OR EXISTS (
+                  SELECT 1 FROM zip_counties zc
+                  WHERE zc.zip_code = p.zip_code AND zc.county_id = $12
+              ))
               AND z.latitude BETWEEN c.latitude - ($7::float8 / 69.0)
                                  AND c.latitude + ($7::float8 / 69.0)
               AND z.longitude BETWEEN c.longitude - ($7::float8 / (69.0 * cos(radians(c.latitude))))
@@ -1218,6 +1249,7 @@ impl Post {
         .bind(offset)           // $9
         .bind(filters.post_type)      // $10
         .bind(filters.submission_type) // $11
+        .bind(filters.county_id)      // $12
         .fetch_all(pool)
         .await?;
 

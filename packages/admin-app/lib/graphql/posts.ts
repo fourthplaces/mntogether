@@ -45,6 +45,62 @@ export const PostsListQuery = graphql(`
   }
 `);
 
+export const SignalPostsQuery = graphql(`
+  query SignalPosts(
+    $status: String
+    $search: String
+    $postType: String
+    $countyId: ID
+    $statewideOnly: Boolean
+    $limit: Int
+    $offset: Int
+  ) {
+    posts(
+      status: $status
+      search: $search
+      postType: $postType
+      submissionType: "scraped"
+      countyId: $countyId
+      statewideOnly: $statewideOnly
+      limit: $limit
+      offset: $offset
+    ) {
+      posts {
+        ...PostListFields
+      }
+      totalCount
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+`);
+
+export const EditorialPostsQuery = graphql(`
+  query EditorialPosts(
+    $status: String
+    $search: String
+    $postType: String
+    $limit: Int
+    $offset: Int
+  ) {
+    posts(
+      status: $status
+      search: $search
+      postType: $postType
+      excludeSubmissionType: "scraped"
+      limit: $limit
+      offset: $offset
+    ) {
+      posts {
+        ...PostListFields
+      }
+      totalCount
+      hasNextPage
+      hasPreviousPage
+    }
+  }
+`);
+
 export const PostDetailQuery = graphql(`
   query PostDetail($id: ID!) {
     post(id: $id) {

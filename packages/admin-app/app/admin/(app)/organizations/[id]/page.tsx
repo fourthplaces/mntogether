@@ -570,11 +570,11 @@ export default function OrganizationDetailPage() {
   );
 }
 
-type PostStatusTab = "pending_approval" | "active" | "rejected";
+type PostStatusTab = "active" | "draft" | "rejected";
 
 const POST_STATUS_TABS: { value: PostStatusTab; label: string }[] = [
-  { value: "pending_approval", label: "Pending" },
   { value: "active", label: "Active" },
+  { value: "draft", label: "Drafts" },
   { value: "rejected", label: "Rejected" },
 ];
 
@@ -594,11 +594,11 @@ function PostsSection({
   posts: PostData[];
   organizationId: string;
 }) {
-  const [tab, setTab] = useState<PostStatusTab>("pending_approval");
+  const [tab, setTab] = useState<PostStatusTab>("active");
 
   const counts = {
-    pending_approval: posts.filter((p) => p.status === "pending_approval").length,
     active: posts.filter((p) => p.status === "active").length,
+    draft: posts.filter((p) => p.status === "draft").length,
     rejected: posts.filter((p) => p.status === "rejected").length,
   };
 
@@ -634,7 +634,7 @@ function PostsSection({
         ))}
       </div>
       {filtered.length === 0 ? (
-        <p className="text-stone-500 text-sm">No {tab === "pending_approval" ? "pending" : tab} posts.</p>
+        <p className="text-stone-500 text-sm">No {tab} posts.</p>
       ) : (
         <div className="space-y-2">
           {filtered.map((post) => (
@@ -681,7 +681,7 @@ function PostRow({
         result = await approvePost({ id: post.id }, postMutationContext);
       } else if (newStatus === "rejected") {
         result = await rejectPost({ id: post.id, reason: "Rejected by admin" }, postMutationContext);
-      } else if (newStatus === "pending_approval") {
+      } else if (newStatus === "draft") {
         result = await reactivatePost({ id: post.id }, postMutationContext);
       }
       if (result?.error) throw result.error;
@@ -729,15 +729,15 @@ function PostRow({
             loading ? "opacity-50" :
             status === "active"
               ? "bg-green-100 text-green-800"
-              : status === "pending_approval"
-                ? "bg-yellow-100 text-yellow-800"
+              : status === "draft"
+                ? "bg-blue-100 text-blue-800"
                 : status === "rejected"
                   ? "bg-red-100 text-red-800"
                   : "bg-stone-100 text-stone-600"
           }`}
           style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8' viewBox='0 0 8 8'%3E%3Cpath d='M0 2l4 4 4-4z' fill='%23666'/%3E%3C/svg%3E\")", backgroundRepeat: "no-repeat", backgroundPosition: "right 4px center" }}
         >
-          <option value="pending_approval">pending</option>
+          <option value="draft">draft</option>
           <option value="active">active</option>
           <option value="rejected">rejected</option>
         </select>
