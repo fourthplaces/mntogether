@@ -139,9 +139,7 @@ impl_restate_serde!(CurateOrgRequest);  // Makes type work with Restate
 ### Infrastructure & Support
 | Domain      | Purpose                                    | Restate Types |
 |------------|---------------------------------------------|---------------|
-| `heat_map` | Geographic density visualization            | Services      |
 | `locations` | Geographic data and geocoding              | (models only) |
-| `memo`     | LLM response caching (content-addressed)   | (models only) |
 | `schedules` | Calendar/schedule parsing (RFC 5545)       | (models only) |
 | `tag`      | Tagging and categorization                  | Services      |
 

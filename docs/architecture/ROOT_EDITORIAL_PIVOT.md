@@ -96,7 +96,6 @@ packages/
 | **notes** | Editorial annotations on posts/orgs |
 | **jobs** | Background job tracking |
 | **locations** | Zip codes, geographic data, proximity search |
-| **heat_map** | Location-based visualization data |
 
 #### DEAD (Root Signal Concerns)
 

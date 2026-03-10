@@ -481,18 +481,6 @@ Pre-computed zip code reference data.
 | location_id | UUID FK → locations | |
 | added_at | TIMESTAMPTZ | |
 
-### heat_map_points
-
-Aggregated location data for geographic visualization.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID PK | |
-| location_id | UUID FK → locations | |
-| entity_type | TEXT | |
-| entity_count | INT | |
-| updated_at | TIMESTAMPTZ | |
-
 ---
 
 ## Discovery Engine

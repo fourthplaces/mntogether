@@ -39,8 +39,6 @@ All HTTP endpoints are POST. GraphQL resolvers call the Rust server via `ServerC
 | **schedules** | Event/operating hours | `schedules` |
 | **locations** | Geographic data | `locations`, `locationables`, `zip_codes`, `counties`, `zip_counties` |
 | **media** | S3 uploads | `media_library` |
-| **heat_map** | Geographic visualization | `heat_map_points` |
-| **memo** | Computation cache | `memo_cache` |
 
 ---
 
@@ -187,13 +185,6 @@ All HTTP endpoints are POST. GraphQL resolvers call the Rust server via `ServerC
 | POST | `/Member/{id}/get` | Optional | Get member profile |
 | POST | `/Member/{id}/update_status` | Admin | Activate/deactivate |
 | POST | `/RegisterMemberWorkflow/{key}/run` | None | Register new member |
-
-### Heat Map (2)
-
-| Method | Path | Auth | Purpose |
-|---|---|---|---|
-| POST | `/HeatMap/compute_snapshot` | None | Recompute heat map |
-| POST | `/HeatMap/get_latest` | None | Get current snapshot |
 
 ---
 
