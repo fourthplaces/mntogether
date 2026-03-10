@@ -171,7 +171,7 @@ services:
     volumes:
       - ./packages/web-app:/app/packages/web-app
       - ./packages/shared:/app/packages/shared
-      - ./yarn.lock:/app/yarn.lock:ro
+      - ./yarn.lock:/app/yarn.lock
       - web_node_modules:/app/node_modules
       - web_app_node_modules:/app/packages/web-app/node_modules
       - web_next_cache:/app/packages/web-app/.next
