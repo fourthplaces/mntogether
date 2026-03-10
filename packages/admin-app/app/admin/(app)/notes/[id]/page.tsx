@@ -35,9 +35,12 @@ import {
   NoteDetailQuery,
   UpdateNoteMutation,
   DeleteNoteMutation,
+  LinkNoteMutation,
   UnlinkNoteMutation,
 } from "@/lib/graphql/notes";
-import { ArrowLeft, ExternalLink, X } from "lucide-react";
+import { PostsListQuery } from "@/lib/graphql/posts";
+import { OrganizationsListQuery } from "@/lib/graphql/organizations";
+import { ArrowLeft, ExternalLink, Plus, X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -79,6 +82,11 @@ export default function NoteDetailPage() {
   const [saving, setSaving] = useState(false);
   const [initialized, setInitialized] = useState(false);
 
+  // Link dialogs
+  const [showLinkPostDialog, setShowLinkPostDialog] = useState(false);
+  const [showLinkOrgDialog, setShowLinkOrgDialog] = useState(false);
+  const [postSearch, setPostSearch] = useState("");
+
   // ─── Queries & Mutations ──────────────────────────────────────
   const [{ data, fetching, error }, reexecuteQuery] = useQuery({
     query: NoteDetailQuery,
@@ -87,9 +95,23 @@ export default function NoteDetailPage() {
 
   const [, updateNote] = useMutation(UpdateNoteMutation);
   const [, deleteNote] = useMutation(DeleteNoteMutation);
+  const [, linkNote] = useMutation(LinkNoteMutation);
   const [, unlinkNote] = useMutation(UnlinkNoteMutation);
 
   const note = data?.note;
+
+  // Post search query — only runs when dialog is open and search has text
+  const [{ data: postsData, fetching: postsFetching }] = useQuery({
+    query: PostsListQuery,
+    variables: { search: postSearch, limit: 10 },
+    pause: !showLinkPostDialog || postSearch.length < 2,
+  });
+
+  // Org list — only runs when dialog is open
+  const [{ data: orgsData }] = useQuery({
+    query: OrganizationsListQuery,
+    pause: !showLinkOrgDialog,
+  });
 
   // Seed form state from fetched data
   useEffect(() => {
@@ -102,6 +124,17 @@ export default function NoteDetailPage() {
     }
   }, [note, initialized]);
 
+  // ─── Derived data ─────────────────────────────────────────────
+  const linkedPostIds = new Set(note?.linkedPosts?.map((p) => p.id) ?? []);
+  const linkedOrgIds = new Set(note?.linkedOrgs?.map((o) => o.id) ?? []);
+
+  const searchResults = (postsData?.posts?.posts ?? []).filter(
+    (p) => !linkedPostIds.has(p.id)
+  );
+  const availableOrgs = (orgsData?.organizations ?? []).filter(
+    (o) => !linkedOrgIds.has(o.id)
+  );
+
   // ─── Dirty check ──────────────────────────────────────────────
   const isDirty =
     initialized &&
@@ -111,36 +144,37 @@ export default function NoteDetailPage() {
       isPublic !== note.isPublic ||
       (ctaText || "") !== (note.ctaText || ""));
 
+  const mutationContext = { additionalTypenames: ["Note", "NoteConnection"] };
+
   // ─── Actions ──────────────────────────────────────────────────
   const handleSave = async () => {
     setSaving(true);
     await updateNote(
-      {
-        id: noteId,
-        content,
-        severity,
-        isPublic,
-        ctaText: ctaText || null,
-      },
-      { additionalTypenames: ["Note", "NoteConnection"] }
+      { id: noteId, content, severity, isPublic, ctaText: ctaText || null },
+      mutationContext
     );
     setSaving(false);
-    setInitialized(false); // re-seed from fresh data
+    setInitialized(false);
     reexecuteQuery({ requestPolicy: "network-only" });
   };
 
   const handleDelete = async () => {
-    await deleteNote(
-      { id: noteId },
-      { additionalTypenames: ["Note", "NoteConnection"] }
-    );
+    await deleteNote({ id: noteId }, mutationContext);
     router.push("/admin/notes");
   };
 
-  const handleUnlinkPost = async (postId: string) => {
+  const handleLink = async (noteableType: string, noteableId: string) => {
+    await linkNote(
+      { noteId, noteableType, noteableId },
+      mutationContext
+    );
+    reexecuteQuery({ requestPolicy: "network-only" });
+  };
+
+  const handleUnlink = async (noteableType: string, noteableId: string) => {
     await unlinkNote(
-      { noteId, postId },
-      { additionalTypenames: ["Note"] }
+      { noteId, noteableType, noteableId },
+      mutationContext
     );
     reexecuteQuery({ requestPolicy: "network-only" });
   };
@@ -267,7 +301,17 @@ export default function NoteDetailPage() {
 
             {/* Linked Posts */}
             <div className="border-t border-border pt-4">
-              <SectionLabel>Linked Posts</SectionLabel>
+              <div className="flex justify-between items-center mb-3">
+                <SectionLabel>Linked Posts</SectionLabel>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => { setShowLinkPostDialog(true); setPostSearch(""); }}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Link Post
+                </Button>
+              </div>
               {note.linkedPosts && note.linkedPosts.length > 0 ? (
                 <div className="space-y-1.5">
                   {note.linkedPosts.map((post) => (
@@ -282,7 +326,7 @@ export default function NoteDetailPage() {
                         {post.title}
                       </Link>
                       <button
-                        onClick={() => handleUnlinkPost(post.id)}
+                        onClick={() => handleUnlink("post", post.id)}
                         className="p-1 text-muted-foreground hover:text-red-600 rounded shrink-0"
                         title="Unlink post"
                       >
@@ -300,17 +344,37 @@ export default function NoteDetailPage() {
 
             {/* Linked Organizations */}
             <div className="border-t border-border pt-4">
-              <SectionLabel>Linked Organizations</SectionLabel>
+              <div className="flex justify-between items-center mb-3">
+                <SectionLabel>Linked Organizations</SectionLabel>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowLinkOrgDialog(true)}
+                >
+                  <Plus className="w-3.5 h-3.5 mr-1" />
+                  Link Org
+                </Button>
+              </div>
               {note.linkedOrgs && note.linkedOrgs.length > 0 ? (
                 <div className="space-y-1.5">
                   {note.linkedOrgs.map((org) => (
-                    <div key={org.id}>
+                    <div
+                      key={org.id}
+                      className="flex items-center justify-between gap-2"
+                    >
                       <Link
                         href={`/admin/organizations/${org.id}`}
-                        className="text-sm text-link hover:text-link-hover"
+                        className="text-sm text-link hover:text-link-hover truncate"
                       >
                         {org.name}
                       </Link>
+                      <button
+                        onClick={() => handleUnlink("organization", org.id)}
+                        className="p-1 text-muted-foreground hover:text-red-600 rounded shrink-0"
+                        title="Unlink organization"
+                      >
+                        <X className="size-3.5" />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -415,16 +479,88 @@ export default function NoteDetailPage() {
             posts and organizations. This action cannot be undone.
           </p>
           <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setShowDeleteDialog(false)}
-            >
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
               Cancel
             </Button>
             <Button variant="destructive" onClick={handleDelete}>
               Delete
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Link Post dialog ──────────────────────────────────────── */}
+      <Dialog
+        open={showLinkPostDialog}
+        onOpenChange={(open) => { if (!open) setShowLinkPostDialog(false); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link Post</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={postSearch}
+            onChange={(e) => setPostSearch(e.target.value)}
+            placeholder="Search posts by title..."
+            className="h-9 text-sm"
+            autoFocus
+          />
+          <div className="max-h-64 overflow-y-auto -mx-1">
+            {postSearch.length < 2 ? (
+              <p className="text-sm text-muted-foreground px-1 py-2">
+                Type at least 2 characters to search
+              </p>
+            ) : postsFetching ? (
+              <p className="text-sm text-muted-foreground px-1 py-2">Searching...</p>
+            ) : searchResults.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1 py-2">No matching posts</p>
+            ) : (
+              <div className="space-y-0.5">
+                {searchResults.map((post) => (
+                  <button
+                    key={post.id}
+                    onClick={() => handleLink("post", post.id)}
+                    className="w-full text-left px-2 py-1.5 rounded-md text-sm text-foreground hover:bg-accent transition-colors truncate"
+                  >
+                    {post.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Link Organization dialog ──────────────────────────────── */}
+      <Dialog
+        open={showLinkOrgDialog}
+        onOpenChange={(open) => { if (!open) setShowLinkOrgDialog(false); }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link Organization</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-64 overflow-y-auto -mx-1">
+            {availableOrgs.length === 0 ? (
+              <p className="text-sm text-muted-foreground px-1 py-2">
+                {(orgsData?.organizations ?? []).length === 0
+                  ? "Loading organizations..."
+                  : "All organizations are already linked"}
+              </p>
+            ) : (
+              <div className="space-y-0.5">
+                {availableOrgs.map((org) => (
+                  <button
+                    key={org.id}
+                    onClick={() => handleLink("organization", org.id)}
+                    className="w-full text-left px-2 py-1.5 rounded-md text-sm text-foreground hover:bg-accent transition-colors truncate"
+                  >
+                    {org.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
     </div>

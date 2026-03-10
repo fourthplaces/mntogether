@@ -119,7 +119,8 @@ type Mutation {
   createNote(noteableType: String!, noteableId: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String): Note!
   updateNote(id: ID!, content: String!, severity: String, isPublic: Boolean, ctaText: String, sourceUrl: String, expiredAt: String): Note!
   deleteNote(id: ID!): Boolean!
-  unlinkNote(noteId: ID!, postId: ID!): Boolean!
+  linkNote(noteId: ID!, noteableType: String!, noteableId: ID!): Note!
+  unlinkNote(noteId: ID!, noteableType: String!, noteableId: ID!): Boolean!
   autoAttachNotes(organizationId: ID!): AutoAttachNotesResult!
 
   # Editions (admin)

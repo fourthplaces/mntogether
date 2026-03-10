@@ -120,15 +120,28 @@ export const noteResolvers = {
       return true;
     },
 
+    linkNote: async (
+      _parent: unknown,
+      args: { noteId: string; noteableType: string; noteableId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Notes", "link", {
+        note_id: args.noteId,
+        noteable_type: args.noteableType,
+        noteable_id: args.noteableId,
+      });
+      return ctx.server.callService("Notes", "get", { id: args.noteId });
+    },
+
     unlinkNote: async (
       _parent: unknown,
-      args: { noteId: string; postId: string },
+      args: { noteId: string; noteableType: string; noteableId: string },
       ctx: GraphQLContext
     ) => {
       await ctx.server.callService("Notes", "unlink", {
         note_id: args.noteId,
-        noteable_type: "post",
-        noteable_id: args.postId,
+        noteable_type: args.noteableType,
+        noteable_id: args.noteableId,
       });
       return true;
     },

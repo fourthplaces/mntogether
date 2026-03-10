@@ -82,9 +82,17 @@ export const DeleteNoteMutation = graphql(`
   }
 `);
 
+export const LinkNoteMutation = graphql(`
+  mutation LinkNote($noteId: ID!, $noteableType: String!, $noteableId: ID!) {
+    linkNote(noteId: $noteId, noteableType: $noteableType, noteableId: $noteableId) {
+      ...NoteFields
+    }
+  }
+`);
+
 export const UnlinkNoteMutation = graphql(`
-  mutation UnlinkNote($noteId: ID!, $postId: ID!) {
-    unlinkNote(noteId: $noteId, postId: $postId)
+  mutation UnlinkNote($noteId: ID!, $noteableType: String!, $noteableId: ID!) {
+    unlinkNote(noteId: $noteId, noteableType: $noteableType, noteableId: $noteableId)
   }
 `);
 
