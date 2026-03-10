@@ -107,10 +107,9 @@ pub struct PostFilters<'a> {
     pub status: Option<&'a str>,
     pub source_type: Option<&'a str>,
     pub source_id: Option<Uuid>,
-    pub agent_id: Option<Uuid>,
     pub search: Option<&'a str>,
-    pub post_type: Option<&'a str>,        // NEW
-    pub submission_type: Option<&'a str>,   // NEW
+    pub post_type: Option<&'a str>,
+    pub submission_type: Option<&'a str>,
 }
 ```
 

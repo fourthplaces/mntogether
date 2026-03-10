@@ -94,7 +94,6 @@ packages/
 | **organization** | Orgs that posts belong to |
 | **tag** | Taxonomy system (post types, services, populations) |
 | **notes** | Editorial annotations on posts/orgs |
-| **agents** | AI assistant identity (for automated submissions) |
 | **jobs** | Background job tracking |
 | **locations** | Zip codes, geographic data, proximity search |
 | **heat_map** | Location-based visualization data |
@@ -182,7 +181,7 @@ posts
 ├── post_type (TEXT) ← needs expansion
 ├── category (TEXT)
 ├── status: pending_approval | active | filled | rejected | expired | draft
-├── submission_type: scraped | admin | org_submitted | revision | agent
+├── submission_type: scraped | admin | org_submitted | revision
 ├── capacity_status: accepting | paused | at_capacity
 ├── urgency: low | medium | high | urgent
 ├── location, latitude, longitude

@@ -81,8 +81,8 @@ The primary user-facing entity — temporal announcements for services, opportun
 | location | TEXT | |
 | latitude, longitude | FLOAT | |
 | source_language | TEXT | Supports multi-language content |
-| submission_type | TEXT | 'scraped', 'admin', 'org_submitted', 'agent', 'revision' |
-| submitted_by_id | UUID FK → members | Both humans and AI agents are members |
+| submission_type | TEXT | 'scraped', 'admin', 'org_submitted', 'revision' |
+| submitted_by_id | UUID FK → members | Member who submitted this post |
 | source_url | TEXT | Original page URL for traceability |
 | revision_of_post_id | UUID FK → posts | Self-referential for draft revisions |
 | translation_of_id | UUID FK → posts | Self-referential for translations |
