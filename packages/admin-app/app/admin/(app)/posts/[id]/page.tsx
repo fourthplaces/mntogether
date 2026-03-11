@@ -8,7 +8,6 @@ import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, ExternalLink } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
   SelectTrigger,
@@ -17,13 +16,6 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "urql";
 import { useState, useCallback, useMemo, useRef } from "react";
 import {
@@ -122,6 +114,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   );
 }
 
+
 // ---------------------------------------------------------------------------
 // Body text preview (read-only, from Root Signal)
 // ---------------------------------------------------------------------------
@@ -149,12 +142,14 @@ function InlineTextField({
   placeholder,
   onSave,
   className,
+  missing,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   onSave: (v: string) => void;
   className?: string;
+  missing?: boolean;
 }) {
   const [localValue, setLocalValue] = useState(value);
   const prevValue = useRef(value);
@@ -180,7 +175,7 @@ function InlineTextField({
         onChange={(e) => setLocalValue(e.target.value)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className="h-8 text-sm"
+        className={`h-8 text-sm ${missing ? "border-2 border-amber-400" : ""}`}
       />
     </div>
   );
@@ -333,14 +328,6 @@ export default function PostDetailPage() {
     );
   }
 
-  // Missing fields
-  const missingFields: string[] = [];
-  if (!post.sourceUrl) missingFields.push("source URL");
-  if (!post.location) missingFields.push("location");
-  if (tags.length === 0) missingFields.push("tags");
-  if (!post.contacts || post.contacts.length === 0) missingFields.push("contact info");
-  if (!post.zipCode) missingFields.push("zip code");
-
   const urgencyValue = post.urgency || "";
 
   // ---------------------------------------------------------------------------
@@ -411,51 +398,31 @@ export default function PostDetailPage() {
               </a>
             )}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={actionInProgress !== null}>
-                  {actionInProgress ? "..." : "\u22EF"}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {post.status === "active" && (
-                  <DropdownMenuItem onSelect={handleArchive} disabled={actionInProgress !== null}>
-                    {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem variant="destructive" onSelect={handleDelete} disabled={actionInProgress !== null}>
-                  Delete Post
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              disabled={actionInProgress !== null}
+            >
+              {actionInProgress === "delete" ? "Deleting..." : "Delete"}
+            </Button>
           </div>
         </div>
 
-        {/* Missing fields warning */}
-        {missingFields.length > 0 && (
-          <Alert variant="warning" className="mb-4">
-            <AlertDescription>
-              <span className="font-medium">Missing fields: </span>
-              {missingFields.join(", ")}
-            </AlertDescription>
-          </Alert>
-        )}
-
         {/* ── Two-column layout ──────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[3fr_2fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
 
-          {/* ── LEFT COLUMN (60%) ──────────────────────────────────── */}
+          {/* ── LEFT COLUMN (70%) ──────────────────────────────────── */}
           <div className="space-y-6">
 
             {/* Title */}
             <h1 className="text-2xl font-bold text-foreground">{post.title}</h1>
 
-            {/* Inline-editable metadata */}
+            {/* ── Broadsheet Display ─────────────────────────────── */}
             <div className="space-y-3 border-t border-border pt-4">
-              <SectionLabel>Post Metadata</SectionLabel>
+              <SectionLabel>Broadsheet Display</SectionLabel>
 
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {/* Post Type */}
                 <div>
                   <label className="block text-xs text-muted-foreground uppercase mb-1">Type</label>
@@ -507,15 +474,44 @@ export default function PostDetailPage() {
                     }}
                   />
                 </div>
+
+                {/* Urgency */}
+                <div>
+                  <label className="block text-xs text-muted-foreground uppercase mb-1">Urgency</label>
+                  <Select
+                    value={urgencyValue || "__none__"}
+                    onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
+                  >
+                    <SelectTrigger className="h-8 text-sm w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {URGENCIES.map((u) => (
+                        <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
+                          {u.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+
+              {urgencyValue === "urgent" && (
+                <p className="text-xs text-red-600">Flagged as urgent — will display an Urgent label on the broadsheet.</p>
+              )}
+            </div>
+
+            {/* ── Content Details ─────────────────────────────────── */}
+            <div className="space-y-3 border-t border-border pt-4">
+              <SectionLabel>Content Details</SectionLabel>
 
               {/* Organization */}
               <div>
                 <label className="block text-xs text-muted-foreground uppercase mb-1">Organization</label>
                 <Select
                   value={post.organizationId || "__none__"}
-                  onValueChange={(v) => {
-                    // Organization is not in UpdatePostInput — this is display-only for now
+                  onValueChange={() => {
+                    // Organization is not in UpdatePostInput — display-only for now
                     // TODO: Add organizationId to UpdatePostInput when needed
                   }}
                   disabled
@@ -532,6 +528,23 @@ export default function PostDetailPage() {
                 </Select>
               </div>
 
+              {/* Source URL */}
+              <div>
+                <label className="block text-xs text-muted-foreground uppercase mb-1">Source URL</label>
+                {post.sourceUrl ? (
+                  <a
+                    href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-link hover:text-link-hover break-all"
+                  >
+                    {post.sourceUrl}
+                  </a>
+                ) : (
+                  <p className="text-sm text-text-faint italic">None</p>
+                )}
+              </div>
+
               {/* Location + Zip Code */}
               <div className="grid grid-cols-2 gap-3">
                 <InlineTextField
@@ -539,14 +552,24 @@ export default function PostDetailPage() {
                   value={post.location || ""}
                   placeholder="e.g. Minneapolis, MN"
                   onSave={(v) => inlineUpdate({ location: v || null })}
+                  missing={!post.location}
                 />
                 <InlineTextField
                   label="Zip Code"
                   value={post.zipCode || ""}
                   placeholder="e.g. 55401"
                   onSave={(v) => inlineUpdate({ zipCode: v || null })}
+                  missing={!post.zipCode}
                 />
               </div>
+
+              {/* Submission type */}
+              {post.submissionType && (
+                <div>
+                  <label className="block text-xs text-muted-foreground uppercase mb-1">Submission Type</label>
+                  <Badge variant="secondary" className="text-xs">{post.submissionType}</Badge>
+                </div>
+              )}
             </div>
 
             {/* Full text */}
@@ -565,77 +588,8 @@ export default function PostDetailPage() {
             <BodyPreview label="Light" text={post.bodyLight} />
           </div>
 
-          {/* ── RIGHT COLUMN (40%) ─────────────────────────────────── */}
+          {/* ── RIGHT COLUMN (30%) ─────────────────────────────────── */}
           <div className="space-y-6">
-
-            {/* Metadata */}
-            <div>
-              <SectionLabel>Details</SectionLabel>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Submitted by</span>
-                  <span className="text-foreground font-medium">
-                    {post.submittedBy?.submitterType === "member" ? (
-                      "Member"
-                    ) : (
-                      <span className="text-text-faint">Unknown</span>
-                    )}
-                  </span>
-                </div>
-                {post.sourceUrl && (
-                  <div className="flex justify-between gap-4">
-                    <span className="text-muted-foreground shrink-0">Source URL</span>
-                    <a
-                      href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-link hover:text-link-hover truncate text-right"
-                    >
-                      {post.sourceUrl}
-                    </a>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Ingested</span>
-                  <span className="text-foreground">{formatDate(post.createdAt)}</span>
-                </div>
-                {post.publishedAt && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Published</span>
-                    <span className="text-foreground">{formatDate(post.publishedAt)}</span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Last edited</span>
-                  <span className="text-foreground">{formatDate(post.updatedAt)}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Urgency */}
-            <div className="border-t border-border pt-4">
-              <div className="flex items-center justify-between">
-                <SectionLabel>Urgency</SectionLabel>
-                <Select
-                  value={urgencyValue || "__none__"}
-                  onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
-                >
-                  <SelectTrigger className="h-7 w-auto min-w-0 gap-1 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {URGENCIES.map((u) => (
-                      <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
-                        {u.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {urgencyValue === "urgent" && (
-                <p className="text-xs text-red-600 mt-1">This post is flagged as urgent and will display an Urgent label in the broadsheet.</p>
-              )}
-            </div>
 
             {/* Tags */}
             <TagsSection
@@ -648,9 +602,9 @@ export default function PostDetailPage() {
             />
 
             {/* Contacts */}
-            {post.contacts && post.contacts.length > 0 && (
-              <div className="border-t border-border pt-4">
-                <SectionLabel>Contacts</SectionLabel>
+            <div className="border-t border-border pt-4">
+              <SectionLabel>Contacts</SectionLabel>
+              {post.contacts && post.contacts.length > 0 ? (
                 <div className="space-y-2">
                   {post.contacts.map((c) => (
                     <div key={c.id} className="flex items-start gap-3">
@@ -670,8 +624,10 @@ export default function PostDetailPage() {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              ) : (
+                <p className="text-sm text-text-faint italic">No contacts</p>
+              )}
+            </div>
 
             {/* Schedule */}
             {post.schedules && post.schedules.length > 0 && (() => {
@@ -681,9 +637,7 @@ export default function PostDetailPage() {
                 <div className="border-t border-border pt-4">
                   <SectionLabel>Schedule</SectionLabel>
                   {allOneOffsExpired && (
-                    <Alert variant="warning" className="mb-3">
-                      <AlertDescription className="text-xs font-medium">This event has passed</AlertDescription>
-                    </Alert>
+                    <p className="text-xs text-amber-600 font-medium mb-2">This event has passed</p>
                   )}
                   <div className="space-y-2">
                     {post.schedules!.map((s) => (
@@ -749,6 +703,33 @@ export default function PostDetailPage() {
                 </div>
               </div>
             )}
+
+            {/* System info */}
+            <div className="border-t border-border pt-4">
+              <SectionLabel>System</SectionLabel>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Submitted by</span>
+                  <span className="text-foreground font-medium">
+                    {post.submittedBy?.submitterType === "member" ? "Member" : <span className="text-text-faint">Unknown</span>}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Ingested</span>
+                  <span className="text-foreground">{formatDate(post.createdAt)}</span>
+                </div>
+                {post.publishedAt && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Published</span>
+                    <span className="text-foreground">{formatDate(post.publishedAt)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Last edited</span>
+                  <span className="text-foreground">{formatDate(post.updatedAt)}</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
