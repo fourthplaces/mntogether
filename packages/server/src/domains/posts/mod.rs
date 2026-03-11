@@ -7,7 +7,7 @@ pub mod models;
 pub use crate::domains::tag::TagData;
 pub use data::post::{PostData, ServicePostData};
 pub use data::types::{
-    BusinessInfo, ContactInfoInput, EditPostInput, PostConnection, PostStatusData, PostType,
+    ContactInfoInput, EditPostInput, PostConnection, PostStatusData, PostType,
     SubmitPostInput,
 };
 

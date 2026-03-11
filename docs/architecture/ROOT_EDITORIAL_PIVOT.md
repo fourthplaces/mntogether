@@ -185,8 +185,6 @@ posts
 ├── urgency: low | medium | high | urgent
 ├── location, latitude, longitude
 ├── source_url
-├── embedding (pgvector 1024d)
-├── relevance_score, relevance_breakdown
 ├── revision_of_post_id, translation_of_id, duplicate_of_id
 ├── submitted_by_id → members
 ├── comments_container_id → containers
@@ -203,9 +201,6 @@ posts
 | service_areas | County/city/state coverage areas |
 | schedules | Operating hours, recurring events (polymorphic) |
 | taggables | Flexible tag associations (polymorphic join) |
-| service_listings | Service-specific properties (legacy) |
-| opportunity_listings | Volunteer/donation specifics (legacy) |
-| business_listings | Business-specific fields (legacy) |
 
 ### Schema Decision Needed
 

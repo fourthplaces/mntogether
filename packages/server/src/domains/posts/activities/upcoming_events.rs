@@ -4,9 +4,8 @@ use anyhow::Result;
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::domains::posts::data::types::BusinessInfo;
 use crate::domains::posts::data::PostType;
-use crate::domains::posts::models::{BusinessPost, Post};
+use crate::domains::posts::models::Post;
 use crate::kernel::ServerDeps;
 
 /// Get upcoming events: posts tagged `post_type: event` with schedules,
@@ -41,46 +40,10 @@ pub async fn get_upcoming_events(limit: usize, deps: &ServerDeps) -> Result<Vec<
     // Index by ID to preserve sort order
     let post_map: HashMap<Uuid, Post> = loaded.into_iter().map(|p| (p.id.into_uuid(), p)).collect();
 
-    // Batch-load business info for spotlight posts (formerly business type)
-    let business_post_ids: Vec<Uuid> = post_map
-        .values()
-        .filter(|p| p.post_type == "spotlight")
-        .map(|p| p.id.into_uuid())
-        .collect();
-    let business_map: HashMap<Uuid, BusinessPost> = if business_post_ids.is_empty() {
-        HashMap::new()
-    } else {
-        BusinessPost::find_by_post_ids(&business_post_ids, pool)
-            .await
-            .unwrap_or_default()
-            .into_iter()
-            .map(|b| (b.post_id.into_uuid(), b))
-            .collect()
-    };
-
     // Build PostType vec in sorted order
     let posts: Vec<PostType> = sorted
         .iter()
-        .filter_map(|(id, _)| {
-            post_map.get(id).map(|post| {
-                let mut pt = PostType::from(post.clone());
-                if let Some(business) = business_map.get(id) {
-                    pt.business_info = Some(BusinessInfo {
-                        accepts_donations: business.accepts_donations,
-                        donation_link: business.donation_link.clone(),
-                        gift_cards_available: business.gift_cards_available,
-                        gift_card_link: business.gift_card_link.clone(),
-                        online_ordering_link: business.online_ordering_link.clone(),
-                        delivery_available: business.delivery_available,
-                        proceeds_percentage: business.proceeds_percentage,
-                        proceeds_beneficiary_id: business.proceeds_beneficiary_id,
-                        proceeds_description: business.proceeds_description.clone(),
-                        impact_statement: business.impact_statement.clone(),
-                    });
-                }
-                pt
-            })
-        })
+        .filter_map(|(id, _)| post_map.get(id).map(|post| PostType::from(post.clone())))
         .collect();
 
     Ok(posts)

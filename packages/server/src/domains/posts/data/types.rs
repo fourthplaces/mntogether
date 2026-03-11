@@ -20,24 +20,6 @@ pub struct PostType {
     pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
-    pub business_info: Option<BusinessInfo>,
-}
-
-/// Business-specific information for cause-driven commerce
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BusinessInfo {
-    pub accepts_donations: bool,
-    pub donation_link: Option<String>,
-    pub gift_cards_available: bool,
-    pub gift_card_link: Option<String>,
-    pub online_ordering_link: Option<String>,
-    pub delivery_available: bool,
-
-    // Cause-driven commerce
-    pub proceeds_percentage: Option<f64>,
-    pub proceeds_beneficiary_id: Option<Uuid>,
-    pub proceeds_description: Option<String>,
-    pub impact_statement: Option<String>,
 }
 
 impl From<Post> for PostType {
@@ -66,7 +48,6 @@ impl From<Post> for PostType {
             source_url: post.source_url,
             created_at: post.created_at,
             published_at: post.published_at,
-            business_info: None, // Populated by query layer when post_type = 'business'
         }
     }
 }
