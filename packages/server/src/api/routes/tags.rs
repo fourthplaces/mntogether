@@ -85,6 +85,7 @@ pub struct TagKindResult {
     pub allowed_resource_types: Vec<String>,
     pub required: bool,
     pub is_public: bool,
+    pub locked: bool,
     pub tag_count: i64,
 }
 
@@ -135,6 +136,7 @@ async fn list_kinds(
             allowed_resource_types: kind.allowed_resource_types,
             required: kind.required,
             is_public: kind.is_public,
+            locked: kind.locked,
             tag_count,
         });
     }
@@ -167,6 +169,7 @@ async fn create_kind(
         allowed_resource_types: kind.allowed_resource_types,
         required: kind.required,
         is_public: kind.is_public,
+        locked: kind.locked,
         tag_count: 0,
     }))
 }
@@ -177,6 +180,16 @@ async fn update_kind(
     Json(req): Json<UpdateTagKindRequest>,
 ) -> ApiResult<Json<TagKindResult>> {
     let pool = &state.deps.db_pool;
+
+    // Guard: cannot update locked (hard) tag kinds
+    let existing = TagKindConfig::find_by_id(req.id, pool).await?;
+    if existing.locked {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot update locked tag kind '{}'",
+            existing.slug
+        )));
+    }
+
     let kind = TagKindConfig::update(
         req.id,
         &req.display_name,
@@ -200,6 +213,7 @@ async fn update_kind(
         allowed_resource_types: kind.allowed_resource_types,
         required: kind.required,
         is_public: kind.is_public,
+        locked: kind.locked,
         tag_count,
     }))
 }
@@ -211,6 +225,14 @@ async fn delete_kind(
 ) -> ApiResult<Json<Empty>> {
     let pool = &state.deps.db_pool;
     let kind = TagKindConfig::find_by_id(req.id, pool).await?;
+
+    // Guard: cannot delete locked (hard) tag kinds
+    if kind.locked {
+        return Err(ApiError::BadRequest(format!(
+            "Cannot delete locked tag kind '{}'",
+            kind.slug
+        )));
+    }
 
     let tag_count = TagKindConfig::tag_count_for_slug(&kind.slug, pool)
         .await
@@ -262,6 +284,21 @@ async fn create_tag(
     Json(req): Json<CreateTagRequest>,
 ) -> ApiResult<Json<TagResult>> {
     let pool = &state.deps.db_pool;
+
+    // Guard: cannot create new tag values under locked (hard) kinds
+    if let Some(kind_config) = TagKindConfig::find_by_slug(&req.kind, pool).await? {
+        if kind_config.locked {
+            // Check if this exact value already exists — allow find, block create
+            let existing = Tag::find_by_kind_value(&req.kind, &req.value, pool).await?;
+            if existing.is_none() {
+                return Err(ApiError::BadRequest(format!(
+                    "Cannot create new tags under locked kind '{}'. Values are fixed.",
+                    req.kind
+                )));
+            }
+        }
+    }
+
     let mut tag = Tag::find_or_create(&req.kind, &req.value, req.display_name, pool).await?;
 
     if req.color.is_some() {
@@ -318,6 +355,17 @@ async fn delete_tag(
 ) -> ApiResult<Json<Empty>> {
     let pool = &state.deps.db_pool;
     let tag_id = TagId::from_uuid(req.id);
+
+    // Guard: cannot delete tags from locked (hard) kinds
+    let tag = Tag::find_by_id(tag_id, pool).await?;
+    if let Some(kind_config) = TagKindConfig::find_by_slug(&tag.kind, pool).await? {
+        if kind_config.locked {
+            return Err(ApiError::BadRequest(format!(
+                "Cannot delete tags from locked kind '{}'",
+                tag.kind
+            )));
+        }
+    }
 
     // Delete cascading taggables first
     sqlx::query("DELETE FROM taggables WHERE tag_id = $1")

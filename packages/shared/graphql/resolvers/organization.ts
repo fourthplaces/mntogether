@@ -58,12 +58,13 @@ export const organizationResolvers = {
   Mutation: {
     createOrganization: async (
       _parent: unknown,
-      args: { name: string; description?: string },
+      args: { name: string; description?: string; sourceType?: string },
       ctx: GraphQLContext
     ) => {
       return ctx.server.callService("Organizations", "create", {
         name: args.name,
         description: args.description ?? null,
+        source_type: args.sourceType ?? "organization",
       });
     },
 

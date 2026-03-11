@@ -57,6 +57,12 @@ pub struct PublicPostResult {
 pub struct CreateOrganizationRequest {
     pub name: String,
     pub description: Option<String>,
+    #[serde(default = "default_source_type")]
+    pub source_type: String,
+}
+
+fn default_source_type() -> String {
+    "organization".to_string()
 }
 
 #[derive(Debug, Deserialize)]
@@ -121,6 +127,7 @@ pub struct OrganizationResult {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub source_type: String,
     pub status: String,
     pub created_at: String,
     pub updated_at: String,
@@ -173,6 +180,7 @@ fn org_to_result(org: Organization) -> OrganizationResult {
         id: org.id.to_string(),
         name: org.name,
         description: org.description,
+        source_type: org.source_type,
         status: org.status,
         created_at: org.created_at.to_rfc3339(),
         updated_at: org.updated_at.to_rfc3339(),
@@ -308,7 +316,22 @@ async fn create(
 ) -> ApiResult<Json<OrganizationResult>> {
     let pool = &state.deps.db_pool;
 
-    let org = Organization::create(&req.name, req.description.as_deref(), "admin", pool).await?;
+    // Validate source_type
+    if req.source_type != "organization" && req.source_type != "individual" {
+        return Err(ApiError::BadRequest(format!(
+            "Invalid source_type: '{}'. Must be 'organization' or 'individual'.",
+            req.source_type
+        )));
+    }
+
+    let org = Organization::create_with_source_type(
+        &req.name,
+        req.description.as_deref(),
+        "admin",
+        &req.source_type,
+        pool,
+    )
+    .await?;
 
     // Admin-created orgs are auto-approved
     let org = Organization::approve(org.id, user.0.member_id, pool).await?;

@@ -15,6 +15,7 @@ pub struct TagKindConfig {
     pub allowed_resource_types: Vec<String>,
     pub required: bool,
     pub is_public: bool,
+    pub locked: bool,
     pub created_at: DateTime<Utc>,
 }
 

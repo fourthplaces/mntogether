@@ -75,10 +75,11 @@ export const OrganizationChecklistQuery = graphql(`
 `);
 
 export const CreateOrganizationMutation = graphql(`
-  mutation CreateOrganization($name: String!, $description: String) {
-    createOrganization(name: $name, description: $description) {
+  mutation CreateOrganization($name: String!, $description: String, $sourceType: String) {
+    createOrganization(name: $name, description: $description, sourceType: $sourceType) {
       id
       name
+      sourceType
     }
   }
 `);

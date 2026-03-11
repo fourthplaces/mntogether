@@ -45,6 +45,7 @@ pub struct Organization {
     pub id: OrganizationId,
     pub name: String,
     pub description: Option<String>,
+    pub source_type: String,
 
     // Approval workflow
     pub status: String,
@@ -78,6 +79,25 @@ impl Organization {
         .map_err(Into::into)
     }
 
+    pub async fn create_with_source_type(
+        name: &str,
+        description: Option<&str>,
+        submitter_type: &str,
+        source_type: &str,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "INSERT INTO organizations (name, description, submitter_type, source_type, status) VALUES ($1, $2, $3, $4, 'pending_review') RETURNING *",
+        )
+        .bind(name)
+        .bind(description)
+        .bind(submitter_type)
+        .bind(source_type)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     pub async fn find_by_id(id: OrganizationId, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>("SELECT * FROM organizations WHERE id = $1")
             .bind(id)
@@ -91,6 +111,16 @@ impl Organization {
             .fetch_all(pool)
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn list_by_source_type(source_type: &str, pool: &PgPool) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            "SELECT * FROM organizations WHERE source_type = $1 ORDER BY name ASC",
+        )
+        .bind(source_type)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
     }
 
     /// Find all approved organizations that have at least one active post

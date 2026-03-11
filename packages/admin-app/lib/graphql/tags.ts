@@ -10,6 +10,7 @@ export const TagKindsQuery = graphql(`
       allowedResourceTypes
       required
       isPublic
+      locked
       tagCount
     }
   }

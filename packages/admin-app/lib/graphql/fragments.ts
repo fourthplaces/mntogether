@@ -97,6 +97,7 @@ export const OrganizationFields = graphql(`
     id
     name
     description
+    sourceType
     status
     createdAt
     updatedAt

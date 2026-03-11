@@ -94,7 +94,7 @@ type Mutation {
   updatePost(id: ID!, input: UpdatePostInput!): Post!
 
   # Organizations (admin)
-  createOrganization(name: String!, description: String): Organization!
+  createOrganization(name: String!, description: String, sourceType: String): Organization!
   updateOrganization(id: ID!, name: String!, description: String): Organization!
   deleteOrganization(id: ID!): Boolean!
   approveOrganization(id: ID!): Organization!
@@ -271,6 +271,7 @@ type Organization {
   id: ID!
   name: String!
   description: String
+  sourceType: String!
   status: OrganizationStatus!
   createdAt: String!
   updatedAt: String!
@@ -313,6 +314,7 @@ type TagKind {
   allowedResourceTypes: [String!]!
   required: Boolean!
   isPublic: Boolean!
+  locked: Boolean!
   tagCount: Int!
 }
 
