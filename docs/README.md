@@ -27,6 +27,7 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate bypass, webhook integration)
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
 - [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
+- [Abuse Reporting](architecture/ABUSE_REPORTING.md) - Post reporting feature spec and current state
 
 ### Development Guides
 - [API Integration Guide](guides/API_INTEGRATION_GUIDE.md) - Working with the GraphQL API
