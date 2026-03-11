@@ -37,6 +37,7 @@ export const PostDetailFields = graphql(`
     summary
     status
     postType
+    category
     urgency
     location
     zipCode

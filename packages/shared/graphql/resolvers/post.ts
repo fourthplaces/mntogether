@@ -252,11 +252,14 @@ export const postResolvers = {
           descriptionMarkdown?: string;
           summary?: string;
           postType?: string;
+          category?: string;
           weight?: string;
           priority?: number;
           urgency?: string;
           location?: string;
           zipCode?: string;
+          sourceUrl?: string;
+          organizationId?: string;
         };
       },
       ctx: GraphQLContext
@@ -266,11 +269,14 @@ export const postResolvers = {
         description_markdown: args.input.descriptionMarkdown,
         summary: args.input.summary,
         post_type: args.input.postType,
+        category: args.input.category,
         weight: args.input.weight,
         priority: args.input.priority,
         urgency: args.input.urgency,
         location: args.input.location,
         zip_code: args.input.zipCode,
+        source_url: args.input.sourceUrl,
+        organization_id: args.input.organizationId,
       });
       ctx.loaders.postById.clear(args.id);
       return ctx.loaders.postById.load(args.id);

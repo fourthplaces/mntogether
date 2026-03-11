@@ -597,11 +597,14 @@ input UpdatePostInput {
   descriptionMarkdown: String
   summary: String
   postType: String
+  category: String
   weight: String
   priority: Int
   urgency: String
   location: String
   zipCode: String
+  sourceUrl: String
+  organizationId: ID
 }
 
 # ========================================

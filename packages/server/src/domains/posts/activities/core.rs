@@ -351,11 +351,14 @@ pub async fn admin_update_post(
     description_markdown: Option<String>,
     summary: Option<String>,
     post_type: Option<String>,
+    category: Option<String>,
     weight: Option<String>,
     priority: Option<i32>,
     urgency: Option<String>,
     location: Option<String>,
     zip_code: Option<String>,
+    source_url: Option<String>,
+    organization_id: Option<Uuid>,
     _member_id: Uuid,
     deps: &ServerDeps,
 ) -> Result<Post> {
@@ -373,11 +376,14 @@ pub async fn admin_update_post(
             .description_markdown(description_markdown)
             .summary(summary)
             .post_type(post_type)
+            .category(category)
             .weight(weight)
             .priority(priority)
             .urgency(urgency)
             .location(location)
             .zip_code(zip_code)
+            .source_url(source_url)
+            .organization_id(organization_id)
             .build(),
         &deps.db_pool,
     )

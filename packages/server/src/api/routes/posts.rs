@@ -255,11 +255,14 @@ pub struct UpdatePostContentRequest {
     pub description_markdown: Option<String>,
     pub summary: Option<String>,
     pub post_type: Option<String>,
+    pub category: Option<String>,
     pub weight: Option<String>,
     pub priority: Option<i32>,
     pub urgency: Option<String>,
     pub location: Option<String>,
     pub zip_code: Option<String>,
+    pub source_url: Option<String>,
+    pub organization_id: Option<Uuid>,
 }
 
 // =============================================================================
@@ -1870,11 +1873,14 @@ async fn update_content(
         req.description_markdown,
         req.summary,
         req.post_type,
+        req.category,
         req.weight,
         req.priority,
         req.urgency,
         req.location,
         req.zip_code,
+        req.source_url,
+        req.organization_id,
         user.0.member_id.into_uuid(),
         &state.deps,
     )

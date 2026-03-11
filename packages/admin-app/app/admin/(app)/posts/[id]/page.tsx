@@ -32,7 +32,7 @@ import {
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 import { markdownComponents } from "@/lib/markdown-components";
-import { POST_TYPES, WEIGHTS, URGENCIES } from "@/lib/post-form-constants";
+import { POST_TYPES, WEIGHTS, URGENCIES, CATEGORIES } from "@/lib/post-form-constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -510,11 +510,7 @@ export default function PostDetailPage() {
                 <label className="block text-xs text-muted-foreground uppercase mb-1">Organization</label>
                 <Select
                   value={post.organizationId || "__none__"}
-                  onValueChange={() => {
-                    // Organization is not in UpdatePostInput — display-only for now
-                    // TODO: Add organizationId to UpdatePostInput when needed
-                  }}
-                  disabled
+                  onValueChange={(v) => inlineUpdate({ organizationId: v === "__none__" ? null : v })}
                 >
                   <SelectTrigger className="h-8 text-sm w-full max-w-sm">
                     <SelectValue />
@@ -528,22 +524,32 @@ export default function PostDetailPage() {
                 </Select>
               </div>
 
-              {/* Source URL */}
+              {/* Category */}
               <div>
-                <label className="block text-xs text-muted-foreground uppercase mb-1">Source URL</label>
-                {post.sourceUrl ? (
-                  <a
-                    href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-link hover:text-link-hover break-all"
-                  >
-                    {post.sourceUrl}
-                  </a>
-                ) : (
-                  <p className="text-sm text-text-faint italic">None</p>
-                )}
+                <label className="block text-xs text-muted-foreground uppercase mb-1">Category</label>
+                <Select
+                  value={post.category || "other"}
+                  onValueChange={(v) => inlineUpdate({ category: v })}
+                >
+                  <SelectTrigger className="h-8 text-sm w-full max-w-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CATEGORIES.map((c) => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* Source URL */}
+              <InlineTextField
+                label="Source URL"
+                value={post.sourceUrl || ""}
+                placeholder="https://..."
+                onSave={(v) => inlineUpdate({ sourceUrl: v || null })}
+                missing={!post.sourceUrl}
+              />
 
               {/* Location + Zip Code */}
               <div className="grid grid-cols-2 gap-3">

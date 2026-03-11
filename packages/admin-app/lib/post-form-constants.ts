@@ -16,6 +16,19 @@ export const WEIGHTS = [
   { value: "light", label: "Light" },
 ] as const;
 
+export const CATEGORIES = [
+  { value: "housing", label: "Housing" },
+  { value: "food", label: "Food" },
+  { value: "healthcare", label: "Healthcare" },
+  { value: "education", label: "Education" },
+  { value: "utilities", label: "Utilities" },
+  { value: "financial", label: "Financial" },
+  { value: "employment", label: "Employment" },
+  { value: "transportation", label: "Transportation" },
+  { value: "legal", label: "Legal" },
+  { value: "other", label: "Other" },
+] as const;
+
 export const URGENCIES = [
   { value: "", label: "None" },
   { value: "notice", label: "Notice" },
