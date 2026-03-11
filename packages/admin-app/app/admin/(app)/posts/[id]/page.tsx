@@ -7,7 +7,15 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Clock, ExternalLink, Plus, X } from "lucide-react";
+import { ArrowLeft, CalendarIcon, ChevronDownIcon, Clock, ExternalLink, Plus, X } from "lucide-react";
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Select,
   SelectTrigger,
@@ -179,7 +187,7 @@ function InlineTextField({
         onChange={(e) => setLocalValue(e.target.value)}
         onBlur={handleBlur}
         placeholder={placeholder}
-        className={`h-8 text-sm ${missing ? "border-2 border-amber-400" : ""}`}
+        className={`h-9 text-sm ${missing ? "border-2 border-amber-400" : ""}`}
       />
     </div>
   );
@@ -286,7 +294,7 @@ function ContactsSection({
       {/* Add contact form */}
       <div className="flex items-center gap-1.5">
         <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger className="h-8 text-xs w-24 flex-shrink-0">
+          <SelectTrigger className="h-9 text-xs w-24 flex-shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -300,7 +308,7 @@ function ContactsSection({
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
           placeholder="Value..."
-          className="h-8 text-xs flex-1 min-w-0"
+          className="h-9 text-xs flex-1 min-w-0"
           disabled={busy}
         />
         <Button
@@ -308,7 +316,7 @@ function ContactsSection({
           size="icon"
           onClick={handleAdd}
           disabled={busy || !newValue.trim()}
-          className="h-8 w-8 flex-shrink-0"
+          className="h-9 w-8 flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -318,10 +326,19 @@ function ContactsSection({
 }
 
 // ---------------------------------------------------------------------------
+// Styled time input — hides native browser chrome per shadcn Time Picker
+// ---------------------------------------------------------------------------
+
+const timeInputStyles =
+  "appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
+
+// ---------------------------------------------------------------------------
 // Schedules inline CRUD
 // ---------------------------------------------------------------------------
 
 const DAY_OPTIONS = DAY_NAMES.map((name, i) => ({ value: i, label: name }));
+
+type ScheduleMode = "hours" | "event";
 
 function SchedulesSection({
   schedules,
@@ -339,12 +356,20 @@ function SchedulesSection({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   mutationContext: any;
 }) {
-  const [newDay, setNewDay] = useState<string>("1"); // Monday default
-  const [newOpens, setNewOpens] = useState("09:00");
-  const [newCloses, setNewCloses] = useState("17:00");
+  const [mode, setMode] = useState<ScheduleMode>("hours");
   const [busy, setBusy] = useState(false);
 
-  const handleAdd = async () => {
+  // Operating hours state
+  const [newDay, setNewDay] = useState<string>("1"); // Monday
+  const [newOpens, setNewOpens] = useState("09:00");
+  const [newCloses, setNewCloses] = useState("17:00");
+
+  // Event state
+  const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
+  const [eventTime, setEventTime] = useState("12:00");
+  const [calendarOpen, setCalendarOpen] = useState(false);
+
+  const handleAddHours = async () => {
     setBusy(true);
     try {
       await addPostSchedule(
@@ -361,6 +386,33 @@ function SchedulesSection({
       );
     } catch (err) {
       console.error("Failed to add schedule:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddEvent = async () => {
+    if (!eventDate) return;
+    setBusy(true);
+    try {
+      const [h, m] = eventTime.split(":").map(Number);
+      const dt = new Date(eventDate);
+      dt.setHours(h, m, 0, 0);
+      await addPostSchedule(
+        {
+          postId,
+          input: {
+            dtstart: dt.toISOString(),
+            opensAt: eventTime,
+            timezone: "America/Chicago",
+          },
+        },
+        mutationContext
+      );
+      setEventDate(undefined);
+      setEventTime("12:00");
+    } catch (err) {
+      console.error("Failed to add event:", err);
     } finally {
       setBusy(false);
     }
@@ -390,7 +442,7 @@ function SchedulesSection({
 
       {/* Existing schedules */}
       {schedules.length > 0 ? (
-        <div className="space-y-1.5 mb-3">
+        <div className="space-y-1.5 mb-4">
           {schedules.map((s) => (
             <div key={s.id} className={`flex items-center gap-2 group ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
               <Clock className="w-4 h-4 flex-shrink-0 text-text-faint" />
@@ -410,46 +462,126 @@ function SchedulesSection({
           ))}
         </div>
       ) : (
-        <p className="text-sm text-text-faint italic mb-3">No schedules</p>
+        <p className="text-sm text-text-faint italic mb-4">No schedules</p>
       )}
 
-      {/* Add operating-hours form */}
-      <div className="flex items-center gap-1.5">
-        <Select value={newDay} onValueChange={setNewDay}>
-          <SelectTrigger className="h-8 text-xs w-24 flex-shrink-0">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {DAY_OPTIONS.map((d) => (
-              <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Input
-          type="time"
-          value={newOpens}
-          onChange={(e) => setNewOpens(e.target.value)}
-          className="h-8 text-xs w-[90px] flex-shrink-0"
-          disabled={busy}
-        />
-        <span className="text-xs text-muted-foreground">–</span>
-        <Input
-          type="time"
-          value={newCloses}
-          onChange={(e) => setNewCloses(e.target.value)}
-          className="h-8 text-xs w-[90px] flex-shrink-0"
-          disabled={busy}
-        />
+      {/* Mode toggle */}
+      <div className="flex gap-1 mb-3">
         <Button
-          variant="outline"
-          size="icon"
-          onClick={handleAdd}
-          disabled={busy}
-          className="h-8 w-8 flex-shrink-0"
+          variant={mode === "hours" ? "default" : "outline"}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setMode("hours")}
         >
-          <Plus className="h-4 w-4" />
+          Operating Hours
+        </Button>
+        <Button
+          variant={mode === "event" ? "default" : "outline"}
+          size="sm"
+          className="h-7 text-xs"
+          onClick={() => setMode("event")}
+        >
+          One-off Event
         </Button>
       </div>
+
+      {/* Add form */}
+      {mode === "hours" ? (
+        <FieldGroup className="flex-row items-end gap-2">
+          <Field className="w-auto">
+            <FieldLabel className="text-xs">Day</FieldLabel>
+            <Select value={newDay} onValueChange={setNewDay}>
+              <SelectTrigger className="h-9 text-sm w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DAY_OPTIONS.map((d) => (
+                  <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field className="w-auto">
+            <FieldLabel className="text-xs">Opens</FieldLabel>
+            <Input
+              type="time"
+              value={newOpens}
+              onChange={(e) => setNewOpens(e.target.value)}
+              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+              disabled={busy}
+            />
+          </Field>
+          <Field className="w-auto">
+            <FieldLabel className="text-xs">Closes</FieldLabel>
+            <Input
+              type="time"
+              value={newCloses}
+              onChange={(e) => setNewCloses(e.target.value)}
+              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+              disabled={busy}
+            />
+          </Field>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddHours}
+            disabled={busy}
+            className="h-9"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add
+          </Button>
+        </FieldGroup>
+      ) : (
+        <FieldGroup className="flex-row items-end gap-2">
+          <Field className="w-auto">
+            <FieldLabel className="text-xs">Date</FieldLabel>
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-9 w-40 justify-between text-sm font-normal"
+                >
+                  {eventDate ? format(eventDate, "MMM d, yyyy") : "Select date"}
+                  <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={eventDate}
+                  captionLayout="dropdown"
+                  defaultMonth={eventDate}
+                  onSelect={(date) => {
+                    setEventDate(date);
+                    setCalendarOpen(false);
+                  }}
+                />
+              </PopoverContent>
+            </Popover>
+          </Field>
+          <Field className="w-auto">
+            <FieldLabel className="text-xs">Time</FieldLabel>
+            <Input
+              type="time"
+              value={eventTime}
+              onChange={(e) => setEventTime(e.target.value)}
+              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+              disabled={busy}
+            />
+          </Field>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAddEvent}
+            disabled={busy || !eventDate}
+            className="h-9"
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add
+          </Button>
+        </FieldGroup>
+      )}
     </div>
   );
 }
@@ -707,7 +839,7 @@ export default function PostDetailPage() {
                     value={post.postType || "notice"}
                     onValueChange={(v) => inlineUpdate({ postType: v })}
                   >
-                    <SelectTrigger className="h-8 text-sm w-full">
+                    <SelectTrigger className="h-9 text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -725,7 +857,7 @@ export default function PostDetailPage() {
                     value={post.weight || "medium"}
                     onValueChange={(v) => inlineUpdate({ weight: v })}
                   >
-                    <SelectTrigger className="h-8 text-sm w-full">
+                    <SelectTrigger className="h-9 text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -742,7 +874,7 @@ export default function PostDetailPage() {
                   <Input
                     type="number"
                     defaultValue={post.priority ?? 0}
-                    className="h-8 text-sm"
+                    className="h-9 text-sm"
                     onBlur={(e) => {
                       const val = Number(e.target.value);
                       if (val !== (post.priority ?? 0)) {
@@ -759,7 +891,7 @@ export default function PostDetailPage() {
                     value={urgencyValue || "__none__"}
                     onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
                   >
-                    <SelectTrigger className="h-8 text-sm w-full">
+                    <SelectTrigger className="h-9 text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -789,7 +921,7 @@ export default function PostDetailPage() {
                   value={post.organizationId || "__none__"}
                   onValueChange={(v) => inlineUpdate({ organizationId: v === "__none__" ? null : v })}
                 >
-                  <SelectTrigger className="h-8 text-sm w-full max-w-sm">
+                  <SelectTrigger className="h-9 text-sm w-full max-w-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -808,7 +940,7 @@ export default function PostDetailPage() {
                   value={post.category || "other"}
                   onValueChange={(v) => inlineUpdate({ category: v })}
                 >
-                  <SelectTrigger className="h-8 text-sm w-full max-w-sm">
+                  <SelectTrigger className="h-9 text-sm w-full max-w-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
