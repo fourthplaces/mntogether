@@ -15,8 +15,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 // ─── Week helpers ────────────────────────────────────────────────────────────
 
@@ -109,6 +116,52 @@ function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: st
   }
   // draft
   return <span className="text-stone-400" title="Draft">○</span>;
+}
+
+// ─── Status pill ─────────────────────────────────────────────────────────────
+
+const WORKFLOW_STEPS = [
+  { key: "draft", label: "Draft" },
+  { key: "in_review", label: "Reviewing" },
+  { key: "approved", label: "Approved" },
+  { key: "published", label: "Published" },
+] as const;
+
+const STEP_ACTIVE_STYLE: Record<string, string> = {
+  draft: "bg-yellow-100 text-yellow-800 border-yellow-200",
+  in_review: "bg-amber-100 text-amber-800 border-amber-200",
+  approved: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  published: "bg-green-100 text-green-800 border-green-200",
+};
+
+function StatusPill({ status }: { status: string }) {
+  // Approved editions are waiting to go live — show the 3-step workflow
+  // Published editions are live — collapse approved+published into "Published"
+  const steps = status === "published"
+    ? WORKFLOW_STEPS.filter((s) => s.key !== "approved")
+    : WORKFLOW_STEPS.filter((s) => s.key !== "published");
+  const active = status;
+
+  return (
+    <span className="inline-flex text-[11px] font-medium leading-none">
+      {steps.map((step, i) => (
+        <span
+          key={step.key}
+          className={`px-2 py-1 border ${
+            i === 0 ? "rounded-l-full" : "-ml-px"
+          } ${
+            i === steps.length - 1 ? "rounded-r-full" : ""
+          } ${
+            step.key === active
+              ? STEP_ACTIVE_STYLE[step.key]
+              : "bg-muted/50 text-muted-foreground border-border"
+          }`}
+        >
+          {step.label}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 // ─── Component ───────────────────────────────────────────────────────────────
@@ -291,42 +344,31 @@ export default function CountiesDashboardPage() {
         )}
 
         {/* Filters */}
-        <div className="flex gap-3 mb-4">
+        <div className="flex items-center gap-3 mb-4">
+          <Tabs value={statusFilter} onValueChange={setStatusFilter}>
+            <TabsList>
+              {STATUS_FILTERS.map((s) => (
+                <TabsTrigger key={s.value} value={s.value}>
+                  {s.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+
+          <Tabs value={onlyStale ? "stale" : "all"} onValueChange={(v) => setOnlyStale(v === "stale")}>
+            <TabsList>
+              <TabsTrigger value="all">All</TabsTrigger>
+              <TabsTrigger value="stale">Stale ({staleCount})</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
           <input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search counties..."
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-56"
+            className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
           />
-          <div className="flex rounded-lg border border-border overflow-hidden">
-            {STATUS_FILTERS.map((s) => (
-              <button
-                key={s.value}
-                onClick={() => setStatusFilter(s.value)}
-                className={`px-3 py-2 text-sm font-medium transition-colors ${
-                  statusFilter === s.value
-                    ? "bg-accent text-accent-foreground"
-                    : "bg-background text-muted-foreground hover:bg-secondary"
-                }`}
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Stale toggle — independent of editorial status filter */}
-        <div className="flex items-center gap-2 mb-4">
-          <Switch
-            id="stale-toggle"
-            checked={onlyStale}
-            onCheckedChange={setOnlyStale}
-          />
-          <Label htmlFor="stale-toggle" className="text-sm text-muted-foreground cursor-pointer">
-            Only stale counties
-            <span className="text-xs ml-1">({staleCount})</span>
-          </Label>
         </div>
 
         {/* Error */}
@@ -337,72 +379,54 @@ export default function CountiesDashboardPage() {
         )}
 
         {/* Table */}
-        <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
-          <table className="min-w-full divide-y divide-border">
-            <thead className="bg-secondary">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  County
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Live Edition
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Draft Edition
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                  Rows
-                </th>
-                <th className="w-10" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+        <div className="rounded-lg border border-border overflow-hidden bg-card">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">County</TableHead>
+                <TableHead>Live Edition</TableHead>
+                <TableHead>Draft Edition</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="w-20">Rows</TableHead>
+                <TableHead className="w-10" />
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {filteredRows.map((row) => {
                 const ed = row.currentEdition;
                 return (
-                  <tr
+                  <TableRow
                     key={row.county.id}
                     onClick={() => {
                       if (ed) router.push(`/admin/editions/${ed.id}`);
                     }}
-                    className={`transition-colors ${
-                      ed ? "hover:bg-secondary cursor-pointer" : ""
-                    }`}
+                    className={ed ? "cursor-pointer" : ""}
                   >
-                    <td className="px-6 py-3 whitespace-nowrap">
+                    <TableCell className="pl-6 whitespace-nowrap">
                       <span className="font-medium text-foreground">{row.county.name}</span>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <span className="inline-flex items-center gap-1.5">
                         <FreshnessIndicator isStale={row.isStale} status={ed?.status} />
                         <span className={row.isStale ? "text-muted-foreground" : "text-foreground"}>
                           {liveEditionAge(ed?.periodStart, row.isStale)}
                         </span>
                       </span>
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {ed ? formatPeriod(ed.periodStart, ed.periodEnd) : "—"}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
                       {ed ? (
-                        <span
-                          className={`px-2 py-0.5 text-xs rounded-full font-medium ${
-                            STATUS_BADGE_STYLES[ed.status] || "bg-secondary text-muted-foreground"
-                          }`}
-                        >
-                          {STATUS_LABELS[ed.status] || ed.status}
-                        </span>
+                        <StatusPill status={ed.status} />
                       ) : (
-                        <span className="text-muted-foreground text-sm">—</span>
+                        <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
-                    <td className="px-6 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap text-muted-foreground">
                       {ed ? `${ed.rowCount}` : "—"}
-                    </td>
-                    <td className="px-3 py-3 whitespace-nowrap">
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -416,12 +440,12 @@ export default function CountiesDashboardPage() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                       </button>
-                    </td>
-                  </tr>
+                    </TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {filteredRows.length === 0 && (
             <div className="text-muted-foreground text-center py-12">
               {searchQuery || statusFilter

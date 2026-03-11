@@ -6,6 +6,15 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { X } from "lucide-react";
 import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
 import { CountiesQuery } from "@/lib/graphql/editions";
@@ -130,12 +139,19 @@ export default function SignalPage() {
         </div>
 
         {/* Filters row */}
-        <div className="flex flex-wrap gap-3 mb-4 items-center">
-          {/* County dropdown (primary filter) */}
+        <div className="flex items-center gap-3 mb-4">
+          <Tabs value={showRejected ? "rejected" : "active"} onValueChange={(v) => setShowRejected(v === "rejected")}>
+            <TabsList>
+              <TabsTrigger value="active">Active</TabsTrigger>
+              <TabsTrigger value="rejected">Rejected</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {/* County dropdown */}
           <select
             value={countyId}
             onChange={(e) => setCountyId(e.target.value)}
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-52"
+            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-52"
           >
             <option value="">All Counties</option>
             <option value="__statewide__">Statewide</option>
@@ -153,7 +169,7 @@ export default function SignalPage() {
           <select
             value={postType}
             onChange={(e) => setPostType(e.target.value as PostTypeFilter)}
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
+            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
           >
             {POST_TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -175,7 +191,7 @@ export default function SignalPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search posts..."
-              className="flex-1 px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
             {searchQuery && (
               <button
@@ -190,17 +206,6 @@ export default function SignalPage() {
               </button>
             )}
           </form>
-
-          {/* Show rejected toggle */}
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showRejected}
-              onChange={(e) => setShowRejected(e.target.checked)}
-              className="rounded border-border"
-            />
-            Show rejected
-          </label>
         </div>
 
         {/* Active filter pills */}
@@ -253,37 +258,27 @@ export default function SignalPage() {
           </div>
         ) : posts.length > 0 && (
           <>
-            <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-secondary">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                      Weight
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Source
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                      Date
-                    </th>
-                    <th className="w-12" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            <div className="rounded-lg border border-border overflow-hidden bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Title</TableHead>
+                    <TableHead className="w-24">Type</TableHead>
+                    <TableHead className="w-24">Weight</TableHead>
+                    <TableHead>Source</TableHead>
+                    <TableHead className="w-24">Date</TableHead>
+                    <TableHead className="w-12" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {posts.map((post) => (
-                    <tr
+                    <TableRow
                       key={post.id}
                       onClick={() => router.push(`/admin/posts/${post.id}`)}
-                      className="hover:bg-secondary cursor-pointer transition-colors"
+                      className="cursor-pointer"
                     >
-                      <td className="px-6 py-3">
-                        <div className="font-medium text-foreground text-sm truncate max-w-md">
+                      <TableCell className="pl-6">
+                        <div className="font-medium text-foreground truncate max-w-md">
                           {post.title}
                         </div>
                         {post.location && (
@@ -291,8 +286,8 @@ export default function SignalPage() {
                             {post.location}
                           </div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {post.postType && (
                           <span
                             className={`px-2 py-0.5 text-xs rounded-full font-medium ${
@@ -302,8 +297,8 @@ export default function SignalPage() {
                             {post.postType}
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {post.weight && (
                           <span
                             className={`px-2 py-0.5 text-xs rounded-full font-medium ${
@@ -313,14 +308,14 @@ export default function SignalPage() {
                             {post.weight}
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground truncate max-w-[160px]">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground truncate max-w-[160px]">
                         {post.organizationName || "—"}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {timeAgo(post.createdAt)}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {!showRejected && (
                           <button
                             onClick={(e) => handleReject(post.id, e)}
@@ -347,11 +342,11 @@ export default function SignalPage() {
                             </svg>
                           </a>
                         )}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination */}

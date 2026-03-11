@@ -7,6 +7,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ArrowLeft, CalendarIcon, ChevronDownIcon, Clock, ExternalLink, Plus, X } from "lucide-react";
 import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
@@ -465,123 +466,112 @@ function SchedulesSection({
         <p className="text-sm text-text-faint italic mb-4">No schedules</p>
       )}
 
-      {/* Mode toggle */}
-      <div className="flex gap-1 mb-3">
-        <Button
-          variant={mode === "hours" ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => setMode("hours")}
-        >
-          Operating Hours
-        </Button>
-        <Button
-          variant={mode === "event" ? "default" : "outline"}
-          size="sm"
-          className="h-7 text-xs"
-          onClick={() => setMode("event")}
-        >
-          One-off Event
-        </Button>
-      </div>
-
       {/* Add form */}
-      {mode === "hours" ? (
-        <FieldGroup className="flex-row items-end gap-2">
-          <Field className="w-auto">
-            <FieldLabel className="text-xs">Day</FieldLabel>
-            <Select value={newDay} onValueChange={setNewDay}>
-              <SelectTrigger className="h-9 text-sm w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {DAY_OPTIONS.map((d) => (
-                  <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field className="w-auto">
-            <FieldLabel className="text-xs">Opens</FieldLabel>
-            <Input
-              type="time"
-              value={newOpens}
-              onChange={(e) => setNewOpens(e.target.value)}
-              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+      <Tabs value={mode} onValueChange={(v) => setMode(v as ScheduleMode)}>
+        <TabsList className="mb-3">
+          <TabsTrigger value="hours">Operating Hours</TabsTrigger>
+          <TabsTrigger value="event">One-off Event</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="hours">
+          <FieldGroup className="flex-row items-end gap-2">
+            <Field className="w-auto">
+              <FieldLabel className="text-xs">Day</FieldLabel>
+              <Select value={newDay} onValueChange={setNewDay}>
+                <SelectTrigger className="h-9 text-sm w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DAY_OPTIONS.map((d) => (
+                    <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field className="w-auto">
+              <FieldLabel className="text-xs">Opens</FieldLabel>
+              <Input
+                type="time"
+                value={newOpens}
+                onChange={(e) => setNewOpens(e.target.value)}
+                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                disabled={busy}
+              />
+            </Field>
+            <Field className="w-auto">
+              <FieldLabel className="text-xs">Closes</FieldLabel>
+              <Input
+                type="time"
+                value={newCloses}
+                onChange={(e) => setNewCloses(e.target.value)}
+                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                disabled={busy}
+              />
+            </Field>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddHours}
               disabled={busy}
-            />
-          </Field>
-          <Field className="w-auto">
-            <FieldLabel className="text-xs">Closes</FieldLabel>
-            <Input
-              type="time"
-              value={newCloses}
-              onChange={(e) => setNewCloses(e.target.value)}
-              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
-              disabled={busy}
-            />
-          </Field>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddHours}
-            disabled={busy}
-            className="h-9"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </FieldGroup>
-      ) : (
-        <FieldGroup className="flex-row items-end gap-2">
-          <Field className="w-auto">
-            <FieldLabel className="text-xs">Date</FieldLabel>
-            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="h-9 w-40 justify-between text-sm font-normal"
-                >
-                  {eventDate ? format(eventDate, "MMM d, yyyy") : "Select date"}
-                  <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={eventDate}
-                  captionLayout="dropdown"
-                  defaultMonth={eventDate}
-                  onSelect={(date) => {
-                    setEventDate(date);
-                    setCalendarOpen(false);
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-          </Field>
-          <Field className="w-auto">
-            <FieldLabel className="text-xs">Time</FieldLabel>
-            <Input
-              type="time"
-              value={eventTime}
-              onChange={(e) => setEventTime(e.target.value)}
-              className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
-              disabled={busy}
-            />
-          </Field>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleAddEvent}
-            disabled={busy || !eventDate}
-            className="h-9"
-          >
-            <Plus className="h-4 w-4 mr-1" />
-            Add
-          </Button>
-        </FieldGroup>
-      )}
+              className="h-9"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </FieldGroup>
+        </TabsContent>
+
+        <TabsContent value="event">
+          <FieldGroup className="flex-row items-end gap-2">
+            <Field className="w-auto">
+              <FieldLabel className="text-xs">Date</FieldLabel>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="h-9 w-40 justify-between text-sm font-normal"
+                  >
+                    {eventDate ? format(eventDate, "MMM d, yyyy") : "Select date"}
+                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={eventDate}
+                    captionLayout="dropdown"
+                    defaultMonth={eventDate}
+                    onSelect={(date) => {
+                      setEventDate(date);
+                      setCalendarOpen(false);
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+            </Field>
+            <Field className="w-auto">
+              <FieldLabel className="text-xs">Time</FieldLabel>
+              <Input
+                type="time"
+                value={eventTime}
+                onChange={(e) => setEventTime(e.target.value)}
+                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                disabled={busy}
+              />
+            </Field>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddEvent}
+              disabled={busy || !eventDate}
+              className="h-9"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              Add
+            </Button>
+          </FieldGroup>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
@@ -819,7 +809,7 @@ export default function PostDetailPage() {
         </div>
 
         {/* ── Two-column layout ──────────────────────────────────────── */}
-        <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[6fr_4fr] gap-6">
 
           {/* ── LEFT COLUMN (70%) ──────────────────────────────────── */}
           <div className="space-y-6">

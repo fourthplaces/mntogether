@@ -9,6 +9,15 @@ import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   Dialog,
   DialogContent,
@@ -17,8 +26,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NotesListQuery, DeleteNoteMutation } from "@/lib/graphql/notes";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { Trash2, ExternalLink, AlertTriangle, Info, Bell } from "lucide-react";
 
 // ─── Types & config ─────────────────────────────────────────────────────────
@@ -72,7 +79,7 @@ function truncate(str: string, maxLen: number): string {
 export default function NotesPage() {
   const router = useRouter();
   const [severityFilter, setSeverityFilter] = useState<SeverityFilter>("");
-  const [publicOnly, setPublicOnly] = useState(false);
+  const [visibilityFilter, setVisibilityFilter] = useState<"" | "public" | "internal">("");
   const [deleteTarget, setDeleteTarget] = useState<{
     id: string;
     content: string;
@@ -83,7 +90,7 @@ export default function NotesPage() {
   // Reset pagination when filters change
   useEffect(() => {
     pagination.reset();
-  }, [severityFilter, publicOnly]);
+  }, [severityFilter, visibilityFilter]);
 
   // ─── Queries ──────────────────────────────────────────────────────
 
@@ -91,7 +98,7 @@ export default function NotesPage() {
     query: NotesListQuery,
     variables: {
       severity: severityFilter || null,
-      isPublic: publicOnly || null,
+      isPublic: visibilityFilter === "public" ? true : visibilityFilter === "internal" ? false : null,
       limit: pagination.variables.first,
       offset: pagination.variables.offset,
     },
@@ -131,33 +138,25 @@ export default function NotesPage() {
           </div>
         </div>
 
-        {/* Severity tabs */}
-        <div className="flex gap-1 mb-4">
-          {SEVERITY_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setSeverityFilter(tab.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                severityFilter === tab.key
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Filter rows */}
+        <div className="flex items-center gap-4 mb-4">
+          <Tabs value={severityFilter} onValueChange={(v) => setSeverityFilter(v as SeverityFilter)}>
+            <TabsList>
+              {SEVERITY_TABS.map((tab) => (
+                <TabsTrigger key={tab.key} value={tab.key}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
 
-        {/* Filters row */}
-        <div className="flex items-center gap-2 mb-4">
-          <Switch
-            id="public-only"
-            checked={publicOnly}
-            onCheckedChange={setPublicOnly}
-          />
-          <Label htmlFor="public-only" className="text-sm text-muted-foreground font-normal cursor-pointer">
-            Public only
-          </Label>
+          <Tabs value={visibilityFilter} onValueChange={(v) => setVisibilityFilter(v as "" | "public" | "internal")}>
+            <TabsList>
+              <TabsTrigger value="">All Visibility</TabsTrigger>
+              <TabsTrigger value="public">Public</TabsTrigger>
+              <TabsTrigger value="internal">Internal</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {/* Error */}
@@ -179,48 +178,35 @@ export default function NotesPage() {
               No notes found
             </h3>
             <p className="text-muted-foreground text-sm">
-              {severityFilter
-                ? `No ${severityFilter} notes${publicOnly ? " (public)" : ""}.`
-                : publicOnly
-                  ? "No public notes."
-                  : "No notes have been created yet."}
+              {severityFilter || visibilityFilter
+                ? `No ${severityFilter || ""} ${visibilityFilter || ""} notes found.`.replace(/\s+/g, " ")
+                : "No notes have been created yet."}
             </p>
           </div>
         ) : (
           notes.length > 0 && (
             <>
-              <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
-                <table className="min-w-full divide-y divide-border">
-                  <thead className="bg-secondary">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                        Note
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                        Severity
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                        Visibility
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-40">
-                        Linked Posts
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">
-                        Created
-                      </th>
-                      <th className="w-14" />
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border">
+              <div className="rounded-lg border border-border overflow-hidden bg-card">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Note</TableHead>
+                      <TableHead className="w-24">Severity</TableHead>
+                      <TableHead className="w-24">Visibility</TableHead>
+                      <TableHead className="w-40">Linked Posts</TableHead>
+                      <TableHead className="w-28">Created</TableHead>
+                      <TableHead className="w-14" />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {notes.map((note) => (
-                      <tr
+                      <TableRow
                         key={note.id}
                         onClick={() => router.push(`/admin/notes/${note.id}`)}
-                        className="hover:bg-secondary cursor-pointer transition-colors"
+                        className="cursor-pointer"
                       >
-                        {/* Content */}
-                        <td className="px-6 py-3">
-                          <div className="text-sm text-foreground">
+                        <TableCell className="pl-6">
+                          <div className="text-foreground">
                             {truncate(note.content, 120)}
                           </div>
                           {note.ctaText && (
@@ -239,10 +225,9 @@ export default function NotesPage() {
                               Source
                             </a>
                           )}
-                        </td>
+                        </TableCell>
 
-                        {/* Severity */}
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           <Badge
                             variant={
                               SEVERITY_BADGE_VARIANT[note.severity] || "secondary"
@@ -251,19 +236,17 @@ export default function NotesPage() {
                             {SEVERITY_ICON[note.severity]}
                             {note.severity}
                           </Badge>
-                        </td>
+                        </TableCell>
 
-                        {/* Visibility */}
-                        <td className="px-4 py-3 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           <Badge
                             variant={note.isPublic ? "success" : "secondary"}
                           >
                             {note.isPublic ? "Public" : "Internal"}
                           </Badge>
-                        </td>
+                        </TableCell>
 
-                        {/* Linked Posts */}
-                        <td className="px-4 py-3">
+                        <TableCell>
                           {note.linkedPosts && note.linkedPosts.length > 0 ? (
                             <div className="flex flex-col gap-0.5">
                               {note.linkedPosts.slice(0, 2).map((lp) => (
@@ -287,15 +270,13 @@ export default function NotesPage() {
                               None
                             </span>
                           )}
-                        </td>
+                        </TableCell>
 
-                        {/* Created */}
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                        <TableCell className="whitespace-nowrap text-muted-foreground">
                           {timeAgo(note.createdAt)}
-                        </td>
+                        </TableCell>
 
-                        {/* Actions */}
-                        <td className="px-3 py-3 whitespace-nowrap">
+                        <TableCell className="whitespace-nowrap">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -309,11 +290,11 @@ export default function NotesPage() {
                           >
                             <Trash2 className="size-4" />
                           </button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
 
               {/* Pagination */}

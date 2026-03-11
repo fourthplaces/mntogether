@@ -16,6 +16,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -651,24 +652,18 @@ function PostsSection({ posts }: { posts: PostData[] }) {
           Posts {posts.length > 0 && <span className="text-muted-foreground font-normal">({posts.length})</span>}
         </SectionLabel>
       </div>
-      <div className="flex gap-1 mb-4">
-        {POST_STATUS_TABS.map((t) => (
-          <button
-            key={t.value}
-            onClick={() => setTab(t.value)}
-            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-              tab === t.value
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-accent/50 hover:text-foreground"
-            }`}
-          >
-            {t.label}
-            {counts[t.value] > 0 && (
-              <span className="ml-1.5 text-xs opacity-70">{counts[t.value]}</span>
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as PostStatusTab)}>
+        <TabsList>
+          {POST_STATUS_TABS.map((t) => (
+            <TabsTrigger key={t.value} value={t.value}>
+              {t.label}
+              {counts[t.value] > 0 && (
+                <span className="text-xs opacity-60 tabular-nums">{counts[t.value]}</span>
+              )}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
       {filtered.length === 0 ? (
         <p className="text-muted-foreground text-sm">No {tab} posts.</p>
       ) : (

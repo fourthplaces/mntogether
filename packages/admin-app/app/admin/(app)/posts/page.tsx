@@ -6,6 +6,15 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   EditorialPostsQuery,
   ArchivePostMutation,
@@ -143,30 +152,23 @@ export default function EditorialPage() {
           </a>
         </div>
 
-        {/* Status tabs */}
-        <div className="flex gap-1 mb-4">
-          {STATUS_TABS.map((tab) => (
-            <button
-              key={tab.key}
-              onClick={() => setStatusTab(tab.key)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                statusTab === tab.key
-                  ? "bg-accent text-accent-foreground"
-                  : "bg-background text-muted-foreground hover:bg-secondary"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Status tabs + filters row */}
+        <div className="flex items-center gap-3 mb-4">
+          <Tabs value={statusTab} onValueChange={(v) => setStatusTab(v as StatusTab)}>
+            <TabsList>
+              {STATUS_TABS.map((tab) => (
+                <TabsTrigger key={tab.key} value={tab.key}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
 
-        {/* Filters row */}
-        <div className="flex gap-3 mb-4 items-center">
           {/* Type dropdown */}
           <select
             value={postType}
             onChange={(e) => setPostType(e.target.value as PostTypeFilter)}
-            className="px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
+            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
           >
             {POST_TYPE_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
@@ -188,7 +190,7 @@ export default function EditorialPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search posts..."
-              className="flex-1 px-3 py-2 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
             />
             {searchQuery && (
               <button
@@ -239,34 +241,26 @@ export default function EditorialPage() {
           </div>
         ) : posts.length > 0 && (
           <>
-            <div className="bg-card rounded-lg shadow-sm border border-border overflow-hidden">
-              <table className="min-w-full divide-y divide-border">
-                <thead className="bg-secondary">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      Title
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-24">
-                      Weight
-                    </th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider w-28">
-                      Updated
-                    </th>
-                    <th className="w-20" />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
+            <div className="rounded-lg border border-border overflow-hidden bg-card">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Title</TableHead>
+                    <TableHead className="w-24">Type</TableHead>
+                    <TableHead className="w-24">Weight</TableHead>
+                    <TableHead className="w-28">Updated</TableHead>
+                    <TableHead className="w-20" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
                   {posts.map((post) => (
-                    <tr
+                    <TableRow
                       key={post.id}
                       onClick={() => router.push(`/admin/posts/${post.id}`)}
-                      className="hover:bg-secondary cursor-pointer transition-colors"
+                      className="cursor-pointer"
                     >
-                      <td className="px-6 py-3">
-                        <div className="font-medium text-foreground text-sm truncate max-w-lg">
+                      <TableCell className="pl-6">
+                        <div className="font-medium text-foreground truncate max-w-lg">
                           {post.title}
                         </div>
                         {post.organizationName && (
@@ -274,8 +268,8 @@ export default function EditorialPage() {
                             {post.organizationName}
                           </div>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {post.postType && (
                           <span
                             className={`px-2 py-0.5 text-xs rounded-full font-medium ${
@@ -285,8 +279,8 @@ export default function EditorialPage() {
                             {post.postType}
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
                         {post.weight && (
                           <span
                             className={`px-2 py-0.5 text-xs rounded-full font-medium ${
@@ -296,36 +290,38 @@ export default function EditorialPage() {
                             {post.weight}
                           </span>
                         )}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-muted-foreground">
                         {timeAgo(post.createdAt)}
-                      </td>
-                      <td className="px-3 py-3 whitespace-nowrap flex gap-1">
-                        {statusTab !== "archived" && (
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex gap-1">
+                          {statusTab !== "archived" && (
+                            <button
+                              onClick={(e) => handleArchive(post.id, e)}
+                              className="p-1 text-muted-foreground hover:text-amber-600 rounded"
+                              title="Archive"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                              </svg>
+                            </button>
+                          )}
                           <button
-                            onClick={(e) => handleArchive(post.id, e)}
-                            className="p-1 text-muted-foreground hover:text-amber-600 rounded"
-                            title="Archive"
+                            onClick={(e) => handleDelete(post.id, e)}
+                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
+                            title="Delete"
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
                             </svg>
                           </button>
-                        )}
-                        <button
-                          onClick={(e) => handleDelete(post.id, e)}
-                          className="p-1 text-muted-foreground hover:text-red-600 rounded"
-                          title="Delete"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
+                        </div>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
 
             {/* Pagination */}
