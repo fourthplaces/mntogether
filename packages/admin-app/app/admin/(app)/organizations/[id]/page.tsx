@@ -6,8 +6,10 @@ import { useState } from "react";
 import { useQuery, useMutation } from "urql";
 import {
   ArrowLeft,
+  Building2,
   MoreHorizontal,
   Trash2,
+  User,
 } from "lucide-react";
 
 import { AdminLoader } from "@/components/admin/AdminLoader";
@@ -230,7 +232,7 @@ export default function OrganizationDetailPage() {
   };
 
   // --- Loading / error states ---
-  if (orgLoading) return <AdminLoader label="Loading organization..." />;
+  if (orgLoading) return <AdminLoader label="Loading source..." />;
 
   if (orgError) {
     return (
@@ -239,7 +241,7 @@ export default function OrganizationDetailPage() {
           <h1 className="text-2xl font-bold text-danger-text mb-4">Error</h1>
           <p className="text-muted-foreground mb-4">{orgError.message}</p>
           <Link href="/admin/organizations" className="text-link hover:text-link-hover">
-            Back to Organizations
+            Back to Sources
           </Link>
         </div>
       </div>
@@ -250,9 +252,9 @@ export default function OrganizationDetailPage() {
     return (
       <div className="min-h-screen bg-background p-6">
         <div className="max-w-4xl mx-auto text-center py-12">
-          <h1 className="text-2xl font-bold text-foreground mb-4">Not Found</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-4">Source Not Found</h1>
           <Link href="/admin/organizations" className="text-link hover:text-link-hover">
-            Back to Organizations
+            Back to Sources
           </Link>
         </div>
       </div>
@@ -269,7 +271,7 @@ export default function OrganizationDetailPage() {
             href="/admin/organizations"
             className="inline-flex items-center text-muted-foreground hover:text-foreground text-sm"
           >
-            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Organizations
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Sources
           </Link>
 
           <div className="flex items-center gap-2">
@@ -334,7 +336,7 @@ export default function OrganizationDetailPage() {
                 )}
                 <DropdownMenuItem variant="destructive" onSelect={handleDelete} disabled={actionInProgress !== null}>
                   <Trash2 className="w-4 h-4" />
-                  Delete Organization
+                  Delete {org.sourceType === "individual" ? "Individual" : "Organization"}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -376,7 +378,16 @@ export default function OrganizationDetailPage() {
               </form>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-foreground">{org.name}</h1>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="text-2xl font-bold text-foreground">{org.name}</h1>
+                  <Badge variant="outline" className="text-[11px]">
+                    {org.sourceType === "individual" ? (
+                      <><User className="h-3 w-3" /> Individual</>
+                    ) : (
+                      <><Building2 className="h-3 w-3" /> Organization</>
+                    )}
+                  </Badge>
+                </div>
                 {org.description && (
                   <p className="text-muted-foreground -mt-3">{org.description}</p>
                 )}
@@ -394,6 +405,16 @@ export default function OrganizationDetailPage() {
             <div>
               <SectionLabel>Details</SectionLabel>
               <div className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Type</span>
+                  <Badge variant="outline" className="text-[11px]">
+                    {org.sourceType === "individual" ? (
+                      <><User className="h-3 w-3" /> Individual</>
+                    ) : (
+                      <><Building2 className="h-3 w-3" /> Organization</>
+                    )}
+                  </Badge>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Status</span>
                   <Badge variant={statusBadgeVariant(org.status)}>
@@ -446,7 +467,7 @@ export default function OrganizationDetailPage() {
                 </div>
                 {!checklist.allChecked && (
                   <p className="text-xs text-warning-text mt-3">
-                    Complete all items before approving this organization.
+                    Complete all items before approving this source.
                   </p>
                 )}
               </div>
@@ -460,7 +481,7 @@ export default function OrganizationDetailPage() {
       <Dialog open={showRejectDialog} onOpenChange={setShowRejectDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Reject Organization</DialogTitle>
+            <DialogTitle>Reject {org.sourceType === "individual" ? "Individual" : "Organization"}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={rejectReason}
@@ -489,7 +510,7 @@ export default function OrganizationDetailPage() {
       <Dialog open={showSuspendDialog} onOpenChange={setShowSuspendDialog}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Suspend Organization</DialogTitle>
+            <DialogTitle>Suspend {org.sourceType === "individual" ? "Individual" : "Organization"}</DialogTitle>
           </DialogHeader>
           <Textarea
             value={suspendReason}

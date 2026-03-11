@@ -136,7 +136,7 @@ const buildNavGroups = (): NavGroup[] => [
   {
     label: "Sources",
     items: [
-      { href: "/admin/organizations", label: "Organizations", icon: icons.organizations },
+      { href: "/admin/organizations", label: "Sources", icon: icons.organizations },
     ],
   },
   {

@@ -1,13 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
+import { Building2, Plus, User } from "lucide-react";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   OrganizationsListQuery,
   CreateOrganizationMutation,
 } from "@/lib/graphql/organizations";
+
+function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "secondary" {
+  switch (status) {
+    case "approved": return "success";
+    case "pending_review": return "warning";
+    case "rejected": return "danger";
+    default: return "secondary";
+  }
+}
 
 export default function OrganizationsPage() {
   return <OrganizationsContent />;
@@ -18,6 +40,7 @@ function OrganizationsContent() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [addName, setAddName] = useState("");
   const [addDescription, setAddDescription] = useState("");
+  const [addSourceType, setAddSourceType] = useState<"organization" | "individual">("organization");
   const [addError, setAddError] = useState<string | null>(null);
 
   const [{ data, fetching: isLoading, error }] = useQuery({
@@ -27,6 +50,12 @@ function OrganizationsContent() {
   const [{ fetching: addLoading }, createOrg] = useMutation(CreateOrganizationMutation);
 
   const organizations = data?.organizations || [];
+
+  const counts = useMemo(() => ({
+    all: organizations.length,
+    organization: organizations.filter((o) => o.sourceType === "organization").length,
+    individual: organizations.filter((o) => o.sourceType === "individual").length,
+  }), [organizations]);
 
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,151 +67,232 @@ function OrganizationsContent() {
         {
           name: addName.trim(),
           description: addDescription.trim() || null,
+          sourceType: addSourceType,
         },
         { additionalTypenames: ["Organization"] }
       );
       if (result.error) throw result.error;
       setAddName("");
       setAddDescription("");
+      setAddSourceType("organization");
       setShowAddForm(false);
       if (result.data?.createOrganization?.id) {
         router.push(`/admin/organizations/${result.data.createOrganization.id}`);
       }
     } catch (err: any) {
-      setAddError(err.message || "Failed to create organization");
+      setAddError(err.message || "Failed to create source");
     }
   };
 
+  const resetAddForm = () => {
+    setShowAddForm(false);
+    setAddName("");
+    setAddDescription("");
+    setAddSourceType("organization");
+    setAddError(null);
+  };
+
   if (isLoading && organizations.length === 0) {
-    return <AdminLoader label="Loading organizations..." />;
+    return <AdminLoader label="Loading sources..." />;
   }
 
   return (
-    <div className="min-h-screen bg-stone-50 p-6">
+    <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold text-stone-900">Organizations</h1>
-          <button
-            onClick={() => setShowAddForm(!showAddForm)}
-            className="px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600 text-white hover:bg-amber-700 transition-colors"
-          >
-            + Add Organization
-          </button>
+          <h1 className="text-3xl font-bold text-foreground">Sources</h1>
+          <Button variant="admin" size="sm" onClick={() => setShowAddForm(!showAddForm)}>
+            <Plus className="h-4 w-4" />
+            Add Source
+          </Button>
         </div>
 
         {showAddForm && (
           <form
             onSubmit={handleAdd}
-            className="bg-white rounded-lg shadow px-4 py-3 mb-6 flex items-center gap-3"
+            className="rounded-lg border border-border bg-card p-4 mb-6 space-y-3"
           >
-            <input
-              type="text"
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              placeholder="Organization name"
-              className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              autoFocus
-              disabled={addLoading}
-            />
-            <input
-              type="text"
-              value={addDescription}
-              onChange={(e) => setAddDescription(e.target.value)}
-              placeholder="Description (optional)"
-              className="flex-1 px-3 py-2 border border-stone-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent"
-              disabled={addLoading}
-            />
-            <button
-              type="submit"
-              disabled={addLoading || !addName.trim()}
-              className="px-4 py-2 bg-amber-600 text-white rounded-lg text-sm font-medium hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {addLoading ? "Adding..." : "Add"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setShowAddForm(false);
-                setAddName("");
-                setAddDescription("");
-                setAddError(null);
-              }}
-              className="px-3 py-2 text-stone-500 hover:text-stone-700 text-sm"
-            >
-              Cancel
-            </button>
-            {addError && (
-              <span className="text-red-600 text-sm">{addError}</span>
-            )}
+            <div className="flex items-center gap-3">
+              {/* Source type toggle */}
+              <div className="flex shrink-0">
+                <Button
+                  type="button"
+                  variant={addSourceType === "organization" ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-r-none"
+                  onClick={() => setAddSourceType("organization")}
+                >
+                  <Building2 className="h-3.5 w-3.5" />
+                  Organization
+                </Button>
+                <Button
+                  type="button"
+                  variant={addSourceType === "individual" ? "default" : "outline"}
+                  size="sm"
+                  className="rounded-l-none border-l-0"
+                  onClick={() => setAddSourceType("individual")}
+                >
+                  <User className="h-3.5 w-3.5" />
+                  Individual
+                </Button>
+              </div>
+
+              <Input
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder={addSourceType === "individual" ? "Person name" : "Organization name"}
+                className="flex-1"
+                autoFocus
+                disabled={addLoading}
+              />
+              <Input
+                value={addDescription}
+                onChange={(e) => setAddDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="flex-1"
+                disabled={addLoading}
+              />
+            </div>
+            <div className="flex items-center gap-3">
+              <Button
+                type="submit"
+                variant="admin"
+                size="sm"
+                disabled={addLoading || !addName.trim()}
+                loading={addLoading}
+              >
+                Add
+              </Button>
+              <Button type="button" variant="ghost" size="sm" onClick={resetAddForm}>
+                Cancel
+              </Button>
+              {addError && (
+                <span className="text-danger-text text-sm">{addError}</span>
+              )}
+            </div>
           </form>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-6">
+          <div className="bg-danger-bg border border-danger-text/20 text-danger-text px-4 py-3 rounded-lg mb-6">
             Error: {error.message}
           </div>
         )}
 
-        {organizations.length === 0 ? (
-          <div className="text-stone-500 text-center py-12">
-            No organizations found
-          </div>
-        ) : (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="min-w-full divide-y divide-stone-200">
-              <thead className="bg-stone-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Name
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-stone-500 uppercase tracking-wider">
-                    Created
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-stone-200">
-                {organizations.map((org) => (
-                  <tr
-                    key={org.id}
-                    onClick={() => router.push(`/admin/organizations/${org.id}`)}
-                    className="hover:bg-stone-50 cursor-pointer"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-stone-900">{org.name}</div>
-                      {org.description && (
-                        <div className="text-sm text-stone-500 truncate max-w-md">
-                          {org.description}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 py-1 text-xs rounded-full font-medium ${
-                          org.status === "approved"
-                            ? "bg-green-100 text-green-800"
-                            : org.status === "pending_review"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : org.status === "rejected"
-                                ? "bg-red-100 text-red-800"
-                                : "bg-gray-100 text-gray-800"
-                        }`}
-                      >
-                        {org.status.replace(/_/g, " ")}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-stone-500 text-sm">
-                      {new Date(org.createdAt).toLocaleDateString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <Tabs defaultValue="all">
+          <TabsList>
+            <TabsTrigger value="all">
+              All
+              <span className="text-xs opacity-60 tabular-nums">{counts.all}</span>
+            </TabsTrigger>
+            <TabsTrigger value="organization">
+              <Building2 className="h-3.5 w-3.5" />
+              Organizations
+              <span className="text-xs opacity-60 tabular-nums">{counts.organization}</span>
+            </TabsTrigger>
+            <TabsTrigger value="individual">
+              <User className="h-3.5 w-3.5" />
+              Individuals
+              <span className="text-xs opacity-60 tabular-nums">{counts.individual}</span>
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="all">
+            <SourcesTable organizations={organizations} router={router} />
+          </TabsContent>
+          <TabsContent value="organization">
+            <SourcesTable
+              organizations={organizations.filter((o) => o.sourceType === "organization")}
+              router={router}
+            />
+          </TabsContent>
+          <TabsContent value="individual">
+            <SourcesTable
+              organizations={organizations.filter((o) => o.sourceType === "individual")}
+              router={router}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sources table
+// ---------------------------------------------------------------------------
+
+type OrgRow = {
+  id: string;
+  name: string;
+  description?: string | null;
+  status: string;
+  sourceType: string;
+  createdAt: string;
+};
+
+function SourcesTable({
+  organizations,
+  router,
+}: {
+  organizations: readonly OrgRow[];
+  router: ReturnType<typeof useRouter>;
+}) {
+  if (organizations.length === 0) {
+    return (
+      <div className="text-muted-foreground text-center py-12">
+        No sources found
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border overflow-hidden bg-card">
+      <Table className="table-fixed">
+        <TableHeader>
+          <TableRow>
+            <TableHead className="pl-6">Name</TableHead>
+            <TableHead className="w-36">Type</TableHead>
+            <TableHead className="w-36">Status</TableHead>
+            <TableHead className="w-32">Created</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {organizations.map((org) => (
+            <TableRow
+              key={org.id}
+              onClick={() => router.push(`/admin/organizations/${org.id}`)}
+              className="cursor-pointer"
+            >
+              <TableCell className="pl-6">
+                <div className="font-medium text-foreground truncate">{org.name}</div>
+                {org.description && (
+                  <div className="text-sm text-muted-foreground truncate">
+                    {org.description}
+                  </div>
+                )}
+              </TableCell>
+              <TableCell>
+                <Badge variant="outline" className="text-[11px]">
+                  {org.sourceType === "individual" ? (
+                    <><User className="h-3 w-3" /> Individual</>
+                  ) : (
+                    <><Building2 className="h-3 w-3" /> Organization</>
+                  )}
+                </Badge>
+              </TableCell>
+              <TableCell>
+                <Badge variant={statusBadgeVariant(org.status)}>
+                  {org.status.replace(/_/g, " ")}
+                </Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground">
+                {new Date(org.createdAt).toLocaleDateString()}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
