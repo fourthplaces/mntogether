@@ -26,14 +26,9 @@ saved_hash=$(cat "$HASH_FILE" 2>/dev/null || echo "")
 if [ "$current_hash" != "$saved_hash" ]; then
   echo "⚡ Dependencies changed (yarn.lock hash mismatch) — running yarn install..."
   cd /app
-  if yarn install --immutable 2>/dev/null; then
-    echo "$current_hash" > "$HASH_FILE"
-    echo "✅ Dependencies updated."
-  else
-    echo "⚠️  yarn install --immutable failed (lockfile likely read-only or out of sync)."
-    echo "   Using node_modules from the Docker image build. This is fine for dev."
-    echo "$current_hash" > "$HASH_FILE" 2>/dev/null || true
-  fi
+  yarn install
+  echo "$current_hash" > "$HASH_FILE"
+  echo "✅ Dependencies updated."
 else
   echo "✅ Dependencies up to date (yarn.lock unchanged)."
 fi

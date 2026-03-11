@@ -141,7 +141,7 @@ services:
     volumes:
       - ./packages/admin-app:/app/packages/admin-app
       - ./packages/shared:/app/packages/shared
-      - ./yarn.lock:/app/yarn.lock:ro
+      - ./yarn.lock:/app/yarn.lock
       - admin_node_modules:/app/node_modules
       - admin_app_node_modules:/app/packages/admin-app/node_modules
       - admin_next_cache:/app/packages/admin-app/.next

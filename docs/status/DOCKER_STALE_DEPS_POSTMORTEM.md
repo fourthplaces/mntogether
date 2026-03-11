@@ -192,6 +192,21 @@ docker compose up -d admin-app
 - The anonymous volume pattern is a known Docker footgun but was undocumented in the project. New contributors would hit the same issue
 - Both previous sessions debugging this project (Turbopack CPU loop, this incident) involved anonymous volume state. Consider whether named volumes with explicit lifecycle management would be clearer
 
+## Follow-up (2026-03-11): Removed `--immutable` and `:ro`
+
+The original fix used `yarn install --immutable` with `yarn.lock:ro`. This turned out to be a partial fix that caused its own class of failures:
+
+- `--immutable` fails when Yarn's resolution differs between host (macOS) and container (Alpine Linux), even when the logical dependency tree is identical. Platform-specific optional deps like `sharp` trigger this.
+- When `--immutable` failed, the entrypoint silently fell back to whatever was already in the volume — which could be completely stale from a previous image build.
+- The `:ro` mount prevented `yarn install` (without `--immutable`) from working as a fallback.
+
+**Changes made (2026-03-11):**
+- `scripts/docker-entrypoint-nextjs.sh`: replaced `yarn install --immutable` with `yarn install`
+- `docker-compose.yml`: removed `:ro` from admin-app's `yarn.lock` mount
+- `app/globals.css`: inlined `shadcn/tailwind.css` contents to avoid CSS import resolution issues in Docker
+
+See [Docker Architecture](../architecture/DOCKER_ARCHITECTURE.md) for the full explanation.
+
 ## Stats Summary
 
 | Metric | Value |

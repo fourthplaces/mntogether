@@ -25,6 +25,7 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 - [Simplified Schema](architecture/SIMPLIFIED_SCHEMA.md) - Minimal schema philosophy
 - [Tags vs Fields](architecture/TAGS_VS_FIELDS.md) - Data modeling decisions
 - [Architecture Decisions](architecture/ARCHITECTURE_DECISIONS.md) - Tech stack slimming decisions (static site, Restate bypass, webhook integration)
+- [Docker Architecture](architecture/DOCKER_ARCHITECTURE.md) - Docker dev environment: volumes, build pipeline, and trade-offs
 - [Design Tokens](architecture/DESIGN_TOKENS.md) - Design system tokens
 - [PII Scrubbing](architecture/PII_SCRUBBING.md) - PII detection architecture
 - [Abuse Reporting](architecture/ABUSE_REPORTING.md) - Post reporting feature spec and current state
