@@ -187,8 +187,7 @@ export default function NotesPage() {
         ) : (
           notes.length > 0 && (
             <>
-              <div className="rounded-lg border border-border overflow-hidden bg-card">
-                <Table>
+              <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead className="pl-6">Note</TableHead>
@@ -298,7 +297,6 @@ export default function NotesPage() {
                     ))}
                   </TableBody>
                 </Table>
-              </div>
 
               {/* Pagination */}
               <div className="mt-4">

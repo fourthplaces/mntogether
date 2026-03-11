@@ -383,8 +383,7 @@ export default function CountiesDashboardPage() {
         )}
 
         {/* Table */}
-        <div className="rounded-lg border border-border overflow-hidden bg-card">
-          <Table>
+        <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">County</TableHead>
@@ -449,14 +448,13 @@ export default function CountiesDashboardPage() {
               })}
             </TableBody>
           </Table>
-          {filteredRows.length === 0 && (
-            <div className="text-muted-foreground text-center py-12">
-              {searchQuery || statusFilter
-                ? "No counties match your filters."
-                : "No counties found. Check your database."}
-            </div>
-          )}
-        </div>
+        {filteredRows.length === 0 && (
+          <div className="text-muted-foreground text-center py-12">
+            {searchQuery || statusFilter
+              ? "No counties match your filters."
+              : "No counties found. Check your database."}
+          </div>
+        )}
         <p className="text-xs text-muted-foreground mt-2 text-right">
           {filteredRows.length} of {rows.length} counties
         </p>

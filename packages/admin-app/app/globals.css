@@ -42,7 +42,7 @@
   --input: oklch(0.905 0.024 83);
   --ring: oklch(0.786 0.043 91);
 
-  --sidebar: oklch(0.98 0.007 105);
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.36 0 0);
   --sidebar-primary: oklch(0.36 0 0);
   --sidebar-primary-foreground: oklch(1 0 0);

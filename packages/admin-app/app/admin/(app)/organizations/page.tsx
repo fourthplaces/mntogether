@@ -245,8 +245,7 @@ function SourcesTable({
   }
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden bg-card">
-      <Table className="table-fixed">
+    <Table className="table-fixed">
         <TableHeader>
           <TableRow>
             <TableHead className="pl-6">Name</TableHead>
@@ -291,6 +290,5 @@ function SourcesTable({
           ))}
         </TableBody>
       </Table>
-    </div>
   );
 }

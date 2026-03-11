@@ -251,8 +251,7 @@ export default function EditorialPage() {
           </div>
         ) : posts.length > 0 && (
           <>
-            <div className="rounded-lg border border-border overflow-hidden bg-card">
-              <Table>
+            <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-6">Title</TableHead>
@@ -336,7 +335,6 @@ export default function EditorialPage() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
 
             {/* Pagination */}
             <div className="mt-4">
