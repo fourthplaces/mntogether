@@ -26,6 +26,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { NotesListQuery, DeleteNoteMutation } from "@/lib/graphql/notes";
+import { Alert } from "@/components/ui/alert";
 import { Trash2, ExternalLink, AlertTriangle, Info, Bell } from "lucide-react";
 
 // ─── Types & config ─────────────────────────────────────────────────────────
@@ -161,9 +162,9 @@ export default function NotesPage() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <Alert variant="error" className="mb-4">
             Error: {error.message}
-          </div>
+          </Alert>
         )}
 
         {/* Loading */}
@@ -277,7 +278,10 @@ export default function NotesPage() {
                         </TableCell>
 
                         <TableCell className="whitespace-nowrap">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
+                            className="text-muted-foreground hover:text-destructive"
                             onClick={(e) => {
                               e.stopPropagation();
                               setDeleteTarget({
@@ -285,11 +289,10 @@ export default function NotesPage() {
                                 content: note.content,
                               });
                             }}
-                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
                             title="Delete note"
                           >
                             <Trash2 className="size-4" />
-                          </button>
+                          </Button>
                         </TableCell>
                       </TableRow>
                     ))}

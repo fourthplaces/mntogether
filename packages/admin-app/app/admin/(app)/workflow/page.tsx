@@ -23,6 +23,7 @@ import {
   ApproveEditionMutation,
   BatchPublishEditionsMutation,
 } from "@/lib/graphql/editions";
+import { Button } from "@/components/ui/button";
 
 // ─── Column config (left-to-right = editorial flow) ─────────────────────────
 
@@ -204,15 +205,13 @@ export default function WorkflowPage() {
           )}
         </div>
         {approvedCount > 0 && (
-          <button
+          <Button
+            variant="success"
             onClick={handlePublishAll}
-            disabled={batchPublishing}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+            loading={batchPublishing}
           >
-            {batchPublishing
-              ? "Publishing..."
-              : `Publish ${approvedCount} Approved`}
-          </button>
+            Publish {approvedCount} Approved
+          </Button>
         )}
       </div>
 

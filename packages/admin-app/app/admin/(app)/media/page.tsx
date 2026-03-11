@@ -5,19 +5,20 @@ import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { MediaCard } from "@/components/admin/MediaCard";
 import { MediaUploadZone } from "@/components/admin/MediaUploadZone";
+import { PaginationControls } from "@/components/ui/PaginationControls";
+import { Button } from "@/components/ui/button";
 import { useMediaUpload } from "@/lib/hooks/useMediaUpload";
+import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { MediaLibraryQuery, DeleteMediaMutation } from "@/lib/graphql/media";
 
-const PAGE_SIZE = 24;
-
 export default function MediaLibraryPage() {
-  const [offset, setOffset] = useState(0);
+  const pagination = useOffsetPagination({ pageSize: 24 });
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const { uploads, uploadFiles, clearUploads } = useMediaUpload();
 
   const [{ data, fetching, error }, reexecute] = useQuery({
     query: MediaLibraryQuery,
-    variables: { limit: PAGE_SIZE, offset },
+    variables: { limit: pagination.variables.first, offset: pagination.variables.offset },
   });
 
   const [, deleteMedia] = useMutation(DeleteMediaMutation);
@@ -73,12 +74,9 @@ export default function MediaLibraryPage() {
         </div>
 
         {selectedId && (
-          <button
-            onClick={handleCopyUrl}
-            className="px-4 py-2 text-sm font-medium text-admin-accent border border-admin-accent rounded-lg hover:bg-admin-accent/5 transition-colors"
-          >
+          <Button variant="outline" size="sm" onClick={handleCopyUrl}>
             Copy URL
-          </button>
+          </Button>
         )}
       </div>
 
@@ -95,7 +93,7 @@ export default function MediaLibraryPage() {
           {uploads.map((u, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 px-4 py-2 bg-surface-subtle rounded-lg border border-border"
+              className="flex items-center gap-3 px-4 py-2 bg-card rounded-lg border border-border"
             >
               <span className="text-sm text-text-body truncate flex-1">
                 {u.file.name}
@@ -122,12 +120,9 @@ export default function MediaLibraryPage() {
           {uploads.every(
             (u) => u.progress === "done" || u.progress === "error"
           ) && (
-            <button
-              onClick={clearUploads}
-              className="text-xs text-text-muted hover:text-text-secondary"
-            >
+            <Button variant="ghost" size="sm" onClick={clearUploads}>
               Clear upload history
-            </button>
+            </Button>
           )}
         </div>
       )}
@@ -167,26 +162,17 @@ export default function MediaLibraryPage() {
           </div>
 
           {/* Pagination */}
-          {(offset > 0 || hasNextPage) && (
-            <div className="flex items-center justify-center gap-4 mt-8">
-              <button
-                onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
-                disabled={offset === 0}
-                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Previous
-              </button>
-              <span className="text-sm text-text-muted">
-                {offset + 1}&ndash;{Math.min(offset + PAGE_SIZE, totalCount)}{" "}
-                of {totalCount}
-              </span>
-              <button
-                onClick={() => setOffset(offset + PAGE_SIZE)}
-                disabled={!hasNextPage}
-                className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-surface-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Next
-              </button>
+          {(pagination.currentPage > 0 || hasNextPage) && (
+            <div className="mt-8">
+              <PaginationControls
+                pageInfo={pagination.buildPageInfo(hasNextPage)}
+                totalCount={totalCount}
+                currentPage={pagination.currentPage}
+                pageSize={pagination.pageSize}
+                onNextPage={pagination.goToNextPage}
+                onPreviousPage={pagination.goToPreviousPage}
+                loading={fetching}
+              />
             </div>
           )}
         </>

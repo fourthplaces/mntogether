@@ -245,8 +245,8 @@ export default function NoteDetailPage() {
             )}
 
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm">{"\u22EF"}</Button>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+                {"\u22EF"}
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem variant="destructive" onSelect={() => setShowDeleteDialog(true)}>
@@ -325,13 +325,15 @@ export default function NoteDetailPage() {
                       >
                         {post.title}
                       </Link>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
                         onClick={() => handleUnlink("post", post.id)}
-                        className="p-1 text-muted-foreground hover:text-red-600 rounded shrink-0"
                         title="Unlink post"
                       >
                         <X className="size-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -368,13 +370,15 @@ export default function NoteDetailPage() {
                       >
                         {org.name}
                       </Link>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-destructive shrink-0"
                         onClick={() => handleUnlink("organization", org.id)}
-                        className="p-1 text-muted-foreground hover:text-red-600 rounded shrink-0"
                         title="Unlink organization"
                       >
                         <X className="size-3.5" />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -395,7 +399,7 @@ export default function NoteDetailPage() {
               <div className="space-y-3 text-sm">
                 <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Severity</span>
-                  <Select value={severity} onValueChange={setSeverity}>
+                  <Select value={severity} onValueChange={(val) => val !== null && setSeverity(val)}>
                     <SelectTrigger className="h-7 w-auto min-w-0 gap-1 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -502,7 +506,7 @@ export default function NoteDetailPage() {
             value={postSearch}
             onChange={(e) => setPostSearch(e.target.value)}
             placeholder="Search posts by title..."
-            className="h-9 text-sm"
+            className="text-sm"
             autoFocus
           />
           <div className="max-h-64 overflow-y-auto -mx-1">
@@ -517,13 +521,15 @@ export default function NoteDetailPage() {
             ) : (
               <div className="space-y-0.5">
                 {searchResults.map((post) => (
-                  <button
+                  <Button
                     key={post.id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start font-normal truncate"
                     onClick={() => handleLink("post", post.id)}
-                    className="w-full text-left px-2 py-1.5 rounded-md text-sm text-foreground hover:bg-accent transition-colors truncate"
                   >
                     {post.title}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}
@@ -550,13 +556,15 @@ export default function NoteDetailPage() {
             ) : (
               <div className="space-y-0.5">
                 {availableOrgs.map((org) => (
-                  <button
+                  <Button
                     key={org.id}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start font-normal truncate"
                     onClick={() => handleLink("organization", org.id)}
-                    className="w-full text-left px-2 py-1.5 rounded-md text-sm text-foreground hover:bg-accent transition-colors truncate"
                   >
                     {org.name}
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

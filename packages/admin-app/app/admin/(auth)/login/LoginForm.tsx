@@ -3,6 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { sendVerificationCode, verifyCode } from "@/lib/auth/actions";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
 
 export function LoginForm() {
   const router = useRouter();
@@ -59,85 +62,88 @@ export function LoginForm() {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full">
+    <div className="bg-card rounded-lg shadow-md p-8 max-w-md w-full">
       <div className="mb-6 text-center">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">Admin Login</h1>
-        <p className="text-gray-600 text-sm">MN Together</p>
+        <h1 className="text-2xl font-bold text-foreground mb-2">Admin Login</h1>
+        <p className="text-muted-foreground text-sm">MN Together</p>
       </div>
 
       {error && (
-        <div className="mb-4 p-3 bg-orange-50 border border-orange-200 text-orange-800 rounded text-sm">
+        <Alert variant="warning" className="mb-4">
           {error}
-        </div>
+        </Alert>
       )}
 
       {step === "identifier" ? (
         <form onSubmit={handleSendCode}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Phone Number or Email
             </label>
-            <input
+            <Input
               type="text"
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="+1234567890 or admin@example.com"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
               disabled={isPending}
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Enter your registered phone number (with country code) or email address
             </p>
           </div>
 
-          <button
+          <Button
             type="submit"
+            variant="admin"
             disabled={isPending}
-            className="w-full bg-amber-700 text-white py-2 px-4 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+            loading={isPending}
+            className="w-full"
           >
             {isPending ? "Sending..." : "Send Verification Code"}
-          </button>
+          </Button>
         </form>
       ) : (
         <form onSubmit={handleVerifyCode}>
           <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Verification Code
             </label>
-            <input
+            <Input
               type="text"
               value={code}
               onChange={(e) => setCode(e.target.value)}
               placeholder="Enter 6-digit code"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-amber-500"
               disabled={isPending}
               autoFocus
             />
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-muted-foreground">
               Enter the verification code sent to {identifier}
             </p>
           </div>
 
           <div className="space-y-2">
-            <button
+            <Button
               type="submit"
+              variant="admin"
               disabled={isPending}
-              className="w-full bg-amber-700 text-white py-2 px-4 rounded-md hover:bg-amber-800 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              loading={isPending}
+              className="w-full"
             >
               {isPending ? "Verifying..." : "Verify & Sign In"}
-            </button>
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              className="w-full"
               onClick={() => {
                 setStep("identifier");
                 setCode("");
                 setError(null);
               }}
-              className="w-full bg-stone-100 text-stone-700 py-2 px-4 rounded-md hover:bg-stone-200 focus:outline-none focus:ring-2 focus:ring-stone-500 focus:ring-offset-2"
             >
               Back
-            </button>
+            </Button>
           </div>
         </form>
       )}

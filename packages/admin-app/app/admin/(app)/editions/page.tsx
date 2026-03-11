@@ -24,6 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Clock } from "lucide-react";
 
 // ─── Week helpers ────────────────────────────────────────────────────────────
 
@@ -77,7 +81,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   in_review: "bg-amber-100 text-amber-800",
   approved: "bg-emerald-100 text-emerald-800",
   published: "bg-green-100 text-green-800",
-  archived: "bg-stone-100 text-stone-600",
+  archived: "bg-muted text-muted-foreground",
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -100,7 +104,7 @@ const STATUS_FILTERS = [
 function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: string }) {
   if (!status) {
     // No edition at all
-    return <span className="text-stone-400" title="No edition">—</span>;
+    return <span className="text-muted-foreground" title="No edition">—</span>;
   }
   if (status === "published" && !isStale) {
     return <span className="text-green-600" title="Published (current)">✓</span>;
@@ -115,7 +119,7 @@ function FreshnessIndicator({ isStale, status }: { isStale: boolean; status?: st
     return <span className="text-amber-500" title="Reviewing">●</span>;
   }
   // draft
-  return <span className="text-stone-400" title="Draft">○</span>;
+  return <span className="text-muted-foreground" title="Draft">○</span>;
 }
 
 // ─── Status pill ─────────────────────────────────────────────────────────────
@@ -304,26 +308,26 @@ export default function CountiesDashboardPage() {
               {publishedCount} published · {inProgressCount} in progress · {staleCount} stale
             </p>
           </div>
-          <button
+          <Button
+            variant="admin"
             onClick={() => setShowGenerateModal(true)}
-            disabled={batching}
-            className="px-4 py-2 rounded-lg text-sm font-medium bg-admin-accent text-white hover:bg-admin-accent-hover disabled:opacity-50 transition-colors"
+            loading={batching}
           >
-            {batching ? "Generating..." : "Generate Drafts"}
-          </button>
+            Generate Drafts
+          </Button>
         </div>
 
         {/* Batch result / error */}
         {batchError && (
-          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+          <Alert variant="error" className="mb-4 flex items-center justify-between">
             {batchError}
-            <button onClick={() => setBatchError(null)} className="ml-2 font-medium hover:underline">
+            <Button variant="ghost" size="xs" onClick={() => setBatchError(null)}>
               Dismiss
-            </button>
-          </div>
+            </Button>
+          </Alert>
         )}
         {batchResult && (
-          <div className="mb-4 bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg text-sm flex items-center justify-between">
+          <Alert variant="success" className="mb-4 flex items-center justify-between">
             <span>
               Created <span className="font-semibold">{batchResult.created}</span>
               {batchResult.regenerated > 0 && (
@@ -337,10 +341,10 @@ export default function CountiesDashboardPage() {
               )}{" "}
               out of {batchResult.totalCounties} counties.
             </span>
-            <button onClick={() => setBatchResult(null)} className="ml-2 font-medium hover:underline">
+            <Button variant="ghost" size="xs" onClick={() => setBatchResult(null)}>
               Dismiss
-            </button>
-          </div>
+            </Button>
+          </Alert>
         )}
 
         {/* Filters */}
@@ -362,20 +366,20 @@ export default function CountiesDashboardPage() {
             </TabsList>
           </Tabs>
 
-          <input
+          <Input
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search counties..."
-            className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+            className="flex-1"
           />
         </div>
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+          <Alert variant="error" className="mb-4">
             Error: {error.message}
-          </div>
+          </Alert>
         )}
 
         {/* Table */}
@@ -427,19 +431,18 @@ export default function CountiesDashboardPage() {
                       {ed ? `${ed.rowCount}` : "—"}
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           setHistoryCountyId(row.county.id);
                           setHistoryCountyName(row.county.name);
                         }}
-                        className="p-1 text-muted-foreground hover:text-foreground rounded"
                         title="View edition history"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </button>
+                        <Clock className="size-4" />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -509,22 +512,22 @@ export default function CountiesDashboardPage() {
             </ul>
           </div>
           <div className="flex justify-end gap-3 mt-2">
-            <button
+            <Button
+              variant="outline"
               onClick={() => setShowGenerateModal(false)}
-              className="px-3 py-2 text-sm rounded-lg border border-border hover:bg-secondary transition-colors"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="admin"
               onClick={() => {
                 setShowGenerateModal(false);
                 handleGenerate();
               }}
               disabled={generatePreview.toCreate === 0 && generatePreview.toRegenerate === 0}
-              className="px-4 py-2 text-sm rounded-lg font-medium bg-admin-accent text-white hover:bg-admin-accent-hover disabled:opacity-50 transition-colors"
             >
               Generate
-            </button>
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -543,13 +546,14 @@ export default function CountiesDashboardPage() {
           ) : (
             <div className="space-y-2">
               {(historyData?.editions?.editions || []).map((ed) => (
-                <button
+                <Button
                   key={ed.id}
+                  variant="outline"
+                  className="w-full h-auto flex items-center justify-between px-4 py-3 text-left"
                   onClick={() => {
                     setHistoryCountyId(null);
                     router.push(`/admin/editions/${ed.id}`);
                   }}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-lg border border-border hover:bg-secondary transition-colors text-left"
                 >
                   <div>
                     <span className="text-sm font-medium text-foreground">
@@ -566,7 +570,7 @@ export default function CountiesDashboardPage() {
                   >
                     {STATUS_LABELS[ed.status] || ed.status}
                   </span>
-                </button>
+                </Button>
               ))}
               {(historyData?.editions?.editions || []).length === 0 && (
                 <p className="text-muted-foreground text-sm text-center py-4">

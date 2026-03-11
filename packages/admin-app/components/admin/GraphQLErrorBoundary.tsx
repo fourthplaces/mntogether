@@ -1,6 +1,7 @@
 "use client";
 
 import { Component, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 interface Props {
   children: ReactNode;
@@ -23,18 +24,18 @@ export class GraphQLErrorBoundary extends Component<Props, State> {
         <div className="flex flex-col items-center justify-center py-24 px-6">
           <div className="max-w-md text-center">
             <div className="text-4xl mb-4">!</div>
-            <h2 className="text-lg font-semibold text-stone-800 mb-2">
+            <h2 className="text-lg font-semibold text-foreground mb-2">
               Something went wrong
             </h2>
-            <p className="text-sm text-stone-500 mb-6">
+            <p className="text-sm text-muted-foreground mb-6">
               {this.state.error.message || "An unexpected error occurred."}
             </p>
-            <button
+            <Button
+              variant="admin"
               onClick={() => this.setState({ error: null })}
-              className="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors text-sm font-medium"
             >
               Try again
-            </button>
+            </Button>
           </div>
         </div>
       );

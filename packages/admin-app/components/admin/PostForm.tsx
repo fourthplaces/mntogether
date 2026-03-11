@@ -123,7 +123,7 @@ export function PostForm({
 
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         <FieldWrapper label="Post Type" className="mb-0">
-          <Select value={postType} onValueChange={setPostType} disabled={loading}>
+          <Select value={postType} onValueChange={(val) => val !== null && setPostType(val)} disabled={loading}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -138,7 +138,7 @@ export function PostForm({
         </FieldWrapper>
 
         <FieldWrapper label="Weight" className="mb-0">
-          <Select value={weight} onValueChange={setWeight} disabled={loading}>
+          <Select value={weight} onValueChange={(val) => val !== null && setWeight(val)} disabled={loading}>
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
@@ -166,7 +166,7 @@ export function PostForm({
         <FieldWrapper label="Urgency" className="mb-0">
           <Select
             value={urgency || "__none__"}
-            onValueChange={(v) => setUrgency(v === "__none__" ? "" : v)}
+            onValueChange={(v) => v !== null && setUrgency(v === "__none__" ? "" : v)}
             disabled={loading}
           >
             <SelectTrigger className="w-full">
@@ -195,7 +195,7 @@ export function PostForm({
       <FieldWrapper label="Organization">
         <Select
           value={organizationId || "__none__"}
-          onValueChange={(v) => setOrganizationId(v === "__none__" ? "" : v)}
+          onValueChange={(v) => v !== null && setOrganizationId(v === "__none__" ? "" : v)}
           disabled={loading}
         >
           <SelectTrigger className="w-full">

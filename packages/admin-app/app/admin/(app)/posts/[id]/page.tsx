@@ -294,8 +294,8 @@ function ContactsSection({
 
       {/* Add contact form */}
       <div className="flex items-center gap-1.5">
-        <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger className="h-9 text-xs w-24 flex-shrink-0">
+        <Select value={newType} onValueChange={(val) => val !== null && setNewType(val)}>
+          <SelectTrigger className="text-xs w-24 flex-shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -309,7 +309,7 @@ function ContactsSection({
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
           placeholder="Value..."
-          className="h-9 text-xs flex-1 min-w-0"
+          className="text-xs flex-1 min-w-0"
           disabled={busy}
         />
         <Button
@@ -317,7 +317,7 @@ function ContactsSection({
           size="icon"
           onClick={handleAdd}
           disabled={busy || !newValue.trim()}
-          className="h-9 w-8 flex-shrink-0"
+          className="w-8 flex-shrink-0"
         >
           <Plus className="h-4 w-4" />
         </Button>
@@ -331,7 +331,7 @@ function ContactsSection({
 // ---------------------------------------------------------------------------
 
 const timeInputStyles =
-  "appearance-none bg-background [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
+  "appearance-none bg-card [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
 
 // ---------------------------------------------------------------------------
 // Schedules inline CRUD
@@ -477,8 +477,8 @@ function SchedulesSection({
           <FieldGroup className="flex-row items-end gap-2">
             <Field className="w-auto">
               <FieldLabel className="text-xs">Day</FieldLabel>
-              <Select value={newDay} onValueChange={setNewDay}>
-                <SelectTrigger className="h-9 text-sm w-28">
+              <Select value={newDay} onValueChange={(val) => val !== null && setNewDay(val)}>
+                <SelectTrigger className="text-sm w-28">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -494,7 +494,7 @@ function SchedulesSection({
                 type="time"
                 value={newOpens}
                 onChange={(e) => setNewOpens(e.target.value)}
-                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                className={`text-sm w-[110px] ${timeInputStyles}`}
                 disabled={busy}
               />
             </Field>
@@ -504,7 +504,7 @@ function SchedulesSection({
                 type="time"
                 value={newCloses}
                 onChange={(e) => setNewCloses(e.target.value)}
-                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                className={`text-sm w-[110px] ${timeInputStyles}`}
                 disabled={busy}
               />
             </Field>
@@ -513,7 +513,6 @@ function SchedulesSection({
               size="sm"
               onClick={handleAddHours}
               disabled={busy}
-              className="h-9"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add
@@ -526,14 +525,9 @@ function SchedulesSection({
             <Field className="w-auto">
               <FieldLabel className="text-xs">Date</FieldLabel>
               <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="h-9 w-40 justify-between text-sm font-normal"
-                  >
+                <PopoverTrigger render={<Button variant="outline" className="w-40 justify-between text-sm font-normal" />}>
                     {eventDate ? format(eventDate, "MMM d, yyyy") : "Select date"}
                     <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                  </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                   <Calendar
@@ -555,7 +549,7 @@ function SchedulesSection({
                 type="time"
                 value={eventTime}
                 onChange={(e) => setEventTime(e.target.value)}
-                className={`h-9 text-sm w-[110px] ${timeInputStyles}`}
+                className={`text-sm w-[110px] ${timeInputStyles}`}
                 disabled={busy}
               />
             </Field>
@@ -564,7 +558,6 @@ function SchedulesSection({
               size="sm"
               onClick={handleAddEvent}
               disabled={busy || !eventDate}
-              className="h-9"
             >
               <Plus className="h-4 w-4 mr-1" />
               Add
@@ -747,15 +740,16 @@ export default function PostDetailPage() {
           </Link>
 
           <div className="flex items-center gap-2">
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/admin/posts/${postId}/edit`}>Edit</Link>
+            <Button render={<Link href={`/admin/posts/${postId}/edit`} />} variant="outline" size="sm">
+              Edit
             </Button>
 
             <Select
               value={post.status}
               disabled={actionInProgress !== null}
-              onValueChange={(newStatus) => {
-                if (newStatus === post.status) return;
+              onValueChange={(val) => {
+                if (!val || val === post.status) return;
+                const newStatus = val as string;
                 if (newStatus === "active") handleApprove();
                 else if (newStatus === "rejected") handleReject();
                 else if (newStatus === "archived") handleArchive();
@@ -829,7 +823,7 @@ export default function PostDetailPage() {
                     value={post.postType || "notice"}
                     onValueChange={(v) => inlineUpdate({ postType: v })}
                   >
-                    <SelectTrigger className="h-9 text-sm w-full">
+                    <SelectTrigger className="text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -847,7 +841,7 @@ export default function PostDetailPage() {
                     value={post.weight || "medium"}
                     onValueChange={(v) => inlineUpdate({ weight: v })}
                   >
-                    <SelectTrigger className="h-9 text-sm w-full">
+                    <SelectTrigger className="text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -864,7 +858,7 @@ export default function PostDetailPage() {
                   <Input
                     type="number"
                     defaultValue={post.priority ?? 0}
-                    className="h-9 text-sm"
+                    className="text-sm"
                     onBlur={(e) => {
                       const val = Number(e.target.value);
                       if (val !== (post.priority ?? 0)) {
@@ -881,7 +875,7 @@ export default function PostDetailPage() {
                     value={urgencyValue || "__none__"}
                     onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
                   >
-                    <SelectTrigger className="h-9 text-sm w-full">
+                    <SelectTrigger className="text-sm w-full">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -911,7 +905,7 @@ export default function PostDetailPage() {
                   value={post.organizationId || "__none__"}
                   onValueChange={(v) => inlineUpdate({ organizationId: v === "__none__" ? null : v })}
                 >
-                  <SelectTrigger className="h-9 text-sm w-full max-w-sm">
+                  <SelectTrigger className="text-sm w-full max-w-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -930,7 +924,7 @@ export default function PostDetailPage() {
                   value={post.category || "other"}
                   onValueChange={(v) => inlineUpdate({ category: v })}
                 >
-                  <SelectTrigger className="h-9 text-sm w-full max-w-sm">
+                  <SelectTrigger className="text-sm w-full max-w-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -1047,7 +1041,7 @@ export default function PostDetailPage() {
                     return (
                       <div
                         key={note.id}
-                        className={`p-3 rounded-lg border ${isExpired ? "border-border bg-secondary opacity-60" : "border-border"}`}
+                        className={`p-3 rounded-lg border ${isExpired ? "border-border bg-secondary opacity-60" : "border-border bg-card"}`}
                       >
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant={severityVariant}>{note.severity}</Badge>

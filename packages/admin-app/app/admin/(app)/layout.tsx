@@ -1,7 +1,9 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
+import { Menu } from "lucide-react";
 import { AdminSidebar } from "@/components/admin/AdminSidebar";
+import { Button } from "@/components/ui/button";
 import { GraphQLErrorBoundary } from "@/components/admin/GraphQLErrorBoundary";
 
 const COLLAPSED_KEY = "admin-sidebar-collapsed";
@@ -25,7 +27,7 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
   };
 
   return (
-    <div className="h-screen bg-stone-50 flex overflow-hidden">
+    <div className="h-screen bg-background flex overflow-hidden">
       <Suspense>
         <AdminSidebar
           collapsed={collapsed}
@@ -37,16 +39,16 @@ export default function AdminAppLayout({ children }: { children: React.ReactNode
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
-        <header className="lg:hidden flex items-center h-14 px-4 bg-white border-b border-stone-200 shrink-0">
-          <button
+        <header className="lg:hidden flex items-center h-14 px-4 bg-card border-b border-border shrink-0">
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setMobileOpen(true)}
-            className="p-2 -ml-2 rounded-lg text-stone-600 hover:bg-stone-100"
+            className="-ml-2 text-muted-foreground"
             aria-label="Open menu"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
+            <Menu className="w-6 h-6" />
+          </Button>
           <span className="ml-3 text-lg font-bold text-amber-600">MN Together</span>
           <span className="ml-2 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
             Admin

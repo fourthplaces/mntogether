@@ -93,14 +93,12 @@ export function PostReviewCard({
 
         {/* More menu — replaces hand-rolled dropdown with Radix DropdownMenu */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon-xs" className="ml-2">
+          <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="ml-2" />}>
               {"\u22EF"}
-            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/admin/posts/${post.id}`}>Edit Tags</Link>
+            <DropdownMenuItem render={<Link href={`/admin/posts/${post.id}`} />}>
+              Edit Tags
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -124,12 +122,14 @@ export function PostReviewCard({
       <p className={`text-sm text-muted-foreground ${!expanded && "line-clamp-2"}`}>{post.description}</p>
 
       {/* Expand button */}
-      <button
+      <Button
+        variant="link"
+        size="xs"
+        className="px-0 text-admin-accent hover:text-admin-accent-hover mt-1"
         onClick={() => setExpanded(!expanded)}
-        className="text-xs text-admin-accent hover:text-admin-accent-hover mt-1"
       >
         {expanded ? "Show less" : "Show more"}
-      </button>
+      </Button>
 
       {/* Expanded details */}
       {expanded && (

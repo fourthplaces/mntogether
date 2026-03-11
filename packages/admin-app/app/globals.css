@@ -14,48 +14,48 @@
 :root {
   --radius: 0.5rem;
 
-  --background: #FDFCFA;
-  --foreground: #3D3D3D;
+  --background: oklch(0.98 0.007 105);
+  --foreground: oklch(0.36 0 0);
 
-  --card: #FFFFFF;
-  --card-foreground: #3D3D3D;
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.36 0 0);
 
-  --popover: #FFFFFF;
-  --popover-foreground: #3D3D3D;
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.36 0 0);
 
-  --primary: #3D3D3D;
-  --primary-foreground: #FFFFFF;
+  --primary: oklch(0.36 0 0);
+  --primary-foreground: oklch(1 0 0);
 
-  --secondary: #F5F1E8;
-  --secondary-foreground: #3D3D3D;
+  --secondary: oklch(0.959 0.018 96);
+  --secondary-foreground: oklch(0.36 0 0);
 
-  --muted: #F5F1E8;
-  --muted-foreground: #7D7D7D;
+  --muted: oklch(0.959 0.018 96);
+  --muted-foreground: oklch(0.59 0 0);
 
-  --accent: #F5F1E8;
-  --accent-foreground: #3D3D3D;
+  --accent: oklch(0.959 0.018 96);
+  --accent-foreground: oklch(0.36 0 0);
 
-  --destructive: #F43F5E;
-  --destructive-foreground: #FFFFFF;
+  --destructive: oklch(0.645 0.216 15.5);
+  --destructive-foreground: oklch(1 0 0);
 
-  --border: #E8DED2;
-  --input: #E8DED2;
-  --ring: #C4B8A0;
+  --border: oklch(0.905 0.024 83);
+  --input: oklch(0.905 0.024 83);
+  --ring: oklch(0.786 0.043 91);
 
-  --sidebar: #FDFCFA;
-  --sidebar-foreground: #3D3D3D;
-  --sidebar-primary: #3D3D3D;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #F5F1E8;
-  --sidebar-accent-foreground: #3D3D3D;
-  --sidebar-border: #E8DED2;
-  --sidebar-ring: #C4B8A0;
+  --sidebar: oklch(0.98 0.007 105);
+  --sidebar-foreground: oklch(0.36 0 0);
+  --sidebar-primary: oklch(0.36 0 0);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.959 0.018 96);
+  --sidebar-accent-foreground: oklch(0.36 0 0);
+  --sidebar-border: oklch(0.905 0.024 83);
+  --sidebar-ring: oklch(0.786 0.043 91);
 
-  --chart-1: #D97706;
-  --chart-2: #34D399;
-  --chart-3: #8B6D3F;
-  --chart-4: #C4BAD4;
-  --chart-5: #FB7185;
+  --chart-1: oklch(0.666 0.168 64);
+  --chart-2: oklch(0.773 0.167 159);
+  --chart-3: oklch(0.554 0.084 83);
+  --chart-4: oklch(0.805 0.04 303);
+  --chart-5: oklch(0.719 0.17 13);
 }
 
 /* =========================================================
@@ -109,12 +109,40 @@
 
 @import "./themes/warm-earth.css";
 
+@import "tw-animate-css";
+
+@import "shadcn/tailwind.css";
+
 /* =========================================================
    Global styles
    ========================================================= */
 
+/* Tailwind v4 defaults `border` to currentColor (black).
+   Override so bare `border` class always uses our theme token. */
+@layer base {
+  *,
+  ::after,
+  ::before {
+    border-color: var(--color-border);
+  }
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
 body {
   font-family: system-ui, -apple-system, sans-serif;
+}
+
+/* Subtle shadow on card containers — excludes buttons, badges, and form controls */
+.bg-card:not(button):not([data-slot="button"]):not([data-slot="badge"]):not([data-slot="select-trigger"]):not([data-slot="input"]) {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.08);
 }
 
 /* Hide scrollbar for filter tabs */

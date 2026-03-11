@@ -358,7 +358,7 @@ export default function OrganizationDetailPage() {
             <Select
               value={org.status}
               disabled={actionInProgress !== null}
-              onValueChange={handleStatusChange}
+              onValueChange={(val) => val !== null && handleStatusChange(val)}
             >
               <SelectTrigger className="h-7 w-auto min-w-0 gap-1 rounded-full px-2.5 text-xs font-medium">
                 <Badge variant={statusBadgeVariant(org.status)} className="pointer-events-none">
@@ -374,10 +374,8 @@ export default function OrganizationDetailPage() {
             </Select>
 
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" disabled={actionInProgress !== null}>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" disabled={actionInProgress !== null} />}>
                   <MoreHorizontal className="w-4 h-4" />
-                </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {org.status === "approved" && (
@@ -694,7 +692,7 @@ function PostRow({ post }: { post: PostData }) {
   const status = post.status;
 
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-border hover:bg-accent/30 transition-colors min-w-0">
+    <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent/30 transition-colors min-w-0">
       <Link href={`/admin/posts/${post.id}`} className="font-medium text-foreground truncate hover:underline min-w-0 shrink">
         {post.title}
       </Link>

@@ -1,7 +1,12 @@
 "use client";
 
-import { ArrowLeft, ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationPrevious,
+  PaginationNext,
+} from "@/components/ui/pagination";
 
 interface PageInfo {
   hasNextPage: boolean;
@@ -34,29 +39,34 @@ export function PaginationControls({
     return null;
   }
 
+  const prevDisabled = !pageInfo.hasPreviousPage || loading;
+  const nextDisabled = !pageInfo.hasNextPage || loading;
+
   return (
     <div className="flex items-center justify-between bg-card border border-border rounded-lg p-4">
       <div className="text-sm text-muted-foreground">
-        Showing {startItem}-{endItem} of {totalCount}
+        Showing {startItem}–{endItem} of {totalCount}
       </div>
-      <div className="flex gap-2">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onPreviousPage}
-          disabled={!pageInfo.hasPreviousPage || loading}
-        >
-          <ArrowLeft className="w-4 h-4 mr-1" /> Previous
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onNextPage}
-          disabled={!pageInfo.hasNextPage || loading}
-        >
-          Next <ArrowRight className="w-4 h-4 ml-1" />
-        </Button>
-      </div>
+      <Pagination className="mx-0 w-auto">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              onClick={prevDisabled ? undefined : onPreviousPage}
+              className={prevDisabled ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              aria-disabled={prevDisabled}
+              tabIndex={prevDisabled ? -1 : undefined}
+            />
+          </PaginationItem>
+          <PaginationItem>
+            <PaginationNext
+              onClick={nextDisabled ? undefined : onNextPage}
+              className={nextDisabled ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              aria-disabled={nextDisabled}
+              tabIndex={nextDisabled ? -1 : undefined}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </div>
   );
 }

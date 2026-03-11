@@ -6,7 +6,17 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -16,6 +26,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Archive, Plus, Trash2 } from "lucide-react";
+import {
   EditorialPostsQuery,
   ArchivePostMutation,
   DeletePostMutation,
@@ -24,7 +40,7 @@ import {
 // ─── Types & config ─────────────────────────────────────────────────────────
 
 type StatusTab = "draft" | "active" | "archived";
-type PostTypeFilter = "" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
+type PostTypeFilter = "__all__" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 
 const STATUS_TABS: { key: StatusTab; label: string }[] = [
   { key: "draft", label: "Drafts" },
@@ -33,7 +49,7 @@ const STATUS_TABS: { key: StatusTab; label: string }[] = [
 ];
 
 const POST_TYPE_OPTIONS: { value: PostTypeFilter; label: string }[] = [
-  { value: "", label: "All Types" },
+  { value: "__all__", label: "All Types" },
   { value: "story", label: "Story" },
   { value: "notice", label: "Notice" },
   { value: "exchange", label: "Exchange" },
@@ -48,7 +64,7 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
   exchange: "bg-blue-100 text-blue-800",
   event: "bg-green-100 text-green-800",
   spotlight: "bg-purple-100 text-purple-800",
-  reference: "bg-stone-100 text-stone-700",
+  reference: "bg-muted text-muted-foreground",
 };
 
 const WEIGHT_BADGE_STYLES: Record<string, string> = {
@@ -77,7 +93,7 @@ function timeAgo(dateStr: string): string {
 export default function EditorialPage() {
   const router = useRouter();
   const [statusTab, setStatusTab] = useState<StatusTab>("draft");
-  const [postType, setPostType] = useState<PostTypeFilter>("");
+  const [postType, setPostType] = useState<PostTypeFilter>("__all__");
   const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
 
@@ -94,7 +110,7 @@ export default function EditorialPage() {
     query: EditorialPostsQuery,
     variables: {
       status: statusTab,
-      postType: postType || null,
+      postType: postType === "__all__" ? null : postType,
       search: searchQuery || null,
       limit: pagination.variables.first,
       offset: pagination.variables.offset,
@@ -141,15 +157,10 @@ export default function EditorialPage() {
               Human-authored posts &middot; {totalCount.toLocaleString()} {statusTab} posts
             </p>
           </div>
-          <a
-            href="/admin/posts/new"
-            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-admin-accent hover:bg-admin-accent-hover rounded-lg transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4">
-              <path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z" />
-            </svg>
-            New Post
-          </a>
+          <Button render={<a href="/admin/posts/new" />} variant="admin" size="sm">
+              <Plus className="w-4 h-4" />
+              New Post
+          </Button>
         </div>
 
         {/* Status tabs + filters row */}
@@ -165,17 +176,18 @@ export default function EditorialPage() {
           </Tabs>
 
           {/* Type dropdown */}
-          <select
-            value={postType}
-            onChange={(e) => setPostType(e.target.value as PostTypeFilter)}
-            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
-          >
-            {POST_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <Select value={postType} onValueChange={(v) => setPostType(v as PostTypeFilter)}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              {POST_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Search */}
           <form
@@ -185,33 +197,34 @@ export default function EditorialPage() {
             }}
             className="flex gap-2 flex-1 min-w-[200px]"
           >
-            <input
+            <Input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search posts..."
-              className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              className="flex-1"
             />
             {searchQuery && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setSearchInput("");
                   setSearchQuery("");
                 }}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
               >
                 Clear
-              </button>
+              </Button>
             )}
           </form>
         </div>
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <Alert variant="error" className="mb-4">
             Error: {error.message}
-          </div>
+          </Alert>
         )}
 
         {/* Loading */}
@@ -228,15 +241,12 @@ export default function EditorialPage() {
             <p className="text-muted-foreground text-sm">
               {statusTab === "draft"
                 ? "Create a new post to get started."
-                : `No ${statusTab} editorial posts${postType ? ` of type "${postType}"` : ""}.`}
+                : `No ${statusTab} editorial posts${postType !== "__all__" ? ` of type "${postType}"` : ""}.`}
             </p>
             {statusTab === "draft" && (
-              <a
-                href="/admin/posts/new"
-                className="inline-flex items-center gap-1.5 mt-4 px-4 py-2 text-sm font-medium text-white bg-admin-accent hover:bg-admin-accent-hover rounded-lg transition-colors"
-              >
+              <Button render={<a href="/admin/posts/new" />} variant="admin" size="sm" className="mt-4">
                 New Post
-              </a>
+              </Button>
             )}
           </div>
         ) : posts.length > 0 && (
@@ -297,25 +307,29 @@ export default function EditorialPage() {
                       <TableCell className="whitespace-nowrap">
                         <div className="flex gap-1">
                           {statusTab !== "archived" && (
-                            <button
-                              onClick={(e) => handleArchive(post.id, e)}
-                              className="p-1 text-muted-foreground hover:text-amber-600 rounded"
-                              title="Archive"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
-                              </svg>
-                            </button>
+                            <Tooltip>
+                              <TooltipTrigger render={<Button
+                                  variant="ghost"
+                                  size="icon-xs"
+                                  onClick={(e) => handleArchive(post.id, e)}
+                                  className="text-muted-foreground hover:text-amber-600"
+                                />}>
+                                  <Archive className="w-4 h-4" />
+                              </TooltipTrigger>
+                              <TooltipContent>Archive</TooltipContent>
+                            </Tooltip>
                           )}
-                          <button
-                            onClick={(e) => handleDelete(post.id, e)}
-                            className="p-1 text-muted-foreground hover:text-red-600 rounded"
-                            title="Delete"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                            </svg>
-                          </button>
+                          <Tooltip>
+                            <TooltipTrigger render={<Button
+                                variant="ghost"
+                                size="icon-xs"
+                                onClick={(e) => handleDelete(post.id, e)}
+                                className="text-muted-foreground hover:text-red-600"
+                              />}>
+                                <Trash2 className="w-4 h-4" />
+                            </TooltipTrigger>
+                            <TooltipContent>Delete</TooltipContent>
+                          </Tooltip>
                         </div>
                       </TableCell>
                     </TableRow>

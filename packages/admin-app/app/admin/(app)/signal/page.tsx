@@ -6,6 +6,15 @@ import { useQuery, useMutation } from "urql";
 import { useOffsetPagination } from "@/lib/hooks/useOffsetPagination";
 import { PaginationControls } from "@/components/ui/PaginationControls";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Alert } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -15,16 +24,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { X } from "lucide-react";
+import { ExternalLink, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
 import { CountiesQuery } from "@/lib/graphql/editions";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-type PostTypeFilter = "" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
+type PostTypeFilter = "__all__" | "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 
 const POST_TYPE_OPTIONS: { value: PostTypeFilter; label: string }[] = [
-  { value: "", label: "All Types" },
+  { value: "__all__", label: "All Types" },
   { value: "story", label: "Story" },
   { value: "notice", label: "Notice" },
   { value: "exchange", label: "Exchange" },
@@ -39,7 +49,7 @@ const TYPE_BADGE_STYLES: Record<string, string> = {
   exchange: "bg-blue-100 text-blue-800",
   event: "bg-green-100 text-green-800",
   spotlight: "bg-purple-100 text-purple-800",
-  reference: "bg-stone-100 text-stone-700",
+  reference: "bg-muted text-muted-foreground",
 };
 
 const WEIGHT_BADGE_STYLES: Record<string, string> = {
@@ -67,8 +77,8 @@ function timeAgo(dateStr: string): string {
 
 export default function SignalPage() {
   const router = useRouter();
-  const [countyId, setCountyId] = useState("");
-  const [postType, setPostType] = useState<PostTypeFilter>("");
+  const [countyId, setCountyId] = useState("__all__");
+  const [postType, setPostType] = useState<PostTypeFilter>("__all__");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [showRejected, setShowRejected] = useState(false);
@@ -87,13 +97,14 @@ export default function SignalPage() {
   const counties = countiesData?.counties || [];
 
   const isStatewide = countyId === "__statewide__";
+  const hasCountyFilter = countyId !== "__all__" && !isStatewide;
   const [{ data, fetching, error }] = useQuery({
     query: SignalPostsQuery,
     variables: {
       status: showRejected ? "rejected" : "active",
-      countyId: countyId && !isStatewide ? countyId : null,
+      countyId: hasCountyFilter ? countyId : null,
       statewideOnly: isStatewide || null,
-      postType: postType || null,
+      postType: postType === "__all__" ? null : postType,
       search: searchQuery || null,
       limit: pagination.variables.first,
       offset: pagination.variables.offset,
@@ -148,35 +159,37 @@ export default function SignalPage() {
           </Tabs>
 
           {/* County dropdown */}
-          <select
-            value={countyId}
-            onChange={(e) => setCountyId(e.target.value)}
-            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-52"
-          >
-            <option value="">All Counties</option>
-            <option value="__statewide__">Statewide</option>
-            {counties
-              .slice()
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-          </select>
+          <Select value={countyId} onValueChange={(val) => val !== null && setCountyId(val)}>
+            <SelectTrigger className="w-52">
+              <SelectValue placeholder="All Counties" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Counties</SelectItem>
+              <SelectItem value="__statewide__">Statewide</SelectItem>
+              {counties
+                .slice()
+                .sort((a, b) => a.name.localeCompare(b.name))
+                .map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                  </SelectItem>
+                ))}
+            </SelectContent>
+          </Select>
 
           {/* Type dropdown */}
-          <select
-            value={postType}
-            onChange={(e) => setPostType(e.target.value as PostTypeFilter)}
-            className="h-9 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring w-36"
-          >
-            {POST_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </select>
+          <Select value={postType} onValueChange={(v) => setPostType(v as PostTypeFilter)}>
+            <SelectTrigger className="w-36">
+              <SelectValue placeholder="All Types" />
+            </SelectTrigger>
+            <SelectContent>
+              {POST_TYPE_OPTIONS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* Search */}
           <form
@@ -186,47 +199,49 @@ export default function SignalPage() {
             }}
             className="flex gap-2 flex-1 min-w-[200px]"
           >
-            <input
+            <Input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search posts..."
-              className="h-9 flex-1 px-3 border border-border rounded-lg text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+              className="flex-1"
             />
             {searchQuery && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={() => {
                   setSearchInput("");
                   setSearchQuery("");
                 }}
-                className="px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground"
               >
                 Clear
-              </button>
+              </Button>
             )}
           </form>
         </div>
 
         {/* Active filter pills */}
-        {(countyId || postType || searchQuery) && (
+        {(countyId !== "__all__" || postType !== "__all__" || searchQuery) && (
           <div className="flex gap-2 flex-wrap mb-4">
-            {countyId && (
+            {countyId !== "__all__" && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 County: {countyId === "__statewide__" ? "Statewide" : counties.find((c) => c.id === countyId)?.name || countyId}
-                <button onClick={() => setCountyId("")} className="hover:text-foreground"><X className="w-3 h-3" /></button>
+                <Button variant="ghost" size="icon-xs" onClick={() => setCountyId("__all__")} className="hover:text-foreground size-4"><X className="w-3 h-3" /></Button>
               </span>
             )}
-            {postType && (
+            {postType !== "__all__" && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 Type: <span className="capitalize">{postType}</span>
-                <button onClick={() => setPostType("")} className="hover:text-foreground"><X className="w-3 h-3" /></button>
+                <Button variant="ghost" size="icon-xs" onClick={() => setPostType("__all__")} className="hover:text-foreground size-4"><X className="w-3 h-3" /></Button>
               </span>
             )}
             {searchQuery && (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-accent text-accent-foreground rounded-full text-xs font-medium">
                 Search: {searchQuery}
-                <button onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-foreground"><X className="w-3 h-3" /></button>
+                <Button variant="ghost" size="icon-xs" onClick={() => { setSearchInput(""); setSearchQuery(""); }} className="hover:text-foreground size-4"><X className="w-3 h-3" /></Button>
               </span>
             )}
           </div>
@@ -234,9 +249,9 @@ export default function SignalPage() {
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
+          <Alert variant="error" className="mb-4">
             Error: {error.message}
-          </div>
+          </Alert>
         )}
 
         {/* Loading */}
@@ -249,7 +264,7 @@ export default function SignalPage() {
           <div className="bg-card border border-border rounded-lg p-12 text-center">
             <h3 className="text-lg font-semibold text-foreground mb-1">No posts found</h3>
             <p className="text-muted-foreground text-sm">
-              {searchQuery || countyId || postType
+              {searchQuery || countyId !== "__all__" || postType !== "__all__"
                 ? "Try adjusting your filters."
                 : showRejected
                 ? "No rejected signal posts."
@@ -317,16 +332,16 @@ export default function SignalPage() {
                       </TableCell>
                       <TableCell className="whitespace-nowrap">
                         {!showRejected && (
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon-xs"
                             onClick={(e) => handleReject(post.id, e)}
                             disabled={rejectingId === post.id}
-                            className="p-1 text-muted-foreground hover:text-red-600 rounded disabled:opacity-50"
+                            className="text-muted-foreground hover:text-red-600"
                             title="Reject post"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
+                            <X className="w-4 h-4" />
+                          </Button>
                         )}
                         {post.sourceUrl && (
                           <a
@@ -337,9 +352,7 @@ export default function SignalPage() {
                             className="p-1 text-muted-foreground hover:text-foreground rounded inline-block"
                             title="View source"
                           >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                            </svg>
+                            <ExternalLink className="w-4 h-4" />
                           </a>
                         )}
                       </TableCell>

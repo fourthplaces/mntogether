@@ -5,9 +5,11 @@ import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import { Building2, Plus, User } from "lucide-react";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Table,
   TableBody,
@@ -114,28 +116,24 @@ function OrganizationsContent() {
           >
             <div className="flex items-center gap-3">
               {/* Source type toggle */}
-              <div className="flex shrink-0">
-                <Button
-                  type="button"
-                  variant={addSourceType === "organization" ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-r-none"
-                  onClick={() => setAddSourceType("organization")}
-                >
+              <ToggleGroup
+                variant="outline"
+                size="sm"
+                value={[addSourceType]}
+                onValueChange={(val) => {
+                  if (val.length > 0) setAddSourceType(val[val.length - 1] as "organization" | "individual");
+                }}
+                className="shrink-0"
+              >
+                <ToggleGroupItem value="organization">
                   <Building2 className="h-3.5 w-3.5" />
                   Organization
-                </Button>
-                <Button
-                  type="button"
-                  variant={addSourceType === "individual" ? "default" : "outline"}
-                  size="sm"
-                  className="rounded-l-none border-l-0"
-                  onClick={() => setAddSourceType("individual")}
-                >
+                </ToggleGroupItem>
+                <ToggleGroupItem value="individual">
                   <User className="h-3.5 w-3.5" />
                   Individual
-                </Button>
-              </div>
+                </ToggleGroupItem>
+              </ToggleGroup>
 
               <Input
                 value={addName}
@@ -167,16 +165,16 @@ function OrganizationsContent() {
                 Cancel
               </Button>
               {addError && (
-                <span className="text-danger-text text-sm">{addError}</span>
+                <Alert variant="error" className="py-2 px-3">{addError}</Alert>
               )}
             </div>
           </form>
         )}
 
         {error && (
-          <div className="bg-danger-bg border border-danger-text/20 text-danger-text px-4 py-3 rounded-lg mb-6">
+          <Alert variant="error" className="mb-6">
             Error: {error.message}
-          </div>
+          </Alert>
         )}
 
         <Tabs defaultValue="all">

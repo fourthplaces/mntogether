@@ -123,13 +123,15 @@ export function TagsSection({
                       className="gap-1 pr-1 text-[11px]"
                     >
                       {tag.displayName || tag.value}
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         onClick={() => handleRemove(tag.id)}
                         disabled={disabled || removingId === tag.id}
-                        className="hover:text-destructive ml-0.5 disabled:opacity-50"
+                        className="size-4 rounded-sm hover:text-destructive hover:bg-destructive/10 ml-0.5"
                       >
                         <X className="w-3 h-3" />
-                      </button>
+                      </Button>
                     </Badge>
                   ))}
                 </div>
