@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "urql";
 import {
   ArrowLeft,
@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -48,7 +49,10 @@ import {
   SuspendOrganizationMutation,
   SetOrganizationStatusMutation,
   ToggleChecklistItemMutation,
+  AddOrgTagMutation,
+  RemoveOrgTagMutation,
 } from "@/lib/graphql/organizations";
+import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -116,6 +120,55 @@ export default function OrganizationDetailPage() {
   const [, suspendOrg] = useMutation(SuspendOrganizationMutation);
   const [, setOrgStatus] = useMutation(SetOrganizationStatusMutation);
   const [, toggleChecklistItem] = useMutation(ToggleChecklistItemMutation);
+  const [, addOrgTag] = useMutation(AddOrgTagMutation);
+  const [, removeOrgTag] = useMutation(RemoveOrgTagMutation);
+
+  // --- Tag data ---
+  const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
+  const [{ data: allTagsData }] = useQuery({ query: TagsQuery });
+
+  const orgTagKinds = useMemo(
+    () => (kindsData?.tagKinds || [])
+      .filter((k) => k.allowedResourceTypes.includes("organization"))
+      .map((k) => ({ slug: k.slug, displayName: k.displayName, locked: k.locked })),
+    [kindsData]
+  );
+
+  const allTagsByKind = useMemo(() => {
+    const map: Record<string, Array<{ id: string; value: string; displayName?: string | null; color?: string | null }>> = {};
+    for (const tag of allTagsData?.tags || []) {
+      if (!map[tag.kind]) map[tag.kind] = [];
+      map[tag.kind].push(tag);
+    }
+    return map;
+  }, [allTagsData]);
+
+  const orgTags = org?.tags || [];
+
+  // --- Tag handlers ---
+  const handleAddOrgTags = async (kindSlug: string, newTags: Array<{ value: string; displayName: string }>) => {
+    try {
+      await Promise.all(
+        newTags.map((t) =>
+          addOrgTag(
+            { organizationId: orgId, tagKind: kindSlug, tagValue: t.value, displayName: t.displayName },
+            orgMutationContext,
+          )
+        )
+      );
+    } catch (err) {
+      console.error("Failed to add tags:", err);
+    }
+  };
+
+  const handleRemoveOrgTag = async (tagId: string) => {
+    if (!orgId) return;
+    try {
+      await removeOrgTag({ organizationId: orgId, tagId }, orgMutationContext);
+    } catch (err) {
+      console.error("Failed to remove tag:", err);
+    }
+  };
 
   // --- Action helpers ---
   const withAction = (name: string, fn: () => Promise<unknown>) => async () => {
@@ -438,6 +491,17 @@ export default function OrganizationDetailPage() {
               </div>
             </div>
 
+            {/* Tags */}
+            <div className="border-t border-border pt-4">
+              <TagsSection
+                tags={orgTags}
+                applicableKinds={orgTagKinds}
+                allTagsByKind={allTagsByKind}
+                onRemoveTag={handleRemoveOrgTag}
+                onAddTags={handleAddOrgTags}
+              />
+            </div>
+
             {/* Pre-Launch Checklist */}
             {org.status === "pending_review" && checklist && (
               <div className="border-t border-border pt-4">
@@ -534,6 +598,7 @@ export default function OrganizationDetailPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }

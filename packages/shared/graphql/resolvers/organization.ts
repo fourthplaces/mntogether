@@ -183,9 +183,57 @@ export const organizationResolvers = {
       });
     },
 
+    addOrgTag: async (
+      _parent: unknown,
+      args: {
+        organizationId: string;
+        tagKind: string;
+        tagValue: string;
+        displayName?: string;
+      },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Organizations", "add_tag", {
+        id: args.organizationId,
+        tag_kind: args.tagKind,
+        tag_value: args.tagValue,
+        display_name: args.displayName ?? args.tagValue,
+      });
+      return ctx.server.callService("Organizations", "get", {
+        id: args.organizationId,
+      });
+    },
+
+    removeOrgTag: async (
+      _parent: unknown,
+      args: { organizationId: string; tagId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callService("Organizations", "remove_tag", {
+        id: args.organizationId,
+        tag_id: args.tagId,
+      });
+      return ctx.server.callService("Organizations", "get", {
+        id: args.organizationId,
+      });
+    },
+
   },
 
   Organization: {
+    tags: async (
+      parent: { id: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{ tags: unknown[] }>(
+        "Organizations",
+        "list_tags",
+        { id: parent.id }
+      );
+      return result.tags;
+    },
+
     posts: async (
       parent: { id: string },
       args: { limit?: number },

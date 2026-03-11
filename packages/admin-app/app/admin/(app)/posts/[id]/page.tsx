@@ -4,9 +4,10 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { AdminLoader } from "@/components/admin/AdminLoader";
+import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, X } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Select,
@@ -17,12 +18,6 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   DropdownMenu,
   DropdownMenuTrigger,
   DropdownMenuContent,
@@ -30,7 +25,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useMutation } from "urql";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import {
   PostDetailFullQuery,
   UpdatePostMutation,
@@ -201,11 +196,6 @@ export default function PostDetailPage() {
   const postId = params.id as string;
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [isUpdating, setIsUpdating] = useState(false);
-  const [showTagModal, setShowTagModal] = useState(false);
-  const [selectedKind, setSelectedKind] = useState("");
-  const [tagValue, setTagValue] = useState("");
-  const [tagDisplayName, setTagDisplayName] = useState("");
-  const [isCreatingNewTag, setIsCreatingNewTag] = useState(false);
 
   // GraphQL: fetch post detail + notes
   const [{ data: postData, fetching: isLoading, error }] = useQuery({
@@ -229,21 +219,27 @@ export default function PostDetailPage() {
   const [, addPostTag] = useMutation(AddPostTagMutation);
   const [, removePostTag] = useMutation(RemovePostTagMutation);
 
-  // Tag modal: load kinds and tags
-  const [{ data: kindsData }] = useQuery({ query: TagKindsQuery, pause: !showTagModal });
-  const [{ data: kindTagsData }] = useQuery({
-    query: TagsQuery,
-    pause: !showTagModal || !selectedKind,
-  });
-  const availableKinds = kindsData?.tagKinds || [];
-  const availableTags = (kindTagsData?.tags || []).filter((t) => t.kind === selectedKind);
+  // Tag data: kinds + all tag values
+  const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
+  const [{ data: allTagsData }] = useQuery({ query: TagsQuery });
+
+  const postTagKinds = useMemo(
+    () => (kindsData?.tagKinds || [])
+      .filter((k) => k.allowedResourceTypes.includes("post"))
+      .map((k) => ({ slug: k.slug, displayName: k.displayName, locked: k.locked })),
+    [kindsData]
+  );
+
+  const allTagsByKind = useMemo(() => {
+    const map: Record<string, Array<{ id: string; value: string; displayName?: string | null; color?: string | null }>> = {};
+    for (const tag of allTagsData?.tags || []) {
+      if (!map[tag.kind]) map[tag.kind] = [];
+      map[tag.kind].push(tag);
+    }
+    return map;
+  }, [allTagsData]);
 
   const tags = post?.tags || [];
-  const tagsByKind: Record<string, typeof tags> = {};
-  for (const tag of tags) {
-    if (!tagsByKind[tag.kind]) tagsByKind[tag.kind] = [];
-    tagsByKind[tag.kind].push(tag);
-  }
 
   const mutationContext = { additionalTypenames: ["Post", "PostConnection", "PostStats"] };
 
@@ -261,31 +257,38 @@ export default function PostDetailPage() {
   // Action handlers (same as before)
   // ---------------------------------------------------------------------------
 
-  const handleAddTag = async () => {
-    if (!postId || !selectedKind || !tagValue) return;
-    setIsUpdating(true);
-    try {
-      await addPostTag({ postId, tagKind: selectedKind, tagValue, displayName: tagDisplayName || tagValue }, mutationContext);
-      setTagValue("");
-      setTagDisplayName("");
-    } catch (err) {
-      console.error("Failed to add tag:", err);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  const handleAddTags = useCallback(
+    async (kindSlug: string, newTags: Array<{ value: string; displayName: string }>) => {
+      setIsUpdating(true);
+      try {
+        await Promise.all(
+          newTags.map((t) =>
+            addPostTag({ postId, tagKind: kindSlug, tagValue: t.value, displayName: t.displayName }, mutationContext)
+          )
+        );
+      } catch (err) {
+        console.error("Failed to add tags:", err);
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [postId, addPostTag]
+  );
 
-  const handleRemoveTag = async (tagId: string) => {
-    if (!postId) return;
-    setIsUpdating(true);
-    try {
-      await removePostTag({ postId, tagId }, mutationContext);
-    } catch (err) {
-      console.error("Failed to remove tag:", err);
-    } finally {
-      setIsUpdating(false);
-    }
-  };
+  const handleRemoveTag = useCallback(
+    async (tagId: string) => {
+      if (!postId) return;
+      setIsUpdating(true);
+      try {
+        await removePostTag({ postId, tagId }, mutationContext);
+      } catch (err) {
+        console.error("Failed to remove tag:", err);
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [postId, removePostTag]
+  );
 
   const withAction = (name: string, fn: () => Promise<unknown>) => async () => {
     setActionInProgress(name);
@@ -415,7 +418,6 @@ export default function PostDetailPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => setShowTagModal(true)}>Edit Tags</DropdownMenuItem>
                 {post.status === "active" && (
                   <DropdownMenuItem onSelect={handleArchive} disabled={actionInProgress !== null}>
                     {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}
@@ -636,32 +638,14 @@ export default function PostDetailPage() {
             </div>
 
             {/* Tags */}
-            <div className="border-t border-border pt-4">
-              <div className="flex justify-between items-center mb-3">
-                <SectionLabel>Tags</SectionLabel>
-                <Button variant="link" size="sm" onClick={() => setShowTagModal(true)}>
-                  Edit
-                </Button>
-              </div>
-              {tags.length > 0 ? (
-                <div className="space-y-3">
-                  {Object.entries(tagsByKind).map(([kind, kindTags]) => (
-                    <div key={kind}>
-                      <span className="text-xs text-muted-foreground uppercase">{kind.replace(/_/g, " ")}</span>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {kindTags.map((tag) => (
-                          <Badge key={tag.id} variant="secondary" color={tag.color || undefined}>
-                            {tag.value}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <span className="text-text-faint text-sm">No tags</span>
-              )}
-            </div>
+            <TagsSection
+              tags={tags}
+              applicableKinds={postTagKinds}
+              allTagsByKind={allTagsByKind}
+              onRemoveTag={handleRemoveTag}
+              onAddTags={handleAddTags}
+              disabled={isUpdating}
+            />
 
             {/* Contacts */}
             {post.contacts && post.contacts.length > 0 && (
@@ -769,129 +753,6 @@ export default function PostDetailPage() {
         </div>
       </div>
 
-      {/* ── Tag Editor Modal ─────────────────────────────────────── */}
-      <Dialog open={showTagModal} onOpenChange={setShowTagModal}>
-        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Edit Tags</DialogTitle>
-          </DialogHeader>
-
-          {tags.length > 0 ? (
-            <div className="space-y-3">
-              {Object.entries(tagsByKind).map(([kind, kindTags]) => (
-                <div key={kind}>
-                  <span className="text-xs text-muted-foreground uppercase font-medium">{kind.replace(/_/g, " ")}</span>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {kindTags.map((tag) => (
-                      <Badge key={tag.id} variant="secondary" color={tag.color || undefined} className="gap-1">
-                        {tag.value}
-                        <button
-                          onClick={() => handleRemoveTag(tag.id)}
-                          disabled={isUpdating}
-                          className="hover:text-destructive ml-1 disabled:opacity-50"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-muted-foreground text-sm">No tags yet.</p>
-          )}
-
-          <div className="border-t border-border pt-4">
-            <h4 className="text-sm font-medium text-foreground mb-3">Add a tag</h4>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs text-muted-foreground mb-1">Kind</label>
-                <select
-                  value={selectedKind}
-                  onChange={(e) => {
-                    setSelectedKind(e.target.value);
-                    setTagValue("");
-                    setTagDisplayName("");
-                    setIsCreatingNewTag(false);
-                  }}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                >
-                  <option value="">Select a kind...</option>
-                  {availableKinds.map((kind) => (
-                    <option key={kind.id} value={kind.slug}>{kind.displayName}</option>
-                  ))}
-                </select>
-              </div>
-
-              {selectedKind && (
-                <>
-                  <div>
-                    <label className="block text-xs text-muted-foreground mb-1">Value</label>
-                    {isCreatingNewTag ? (
-                      <div className="space-y-2">
-                        <Input
-                          value={tagValue}
-                          onChange={(e) => setTagValue(e.target.value)}
-                          placeholder="New tag value..."
-                          autoFocus
-                        />
-                        <div>
-                          <label className="block text-xs text-muted-foreground mb-1">Display Name</label>
-                          <Input
-                            value={tagDisplayName}
-                            onChange={(e) => setTagDisplayName(e.target.value)}
-                            placeholder="Human-readable name..."
-                          />
-                        </div>
-                        <Button
-                          variant="link"
-                          size="xs"
-                          onClick={() => { setIsCreatingNewTag(false); setTagValue(""); setTagDisplayName(""); }}
-                        >
-                          Back to list
-                        </Button>
-                      </div>
-                    ) : (
-                      <select
-                        value={tagValue}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val === "__new__") {
-                            setIsCreatingNewTag(true);
-                            setTagValue("");
-                            setTagDisplayName("");
-                            return;
-                          }
-                          setTagValue(val);
-                          const match = availableTags.find((t) => t.value === val);
-                          setTagDisplayName(match?.displayName || val);
-                        }}
-                        className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      >
-                        <option value="">Select a value...</option>
-                        {availableTags.map((tag) => (
-                          <option key={tag.id} value={tag.value}>{tag.value}</option>
-                        ))}
-                        <option value="__new__">+ Create new...</option>
-                      </select>
-                    )}
-                  </div>
-
-                  <Button
-                    onClick={handleAddTag}
-                    disabled={isUpdating || !tagValue}
-                    loading={isUpdating}
-                    className="w-full"
-                  >
-                    Add Tag
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

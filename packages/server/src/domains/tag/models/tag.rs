@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::common::{PostId, TagId, TaggableId};
+use crate::common::{OrganizationId, PostId, TagId, TaggableId};
 
 /// Universal tag - can be associated with any entity via taggables
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
@@ -252,6 +252,23 @@ impl Tag {
         Ok(tags)
     }
 
+    /// Find all tags for an organization
+    pub async fn find_for_organization(org_id: OrganizationId, pool: &PgPool) -> Result<Vec<Self>> {
+        let tags = sqlx::query_as::<_, Tag>(
+            r#"
+            SELECT t.*
+            FROM tags t
+            INNER JOIN taggables tg ON tg.tag_id = t.id
+            WHERE tg.taggable_type = 'organization' AND tg.taggable_id = $1
+            ORDER BY t.kind, t.value
+            "#,
+        )
+        .bind(org_id.as_uuid())
+        .fetch_all(pool)
+        .await?;
+        Ok(tags)
+    }
+
     /// Find distinct ServiceOffered tags that are attached to active posts, with counts.
     /// Powers the dynamic category pills on the public home page.
     pub async fn find_active_categories(pool: &PgPool) -> Result<Vec<ActiveCategory>> {
@@ -369,5 +386,23 @@ impl Taggable {
             .execute(pool)
             .await?;
         Ok(())
+    }
+
+    /// Associate a tag with an organization
+    pub async fn create_org_tag(
+        org_id: OrganizationId,
+        tag_id: TagId,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        Self::create(tag_id, "organization", org_id.as_uuid(), pool).await
+    }
+
+    /// Remove a tag from an organization
+    pub async fn delete_org_tag(
+        org_id: OrganizationId,
+        tag_id: TagId,
+        pool: &PgPool,
+    ) -> Result<()> {
+        Self::delete(tag_id, "organization", org_id.as_uuid(), pool).await
     }
 }

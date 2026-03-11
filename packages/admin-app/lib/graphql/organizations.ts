@@ -21,6 +21,15 @@ export const OrganizationDetailFullQuery = graphql(`
   query OrganizationDetailFull($id: ID!) {
     organization(id: $id) {
       ...OrganizationFields
+      tags {
+        id
+        kind
+        value
+        displayName
+        color
+        description
+        emoji
+      }
       posts {
         posts {
           id
@@ -156,6 +165,36 @@ export const RegenerateOrganizationMutation = graphql(`
     regenerateOrganization(id: $id) {
       organizationId
       status
+    }
+  }
+`);
+
+export const AddOrgTagMutation = graphql(`
+  mutation AddOrgTag($organizationId: ID!, $tagKind: String!, $tagValue: String!, $displayName: String) {
+    addOrgTag(organizationId: $organizationId, tagKind: $tagKind, tagValue: $tagValue, displayName: $displayName) {
+      id
+      tags {
+        id
+        kind
+        value
+        displayName
+        color
+      }
+    }
+  }
+`);
+
+export const RemoveOrgTagMutation = graphql(`
+  mutation RemoveOrgTag($organizationId: ID!, $tagId: ID!) {
+    removeOrgTag(organizationId: $organizationId, tagId: $tagId) {
+      id
+      tags {
+        id
+        kind
+        value
+        displayName
+        color
+      }
     }
   }
 `);

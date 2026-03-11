@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { useQuery } from "urql";
+import { useQuery, useMutation } from "urql";
 import { AdminLoader } from "@/components/admin/AdminLoader";
-import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
+import { TagKindsQuery, TagsQuery, CreateTagMutation } from "@/lib/graphql/tags";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Search,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import type { TagKind, Tag } from "@/gql/graphql";
 
@@ -24,8 +26,17 @@ export default function TagsPage() {
   const [{ data: tagsData, fetching: tagsLoading }] = useQuery({
     query: TagsQuery,
   });
+  const [, createTag] = useMutation(CreateTagMutation);
   const [search, setSearch] = useState("");
   const [expandedKinds, setExpandedKinds] = useState<Set<string>>(new Set());
+
+  const handleCreateTag = async (kindSlug: string, value: string, displayName: string) => {
+    const result = await createTag(
+      { kind: kindSlug, value, displayName },
+      { additionalTypenames: ["Tag"] },
+    );
+    if (result.error) throw result.error;
+  };
 
   const tagsByKind = useMemo(() => {
     const map: Record<string, Tag[]> = {};
@@ -192,6 +203,9 @@ export default function TagsPage() {
                     expanded={expandedKinds.has(kind.slug)}
                     onToggle={() => toggleKind(kind.slug)}
                     isFiltered={!!search.trim()}
+                    onCreateTag={(value, displayName) =>
+                      handleCreateTag(kind.slug, value, displayName)
+                    }
                   />
                 ))}
             </div>
@@ -222,6 +236,7 @@ function KindCard({
   expanded,
   onToggle,
   isFiltered,
+  onCreateTag,
 }: {
   kind: TagKind;
   tags: Tag[];
@@ -229,7 +244,29 @@ function KindCard({
   expanded: boolean;
   onToggle: () => void;
   isFiltered: boolean;
+  onCreateTag?: (value: string, displayName: string) => Promise<void>;
 }) {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newValue, setNewValue] = useState("");
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const handleCreate = async () => {
+    if (!newValue.trim() || !onCreateTag) return;
+    setIsCreating(true);
+    setCreateError(null);
+    try {
+      await onCreateTag(newValue.trim(), newDisplayName.trim() || newValue.trim());
+      setNewValue("");
+      setNewDisplayName("");
+      setShowCreateForm(false);
+    } catch (err: any) {
+      setCreateError(err.message || "Failed to create tag");
+    } finally {
+      setIsCreating(false);
+    }
+  };
   const resourceLabel = kind.allowedResourceTypes.join(", ");
 
   return (
@@ -323,6 +360,75 @@ function KindCard({
             <p className="text-sm text-stone-400 italic">
               {isFiltered ? "No matching tags" : "No tags yet"}
             </p>
+          )}
+
+          {/* Create new tag form (open kinds only) */}
+          {onCreateTag && (
+            <div className="mt-3 border-t border-stone-100 pt-3">
+              {showCreateForm ? (
+                <div className="space-y-2">
+                  <div className="flex items-end gap-2">
+                    <div className="flex-1">
+                      <label className="block text-[11px] text-stone-400 mb-1">
+                        Slug value
+                      </label>
+                      <Input
+                        value={newValue}
+                        onChange={(e) => setNewValue(e.target.value)}
+                        placeholder="slug-value"
+                        className="h-8 text-sm"
+                        disabled={isCreating}
+                        autoFocus
+                      />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-[11px] text-stone-400 mb-1">
+                        Display Name
+                      </label>
+                      <Input
+                        value={newDisplayName}
+                        onChange={(e) => setNewDisplayName(e.target.value)}
+                        placeholder="Display Name"
+                        className="h-8 text-sm"
+                        disabled={isCreating}
+                      />
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleCreate}
+                      disabled={!newValue.trim() || isCreating}
+                      loading={isCreating}
+                    >
+                      Create
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setShowCreateForm(false);
+                        setNewValue("");
+                        setNewDisplayName("");
+                        setCreateError(null);
+                      }}
+                      disabled={isCreating}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                  {createError && (
+                    <p className="text-xs text-red-600">{createError}</p>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setShowCreateForm(true)}
+                  className="inline-flex items-center gap-1 text-xs text-stone-500 hover:text-stone-700 transition-colors"
+                >
+                  <Plus className="h-3 w-3" />
+                  Add new tag
+                </button>
+              )}
+            </div>
           )}
         </div>
       )}

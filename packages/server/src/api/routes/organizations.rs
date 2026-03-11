@@ -16,7 +16,10 @@ use crate::domains::organization::models::organization_checklist::{
 };
 use crate::domains::organization::models::{Organization, OrganizationChecklistItem};
 use crate::domains::posts::models::Post;
+use crate::common::TagId;
+use crate::domains::tag::models::TagKindConfig;
 use crate::domains::tag::models::Tag;
+use crate::domains::tag::Taggable;
 
 // =============================================================================
 // Local types (public-facing DTOs)
@@ -529,6 +532,115 @@ async fn toggle_checklist_item(
 }
 
 // =============================================================================
+// Tag operations
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct OrgAddTagRequest {
+    pub organization_id: Uuid,
+    pub tag_kind: String,
+    pub tag_value: String,
+    pub display_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OrgRemoveTagRequest {
+    pub organization_id: Uuid,
+    pub tag_id: Uuid,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrgTagResult {
+    pub id: String,
+    pub kind: String,
+    pub value: String,
+    pub display_name: Option<String>,
+    pub color: Option<String>,
+    pub description: Option<String>,
+    pub emoji: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OrgTagsResult {
+    pub tags: Vec<OrgTagResult>,
+}
+
+fn tag_to_result(tag: &Tag) -> OrgTagResult {
+    OrgTagResult {
+        id: tag.id.to_string(),
+        kind: tag.kind.clone(),
+        value: tag.value.clone(),
+        display_name: tag.display_name.clone(),
+        color: tag.color.clone(),
+        description: tag.description.clone(),
+        emoji: tag.emoji.clone(),
+    }
+}
+
+async fn list_org_tags(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<GetOrganizationRequest>,
+) -> ApiResult<Json<OrgTagsResult>> {
+    let org_id = OrganizationId::from(req.id);
+    let tags = Tag::find_for_organization(org_id, &state.deps.db_pool).await?;
+    Ok(Json(OrgTagsResult {
+        tags: tags.iter().map(tag_to_result).collect(),
+    }))
+}
+
+async fn add_org_tag(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<OrgAddTagRequest>,
+) -> ApiResult<Json<OrgTagsResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.organization_id);
+
+    // Check if locked kind — only allow existing tag values
+    if let Some(kind_config) = TagKindConfig::find_by_slug(&req.tag_kind, pool).await? {
+        if kind_config.locked {
+            let existing = Tag::find_by_kind_value(&req.tag_kind, &req.tag_value, pool).await?;
+            if existing.is_none() {
+                return Err(ApiError::BadRequest(format!(
+                    "Cannot create new tags under locked kind '{}'. Values are fixed.",
+                    req.tag_kind
+                )));
+            }
+        }
+    }
+
+    let tag = Tag::find_or_create(&req.tag_kind, &req.tag_value, req.display_name, pool).await?;
+    Taggable::create_org_tag(org_id, tag.id, pool).await?;
+
+    info!(org_id = %org_id, tag_kind = %req.tag_kind, tag_value = %req.tag_value, "Added org tag");
+
+    let tags = Tag::find_for_organization(org_id, pool).await?;
+    Ok(Json(OrgTagsResult {
+        tags: tags.iter().map(tag_to_result).collect(),
+    }))
+}
+
+async fn remove_org_tag(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<OrgRemoveTagRequest>,
+) -> ApiResult<Json<OrgTagsResult>> {
+    let pool = &state.deps.db_pool;
+    let org_id = OrganizationId::from(req.organization_id);
+    let tag_id = TagId::from(req.tag_id);
+
+    Taggable::delete_org_tag(org_id, tag_id, pool).await?;
+
+    info!(org_id = %org_id, tag_id = %tag_id, "Removed org tag");
+
+    let tags = Tag::find_for_organization(org_id, pool).await?;
+    Ok(Json(OrgTagsResult {
+        tags: tags.iter().map(tag_to_result).collect(),
+    }))
+}
+
+// =============================================================================
 // Router
 // =============================================================================
 
@@ -558,4 +670,8 @@ pub fn router() -> Router<AppState> {
             "/Organizations/toggle_checklist_item",
             post(toggle_checklist_item),
         )
+        // Tags
+        .route("/Organizations/list_tags", post(list_org_tags))
+        .route("/Organizations/add_tag", post(add_org_tag))
+        .route("/Organizations/remove_tag", post(remove_org_tag))
 }

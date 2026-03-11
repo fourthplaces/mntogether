@@ -103,6 +103,8 @@ type Mutation {
   setOrganizationStatus(id: ID!, status: String!, reason: String): Organization!
   toggleChecklistItem(organizationId: ID!, checklistKey: String!, checked: Boolean!): Checklist!
   regenerateOrganization(id: ID!): RegenerateOrgResult!
+  addOrgTag(organizationId: ID!, tagKind: String!, tagValue: String!, displayName: String): Organization!
+  removeOrgTag(organizationId: ID!, tagId: ID!): Organization!
 
   # Tags (admin)
   createTagKind(slug: String!, displayName: String!, description: String, required: Boolean, isPublic: Boolean, allowedResourceTypes: [String!]): TagKind!
@@ -275,6 +277,7 @@ type Organization {
   status: OrganizationStatus!
   createdAt: String!
   updatedAt: String!
+  tags: [Tag!]!
   posts(limit: Int): PostConnection!
   notes: [Note!]!
   checklist: Checklist!
