@@ -88,10 +88,6 @@ The primary user-facing entity — temporal announcements for services, opportun
 | translation_of_id | UUID FK → posts | Self-referential for translations |
 | duplicate_of_id | UUID FK → posts | Points to canonical post after dedup |
 | comments_container_id | UUID FK → containers | For post comments |
-| embedding | vector(1536) | Semantic search |
-| relevance_score | REAL | Human review triage score |
-| relevance_breakdown | TEXT | |
-| scored_at | TIMESTAMPTZ | |
 | published_at | TIMESTAMPTZ | |
 | deleted_at | TIMESTAMPTZ | Soft delete |
 | deleted_reason | TEXT | |

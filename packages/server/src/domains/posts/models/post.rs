@@ -75,8 +75,6 @@ pub struct Post {
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
 
-    pub scored_at: Option<DateTime<Utc>>,
-
     // Full-text search vector (auto-managed by DB trigger, never read in app code)
     #[sqlx(skip)]
     #[serde(skip)]
@@ -736,7 +734,6 @@ impl Post {
                 urgency = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE urgency END,
                 location = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE location END,
                 zip_code = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE zip_code END,
-                scored_at = NULL,
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
