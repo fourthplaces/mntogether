@@ -60,6 +60,7 @@ export const PostDetailFields = graphql(`
     revisionOfPostId
     translationOfId
     duplicateOfId
+    sourceLanguage
     tags {
       id
       kind

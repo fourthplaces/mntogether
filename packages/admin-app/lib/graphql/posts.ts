@@ -196,6 +196,42 @@ export const RemovePostTagMutation = graphql(`
   }
 `);
 
+export const AddPostContactMutation = graphql(`
+  mutation AddPostContact($postId: ID!, $contactType: String!, $contactValue: String!, $contactLabel: String) {
+    addPostContact(postId: $postId, contactType: $contactType, contactValue: $contactValue, contactLabel: $contactLabel) {
+      id
+      contacts { id contactType contactValue contactLabel }
+    }
+  }
+`);
+
+export const RemovePostContactMutation = graphql(`
+  mutation RemovePostContact($postId: ID!, $contactId: ID!) {
+    removePostContact(postId: $postId, contactId: $contactId) {
+      id
+      contacts { id contactType contactValue contactLabel }
+    }
+  }
+`);
+
+export const AddPostScheduleMutation = graphql(`
+  mutation AddPostSchedule($postId: ID!, $input: AddScheduleInput!) {
+    addPostSchedule(postId: $postId, input: $input) {
+      id
+      schedules { id dayOfWeek opensAt closesAt timezone notes rrule dtstart dtend isAllDay durationMinutes }
+    }
+  }
+`);
+
+export const DeletePostScheduleMutation = graphql(`
+  mutation DeletePostSchedule($postId: ID!, $scheduleId: ID!) {
+    deletePostSchedule(postId: $postId, scheduleId: $scheduleId) {
+      id
+      schedules { id dayOfWeek opensAt closesAt timezone notes rrule dtstart dtend isAllDay durationMinutes }
+    }
+  }
+`);
+
 export const RegeneratePostMutation = graphql(`
   mutation RegeneratePost($id: ID!) {
     regeneratePost(id: $id) {

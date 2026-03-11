@@ -28,6 +28,10 @@ import {
   ReactivatePostMutation,
   AddPostTagMutation,
   RemovePostTagMutation,
+  AddPostContactMutation,
+  RemovePostContactMutation,
+  AddPostScheduleMutation,
+  DeletePostScheduleMutation,
 } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
@@ -182,6 +186,269 @@ function InlineTextField({
 }
 
 // ---------------------------------------------------------------------------
+// Contacts inline CRUD
+// ---------------------------------------------------------------------------
+
+const CONTACT_TYPES = [
+  { value: "phone", label: "Phone" },
+  { value: "email", label: "Email" },
+  { value: "website", label: "Website" },
+  { value: "address", label: "Address" },
+  { value: "booking_url", label: "Booking URL" },
+  { value: "social", label: "Social" },
+];
+
+function ContactsSection({
+  contacts,
+  postId,
+  addPostContact,
+  removePostContact,
+  mutationContext,
+}: {
+  contacts: Array<{ id: string; contactType: string; contactValue: string; contactLabel?: string | null }>;
+  postId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addPostContact: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  removePostContact: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutationContext: any;
+}) {
+  const [newType, setNewType] = useState("phone");
+  const [newValue, setNewValue] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const handleAdd = async () => {
+    const trimmed = newValue.trim();
+    if (!trimmed) return;
+    setBusy(true);
+    try {
+      await addPostContact({ postId, contactType: newType, contactValue: trimmed }, mutationContext);
+      setNewValue("");
+    } catch (err) {
+      console.error("Failed to add contact:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (contactId: string) => {
+    setBusy(true);
+    try {
+      await removePostContact({ postId, contactId }, mutationContext);
+    } catch (err) {
+      console.error("Failed to remove contact:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="border-t border-border pt-4">
+      <SectionLabel>Contacts</SectionLabel>
+
+      {/* Existing contacts */}
+      {contacts.length > 0 ? (
+        <div className="space-y-1.5 mb-3">
+          {contacts.map((c) => (
+            <div key={c.id} className="flex items-center gap-2 group">
+              <Badge variant="secondary" className="text-[10px] uppercase flex-shrink-0 w-16 justify-center">
+                {c.contactType.replace("_", " ")}
+              </Badge>
+              <span className="text-sm text-text-body break-all flex-1 min-w-0 truncate">
+                {c.contactType === "email" ? (
+                  <a href={`mailto:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
+                ) : c.contactType === "phone" ? (
+                  <a href={`tel:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
+                ) : c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social" ? (
+                  <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-link hover:text-link-hover">{c.contactValue}</a>
+                ) : (
+                  c.contactValue
+                )}
+              </span>
+              <button
+                onClick={() => handleRemove(c.id)}
+                disabled={busy}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text text-xs px-1 transition-opacity"
+                title="Remove contact"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-text-faint italic mb-3">No contacts</p>
+      )}
+
+      {/* Add contact form */}
+      <div className="flex items-center gap-1.5">
+        <Select value={newType} onValueChange={setNewType}>
+          <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CONTACT_TYPES.map((t) => (
+              <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          value={newValue}
+          onChange={(e) => setNewValue(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
+          placeholder="Value..."
+          className="h-7 text-xs flex-1 min-w-0"
+          disabled={busy}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={busy || !newValue.trim()}
+          className="h-7 w-7 flex items-center justify-center rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground text-sm font-medium disabled:opacity-50 flex-shrink-0"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Schedules inline CRUD
+// ---------------------------------------------------------------------------
+
+const DAY_OPTIONS = DAY_NAMES.map((name, i) => ({ value: i, label: name }));
+
+function SchedulesSection({
+  schedules,
+  postId,
+  addPostSchedule,
+  deletePostSchedule,
+  mutationContext,
+}: {
+  schedules: ScheduleItem[];
+  postId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  addPostSchedule: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  deletePostSchedule: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutationContext: any;
+}) {
+  const [newDay, setNewDay] = useState<string>("1"); // Monday default
+  const [newOpens, setNewOpens] = useState("09:00");
+  const [newCloses, setNewCloses] = useState("17:00");
+  const [busy, setBusy] = useState(false);
+
+  const handleAdd = async () => {
+    setBusy(true);
+    try {
+      await addPostSchedule(
+        {
+          postId,
+          input: {
+            dayOfWeek: parseInt(newDay, 10),
+            opensAt: newOpens,
+            closesAt: newCloses,
+            timezone: "America/Chicago",
+          },
+        },
+        mutationContext
+      );
+    } catch (err) {
+      console.error("Failed to add schedule:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRemove = async (scheduleId: string) => {
+    setBusy(true);
+    try {
+      await deletePostSchedule({ postId, scheduleId }, mutationContext);
+    } catch (err) {
+      console.error("Failed to delete schedule:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const oneOffSchedules = schedules.filter((s) => !s.rrule);
+  const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
+
+  return (
+    <div className="border-t border-border pt-4">
+      <SectionLabel>Schedule</SectionLabel>
+
+      {allOneOffsExpired && (
+        <p className="text-xs text-amber-600 font-medium mb-2">This event has passed</p>
+      )}
+
+      {/* Existing schedules */}
+      {schedules.length > 0 ? (
+        <div className="space-y-1.5 mb-3">
+          {schedules.map((s) => (
+            <div key={s.id} className={`flex items-center gap-2 group ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
+              <svg className="w-4 h-4 flex-shrink-0 text-text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-sm text-text-body flex-1 min-w-0">{formatSchedule(s)}</span>
+              {s.notes && <span className="text-xs text-text-faint italic truncate max-w-[100px]">{s.notes}</span>}
+              <button
+                onClick={() => handleRemove(s.id)}
+                disabled={busy}
+                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text text-xs px-1 transition-opacity"
+                title="Remove schedule"
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm text-text-faint italic mb-3">No schedules</p>
+      )}
+
+      {/* Add operating-hours form */}
+      <div className="flex items-center gap-1.5">
+        <Select value={newDay} onValueChange={setNewDay}>
+          <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {DAY_OPTIONS.map((d) => (
+              <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Input
+          type="time"
+          value={newOpens}
+          onChange={(e) => setNewOpens(e.target.value)}
+          className="h-7 text-xs w-[90px] flex-shrink-0"
+          disabled={busy}
+        />
+        <span className="text-xs text-muted-foreground">–</span>
+        <Input
+          type="time"
+          value={newCloses}
+          onChange={(e) => setNewCloses(e.target.value)}
+          className="h-7 text-xs w-[90px] flex-shrink-0"
+          disabled={busy}
+        />
+        <button
+          onClick={handleAdd}
+          disabled={busy}
+          className="h-7 w-7 flex items-center justify-center rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground text-sm font-medium disabled:opacity-50 flex-shrink-0"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -213,6 +480,10 @@ export default function PostDetailPage() {
   const [, reactivatePost] = useMutation(ReactivatePostMutation);
   const [, addPostTag] = useMutation(AddPostTagMutation);
   const [, removePostTag] = useMutation(RemovePostTagMutation);
+  const [, addPostContact] = useMutation(AddPostContactMutation);
+  const [, removePostContact] = useMutation(RemovePostContactMutation);
+  const [, addPostSchedule] = useMutation(AddPostScheduleMutation);
+  const [, deletePostSchedule] = useMutation(DeletePostScheduleMutation);
 
   // Tag data: kinds + all tag values
   const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
@@ -618,56 +889,22 @@ export default function PostDetailPage() {
             />
 
             {/* Contacts */}
-            <div className="border-t border-border pt-4">
-              <SectionLabel>Contacts</SectionLabel>
-              {post.contacts && post.contacts.length > 0 ? (
-                <div className="space-y-2">
-                  {post.contacts.map((c) => (
-                    <div key={c.id} className="flex items-start gap-3">
-                      <span className="text-xs text-muted-foreground uppercase w-16 flex-shrink-0 pt-0.5">{c.contactType}</span>
-                      <span className="text-sm text-text-body break-all">
-                        {c.contactType === "email" ? (
-                          <a href={`mailto:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
-                        ) : c.contactType === "phone" ? (
-                          <a href={`tel:${c.contactValue}`} className="text-link hover:text-link-hover">{c.contactValue}</a>
-                        ) : c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social" || c.contactType === "intake_form_url" ? (
-                          <a href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`} target="_blank" rel="noopener noreferrer" className="text-link hover:text-link-hover">{c.contactValue}</a>
-                        ) : (
-                          <span>{c.contactValue}</span>
-                        )}
-                        {c.contactLabel && <span className="text-text-faint ml-2">({c.contactLabel})</span>}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-text-faint italic">No contacts</p>
-              )}
-            </div>
+            <ContactsSection
+              contacts={post.contacts || []}
+              postId={postId}
+              addPostContact={addPostContact}
+              removePostContact={removePostContact}
+              mutationContext={mutationContext}
+            />
 
             {/* Schedule */}
-            {post.schedules && post.schedules.length > 0 && (() => {
-              const oneOffSchedules = post.schedules!.filter((s) => !s.rrule);
-              const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
-              return (
-                <div className="border-t border-border pt-4">
-                  <SectionLabel>Schedule</SectionLabel>
-                  {allOneOffsExpired && (
-                    <p className="text-xs text-amber-600 font-medium mb-2">This event has passed</p>
-                  )}
-                  <div className="space-y-2">
-                    {post.schedules!.map((s) => (
-                      <div key={s.id} className={`flex items-start gap-2 text-text-body ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-                        <svg className="w-4 h-4 mt-0.5 flex-shrink-0 text-text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <span className="text-sm">{formatSchedule(s)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })()}
+            <SchedulesSection
+              schedules={post.schedules || []}
+              postId={postId}
+              addPostSchedule={addPostSchedule}
+              deletePostSchedule={deletePostSchedule}
+              mutationContext={mutationContext}
+            />
 
             {/* Notes */}
             {notes.length > 0 && (
@@ -724,6 +961,10 @@ export default function PostDetailPage() {
             <div className="border-t border-border pt-4">
               <SectionLabel>System</SectionLabel>
               <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Language</span>
+                  <Badge variant="secondary" className="text-xs uppercase">{post.sourceLanguage}</Badge>
+                </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Submitted by</span>
                   <span className="text-foreground font-medium">

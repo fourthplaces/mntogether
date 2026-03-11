@@ -215,6 +215,18 @@ pub struct RemoveTagRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct AddContactRequest {
+    pub contact_type: String,
+    pub contact_value: String,
+    pub contact_label: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct RemoveContactRequest {
+    pub contact_id: Uuid,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct AddScheduleRequest {
     pub dtstart: Option<String>,
     pub dtend: Option<String>,
@@ -369,6 +381,7 @@ pub struct PostResult {
     pub translation_of_id: Option<Uuid>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duplicate_of_id: Option<Uuid>,
+    pub source_language: String,
 }
 
 impl From<Post> for PostResult {
@@ -409,6 +422,7 @@ impl From<Post> for PostResult {
             revision_of_post_id: p.revision_of_post_id.map(|id| id.into_uuid()),
             translation_of_id: p.translation_of_id.map(|id| id.into_uuid()),
             duplicate_of_id: p.duplicate_of_id.map(|id| id.into_uuid()),
+            source_language: p.source_language,
         }
     }
 }
@@ -849,6 +863,7 @@ async fn list(
                         revision_of_post_id: None,
                         translation_of_id: None,
                         duplicate_of_id: None,
+                        source_language: "en".to_string(),
                     }
                 })
                 .collect(),
@@ -929,6 +944,7 @@ async fn list(
                         revision_of_post_id: None,
                         translation_of_id: None,
                         duplicate_of_id: None,
+                        source_language: "en".to_string(),
                     }
                 })
                 .collect(),
@@ -993,6 +1009,7 @@ async fn search_nearby(
                     revision_of_post_id: None,
                     translation_of_id: None,
                     duplicate_of_id: None,
+                    source_language: "en".to_string(),
                 },
                 distance_miles: pwd.distance_miles,
             })
@@ -1232,6 +1249,7 @@ async fn list_by_organization(
                     revision_of_post_id: None,
                     translation_of_id: None,
                     duplicate_of_id: None,
+                    source_language: "en".to_string(),
                 }
             })
             .collect(),
@@ -1758,6 +1776,35 @@ async fn remove_tag(
     Ok(Json(()))
 }
 
+async fn add_contact(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<AddContactRequest>,
+) -> ApiResult<Json<()>> {
+    activities::contacts::add_post_contact(
+        post_id,
+        &req.contact_type,
+        req.contact_value,
+        req.contact_label,
+        &state.deps.db_pool,
+    )
+    .await?;
+
+    Ok(Json(()))
+}
+
+async fn remove_contact(
+    State(state): State<AppState>,
+    Path(_post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<RemoveContactRequest>,
+) -> ApiResult<Json<()>> {
+    activities::contacts::remove_post_contact(req.contact_id, &state.deps.db_pool).await?;
+
+    Ok(Json(()))
+}
+
 async fn add_schedule(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2005,6 +2052,8 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/update_tags", post(update_tags))
         .route("/Post/{id}/add_tag", post(add_tag))
         .route("/Post/{id}/remove_tag", post(remove_tag))
+        .route("/Post/{id}/add_contact", post(add_contact))
+        .route("/Post/{id}/remove_contact", post(remove_contact))
         .route("/Post/{id}/add_schedule", post(add_schedule))
         .route("/Post/{id}/update_schedule", post(update_schedule))
         .route("/Post/{id}/delete_schedule", post(delete_schedule))

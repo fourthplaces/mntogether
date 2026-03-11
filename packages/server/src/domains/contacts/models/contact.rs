@@ -249,4 +249,13 @@ impl Contact {
     pub async fn delete_all_for_post(post_id: PostId, pool: &PgPool) -> Result<u64> {
         Self::delete_all_for_entity("post", post_id.into_uuid(), pool).await
     }
+
+    /// Delete a single contact by its ID
+    pub async fn delete_by_id(id: Uuid, pool: &PgPool) -> Result<()> {
+        sqlx::query("DELETE FROM contacts WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        Ok(())
+    }
 }

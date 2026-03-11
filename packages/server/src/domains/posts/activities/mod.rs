@@ -12,10 +12,12 @@ pub mod post_operations;
 pub mod reports;
 pub mod revision_actions;
 pub mod schedule;
+pub mod contacts;
 pub mod tags;
 pub mod upcoming_events;
 
 // Re-export for convenience
+pub use contacts::{add_post_contact, remove_post_contact};
 pub use core::*;
 pub use create_post::{create_extracted_post, tag_post_from_extracted};
 pub use reports::ReportCreated;

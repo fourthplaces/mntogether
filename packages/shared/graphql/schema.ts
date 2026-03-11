@@ -89,6 +89,10 @@ type Mutation {
   reactivatePost(id: ID!): Post!
   addPostTag(postId: ID!, tagKind: String!, tagValue: String!, displayName: String): Post!
   removePostTag(postId: ID!, tagId: ID!): Post!
+  addPostContact(postId: ID!, contactType: String!, contactValue: String!, contactLabel: String): Post!
+  removePostContact(postId: ID!, contactId: ID!): Post!
+  addPostSchedule(postId: ID!, input: AddScheduleInput!): Post!
+  deletePostSchedule(postId: ID!, scheduleId: ID!): Post!
   regeneratePost(id: ID!): Post!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: ID!, input: UpdatePostInput!): Post!
@@ -214,6 +218,7 @@ type Post {
   revisionOfPostId: ID
   translationOfId: ID
   duplicateOfId: ID
+  sourceLanguage: String!
 }
 
 type PostConnection {
@@ -610,6 +615,19 @@ input UpdatePostInput {
   zipCode: String
   sourceUrl: String
   organizationId: ID
+}
+
+input AddScheduleInput {
+  dayOfWeek: Int
+  opensAt: String
+  closesAt: String
+  timezone: String
+  notes: String
+  rrule: String
+  dtstart: String
+  dtend: String
+  isAllDay: Boolean
+  durationMinutes: Int
 }
 
 # ========================================

@@ -202,6 +202,84 @@ export const postResolvers = {
       return ctx.loaders.postById.load(args.postId);
     },
 
+    addPostContact: async (
+      _parent: unknown,
+      args: {
+        postId: string;
+        contactType: string;
+        contactValue: string;
+        contactLabel?: string;
+      },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callObject("Post", args.postId, "add_contact", {
+        contact_type: args.contactType,
+        contact_value: args.contactValue,
+        contact_label: args.contactLabel,
+      });
+      ctx.loaders.postById.clear(args.postId);
+      return ctx.loaders.postById.load(args.postId);
+    },
+
+    removePostContact: async (
+      _parent: unknown,
+      args: { postId: string; contactId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callObject("Post", args.postId, "remove_contact", {
+        contact_id: args.contactId,
+      });
+      ctx.loaders.postById.clear(args.postId);
+      return ctx.loaders.postById.load(args.postId);
+    },
+
+    addPostSchedule: async (
+      _parent: unknown,
+      args: {
+        postId: string;
+        input: {
+          dayOfWeek?: number;
+          opensAt?: string;
+          closesAt?: string;
+          timezone?: string;
+          notes?: string;
+          rrule?: string;
+          dtstart?: string;
+          dtend?: string;
+          isAllDay?: boolean;
+          durationMinutes?: number;
+        };
+      },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callObject("Post", args.postId, "add_schedule", {
+        day_of_week: args.input.dayOfWeek,
+        opens_at: args.input.opensAt,
+        closes_at: args.input.closesAt,
+        timezone: args.input.timezone,
+        notes: args.input.notes,
+        rrule: args.input.rrule,
+        dtstart: args.input.dtstart,
+        dtend: args.input.dtend,
+        is_all_day: args.input.isAllDay,
+        duration_minutes: args.input.durationMinutes,
+      });
+      ctx.loaders.postById.clear(args.postId);
+      return ctx.loaders.postById.load(args.postId);
+    },
+
+    deletePostSchedule: async (
+      _parent: unknown,
+      args: { postId: string; scheduleId: string },
+      ctx: GraphQLContext
+    ) => {
+      await ctx.server.callObject("Post", args.postId, "delete_schedule", {
+        schedule_id: args.scheduleId,
+      });
+      ctx.loaders.postById.clear(args.postId);
+      return ctx.loaders.postById.load(args.postId);
+    },
+
     regeneratePost: async (
       _parent: unknown,
       args: { id: string },
