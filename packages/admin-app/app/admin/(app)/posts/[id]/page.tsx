@@ -7,7 +7,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, Clock, ExternalLink, Plus, X } from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -266,14 +266,16 @@ function ContactsSection({
                   c.contactValue
                 )}
               </span>
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => handleRemove(c.id)}
                 disabled={busy}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text text-xs px-1 transition-opacity"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text transition-opacity"
                 title="Remove contact"
               >
-                ✕
-              </button>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           ))}
         </div>
@@ -284,7 +286,7 @@ function ContactsSection({
       {/* Add contact form */}
       <div className="flex items-center gap-1.5">
         <Select value={newType} onValueChange={setNewType}>
-          <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+          <SelectTrigger className="h-8 text-xs w-24 flex-shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -298,16 +300,18 @@ function ContactsSection({
           onChange={(e) => setNewValue(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleAdd(); }}
           placeholder="Value..."
-          className="h-7 text-xs flex-1 min-w-0"
+          className="h-8 text-xs flex-1 min-w-0"
           disabled={busy}
         />
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={handleAdd}
           disabled={busy || !newValue.trim()}
-          className="h-7 w-7 flex items-center justify-center rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground text-sm font-medium disabled:opacity-50 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0"
         >
-          +
-        </button>
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
@@ -389,19 +393,19 @@ function SchedulesSection({
         <div className="space-y-1.5 mb-3">
           {schedules.map((s) => (
             <div key={s.id} className={`flex items-center gap-2 group ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-              <svg className="w-4 h-4 flex-shrink-0 text-text-faint" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+              <Clock className="w-4 h-4 flex-shrink-0 text-text-faint" />
               <span className="text-sm text-text-body flex-1 min-w-0">{formatSchedule(s)}</span>
               {s.notes && <span className="text-xs text-text-faint italic truncate max-w-[100px]">{s.notes}</span>}
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => handleRemove(s.id)}
                 disabled={busy}
-                className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text text-xs px-1 transition-opacity"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text transition-opacity"
                 title="Remove schedule"
               >
-                ✕
-              </button>
+                <X className="h-3.5 w-3.5" />
+              </Button>
             </div>
           ))}
         </div>
@@ -412,7 +416,7 @@ function SchedulesSection({
       {/* Add operating-hours form */}
       <div className="flex items-center gap-1.5">
         <Select value={newDay} onValueChange={setNewDay}>
-          <SelectTrigger className="h-7 text-xs w-24 flex-shrink-0">
+          <SelectTrigger className="h-8 text-xs w-24 flex-shrink-0">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -425,7 +429,7 @@ function SchedulesSection({
           type="time"
           value={newOpens}
           onChange={(e) => setNewOpens(e.target.value)}
-          className="h-7 text-xs w-[90px] flex-shrink-0"
+          className="h-8 text-xs w-[90px] flex-shrink-0"
           disabled={busy}
         />
         <span className="text-xs text-muted-foreground">–</span>
@@ -433,16 +437,18 @@ function SchedulesSection({
           type="time"
           value={newCloses}
           onChange={(e) => setNewCloses(e.target.value)}
-          className="h-7 text-xs w-[90px] flex-shrink-0"
+          className="h-8 text-xs w-[90px] flex-shrink-0"
           disabled={busy}
         />
-        <button
+        <Button
+          variant="outline"
+          size="icon"
           onClick={handleAdd}
           disabled={busy}
-          className="h-7 w-7 flex items-center justify-center rounded bg-accent text-accent-foreground hover:bg-primary hover:text-primary-foreground text-sm font-medium disabled:opacity-50 flex-shrink-0"
+          className="h-8 w-8 flex-shrink-0"
         >
-          +
-        </button>
+          <Plus className="h-4 w-4" />
+        </Button>
       </div>
     </div>
   );
@@ -859,6 +865,24 @@ export default function PostDetailPage() {
               )}
             </div>
 
+            {/* Contacts */}
+            <ContactsSection
+              contacts={post.contacts || []}
+              postId={postId}
+              addPostContact={addPostContact}
+              removePostContact={removePostContact}
+              mutationContext={mutationContext}
+            />
+
+            {/* Schedule */}
+            <SchedulesSection
+              schedules={post.schedules || []}
+              postId={postId}
+              addPostSchedule={addPostSchedule}
+              deletePostSchedule={deletePostSchedule}
+              mutationContext={mutationContext}
+            />
+
             {/* Full text */}
             <div className="border-t border-border pt-4">
               <SectionLabel>Full Text</SectionLabel>
@@ -886,24 +910,6 @@ export default function PostDetailPage() {
               onRemoveTag={handleRemoveTag}
               onAddTags={handleAddTags}
               disabled={isUpdating}
-            />
-
-            {/* Contacts */}
-            <ContactsSection
-              contacts={post.contacts || []}
-              postId={postId}
-              addPostContact={addPostContact}
-              removePostContact={removePostContact}
-              mutationContext={mutationContext}
-            />
-
-            {/* Schedule */}
-            <SchedulesSection
-              schedules={post.schedules || []}
-              postId={postId}
-              addPostSchedule={addPostSchedule}
-              deletePostSchedule={deletePostSchedule}
-              mutationContext={mutationContext}
             />
 
             {/* Notes */}
