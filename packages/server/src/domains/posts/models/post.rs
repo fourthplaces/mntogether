@@ -76,6 +76,11 @@ pub struct Post {
     pub comments_container_id: Option<ContainerId>,
 
     pub scored_at: Option<DateTime<Utc>>,
+
+    // Full-text search vector (auto-managed by DB trigger, never read in app code)
+    #[sqlx(skip)]
+    #[serde(skip)]
+    pub search_vector: Option<String>,
 }
 
 /// Post with distance info for proximity search
@@ -474,14 +479,14 @@ impl Post {
     /// Uses V7 UUID ordering (time-based) for stable pagination.
     /// Fetches limit+1 to detect if there are more pages.
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
-    /// When search is provided, filters by ILIKE on title and description.
+    /// When search is provided, uses full-text search (tsvector) with trigram fallback on title.
     pub async fn find_paginated(
         filters: &PostFilters<'_>,
         args: &ValidatedPaginationArgs,
         pool: &PgPool,
     ) -> Result<(Vec<Self>, bool)> {
         let fetch_limit = args.fetch_limit();
-        let search_pattern = filters.search.map(|s| format!("%{}%", s));
+        let search_term = filters.search;
 
         let results = match args.direction {
             PaginationDirection::Forward => {
@@ -496,7 +501,10 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id > $2)
                       AND ($4::text IS NULL OR ps.source_type = $4)
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
-                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($6::text IS NULL OR (
+                          p.search_vector @@ websearch_to_tsquery('english', $6)
+                          OR p.title %> $6
+                      ))
                       AND ($7::text IS NULL OR p.post_type = $7)
                       AND ($8::text IS NULL OR p.submission_type = $8)
                       AND ($9::uuid IS NULL OR EXISTS (
@@ -514,7 +522,7 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(filters.source_type)
                 .bind(filters.source_id)
-                .bind(&search_pattern)
+                .bind(search_term)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
                 .bind(filters.county_id)
@@ -536,7 +544,10 @@ impl Post {
                       AND ($2::uuid IS NULL OR p.id < $2)
                       AND ($4::text IS NULL OR ps.source_type = $4)
                       AND ($5::uuid IS NULL OR ps.source_id = $5)
-                      AND ($6::text IS NULL OR p.title ILIKE $6 OR p.description ILIKE $6)
+                      AND ($6::text IS NULL OR (
+                          p.search_vector @@ websearch_to_tsquery('english', $6)
+                          OR p.title %> $6
+                      ))
                       AND ($7::text IS NULL OR p.post_type = $7)
                       AND ($8::text IS NULL OR p.submission_type = $8)
                       AND ($9::uuid IS NULL OR EXISTS (
@@ -554,7 +565,7 @@ impl Post {
                 .bind(fetch_limit)
                 .bind(filters.source_type)
                 .bind(filters.source_id)
-                .bind(&search_pattern)
+                .bind(search_term)
                 .bind(filters.post_type)
                 .bind(filters.submission_type)
                 .bind(filters.county_id)
@@ -776,9 +787,9 @@ impl Post {
 
     /// Count listings by status (for pagination)
     /// When source_type/source_id are provided, filters via JOIN through post_sources.
-    /// When search is provided, filters by ILIKE on title and description.
+    /// When search is provided, uses full-text search (tsvector) with trigram fallback on title.
     pub async fn count_by_status(filters: &PostFilters<'_>, pool: &PgPool) -> Result<i64> {
-        let search_pattern = filters.search.map(|s| format!("%{}%", s));
+        let search_term = filters.search;
         let count = sqlx::query_scalar::<_, i64>(
             r#"
             SELECT COUNT(DISTINCT p.id)
@@ -790,7 +801,10 @@ impl Post {
               AND p.translation_of_id IS NULL
               AND ($2::text IS NULL OR ps.source_type = $2)
               AND ($3::uuid IS NULL OR ps.source_id = $3)
-              AND ($4::text IS NULL OR p.title ILIKE $4 OR p.description ILIKE $4)
+              AND ($4::text IS NULL OR (
+                  p.search_vector @@ websearch_to_tsquery('english', $4)
+                  OR p.title % $4
+              ))
               AND ($5::text IS NULL OR p.post_type = $5)
               AND ($6::text IS NULL OR p.submission_type = $6)
             "#,
@@ -798,7 +812,7 @@ impl Post {
         .bind(filters.status)
         .bind(filters.source_type)
         .bind(filters.source_id)
-        .bind(&search_pattern)
+        .bind(search_term)
         .bind(filters.post_type)
         .bind(filters.submission_type)
         .fetch_one(pool)
@@ -932,7 +946,7 @@ impl Post {
         offset: i32,
         pool: &PgPool,
     ) -> Result<(Vec<PostWithDistanceAndCount>, bool)> {
-        let search_pattern = filters.search.map(|s| format!("%{}%", s));
+        let search_term = filters.search;
 
         let results = sqlx::query_as::<_, PostWithDistanceAndCount>(
             r#"
@@ -958,7 +972,10 @@ impl Post {
               AND ($2::text IS NULL OR p.status = $2)
               AND ($3::text IS NULL OR ps.source_type = $3)
               AND ($4::uuid IS NULL OR ps.source_id = $4)
-              AND ($5::text IS NULL OR p.title ILIKE $5 OR p.description ILIKE $5)
+              AND ($5::text IS NULL OR (
+                  p.search_vector @@ websearch_to_tsquery('english', $5)
+                  OR p.title % $5
+              ))
               AND ($9::text IS NULL OR p.post_type = $9)
               AND ($10::text IS NULL OR p.submission_type = $10)
               AND ($11::uuid IS NULL OR EXISTS (
@@ -982,7 +999,7 @@ impl Post {
         .bind(filters.status)         // $2
         .bind(filters.source_type)    // $3
         .bind(filters.source_id)      // $4
-        .bind(&search_pattern)        // $5
+        .bind(search_term)            // $5
         .bind(radius_miles)           // $6
         .bind(limit + 1)             // $7 - fetch one extra to detect next page
         .bind(offset)                // $8
