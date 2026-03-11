@@ -6,6 +6,7 @@
 use axum::extract::{Path, State};
 use axum::routing::post;
 use axum::{Json, Router};
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
@@ -358,6 +359,16 @@ pub struct PostResult {
     pub urgent_notes: Option<Vec<UrgentNoteInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_miles: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latitude: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub longitude: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub revision_of_post_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub translation_of_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub duplicate_of_id: Option<Uuid>,
 }
 
 impl From<Post> for PostResult {
@@ -393,6 +404,11 @@ impl From<Post> for PostResult {
             has_urgent_notes: None,
             urgent_notes: None,
             distance_miles: None,
+            latitude: p.latitude.and_then(|d| d.to_f64()),
+            longitude: p.longitude.and_then(|d| d.to_f64()),
+            revision_of_post_id: p.revision_of_post_id.map(|id| id.into_uuid()),
+            translation_of_id: p.translation_of_id.map(|id| id.into_uuid()),
+            duplicate_of_id: p.duplicate_of_id.map(|id| id.into_uuid()),
         }
     }
 }
@@ -828,6 +844,11 @@ async fn list(
                         body_medium: None,
                         body_light: None,
                         distance_miles: Some(pwd.distance_miles),
+                        latitude: None,
+                        longitude: None,
+                        revision_of_post_id: None,
+                        translation_of_id: None,
+                        duplicate_of_id: None,
                     }
                 })
                 .collect(),
@@ -903,6 +924,11 @@ async fn list(
                         body_medium: None,
                         body_light: None,
                         distance_miles: None,
+                        latitude: None,
+                        longitude: None,
+                        revision_of_post_id: None,
+                        translation_of_id: None,
+                        duplicate_of_id: None,
                     }
                 })
                 .collect(),
@@ -962,6 +988,11 @@ async fn search_nearby(
                     has_urgent_notes: None,
                     urgent_notes: None,
                     distance_miles: None,
+                    latitude: None,
+                    longitude: None,
+                    revision_of_post_id: None,
+                    translation_of_id: None,
+                    duplicate_of_id: None,
                 },
                 distance_miles: pwd.distance_miles,
             })
@@ -1196,6 +1227,11 @@ async fn list_by_organization(
                     has_urgent_notes: None,
                     urgent_notes: None,
                     distance_miles: None,
+                    latitude: None,
+                    longitude: None,
+                    revision_of_post_id: None,
+                    translation_of_id: None,
+                    duplicate_of_id: None,
                 }
             })
             .collect(),

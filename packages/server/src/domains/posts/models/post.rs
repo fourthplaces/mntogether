@@ -1,5 +1,6 @@
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
@@ -40,8 +41,8 @@ pub struct Post {
 
     // Location
     pub location: Option<String>,
-    pub latitude: Option<f64>,
-    pub longitude: Option<f64>,
+    pub latitude: Option<Decimal>,
+    pub longitude: Option<Decimal>,
     pub zip_code: Option<String>,
 
     // Submission tracking

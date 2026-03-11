@@ -55,6 +55,11 @@ export const PostDetailFields = graphql(`
     bodyHeavy
     bodyMedium
     bodyLight
+    latitude
+    longitude
+    revisionOfPostId
+    translationOfId
+    duplicateOfId
     tags {
       id
       kind

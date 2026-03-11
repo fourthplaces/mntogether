@@ -569,6 +569,16 @@ export default function PostDetailPage() {
                 />
               </div>
 
+              {/* Lat/Lng (display-only, from geocoding) */}
+              {(post.latitude != null || post.longitude != null) && (
+                <div>
+                  <label className="block text-xs text-muted-foreground uppercase mb-1">Coordinates</label>
+                  <span className="text-sm text-text-body font-mono">
+                    {post.latitude?.toFixed(4)}, {post.longitude?.toFixed(4)}
+                  </span>
+                </div>
+              )}
+
               {/* Submission type */}
               {post.submissionType && (
                 <div>
@@ -734,6 +744,30 @@ export default function PostDetailPage() {
                   <span className="text-muted-foreground">Last edited</span>
                   <span className="text-foreground">{formatDate(post.updatedAt)}</span>
                 </div>
+                {post.revisionOfPostId && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Revision of</span>
+                    <Link href={`/admin/posts/${post.revisionOfPostId}`} className="text-link hover:text-link-hover text-xs font-mono truncate max-w-[140px]">
+                      {post.revisionOfPostId}
+                    </Link>
+                  </div>
+                )}
+                {post.translationOfId && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Translation of</span>
+                    <Link href={`/admin/posts/${post.translationOfId}`} className="text-link hover:text-link-hover text-xs font-mono truncate max-w-[140px]">
+                      {post.translationOfId}
+                    </Link>
+                  </div>
+                )}
+                {post.duplicateOfId && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Duplicate of</span>
+                    <Link href={`/admin/posts/${post.duplicateOfId}`} className="text-link hover:text-link-hover text-xs font-mono truncate max-w-[140px]">
+                      {post.duplicateOfId}
+                    </Link>
+                  </div>
+                )}
               </div>
             </div>
           </div>

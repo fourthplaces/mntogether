@@ -209,6 +209,11 @@ type Post {
   bodyMedium: String
   bodyLight: String
   zipCode: String
+  latitude: Float
+  longitude: Float
+  revisionOfPostId: ID
+  translationOfId: ID
+  duplicateOfId: ID
 }
 
 type PostConnection {

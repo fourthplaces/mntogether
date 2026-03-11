@@ -1,4 +1,5 @@
 use crate::domains::posts::models::Post;
+use rust_decimal::prelude::ToPrimitive;
 use serde::{Deserialize, Serialize};
 
 /// API representation of a listing
@@ -75,8 +76,8 @@ impl From<Post> for PostData {
             verified_at: post.verified_at.map(|dt| dt.to_rfc3339()),
             source_language: post.source_language,
             location: post.location,
-            latitude: post.latitude,
-            longitude: post.longitude,
+            latitude: post.latitude.and_then(|d| d.to_f64()),
+            longitude: post.longitude.and_then(|d| d.to_f64()),
             created_at: post.created_at.to_rfc3339(),
             updated_at: post.updated_at.to_rfc3339(),
             source_url: post.source_url,
