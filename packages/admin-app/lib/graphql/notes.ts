@@ -118,7 +118,6 @@ export const OrganizationPostsQuery = graphql(`
         createdAt
         organizationId
         organizationName
-        relevanceScore
         tags {
           id
           kind

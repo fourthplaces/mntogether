@@ -63,13 +63,6 @@ pub struct NearbySearchRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct SemanticSearchRequest {
-    pub query: String,
-    pub threshold: Option<f32>,
-    pub limit: Option<i32>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct SubmitPostRequest {
     pub title: String,
     pub description: String,
@@ -78,11 +71,6 @@ pub struct SubmitPostRequest {
     pub contact_website: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct BackfillRequest {
-    pub limit: Option<i32>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -127,12 +115,6 @@ pub struct PostStatsRequest {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct BatchScorePostsRequest {
-    pub limit: Option<i32>,
-    pub organization_id: Option<Uuid>,
-}
-
-#[derive(Debug, Clone, Deserialize)]
 pub struct BackfillLocationsRequest {
     pub batch_size: Option<i32>,
 }
@@ -141,11 +123,6 @@ pub struct BackfillLocationsRequest {
 pub struct SchedulesForEntityRequest {
     pub schedulable_type: String,
     pub schedulable_id: Uuid,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct RewriteNarrativesRequest {
-    pub organization_id: Uuid,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -378,10 +355,6 @@ pub struct PostResult {
     pub urgent_notes: Option<Vec<UrgentNoteInfo>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub distance_miles: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relevance_score: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub relevance_breakdown: Option<String>,
 }
 
 impl From<Post> for PostResult {
@@ -417,8 +390,6 @@ impl From<Post> for PostResult {
             has_urgent_notes: None,
             urgent_notes: None,
             distance_miles: None,
-            relevance_score: p.relevance_score,
-            relevance_breakdown: p.relevance_breakdown,
         }
     }
 }
@@ -443,21 +414,6 @@ pub struct NearbySearchResults {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SearchResult {
-    pub post_id: Uuid,
-    pub title: String,
-    pub description: String,
-    pub category: String,
-    pub post_type: String,
-    pub similarity: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SemanticSearchResults {
-    pub results: Vec<SearchResult>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PendingRevisionsResult {
     pub posts: Vec<PostResult>,
 }
@@ -465,13 +421,6 @@ pub struct PendingRevisionsResult {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitPostResult {
     pub post_id: Uuid,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BackfillResult {
-    pub processed: i32,
-    pub failed: i32,
-    pub remaining: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -609,20 +558,6 @@ pub struct BackfillLocationsResult {
     pub processed: i32,
     pub failed: i32,
     pub remaining: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct BatchScorePostsResult {
-    pub scored: i32,
-    pub failed: i32,
-    pub remaining: i32,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct RewriteNarrativesResult {
-    pub rewritten: i32,
-    pub failed: i32,
-    pub total: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -890,8 +825,6 @@ async fn list(
                         body_medium: None,
                         body_light: None,
                         distance_miles: Some(pwd.distance_miles),
-                        relevance_score: None,
-                        relevance_breakdown: None,
                     }
                 })
                 .collect(),
@@ -967,8 +900,6 @@ async fn list(
                         body_medium: None,
                         body_light: None,
                         distance_miles: None,
-                        relevance_score: None,
-                        relevance_breakdown: None,
                     }
                 })
                 .collect(),
@@ -1028,36 +959,8 @@ async fn search_nearby(
                     has_urgent_notes: None,
                     urgent_notes: None,
                     distance_miles: None,
-                    relevance_score: None,
-                    relevance_breakdown: None,
                 },
                 distance_miles: pwd.distance_miles,
-            })
-            .collect(),
-    }))
-}
-
-async fn search_semantic(
-    State(state): State<AppState>,
-    Json(req): Json<SemanticSearchRequest>,
-) -> ApiResult<Json<SemanticSearchResults>> {
-    let threshold = req.threshold.unwrap_or(0.5);
-    let limit = req.limit.unwrap_or(20);
-
-    let results =
-        activities::search::search_posts_semantic(&req.query, threshold, limit, &state.deps)
-            .await?;
-
-    Ok(Json(SemanticSearchResults {
-        results: results
-            .into_iter()
-            .map(|r| SearchResult {
-                post_id: r.post_id.into_uuid(),
-                title: r.title,
-                description: r.description,
-                category: r.category,
-                post_type: r.post_type,
-                similarity: r.similarity,
             })
             .collect(),
     }))
@@ -1100,22 +1003,6 @@ async fn submit(
 
     Ok(Json(SubmitPostResult {
         post_id: post_id.into_uuid(),
-    }))
-}
-
-async fn backfill_embeddings(
-    State(state): State<AppState>,
-    _user: AdminUser,
-    Json(req): Json<BackfillRequest>,
-) -> ApiResult<Json<BackfillResult>> {
-    let limit = req.limit.unwrap_or(100);
-
-    let r = activities::backfill::backfill_post_embeddings(limit, &state.deps).await?;
-
-    Ok(Json(BackfillResult {
-        processed: r.processed,
-        failed: r.failed,
-        remaining: r.remaining,
     }))
 }
 
@@ -1306,8 +1193,6 @@ async fn list_by_organization(
                     has_urgent_notes: None,
                     urgent_notes: None,
                     distance_miles: None,
-                    relevance_score: p.relevance_score,
-                    relevance_breakdown: p.relevance_breakdown,
                 }
             })
             .collect(),
@@ -1520,100 +1405,6 @@ async fn stats(
         references,
         user_submitted,
         scraped,
-    }))
-}
-
-async fn batch_score_posts(
-    State(state): State<AppState>,
-    _user: AdminUser,
-    Json(req): Json<BatchScorePostsRequest>,
-) -> ApiResult<Json<BatchScorePostsResult>> {
-    let deps = &state.deps;
-    let limit = req.limit.unwrap_or(50).min(200);
-
-    let unscored = match req.organization_id {
-        Some(org_id) => Post::find_unscored_active_by_org(org_id, &deps.db_pool).await?,
-        None => Post::find_unscored_active(&deps.db_pool).await?,
-    };
-
-    let total_remaining = unscored.len() as i32;
-    let batch: Vec<_> = unscored.into_iter().take(limit as usize).collect();
-
-    let mut scored = 0i32;
-    let mut failed = 0i32;
-
-    for post in batch {
-        match activities::score_post_by_id(post.id, &deps.ai, &deps.db_pool).await {
-            Some(_) => scored += 1,
-            None => failed += 1,
-        }
-    }
-
-    let remaining = (total_remaining - scored - failed).max(0);
-
-    Ok(Json(BatchScorePostsResult {
-        scored,
-        failed,
-        remaining,
-    }))
-}
-
-async fn rewrite_narratives(
-    State(state): State<AppState>,
-    _user: AdminUser,
-    Json(req): Json<RewriteNarrativesRequest>,
-) -> ApiResult<Json<RewriteNarrativesResult>> {
-    use crate::domains::posts::models::post::UpdatePostContent;
-
-    let deps = &state.deps;
-    let posts = Post::find_by_organization_id(req.organization_id, &deps.db_pool).await?;
-
-    let total = posts.len() as i32;
-    let mut rewritten = 0i32;
-    let mut failed = 0i32;
-
-    for post in posts {
-        let description = post
-            .description_markdown
-            .as_deref()
-            .unwrap_or(&post.description);
-
-        match activities::post_extraction::rewrite_narrative(
-            &deps.ai,
-            &post.title,
-            description,
-        )
-        .await
-        {
-            Ok(narrative) => {
-                match Post::update_content(
-                    UpdatePostContent::builder()
-                        .id(post.id)
-                        .title(Some(narrative.title))
-                        .summary(Some(narrative.summary))
-                        .build(),
-                    &deps.db_pool,
-                )
-                .await
-                {
-                    Ok(_) => rewritten += 1,
-                    Err(e) => {
-                        tracing::warn!(post_id = %post.id, error = %e, "Failed to update post content");
-                        failed += 1;
-                    }
-                }
-            }
-            Err(e) => {
-                tracing::warn!(post_id = %post.id, error = %e, "Failed to rewrite narrative");
-                failed += 1;
-            }
-        }
-    }
-
-    Ok(Json(RewriteNarrativesResult {
-        rewritten,
-        failed,
-        total,
     }))
 }
 
@@ -2023,22 +1814,6 @@ async fn track_click(
     Ok(Json(()))
 }
 
-async fn generate_embedding(
-    State(state): State<AppState>,
-    Path(post_id): Path<Uuid>,
-    _user: AdminUser,
-    Json(_req): Json<EmptyRequest>,
-) -> ApiResult<Json<()>> {
-    activities::post_operations::generate_post_embedding(
-        PostId::from_uuid(post_id),
-        state.deps.embedding_service.as_ref(),
-        &state.deps.db_pool,
-    )
-    .await?;
-
-    Ok(Json(()))
-}
-
 async fn approve_revision(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2081,21 +1856,6 @@ async fn regenerate(
     Err(ApiError::BadRequest(
         "Post regeneration requires the crawling pipeline which has been removed".into(),
     ))
-}
-
-async fn regenerate_tags(
-    State(state): State<AppState>,
-    Path(post_id): Path<Uuid>,
-    _user: AdminUser,
-    Json(_req): Json<EmptyRequest>,
-) -> ApiResult<Json<PostResult>> {
-    activities::tags::regenerate_post_tags(post_id, &state.deps).await?;
-
-    let post = Post::find_by_id(PostId::from_uuid(post_id), &state.deps.db_pool)
-        .await?
-        .ok_or_else(|| ApiError::NotFound("Post not found after regenerate_tags".into()))?;
-
-    Ok(Json(PostResult::from(post)))
 }
 
 async fn update_content(
@@ -2176,9 +1936,7 @@ pub fn router() -> Router<AppState> {
         // --- Posts service (stateless, plural) ---
         .route("/Posts/list", post(list))
         .route("/Posts/search_nearby", post(search_nearby))
-        .route("/Posts/search_semantic", post(search_semantic))
         .route("/Posts/submit", post(submit))
-        .route("/Posts/backfill_embeddings", post(backfill_embeddings))
         .route("/Posts/list_pending_revisions", post(list_pending_revisions))
         .route("/Posts/list_reports", post(list_reports))
         .route("/Posts/upcoming_events", post(upcoming_events))
@@ -2189,8 +1947,6 @@ pub fn router() -> Router<AppState> {
         .route("/Posts/public_filters", post(public_filters))
         .route("/Posts/expire_stale_posts", post(expire_stale_posts))
         .route("/Posts/stats", post(stats))
-        .route("/Posts/batch_score_posts", post(batch_score_posts))
-        .route("/Posts/rewrite_narratives", post(rewrite_narratives))
         .route("/Posts/create_post", post(create_post))
         // --- Post object (keyed, singular) ---
         .route("/Post/{id}/get", post(get_post))
@@ -2212,11 +1968,9 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/delete_schedule", post(delete_schedule))
         .route("/Post/{id}/track_view", post(track_view))
         .route("/Post/{id}/track_click", post(track_click))
-        .route("/Post/{id}/generate_embedding", post(generate_embedding))
         .route("/Post/{id}/approve_revision", post(approve_revision))
         .route("/Post/{id}/reject_revision", post(reject_revision))
         .route("/Post/{id}/regenerate", post(regenerate))
-        .route("/Post/{id}/regenerate_tags", post(regenerate_tags))
         .route("/Post/{id}/update_content", post(update_content))
         .route("/Post/{id}/get_reports", post(get_reports))
         .route("/Post/{id}/get_revision", post(get_revision))

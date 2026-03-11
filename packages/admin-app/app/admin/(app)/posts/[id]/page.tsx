@@ -41,7 +41,6 @@ import {
   ReactivatePostMutation,
   AddPostTagMutation,
   RemovePostTagMutation,
-  RegeneratePostTagsMutation,
 } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
@@ -229,7 +228,6 @@ export default function PostDetailPage() {
   const [, reactivatePost] = useMutation(ReactivatePostMutation);
   const [, addPostTag] = useMutation(AddPostTagMutation);
   const [, removePostTag] = useMutation(RemovePostTagMutation);
-  const [, regeneratePostTags] = useMutation(RegeneratePostTagsMutation);
 
   // Tag modal: load kinds and tags
   const [{ data: kindsData }] = useQuery({ query: TagKindsQuery, pause: !showTagModal });
@@ -294,7 +292,6 @@ export default function PostDetailPage() {
     try { await fn(); } catch (err) { console.error(`Failed to ${name}:`, err); } finally { setActionInProgress(null); }
   };
 
-  const handleRegenerateTags = withAction("regenerate_tags", () => regeneratePostTags({ id: postId }, mutationContext));
   const handleArchive = withAction("archive", () => archivePost({ id: postId }, mutationContext));
   const handleReactivate = withAction("reactivate", () => reactivatePost({ id: postId }, mutationContext));
   const handleApprove = withAction("approve", () => approvePost({ id: postId }, mutationContext));
@@ -419,9 +416,6 @@ export default function PostDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => setShowTagModal(true)}>Edit Tags</DropdownMenuItem>
-                <DropdownMenuItem onSelect={handleRegenerateTags} disabled={actionInProgress !== null}>
-                  {actionInProgress === "regenerate_tags" ? "Regenerating..." : "Regenerate Tags"}
-                </DropdownMenuItem>
                 {post.status === "active" && (
                   <DropdownMenuItem onSelect={handleArchive} disabled={actionInProgress !== null}>
                     {actionInProgress === "archive" ? "Archiving..." : "Archive (Delist)"}

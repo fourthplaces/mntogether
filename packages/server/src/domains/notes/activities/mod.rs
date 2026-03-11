@@ -1,3 +1,2 @@
-pub mod attachment;
-
-pub use attachment::attach_notes_to_org_posts;
+// Notes activities — currently empty after removing AI-based attachment logic.
+// Manual note attachment is handled directly via the Noteable model.

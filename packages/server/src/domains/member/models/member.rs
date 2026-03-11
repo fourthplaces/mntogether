@@ -93,21 +93,6 @@ impl Member {
         Ok(result.rows_affected())
     }
 
-    /// Update member embedding
-    pub async fn update_embedding(id: Uuid, embedding: &[f32], pool: &PgPool) -> Result<()> {
-        use pgvector::Vector;
-
-        let vector = Vector::from(embedding.to_vec());
-
-        sqlx::query("UPDATE members SET embedding = $2 WHERE id = $1")
-            .bind(id)
-            .bind(vector)
-            .execute(pool)
-            .await?;
-
-        Ok(())
-    }
-
     /// Count all members
     pub async fn count(pool: &PgPool) -> Result<i64> {
         let count = sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM members")

@@ -1,26 +1,10 @@
 // Trait definitions for dependency injection
 //
 // These are INFRASTRUCTURE traits only - no business logic.
-// Business logic (like "extract needs") should be domain functions that use these traits.
-//
-// Naming convention: Base* for trait names (e.g., BaseEmbeddingService)
-//
-// NOTE: The BaseAI trait has been removed in favor of using `ai_client::OpenAi`
-// directly. Use `extract<T>()` for structured JSON output or `.complete()` for
-// simple text completions.
+// Naming convention: Base* for trait names (e.g., BaseTwilioService)
 
 use anyhow::Result;
 use async_trait::async_trait;
-
-// =============================================================================
-// Embedding Service Trait (Infrastructure)
-// =============================================================================
-
-#[async_trait]
-pub trait BaseEmbeddingService: Send + Sync {
-    /// Generate embedding for text (returns 1536-dimensional vector)
-    async fn generate(&self, text: &str) -> Result<Vec<f32>>;
-}
 
 // =============================================================================
 // Twilio Service Trait (Infrastructure - SMS/OTP)

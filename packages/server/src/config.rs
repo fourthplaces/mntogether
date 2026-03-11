@@ -7,7 +7,6 @@ use std::env;
 pub struct Config {
     pub database_url: String,
     pub port: u16,
-    pub openai_api_key: String,
     pub twilio_account_sid: String,
     pub twilio_auth_token: String,
     pub twilio_verify_service_sid: String,
@@ -34,7 +33,6 @@ impl Config {
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .context("PORT must be a valid number")?,
-            openai_api_key: env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?,
             twilio_account_sid: env::var("TWILIO_ACCOUNT_SID")
                 .context("TWILIO_ACCOUNT_SID must be set")?,
             twilio_auth_token: env::var("TWILIO_AUTH_TOKEN")
@@ -79,7 +77,6 @@ impl Config {
     fn validate_env_vars() {
         let required_vars = vec![
             "DATABASE_URL",
-            "OPENAI_API_KEY",
             "TWILIO_ACCOUNT_SID",
             "TWILIO_AUTH_TOKEN",
             "TWILIO_VERIFY_SERVICE_SID",

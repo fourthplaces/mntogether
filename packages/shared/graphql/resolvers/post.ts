@@ -212,26 +212,6 @@ export const postResolvers = {
       return ctx.loaders.postById.load(args.id);
     },
 
-    regeneratePostTags: async (
-      _parent: unknown,
-      args: { id: string },
-      ctx: GraphQLContext
-    ) => {
-      await ctx.server.callObject("Post", args.id, "regenerate_tags", {});
-      ctx.loaders.postById.clear(args.id);
-      return ctx.loaders.postById.load(args.id);
-    },
-
-    batchScorePosts: async (
-      _parent: unknown,
-      args: { limit?: number },
-      ctx: GraphQLContext
-    ) => {
-      return ctx.server.callService("Posts", "batch_score_posts", {
-        limit: args.limit,
-      });
-    },
-
     createPost: async (
       _parent: unknown,
       args: {

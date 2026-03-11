@@ -8,13 +8,10 @@ pub mod backfill;
 pub mod core;
 pub mod create_post;
 pub mod expire_scheduled_posts;
-pub mod post_extraction;
 pub mod post_operations;
 pub mod reports;
 pub mod revision_actions;
 pub mod schedule;
-pub mod scoring;
-pub mod search;
 pub mod tags;
 pub mod upcoming_events;
 
@@ -27,5 +24,4 @@ pub use revision_actions::{
     approve_revision, count_pending_revisions, get_pending_revisions, get_revision_for_post,
     reject_revision,
 };
-pub use scoring::{score_post_by_id, score_post_relevance, RelevanceScore};
 pub use tags::{add_post_tag, remove_post_tag, update_post_tags, TagInput};

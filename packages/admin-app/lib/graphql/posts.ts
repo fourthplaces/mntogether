@@ -208,21 +208,6 @@ export const RegeneratePostMutation = graphql(`
   }
 `);
 
-export const RegeneratePostTagsMutation = graphql(`
-  mutation RegeneratePostTags($id: ID!) {
-    regeneratePostTags(id: $id) {
-      id
-      tags {
-        id
-        kind
-        value
-        displayName
-        color
-      }
-    }
-  }
-`);
-
 export const CreatePostMutation = graphql(`
   mutation CreatePost($input: CreatePostInput!) {
     createPost(input: $input) {

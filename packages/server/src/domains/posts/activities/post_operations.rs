@@ -3,7 +3,6 @@
 // These functions contain the business logic for listing CRUD operations,
 // separated from the thin Effect orchestrator.
 
-use ai_client::OpenAi;
 use anyhow::{Context, Result};
 use serde_json::Value as JsonValue;
 use sqlx::PgPool;
@@ -36,7 +35,7 @@ pub struct UpdateAndApprovePost {
     pub location: Option<String>,
 }
 
-/// Create a new listing with generated content hash and summary
+/// Create a new listing with generated summary (truncation-based)
 pub async fn create_post(
     member_id: Option<MemberId>,
     title: String,
@@ -48,7 +47,6 @@ pub async fn create_post(
     submission_type: String,
     source_type: Option<&str>,
     source_id: Option<Uuid>,
-    ai: &OpenAi,
     pool: &PgPool,
 ) -> Result<Post> {
     // Log IP for spam tracking
@@ -56,13 +54,8 @@ pub async fn create_post(
         tracing::info!(ip_address = %ip, "Listing submitted from IP");
     }
 
-    // Generate summary using AI
-    let summary = super::post_extraction::generate_summary(ai, &description)
-        .await
-        .unwrap_or_else(|_| {
-            // Fallback to truncation if AI fails
-            generate_summary(&description, 250)
-        });
+    // Generate summary via truncation
+    let summary = generate_summary(&description, 250);
 
     // Create listing using model method
     let post = Post::create(
@@ -153,25 +146,6 @@ pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool)
         .context("Failed to approve listing")?;
 
     Ok(())
-}
-
-/// Generate embedding for a post (for semantic search)
-pub async fn generate_post_embedding(
-    post_id: PostId,
-    embedding_service: &dyn crate::kernel::BaseEmbeddingService,
-    pool: &PgPool,
-) -> Result<usize> {
-    let post = Post::find_by_id(post_id, pool)
-        .await?
-        .ok_or_else(|| anyhow::anyhow!("Post not found"))?;
-
-    let embedding_text = post.get_embedding_text();
-    let embedding = embedding_service.generate(&embedding_text).await?;
-    let dimensions = embedding.len();
-
-    Post::update_embedding(post_id, &embedding, pool).await?;
-
-    Ok(dimensions)
 }
 
 /// Expire a post

@@ -63,9 +63,6 @@ pub struct Post {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 
-    // Vector search (for semantic search)
-    pub embedding: Option<pgvector::Vector>,
-
     // Revision tracking (for draft mode)
     pub revision_of_post_id: Option<PostId>,
 
@@ -78,21 +75,7 @@ pub struct Post {
     // Comments container (inverted FK from containers table)
     pub comments_container_id: Option<ContainerId>,
 
-    // Relevance scoring (for human review triage)
-    pub relevance_score: Option<i32>,
-    pub relevance_breakdown: Option<String>,
     pub scored_at: Option<DateTime<Utc>>,
-}
-
-/// Search result from semantic similarity search
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct PostSearchResult {
-    pub post_id: PostId,
-    pub title: String,
-    pub description: String,
-    pub category: String,
-    pub post_type: String,
-    pub similarity: f64,
 }
 
 /// Post with distance info for proximity search
@@ -138,20 +121,6 @@ pub struct PostWithDistanceAndCount {
     pub updated_at: DateTime<Utc>,
     pub distance_miles: f64,
     pub total_count: i64,
-}
-
-/// Search result with location info
-#[derive(Debug, Clone, sqlx::FromRow)]
-pub struct PostSearchResultWithLocation {
-    pub post_id: PostId,
-    pub title: String,
-    pub description: String,
-    pub summary: Option<String>,
-    pub category: String,
-    pub post_type: String,
-    pub location: Option<String>,
-    pub source_url: Option<String>,
-    pub similarity: f64,
 }
 
 // =============================================================================
@@ -756,8 +725,6 @@ impl Post {
                 urgency = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE urgency END,
                 location = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE location END,
                 zip_code = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE zip_code END,
-                relevance_score = NULL,
-                relevance_breakdown = NULL,
                 scored_at = NULL,
                 updated_at = NOW()
             WHERE id = $1
@@ -889,156 +856,6 @@ impl Post {
             .execute(pool)
             .await?;
         Ok(())
-    }
-
-    // =========================================================================
-    // Embedding Methods (for semantic search)
-    // =========================================================================
-
-    /// Update embedding for a post
-    pub async fn update_embedding(id: PostId, embedding: &[f32], pool: &PgPool) -> Result<()> {
-        use pgvector::Vector;
-
-        let vector = Vector::from(embedding.to_vec());
-
-        sqlx::query("UPDATE posts SET embedding = $2, updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .bind(vector)
-            .execute(pool)
-            .await?;
-
-        Ok(())
-    }
-
-    /// Search posts by semantic similarity
-    pub async fn search_by_similarity(
-        query_embedding: &[f32],
-        threshold: f32,
-        limit: i32,
-        pool: &PgPool,
-    ) -> Result<Vec<PostSearchResult>> {
-        use pgvector::Vector;
-
-        let vector = Vector::from(query_embedding.to_vec());
-
-        let sql = format!(
-            r#"
-            SELECT
-                p.id as post_id,
-                p.title,
-                p.description,
-                p.category,
-                p.post_type,
-                (1 - (p.embedding <=> $1))::float8 as similarity
-            FROM posts p
-            WHERE p.embedding IS NOT NULL
-              AND p.deleted_at IS NULL
-              AND p.status = 'active'
-              AND p.revision_of_post_id IS NULL
-              AND p.translation_of_id IS NULL
-              AND (1 - (p.embedding <=> $1)) > $2
-              {}
-            ORDER BY p.embedding <=> $1
-            LIMIT $3
-            "#,
-            Self::SCHEDULE_ACTIVE_FILTER
-        );
-        let results = sqlx::query_as::<_, PostSearchResult>(&sql)
-            .bind(&vector)
-            .bind(threshold)
-            .bind(limit)
-            .fetch_all(pool)
-            .await?;
-
-        Ok(results)
-    }
-
-    /// Search posts by semantic similarity (with location in results)
-    pub async fn search_by_similarity_with_location(
-        query_embedding: &[f32],
-        threshold: f32,
-        limit: i32,
-        pool: &PgPool,
-    ) -> Result<Vec<PostSearchResultWithLocation>> {
-        use pgvector::Vector;
-
-        let vector = Vector::from(query_embedding.to_vec());
-
-        let sql = format!(
-            r#"
-            SELECT
-                p.id as post_id,
-                p.title,
-                p.description,
-                p.summary,
-                p.category,
-                p.post_type,
-                p.location,
-                p.source_url,
-                (1 - (p.embedding <=> $1))::float8 as similarity
-            FROM posts p
-            WHERE p.embedding IS NOT NULL
-              AND p.deleted_at IS NULL
-              AND p.status = 'active'
-              AND p.revision_of_post_id IS NULL
-              AND p.translation_of_id IS NULL
-              AND (1 - (p.embedding <=> $1)) > $2
-              {}
-            ORDER BY p.embedding <=> $1
-            LIMIT $3
-            "#,
-            Self::SCHEDULE_ACTIVE_FILTER
-        );
-        let results = sqlx::query_as::<_, PostSearchResultWithLocation>(&sql)
-            .bind(&vector)
-            .bind(threshold)
-            .bind(limit)
-            .fetch_all(pool)
-            .await?;
-
-        Ok(results)
-    }
-
-    /// Find posts without embeddings (for backfill)
-    pub async fn find_without_embeddings(limit: i32, pool: &PgPool) -> Result<Vec<Self>> {
-        let posts = sqlx::query_as::<_, Post>(
-            r#"
-            SELECT * FROM posts
-            WHERE embedding IS NULL
-              AND deleted_at IS NULL
-              AND status = 'active'
-              AND revision_of_post_id IS NULL
-              AND translation_of_id IS NULL
-            ORDER BY created_at DESC
-            LIMIT $1
-            "#,
-        )
-        .bind(limit)
-        .fetch_all(pool)
-        .await?;
-
-        Ok(posts)
-    }
-
-    /// Get text for embedding generation
-    /// Combines title, description, summary, category, post_type, and location
-    pub fn get_embedding_text(&self) -> String {
-        let mut parts = vec![self.title.clone()];
-
-        parts.push(self.description.clone());
-
-        if let Some(ref summary) = self.summary {
-            parts.push(summary.clone());
-        }
-
-        parts.push(format!("Category: {}", self.category));
-        parts.push(format!("Type: {}", self.post_type));
-
-        if let Some(ref location) = self.location {
-            parts.push(format!("Location: {}", location));
-        }
-
-        parts.join(" | ")
     }
 
     // =========================================================================
@@ -1446,75 +1263,6 @@ impl Post {
         .execute(pool)
         .await?;
         Ok(())
-    }
-
-    // =========================================================================
-    // Relevance Scoring
-    // =========================================================================
-
-    /// Update relevance score for a post
-    pub async fn update_relevance_score(
-        id: PostId,
-        score: i32,
-        breakdown: &str,
-        pool: &PgPool,
-    ) -> Result<()> {
-        sqlx::query(
-            "UPDATE posts SET relevance_score = $1, relevance_breakdown = $2, scored_at = NOW(), updated_at = NOW() WHERE id = $3",
-        )
-        .bind(score)
-        .bind(breakdown)
-        .bind(id)
-        .execute(pool)
-        .await?;
-        Ok(())
-    }
-
-    /// Find unscored active posts for batch scoring.
-    /// Excludes revisions, translations, duplicates, and deleted posts.
-    pub async fn find_unscored_active(pool: &PgPool) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT * FROM posts
-            WHERE status = 'active'
-              AND relevance_score IS NULL
-              AND revision_of_post_id IS NULL
-              AND translation_of_id IS NULL
-              AND duplicate_of_id IS NULL
-              AND deleted_at IS NULL
-            ORDER BY created_at DESC
-            "#,
-        )
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
-    }
-
-    /// Find unscored active posts for a specific organization.
-    /// Joins through post_sources → sources to find org membership.
-    pub async fn find_unscored_active_by_org(
-        organization_id: Uuid,
-        pool: &PgPool,
-    ) -> Result<Vec<Self>> {
-        sqlx::query_as::<_, Self>(
-            r#"
-            SELECT DISTINCT p.* FROM posts p
-            JOIN post_sources ps ON ps.post_id = p.id
-            JOIN sources s ON ps.source_id = s.id
-            WHERE s.organization_id = $1
-              AND p.status = 'active'
-              AND p.relevance_score IS NULL
-              AND p.revision_of_post_id IS NULL
-              AND p.translation_of_id IS NULL
-              AND p.duplicate_of_id IS NULL
-              AND p.deleted_at IS NULL
-            ORDER BY p.created_at DESC
-            "#,
-        )
-        .bind(organization_id)
-        .fetch_all(pool)
-        .await
-        .map_err(Into::into)
     }
 
     /// Find organization names for multiple posts (via post_sources → sources → organizations).

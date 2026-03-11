@@ -55,7 +55,6 @@ impl From<Member> for MemberResult {
 #[derive(Debug, Serialize)]
 pub struct RegisterMemberResult {
     pub member_id: Uuid,
-    pub embedding_generated: bool,
 }
 
 // =============================================================================
@@ -115,35 +114,8 @@ async fn register_member(
     )
     .await?;
 
-    // Step 2: Generate embedding — non-fatal, just log warning on failure
-    let embedding_generated = match activities::generate_embedding(
-        member_id,
-        state.deps.embedding_service.as_ref(),
-        &state.deps.db_pool,
-    )
-    .await
-    {
-        Ok(result) => {
-            tracing::info!(
-                member_id = %result.member_id,
-                dimensions = result.dimensions,
-                "Embedding generated for member"
-            );
-            true
-        }
-        Err(e) => {
-            tracing::warn!(
-                member_id = %member_id,
-                error = %e,
-                "Failed to generate embedding (non-fatal)"
-            );
-            false
-        }
-    };
-
     Ok(Json(RegisterMemberResult {
         member_id,
-        embedding_generated,
     }))
 }
 

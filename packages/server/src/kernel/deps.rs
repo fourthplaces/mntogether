@@ -3,7 +3,6 @@
 //! This module provides the central dependency container used by all domain effects.
 //! All external services use trait abstractions to enable testing.
 
-use ai_client::OpenAi;
 use anyhow::Result;
 use async_trait::async_trait;
 use sqlx::PgPool;
@@ -13,7 +12,7 @@ use twilio::TwilioService;
 use crate::common::auth::HasAuthContext;
 use crate::domains::auth::JwtService;
 use crate::kernel::{
-    stream_hub::StreamHub, BaseEmbeddingService, BasePiiDetector, BaseStorageService,
+    stream_hub::StreamHub, BasePiiDetector, BaseStorageService,
     BaseTwilioService,
 };
 
@@ -56,10 +55,6 @@ impl BaseTwilioService for TwilioAdapter {
 #[derive(Clone)]
 pub struct ServerDeps {
     pub db_pool: PgPool,
-    /// AI client for all LLM operations. Callers pass specific model constants
-    /// (GPT_5_MINI, GPT_5, "gpt-4o") to select the model per-call.
-    pub ai: Arc<OpenAi>,
-    pub embedding_service: Arc<dyn BaseEmbeddingService>,
     pub twilio: Arc<dyn BaseTwilioService>,
     pub pii_detector: Arc<dyn BasePiiDetector>,
     /// S3-compatible storage for media uploads
@@ -77,8 +72,6 @@ impl ServerDeps {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         db_pool: PgPool,
-        ai: Arc<OpenAi>,
-        embedding_service: Arc<dyn BaseEmbeddingService>,
         twilio: Arc<dyn BaseTwilioService>,
         pii_detector: Arc<dyn BasePiiDetector>,
         storage: Option<Arc<dyn BaseStorageService>>,
@@ -89,8 +82,6 @@ impl ServerDeps {
     ) -> Self {
         Self {
             db_pool,
-            ai,
-            embedding_service,
             twilio,
             pii_detector,
             storage,

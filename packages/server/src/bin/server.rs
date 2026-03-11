@@ -5,8 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use server_core::domains::auth::JwtService;
 use server_core::kernel::ServerDeps;
-use server_core::common::utils::EmbeddingService;
-use server_core::kernel::{OpenAi, TwilioAdapter, StreamHub};
+use server_core::kernel::{TwilioAdapter, StreamHub};
 use server_core::kernel::sse::SseState;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
@@ -41,7 +40,6 @@ async fn main() -> Result<()> {
         .context("Failed to connect to database")?;
 
     // Load configuration from environment
-    let openai_api_key = std::env::var("OPENAI_API_KEY").context("OPENAI_API_KEY must be set")?;
     let twilio_account_sid =
         std::env::var("TWILIO_ACCOUNT_SID").context("TWILIO_ACCOUNT_SID must be set")?;
     let twilio_auth_token =
@@ -71,10 +69,6 @@ async fn main() -> Result<()> {
         service_id: twilio_verify_service_sid,
     };
     let twilio = Arc::new(TwilioService::new(twilio_options));
-
-    // Create AI client
-    let openai_client = Arc::new(OpenAi::new(openai_api_key.clone(), "gpt-4o"));
-    let embedding_api_key = openai_api_key.clone();
 
     // Create PII detector
     let pii_detector = server_core::kernel::pii::create_pii_detector(pii_scrubbing_enabled);
@@ -116,8 +110,6 @@ async fn main() -> Result<()> {
     // Build ServerDeps
     let server_deps = Arc::new(ServerDeps::new(
         pool.clone(),
-        openai_client,
-        Arc::new(EmbeddingService::new(embedding_api_key)),
         Arc::new(TwilioAdapter::new(twilio)),
         pii_detector,
         storage,

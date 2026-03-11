@@ -90,8 +90,6 @@ type Mutation {
   addPostTag(postId: ID!, tagKind: String!, tagValue: String!, displayName: String): Post!
   removePostTag(postId: ID!, tagId: ID!): Post!
   regeneratePost(id: ID!): Post!
-  regeneratePostTags(id: ID!): Post!
-  batchScorePosts(limit: Int): BatchScoreResult!
   createPost(input: CreatePostInput!): Post!
   updatePost(id: ID!, input: UpdatePostInput!): Post!
 
@@ -197,8 +195,6 @@ type Post {
   organizationId: ID
   organizationName: String
   distanceMiles: Float
-  relevanceScore: Float
-  relevanceBreakdown: String
   hasUrgentNotes: Boolean
   tags: [Tag!]!
   schedules: [PostSchedule!]!
@@ -269,12 +265,6 @@ type PostStats {
   spotlights: Int!
   references: Int!
   userSubmitted: Int!
-}
-
-type BatchScoreResult {
-  scored: Int!
-  failed: Int!
-  remaining: Int!
 }
 
 type Organization {

@@ -21,7 +21,6 @@ pub struct Note {
     pub expired_at: Option<DateTime<Utc>>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
-    pub embedding: Option<pgvector::Vector>,
     pub status: String, // 'draft' or 'active'
 }
 
@@ -115,18 +114,6 @@ impl Note {
         .fetch_one(pool)
         .await
         .map_err(Into::into)
-    }
-
-    /// Update embedding for a note (for semantic matching against posts).
-    pub async fn update_embedding(id: NoteId, embedding: &[f32], pool: &PgPool) -> Result<()> {
-        use pgvector::Vector;
-        let vector = Vector::from(embedding.to_vec());
-        sqlx::query("UPDATE notes SET embedding = $2, updated_at = NOW() WHERE id = $1")
-            .bind(id)
-            .bind(vector)
-            .execute(pool)
-            .await?;
-        Ok(())
     }
 
     /// Find all notes linked to an entity (including expired).

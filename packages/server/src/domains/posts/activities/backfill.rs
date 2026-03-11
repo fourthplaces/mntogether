@@ -1,73 +1,12 @@
 //! Backfill activities for posts - admin batch operations
 
 use anyhow::Result;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::domains::locations::models::Location;
 use crate::domains::posts::models::post::Post;
 use crate::domains::posts::models::post_location::PostLocation;
 use crate::kernel::ServerDeps;
-
-/// Result of backfilling post embeddings
-#[derive(Debug)]
-pub struct BackfillEmbeddingsResult {
-    pub processed: i32,
-    pub failed: i32,
-    pub remaining: i32,
-}
-
-/// Backfill embeddings for posts that don't have them.
-///
-/// Finds active posts without embeddings and generates them in a loop.
-pub async fn backfill_post_embeddings(
-    limit: i32,
-    deps: &ServerDeps,
-) -> Result<BackfillEmbeddingsResult> {
-    use super::post_operations;
-
-    info!(limit = %limit, "Backfilling post embeddings");
-
-    let posts = Post::find_without_embeddings(limit, &deps.db_pool).await?;
-
-    let mut processed = 0;
-    let mut failed = 0;
-
-    for post in posts {
-        match post_operations::generate_post_embedding(
-            post.id,
-            deps.embedding_service.as_ref(),
-            &deps.db_pool,
-        )
-        .await
-        {
-            Ok(_) => processed += 1,
-            Err(e) => {
-                error!(post_id = %post.id, error = %e, "Failed to generate embedding");
-                failed += 1;
-            }
-        }
-    }
-
-    // Count remaining posts without embeddings
-    let remaining = if processed == 0 && failed == 0 {
-        0
-    } else {
-        sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM posts WHERE embedding IS NULL AND deleted_at IS NULL AND status = 'active'",
-        )
-        .fetch_one(&deps.db_pool)
-        .await
-        .unwrap_or(0) as i32
-    };
-
-    info!(processed, failed, remaining, "Backfill completed");
-
-    Ok(BackfillEmbeddingsResult {
-        processed,
-        failed,
-        remaining,
-    })
-}
 
 /// Result of backfilling post locations
 #[derive(Debug)]

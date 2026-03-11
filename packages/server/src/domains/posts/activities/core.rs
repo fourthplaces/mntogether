@@ -40,7 +40,6 @@ pub async fn submit_post(
         "user_submitted".to_string(),
         None, // source_type
         None, // source_id
-        deps.ai.as_ref(),
         &deps.db_pool,
     )
     .await?;

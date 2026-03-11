@@ -1,7 +1,6 @@
 //! Kernel module - server infrastructure and dependencies.
 
 pub mod deps;
-pub mod llm_request;
 pub mod pii;
 pub mod sse;
 pub mod storage;
@@ -9,19 +8,8 @@ pub mod stream_hub;
 pub mod test_dependencies;
 pub mod traits;
 
-// Re-export AI client types
-pub use ai_client::openai::StructuredOutput;
-pub use ai_client::OpenAi;
-
-/// GPT-5 Mini — cost-effective frontier model for extraction, dedup, sync, PII.
-pub const GPT_5_MINI: &str = "gpt-5-mini";
-
-/// GPT-5 — full frontier model for highest-accuracy tasks.
-pub const GPT_5: &str = "gpt-5";
-
 // Other exports
 pub use deps::{ServerDeps, TwilioAdapter};
-pub use llm_request::CompletionExt;
 pub use pii::{create_pii_detector, NoopPiiDetector, RegexPiiDetector};
 pub use stream_hub::StreamHub;
 pub use test_dependencies::TestDependencies;

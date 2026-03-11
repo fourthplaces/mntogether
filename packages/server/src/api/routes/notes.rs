@@ -7,8 +7,7 @@ use uuid::Uuid;
 use crate::api::auth::AdminUser;
 use crate::api::error::{ApiError, ApiResult};
 use crate::api::state::AppState;
-use crate::common::{NoteId, OrganizationId};
-use crate::domains::notes::activities;
+use crate::common::NoteId;
 use crate::domains::notes::models::{Note, Noteable};
 
 // =============================================================================
@@ -194,11 +193,6 @@ async fn create(
         pool,
     )
     .await?;
-
-    // Generate embedding for semantic matching against posts (ignore errors)
-    if let Ok(emb) = state.deps.embedding_service.generate(&req.content).await {
-        let _ = Note::update_embedding(note.id, &emb, pool).await;
-    }
 
     // If entity linking info provided, link immediately
     if let (Some(noteable_type), Some(noteable_id)) = (&req.noteable_type, &req.noteable_id) {
@@ -417,18 +411,12 @@ async fn generate_notes(
 }
 
 async fn attach_notes(
-    State(state): State<AppState>,
     _user: AdminUser,
-    Json(req): Json<AttachNotesRequest>,
+    Json(_req): Json<AttachNotesRequest>,
 ) -> ApiResult<Json<AttachNotesResult>> {
-    let org_id = OrganizationId::from(req.organization_id);
-    let result = activities::attach_notes_to_org_posts(org_id, &state.deps).await?;
-
-    Ok(Json(AttachNotesResult {
-        notes_count: result.notes_count,
-        posts_count: result.posts_count,
-        noteables_created: result.noteables_created,
-    }))
+    Err(ApiError::BadRequest(
+        "Automatic note attachment is no longer available. Use manual linking instead.".to_string(),
+    ))
 }
 
 // =============================================================================

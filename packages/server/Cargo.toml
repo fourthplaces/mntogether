@@ -52,13 +52,8 @@ md5 = "0.7"
 # Database
 sqlx = { workspace = true, features = ["migrate"] }
 dataloader = "0.18"
-pgvector = { version = "0.4", features = ["sqlx", "serde"] }
-
-# JSON Schema generation (used by AI tool definitions and structured extraction)
+# JSON Schema generation (used by structured extraction types)
 schemars = "0.8"
-
-# AI / LLM
-ai-client = { path = "../ai-client" }
 
 # HTTP client
 reqwest = { workspace = true }
