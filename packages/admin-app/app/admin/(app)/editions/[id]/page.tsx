@@ -41,10 +41,8 @@ import {
   ExternalLink,
   Lock,
   ChevronRight,
-  Grid2x2Plus,
   ListStart,
   LayoutDashboard,
-  FilePenLine,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -656,9 +654,6 @@ function BroadsheetEditor({
         : [],
     [edition]
   );
-  const rowIds = useMemo(() => sortedRows.map((r) => r.id), [sortedRows]);
-  const sectionIds = useMemo(() => sections.map((s) => `section-${s.id}`), [sections]);
-
   // DnD
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -666,12 +661,14 @@ function BroadsheetEditor({
 
   const [activeRowId, setActiveRowId] = useState<string | null>(null);
   const [activeSectionId, setActiveSectionId] = useState<string | null>(null);
+  const [dragType, setDragType] = useState<"row" | "section" | "slot" | null>(null);
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    const dragType = event.active.data.current?.type;
-    if (dragType === "row") {
+    const type = event.active.data.current?.type as "row" | "section" | "slot" | undefined;
+    setDragType(type ?? null);
+    if (type === "row") {
       setActiveRowId(event.active.id as string);
-    } else if (dragType === "section") {
+    } else if (type === "section") {
       setActiveSectionId(event.active.id as string);
     } else {
       setActiveSlotId(event.active.id as string);
@@ -680,13 +677,15 @@ function BroadsheetEditor({
 
   const handleDragEnd = useCallback(
     async (event: DragEndEvent) => {
-      const dragType = event.active.data.current?.type;
+      const activeDragType = event.active.data.current?.type;
       const { active, over } = event;
+      setDragType(null);
 
       // Section drag
-      if (dragType === "section") {
+      if (activeDragType === "section") {
         setActiveSectionId(null);
         if (!over || !edition || active.id === over.id) return;
+        if (over.data.current?.type !== "section") return;
         const activeId = (active.id as string).replace("section-", "");
         const overId = (over.id as string).replace("section-", "");
         const oldIndex = sections.findIndex((s) => s.id === activeId);
@@ -701,9 +700,10 @@ function BroadsheetEditor({
       }
 
       // Row drag
-      if (dragType === "row") {
+      if (activeDragType === "row") {
         setActiveRowId(null);
         if (!over || !edition || active.id === over.id) return;
+        if (over.data.current?.type !== "row") return;
         const oldIndex = sortedRows.findIndex((r) => r.id === active.id);
         const newIndex = sortedRows.findIndex((r) => r.id === over.id);
         if (oldIndex < 0 || newIndex < 0) return;
@@ -913,8 +913,8 @@ function BroadsheetEditor({
               onValueChange={(v) => setAllRowsCollapsed(v === "arrange")}
             >
               <TabsList>
-                <TabsTrigger value="arrange"><ListStart className="size-3.5 mr-1.5" />Arrange</TabsTrigger>
-                <TabsTrigger value="edit"><LayoutDashboard className="size-3.5 mr-1.5" />Edit</TabsTrigger>
+                <TabsTrigger value="arrange"><ListStart className="size-3.5 mr-1" />Structure</TabsTrigger>
+                <TabsTrigger value="edit"><LayoutDashboard className="size-3.5 mr-1" />Posts</TabsTrigger>
               </TabsList>
             </Tabs>
           )}
@@ -944,7 +944,6 @@ function BroadsheetEditor({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <SortableContext items={[...rowIds, ...sectionIds]} strategy={verticalListSortingStrategy}>
           {sortedRows.length === 0 ? (
             <div className="text-muted-foreground text-center py-12 bg-card rounded-lg border border-border">
               <p className="text-lg mb-2">Empty broadsheet</p>
@@ -959,6 +958,7 @@ function BroadsheetEditor({
               widgets={edition.widgets ?? []}
               isEditable={isEditable}
               isDragging={isDragging}
+              dragType={dragType}
               allRowsCollapsed={allRowsCollapsed}
               rowTemplates={rowTemplates}
               postTemplates={postTemplates}
@@ -976,7 +976,6 @@ function BroadsheetEditor({
               onDeleteSection={handleDeleteSection}
             />
           )}
-        </SortableContext>
 
         {isDragging && isEditable && <RemoveDropZone />}
 
@@ -1208,6 +1207,7 @@ function RowEditor({
   totalRows,
   isEditable,
   isDragging,
+  dragType,
   collapsed,
   rowTemplates,
   postTemplates,
@@ -1223,6 +1223,7 @@ function RowEditor({
   totalRows: number;
   isEditable: boolean;
   isDragging: boolean;
+  dragType: "row" | "section" | "slot" | null;
   collapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
@@ -1240,7 +1241,7 @@ function RowEditor({
     transform: sortableTransform,
     transition: sortableTransition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: row.id, data: { type: "row" }, disabled: !isEditable || !collapsed });
+  } = useSortable({ id: row.id, data: { type: "row" }, disabled: !isEditable || !collapsed || dragType === "section" });
 
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
@@ -1291,19 +1292,17 @@ function RowEditor({
           <span className="text-xs font-mono text-muted-foreground bg-background rounded px-1.5 py-0.5">
             {rowIndex + 1}
           </span>
-          <span className="text-sm font-semibold text-foreground">
-            {row.rowTemplate.displayName}
-          </span>
-          {isEditable && rowTemplates.length > 0 && (
-            <Button
-              variant="ghost"
-              size="icon-xs"
+          {isEditable && rowTemplates.length > 0 ? (
+            <button
+              className="text-sm font-semibold text-foreground hover:underline truncate"
               onClick={() => setTemplatePickerOpen(true)}
-              className="text-muted-foreground hover:text-foreground"
-              title="Change row template"
             >
-              <Grid2x2Plus className="size-3" />
-            </Button>
+              {row.rowTemplate.displayName}
+            </button>
+          ) : (
+            <span className="text-sm font-semibold text-foreground truncate">
+              {row.rowTemplate.displayName}
+            </span>
           )}
         </div>
         <div className="flex items-center gap-1">
@@ -1347,7 +1346,7 @@ function RowEditor({
       </div>
 
       {!collapsed && (
-        <div className="p-4">
+        <div className="px-4 pt-0 pb-4">
           <div className="grid grid-cols-3 gap-3">
             {templateSlots.map((tSlot) => (
               <SlotCell
@@ -1495,6 +1494,7 @@ function SectionGroupedLayout({
   widgets,
   isEditable,
   isDragging,
+  dragType,
   allRowsCollapsed,
   rowTemplates,
   postTemplates,
@@ -1516,6 +1516,7 @@ function SectionGroupedLayout({
   widgets: EditionWidget[];
   isEditable: boolean;
   isDragging: boolean;
+  dragType: "row" | "section" | "slot" | null;
   allRowsCollapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
@@ -1550,6 +1551,16 @@ function SectionGroupedLayout({
 
   const ungroupedItems = useMemo(() => buildItems(null), [buildItems]);
 
+  // IDs for per-group SortableContexts
+  const ungroupedRowIds = useMemo(
+    () => ungroupedItems.filter((i) => i.type === "row").map((i) => i.data.id),
+    [ungroupedItems]
+  );
+  const sectionSortableIds = useMemo(
+    () => sections.map((s) => `section-${s.id}`),
+    [sections]
+  );
+
   // Calculate sort order for inserting between items
   const getInsertSortOrder = (items: LayoutItem[], index: number) => {
     if (items.length === 0) return 0;
@@ -1580,6 +1591,7 @@ function SectionGroupedLayout({
               totalRows={rows.length}
               isEditable={isEditable}
               isDragging={isDragging}
+              dragType={dragType}
               collapsed={allRowsCollapsed}
               rowTemplates={rowTemplates}
               postTemplates={postTemplates}
@@ -1625,7 +1637,9 @@ function SectionGroupedLayout({
               ({ungroupedItems.length} item{ungroupedItems.length !== 1 ? "s" : ""})
             </span>
           </div>
-          {renderLayoutItems(ungroupedItems, null)}
+          <SortableContext items={ungroupedRowIds} strategy={verticalListSortingStrategy}>
+            {renderLayoutItems(ungroupedItems, null)}
+          </SortableContext>
         </div>
       )}
 
@@ -1640,53 +1654,57 @@ function SectionGroupedLayout({
         </div>
       )}
 
-      {/* Section inserter before first section */}
-      {isEditable && allRowsCollapsed && sections.length > 0 && (
-        <SectionInserter
-          sortOrder={(sections[0]?.sortOrder ?? 0) - 10}
-          onAddSection={onAddSection}
-        />
-      )}
+      {/* Sections — each in its own SortableContext for section-level reordering */}
+      <SortableContext items={sectionSortableIds} strategy={verticalListSortingStrategy}>
+        {/* Section inserter before first section */}
+        {isEditable && allRowsCollapsed && sections.length > 0 && (
+          <SectionInserter
+            sortOrder={(sections[0]?.sortOrder ?? 0) - 10}
+            onAddSection={onAddSection}
+          />
+        )}
 
-      {sections.map((section, sIdx) => {
-        const sectionItems = buildItems(section.id);
-        return (
-          <div key={section.id}>
-            <SectionBlock
-              section={section}
-              items={sectionItems}
-              rows={rows}
-              isEditable={isEditable}
-              isDragging={isDragging}
-              allRowsCollapsed={allRowsCollapsed}
-              rowTemplates={rowTemplates}
-              postTemplates={postTemplates}
-              onMoveRow={onMoveRow}
-              onDeleteRow={onDeleteRow}
-              onChangeRowTemplate={onChangeRowTemplate}
-              onChangeTemplate={onChangeTemplate}
-              onRemovePost={onRemovePost}
-              onViewPost={onViewPost}
-              onAddWidget={onAddWidget}
-              onRemoveWidget={onRemoveWidget}
-              onAddRow={onAddRow}
-              onUpdateSection={onUpdateSection}
-              onDeleteSection={onDeleteSection}
-            />
-            {/* Section inserter after each section */}
-            {isEditable && allRowsCollapsed && (
-              <SectionInserter
-                sortOrder={
-                  sIdx < sections.length - 1
-                    ? Math.floor((section.sortOrder + sections[sIdx + 1].sortOrder) / 2)
-                    : section.sortOrder + 10
-                }
-                onAddSection={onAddSection}
+        {sections.map((section, sIdx) => {
+          const sectionItems = buildItems(section.id);
+          return (
+            <div key={section.id}>
+              <SectionBlock
+                section={section}
+                items={sectionItems}
+                rows={rows}
+                isEditable={isEditable}
+                isDragging={isDragging}
+                dragType={dragType}
+                allRowsCollapsed={allRowsCollapsed}
+                rowTemplates={rowTemplates}
+                postTemplates={postTemplates}
+                onMoveRow={onMoveRow}
+                onDeleteRow={onDeleteRow}
+                onChangeRowTemplate={onChangeRowTemplate}
+                onChangeTemplate={onChangeTemplate}
+                onRemovePost={onRemovePost}
+                onViewPost={onViewPost}
+                onAddWidget={onAddWidget}
+                onRemoveWidget={onRemoveWidget}
+                onAddRow={onAddRow}
+                onUpdateSection={onUpdateSection}
+                onDeleteSection={onDeleteSection}
               />
-            )}
-          </div>
-        );
-      })}
+              {/* Section inserter after each section */}
+              {isEditable && allRowsCollapsed && (
+                <SectionInserter
+                  sortOrder={
+                    sIdx < sections.length - 1
+                      ? Math.floor((section.sortOrder + sections[sIdx + 1].sortOrder) / 2)
+                      : section.sortOrder + 10
+                  }
+                  onAddSection={onAddSection}
+                />
+              )}
+            </div>
+          );
+        })}
+      </SortableContext>
 
       {/* If no sections yet and no ungrouped items, show initial inserters */}
       {isEditable && allRowsCollapsed && sections.length === 0 && ungroupedItems.length === 0 && (
@@ -1713,6 +1731,7 @@ function SectionBlock({
   rows,
   isEditable,
   isDragging,
+  dragType,
   allRowsCollapsed,
   rowTemplates,
   postTemplates,
@@ -1733,6 +1752,7 @@ function SectionBlock({
   rows: EditionRow[];
   isEditable: boolean;
   isDragging: boolean;
+  dragType: "row" | "section" | "slot" | null;
   allRowsCollapsed: boolean;
   rowTemplates: RowTemplate[];
   postTemplates: PostTemplate[];
@@ -1761,7 +1781,7 @@ function SectionBlock({
     transform: sortableTransform,
     transition: sortableTransition,
     isDragging: isSortableDragging,
-  } = useSortable({ id: sortableId, data: { type: "section" }, disabled: !isEditable || !allRowsCollapsed });
+  } = useSortable({ id: sortableId, data: { type: "section" }, disabled: !isEditable || !allRowsCollapsed || dragType === "row" || dragType === "slot" });
 
   const sortableStyle = {
     transform: CSS.Transform.toString(sortableTransform),
@@ -1772,6 +1792,12 @@ function SectionBlock({
     onUpdateSection(section.id, editTitle);
     setIsEditing(false);
   };
+
+  // Row IDs in this section for SortableContext
+  const sectionRowIds = useMemo(
+    () => items.filter((i) => i.type === "row").map((i) => i.data.id),
+    [items]
+  );
 
   const getInsertSortOrder = (index: number) => {
     if (items.length === 0) return 0;
@@ -1879,55 +1905,58 @@ function SectionBlock({
               No items in this section. Drag rows here or add items.
             </div>
           ) : (
-            <div className="space-y-3">
-              {items.map((item, idx) => (
-                <div key={item.type === "row" ? item.data.id : item.data.id}>
-                  {isEditable && allRowsCollapsed && (
-                    <InlineInserter
-                      sortOrder={getInsertSortOrder(idx)}
-                      sectionId={section.id}
-                      rowTemplates={rowTemplates}
-                      onAddRow={onAddRow}
-                      onAddWidget={onAddWidget}
-                    />
-                  )}
-                  {item.type === "row" ? (
-                    <RowEditor
-                      row={item.data}
-                      rowIndex={idx}
-                      totalRows={rows.length}
-                      isEditable={isEditable}
-                      isDragging={isDragging}
-                      collapsed={allRowsCollapsed}
-                      rowTemplates={rowTemplates}
-                      postTemplates={postTemplates}
-                      onMoveRow={onMoveRow}
-                      onDeleteRow={onDeleteRow}
-                      onChangeRowTemplate={onChangeRowTemplate}
-                      onChangeTemplate={onChangeTemplate}
-                      onRemovePost={onRemovePost}
-                      onViewPost={onViewPost}
-                    />
-                  ) : (
-                    <WidgetItem
-                      widget={item.data}
-                      isEditable={isEditable}
-                      collapsed={allRowsCollapsed}
-                      onRemove={onRemoveWidget}
-                    />
-                  )}
-                </div>
-              ))}
-              {isEditable && allRowsCollapsed && (
-                <InlineInserter
-                  sortOrder={getInsertSortOrder(items.length)}
-                  sectionId={section.id}
-                  rowTemplates={rowTemplates}
-                  onAddRow={onAddRow}
-                  onAddWidget={onAddWidget}
-                />
-              )}
-            </div>
+            <SortableContext items={sectionRowIds} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {items.map((item, idx) => (
+                  <div key={item.type === "row" ? item.data.id : item.data.id}>
+                    {isEditable && allRowsCollapsed && (
+                      <InlineInserter
+                        sortOrder={getInsertSortOrder(idx)}
+                        sectionId={section.id}
+                        rowTemplates={rowTemplates}
+                        onAddRow={onAddRow}
+                        onAddWidget={onAddWidget}
+                      />
+                    )}
+                    {item.type === "row" ? (
+                      <RowEditor
+                        row={item.data}
+                        rowIndex={idx}
+                        totalRows={rows.length}
+                        isEditable={isEditable}
+                        isDragging={isDragging}
+                        dragType={dragType}
+                        collapsed={allRowsCollapsed}
+                        rowTemplates={rowTemplates}
+                        postTemplates={postTemplates}
+                        onMoveRow={onMoveRow}
+                        onDeleteRow={onDeleteRow}
+                        onChangeRowTemplate={onChangeRowTemplate}
+                        onChangeTemplate={onChangeTemplate}
+                        onRemovePost={onRemovePost}
+                        onViewPost={onViewPost}
+                      />
+                    ) : (
+                      <WidgetItem
+                        widget={item.data}
+                        isEditable={isEditable}
+                        collapsed={allRowsCollapsed}
+                        onRemove={onRemoveWidget}
+                      />
+                    )}
+                  </div>
+                ))}
+                {isEditable && allRowsCollapsed && (
+                  <InlineInserter
+                    sortOrder={getInsertSortOrder(items.length)}
+                    sectionId={section.id}
+                    rowTemplates={rowTemplates}
+                    onAddRow={onAddRow}
+                    onAddWidget={onAddWidget}
+                  />
+                )}
+              </div>
+            </SortableContext>
           )}
         </div>
       )}
@@ -2306,9 +2335,12 @@ function DraggableSlotCard({
           </button>
         )}
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-medium text-foreground truncate">
+          <button
+            className="block w-full text-sm font-medium text-foreground truncate text-left hover:underline"
+            onClick={() => onViewPost(slot.post.id)}
+          >
             {slot.post.title}
-          </div>
+          </button>
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
             <PostTypeBadge type={slot.post.postType} />
             <WeightBadge weight={slot.post.weight} />
@@ -2328,15 +2360,6 @@ function DraggableSlotCard({
           </div>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => onViewPost(slot.post.id)}
-            className="text-muted-foreground hover:text-amber-600"
-            title="Edit post"
-          >
-            <FilePenLine className="size-3.5" />
-          </Button>
           {isEditable && (
             <Button
               variant="ghost"
