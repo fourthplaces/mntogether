@@ -26,12 +26,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
-import {
   NoteDetailQuery,
   UpdateNoteMutation,
   DeleteNoteMutation,
@@ -40,7 +34,7 @@ import {
 } from "@/lib/graphql/notes";
 import { PostsListQuery } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
-import { ArrowLeft, ExternalLink, Plus, X } from "lucide-react";
+import { ArrowLeft, ExternalLink, Plus, Trash2, X } from "lucide-react";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -244,16 +238,10 @@ export default function NoteDetailPage() {
               </a>
             )}
 
-            <DropdownMenu>
-              <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
-                {"\u22EF"}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem variant="destructive" onSelect={() => setShowDeleteDialog(true)}>
-                  Delete Note
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button variant="destructive" size="sm" onClick={() => setShowDeleteDialog(true)}>
+              <Trash2 className="h-4 w-4" />
+              Delete
+            </Button>
           </div>
         </div>
 

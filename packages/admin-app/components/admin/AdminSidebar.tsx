@@ -65,13 +65,11 @@ interface NavGroup {
 // Static nav structure
 // ---------------------------------------------------------------------------
 
+const topItems: NavItem[] = [
+  { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
+];
+
 const navGroups: NavGroup[] = [
-  {
-    label: "Overview",
-    items: [
-      { href: "/admin/dashboard", label: "Dashboard", icon: <LayoutDashboard /> },
-    ],
-  },
   {
     label: "Broadsheet",
     items: [
@@ -86,11 +84,6 @@ const navGroups: NavGroup[] = [
       { href: "/admin/posts", label: "Editorial", icon: <PenSquare /> },
       { href: "/admin/notes", label: "Notes", icon: <Megaphone /> },
       { href: "/admin/media", label: "Media", icon: <Image /> },
-    ],
-  },
-  {
-    label: "Sources",
-    items: [
       { href: "/admin/organizations", label: "Sources", icon: <Building2 /> },
     ],
   },
@@ -140,9 +133,30 @@ export function AdminSidebar() {
 
       {/* Nav groups */}
       <SidebarContent>
+        {/* Top-level items (no group label) */}
+        <SidebarGroup>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {topItems.map((item) => (
+                <SidebarMenuItem key={item.href}>
+                  <SidebarMenuButton
+                    render={<Link href={item.href} />}
+                    tooltip={item.label}
+                    isActive={isItemActive(item)}
+                    className="h-9 text-[15px]"
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
         {navGroups.map((group) => (
           <SidebarGroup key={group.label}>
-            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupLabel className="uppercase tracking-wider">{group.label}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {group.items.map((item) => {
@@ -156,6 +170,7 @@ export function AdminSidebar() {
                         render={<Link href={item.href} />}
                         tooltip={item.label}
                         isActive={active}
+                        className="h-9 text-[15px]"
                       >
                         {item.icon}
                         <span>{item.label}</span>
@@ -181,7 +196,7 @@ export function AdminSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton render={<Link href="/" />} tooltip="View Site">
+                <SidebarMenuButton render={<Link href="/" />} tooltip="View Site" className="h-9 text-[15px]">
                   <ExternalLink />
                   <span>View Site</span>
                 </SidebarMenuButton>

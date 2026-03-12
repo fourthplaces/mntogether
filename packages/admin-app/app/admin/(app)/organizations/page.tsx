@@ -9,7 +9,6 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Table,
   TableBody,
@@ -116,24 +115,18 @@ function OrganizationsContent() {
           >
             <div className="flex items-center gap-3">
               {/* Source type toggle */}
-              <ToggleGroup
-                variant="outline"
-                size="sm"
-                value={[addSourceType]}
-                onValueChange={(val) => {
-                  if (val.length > 0) setAddSourceType(val[val.length - 1] as "organization" | "individual");
-                }}
-                className="shrink-0"
-              >
-                <ToggleGroupItem value="organization">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Organization
-                </ToggleGroupItem>
-                <ToggleGroupItem value="individual">
-                  <User className="h-3.5 w-3.5" />
-                  Individual
-                </ToggleGroupItem>
-              </ToggleGroup>
+              <Tabs value={addSourceType} onValueChange={(v) => setAddSourceType(v as "organization" | "individual")}>
+                <TabsList className="shrink-0">
+                  <TabsTrigger value="organization">
+                    <Building2 className="h-3.5 w-3.5" />
+                    Organization
+                  </TabsTrigger>
+                  <TabsTrigger value="individual">
+                    <User className="h-3.5 w-3.5" />
+                    Individual
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
 
               <Input
                 value={addName}

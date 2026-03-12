@@ -17,6 +17,8 @@ import {
   ChevronDown,
   ChevronRight,
   Plus,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import type { TagKind, Tag } from "@/gql/graphql";
 
@@ -131,23 +133,27 @@ export default function TagsPage() {
             />
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={expandAll}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Expand all
-          </Button>
-          <span className="text-muted-foreground">&middot;</span>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={collapseAll}
-            className="text-xs text-muted-foreground hover:text-foreground"
-          >
-            Collapse all
-          </Button>
+          {expandedKinds.size === lockedKinds.length + openKinds.length ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={collapseAll}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ChevronsDownUp className="h-3.5 w-3.5" />
+              Collapse all
+            </Button>
+          ) : (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={expandAll}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              <ChevronsUpDown className="h-3.5 w-3.5" />
+              Expand all
+            </Button>
+          )}
         </div>
 
         {/* Locked tags section */}
