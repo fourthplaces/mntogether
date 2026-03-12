@@ -989,7 +989,7 @@ function EditionPostsView({ edition }: { edition: Edition }) {
     <>
       <div className="flex items-center gap-3 mb-4">
         <Tabs value={slottedFilter} onValueChange={setSlottedFilter}>
-          <TabsList variant="line">
+          <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="slotted">Slotted</TabsTrigger>
             <TabsTrigger value="not_slotted">Not Slotted</TabsTrigger>
@@ -1067,7 +1067,7 @@ function EditionWidgetsView({ editionId }: { editionId: string }) {
     <>
       <div className="flex items-center gap-3 mb-4">
         <Tabs value={slottedFilter} onValueChange={setSlottedFilter}>
-          <TabsList variant="line">
+          <TabsList>
             <TabsTrigger value="all">All</TabsTrigger>
             <TabsTrigger value="slotted">Slotted</TabsTrigger>
             <TabsTrigger value="not_slotted">Not Slotted</TabsTrigger>
