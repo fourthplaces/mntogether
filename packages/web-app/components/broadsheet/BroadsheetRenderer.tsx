@@ -2,12 +2,13 @@
 
 /**
  * BroadsheetRenderer — takes the PublicBroadsheet query result and renders
- * the full newspaper layout: BroadsheetHeader → Masthead → Rows + Widgets.
+ * the full newspaper layout: BroadsheetHeader → Masthead → Rows.
  *
- * Rows and widgets are independent layout items, interleaved by sort_order.
- * Each row maps a CMS row template slug to a Row variant (lead, trio, full, etc.),
- * distributes its slots into cells, and resolves each slot to the correct post component.
- * Widgets (section headers, weather, resource bars) are rendered between rows.
+ * Rows contain polymorphic slots (post or widget). Each row maps a CMS row
+ * template slug to a Row variant (lead, trio, full, etc.), distributes its
+ * slots into cells, and resolves each slot to the correct post or widget
+ * component. Standalone widget rows (widget-standalone) render their widget
+ * directly without a Row/Cell wrapper.
  */
 
 import type { PublicBroadsheetQuery } from '@/gql/graphql';
@@ -20,36 +21,16 @@ import { preparePost } from '@/lib/broadsheet/prepare';
 type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
 type BroadsheetRowData = BroadsheetData['rows'][number];
 type BroadsheetSlotData = BroadsheetRowData['slots'][number];
-type BroadsheetWidgetData = BroadsheetData['widgets'][number];
-type BroadsheetSectionData = BroadsheetData['sections'][number];
-
-type LayoutItem =
-  | { type: 'row'; data: BroadsheetRowData; sortOrder: number; sectionId?: string | null }
-  | { type: 'widget'; data: BroadsheetWidgetData; sortOrder: number; sectionId?: string | null };
 
 interface BroadsheetRendererProps {
   edition: BroadsheetData;
 }
 
 export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
-  // Build unified layout items from rows and widgets
-  const allItems: LayoutItem[] = [
-    ...edition.rows.map((r) => ({
-      type: 'row' as const,
-      data: r,
-      sortOrder: r.sortOrder,
-      sectionId: r.sectionId,
-    })),
-    ...(edition.widgets ?? []).map((w) => ({
-      type: 'widget' as const,
-      data: w,
-      sortOrder: w.sortOrder,
-      sectionId: w.sectionId,
-    })),
-  ].sort((a, b) => a.sortOrder - b.sortOrder);
+  const rows = [...edition.rows].sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Group items by section
-  const ungroupedItems = allItems.filter((item) => !item.sectionId);
+  // Group rows by section
+  const ungroupedRows = rows.filter((r) => !r.sectionId);
   const sortedSections = [...edition.sections].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
@@ -75,28 +56,20 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
         </div>
       </header>
 
-      {/* Above the fold — items without a section */}
-      {ungroupedItems.map((item, idx) =>
-        item.type === 'row' ? (
-          <BroadsheetRow key={`ungrouped-row-${idx}`} row={item.data} />
-        ) : (
-          <WidgetRenderer key={`ungrouped-widget-${idx}`} widget={item.data} />
-        )
-      )}
+      {/* Above the fold — rows without a section */}
+      {ungroupedRows.map((row, idx) => (
+        <BroadsheetRow key={`ungrouped-row-${idx}`} row={row} />
+      ))}
 
-      {/* Topic sections — items interleaved by sort_order */}
+      {/* Topic sections — rows interleaved by sort_order */}
       {sortedSections.map((section) => {
-        const sectionItems = allItems.filter((item) => item.sectionId === section.id);
-        if (sectionItems.length === 0) return null;
+        const sectionRows = rows.filter((r) => r.sectionId === section.id);
+        if (sectionRows.length === 0) return null;
         return (
           <div key={section.id} data-section={section.topicSlug ?? section.id}>
-            {sectionItems.map((item, idx) =>
-              item.type === 'row' ? (
-                <BroadsheetRow key={`section-row-${idx}`} row={item.data} />
-              ) : (
-                <WidgetRenderer key={`section-widget-${idx}`} widget={item.data} />
-              )
-            )}
+            {sectionRows.map((row, idx) => (
+              <BroadsheetRow key={`section-row-${idx}`} row={row} />
+            ))}
           </div>
         );
       })}
@@ -109,17 +82,26 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
 // =============================================================================
 
 function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
-  const layout = getRowLayout(row.layoutVariant ?? 'full', row.slots.length);
+  // Widget-standalone rows render the widget directly without Row/Cell wrapper
+  if (row.layoutVariant === 'widget-standalone') {
+    const widgetSlot = row.slots.find((s) => s.kind === 'widget');
+    if (!widgetSlot?.widget) return null;
+    return <WidgetRenderer widget={widgetSlot.widget} />;
+  }
 
-  // Distribute slots into cells
-  const cellSlots = distributeSlots(row.slots, layout);
+  // Filter to only post slots for the row layout engine
+  const postSlots = row.slots.filter((s) => s.kind === 'post' && s.post);
+  const layout = getRowLayout(row.layoutVariant ?? 'full', postSlots.length);
+
+  // Distribute post slots into cells
+  const cellSlots = distributeSlots(postSlots, layout);
 
   return (
     <Row variant={layout.variant}>
       {cellSlots.map((slots, cellIdx) => (
         <Cell key={cellIdx} span={layout.cells[cellIdx]}>
           {slots.map((slot) => (
-            <SlotRenderer key={slot.post.id} slot={slot} />
+            <SlotRenderer key={slot.post!.id} slot={slot} />
           ))}
         </Cell>
       ))}
@@ -132,6 +114,12 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
 // =============================================================================
 
 function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
+  if (slot.kind === 'widget' && slot.widget) {
+    return <WidgetRenderer widget={slot.widget} />;
+  }
+
+  if (!slot.post || !slot.postTemplate) return null;
+
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
   const post = preparePost(slot.post, slot.postTemplate);
 
@@ -147,50 +135,43 @@ function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
 }
 
 // =============================================================================
-// Widget renderer — parses config JSON and maps widgetType → component
+// Widget renderer — reads widget data and maps widgetType → component
 // =============================================================================
 
-function WidgetRenderer({ widget }: { widget: BroadsheetWidgetData }) {
-  let config: Record<string, unknown> = {};
+type WidgetData = NonNullable<BroadsheetSlotData['widget']>;
+
+function WidgetRenderer({ widget }: { widget: WidgetData }) {
+  let data: Record<string, unknown> = {};
   try {
-    config = typeof widget.config === 'string'
-      ? JSON.parse(widget.config)
-      : (widget.config as Record<string, unknown>);
+    data = typeof widget.data === 'string'
+      ? JSON.parse(widget.data)
+      : (widget.data as Record<string, unknown>) ?? {};
   } catch {
-    // Invalid JSON — render nothing
     return null;
   }
 
   switch (widget.widgetType) {
     case 'section_header':
-      return (
-        <SectionSep
-          title={(config.title as string) || 'Section'}
-          sub={config.subtitle as string | undefined}
-        />
-      );
-
     case 'section_sep':
       return (
         <SectionSep
-          title={(config.title as string) || ''}
-          sub={config.subtitle as string | undefined}
+          title={(data.title as string) || 'Section'}
+          sub={data.sub as string | undefined}
         />
       );
 
-    case 'hotline_bar':
+    case 'resource_bar':
       return (
         <ResourceBar
-          label={(config.label as string) || 'Resources'}
+          label={(data.label as string) || 'Resources'}
           items={
-            Array.isArray(config.items)
-              ? (config.items as Array<{ number: string; text: string }>)
+            Array.isArray(data.items)
+              ? (data.items as Array<{ number: string; text: string }>)
               : []
           }
         />
       );
 
-    // Weather widgets need real data — render placeholder for now
     case 'weather':
       return (
         <div className="widget-placeholder" data-widget={widget.widgetType}>
@@ -199,7 +180,6 @@ function WidgetRenderer({ widget }: { widget: BroadsheetWidgetData }) {
       );
 
     default:
-      // Unknown widget type — skip
       return null;
   }
 }

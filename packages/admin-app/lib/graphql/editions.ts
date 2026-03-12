@@ -135,13 +135,6 @@ export const EditionDetailQuery = graphql(`
         topicSlug
         sortOrder
       }
-      widgets {
-        id
-        widgetType
-        sortOrder
-        sectionId
-        config
-      }
       rows {
         id
         sectionId
@@ -162,6 +155,7 @@ export const EditionDetailQuery = graphql(`
         sortOrder
         slots {
           id
+          kind
           post {
             id
             title
@@ -170,6 +164,12 @@ export const EditionDetailQuery = graphql(`
             status
           }
           postTemplate
+          widget {
+            id
+            widgetType
+            authoringMode
+            data
+          }
           slotIndex
         }
       }
@@ -388,33 +388,19 @@ export const EditionKanbanStatsQuery = graphql(`
   }
 `);
 
-export const AddWidgetMutation = graphql(`
-  mutation AddWidget($editionId: ID!, $widgetType: String!, $sortOrder: Int!, $sectionId: ID, $config: String!) {
-    addWidget(editionId: $editionId, widgetType: $widgetType, sortOrder: $sortOrder, sectionId: $sectionId, config: $config) {
+export const AddWidgetToEditionMutation = graphql(`
+  mutation AddWidgetToEdition($editionRowId: ID!, $widgetId: ID!, $slotIndex: Int!) {
+    addWidgetToEdition(editionRowId: $editionRowId, widgetId: $widgetId, slotIndex: $slotIndex) {
       id
-      widgetType
-      sortOrder
-      sectionId
-      config
+      kind
+      slotIndex
+      widget {
+        id
+        widgetType
+        authoringMode
+        data
+      }
     }
-  }
-`);
-
-export const UpdateWidgetMutation = graphql(`
-  mutation UpdateWidget($id: ID!, $config: String!) {
-    updateWidget(id: $id, config: $config) {
-      id
-      widgetType
-      sortOrder
-      sectionId
-      config
-    }
-  }
-`);
-
-export const RemoveWidgetMutation = graphql(`
-  mutation RemoveWidget($id: ID!) {
-    removeWidget(id: $id)
   }
 `);
 

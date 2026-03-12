@@ -22,19 +22,13 @@ export const EditionPreviewQuery = graphql(`
         topicSlug
         sortOrder
       }
-      widgets {
-        id
-        widgetType
-        sortOrder
-        sectionId
-        config
-      }
       rows {
         rowTemplateSlug
         layoutVariant
         sortOrder
         sectionId
         slots {
+          kind
           postTemplate
           slotIndex
           post {
@@ -67,6 +61,12 @@ export const EditionPreviewQuery = graphql(`
             bodyMedium
             bodyLight
           }
+          widget {
+            id
+            widgetType
+            authoringMode
+            data
+          }
         }
       }
     }
@@ -95,19 +95,13 @@ export const PublicBroadsheetQuery = graphql(`
         topicSlug
         sortOrder
       }
-      widgets {
-        id
-        widgetType
-        sortOrder
-        sectionId
-        config
-      }
       rows {
         rowTemplateSlug
         layoutVariant
         sortOrder
         sectionId
         slots {
+          kind
           postTemplate
           slotIndex
           post {
@@ -139,6 +133,12 @@ export const PublicBroadsheetQuery = graphql(`
             bodyHeavy
             bodyMedium
             bodyLight
+          }
+          widget {
+            id
+            widgetType
+            authoringMode
+            data
           }
         }
       }

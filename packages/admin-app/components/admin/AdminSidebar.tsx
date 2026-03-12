@@ -14,6 +14,7 @@ import {
   Radio,
   PenSquare,
   Megaphone,
+  Puzzle,
   ExternalLink,
   LogOut,
   Settings,
@@ -82,6 +83,7 @@ const navGroups: NavGroup[] = [
     items: [
       { href: "/admin/signal", label: "Signal", icon: <Radio /> },
       { href: "/admin/posts", label: "Editorial", icon: <PenSquare /> },
+      { href: "/admin/widgets", label: "Widgets", icon: <Puzzle /> },
       { href: "/admin/notes", label: "Notes", icon: <Megaphone /> },
       { href: "/admin/media", label: "Media", icon: <Image /> },
       { href: "/admin/organizations", label: "Sources", icon: <Building2 /> },

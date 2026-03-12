@@ -34,8 +34,6 @@ import {
   ChevronUp,
   ChevronDown,
   X,
-  Pencil,
-  Trash2,
   Plus,
   GripVertical,
   ExternalLink,
@@ -43,6 +41,7 @@ import {
   ChevronRight,
   ListStart,
   LayoutDashboard,
+  Puzzle,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -87,15 +86,14 @@ import {
   AddEditionRowMutation,
   UpdateEditionRowMutation,
   DeleteEditionRowMutation,
-  AddWidgetMutation,
-  UpdateWidgetMutation,
-  RemoveWidgetMutation,
+  AddWidgetToEditionMutation,
   AddSectionMutation,
   UpdateSectionMutation,
   DeleteSectionMutation,
   AssignRowToSectionMutation,
   ReorderSectionsMutation,
 } from "@/lib/graphql/editions";
+import { EditionWidgetsQuery } from "@/lib/graphql/widgets";
 import type {
   EditionDetailQuery as EditionDetailQueryType,
   RowTemplatesQuery as RowTemplatesQueryType,
@@ -107,7 +105,6 @@ import type {
 type Edition = NonNullable<EditionDetailQueryType["edition"]>;
 type EditionRow = Edition["rows"][number];
 type EditionSlot = EditionRow["slots"][number];
-type EditionWidget = Edition["widgets"][number];
 type EditionSection = Edition["sections"][number];
 type TemplateSlotDef = EditionRow["rowTemplate"]["slots"][number];
 type RowTemplate = RowTemplatesQueryType["rowTemplates"][number];
@@ -284,53 +281,6 @@ function RowTemplatePickerDialog({
   );
 }
 
-const WIDGET_TYPES = [
-  { type: "section_header", label: "Section Header", description: "Full-width divider with heading", defaultConfig: { title: "Section Title" } },
-  { type: "weather", label: "Weather", description: "County weather forecast card", defaultConfig: {} },
-  { type: "hotline_bar", label: "Hotline Bar", description: "Phone numbers and resources", defaultConfig: { lines: [{ label: "Crisis Line", phone: "988" }] } },
-  { type: "section_sep", label: "Section Separator", description: "Visual divider between sections", defaultConfig: {} },
-] as const;
-
-type WidgetTypeOption = (typeof WIDGET_TYPES)[number];
-
-function WidgetPickerDialog({
-  open,
-  onOpenChange,
-  onSelect,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSelect: (wt: WidgetTypeOption) => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Choose widget type</DialogTitle>
-          <DialogDescription>
-            Select a widget to insert into the layout.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid grid-cols-2 gap-3 py-2">
-          {WIDGET_TYPES.map((wt) => (
-            <button
-              key={wt.type}
-              onClick={() => onSelect(wt)}
-              className="flex flex-col items-start gap-1 rounded-lg border-2 border-border p-3 text-left transition-colors hover:bg-muted/50 hover:border-muted-foreground/30"
-            >
-              <span className="text-sm font-semibold text-foreground">
-                {wt.label}
-              </span>
-              <span className="text-[11px] text-muted-foreground leading-tight">
-                {wt.description}
-              </span>
-            </button>
-          ))}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function PostTemplatePickerDialog({
   open,
@@ -342,7 +292,7 @@ function PostTemplatePickerDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   templates: PostTemplate[];
-  currentSlug: string;
+  currentSlug: string | null | undefined;
   onSelect: (slug: string) => void;
 }) {
   return (
@@ -590,8 +540,9 @@ export default function EditionDetailPage() {
             </TabsContent>
 
             <TabsContent value="widgets">
-              <EditionWidgetsView edition={edition} refetchEdition={refetchEdition} />
+              <EditionWidgetsView editionId={edition.id} />
             </TabsContent>
+
           </div>
         </Tabs>
       </div>
@@ -620,7 +571,7 @@ function BroadsheetEditor({
 
   // Mutations
   const mutCtx = useMemo(
-    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot", "EditionSection", "EditionWidget"] }),
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot", "EditionSection"] }),
     []
   );
   const [, generateEdition] = useMutation(GenerateEditionMutation);
@@ -631,8 +582,7 @@ function BroadsheetEditor({
   const [, addRow] = useMutation(AddEditionRowMutation);
   const [, updateRowMut] = useMutation(UpdateEditionRowMutation);
   const [, deleteRowMut] = useMutation(DeleteEditionRowMutation);
-  const [, addWidgetMut] = useMutation(AddWidgetMutation);
-  const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
+  const [, addWidgetToEditionMut] = useMutation(AddWidgetToEditionMutation);
   const [, addSectionMut] = useMutation(AddSectionMutation);
   const [, updateSectionMut] = useMutation(UpdateSectionMutation);
   const [, deleteSectionMut] = useMutation(DeleteSectionMutation);
@@ -814,28 +764,20 @@ function BroadsheetEditor({
     [removePost, mutCtx, refetchEdition]
   );
 
-  const handleAddWidget = useCallback(
-    async (widgetType: string, sortOrder: number, sectionId: string | null, config: Record<string, unknown>) => {
-      const result = await addWidgetMut(
-        { editionId: edition!.id, widgetType, sortOrder, sectionId, config: JSON.stringify(config) },
+  const handleAddWidgetToEdition = useCallback(
+    async (editionRowId: string, widgetId: string, slotIndex: number) => {
+      const result = await addWidgetToEditionMut(
+        { editionRowId, widgetId, slotIndex },
         mutCtx
       );
       if (result.error) {
-        console.error("addWidget failed:", result.error);
+        console.error("addWidgetToEdition failed:", result.error);
         setActionError(`Failed to add widget: ${result.error.message}`);
         return;
       }
       refetchEdition({ requestPolicy: "network-only" });
     },
-    [edition, addWidgetMut, mutCtx, refetchEdition]
-  );
-
-  const handleRemoveWidget = useCallback(
-    async (widgetId: string) => {
-      await removeWidgetMut({ id: widgetId }, mutCtx);
-      refetchEdition({ requestPolicy: "network-only" });
-    },
-    [removeWidgetMut, mutCtx, refetchEdition]
+    [addWidgetToEditionMut, mutCtx, refetchEdition]
   );
 
   // Section handlers
@@ -960,7 +902,6 @@ function BroadsheetEditor({
             <SectionGroupedLayout
               rows={sortedRows}
               sections={sections}
-              widgets={edition.widgets ?? []}
               isEditable={isEditable}
               isDragging={isDragging}
               dragType={dragType}
@@ -973,9 +914,8 @@ function BroadsheetEditor({
               onChangeTemplate={handleChangeTemplate}
               onRemovePost={handleRemovePost}
               onViewPost={(postId) => router.push(`/admin/posts/${postId}`)}
-              onAddWidget={handleAddWidget}
-              onRemoveWidget={handleRemoveWidget}
               onAddRow={handleAddRow}
+              onAddWidget={handleAddWidgetToEdition}
               onAddSection={handleAddSection}
               onUpdateSection={handleUpdateSection}
               onDeleteSection={handleDeleteSection}
@@ -1068,136 +1008,92 @@ function EditionPostsView({ edition }: { edition: Edition }) {
   );
 }
 
-// ─── Edition Widgets View ───────────────────────────────────────────────────
+// ─── Edition Widgets View ─────────────────────────────────────────────────────
 
-function EditionWidgetsView({
-  edition,
-  refetchEdition,
-}: {
-  edition: Edition;
-  refetchEdition: (opts?: any) => void;
-}) {
-  const [, updateWidgetMut] = useMutation(UpdateWidgetMutation);
-  const [, removeWidgetMut] = useMutation(RemoveWidgetMutation);
-  const mutCtx = useMemo(
-    () => ({ additionalTypenames: ["Edition", "EditionWidget"] }),
-    []
-  );
+function EditionWidgetsView({ editionId }: { editionId: string }) {
+  const router = useRouter();
+  const [slottedFilter, setSlottedFilter] = useState<string>("all");
 
-  const [editingWidget, setEditingWidget] = useState<string | null>(null);
-  const [editConfig, setEditConfig] = useState("");
+  const [{ data, fetching }] = useQuery({
+    query: EditionWidgetsQuery,
+    variables: {
+      editionId,
+      slottedFilter: slottedFilter === "all" ? undefined : slottedFilter,
+      limit: 100,
+    },
+  });
 
-  const allWidgets = useMemo(
-    () => [...(edition.widgets ?? [])].sort((a, b) => a.sortOrder - b.sortOrder),
-    [edition]
-  );
-
-  const isEditable = edition.status !== "published" && edition.status !== "archived";
-
-  const handleUpdate = async (widgetId: string) => {
-    try {
-      JSON.parse(editConfig);
-    } catch {
-      alert("Invalid JSON config");
-      return;
-    }
-    await updateWidgetMut({ id: widgetId, config: editConfig }, mutCtx);
-    refetchEdition({ requestPolicy: "network-only" });
-    setEditingWidget(null);
-  };
-
-  const handleRemove = async (widgetId: string) => {
-    if (!confirm("Remove this widget?")) return;
-    await removeWidgetMut({ id: widgetId }, mutCtx);
-    refetchEdition({ requestPolicy: "network-only" });
-  };
+  const widgets = data?.editionWidgets ?? [];
 
   return (
     <>
-      <div className="flex items-center justify-between mb-4">
-        <p className="text-sm text-muted-foreground">
-          {allWidgets.length} widget{allWidgets.length !== 1 ? "s" : ""} in this edition.
-          Add widgets from the Broadsheet tab using the inline inserters.
-        </p>
+      <div className="flex items-center gap-3 mb-4">
+        <Tabs value={slottedFilter} onValueChange={setSlottedFilter}>
+          <TabsList variant="line">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="slotted">Slotted</TabsTrigger>
+            <TabsTrigger value="not_slotted">Not Slotted</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <span className="text-sm text-muted-foreground ml-auto">
+          {widgets.length} widget{widgets.length !== 1 ? "s" : ""}
+        </span>
       </div>
 
-      {allWidgets.length === 0 ? (
+      {fetching ? (
+        <AdminLoader />
+      ) : widgets.length === 0 ? (
         <div className="text-muted-foreground text-center py-12 text-sm">
-          No widgets in this edition yet.
+          {slottedFilter === "not_slotted"
+            ? "All matching widgets are already slotted."
+            : slottedFilter === "slotted"
+              ? "No widgets slotted in this edition yet."
+              : "No widgets match this edition\u2019s county and date range."}
         </div>
       ) : (
-        <div className="space-y-3">
-          {allWidgets.map((widget) => (
-            <div
-              key={widget.id}
-              className="bg-card rounded-lg border border-border p-4"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="spotlight">{widget.widgetType}</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      Sort order: {widget.sortOrder}
-                      {widget.sectionId && ` · Section`}
-                    </span>
-                  </div>
-
-                  {editingWidget === widget.id ? (
-                    <div className="mt-2">
-                      <Textarea
-                        value={editConfig}
-                        onChange={(e) => setEditConfig(e.target.value)}
-                        className="font-mono h-24 min-h-0 resize-none"
-                      />
-                      <div className="flex gap-2 mt-2">
-                        <Button variant="admin" size="sm" onClick={() => handleUpdate(widget.id)}>
-                          Save
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setEditingWidget(null)}>
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  ) : (
-                    <pre className="mt-1 text-xs text-muted-foreground bg-muted rounded p-2 overflow-x-auto max-w-lg">
-                      {(() => {
-                        try {
-                          return JSON.stringify(JSON.parse(widget.config), null, 2);
-                        } catch {
-                          return widget.config;
-                        }
-                      })()}
-                    </pre>
-                  )}
-                </div>
-
-                {isEditable && editingWidget !== widget.id && (
-                  <div className="flex gap-1 ml-3 shrink-0">
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => {
-                        setEditingWidget(widget.id);
-                        setEditConfig(widget.config);
-                      }}
-                      title="Edit config"
-                    >
-                      <Pencil className="size-3.5" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon-xs"
-                      onClick={() => handleRemove(widget.id)}
-                      className="hover:text-destructive"
-                      title="Remove widget"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="rounded-md border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/50">
+                <th className="text-left p-3 font-medium">Type</th>
+                <th className="text-left p-3 font-medium">Summary</th>
+                <th className="text-left p-3 font-medium">County</th>
+                <th className="text-left p-3 font-medium">Date Range</th>
+              </tr>
+            </thead>
+            <tbody>
+              {widgets.map((w) => {
+                const summary = widgetSummary(w.widgetType, w.data);
+                return (
+                  <tr
+                    key={w.id}
+                    className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
+                    onClick={() => router.push(`/admin/widgets/${w.id}`)}
+                  >
+                    <td className="p-3">
+                      <Badge
+                        variant="secondary"
+                        className={`text-[10px] ${WIDGET_TYPE_COLORS[w.widgetType] ?? ""}`}
+                      >
+                        {WIDGET_TYPE_LABELS[w.widgetType] ?? w.widgetType}
+                      </Badge>
+                    </td>
+                    <td className="p-3 text-muted-foreground truncate max-w-xs">
+                      {summary || <span className="italic">Empty</span>}
+                    </td>
+                    <td className="p-3 text-muted-foreground">
+                      {w.county?.name ?? "—"}
+                    </td>
+                    <td className="p-3 text-muted-foreground text-xs">
+                      {w.startDate || w.endDate
+                        ? `${w.startDate ?? "∞"} — ${w.endDate ?? "∞"}`
+                        : "Evergreen"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </>
@@ -1222,6 +1118,7 @@ function RowEditor({
   onChangeTemplate,
   onRemovePost,
   onViewPost,
+  onAddWidget,
 }: {
   row: EditionRow;
   rowIndex: number;
@@ -1238,6 +1135,7 @@ function RowEditor({
   onChangeTemplate: (slotId: string, template: string) => void;
   onRemovePost: (slotId: string) => void;
   onViewPost: (postId: string) => void;
+  onAddWidget: (editionRowId: string, widgetId: string, slotIndex: number) => void;
 }) {
   const {
     attributes: sortableAttributes,
@@ -1271,7 +1169,7 @@ function RowEditor({
     return map;
   }, [row.slots]);
 
-  const postCount = row.slots.length;
+  const slotCount = row.slots.length;
 
   return (
     <div
@@ -1313,7 +1211,7 @@ function RowEditor({
         <div className="flex items-center gap-1">
           {collapsed && (
             <span className="text-xs text-muted-foreground">
-              {postCount} post{postCount !== 1 ? "s" : ""}
+              {slotCount} slot{slotCount !== 1 ? "s" : ""}
             </span>
           )}
           {isEditable && (
@@ -1365,6 +1263,7 @@ function RowEditor({
                 onChangeTemplate={onChangeTemplate}
                 onRemovePost={onRemovePost}
                 onViewPost={onViewPost}
+                onAddWidget={(widgetId) => onAddWidget(row.id, widgetId, tSlot.slotIndex)}
               />
             ))}
           </div>
@@ -1374,129 +1273,11 @@ function RowEditor({
   );
 }
 
-// ─── WidgetCard ─────────────────────────────────────────────────────────────
-
-function WidgetCard({
-  widget,
-  isEditable,
-  onRemove,
-}: {
-  widget: EditionWidget;
-  isEditable: boolean;
-  onRemove: (id: string) => void;
-}) {
-  const config = parseWidgetConfig(widget.config);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 px-3 py-2">
-      <WidgetIcon type={widget.widgetType} />
-      <div className="flex-1 min-w-0">
-        <WidgetContent type={widget.widgetType} config={config} />
-      </div>
-      {isEditable && (
-        <>
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={() => setConfirmOpen(true)}
-            className="text-destructive hover:text-destructive shrink-0"
-          >
-            Remove
-          </Button>
-          <ConfirmDialog
-            open={confirmOpen}
-            onOpenChange={setConfirmOpen}
-            title="Remove widget"
-            description="This widget will be permanently deleted from this row."
-            confirmLabel="Remove widget"
-            onConfirm={() => onRemove(widget.id)}
-          />
-        </>
-      )}
-    </div>
-  );
-}
-
-function WidgetIcon({ type }: { type: string }) {
-  const icons: Record<string, { bg: string; label: string }> = {
-    section_header: { bg: "bg-blue-100 text-blue-700", label: "H" },
-    weather: { bg: "bg-sky-100 text-sky-700", label: "W" },
-    hotline_bar: { bg: "bg-rose-100 text-rose-700", label: "P" },
-  };
-  const icon = icons[type] ?? { bg: "bg-muted text-muted-foreground", label: "?" };
-  return (
-    <div className={`w-7 h-7 rounded flex items-center justify-center text-xs font-bold shrink-0 ${icon.bg}`}>
-      {icon.label}
-    </div>
-  );
-}
-
-function WidgetContent({ type, config }: { type: string; config: Record<string, unknown> }) {
-  switch (type) {
-    case "section_header":
-      return (
-        <div>
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Section Header</div>
-          <div className="text-sm font-semibold text-foreground truncate">
-            {(config.title as string) || "Untitled"}
-          </div>
-          {typeof config.subtitle === "string" && config.subtitle && (
-            <div className="text-xs text-muted-foreground truncate">{config.subtitle}</div>
-          )}
-        </div>
-      );
-    case "weather":
-      return (
-        <div>
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Weather</div>
-          <div className="text-sm text-foreground">
-            {config.location_id ? `Location: ${config.location_id}` : "County default"}
-          </div>
-        </div>
-      );
-    case "hotline_bar": {
-      const lines = Array.isArray(config.lines) ? config.lines : [];
-      return (
-        <div>
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Hotline Bar</div>
-          <div className="text-sm text-foreground">
-            {lines.length > 0
-              ? lines.map((l: Record<string, unknown>) => (l.label as string) || "Line").join(", ")
-              : "No lines configured"}
-          </div>
-        </div>
-      );
-    }
-    default:
-      return (
-        <div>
-          <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{type}</div>
-          <div className="text-xs text-muted-foreground">Unknown widget type</div>
-        </div>
-      );
-  }
-}
-
-function parseWidgetConfig(config: string | null | undefined): Record<string, unknown> {
-  if (!config) return {};
-  try {
-    return JSON.parse(config) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
-}
-
 // ─── SectionGroupedLayout ────────────────────────────────────────────────────
-
-type LayoutItem =
-  | { type: "row"; data: EditionRow; sortOrder: number }
-  | { type: "widget"; data: EditionWidget; sortOrder: number };
 
 function SectionGroupedLayout({
   rows,
   sections,
-  widgets,
   isEditable,
   isDragging,
   dragType,
@@ -1509,16 +1290,14 @@ function SectionGroupedLayout({
   onChangeTemplate,
   onRemovePost,
   onViewPost,
-  onAddWidget,
-  onRemoveWidget,
   onAddRow,
+  onAddWidget,
   onAddSection,
   onUpdateSection,
   onDeleteSection,
 }: {
   rows: EditionRow[];
   sections: EditionSection[];
-  widgets: EditionWidget[];
   isEditable: boolean;
   isDragging: boolean;
   dragType: "row" | "section" | "slot" | null;
@@ -1531,34 +1310,27 @@ function SectionGroupedLayout({
   onChangeTemplate: (slotId: string, template: string) => void;
   onRemovePost: (slotId: string) => void;
   onViewPost: (postId: string) => void;
-  onAddWidget: (widgetType: string, sortOrder: number, sectionId: string | null, config: Record<string, unknown>) => void;
-  onRemoveWidget: (widgetId: string) => void;
   onAddRow: (templateSlug: string, sortOrder?: number) => void;
+  onAddWidget: (editionRowId: string, widgetId: string, slotIndex: number) => void;
   onAddSection: (title: string, sortOrder?: number) => void;
   onUpdateSection: (sectionId: string, title: string) => void;
   onDeleteSection: (sectionId: string) => void;
 }) {
-  // Build unified layout items per section (and ungrouped)
+  // Build row items per section (and ungrouped)
   const buildItems = useCallback(
-    (sectionId: string | null): LayoutItem[] => {
-      const items: LayoutItem[] = [
-        ...rows
-          .filter((r) => (sectionId ? r.sectionId === sectionId : !r.sectionId))
-          .map((r) => ({ type: "row" as const, data: r, sortOrder: r.sortOrder })),
-        ...widgets
-          .filter((w) => (sectionId ? w.sectionId === sectionId : !w.sectionId))
-          .map((w) => ({ type: "widget" as const, data: w, sortOrder: w.sortOrder })),
-      ];
-      return items.sort((a, b) => a.sortOrder - b.sortOrder);
+    (sectionId: string | null): EditionRow[] => {
+      return rows
+        .filter((r) => (sectionId ? r.sectionId === sectionId : !r.sectionId))
+        .sort((a, b) => a.sortOrder - b.sortOrder);
     },
-    [rows, widgets]
+    [rows]
   );
 
   const ungroupedItems = useMemo(() => buildItems(null), [buildItems]);
 
   // IDs for per-group SortableContexts
   const ungroupedRowIds = useMemo(
-    () => ungroupedItems.filter((i) => i.type === "row").map((i) => i.data.id),
+    () => ungroupedItems.map((r) => r.id),
     [ungroupedItems]
   );
   const sectionSortableIds = useMemo(
@@ -1566,8 +1338,8 @@ function SectionGroupedLayout({
     [sections]
   );
 
-  // Calculate sort order for inserting between items
-  const getInsertSortOrder = (items: LayoutItem[], index: number) => {
+  // Calculate sort order for inserting between rows
+  const getInsertSortOrder = (items: EditionRow[], index: number) => {
     if (items.length === 0) return 0;
     if (index <= 0) return (items[0]?.sortOrder ?? 0) - 10;
     if (index >= items.length) return (items[items.length - 1]?.sortOrder ?? 0) + 10;
@@ -1576,55 +1348,43 @@ function SectionGroupedLayout({
     return Math.floor((prev + next) / 2);
   };
 
-  const renderLayoutItems = (items: LayoutItem[], sectionId: string | null) => (
+  const renderLayoutItems = (items: EditionRow[], sectionId: string | null) => (
     <div className="space-y-3">
-      {items.map((item, idx) => (
-        <div key={item.type === "row" ? item.data.id : item.data.id}>
+      {items.map((row, idx) => (
+        <div key={row.id}>
           {isEditable && allRowsCollapsed && (
             <InlineInserter
               sortOrder={getInsertSortOrder(items, idx)}
-              sectionId={sectionId}
               rowTemplates={rowTemplates}
               onAddRow={onAddRow}
-              onAddWidget={onAddWidget}
             />
           )}
-          {item.type === "row" ? (
-            <RowEditor
-              row={item.data}
-              rowIndex={idx}
-              totalRows={rows.length}
-              isEditable={isEditable}
-              isDragging={isDragging}
-              dragType={dragType}
-              collapsed={allRowsCollapsed}
-              rowTemplates={rowTemplates}
-              postTemplates={postTemplates}
-              onMoveRow={onMoveRow}
-              onDeleteRow={onDeleteRow}
-              onChangeRowTemplate={onChangeRowTemplate}
-              onChangeTemplate={onChangeTemplate}
-              onRemovePost={onRemovePost}
-              onViewPost={onViewPost}
-            />
-          ) : (
-            <WidgetItem
-              widget={item.data}
-              isEditable={isEditable}
-              collapsed={allRowsCollapsed}
-              onRemove={onRemoveWidget}
-            />
-          )}
+          <RowEditor
+            row={row}
+            rowIndex={idx}
+            totalRows={rows.length}
+            isEditable={isEditable}
+            isDragging={isDragging}
+            dragType={dragType}
+            collapsed={allRowsCollapsed}
+            rowTemplates={rowTemplates}
+            postTemplates={postTemplates}
+            onMoveRow={onMoveRow}
+            onDeleteRow={onDeleteRow}
+            onChangeRowTemplate={onChangeRowTemplate}
+            onChangeTemplate={onChangeTemplate}
+            onRemovePost={onRemovePost}
+            onViewPost={onViewPost}
+            onAddWidget={onAddWidget}
+          />
         </div>
       ))}
       {/* Trailing inserter after last item */}
       {isEditable && allRowsCollapsed && (
         <InlineInserter
           sortOrder={getInsertSortOrder(items, items.length)}
-          sectionId={sectionId}
           rowTemplates={rowTemplates}
           onAddRow={onAddRow}
-          onAddWidget={onAddWidget}
         />
       )}
     </div>
@@ -1689,9 +1449,8 @@ function SectionGroupedLayout({
                 onChangeTemplate={onChangeTemplate}
                 onRemovePost={onRemovePost}
                 onViewPost={onViewPost}
-                onAddWidget={onAddWidget}
-                onRemoveWidget={onRemoveWidget}
                 onAddRow={onAddRow}
+                onAddWidget={onAddWidget}
                 onUpdateSection={onUpdateSection}
                 onDeleteSection={onDeleteSection}
               />
@@ -1716,10 +1475,8 @@ function SectionGroupedLayout({
         <div className="space-y-2">
           <InlineInserter
             sortOrder={0}
-            sectionId={null}
             rowTemplates={rowTemplates}
             onAddRow={onAddRow}
-            onAddWidget={onAddWidget}
           />
           <SectionInserter sortOrder={0} onAddSection={onAddSection} />
         </div>
@@ -1746,14 +1503,13 @@ function SectionBlock({
   onChangeTemplate,
   onRemovePost,
   onViewPost,
-  onAddWidget,
-  onRemoveWidget,
   onAddRow,
+  onAddWidget,
   onUpdateSection,
   onDeleteSection,
 }: {
   section: EditionSection;
-  items: LayoutItem[];
+  items: EditionRow[];
   rows: EditionRow[];
   isEditable: boolean;
   isDragging: boolean;
@@ -1767,9 +1523,8 @@ function SectionBlock({
   onChangeTemplate: (slotId: string, template: string) => void;
   onRemovePost: (slotId: string) => void;
   onViewPost: (postId: string) => void;
-  onAddWidget: (widgetType: string, sortOrder: number, sectionId: string | null, config: Record<string, unknown>) => void;
-  onRemoveWidget: (widgetId: string) => void;
   onAddRow: (templateSlug: string, sortOrder?: number) => void;
+  onAddWidget: (editionRowId: string, widgetId: string, slotIndex: number) => void;
   onUpdateSection: (sectionId: string, title: string) => void;
   onDeleteSection: (sectionId: string) => void;
 }) {
@@ -1800,7 +1555,7 @@ function SectionBlock({
 
   // Row IDs in this section for SortableContext
   const sectionRowIds = useMemo(
-    () => items.filter((i) => i.type === "row").map((i) => i.data.id),
+    () => items.map((r) => r.id),
     [items]
   );
 
@@ -1912,52 +1667,40 @@ function SectionBlock({
           ) : (
             <SortableContext items={sectionRowIds} strategy={verticalListSortingStrategy}>
               <div className="space-y-3">
-                {items.map((item, idx) => (
-                  <div key={item.type === "row" ? item.data.id : item.data.id}>
+                {items.map((row, idx) => (
+                  <div key={row.id}>
                     {isEditable && allRowsCollapsed && (
                       <InlineInserter
                         sortOrder={getInsertSortOrder(idx)}
-                        sectionId={section.id}
                         rowTemplates={rowTemplates}
                         onAddRow={onAddRow}
-                        onAddWidget={onAddWidget}
                       />
                     )}
-                    {item.type === "row" ? (
-                      <RowEditor
-                        row={item.data}
-                        rowIndex={idx}
-                        totalRows={rows.length}
-                        isEditable={isEditable}
-                        isDragging={isDragging}
-                        dragType={dragType}
-                        collapsed={allRowsCollapsed}
-                        rowTemplates={rowTemplates}
-                        postTemplates={postTemplates}
-                        onMoveRow={onMoveRow}
-                        onDeleteRow={onDeleteRow}
-                        onChangeRowTemplate={onChangeRowTemplate}
-                        onChangeTemplate={onChangeTemplate}
-                        onRemovePost={onRemovePost}
-                        onViewPost={onViewPost}
-                      />
-                    ) : (
-                      <WidgetItem
-                        widget={item.data}
-                        isEditable={isEditable}
-                        collapsed={allRowsCollapsed}
-                        onRemove={onRemoveWidget}
-                      />
-                    )}
+                    <RowEditor
+                      row={row}
+                      rowIndex={idx}
+                      totalRows={rows.length}
+                      isEditable={isEditable}
+                      isDragging={isDragging}
+                      dragType={dragType}
+                      collapsed={allRowsCollapsed}
+                      rowTemplates={rowTemplates}
+                      postTemplates={postTemplates}
+                      onMoveRow={onMoveRow}
+                      onDeleteRow={onDeleteRow}
+                      onChangeRowTemplate={onChangeRowTemplate}
+                      onChangeTemplate={onChangeTemplate}
+                      onRemovePost={onRemovePost}
+                      onViewPost={onViewPost}
+                      onAddWidget={onAddWidget}
+                    />
                   </div>
                 ))}
                 {isEditable && allRowsCollapsed && (
                   <InlineInserter
                     sortOrder={getInsertSortOrder(items.length)}
-                    sectionId={section.id}
                     rowTemplates={rowTemplates}
                     onAddRow={onAddRow}
-                    onAddWidget={onAddWidget}
                   />
                 )}
               </div>
@@ -1969,77 +1712,18 @@ function SectionBlock({
   );
 }
 
-// ─── WidgetItem (compact bar for arrange mode, full card for edit mode) ──────
-
-function WidgetItem({
-  widget,
-  isEditable,
-  collapsed,
-  onRemove,
-}: {
-  widget: EditionWidget;
-  isEditable: boolean;
-  collapsed: boolean;
-  onRemove: (id: string) => void;
-}) {
-  const config = parseWidgetConfig(widget.config);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-
-  if (collapsed) {
-    // Compact bar for arrange mode
-    return (
-      <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
-        <WidgetIcon type={widget.widgetType} />
-        <span className="text-sm font-medium text-foreground truncate flex-1">
-          {widget.widgetType.replace(/_/g, " ")}
-        </span>
-        {isEditable && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              onClick={() => setConfirmOpen(true)}
-              className="hover:text-destructive shrink-0"
-            >
-              <X className="size-3.5" />
-            </Button>
-            <ConfirmDialog
-              open={confirmOpen}
-              onOpenChange={setConfirmOpen}
-              title="Remove widget"
-              description="This widget will be permanently deleted from this edition."
-              confirmLabel="Remove widget"
-              onConfirm={() => onRemove(widget.id)}
-            />
-          </>
-        )}
-      </div>
-    );
-  }
-
-  // Full card for edit mode
-  return (
-    <WidgetCard widget={widget} isEditable={isEditable} onRemove={onRemove} />
-  );
-}
-
 // ─── InlineInserter (thin row between layout items) ─────────────────────────
 
 function InlineInserter({
   sortOrder,
-  sectionId,
   rowTemplates,
   onAddRow,
-  onAddWidget,
 }: {
   sortOrder: number;
-  sectionId: string | null;
   rowTemplates: RowTemplate[];
   onAddRow: (templateSlug: string, sortOrder?: number) => void;
-  onAddWidget: (widgetType: string, sortOrder: number, sectionId: string | null, config: Record<string, unknown>) => void;
 }) {
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
-  const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
 
   return (
     <div className="group relative flex items-center my-1">
@@ -2056,25 +1740,7 @@ function InlineInserter({
           <Plus className="size-3" />
           Row
         </Button>
-        <Button
-          variant="ghost"
-          size="xs"
-          className="text-[10px] text-muted-foreground h-5 px-1.5 bg-background"
-          onClick={() => setWidgetPickerOpen(true)}
-        >
-          <Plus className="size-3" />
-          Widget
-        </Button>
       </div>
-
-      <WidgetPickerDialog
-        open={widgetPickerOpen}
-        onOpenChange={setWidgetPickerOpen}
-        onSelect={(wt) => {
-          onAddWidget(wt.type, sortOrder, sectionId, wt.defaultConfig);
-          setWidgetPickerOpen(false);
-        }}
-      />
 
       <RowTemplatePickerDialog
         open={templatePickerOpen}
@@ -2224,6 +1890,7 @@ function SlotCell({
   onChangeTemplate,
   onRemovePost,
   onViewPost,
+  onAddWidget,
 }: {
   rowId: string;
   templateSlot: TemplateSlotDef;
@@ -2234,6 +1901,7 @@ function SlotCell({
   onChangeTemplate: (slotId: string, template: string) => void;
   onRemovePost: (slotId: string) => void;
   onViewPost: (postId: string) => void;
+  onAddWidget: (widgetId: string) => void;
 }) {
   const droppableId = `drop-${rowId}-${templateSlot.slotIndex}`;
   const { isOver, setNodeRef } = useDroppable({
@@ -2242,6 +1910,7 @@ function SlotCell({
   });
   const colSpan = WEIGHT_SPAN[templateSlot.weight] ?? 1;
   const hasRoom = editionSlots.length < templateSlot.count;
+  const [widgetPickerOpen, setWidgetPickerOpen] = useState(false);
 
   return (
     <div
@@ -2257,20 +1926,24 @@ function SlotCell({
       }`}
       style={{ gridColumn: `span ${colSpan}` }}
     >
-      {editionSlots.map((slot) => (
-        <DraggableSlotCard
-          key={slot.id}
-          slot={slot}
-          isEditable={isEditable}
-          postTemplates={postTemplates}
-          onChangeTemplate={onChangeTemplate}
-          onRemovePost={onRemovePost}
-          onViewPost={onViewPost}
-        />
-      ))}
+      {editionSlots.map((slot) =>
+        slot.kind === "widget" && slot.widget ? (
+          <WidgetSlotCard key={slot.id} slot={slot} isEditable={isEditable} onRemovePost={onRemovePost} />
+        ) : slot.post ? (
+          <DraggableSlotCard
+            key={slot.id}
+            slot={slot}
+            isEditable={isEditable}
+            postTemplates={postTemplates}
+            onChangeTemplate={onChangeTemplate}
+            onRemovePost={onRemovePost}
+            onViewPost={onViewPost}
+          />
+        ) : null
+      )}
       {hasRoom && (
         <div
-          className={`rounded-lg border-2 border-dashed p-3 flex items-center justify-center gap-2 ${
+          className={`rounded-lg border-2 border-dashed p-3 flex flex-col items-center justify-center gap-2 ${
             isOver
               ? "border-amber-400 bg-amber-50/50"
               : isDragging && isEditable
@@ -2282,14 +1955,231 @@ function SlotCell({
             <span className="text-xs font-medium text-amber-600">Drop here</span>
           ) : (
             <>
-              <WeightBadge weight={templateSlot.weight} />
-              <span className="text-xs text-muted-foreground">
-                {templateSlot.count - editionSlots.length} open
-              </span>
+              <div className="flex items-center gap-2">
+                <WeightBadge weight={templateSlot.weight} />
+                <span className="text-xs text-muted-foreground">
+                  {templateSlot.count - editionSlots.length} open
+                </span>
+              </div>
+              {isEditable && (
+                <Button
+                  variant="ghost"
+                  size="xs"
+                  className="text-[10px] text-violet-600 hover:text-violet-700 h-5 px-1.5"
+                  onClick={() => setWidgetPickerOpen(true)}
+                >
+                  <Puzzle className="size-3 mr-1" />
+                  Add Widget
+                </Button>
+              )}
             </>
           )}
         </div>
       )}
+      <WidgetPickerDialog
+        open={widgetPickerOpen}
+        onOpenChange={setWidgetPickerOpen}
+        onSelect={(widgetId) => {
+          onAddWidget(widgetId);
+          setWidgetPickerOpen(false);
+        }}
+      />
+    </div>
+  );
+}
+
+// ─── WidgetPickerDialog (search & select existing widget) ────────────────────
+
+const WIDGET_TYPE_LABELS: Record<string, string> = {
+  stat_card: "Stat Card",
+  number_block: "Number Block",
+  pull_quote: "Pull Quote",
+  resource_bar: "Resource Bar",
+  weather: "Weather",
+  section_sep: "Section Sep",
+};
+
+const WIDGET_TYPE_COLORS: Record<string, string> = {
+  stat_card: "bg-amber-100 text-amber-800",
+  number_block: "bg-violet-100 text-violet-800",
+  pull_quote: "bg-rose-100 text-rose-800",
+  resource_bar: "bg-teal-100 text-teal-800",
+  weather: "bg-sky-100 text-sky-800",
+  section_sep: "bg-gray-100 text-gray-700",
+};
+
+function widgetSummary(widgetType: string, dataStr: string | null): string {
+  if (!dataStr) return "";
+  try {
+    const data = typeof dataStr === "string" ? JSON.parse(dataStr) : dataStr;
+    switch (widgetType) {
+      case "stat_card":
+        return [data.number, data.title].filter(Boolean).join(" — ");
+      case "number_block":
+        return [data.number, data.label].filter(Boolean).join(" — ");
+      case "pull_quote":
+        return data.quote
+          ? `"${data.quote.slice(0, 50)}${data.quote.length > 50 ? "..." : ""}"`
+          : "";
+      case "resource_bar":
+        return data.label || "";
+      case "weather":
+        return data.config?.location || data.variant || "";
+      case "section_sep":
+        return data.title || "";
+      default:
+        return "";
+    }
+  } catch {
+    return "";
+  }
+}
+
+function WidgetPickerDialog({
+  open,
+  onOpenChange,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onSelect: (widgetId: string) => void;
+}) {
+  const params = useParams();
+  const editionId = params.id as string;
+  const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [{ data, fetching }] = useQuery({
+    query: EditionWidgetsQuery,
+    variables: {
+      editionId,
+      slottedFilter: "not_slotted",
+      limit: 50,
+    },
+    pause: !open,
+  });
+
+  const allWidgets = data?.editionWidgets ?? [];
+  const widgets = typeFilter === "all"
+    ? allWidgets
+    : allWidgets.filter((w) => w.widgetType === typeFilter);
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add Widget to Slot</DialogTitle>
+          <DialogDescription>Select an existing widget to place in this slot.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Select value={typeFilter} onValueChange={(v) => v && setTypeFilter(v)}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="All types" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All types</SelectItem>
+              {Object.entries(WIDGET_TYPE_LABELS).map(([type, label]) => (
+                <SelectItem key={type} value={type}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {fetching ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading widgets...</div>
+          ) : widgets.length === 0 ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">
+              No widgets found.{" "}
+              <Link href="/admin/widgets" className="text-violet-600 hover:underline">
+                Create one
+              </Link>
+            </div>
+          ) : (
+            <div className="max-h-[320px] overflow-y-auto space-y-1">
+              {widgets.map((w) => {
+                const summary = widgetSummary(w.widgetType, w.data);
+                return (
+                  <button
+                    key={w.id}
+                    className="w-full flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/50 transition-colors text-left"
+                    onClick={() => onSelect(w.id)}
+                  >
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] shrink-0 ${WIDGET_TYPE_COLORS[w.widgetType] ?? ""}`}
+                    >
+                      {WIDGET_TYPE_LABELS[w.widgetType] ?? w.widgetType}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground truncate flex-1">
+                      {summary || <span className="italic">Empty</span>}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── WidgetSlotCard (for widget slots in rows) ──────────────────────────────
+
+function WidgetSlotCard({
+  slot,
+  isEditable,
+  onRemovePost,
+}: {
+  slot: EditionSlot;
+  isEditable: boolean;
+  onRemovePost: (slotId: string) => void;
+}) {
+  const widget = slot.widget!;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const widgetLabel = widget.widgetType
+    .split("_")
+    .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+
+  return (
+    <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3">
+      <div className="flex items-start gap-2">
+        <div className="flex-1 min-w-0">
+          <Link
+            href={`/admin/widgets/${widget.id}`}
+            className="block text-sm font-medium text-foreground truncate hover:underline"
+          >
+            {widgetLabel}
+          </Link>
+          <div className="flex items-center gap-1.5 mt-1">
+            <Badge variant="secondary" className="text-[10px] bg-violet-100 text-violet-800">
+              widget
+            </Badge>
+            <span className="text-[10px] text-muted-foreground">{widget.authoringMode}</span>
+          </div>
+        </div>
+        {isEditable && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setConfirmOpen(true)}
+              className="text-muted-foreground hover:text-destructive shrink-0"
+              title="Remove widget from slot"
+            >
+              <X className="size-3.5" />
+            </Button>
+            <ConfirmDialog
+              open={confirmOpen}
+              onOpenChange={setConfirmOpen}
+              title="Remove widget from slot"
+              description="The widget will be removed from this row but not deleted. You can add it back later."
+              confirmLabel="Remove"
+              onConfirm={() => onRemovePost(slot.id)}
+            />
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -2342,14 +2232,14 @@ function DraggableSlotCard({
         <div className="flex-1 min-w-0">
           <button
             className="block w-full text-sm font-medium text-foreground truncate text-left hover:underline"
-            onClick={() => onViewPost(slot.post.id)}
+            onClick={() => slot.post && onViewPost(slot.post.id)}
           >
-            {slot.post.title}
+            {slot.post?.title ?? "Untitled"}
           </button>
           <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-            <PostTypeBadge type={slot.post.postType} />
-            <WeightBadge weight={slot.post.weight} />
-            {isEditable && postTemplates.length > 0 && (
+            {slot.post && <PostTypeBadge type={slot.post.postType} />}
+            {slot.post && <WeightBadge weight={slot.post.weight} />}
+            {isEditable && postTemplates.length > 0 && slot.postTemplate && (
               <Button
                 variant="ghost"
                 size="xs"
@@ -2359,7 +2249,7 @@ function DraggableSlotCard({
                 {postTemplates.find((pt) => pt.slug === slot.postTemplate)?.displayName ?? slot.postTemplate}
               </Button>
             )}
-            {!isEditable && (
+            {!isEditable && slot.postTemplate && (
               <span className="text-[10px] text-muted-foreground">{slot.postTemplate}</span>
             )}
           </div>
@@ -2393,7 +2283,7 @@ function DraggableSlotCard({
         open={confirmRemoveOpen}
         onOpenChange={setConfirmRemoveOpen}
         title="Remove post from slot"
-        description={`Remove "${slot.post.title}" from this slot? The post returns to the unassigned pool and can be placed in another slot. It is not deleted.`}
+        description={`Remove "${slot.post?.title ?? "this item"}" from this slot? The post returns to the unassigned pool and can be placed in another slot. It is not deleted.`}
         confirmLabel="Remove post"
         onConfirm={() => onRemovePost(slot.id)}
       />
@@ -2424,14 +2314,24 @@ function RemoveDropZone() {
 // ─── SlotCardOverlay (drag ghost) ────────────────────────────────────────────
 
 function SlotCardOverlay({ slot }: { slot: EditionSlot }) {
+  if (slot.kind === "widget" && slot.widget) {
+    return (
+      <div className="rounded-lg border border-violet-300 bg-card shadow-xl p-3 max-w-xs rotate-1 scale-[1.02]">
+        <div className="text-sm font-medium text-foreground truncate">
+          {slot.widget.widgetType.replace(/_/g, " ")}
+        </div>
+        <Badge variant="secondary" className="text-[10px] mt-1 bg-violet-100 text-violet-800">widget</Badge>
+      </div>
+    );
+  }
   return (
     <div className="rounded-lg border border-amber-300 bg-card shadow-xl p-3 max-w-xs rotate-1 scale-[1.02]">
       <div className="text-sm font-medium text-foreground truncate">
-        {slot.post.title}
+        {slot.post?.title ?? "Untitled"}
       </div>
       <div className="flex items-center gap-1.5 mt-1">
-        <PostTypeBadge type={slot.post.postType} />
-        <WeightBadge weight={slot.post.weight} />
+        {slot.post && <PostTypeBadge type={slot.post.postType} />}
+        {slot.post && <WeightBadge weight={slot.post.weight} />}
       </div>
     </div>
   );
