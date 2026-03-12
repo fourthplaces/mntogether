@@ -26,7 +26,6 @@ interface EditionData {
   rowCount?: number;
   rows?: EditionRowData[];
   sections?: EditionSectionData[];
-  widgets?: EditionWidgetData[];
 }
 
 interface EditionRowData {
@@ -46,27 +45,38 @@ interface EditionRowData {
   sortOrder: number;
   sectionId?: string;
   slots: EditionSlotData[];
-  widgets?: EditionWidgetData[];
 }
 
-interface EditionWidgetData {
+interface WidgetData {
   id: string;
   widgetType: string;
-  sortOrder: number;
-  sectionId?: string | null;
-  config: unknown; // JSON object from Rust
+  authoringMode: string;
+  data: unknown; // JSON object from Rust
+  zip_code?: string;
+  city?: string;
+  county_id?: string;
+  start_date?: string;
+  end_date?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface EditionSlotData {
   id: string;
-  postId: string;
-  postTemplate: string;
+  kind: string;
   slotIndex: number;
-  // Embedded post data from Rust service (avoids N+1)
+  // Post fields (present when kind='post')
+  postId?: string;
+  postTemplate?: string;
   postTitle?: string;
   postPostType?: string;
   postWeight?: string;
   postStatus?: string;
+  // Widget fields (present when kind='widget')
+  widgetId?: string;
+  widgetType?: string;
+  widgetAuthoringMode?: string;
+  widgetData?: unknown;
 }
 
 // =============================================================================
@@ -90,7 +100,6 @@ interface PublicBroadsheetData {
   county: { id: string; fipsCode?: string; fips_code?: string; name: string; state: string };
   rows: PublicBroadsheetRowData[];
   sections: PublicBroadsheetSectionData[];
-  widgets: EditionWidgetData[];
 }
 
 interface PublicBroadsheetRowData {
@@ -99,13 +108,14 @@ interface PublicBroadsheetRowData {
   sortOrder: number;
   sectionId?: string;
   slots: PublicBroadsheetSlotData[];
-  widgets: EditionWidgetData[];
 }
 
 interface PublicBroadsheetSlotData {
-  postTemplate: string;
+  kind: string;
+  postTemplate?: string;
   slotIndex: number;
-  post: PublicBroadsheetPostData;
+  post?: PublicBroadsheetPostData;
+  widget?: { id: string; widgetType: string; authoringMode: string; data: unknown };
 }
 
 interface PublicBroadsheetPostData {
@@ -148,9 +158,6 @@ export const editionResolvers = {
     sections: (parent: EditionData) => {
       return parent.sections ?? [];
     },
-    widgets: (parent: EditionData) => {
-      return parent.widgets ?? [];
-    },
   },
 
   // Resolve nested objects on EditionRow — template data is embedded from Rust service
@@ -168,33 +175,54 @@ export const editionResolvers = {
     },
   },
 
-  // Resolve fields on EditionWidget — config is JSON, serialized to string for GraphQL
-  EditionWidget: {
-    widgetType: (parent: { widgetType?: string; widget_type?: string }) => {
-      return parent.widgetType ?? parent.widget_type ?? "";
+  // Resolve standalone Widget — data is JSON, serialized to string for GraphQL
+  Widget: {
+    data: (parent: { data?: unknown }) => {
+      return typeof parent.data === "string"
+        ? parent.data
+        : JSON.stringify(parent.data ?? {});
     },
-    sortOrder: (parent: { sortOrder?: number; sort_order?: number }) => {
-      return parent.sortOrder ?? parent.sort_order ?? 0;
-    },
-    sectionId: (parent: { sectionId?: string | null; section_id?: string | null }) => {
-      return parent.sectionId ?? parent.section_id ?? null;
-    },
-    config: (parent: { config?: unknown }) => {
-      return typeof parent.config === "string"
-        ? parent.config
-        : JSON.stringify(parent.config ?? {});
+    zipCode: (parent: { zipCode?: string; zip_code?: string }) =>
+      parent.zipCode ?? parent.zip_code ?? null,
+    countyId: (parent: { countyId?: string; county_id?: string }) =>
+      parent.countyId ?? parent.county_id ?? null,
+    startDate: (parent: { startDate?: string; start_date?: string }) =>
+      parent.startDate ?? parent.start_date ?? null,
+    endDate: (parent: { endDate?: string; end_date?: string }) =>
+      parent.endDate ?? parent.end_date ?? null,
+    county: async (
+      parent: { countyId?: string; county_id?: string },
+      _args: unknown,
+      ctx: GraphQLContext
+    ) => {
+      const id = parent.countyId ?? parent.county_id;
+      if (!id) return null;
+      return ctx.server.callService("Editions", "get_county", { id });
     },
   },
 
-  // Resolve nested objects on EditionSlot — post data is embedded from Rust service
+  // Resolve nested objects on EditionSlot — polymorphic (post or widget)
   EditionSlot: {
     post: (parent: EditionSlotData) => {
+      if (parent.kind !== "post" || !parent.postId) return null;
       return {
         id: parent.postId,
         title: parent.postTitle ?? "Untitled",
         postType: parent.postPostType ?? null,
         weight: parent.postWeight ?? null,
         status: parent.postStatus ?? "active",
+      };
+    },
+    widget: (parent: EditionSlotData) => {
+      if (parent.kind !== "widget" || !parent.widgetId) return null;
+      const rawData = parent.widgetData ?? {};
+      return {
+        id: parent.widgetId,
+        widgetType: parent.widgetType ?? "",
+        authoringMode: parent.widgetAuthoringMode ?? "human",
+        data: typeof rawData === "string" ? rawData : JSON.stringify(rawData),
+        createdAt: "",
+        updatedAt: "",
       };
     },
   },
@@ -254,19 +282,10 @@ export const editionResolvers = {
   },
 
   BroadsheetWidget: {
-    widgetType: (parent: { widgetType?: string; widget_type?: string }) => {
-      return parent.widgetType ?? parent.widget_type ?? "";
-    },
-    sortOrder: (parent: { sortOrder?: number; sort_order?: number }) => {
-      return parent.sortOrder ?? parent.sort_order ?? 0;
-    },
-    sectionId: (parent: { sectionId?: string | null; section_id?: string | null }) => {
-      return parent.sectionId ?? parent.section_id ?? null;
-    },
-    config: (parent: { config?: unknown }) => {
-      return typeof parent.config === "string"
-        ? parent.config
-        : JSON.stringify(parent.config ?? {});
+    data: (parent: { data?: unknown }) => {
+      return typeof parent.data === "string"
+        ? parent.data
+        : JSON.stringify(parent.data ?? {});
     },
   },
 
@@ -282,13 +301,12 @@ export const editionResolvers = {
           "current_broadsheet",
           { county_id: args.countyId }
         );
-      // Flatten edition fields + county + rows + sections + widgets into a single PublicBroadsheet object
+      // Flatten edition fields + county + rows + sections into a single PublicBroadsheet object
       return {
         ...result.edition,
         county: result.county,
         rows: result.rows,
         sections: result.sections ?? [],
-        widgets: result.widgets ?? [],
       };
     },
 
@@ -308,7 +326,6 @@ export const editionResolvers = {
         county: result.county,
         rows: result.rows,
         sections: result.sections ?? [],
-        widgets: result.widgets ?? [],
       };
     },
 
@@ -429,10 +446,8 @@ export const editionResolvers = {
         edition: EditionData;
         rows: EditionRowData[];
         sections: EditionSectionData[];
-        widgets: EditionWidgetData[];
       }>("Editions", "get_edition", { id: args.id });
-      // Merge edition fields with rows + sections + widgets for the GraphQL Edition type
-      return { ...result.edition, rows: result.rows, sections: result.sections ?? [], widgets: result.widgets ?? [] };
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
     },
 
     currentEdition: async (
@@ -444,11 +459,10 @@ export const editionResolvers = {
         edition: EditionData;
         rows: EditionRowData[];
         sections: EditionSectionData[];
-        widgets: EditionWidgetData[];
       }>("Editions", "current_edition", {
         county_id: args.countyId,
       });
-      return { ...result.edition, rows: result.rows, sections: result.sections ?? [], widgets: result.widgets ?? [] };
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
     },
 
     editionKanbanStats: async (
@@ -493,6 +507,58 @@ export const editionResolvers = {
         templates: unknown[];
       }>("Editions", "post_templates", {});
       return result.templates;
+    },
+
+    widget: async (
+      _parent: unknown,
+      args: { id: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Widgets", "get_widget", { id: args.id });
+    },
+
+    widgets: async (
+      _parent: unknown,
+      args: {
+        widgetType?: string;
+        countyId?: string;
+        search?: string;
+        limit?: number;
+        offset?: number;
+      },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{
+        widgets: WidgetData[];
+      }>("Widgets", "list_widgets", {
+        widget_type: args.widgetType ?? null,
+        county_id: args.countyId ?? null,
+        search: args.search ?? null,
+        limit: args.limit ?? null,
+        offset: args.offset ?? null,
+      });
+      return result.widgets;
+    },
+
+    editionWidgets: async (
+      _parent: unknown,
+      args: {
+        editionId: string;
+        slottedFilter?: string;
+        limit?: number;
+        offset?: number;
+      },
+      ctx: GraphQLContext
+    ) => {
+      const result = await ctx.server.callService<{
+        widgets: WidgetData[];
+      }>("Widgets", "list_widgets_for_edition", {
+        edition_id: args.editionId,
+        slotted_filter: args.slottedFilter ?? null,
+        limit: args.limit ?? null,
+        offset: args.offset ?? null,
+      });
+      return result.widgets;
     },
   },
 
@@ -699,38 +765,89 @@ export const editionResolvers = {
       });
     },
 
-    addWidget: async (
+    createWidget: async (
       _parent: unknown,
-      args: { editionId: string; widgetType: string; sortOrder: number; sectionId?: string; config: string },
+      args: {
+        widgetType: string;
+        data: string;
+        authoringMode?: string;
+        zipCode?: string;
+        city?: string;
+        countyId?: string;
+        startDate?: string;
+        endDate?: string;
+      },
       ctx: GraphQLContext
     ) => {
-      return ctx.server.callService("Editions", "add_widget", {
-        edition_id: args.editionId,
+      return ctx.server.callService("Widgets", "create_widget", {
         widget_type: args.widgetType,
-        sort_order: args.sortOrder,
-        section_id: args.sectionId ?? null,
-        config: JSON.parse(args.config),
+        authoring_mode: args.authoringMode ?? null,
+        data: JSON.parse(args.data),
+        zip_code: args.zipCode ?? null,
+        city: args.city ?? null,
+        county_id: args.countyId ?? null,
+        start_date: args.startDate ?? null,
+        end_date: args.endDate ?? null,
       });
     },
 
     updateWidget: async (
       _parent: unknown,
-      args: { id: string; config: string },
+      args: {
+        id: string;
+        data?: string;
+        zipCode?: string;
+        city?: string;
+        countyId?: string;
+        startDate?: string;
+        endDate?: string;
+      },
       ctx: GraphQLContext
     ) => {
-      return ctx.server.callService("Editions", "update_widget", {
+      // Build payload — only include fields that were explicitly passed.
+      // Empty strings are kept as-is so the Rust handler can distinguish
+      // "clear this field" (Some("")) from "don't touch" (absent/None).
+      const payload: Record<string, unknown> = { id: args.id };
+      if (args.data != null) payload.data = JSON.parse(args.data);
+      if (args.zipCode !== undefined) payload.zip_code = args.zipCode ?? "";
+      if (args.city !== undefined) payload.city = args.city ?? "";
+      if (args.countyId !== undefined) payload.county_id = args.countyId || null;
+      if (args.startDate !== undefined) payload.start_date = args.startDate || null;
+      if (args.endDate !== undefined) payload.end_date = args.endDate || null;
+      return ctx.server.callService("Widgets", "update_widget", payload);
+    },
+
+    // Backward compat alias — updates data only
+    updateWidgetData: async (
+      _parent: unknown,
+      args: { id: string; data: string },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Widgets", "update_widget", {
         id: args.id,
-        config: JSON.parse(args.config),
+        data: JSON.parse(args.data),
       });
     },
 
-    removeWidget: async (
+    deleteWidget: async (
       _parent: unknown,
       args: { id: string },
       ctx: GraphQLContext
     ) => {
-      return ctx.server.callService("Editions", "remove_widget", {
+      return ctx.server.callService("Widgets", "delete_widget", {
         id: args.id,
+      });
+    },
+
+    addWidgetToEdition: async (
+      _parent: unknown,
+      args: { editionRowId: string; widgetId: string; slotIndex: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "add_widget_to_edition", {
+        edition_row_id: args.editionRowId,
+        widget_id: args.widgetId,
+        slot_index: args.slotIndex,
       });
     },
 

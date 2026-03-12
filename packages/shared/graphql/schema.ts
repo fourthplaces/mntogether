@@ -72,6 +72,11 @@ type Query {
   rowTemplates: [RowTemplate!]!
   postTemplates: [PostTemplateConfig!]!
 
+  # Widgets (admin)
+  widget(id: ID!): Widget
+  widgets(widgetType: String, countyId: ID, search: String, limit: Int, offset: Int): [Widget!]!
+  editionWidgets(editionId: ID!, slottedFilter: String, limit: Int, offset: Int): [Widget!]!
+
   # Media Library (admin)
   mediaLibrary(limit: Int, offset: Int, contentType: String): MediaConnection!
   presignedUpload(filename: String!, contentType: String!, sizeBytes: Int!): PresignedUpload!
@@ -146,9 +151,11 @@ type Mutation {
   changeSlotTemplate(slotId: ID!, postTemplate: String!): EditionSlot!
 
   # Widgets (admin)
-  addWidget(editionId: ID!, widgetType: String!, sortOrder: Int!, sectionId: ID, config: String!): EditionWidget!
-  updateWidget(id: ID!, config: String!): EditionWidget!
-  removeWidget(id: ID!): Boolean!
+  createWidget(widgetType: String!, data: String!, authoringMode: String, zipCode: String, city: String, countyId: ID, startDate: String, endDate: String): Widget!
+  updateWidget(id: ID!, data: String, zipCode: String, city: String, countyId: ID, startDate: String, endDate: String): Widget!
+  updateWidgetData(id: ID!, data: String!): Widget!
+  deleteWidget(id: ID!): Boolean!
+  addWidgetToEdition(editionRowId: ID!, widgetId: ID!, slotIndex: Int!): EditionSlot!
 
   # Sections (admin)
   addSection(editionId: ID!, title: String!, subtitle: String, topicSlug: String, sortOrder: Int!): EditionSection!
@@ -422,8 +429,22 @@ type Edition {
   rowCount: Int!
   rows: [EditionRow!]!
   sections: [EditionSection!]!
-  widgets: [EditionWidget!]!
   createdAt: String!
+}
+
+type Widget {
+  id: ID!
+  widgetType: String!
+  authoringMode: String!
+  data: String!
+  zipCode: String
+  city: String
+  countyId: ID
+  county: County
+  startDate: String
+  endDate: String
+  createdAt: String!
+  updatedAt: String!
 }
 
 type EditionSection {
@@ -449,19 +470,13 @@ type EditionRow {
   slots: [EditionSlot!]!
 }
 
-type EditionWidget {
-  id: ID!
-  widgetType: String!
-  sortOrder: Int!
-  sectionId: ID
-  config: String!
-}
-
 type EditionSlot {
   id: ID!
-  post: Post!
-  postTemplate: String!
+  kind: String!
   slotIndex: Int!
+  post: Post
+  postTemplate: String
+  widget: Widget
 }
 
 type RowTemplate {
@@ -527,7 +542,6 @@ type PublicBroadsheet {
   county: BroadsheetCounty!
   rows: [BroadsheetRow!]!
   sections: [BroadsheetSection!]!
-  widgets: [BroadsheetWidget!]!
 }
 
 type BroadsheetSection {
@@ -553,18 +567,19 @@ type BroadsheetRow {
   slots: [BroadsheetSlot!]!
 }
 
+type BroadsheetSlot {
+  kind: String!
+  slotIndex: Int!
+  postTemplate: String
+  post: BroadsheetPost
+  widget: BroadsheetWidget
+}
+
 type BroadsheetWidget {
   id: ID!
   widgetType: String!
-  sortOrder: Int!
-  sectionId: ID
-  config: String!
-}
-
-type BroadsheetSlot {
-  postTemplate: String!
-  slotIndex: Int!
-  post: BroadsheetPost!
+  authoringMode: String!
+  data: String!
 }
 
 type BroadsheetPost {

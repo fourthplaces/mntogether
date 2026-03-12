@@ -3,35 +3,43 @@ use chrono::{DateTime, Utc};
 use sqlx::PgPool;
 use uuid::Uuid;
 
-/// A post placed in a specific slot within an edition row.
+/// A slot within an edition row — can hold either a post or a widget.
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct EditionSlot {
     pub id: Uuid,
     pub edition_row_id: Uuid,
-    pub post_id: Uuid,
-    pub post_template: String,
+    pub kind: String, // 'post' or 'widget'
+    pub post_id: Option<Uuid>,
+    pub widget_id: Option<Uuid>,
+    pub post_template: Option<String>,
     pub slot_index: i32,
     pub created_at: DateTime<Utc>,
 }
 
-/// A slot with its post data pre-loaded (avoids N+1 queries).
+/// A post slot with its post data pre-loaded (avoids N+1 queries).
 #[derive(Debug, Clone, sqlx::FromRow)]
 pub struct SlotWithPost {
     pub id: Uuid,
     pub edition_row_id: Uuid,
-    pub post_id: Uuid,
-    pub post_template: String,
+    pub kind: String,
+    pub post_id: Option<Uuid>,
+    pub widget_id: Option<Uuid>,
+    pub post_template: Option<String>,
     pub slot_index: i32,
     pub created_at: DateTime<Utc>,
-    // Post fields (joined from posts table)
-    pub post_title: String,
+    // Post fields (joined from posts table, nullable for widget slots)
+    pub post_title: Option<String>,
     pub post_post_type: Option<String>,
     pub post_weight: Option<String>,
-    pub post_status: String,
+    pub post_status: Option<String>,
+    // Widget fields (joined from widgets table, nullable for post slots)
+    pub widget_type: Option<String>,
+    pub widget_authoring_mode: Option<String>,
+    pub widget_data: Option<serde_json::Value>,
 }
 
 impl EditionSlot {
-    /// Create a new slot assignment.
+    /// Create a new post slot.
     pub async fn create(
         edition_row_id: Uuid,
         post_id: Uuid,
@@ -41,14 +49,36 @@ impl EditionSlot {
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO edition_slots (edition_row_id, post_id, post_template, slot_index)
-            VALUES ($1, $2, $3, $4)
+            INSERT INTO edition_slots (edition_row_id, kind, post_id, post_template, slot_index)
+            VALUES ($1, 'post', $2, $3, $4)
             RETURNING *
             "#,
         )
         .bind(edition_row_id)
         .bind(post_id)
         .bind(post_template)
+        .bind(slot_index)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
+    }
+
+    /// Create a new widget slot.
+    pub async fn create_widget_slot(
+        edition_row_id: Uuid,
+        widget_id: Uuid,
+        slot_index: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO edition_slots (edition_row_id, kind, widget_id, slot_index)
+            VALUES ($1, 'widget', $2, $3)
+            RETURNING *
+            "#,
+        )
+        .bind(edition_row_id)
+        .bind(widget_id)
         .bind(slot_index)
         .fetch_one(pool)
         .await
@@ -106,7 +136,7 @@ impl EditionSlot {
         .map_err(Into::into)
     }
 
-    /// Change the post template (visual treatment) for a slot.
+    /// Change the post template (visual treatment) for a post slot.
     pub async fn change_template(id: Uuid, post_template: &str, pool: &PgPool) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
@@ -123,7 +153,7 @@ impl EditionSlot {
         .map_err(Into::into)
     }
 
-    /// Delete a slot (spike a post from the edition).
+    /// Delete a slot (remove a post or widget from the edition).
     pub async fn delete(id: Uuid, pool: &PgPool) -> Result<()> {
         sqlx::query("DELETE FROM edition_slots WHERE id = $1")
             .bind(id)
@@ -132,22 +162,26 @@ impl EditionSlot {
         Ok(())
     }
 
-    /// Find all slots in a row, with post data joined.
-    pub async fn find_by_row_with_posts(
+    /// Find all slots in a row, with post and widget data joined.
+    pub async fn find_by_row_with_content(
         edition_row_id: Uuid,
         pool: &PgPool,
     ) -> Result<Vec<SlotWithPost>> {
         sqlx::query_as::<_, SlotWithPost>(
             r#"
             SELECT
-                es.id, es.edition_row_id, es.post_id, es.post_template,
-                es.slot_index, es.created_at,
+                es.id, es.edition_row_id, es.kind, es.post_id, es.widget_id,
+                es.post_template, es.slot_index, es.created_at,
                 p.title AS post_title,
                 p.post_type AS post_post_type,
                 p.weight AS post_weight,
-                p.status AS post_status
+                p.status AS post_status,
+                w.widget_type AS widget_type,
+                w.authoring_mode AS widget_authoring_mode,
+                w.data AS widget_data
             FROM edition_slots es
-            INNER JOIN posts p ON p.id = es.post_id
+            LEFT JOIN posts p ON p.id = es.post_id
+            LEFT JOIN widgets w ON w.id = es.widget_id
             WHERE es.edition_row_id = $1
             ORDER BY es.slot_index ASC
             "#,
@@ -159,6 +193,7 @@ impl EditionSlot {
     }
 
     /// Replace all slots for a row (used by layout engine).
+    /// Takes post slots as (post_id, post_template, slot_index) tuples.
     pub async fn replace_for_row(
         edition_row_id: Uuid,
         slots: &[(Uuid, String, i32)], // (post_id, post_template, slot_index)

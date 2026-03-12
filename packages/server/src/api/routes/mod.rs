@@ -7,6 +7,7 @@ pub mod notes;
 pub mod organizations;
 pub mod posts;
 pub mod tags;
+pub mod widgets;
 
 use axum::Router;
 
@@ -23,4 +24,5 @@ pub fn router() -> Router<AppState> {
         .merge(organizations::router())
         .merge(posts::router())
         .merge(tags::router())
+        .merge(widgets::router())
 }

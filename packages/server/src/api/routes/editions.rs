@@ -17,7 +17,7 @@ use crate::domains::editions::models::edition::{Edition, EditionFilters};
 use crate::domains::editions::models::edition_row::EditionRow;
 use crate::domains::editions::models::edition_section::EditionSection;
 use crate::domains::editions::models::edition_slot::EditionSlot;
-use crate::domains::editions::models::edition_widget::EditionWidget;
+use crate::domains::widgets::Widget;
 use crate::domains::editions::models::post_template_config::PostTemplateConfig;
 use crate::domains::editions::models::row_template_config::RowTemplateConfig;
 use crate::domains::editions::models::row_template_slot::RowTemplateSlot;
@@ -163,23 +163,10 @@ pub struct EditionKanbanStatsRequest {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct AddWidgetRequest {
-    pub edition_id: Uuid,
-    pub widget_type: String,
-    pub sort_order: i32,
-    pub section_id: Option<Uuid>,
-    pub config: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct UpdateWidgetRequest {
-    pub id: Uuid,
-    pub config: serde_json::Value,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RemoveWidgetRequest {
-    pub id: Uuid,
+pub struct AddWidgetToEditionRequest {
+    pub edition_row_id: Uuid,
+    pub widget_id: Uuid,
+    pub slot_index: i32,
 }
 
 // Section CRUD requests
@@ -259,7 +246,6 @@ pub struct EditionDetailResult {
     pub edition: EditionResult,
     pub rows: Vec<EditionRowResult>,
     pub sections: Vec<EditionSectionResult>,
-    pub widgets: Vec<EditionWidgetResult>,
 }
 
 #[derive(Debug, Serialize)]
@@ -275,28 +261,35 @@ pub struct EditionRowResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub section_id: Option<Uuid>,
     pub slots: Vec<EditionSlotResult>,
-    pub widgets: Vec<EditionWidgetResult>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct EditionWidgetResult {
-    pub id: Uuid,
-    pub widget_type: String,
-    pub sort_order: i32,
-    pub section_id: Option<Uuid>,
-    pub config: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
 pub struct EditionSlotResult {
     pub id: Uuid,
-    pub post_id: Uuid,
-    pub post_template: String,
+    pub kind: String,
     pub slot_index: i32,
+    // Post fields (present when kind='post')
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_post_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_weight: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub post_status: Option<String>,
+    // Widget fields (present when kind='widget')
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_id: Option<Uuid>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_authoring_mode: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_data: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Serialize)]
@@ -378,7 +371,6 @@ pub struct PublicBroadsheetResult {
     pub county: CountyResult,
     pub rows: Vec<PublicBroadsheetRowResult>,
     pub sections: Vec<EditionSectionResult>,
-    pub widgets: Vec<EditionWidgetResult>,
 }
 
 #[derive(Debug, Serialize)]
@@ -388,14 +380,26 @@ pub struct PublicBroadsheetRowResult {
     pub sort_order: i32,
     pub section_id: Option<Uuid>,
     pub slots: Vec<PublicBroadsheetSlotResult>,
-    pub widgets: Vec<EditionWidgetResult>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct PublicBroadsheetSlotResult {
-    pub post_template: String,
+    pub kind: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_template: Option<String>,
     pub slot_index: i32,
-    pub post: PublicBroadsheetPostResult,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post: Option<PublicBroadsheetPostResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget: Option<PublicBroadsheetWidgetResult>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PublicBroadsheetWidgetResult {
+    pub id: Uuid,
+    pub widget_type: String,
+    pub authoring_mode: String,
+    pub data: serde_json::Value,
 }
 
 #[derive(Debug, Serialize)]
@@ -439,16 +443,6 @@ pub struct EditionSectionResult {
     pub topic_slug: Option<String>,
     pub sort_order: i32,
     pub created_at: String,
-}
-
-fn widget_to_result(w: &EditionWidget) -> EditionWidgetResult {
-    EditionWidgetResult {
-        id: w.id,
-        widget_type: w.widget_type.clone(),
-        sort_order: w.sort_order,
-        section_id: w.section_id,
-        config: w.config.clone(),
-    }
 }
 
 fn section_to_result(s: &EditionSection) -> EditionSectionResult {
@@ -508,7 +502,7 @@ async fn load_edition_detail(
             })
             .collect();
 
-        let slots = EditionSlot::find_by_row_with_posts(row.id, pool).await?;
+        let slots = EditionSlot::find_by_row_with_content(row.id, pool).await?;
 
         row_results.push(EditionRowResult {
             id: row.id,
@@ -526,30 +520,29 @@ async fn load_edition_detail(
                 .iter()
                 .map(|s| EditionSlotResult {
                     id: s.id,
+                    kind: s.kind.clone(),
+                    slot_index: s.slot_index,
                     post_id: s.post_id,
                     post_template: s.post_template.clone(),
-                    slot_index: s.slot_index,
-                    post_title: Some(s.post_title.clone()),
+                    post_title: s.post_title.clone(),
                     post_post_type: s.post_post_type.clone(),
                     post_weight: s.post_weight.clone(),
-                    post_status: Some(s.post_status.clone()),
+                    post_status: s.post_status.clone(),
+                    widget_id: s.widget_id,
+                    widget_type: s.widget_type.clone(),
+                    widget_authoring_mode: s.widget_authoring_mode.clone(),
+                    widget_data: s.widget_data.clone(),
                 })
                 .collect(),
-            widgets: vec![],
         });
     }
 
     let sections = EditionSection::find_by_edition(edition.id, pool).await?;
-    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
 
     Ok(EditionDetailResult {
         edition: edition_to_result(edition),
         rows: row_results,
         sections: sections.iter().map(section_to_result).collect(),
-        widgets: edition_widgets
-            .iter()
-            .map(widget_to_result)
-            .collect(),
     })
 }
 
@@ -563,7 +556,7 @@ async fn build_row_result(
     let template_slots =
         RowTemplateSlot::find_by_template(row.row_template_config_id, pool).await?;
 
-    let slots = EditionSlot::find_by_row_with_posts(row.id, pool).await?;
+    let slots = EditionSlot::find_by_row_with_content(row.id, pool).await?;
 
     Ok(EditionRowResult {
         id: row.id,
@@ -597,47 +590,61 @@ async fn build_row_result(
             .iter()
             .map(|s| EditionSlotResult {
                 id: s.id,
+                kind: s.kind.clone(),
+                slot_index: s.slot_index,
                 post_id: s.post_id,
                 post_template: s.post_template.clone(),
-                slot_index: s.slot_index,
-                post_title: Some(s.post_title.clone()),
+                post_title: s.post_title.clone(),
                 post_post_type: s.post_post_type.clone(),
                 post_weight: s.post_weight.clone(),
-                post_status: Some(s.post_status.clone()),
+                post_status: s.post_status.clone(),
+                widget_id: s.widget_id,
+                widget_type: s.widget_type.clone(),
+                widget_authoring_mode: s.widget_authoring_mode.clone(),
+                widget_data: s.widget_data.clone(),
             })
             .collect(),
-        widgets: vec![],
     })
 }
 
-/// Re-fetch a slot with embedded post data.
-async fn slot_with_post_data(
+/// Re-fetch a slot with embedded content data (post or widget).
+async fn slot_with_content_data(
     slot: &EditionSlot,
     pool: &sqlx::PgPool,
 ) -> ApiResult<EditionSlotResult> {
-    let slots_with_posts =
-        EditionSlot::find_by_row_with_posts(slot.edition_row_id, pool).await?;
+    let slots_with_content =
+        EditionSlot::find_by_row_with_content(slot.edition_row_id, pool).await?;
 
-    match slots_with_posts.into_iter().find(|s| s.id == slot.id) {
+    match slots_with_content.into_iter().find(|s| s.id == slot.id) {
         Some(s) => Ok(EditionSlotResult {
             id: s.id,
+            kind: s.kind,
+            slot_index: s.slot_index,
             post_id: s.post_id,
             post_template: s.post_template,
-            slot_index: s.slot_index,
-            post_title: Some(s.post_title),
+            post_title: s.post_title,
             post_post_type: s.post_post_type,
             post_weight: s.post_weight,
-            post_status: Some(s.post_status),
+            post_status: s.post_status,
+            widget_id: s.widget_id,
+            widget_type: s.widget_type,
+            widget_authoring_mode: s.widget_authoring_mode,
+            widget_data: s.widget_data,
         }),
         None => Ok(EditionSlotResult {
             id: slot.id,
+            kind: slot.kind.clone(),
+            slot_index: slot.slot_index,
             post_id: slot.post_id,
             post_template: slot.post_template.clone(),
-            slot_index: slot.slot_index,
             post_title: None,
             post_post_type: None,
             post_weight: None,
             post_status: None,
+            widget_id: slot.widget_id,
+            widget_type: None,
+            widget_authoring_mode: None,
+            widget_data: None,
         }),
     }
 }
@@ -963,7 +970,7 @@ async fn reorder_rows(
             })
             .collect();
 
-        let slots = EditionSlot::find_by_row_with_posts(row.id, pool).await?;
+        let slots = EditionSlot::find_by_row_with_content(row.id, pool).await?;
 
         results.push(EditionRowResult {
             id: row.id,
@@ -981,16 +988,20 @@ async fn reorder_rows(
                 .iter()
                 .map(|s| EditionSlotResult {
                     id: s.id,
+                    kind: s.kind.clone(),
+                    slot_index: s.slot_index,
                     post_id: s.post_id,
                     post_template: s.post_template.clone(),
-                    slot_index: s.slot_index,
-                    post_title: Some(s.post_title.clone()),
+                    post_title: s.post_title.clone(),
                     post_post_type: s.post_post_type.clone(),
                     post_weight: s.post_weight.clone(),
-                    post_status: Some(s.post_status.clone()),
+                    post_status: s.post_status.clone(),
+                    widget_id: s.widget_id,
+                    widget_type: s.widget_type.clone(),
+                    widget_authoring_mode: s.widget_authoring_mode.clone(),
+                    widget_data: s.widget_data.clone(),
                 })
                 .collect(),
-            widgets: vec![],
         });
     }
 
@@ -1015,7 +1026,7 @@ async fn change_slot_template(
     let slot =
         EditionSlot::change_template(req.slot_id, &req.post_template, pool).await?;
 
-    let result = slot_with_post_data(&slot, pool).await?;
+    let result = slot_with_content_data(&slot, pool).await?;
     Ok(Json(result))
 }
 
@@ -1029,7 +1040,7 @@ async fn move_slot(
         EditionSlot::move_to(req.slot_id, req.target_row_id, req.slot_index, pool)
             .await?;
 
-    let result = slot_with_post_data(&slot, pool).await?;
+    let result = slot_with_content_data(&slot, pool).await?;
     Ok(Json(result))
 }
 
@@ -1048,7 +1059,7 @@ async fn add_post_to_edition(
     )
     .await?;
 
-    let result = slot_with_post_data(&slot, pool).await?;
+    let result = slot_with_content_data(&slot, pool).await?;
     Ok(Json(result))
 }
 
@@ -1095,7 +1106,6 @@ async fn add_edition_row(
         sort_order: row.sort_order,
         section_id: row.section_id,
         slots: vec![],
-        widgets: vec![],
     }))
 }
 
@@ -1177,42 +1187,28 @@ async fn edition_kanban_stats(
     Ok(Json(result))
 }
 
-async fn add_widget(
+async fn add_widget_to_edition(
     State(state): State<AppState>,
     _user: AdminUser,
-    Json(req): Json<AddWidgetRequest>,
-) -> ApiResult<Json<EditionWidgetResult>> {
-    let widget = EditionWidget::create(
-        req.edition_id,
-        &req.widget_type,
-        req.sort_order,
-        req.section_id,
-        req.config,
-        &state.deps.db_pool,
+    Json(req): Json<AddWidgetToEditionRequest>,
+) -> ApiResult<Json<EditionSlotResult>> {
+    let pool = &state.deps.db_pool;
+
+    // Verify widget exists
+    Widget::find_by_id(req.widget_id, pool)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Widget not found: {}", req.widget_id)))?;
+
+    let slot = EditionSlot::create_widget_slot(
+        req.edition_row_id,
+        req.widget_id,
+        req.slot_index,
+        pool,
     )
     .await?;
 
-    Ok(Json(widget_to_result(&widget)))
-}
-
-async fn update_widget(
-    State(state): State<AppState>,
-    _user: AdminUser,
-    Json(req): Json<UpdateWidgetRequest>,
-) -> ApiResult<Json<EditionWidgetResult>> {
-    let widget =
-        EditionWidget::update(req.id, req.config, &state.deps.db_pool).await?;
-
-    Ok(Json(widget_to_result(&widget)))
-}
-
-async fn remove_widget(
-    State(state): State<AppState>,
-    _user: AdminUser,
-    Json(req): Json<RemoveWidgetRequest>,
-) -> ApiResult<Json<bool>> {
-    EditionWidget::delete(req.id, &state.deps.db_pool).await?;
-    Ok(Json(true))
+    let result = slot_with_content_data(&slot, pool).await?;
+    Ok(Json(result))
 }
 
 // =============================================================================
@@ -1241,120 +1237,8 @@ async fn public_current_broadsheet(
             ApiError::NotFound(format!("County not found: {}", edition.county_id))
         })?;
 
-    let rows = EditionRow::find_by_edition(edition.id, pool).await?;
-    let all_templates = RowTemplateConfig::find_all(pool).await?;
-
-    // Collect all post IDs across all rows for batch loading
-    let mut all_slots_by_row: Vec<Vec<EditionSlot>> = Vec::new();
-    let mut all_post_ids: Vec<Uuid> = Vec::new();
-
-    for row in &rows {
-        let slots = EditionSlot::find_by_row(row.id, pool).await?;
-        for slot in &slots {
-            all_post_ids.push(slot.post_id);
-        }
-        all_slots_by_row.push(slots);
-    }
-
-    // Batch load full post data, tags, urgent notes, and org info
-    let posts_by_id: HashMap<Uuid, Post> = if !all_post_ids.is_empty() {
-        Post::find_by_ids(&all_post_ids, pool)
-            .await?
-            .into_iter()
-            .map(|p| (p.id.into_uuid(), p))
-            .collect()
-    } else {
-        HashMap::new()
-    };
-
-    let (mut tags_by_post, mut urgent_notes_by_post) =
-        load_tags_and_notes(&all_post_ids, &state.deps).await?;
-
-    let mut org_info = Post::find_org_info_for_posts(&all_post_ids, pool).await?;
-
-    // Batch load contacts for all posts
-    let all_contacts = Contact::find_by_post_ids(&all_post_ids, pool).await?;
-    let mut contacts_by_post: HashMap<Uuid, Vec<BroadsheetContactResult>> = HashMap::new();
-    for c in all_contacts {
-        contacts_by_post
-            .entry(c.contactable_id)
-            .or_default()
-            .push(BroadsheetContactResult {
-                contact_type: c.contact_type,
-                contact_value: c.contact_value,
-                contact_label: c.contact_label,
-            });
-    }
-
-    // Assemble rows
-    let mut row_results = Vec::new();
-    for (row, slots) in rows.iter().zip(all_slots_by_row.iter()) {
-        let template = all_templates
-            .iter()
-            .find(|t| t.id == row.row_template_config_id);
-
-        let slot_results: Vec<PublicBroadsheetSlotResult> = slots
-            .iter()
-            .filter_map(|slot| {
-                let post = posts_by_id.get(&slot.post_id)?;
-                let id = post.id.into_uuid();
-                let org_name = org_info.remove(&id).map(|(_, name)| name);
-
-                Some(PublicBroadsheetSlotResult {
-                    post_template: slot.post_template.clone(),
-                    slot_index: slot.slot_index,
-                    post: PublicBroadsheetPostResult {
-                        id,
-                        title: post.title.clone(),
-                        description: post.description.clone(),
-                        post_type: post.post_type.clone(),
-                        weight: post.weight.clone(),
-                        urgency: post.urgency.clone(),
-                        location: post.location.clone(),
-                        source_url: post.source_url.clone(),
-                        organization_name: org_name,
-                        published_at: post.published_at.map(|dt| dt.to_rfc3339()),
-                        tags: tags_by_post.remove(&id).unwrap_or_default(),
-                        contacts: contacts_by_post.remove(&id).unwrap_or_default(),
-                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
-                        body_heavy: post.body_heavy.clone(),
-                        body_medium: post.body_medium.clone(),
-                        body_light: post.body_light.clone(),
-                    },
-                })
-            })
-            .collect();
-
-        row_results.push(PublicBroadsheetRowResult {
-            row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
-            layout_variant: template.map(|t| t.layout_variant.clone()).unwrap_or_else(|| "full".to_string()),
-            sort_order: row.sort_order,
-            section_id: row.section_id,
-            slots: slot_results,
-            widgets: vec![],
-        });
-    }
-
-    // Load sections and edition-level widgets
-    let sections = EditionSection::find_by_edition(edition.id, pool).await?;
-    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
-    let section_results: Vec<EditionSectionResult> = sections
-        .iter()
-        .map(|s| section_to_result(s))
-        .collect();
-
-    Ok(Json(PublicBroadsheetResult {
-        edition: edition_to_result(&edition),
-        county: CountyResult {
-            id: county.id,
-            fips_code: county.fips_code,
-            name: county.name,
-            state: county.state,
-        },
-        rows: row_results,
-        sections: section_results,
-        widgets: edition_widgets.iter().map(widget_to_result).collect(),
-    }))
+    let broadsheet_result = build_public_broadsheet(&edition, &county, &state).await?;
+    Ok(Json(broadsheet_result))
 }
 
 // =============================================================================
@@ -1385,17 +1269,34 @@ async fn preview_broadsheet(
             ApiError::NotFound(format!("County not found: {}", edition.county_id))
         })?;
 
+    let broadsheet_result = build_public_broadsheet(&edition, &county, &state).await?;
+    Ok(Json(broadsheet_result))
+}
+
+/// Shared logic for building a public broadsheet response (used by both public and preview).
+async fn build_public_broadsheet(
+    edition: &Edition,
+    county: &County,
+    state: &AppState,
+) -> ApiResult<PublicBroadsheetResult> {
+    let pool = &state.deps.db_pool;
     let rows = EditionRow::find_by_edition(edition.id, pool).await?;
     let all_templates = RowTemplateConfig::find_all(pool).await?;
 
     // Collect all post IDs across all rows for batch loading
     let mut all_slots_by_row: Vec<Vec<EditionSlot>> = Vec::new();
     let mut all_post_ids: Vec<Uuid> = Vec::new();
+    let mut all_widget_ids: Vec<Uuid> = Vec::new();
 
     for row in &rows {
         let slots = EditionSlot::find_by_row(row.id, pool).await?;
         for slot in &slots {
-            all_post_ids.push(slot.post_id);
+            if let Some(post_id) = slot.post_id {
+                all_post_ids.push(post_id);
+            }
+            if let Some(widget_id) = slot.widget_id {
+                all_widget_ids.push(widget_id);
+            }
         }
         all_slots_by_row.push(slots);
     }
@@ -1407,6 +1308,19 @@ async fn preview_broadsheet(
             .into_iter()
             .map(|p| (p.id.into_uuid(), p))
             .collect()
+    } else {
+        HashMap::new()
+    };
+
+    // Batch load widgets
+    let widgets_by_id: HashMap<Uuid, Widget> = if !all_widget_ids.is_empty() {
+        let mut map = HashMap::new();
+        for wid in &all_widget_ids {
+            if let Some(w) = Widget::find_by_id(*wid, pool).await? {
+                map.insert(w.id, w);
+            }
+        }
+        map
     } else {
         HashMap::new()
     };
@@ -1440,32 +1354,57 @@ async fn preview_broadsheet(
         let slot_results: Vec<PublicBroadsheetSlotResult> = slots
             .iter()
             .filter_map(|slot| {
-                let post = posts_by_id.get(&slot.post_id)?;
-                let id = post.id.into_uuid();
-                let org_name = org_info.remove(&id).map(|(_, name)| name);
+                match slot.kind.as_str() {
+                    "post" => {
+                        let post_id = slot.post_id?;
+                        let post = posts_by_id.get(&post_id)?;
+                        let id = post.id.into_uuid();
+                        let org_name = org_info.remove(&id).map(|(_, name)| name);
 
-                Some(PublicBroadsheetSlotResult {
-                    post_template: slot.post_template.clone(),
-                    slot_index: slot.slot_index,
-                    post: PublicBroadsheetPostResult {
-                        id,
-                        title: post.title.clone(),
-                        description: post.description.clone(),
-                        post_type: post.post_type.clone(),
-                        weight: post.weight.clone(),
-                        urgency: post.urgency.clone(),
-                        location: post.location.clone(),
-                        source_url: post.source_url.clone(),
-                        organization_name: org_name,
-                        published_at: post.published_at.map(|dt| dt.to_rfc3339()),
-                        tags: tags_by_post.remove(&id).unwrap_or_default(),
-                        contacts: contacts_by_post.remove(&id).unwrap_or_default(),
-                        urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
-                        body_heavy: post.body_heavy.clone(),
-                        body_medium: post.body_medium.clone(),
-                        body_light: post.body_light.clone(),
-                    },
-                })
+                        Some(PublicBroadsheetSlotResult {
+                            kind: "post".to_string(),
+                            post_template: slot.post_template.clone(),
+                            slot_index: slot.slot_index,
+                            post: Some(PublicBroadsheetPostResult {
+                                id,
+                                title: post.title.clone(),
+                                description: post.description.clone(),
+                                post_type: post.post_type.clone(),
+                                weight: post.weight.clone(),
+                                urgency: post.urgency.clone(),
+                                location: post.location.clone(),
+                                source_url: post.source_url.clone(),
+                                organization_name: org_name,
+                                published_at: post.published_at.map(|dt| dt.to_rfc3339()),
+                                tags: tags_by_post.remove(&id).unwrap_or_default(),
+                                contacts: contacts_by_post.remove(&id).unwrap_or_default(),
+                                urgent_notes: urgent_notes_by_post.remove(&id).unwrap_or_default(),
+                                body_heavy: post.body_heavy.clone(),
+                                body_medium: post.body_medium.clone(),
+                                body_light: post.body_light.clone(),
+                            }),
+                            widget: None,
+                        })
+                    }
+                    "widget" => {
+                        let widget_id = slot.widget_id?;
+                        let widget = widgets_by_id.get(&widget_id)?;
+
+                        Some(PublicBroadsheetSlotResult {
+                            kind: "widget".to_string(),
+                            post_template: None,
+                            slot_index: slot.slot_index,
+                            post: None,
+                            widget: Some(PublicBroadsheetWidgetResult {
+                                id: widget.id,
+                                widget_type: widget.widget_type.clone(),
+                                authoring_mode: widget.authoring_mode.clone(),
+                                data: widget.data.clone(),
+                            }),
+                        })
+                    }
+                    _ => None,
+                }
             })
             .collect();
 
@@ -1475,30 +1414,27 @@ async fn preview_broadsheet(
             sort_order: row.sort_order,
             section_id: row.section_id,
             slots: slot_results,
-            widgets: vec![],
         });
     }
 
-    // Load sections and edition-level widgets
+    // Load sections
     let sections = EditionSection::find_by_edition(edition.id, pool).await?;
-    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
     let section_results: Vec<EditionSectionResult> = sections
         .iter()
         .map(|s| section_to_result(s))
         .collect();
 
-    Ok(Json(PublicBroadsheetResult {
-        edition: edition_to_result(&edition),
+    Ok(PublicBroadsheetResult {
+        edition: edition_to_result(edition),
         county: CountyResult {
             id: county.id,
-            fips_code: county.fips_code,
-            name: county.name,
-            state: county.state,
+            fips_code: county.fips_code.clone(),
+            name: county.name.clone(),
+            state: county.state.clone(),
         },
         rows: row_results,
         sections: section_results,
-        widgets: edition_widgets.iter().map(widget_to_result).collect(),
-    }))
+    })
 }
 
 // =============================================================================
@@ -1614,9 +1550,7 @@ pub fn router() -> Router<AppState> {
             "/Editions/edition_kanban_stats",
             post(edition_kanban_stats),
         )
-        .route("/Editions/add_widget", post(add_widget))
-        .route("/Editions/update_widget", post(update_widget))
-        .route("/Editions/remove_widget", post(remove_widget))
+        .route("/Editions/add_widget_to_edition", post(add_widget_to_edition))
         // Preview
         .route("/Editions/preview_broadsheet", post(preview_broadsheet))
         // Section CRUD

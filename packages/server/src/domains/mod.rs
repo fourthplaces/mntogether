@@ -10,3 +10,4 @@ pub mod organization;
 pub mod posts;
 pub mod schedules;
 pub mod tag;
+pub mod widgets;
