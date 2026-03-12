@@ -46,6 +46,14 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
   Dialog,
   DialogContent,
   DialogClose,
@@ -94,6 +102,7 @@ import {
   ReorderSectionsMutation,
 } from "@/lib/graphql/editions";
 import { EditionWidgetsQuery } from "@/lib/graphql/widgets";
+import { EditionPostsQuery } from "@/lib/graphql/posts";
 import type {
   EditionDetailQuery as EditionDetailQueryType,
   RowTemplatesQuery as RowTemplatesQueryType,
@@ -940,69 +949,98 @@ function BroadsheetEditor({
 
 function EditionPostsView({ edition }: { edition: Edition }) {
   const router = useRouter();
+  const [slottedFilter, setSlottedFilter] = useState<string>("all");
 
-  const posts = useMemo(() => {
-    const allPosts: Array<{
-      id: string;
-      title: string;
-      postType: string | null | undefined;
-      weight: string | null | undefined;
-      status: string;
-      rowTemplate: string;
-      slotIndex: number;
-    }> = [];
-
+  // IDs of posts already slotted in this edition
+  const slottedPostIds = useMemo(() => {
+    const ids = new Set<string>();
     for (const row of edition.rows) {
       for (const slot of row.slots) {
-        if (slot.post) {
-          allPosts.push({
-            id: slot.post.id,
-            title: slot.post.title,
-            postType: slot.post.postType,
-            weight: slot.post.weight,
-            status: slot.post.status,
-            rowTemplate: row.rowTemplate.displayName,
-            slotIndex: slot.slotIndex,
-          });
-        }
+        if (slot.post) ids.add(slot.post.id);
       }
     }
-
-    return allPosts.sort((a, b) => a.title.localeCompare(b.title));
+    return ids;
   }, [edition]);
+
+  // Fetch all active posts matching this edition's county
+  const [{ data: postsData, fetching: postsFetching }] = useQuery({
+    query: EditionPostsQuery,
+    variables: {
+      countyId: edition.county.id,
+      status: "active",
+      limit: 200,
+    },
+  });
+
+  const allPosts = postsData?.posts?.posts ?? [];
+
+  const filteredPosts = useMemo(() => {
+    switch (slottedFilter) {
+      case "slotted":
+        return allPosts.filter((p) => slottedPostIds.has(p.id));
+      case "not_slotted":
+        return allPosts.filter((p) => !slottedPostIds.has(p.id));
+      default:
+        return allPosts;
+    }
+  }, [allPosts, slottedFilter, slottedPostIds]);
 
   return (
     <>
-      <p className="text-sm text-muted-foreground mb-4">
-        {posts.length} post{posts.length !== 1 ? "s" : ""} placed in this edition.
-      </p>
+      <div className="flex items-center gap-3 mb-4">
+        <Tabs value={slottedFilter} onValueChange={setSlottedFilter}>
+          <TabsList variant="line">
+            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="slotted">Slotted</TabsTrigger>
+            <TabsTrigger value="not_slotted">Not Slotted</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <span className="text-sm text-muted-foreground ml-auto">
+          {filteredPosts.length} post{filteredPosts.length !== 1 ? "s" : ""}
+        </span>
+      </div>
 
-      {posts.length === 0 ? (
+      {postsFetching ? (
+        <AdminLoader />
+      ) : filteredPosts.length === 0 ? (
         <div className="text-muted-foreground text-center py-12 text-sm">
-          No posts placed in this edition yet.
+          {slottedFilter === "not_slotted"
+            ? "All matching posts are already slotted."
+            : slottedFilter === "slotted"
+              ? "No posts slotted in this edition yet."
+              : "No active posts match this edition\u2019s county."}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {posts.map((post) => (
-            <div
-              key={post.id}
-              onClick={() => router.push(`/admin/posts/${post.id}`)}
-              className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow cursor-pointer"
-            >
-              <div className="text-sm font-medium text-foreground mb-2">
-                {post.title}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <PostTypeBadge type={post.postType} />
-                {post.weight && <WeightBadge weight={post.weight} />}
-                <span className="text-xs text-muted-foreground">
-                  {post.rowTemplate}
-                </span>
-                <PostStatusBadge status={post.status} />
-              </div>
-            </div>
-          ))}
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Title</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Weight</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredPosts.map((post) => (
+              <TableRow
+                key={post.id}
+                className="cursor-pointer"
+                onClick={() => router.push(`/admin/posts/${post.id}`)}
+              >
+                <TableCell className="font-medium">{post.title}</TableCell>
+                <TableCell>
+                  <PostTypeBadge type={post.postType} />
+                </TableCell>
+                <TableCell>
+                  {post.weight && <WeightBadge weight={post.weight} />}
+                </TableCell>
+                <TableCell>
+                  <PostStatusBadge status={post.status} />
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
     </>
   );
@@ -1051,50 +1089,48 @@ function EditionWidgetsView({ editionId }: { editionId: string }) {
               : "No widgets match this edition\u2019s county and date range."}
         </div>
       ) : (
-        <div className="rounded-md border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/50">
-                <th className="text-left p-3 font-medium">Type</th>
-                <th className="text-left p-3 font-medium">Summary</th>
-                <th className="text-left p-3 font-medium">County</th>
-                <th className="text-left p-3 font-medium">Date Range</th>
-              </tr>
-            </thead>
-            <tbody>
-              {widgets.map((w) => {
-                const summary = widgetSummary(w.widgetType, w.data);
-                return (
-                  <tr
-                    key={w.id}
-                    className="border-b hover:bg-muted/30 cursor-pointer transition-colors"
-                    onClick={() => router.push(`/admin/widgets/${w.id}`)}
-                  >
-                    <td className="p-3">
-                      <Badge
-                        variant="secondary"
-                        className={`text-[10px] ${WIDGET_TYPE_COLORS[w.widgetType] ?? ""}`}
-                      >
-                        {WIDGET_TYPE_LABELS[w.widgetType] ?? w.widgetType}
-                      </Badge>
-                    </td>
-                    <td className="p-3 text-muted-foreground truncate max-w-xs">
-                      {summary || <span className="italic">Empty</span>}
-                    </td>
-                    <td className="p-3 text-muted-foreground">
-                      {w.county?.name ?? "—"}
-                    </td>
-                    <td className="p-3 text-muted-foreground text-xs">
-                      {w.startDate || w.endDate
-                        ? `${w.startDate ?? "∞"} — ${w.endDate ?? "∞"}`
-                        : "Evergreen"}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Type</TableHead>
+              <TableHead>Summary</TableHead>
+              <TableHead>County</TableHead>
+              <TableHead>Date Range</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {widgets.map((w) => {
+              const summary = widgetSummary(w.widgetType, w.data);
+              return (
+                <TableRow
+                  key={w.id}
+                  className="cursor-pointer"
+                  onClick={() => router.push(`/admin/widgets/${w.id}`)}
+                >
+                  <TableCell>
+                    <Badge
+                      variant="secondary"
+                      className={`text-[10px] ${WIDGET_TYPE_COLORS[w.widgetType] ?? ""}`}
+                    >
+                      {WIDGET_TYPE_LABELS[w.widgetType] ?? w.widgetType}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground truncate max-w-xs">
+                    {summary || <span className="italic">Empty</span>}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {w.county?.name ?? "—"}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs">
+                    {w.startDate || w.endDate
+                      ? `${w.startDate ?? "∞"} — ${w.endDate ?? "∞"}`
+                      : "Evergreen"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
       )}
     </>
   );

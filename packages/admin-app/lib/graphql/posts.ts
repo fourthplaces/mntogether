@@ -75,6 +75,27 @@ export const SignalPostsQuery = graphql(`
   }
 `);
 
+export const EditionPostsQuery = graphql(`
+  query EditionPosts(
+    $countyId: ID
+    $status: String
+    $limit: Int
+    $offset: Int
+  ) {
+    posts(
+      countyId: $countyId
+      status: $status
+      limit: $limit
+      offset: $offset
+    ) {
+      posts {
+        ...PostListFields
+      }
+      totalCount
+    }
+  }
+`);
+
 export const EditorialPostsQuery = graphql(`
   query EditorialPosts(
     $status: String
