@@ -2,11 +2,12 @@
 
 /**
  * BroadsheetRenderer — takes the PublicBroadsheet query result and renders
- * the full newspaper layout: BroadsheetHeader → Masthead → Rows.
+ * the full newspaper layout: BroadsheetHeader → Masthead → Rows + Widgets.
  *
+ * Rows and widgets are independent layout items, interleaved by sort_order.
  * Each row maps a CMS row template slug to a Row variant (lead, trio, full, etc.),
- * distributes its slots into cells, resolves each slot to the correct post component,
- * and renders widgets (section headers, weather, resource bars) alongside posts.
+ * distributes its slots into cells, and resolves each slot to the correct post component.
+ * Widgets (section headers, weather, resource bars) are rendered between rows.
  */
 
 import type { PublicBroadsheetQuery } from '@/gql/graphql';
@@ -19,20 +20,37 @@ import { preparePost } from '@/lib/broadsheet/prepare';
 type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
 type BroadsheetRowData = BroadsheetData['rows'][number];
 type BroadsheetSlotData = BroadsheetRowData['slots'][number];
-type BroadsheetWidgetData = BroadsheetRowData['widgets'][number];
+type BroadsheetWidgetData = BroadsheetData['widgets'][number];
 type BroadsheetSectionData = BroadsheetData['sections'][number];
+
+type LayoutItem =
+  | { type: 'row'; data: BroadsheetRowData; sortOrder: number; sectionId?: string | null }
+  | { type: 'widget'; data: BroadsheetWidgetData; sortOrder: number; sectionId?: string | null };
 
 interface BroadsheetRendererProps {
   edition: BroadsheetData;
 }
 
 export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
-  // Group rows by section: ungrouped rows (sectionId=null) render above the fold,
-  // then each section renders a SectionSep divider followed by its rows.
-  const { ungroupedRows, sectionGroups } = groupRowsBySections(
-    edition.rows,
-    edition.sections
-  );
+  // Build unified layout items from rows and widgets
+  const allItems: LayoutItem[] = [
+    ...edition.rows.map((r) => ({
+      type: 'row' as const,
+      data: r,
+      sortOrder: r.sortOrder,
+      sectionId: r.sectionId,
+    })),
+    ...(edition.widgets ?? []).map((w) => ({
+      type: 'widget' as const,
+      data: w,
+      sortOrder: w.sortOrder,
+      sectionId: w.sectionId,
+    })),
+  ].sort((a, b) => a.sortOrder - b.sortOrder);
+
+  // Group items by section
+  const ungroupedItems = allItems.filter((item) => !item.sectionId);
+  const sortedSections = [...edition.sections].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
     <NewspaperFrame>
@@ -57,23 +75,31 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
         </div>
       </header>
 
-      {/* Above the fold — rows without a section */}
-      {ungroupedRows.map((row, rowIdx) => (
-        <BroadsheetRow key={`ungrouped-${rowIdx}`} row={row} />
-      ))}
+      {/* Above the fold — items without a section */}
+      {ungroupedItems.map((item, idx) =>
+        item.type === 'row' ? (
+          <BroadsheetRow key={`ungrouped-row-${idx}`} row={item.data} />
+        ) : (
+          <WidgetRenderer key={`ungrouped-widget-${idx}`} widget={item.data} />
+        )
+      )}
 
-      {/* Topic sections — SectionSep divider + section rows */}
-      {sectionGroups.map((group) => (
-        <div key={group.section.id} data-section={group.section.topicSlug ?? group.section.id}>
-          <SectionSep
-            title={group.section.title}
-            sub={group.section.subtitle ?? undefined}
-          />
-          {group.rows.map((row, rowIdx) => (
-            <BroadsheetRow key={`section-${group.section.id}-${rowIdx}`} row={row} />
-          ))}
-        </div>
-      ))}
+      {/* Topic sections — items interleaved by sort_order */}
+      {sortedSections.map((section) => {
+        const sectionItems = allItems.filter((item) => item.sectionId === section.id);
+        if (sectionItems.length === 0) return null;
+        return (
+          <div key={section.id} data-section={section.topicSlug ?? section.id}>
+            {sectionItems.map((item, idx) =>
+              item.type === 'row' ? (
+                <BroadsheetRow key={`section-row-${idx}`} row={item.data} />
+              ) : (
+                <WidgetRenderer key={`section-widget-${idx}`} widget={item.data} />
+              )
+            )}
+          </div>
+        );
+      })}
     </NewspaperFrame>
   );
 }
@@ -85,36 +111,19 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
 function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
   const layout = getRowLayout(row.layoutVariant ?? 'full', row.slots.length);
 
-  // Widgets that go BEFORE posts (e.g., section headers at slot 0)
-  const preWidgets = row.widgets.filter((w) => w.slotIndex === 0);
-  // Widgets that go AFTER posts (higher slot indices)
-  const postWidgets = row.widgets.filter((w) => w.slotIndex > 0);
-
   // Distribute slots into cells
   const cellSlots = distributeSlots(row.slots, layout);
 
   return (
-    <>
-      {/* Pre-row widgets (section headers, etc.) */}
-      {preWidgets.map((widget, i) => (
-        <WidgetRenderer key={`pre-${i}`} widget={widget} />
+    <Row variant={layout.variant}>
+      {cellSlots.map((slots, cellIdx) => (
+        <Cell key={cellIdx} span={layout.cells[cellIdx]}>
+          {slots.map((slot) => (
+            <SlotRenderer key={slot.post.id} slot={slot} />
+          ))}
+        </Cell>
       ))}
-
-      <Row variant={layout.variant}>
-        {cellSlots.map((slots, cellIdx) => (
-          <Cell key={cellIdx} span={layout.cells[cellIdx]}>
-            {slots.map((slot) => (
-              <SlotRenderer key={slot.post.id} slot={slot} />
-            ))}
-          </Cell>
-        ))}
-      </Row>
-
-      {/* Post-row widgets */}
-      {postWidgets.map((widget, i) => (
-        <WidgetRenderer key={`post-${i}`} widget={widget} />
-      ))}
-    </>
+    </Row>
   );
 }
 
@@ -161,6 +170,14 @@ function WidgetRenderer({ widget }: { widget: BroadsheetWidgetData }) {
         />
       );
 
+    case 'section_sep':
+      return (
+        <SectionSep
+          title={(config.title as string) || ''}
+          sub={config.subtitle as string | undefined}
+        />
+      );
+
     case 'hotline_bar':
       return (
         <ResourceBar
@@ -202,48 +219,4 @@ function formatDate(dateStr: string): string {
   } catch {
     return dateStr;
   }
-}
-
-// =============================================================================
-// Section grouping — partitions rows into ungrouped + section groups
-// =============================================================================
-
-interface SectionGroup {
-  section: BroadsheetSectionData;
-  rows: BroadsheetRowData[];
-}
-
-function groupRowsBySections(
-  rows: readonly BroadsheetRowData[],
-  sections: readonly BroadsheetSectionData[]
-): { ungroupedRows: BroadsheetRowData[]; sectionGroups: SectionGroup[] } {
-  // If no sections, all rows are ungrouped (backward compat)
-  if (sections.length === 0) {
-    return { ungroupedRows: [...rows], sectionGroups: [] };
-  }
-
-  const ungroupedRows: BroadsheetRowData[] = [];
-  const rowsBySection = new Map<string, BroadsheetRowData[]>();
-
-  for (const row of rows) {
-    if (!row.sectionId) {
-      ungroupedRows.push(row);
-    } else {
-      const bucket = rowsBySection.get(row.sectionId) ?? [];
-      bucket.push(row);
-      rowsBySection.set(row.sectionId, bucket);
-    }
-  }
-
-  // Build section groups in sort order
-  const sortedSections = [...sections].sort((a, b) => a.sortOrder - b.sortOrder);
-  const sectionGroups: SectionGroup[] = sortedSections
-    .map((section) => ({
-      section,
-      rows: rowsBySection.get(section.id) ?? [],
-    }))
-    // Only include sections that have rows
-    .filter((group) => group.rows.length > 0);
-
-  return { ungroupedRows, sectionGroups };
 }

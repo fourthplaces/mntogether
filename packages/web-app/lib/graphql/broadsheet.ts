@@ -22,6 +22,13 @@ export const EditionPreviewQuery = graphql(`
         topicSlug
         sortOrder
       }
+      widgets {
+        id
+        widgetType
+        sortOrder
+        sectionId
+        config
+      }
       rows {
         rowTemplateSlug
         layoutVariant
@@ -60,12 +67,6 @@ export const EditionPreviewQuery = graphql(`
             bodyMedium
             bodyLight
           }
-        }
-        widgets {
-          id
-          widgetType
-          slotIndex
-          config
         }
       }
     }
@@ -94,6 +95,13 @@ export const PublicBroadsheetQuery = graphql(`
         topicSlug
         sortOrder
       }
+      widgets {
+        id
+        widgetType
+        sortOrder
+        sectionId
+        config
+      }
       rows {
         rowTemplateSlug
         layoutVariant
@@ -132,12 +140,6 @@ export const PublicBroadsheetQuery = graphql(`
             bodyMedium
             bodyLight
           }
-        }
-        widgets {
-          id
-          widgetType
-          slotIndex
-          config
         }
       }
     }

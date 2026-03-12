@@ -164,9 +164,10 @@ pub struct EditionKanbanStatsRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct AddWidgetRequest {
-    pub edition_row_id: Uuid,
+    pub edition_id: Uuid,
     pub widget_type: String,
-    pub slot_index: i32,
+    pub sort_order: i32,
+    pub section_id: Option<Uuid>,
     pub config: serde_json::Value,
 }
 
@@ -258,6 +259,7 @@ pub struct EditionDetailResult {
     pub edition: EditionResult,
     pub rows: Vec<EditionRowResult>,
     pub sections: Vec<EditionSectionResult>,
+    pub widgets: Vec<EditionWidgetResult>,
 }
 
 #[derive(Debug, Serialize)]
@@ -280,7 +282,8 @@ pub struct EditionRowResult {
 pub struct EditionWidgetResult {
     pub id: Uuid,
     pub widget_type: String,
-    pub slot_index: i32,
+    pub sort_order: i32,
+    pub section_id: Option<Uuid>,
     pub config: serde_json::Value,
 }
 
@@ -375,6 +378,7 @@ pub struct PublicBroadsheetResult {
     pub county: CountyResult,
     pub rows: Vec<PublicBroadsheetRowResult>,
     pub sections: Vec<EditionSectionResult>,
+    pub widgets: Vec<EditionWidgetResult>,
 }
 
 #[derive(Debug, Serialize)]
@@ -437,6 +441,16 @@ pub struct EditionSectionResult {
     pub created_at: String,
 }
 
+fn widget_to_result(w: &EditionWidget) -> EditionWidgetResult {
+    EditionWidgetResult {
+        id: w.id,
+        widget_type: w.widget_type.clone(),
+        sort_order: w.sort_order,
+        section_id: w.section_id,
+        config: w.config.clone(),
+    }
+}
+
 fn section_to_result(s: &EditionSection) -> EditionSectionResult {
     EditionSectionResult {
         id: s.id,
@@ -496,8 +510,6 @@ async fn load_edition_detail(
 
         let slots = EditionSlot::find_by_row_with_posts(row.id, pool).await?;
 
-        let widgets = EditionWidget::find_by_row(row.id, pool).await?;
-
         row_results.push(EditionRowResult {
             id: row.id,
             row_template_slug: template.map(|t| t.slug.clone()).unwrap_or_default(),
@@ -523,24 +535,21 @@ async fn load_edition_detail(
                     post_status: Some(s.post_status.clone()),
                 })
                 .collect(),
-            widgets: widgets
-                .iter()
-                .map(|w| EditionWidgetResult {
-                    id: w.id,
-                    widget_type: w.widget_type.clone(),
-                    slot_index: w.slot_index,
-                    config: w.config.clone(),
-                })
-                .collect(),
+            widgets: vec![],
         });
     }
 
     let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
 
     Ok(EditionDetailResult {
         edition: edition_to_result(edition),
         rows: row_results,
         sections: sections.iter().map(section_to_result).collect(),
+        widgets: edition_widgets
+            .iter()
+            .map(widget_to_result)
+            .collect(),
     })
 }
 
@@ -1174,20 +1183,16 @@ async fn add_widget(
     Json(req): Json<AddWidgetRequest>,
 ) -> ApiResult<Json<EditionWidgetResult>> {
     let widget = EditionWidget::create(
-        req.edition_row_id,
+        req.edition_id,
         &req.widget_type,
-        req.slot_index,
+        req.sort_order,
+        req.section_id,
         req.config,
         &state.deps.db_pool,
     )
     .await?;
 
-    Ok(Json(EditionWidgetResult {
-        id: widget.id,
-        widget_type: widget.widget_type,
-        slot_index: widget.slot_index,
-        config: widget.config,
-    }))
+    Ok(Json(widget_to_result(&widget)))
 }
 
 async fn update_widget(
@@ -1198,12 +1203,7 @@ async fn update_widget(
     let widget =
         EditionWidget::update(req.id, req.config, &state.deps.db_pool).await?;
 
-    Ok(Json(EditionWidgetResult {
-        id: widget.id,
-        widget_type: widget.widget_type,
-        slot_index: widget.slot_index,
-        config: widget.config,
-    }))
+    Ok(Json(widget_to_result(&widget)))
 }
 
 async fn remove_widget(
@@ -1293,8 +1293,6 @@ async fn public_current_broadsheet(
             .iter()
             .find(|t| t.id == row.row_template_config_id);
 
-        let widgets = EditionWidget::find_by_row(row.id, pool).await?;
-
         let slot_results: Vec<PublicBroadsheetSlotResult> = slots
             .iter()
             .filter_map(|slot| {
@@ -1333,20 +1331,13 @@ async fn public_current_broadsheet(
             sort_order: row.sort_order,
             section_id: row.section_id,
             slots: slot_results,
-            widgets: widgets
-                .iter()
-                .map(|w| EditionWidgetResult {
-                    id: w.id,
-                    widget_type: w.widget_type.clone(),
-                    slot_index: w.slot_index,
-                    config: w.config.clone(),
-                })
-                .collect(),
+            widgets: vec![],
         });
     }
 
-    // Load sections for the edition
+    // Load sections and edition-level widgets
     let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
     let section_results: Vec<EditionSectionResult> = sections
         .iter()
         .map(|s| section_to_result(s))
@@ -1362,6 +1353,7 @@ async fn public_current_broadsheet(
         },
         rows: row_results,
         sections: section_results,
+        widgets: edition_widgets.iter().map(widget_to_result).collect(),
     }))
 }
 
@@ -1445,8 +1437,6 @@ async fn preview_broadsheet(
             .iter()
             .find(|t| t.id == row.row_template_config_id);
 
-        let widgets = EditionWidget::find_by_row(row.id, pool).await?;
-
         let slot_results: Vec<PublicBroadsheetSlotResult> = slots
             .iter()
             .filter_map(|slot| {
@@ -1485,20 +1475,13 @@ async fn preview_broadsheet(
             sort_order: row.sort_order,
             section_id: row.section_id,
             slots: slot_results,
-            widgets: widgets
-                .iter()
-                .map(|w| EditionWidgetResult {
-                    id: w.id,
-                    widget_type: w.widget_type.clone(),
-                    slot_index: w.slot_index,
-                    config: w.config.clone(),
-                })
-                .collect(),
+            widgets: vec![],
         });
     }
 
-    // Load sections for the edition
+    // Load sections and edition-level widgets
     let sections = EditionSection::find_by_edition(edition.id, pool).await?;
+    let edition_widgets = EditionWidget::find_by_edition(edition.id, pool).await?;
     let section_results: Vec<EditionSectionResult> = sections
         .iter()
         .map(|s| section_to_result(s))
@@ -1514,6 +1497,7 @@ async fn preview_broadsheet(
         },
         rows: row_results,
         sections: section_results,
+        widgets: edition_widgets.iter().map(widget_to_result).collect(),
     }))
 }
 

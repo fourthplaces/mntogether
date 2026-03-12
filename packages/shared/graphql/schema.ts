@@ -146,7 +146,7 @@ type Mutation {
   changeSlotTemplate(slotId: ID!, postTemplate: String!): EditionSlot!
 
   # Widgets (admin)
-  addWidget(editionRowId: ID!, widgetType: String!, slotIndex: Int!, config: String!): EditionWidget!
+  addWidget(editionId: ID!, widgetType: String!, sortOrder: Int!, sectionId: ID, config: String!): EditionWidget!
   updateWidget(id: ID!, config: String!): EditionWidget!
   removeWidget(id: ID!): Boolean!
 
@@ -422,6 +422,7 @@ type Edition {
   rowCount: Int!
   rows: [EditionRow!]!
   sections: [EditionSection!]!
+  widgets: [EditionWidget!]!
   createdAt: String!
 }
 
@@ -446,13 +447,13 @@ type EditionRow {
   sortOrder: Int!
   sectionId: ID
   slots: [EditionSlot!]!
-  widgets: [EditionWidget!]!
 }
 
 type EditionWidget {
   id: ID!
   widgetType: String!
-  slotIndex: Int!
+  sortOrder: Int!
+  sectionId: ID
   config: String!
 }
 
@@ -526,6 +527,7 @@ type PublicBroadsheet {
   county: BroadsheetCounty!
   rows: [BroadsheetRow!]!
   sections: [BroadsheetSection!]!
+  widgets: [BroadsheetWidget!]!
 }
 
 type BroadsheetSection {
@@ -549,13 +551,13 @@ type BroadsheetRow {
   sortOrder: Int!
   sectionId: ID
   slots: [BroadsheetSlot!]!
-  widgets: [BroadsheetWidget!]!
 }
 
 type BroadsheetWidget {
   id: ID!
   widgetType: String!
-  slotIndex: Int!
+  sortOrder: Int!
+  sectionId: ID
   config: String!
 }
 

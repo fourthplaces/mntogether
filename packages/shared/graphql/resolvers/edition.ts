@@ -26,6 +26,7 @@ interface EditionData {
   rowCount?: number;
   rows?: EditionRowData[];
   sections?: EditionSectionData[];
+  widgets?: EditionWidgetData[];
 }
 
 interface EditionRowData {
@@ -51,7 +52,8 @@ interface EditionRowData {
 interface EditionWidgetData {
   id: string;
   widgetType: string;
-  slotIndex: number;
+  sortOrder: number;
+  sectionId?: string | null;
   config: unknown; // JSON object from Rust
 }
 
@@ -88,6 +90,7 @@ interface PublicBroadsheetData {
   county: { id: string; fipsCode?: string; fips_code?: string; name: string; state: string };
   rows: PublicBroadsheetRowData[];
   sections: PublicBroadsheetSectionData[];
+  widgets: EditionWidgetData[];
 }
 
 interface PublicBroadsheetRowData {
@@ -145,6 +148,9 @@ export const editionResolvers = {
     sections: (parent: EditionData) => {
       return parent.sections ?? [];
     },
+    widgets: (parent: EditionData) => {
+      return parent.widgets ?? [];
+    },
   },
 
   // Resolve nested objects on EditionRow — template data is embedded from Rust service
@@ -160,9 +166,6 @@ export const editionResolvers = {
         slots: parent.rowTemplateSlots ?? [],
       };
     },
-    widgets: (parent: EditionRowData) => {
-      return parent.widgets ?? [];
-    },
   },
 
   // Resolve fields on EditionWidget — config is JSON, serialized to string for GraphQL
@@ -170,8 +173,11 @@ export const editionResolvers = {
     widgetType: (parent: { widgetType?: string; widget_type?: string }) => {
       return parent.widgetType ?? parent.widget_type ?? "";
     },
-    slotIndex: (parent: { slotIndex?: number; slot_index?: number }) => {
-      return parent.slotIndex ?? parent.slot_index ?? 0;
+    sortOrder: (parent: { sortOrder?: number; sort_order?: number }) => {
+      return parent.sortOrder ?? parent.sort_order ?? 0;
+    },
+    sectionId: (parent: { sectionId?: string | null; section_id?: string | null }) => {
+      return parent.sectionId ?? parent.section_id ?? null;
     },
     config: (parent: { config?: unknown }) => {
       return typeof parent.config === "string"
@@ -248,6 +254,15 @@ export const editionResolvers = {
   },
 
   BroadsheetWidget: {
+    widgetType: (parent: { widgetType?: string; widget_type?: string }) => {
+      return parent.widgetType ?? parent.widget_type ?? "";
+    },
+    sortOrder: (parent: { sortOrder?: number; sort_order?: number }) => {
+      return parent.sortOrder ?? parent.sort_order ?? 0;
+    },
+    sectionId: (parent: { sectionId?: string | null; section_id?: string | null }) => {
+      return parent.sectionId ?? parent.section_id ?? null;
+    },
     config: (parent: { config?: unknown }) => {
       return typeof parent.config === "string"
         ? parent.config
@@ -267,12 +282,13 @@ export const editionResolvers = {
           "current_broadsheet",
           { county_id: args.countyId }
         );
-      // Flatten edition fields + county + rows + sections into a single PublicBroadsheet object
+      // Flatten edition fields + county + rows + sections + widgets into a single PublicBroadsheet object
       return {
         ...result.edition,
         county: result.county,
         rows: result.rows,
         sections: result.sections ?? [],
+        widgets: result.widgets ?? [],
       };
     },
 
@@ -292,6 +308,7 @@ export const editionResolvers = {
         county: result.county,
         rows: result.rows,
         sections: result.sections ?? [],
+        widgets: result.widgets ?? [],
       };
     },
 
@@ -682,13 +699,14 @@ export const editionResolvers = {
 
     addWidget: async (
       _parent: unknown,
-      args: { editionRowId: string; widgetType: string; slotIndex: number; config: string },
+      args: { editionId: string; widgetType: string; sortOrder: number; sectionId?: string; config: string },
       ctx: GraphQLContext
     ) => {
       return ctx.server.callService("Editions", "add_widget", {
-        edition_row_id: args.editionRowId,
+        edition_id: args.editionId,
         widget_type: args.widgetType,
-        slot_index: args.slotIndex,
+        sort_order: args.sortOrder,
+        section_id: args.sectionId ?? null,
         config: JSON.parse(args.config),
       });
     },
