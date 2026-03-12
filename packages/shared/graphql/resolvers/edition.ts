@@ -429,9 +429,10 @@ export const editionResolvers = {
         edition: EditionData;
         rows: EditionRowData[];
         sections: EditionSectionData[];
+        widgets: EditionWidgetData[];
       }>("Editions", "get_edition", { id: args.id });
-      // Merge edition fields with rows + sections for the GraphQL Edition type
-      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
+      // Merge edition fields with rows + sections + widgets for the GraphQL Edition type
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [], widgets: result.widgets ?? [] };
     },
 
     currentEdition: async (
@@ -443,10 +444,11 @@ export const editionResolvers = {
         edition: EditionData;
         rows: EditionRowData[];
         sections: EditionSectionData[];
+        widgets: EditionWidgetData[];
       }>("Editions", "current_edition", {
         county_id: args.countyId,
       });
-      return { ...result.edition, rows: result.rows, sections: result.sections ?? [] };
+      return { ...result.edition, rows: result.rows, sections: result.sections ?? [], widgets: result.widgets ?? [] };
     },
 
     editionKanbanStats: async (

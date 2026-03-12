@@ -620,7 +620,7 @@ function BroadsheetEditor({
 
   // Mutations
   const mutCtx = useMemo(
-    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot", "EditionSection"] }),
+    () => ({ additionalTypenames: ["Edition", "EditionRow", "EditionSlot", "EditionSection", "EditionWidget"] }),
     []
   );
   const [, generateEdition] = useMutation(GenerateEditionMutation);
@@ -816,10 +816,15 @@ function BroadsheetEditor({
 
   const handleAddWidget = useCallback(
     async (widgetType: string, sortOrder: number, sectionId: string | null, config: Record<string, unknown>) => {
-      await addWidgetMut(
+      const result = await addWidgetMut(
         { editionId: edition!.id, widgetType, sortOrder, sectionId, config: JSON.stringify(config) },
         mutCtx
       );
+      if (result.error) {
+        console.error("addWidget failed:", result.error);
+        setActionError(`Failed to add widget: ${result.error.message}`);
+        return;
+      }
       refetchEdition({ requestPolicy: "network-only" });
     },
     [edition, addWidgetMut, mutCtx, refetchEdition]
