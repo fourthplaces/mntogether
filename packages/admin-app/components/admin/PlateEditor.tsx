@@ -97,7 +97,7 @@ const BlockHandlesPlugin = createPlatePlugin({
         const handleDelete = () => {
           const path = editor.api.findPath(element);
           if (path) {
-            editor.tf.deleteNodes({ at: path });
+            editor.tf.removeNodes({ at: path });
           }
         };
 
