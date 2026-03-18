@@ -22,6 +22,7 @@ import type {
   PostStatus,
 } from './types';
 import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
+import { computeRenderHints } from './render-hints';
 
 // Post template configs from the CMS — mirrors post_template_configs seed data
 const TEMPLATE_CONFIGS: Record<string, { bodyTarget: number; bodyMax: number }> = {
@@ -159,6 +160,18 @@ export function preparePost(
     caption: media?.caption,
     credit: media?.credit,
   };
+
+  // Compute render hints from field group data and merge onto post
+  const hints = computeRenderHints(post);
+  if (hints.month !== undefined) post.month = hints.month;
+  if (hints.day !== undefined) post.day = hints.day;
+  if (hints.dow !== undefined) post.dow = hints.dow;
+  if (hints.when !== undefined) post.when = hints.when;
+  if (hints.circleLabel !== undefined) post.circleLabel = hints.circleLabel;
+  if (hints.count !== undefined) post.count = hints.count;
+  if (hints.tagline !== undefined) post.tagline = hints.tagline;
+  if (hints.pullQuote !== undefined) post.pullQuote = hints.pullQuote;
+  if (hints.date !== undefined) post.date = hints.date;
 
   return post;
 }
