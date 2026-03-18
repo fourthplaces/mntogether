@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * PlateEditor — WYSIWYG editor for post body content, backed by Plate.js.
+ * PlateEditor — Single-pane WYSIWYG editor for post body content.
  *
- * Supports: paragraphs, headings (h2-h4), bold, italic, underline,
- * blockquotes, ordered/unordered lists, links.
+ * Renders content with broadsheet newspaper styling (body-a class).
+ * Custom block types: pull quotes, section breaks, inline photos,
+ * links boxes, resource lists.
  *
- * Markdown round-tripping: imports from markdown on load, exports to
- * markdown on change via @platejs/markdown. The onChange callback fires
- * with markdown string — same interface as the old textarea.
+ * Accepts and emits Plate.js Value (JSON AST) — not markdown.
+ * Fallback: can deserialize from markdown for existing posts that
+ * don't yet have body_ast.
  */
 
-import { useCallback, useMemo, useRef, useEffect } from "react";
-import type { Value } from "platejs";
+import { useCallback, useRef, useEffect, useState } from "react";
+import type { Value, TElement } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import {
   BoldPlugin,
@@ -27,15 +28,30 @@ import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
 import { MarkdownPlugin } from "@platejs/markdown";
 
+import {
+  PullQuotePlugin,
+  PULL_QUOTE_KEY,
+  SectionBreakPlugin,
+  SECTION_BREAK_KEY,
+  PhotoBlockPlugin,
+  PHOTO_BLOCK_KEY,
+  LinksBoxPlugin,
+  LINKS_BOX_KEY,
+  ResourceListPlugin,
+  RESOURCE_LIST_KEY,
+} from "./plate-plugins";
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 interface PlateEditorProps {
-  /** Initial markdown content to load into the editor */
+  /** Initial editor value (JSON AST). Takes precedence over initialMarkdown. */
+  initialValue?: Value | null;
+  /** Fallback: initial markdown to deserialize if initialValue is null. */
   initialMarkdown?: string;
-  /** Called with markdown string on every content change */
-  onChange?: (markdown: string) => void;
+  /** Called with JSON AST on every content change. */
+  onChange?: (value: Value) => void;
   /** Placeholder text when editor is empty */
   placeholder?: string;
   /** Disable editing */
@@ -61,7 +77,7 @@ function ToolbarButton({
     <button
       type="button"
       onMouseDown={(e) => {
-        e.preventDefault(); // prevent editor blur
+        e.preventDefault();
         onClick();
       }}
       title={title}
@@ -73,6 +89,77 @@ function ToolbarButton({
     >
       {children}
     </button>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Insert menu
+// ---------------------------------------------------------------------------
+
+function InsertMenu({ editor }: { editor: ReturnType<typeof usePlateEditor> }) {
+  const [open, setOpen] = useState(false);
+
+  const insertBlock = (type: string, data?: Record<string, unknown>) => {
+    const node: TElement = {
+      type,
+      children: [{ text: "" }],
+      ...data,
+    };
+    editor.tf.insertNodes(node);
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative inline-block">
+      <ToolbarButton
+        onClick={() => setOpen(!open)}
+        title="Insert block"
+      >
+        + Insert
+      </ToolbarButton>
+      {open && (
+        <div
+          className="absolute top-full left-0 mt-1 bg-white border border-border rounded shadow-lg z-50 min-w-[180px] py-1"
+          onMouseDown={(e) => e.preventDefault()}
+        >
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
+            onClick={() => insertBlock(PULL_QUOTE_KEY)}
+          >
+            Pull Quote
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
+            onClick={() => insertBlock(SECTION_BREAK_KEY)}
+          >
+            Section Break
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
+            onClick={() => insertBlock(PHOTO_BLOCK_KEY, { src: "", caption: "", credit: "", variant: "c" })}
+          >
+            Inline Photo
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
+            onClick={() => insertBlock(LINKS_BOX_KEY, { header: "See Also", links: [{ title: "", url: "" }] })}
+          >
+            Links Box
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
+            onClick={() => insertBlock(RESOURCE_LIST_KEY, { items: [{ name: "", detail: "" }] })}
+          >
+            Resource List
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -107,7 +194,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof usePlateEditor> }
   };
 
   return (
-    <div className="flex items-center gap-0.5 px-2 py-1.5 border-b border-border bg-surface-raised/50">
+    <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-border bg-surface-raised/50 sticky top-0 z-10">
       <ToolbarButton
         active={isMarkActive("bold")}
         onClick={() => toggleMark("bold")}
@@ -163,6 +250,10 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof usePlateEditor> }
       >
         &ldquo;
       </ToolbarButton>
+
+      <div className="w-px h-5 bg-border mx-1" />
+
+      <InsertMenu editor={editor} />
     </div>
   );
 }
@@ -172,6 +263,7 @@ function EditorToolbar({ editor }: { editor: ReturnType<typeof usePlateEditor> }
 // ---------------------------------------------------------------------------
 
 export function PlateEditor({
+  initialValue,
   initialMarkdown = "",
   onChange,
   placeholder = "Write your story...",
@@ -180,7 +272,7 @@ export function PlateEditor({
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
-  // Create editor with plugins
+  // Create editor with all plugins
   const editor = usePlateEditor({
     plugins: [
       BoldPlugin,
@@ -193,14 +285,26 @@ export function PlateEditor({
       LinkPlugin,
       ListPlugin,
       MarkdownPlugin,
+      // Custom block plugins
+      PullQuotePlugin,
+      SectionBreakPlugin,
+      PhotoBlockPlugin,
+      LinksBoxPlugin,
+      ResourceListPlugin,
     ],
   });
 
-  // Deserialize initial markdown into editor on mount
+  // Initialize editor on mount: prefer JSON AST, fall back to markdown
   const initialized = useRef(false);
   useEffect(() => {
-    if (!initialized.current && initialMarkdown) {
-      initialized.current = true;
+    if (initialized.current) return;
+    initialized.current = true;
+
+    if (initialValue && Array.isArray(initialValue) && initialValue.length > 0) {
+      // Load from JSON AST
+      editor.tf.setValue(initialValue);
+    } else if (initialMarkdown) {
+      // Fall back to markdown deserialization
       try {
         const value = editor.getApi(MarkdownPlugin).markdown.deserialize(initialMarkdown);
         if (value && value.length > 0) {
@@ -210,37 +314,27 @@ export function PlateEditor({
         console.warn("Failed to deserialize markdown:", e);
       }
     }
-  }, [editor, initialMarkdown]);
+  }, [editor, initialValue, initialMarkdown]);
 
-  // Serialize to markdown on change
+  // Emit JSON AST on change
   const handleChange = useCallback(
     ({ value }: { value: Value }) => {
       if (!onChangeRef.current) return;
-      try {
-        const md = editor.getApi(MarkdownPlugin).markdown.serialize();
-        onChangeRef.current(md);
-      } catch {
-        // Serialization may fail during rapid typing — ignore
-      }
+      onChangeRef.current(value);
     },
-    [editor]
+    []
   );
 
   return (
-    <div className="border border-border rounded-md overflow-hidden bg-white">
+    <>
       <EditorToolbar editor={editor} />
       <Plate editor={editor} onChange={handleChange}>
         <PlateContent
           placeholder={placeholder}
           disabled={disabled}
-          className="px-4 py-3 min-h-[300px] focus:outline-none prose prose-sm max-w-none"
-          style={{
-            fontFamily: "Georgia, serif",
-            fontSize: "1rem",
-            lineHeight: "1.7",
-          }}
+          className="body-a focus:outline-none"
         />
       </Plate>
-    </div>
+    </>
   );
 }

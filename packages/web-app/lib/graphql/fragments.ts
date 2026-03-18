@@ -34,6 +34,7 @@ export const PostDetailPublicFields = graphql(`
     title
     description
     descriptionMarkdown
+    bodyAst
     summary
     status
     postType

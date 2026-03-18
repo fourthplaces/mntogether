@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
+import type { Value } from "platejs";
 import { AdminLoader } from "@/components/admin/AdminLoader";
 import { EditorTopBar } from "@/components/admin/EditorTopBar";
-import { SplitPane, type SplitMode } from "@/components/admin/SplitPane";
 import { PlateEditor } from "@/components/admin/PlateEditor";
-import { ArticlePreview } from "@/components/admin/ArticlePreview";
+import "@/app/editor-broadsheet.css";
 import {
   PostDetailQuery,
   UpdatePostMutation,
@@ -62,69 +62,191 @@ const DEFAULT_FIELD_GROUPS: FieldGroupState = {
 };
 
 // ---------------------------------------------------------------------------
-// Collapsible field group panel
+// InlineField — text input styled as broadsheet content
 // ---------------------------------------------------------------------------
 
-function FieldGroupPanel({
-  title,
-  defaultOpen = false,
-  children,
-}: {
-  title: string;
-  defaultOpen?: boolean;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="border border-border rounded-md overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-3 py-2 bg-surface-raised/50 text-sm font-medium text-text-primary hover:bg-surface-muted transition-colors"
-      >
-        {title}
-        <span className="text-text-muted text-xs">{open ? "▾" : "▸"}</span>
-      </button>
-      {open && <div className="px-3 py-3 space-y-3">{children}</div>}
-    </div>
-  );
-}
-
-function FieldInput({
-  label,
+function InlineField({
+  className = "",
   value,
   onChange,
   placeholder,
   multiline = false,
 }: {
-  label: string;
+  className?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   multiline?: boolean;
 }) {
-  return (
-    <div>
-      <label className="block text-xs text-text-muted uppercase tracking-wide mb-1">
-        {label}
-      </label>
-      {multiline ? (
+  if (multiline) {
+    return (
+      <div className={`editable-region ${className}`}>
         <textarea
+          className="inline-field"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          rows={2}
-          className="w-full rounded border border-border bg-white px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-admin-accent resize-y"
+          rows={1}
+          style={{ minHeight: "1.4em" }}
+          onInput={(e) => {
+            // Auto-resize textarea
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
         />
+      </div>
+    );
+  }
+  return (
+    <div className={`editable-region ${className}`}>
+      <input
+        type="text"
+        className="inline-field"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// HeroPhotoField — image with inline-editable caption/credit
+// ---------------------------------------------------------------------------
+
+function HeroPhotoField({
+  imageUrl,
+  caption,
+  credit,
+  onImageUrlChange,
+  onCaptionChange,
+  onCreditChange,
+}: {
+  imageUrl: string;
+  caption: string;
+  credit: string;
+  onImageUrlChange: (v: string) => void;
+  onCaptionChange: (v: string) => void;
+  onCreditChange: (v: string) => void;
+}) {
+  return (
+    <figure className="photo-a editable-region">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={imageUrl} alt={caption || ""} />
       ) : (
+        <div
+          style={{
+            width: "100%",
+            height: "200px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.04)",
+            border: "1px dashed rgba(0,0,0,0.15)",
+            color: "var(--pebble)",
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.82rem",
+          }}
+        >
+          No hero image
+        </div>
+      )}
+      <figcaption className="photo-a__caption">
         <input
           type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          className="w-full rounded border border-border bg-white px-2 py-1.5 text-sm text-text-primary placeholder:text-text-muted/50 focus:outline-none focus:ring-1 focus:ring-admin-accent"
+          className="inline-field photo-a__caption-text"
+          value={caption}
+          onChange={(e) => onCaptionChange(e.target.value)}
+          placeholder="Caption"
         />
-      )}
+        <input
+          type="text"
+          className="inline-field photo-a__credit"
+          value={credit}
+          onChange={(e) => onCreditChange(e.target.value)}
+          placeholder="Credit"
+          style={{ textAlign: "right", maxWidth: "200px" }}
+        />
+      </figcaption>
+      <input
+        type="text"
+        className="inline-field"
+        value={imageUrl}
+        onChange={(e) => onImageUrlChange(e.target.value)}
+        placeholder="Image URL"
+        style={{
+          fontFamily: "var(--font-mono)",
+          fontSize: "0.72rem",
+          color: "var(--pebble)",
+          marginTop: "4px",
+          borderBottom: "1px dashed rgba(0,0,0,0.15)",
+          paddingBottom: "4px",
+        }}
+      />
+    </figure>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PersonQuoteField — editable pull quote for spotlights
+// ---------------------------------------------------------------------------
+
+function PersonQuoteField({
+  name,
+  role,
+  quote,
+  onNameChange,
+  onRoleChange,
+  onQuoteChange,
+}: {
+  name: string;
+  role: string;
+  quote: string;
+  onNameChange: (v: string) => void;
+  onRoleChange: (v: string) => void;
+  onQuoteChange: (v: string) => void;
+}) {
+  return (
+    <div className="person-quote editable-region">
+      <div className="person-quote__text">
+        <textarea
+          className="inline-field"
+          value={quote}
+          onChange={(e) => onQuoteChange(e.target.value)}
+          placeholder="A memorable quote..."
+          rows={2}
+          style={{
+            font: "inherit",
+            minHeight: "2.6em",
+          }}
+          onInput={(e) => {
+            const el = e.currentTarget;
+            el.style.height = "auto";
+            el.style.height = el.scrollHeight + "px";
+          }}
+        />
+      </div>
+      <div className="person-quote__attribution">
+        <input
+          type="text"
+          className="inline-field"
+          value={name}
+          onChange={(e) => onNameChange(e.target.value)}
+          placeholder="Name"
+          style={{ display: "inline", width: "auto", maxWidth: "200px" }}
+        />
+        {(name || role) && <span style={{ margin: "0 0.4em" }}>·</span>}
+        <input
+          type="text"
+          className="inline-field"
+          value={role}
+          onChange={(e) => onRoleChange(e.target.value)}
+          placeholder="Role"
+          style={{ display: "inline", width: "auto", maxWidth: "200px" }}
+        />
+      </div>
     </div>
   );
 }
@@ -145,13 +267,17 @@ export default function EditPostPage() {
   });
   const post = data?.post;
 
-  // Form state — base fields
+  // Form state
   const [values, setValues] = useState<PostFormValues>(DEFAULT_VALUES);
   const [fieldGroups, setFieldGroups] = useState<FieldGroupState>(DEFAULT_FIELD_GROUPS);
+  const [bodyAst, setBodyAst] = useState<Value | null>(null);
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState<SplitMode>("split");
   const initialized = useRef(false);
+
+  // Parsed body_ast from GraphQL (comes as JSON string)
+  const [parsedInitialAst, setParsedInitialAst] = useState<Value | null>(null);
+  const [initialMarkdown, setInitialMarkdown] = useState("");
 
   // Initialize form values from loaded post
   useEffect(() => {
@@ -176,6 +302,17 @@ export default function EditPostPage() {
         personPhotoUrl: post.person?.photoUrl || "",
         personQuote: post.person?.quote || "",
       });
+
+      // Parse body AST from GraphQL (stored as JSON string)
+      if (post.bodyAst) {
+        try {
+          const parsed = JSON.parse(post.bodyAst);
+          setParsedInitialAst(parsed);
+        } catch {
+          console.warn("Failed to parse bodyAst JSON");
+        }
+      }
+      setInitialMarkdown(post.descriptionMarkdown || post.description || "");
     }
   }, [post]);
 
@@ -186,13 +323,13 @@ export default function EditPostPage() {
   const [, upsertMeta] = useMutation(UpsertPostMetaMutation);
   const [, upsertPerson] = useMutation(UpsertPostPersonMutation);
 
-  const handleMarkdownChange = useCallback((markdown: string) => {
-    setValues((prev) => ({ ...prev, descriptionMarkdown: markdown }));
+  const handleBodyAstChange = useCallback((value: Value) => {
+    setBodyAst(value);
     setDirty(true);
   }, []);
 
-  const handleTitleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setValues((prev) => ({ ...prev, title: e.target.value }));
+  const handleTitleChange = useCallback((v: string) => {
+    setValues((prev) => ({ ...prev, title: v }));
     setDirty(true);
   }, []);
 
@@ -208,20 +345,21 @@ export default function EditPostPage() {
       return;
     }
 
-    // Save base fields
+    // Save base fields + body AST
     const result = await updatePost(
       {
         id: postId,
         input: {
           title: values.title.trim(),
-          descriptionMarkdown: values.descriptionMarkdown.trim(),
+          descriptionMarkdown: values.descriptionMarkdown.trim() || undefined,
+          bodyAst: bodyAst ? JSON.stringify(bodyAst) : undefined,
           summary: values.summary.trim() || undefined,
         },
       },
       mutationContext
     );
 
-    // Save field groups (fire and forget — parallel)
+    // Save field groups (parallel)
     const fg = fieldGroups;
     if (fg.imageUrl || fg.caption || fg.credit) {
       upsertMedia({
@@ -253,7 +391,7 @@ export default function EditPostPage() {
     if (!result.error) {
       setDirty(false);
     }
-  }, [values, fieldGroups, postId, updatePost, upsertMedia, upsertMeta, upsertPerson]);
+  }, [values, fieldGroups, bodyAst, postId, updatePost, upsertMedia, upsertMeta, upsertPerson]);
 
   const handlePublish = useCallback(async () => {
     await handleSave();
@@ -271,17 +409,6 @@ export default function EditPostPage() {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
-
-  // Force editor-only on small screens
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => {
-      if (e.matches) setMode("editor");
-    };
-    if (mq.matches) setMode("editor");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
 
   if (fetching) {
     return (
@@ -301,7 +428,7 @@ export default function EditPostPage() {
           <p className="text-sm text-text-muted mb-4">
             {error?.message || "The post you're looking for doesn't exist."}
           </p>
-          <a href={`/admin/posts`} className="text-admin-accent hover:underline text-sm">
+          <a href="/admin/posts" className="text-admin-accent hover:underline text-sm">
             Back to Posts
           </a>
         </div>
@@ -311,6 +438,8 @@ export default function EditPostPage() {
 
   const showPublish = post.status === "draft";
   const isSpotlight = post.postType === "spotlight";
+  const postType = post.postType || "story";
+  const titleSizeClass = `title-a--${postType}`;
 
   return (
     <>
@@ -323,76 +452,77 @@ export default function EditPostPage() {
         onPublish={showPublish ? handlePublish : undefined}
         saving={saving}
         dirty={dirty}
-        mode={mode}
-        onModeChange={setMode}
         previewUrl={`http://localhost:3001/posts/${postId}`}
       />
-      <SplitPane
-        mode={mode}
-        left={
-          <div className="p-4 space-y-4 overflow-y-auto h-full">
-            {/* Title */}
-            <input
-              type="text"
-              value={values.title}
-              onChange={handleTitleChange}
-              placeholder="Post title"
-              className="w-full text-2xl font-semibold text-text-primary bg-transparent border-b border-border pb-2 focus:outline-none focus:border-admin-accent placeholder:text-text-muted/40"
-            />
 
-            {/* WYSIWYG Editor */}
-            <PlateEditor
-              initialMarkdown={post.descriptionMarkdown || post.description || ""}
-              onChange={handleMarkdownChange}
-              placeholder="Write your story..."
-              disabled={saving}
-            />
+      <div className="editor-broadsheet flex-1 overflow-y-auto">
+        <div className="editor-article-column">
+          {/* Kicker */}
+          <InlineField
+            className="kicker-a"
+            value={fieldGroups.kicker}
+            onChange={(v) => updateFieldGroup("kicker", v)}
+            placeholder="Section kicker"
+          />
 
-            {/* Field group panels — content visible in article main column */}
-            <div className="space-y-2 pt-2">
-              <FieldGroupPanel title="Meta (Kicker, Byline, Deck)" defaultOpen={!!fieldGroups.kicker || !!fieldGroups.byline}>
-                <FieldInput label="Kicker" value={fieldGroups.kicker} onChange={(v) => updateFieldGroup("kicker", v)} placeholder="Housing" />
-                <FieldInput label="Byline" value={fieldGroups.byline} onChange={(v) => updateFieldGroup("byline", v)} placeholder="Root Editorial Staff" />
-                <FieldInput label="Deck" value={fieldGroups.deck} onChange={(v) => updateFieldGroup("deck", v)} placeholder="Subtitle or subheadline" multiline />
-              </FieldGroupPanel>
+          {/* Title */}
+          <InlineField
+            className={`title-a ${titleSizeClass}`}
+            value={values.title}
+            onChange={handleTitleChange}
+            placeholder="Headline"
+          />
 
-              <FieldGroupPanel title="Media (Image)" defaultOpen={!!fieldGroups.imageUrl}>
-                <FieldInput label="Image URL" value={fieldGroups.imageUrl} onChange={(v) => updateFieldGroup("imageUrl", v)} placeholder="https://..." />
-                <FieldInput label="Caption" value={fieldGroups.caption} onChange={(v) => updateFieldGroup("caption", v)} placeholder="Photo caption" multiline />
-                <FieldInput label="Credit" value={fieldGroups.credit} onChange={(v) => updateFieldGroup("credit", v)} placeholder="Photo credit" />
-              </FieldGroupPanel>
+          {/* Deck */}
+          <InlineField
+            className="title-a__deck"
+            value={fieldGroups.deck}
+            onChange={(v) => updateFieldGroup("deck", v)}
+            placeholder="Subtitle or subheadline"
+            multiline
+          />
 
-              {isSpotlight && (
-                <FieldGroupPanel title="Person Profile" defaultOpen={!!fieldGroups.personName}>
-                  <FieldInput label="Name" value={fieldGroups.personName} onChange={(v) => updateFieldGroup("personName", v)} placeholder="Full name" />
-                  <FieldInput label="Role" value={fieldGroups.personRole} onChange={(v) => updateFieldGroup("personRole", v)} placeholder="Community Organizer" />
-                  <FieldInput label="Bio" value={fieldGroups.personBio} onChange={(v) => updateFieldGroup("personBio", v)} placeholder="Short biography" multiline />
-                  <FieldInput label="Photo URL" value={fieldGroups.personPhotoUrl} onChange={(v) => updateFieldGroup("personPhotoUrl", v)} placeholder="https://..." />
-                  <FieldInput label="Quote" value={fieldGroups.personQuote} onChange={(v) => updateFieldGroup("personQuote", v)} placeholder="A memorable quote" multiline />
-                </FieldGroupPanel>
-              )}
-            </div>
-          </div>
-        }
-        right={
-          <div className="overflow-y-auto h-full">
-            <ArticlePreview
-              title={values.title}
-              markdown={values.descriptionMarkdown}
-              postType={post.postType ?? undefined}
-              kicker={fieldGroups.kicker}
-              byline={fieldGroups.byline}
-              deck={fieldGroups.deck}
-              imageUrl={fieldGroups.imageUrl}
-              caption={fieldGroups.caption}
-              credit={fieldGroups.credit}
-              personName={fieldGroups.personName}
-              personRole={fieldGroups.personRole}
-              personQuote={fieldGroups.personQuote}
+          {/* Article meta (byline) */}
+          <div className="article-meta">
+            <InlineField
+              value={fieldGroups.byline}
+              onChange={(v) => updateFieldGroup("byline", v)}
+              placeholder="Byline"
             />
           </div>
-        }
-      />
+
+          {/* Hero photo */}
+          <HeroPhotoField
+            imageUrl={fieldGroups.imageUrl}
+            caption={fieldGroups.caption}
+            credit={fieldGroups.credit}
+            onImageUrlChange={(v) => updateFieldGroup("imageUrl", v)}
+            onCaptionChange={(v) => updateFieldGroup("caption", v)}
+            onCreditChange={(v) => updateFieldGroup("credit", v)}
+          />
+
+          {/* Body — Plate.js WYSIWYG with broadsheet styling */}
+          <PlateEditor
+            initialValue={parsedInitialAst}
+            initialMarkdown={initialMarkdown}
+            onChange={handleBodyAstChange}
+            placeholder="Write your story..."
+            disabled={saving}
+          />
+
+          {/* Person pull quote (spotlight only) */}
+          {isSpotlight && (
+            <PersonQuoteField
+              name={fieldGroups.personName}
+              role={fieldGroups.personRole}
+              quote={fieldGroups.personQuote}
+              onNameChange={(v) => updateFieldGroup("personName", v)}
+              onRoleChange={(v) => updateFieldGroup("personRole", v)}
+              onQuoteChange={(v) => updateFieldGroup("personQuote", v)}
+            />
+          )}
+        </div>
+      </div>
     </>
   );
 }

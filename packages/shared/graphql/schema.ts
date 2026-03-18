@@ -202,6 +202,7 @@ type Post {
   title: String!
   description: String!
   descriptionMarkdown: String
+  bodyAst: String
   summary: String
   status: PostStatus!
   postType: PostType
@@ -707,6 +708,7 @@ input CreatePostInput {
 input UpdatePostInput {
   title: String
   descriptionMarkdown: String
+  bodyAst: String
   summary: String
   postType: String
   category: String

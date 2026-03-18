@@ -328,6 +328,7 @@ export const postResolvers = {
         input: {
           title?: string;
           descriptionMarkdown?: string;
+          bodyAst?: string;
           summary?: string;
           postType?: string;
           category?: string;
@@ -345,6 +346,7 @@ export const postResolvers = {
       await ctx.server.callObject("Post", args.id, "update_content", {
         title: args.input.title,
         description_markdown: args.input.descriptionMarkdown,
+        body_ast: args.input.bodyAst ? JSON.parse(args.input.bodyAst) : undefined,
         summary: args.input.summary,
         post_type: args.input.postType,
         category: args.input.category,
@@ -465,6 +467,12 @@ export const postResolvers = {
   Post: {
     urgentNotes: (parent: { urgentNotes?: unknown[] }) => {
       return parent.urgentNotes ?? [];
+    },
+
+    bodyAst: (parent: { body_ast?: unknown; bodyAst?: unknown }) => {
+      const ast = parent.body_ast ?? parent.bodyAst;
+      if (!ast) return null;
+      return typeof ast === "string" ? ast : JSON.stringify(ast);
     },
 
     organization: async (

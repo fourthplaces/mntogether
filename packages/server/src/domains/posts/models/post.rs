@@ -20,6 +20,9 @@ pub struct Post {
     pub description_markdown: Option<String>,
     pub summary: Option<String>,
 
+    // Plate.js editor state (JSON AST)
+    pub body_ast: Option<serde_json::Value>,
+
     // Weight-specific body text (populated by Root Signal)
     pub body_heavy: Option<String>,
     pub body_medium: Option<String>,
@@ -368,6 +371,8 @@ pub struct UpdatePostContent {
     pub description: Option<String>,
     #[builder(default)]
     pub description_markdown: Option<String>,
+    #[builder(default)]
+    pub body_ast: Option<serde_json::Value>,
     #[builder(default)]
     pub summary: Option<String>,
     #[builder(default)]
@@ -731,16 +736,17 @@ impl Post {
                 title = COALESCE($2, title),
                 description = COALESCE($3, description),
                 description_markdown = COALESCE($4, description_markdown),
-                summary = COALESCE($5, summary),
-                post_type = COALESCE($6, post_type),
-                category = COALESCE($7, category),
-                weight = COALESCE($8, weight),
-                priority = COALESCE($9, priority),
-                urgency = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE urgency END,
-                location = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE location END,
-                zip_code = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE zip_code END,
-                source_url = CASE WHEN $13 = '' THEN NULL WHEN $13 IS NOT NULL THEN $13 ELSE source_url END,
-                organization_id = COALESCE($14, organization_id),
+                body_ast = COALESCE($5, body_ast),
+                summary = COALESCE($6, summary),
+                post_type = COALESCE($7, post_type),
+                category = COALESCE($8, category),
+                weight = COALESCE($9, weight),
+                priority = COALESCE($10, priority),
+                urgency = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE urgency END,
+                location = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE location END,
+                zip_code = CASE WHEN $13 = '' THEN NULL WHEN $13 IS NOT NULL THEN $13 ELSE zip_code END,
+                source_url = CASE WHEN $14 = '' THEN NULL WHEN $14 IS NOT NULL THEN $14 ELSE source_url END,
+                organization_id = COALESCE($15, organization_id),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -750,6 +756,7 @@ impl Post {
         .bind(input.title)
         .bind(input.description)
         .bind(input.description_markdown)
+        .bind(input.body_ast)
         .bind(input.summary)
         .bind(input.post_type)
         .bind(input.category)

@@ -4,9 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "urql";
 import { EditorTopBar } from "@/components/admin/EditorTopBar";
-import { SplitPane, type SplitMode } from "@/components/admin/SplitPane";
 import { PostEditorForm } from "@/components/admin/PostEditorForm";
-import { MarkdownPreview } from "@/components/admin/MarkdownPreview";
 import { CreatePostMutation } from "@/lib/graphql/posts";
 import {
   type PostFormValues,
@@ -25,7 +23,6 @@ export default function NewPostPage() {
   const [values, setValues] = useState<PostFormValues>(DEFAULT_VALUES);
   const [dirty, setDirty] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [mode, setMode] = useState<SplitMode>("split");
 
   // Mutation
   const [{ fetching: saving }, createPost] = useMutation(CreatePostMutation);
@@ -77,17 +74,6 @@ export default function NewPostPage() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
 
-  // Force editor-only on small screens
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 768px)");
-    const handler = (e: MediaQueryListEvent) => {
-      if (e.matches) setMode("editor");
-    };
-    if (mq.matches) setMode("editor");
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-
   return (
     <>
       <EditorTopBar
@@ -97,26 +83,15 @@ export default function NewPostPage() {
         onSave={handleSave}
         saving={saving}
         dirty={dirty}
-        mode={mode}
-        onModeChange={setMode}
       />
-      <SplitPane
-        mode={mode}
-        left={
-          <PostEditorForm
-            values={values}
-            onChange={handleChange}
-            errors={errors}
-            disabled={saving}
-          />
-        }
-        right={
-          <MarkdownPreview
-            markdown={values.descriptionMarkdown}
-            title={values.title}
-          />
-        }
-      />
+      <div className="flex-1 overflow-y-auto">
+        <PostEditorForm
+          values={values}
+          onChange={handleChange}
+          errors={errors}
+          disabled={saving}
+        />
+      </div>
     </>
   );
 }

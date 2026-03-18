@@ -1,0 +1,520 @@
+/* ═══════════════════════════════════════════════
+   EDITOR BROADSHEET STYLES
+   Scoped subset of web-app broadsheet-detail.css
+   for the single-pane WYSIWYG post editor.
+   All rules scoped under .editor-broadsheet.
+   ═══════════════════════════════════════════════ */
+
+/* ── Design tokens ── */
+.editor-broadsheet {
+  --mn-blue: #003865;
+  --mn-teal: #008EAA;
+  --mn-teal-alt: #0B7A8E;
+  --mn-plum: #5D295F;
+  --mn-rust: #8D3F2B;
+  --mn-red: #A6192E;
+  --deep-forest: #1A3320;
+  --moss: #3D5A3E;
+  --ink: #1C1008;
+  --sienna: #A05C34;
+  --ochre: #B5891A;
+  --slate: #3A3A34;
+  --pebble: #5C5C52;
+  --graphite: #332A24;
+  --chalk: #d2cecc;
+  --font-display: Georgia, serif;
+  --font-body: Georgia, serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-condensed: 'Arial Narrow', sans-serif;
+  --col-gap: 24px;
+  --paper: #fafaf8;
+
+  /* Post type tokens */
+  --type-story: var(--deep-forest);
+  --type-event: var(--mn-plum);
+  --type-reference: var(--mn-blue);
+  --type-spotlight: var(--ochre);
+  --type-urgent: var(--mn-red);
+
+  background: var(--paper);
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════
+   EDITOR LAYOUT
+   ═══════════════════════════════════════════════ */
+
+.editor-article-column {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   STRUCTURED FIELD: KICKER
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .kicker-a {
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--sienna);
+}
+
+
+/* ═══════════════════════════════════════════════
+   STRUCTURED FIELD: TITLE
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .title-a {
+  font-family: var(--font-display);
+  font-weight: 500;
+  line-height: 1.15;
+  color: var(--ink);
+  margin-bottom: 8px;
+}
+.editor-broadsheet .title-a--story { font-size: 2.4rem; }
+.editor-broadsheet .title-a--reference,
+.editor-broadsheet .title-a--event,
+.editor-broadsheet .title-a--notice,
+.editor-broadsheet .title-a--spotlight { font-size: 1.8rem; }
+.editor-broadsheet .title-a--exchange { font-size: 1.5rem; }
+
+.editor-broadsheet .title-a__deck {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.1rem;
+  line-height: 1.4;
+  color: var(--slate);
+  margin-top: 10px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   STRUCTURED FIELD: ARTICLE META
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .article-meta {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--pebble);
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}
+
+
+/* ═══════════════════════════════════════════════
+   STRUCTURED FIELD: HERO PHOTO
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .photo-a { margin: 24px 0; }
+.editor-broadsheet .photo-a img {
+  width: 100%; height: auto; display: block;
+  filter: saturate(0.95) contrast(0.77) brightness(0.96);
+  background-color: #d2cecc;
+}
+.editor-broadsheet .photo-a__caption {
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding-top: 8px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding-bottom: 8px;
+}
+.editor-broadsheet .photo-a__caption-text {
+  font-family: var(--font-body);
+  font-style: italic; font-size: 0.9rem;
+  color: var(--slate);
+}
+.editor-broadsheet .photo-a__credit {
+  font-family: var(--font-mono);
+  font-size: 0.72rem; color: var(--pebble);
+  white-space: nowrap; margin-left: 1em;
+}
+
+
+/* ═══════════════════════════════════════════════
+   BODY TEXT — Broadsheet Editorial (body-a)
+   Applied to PlateContent
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .body-a {
+  font-family: var(--font-body);
+  color: var(--ink);
+  min-height: 200px;
+}
+
+.editor-broadsheet .body-a p,
+.editor-broadsheet .body-a [data-slate-node="element"][data-slate-type="p"] {
+  font-family: var(--font-body);
+  font-size: 1rem; line-height: 1.65;
+  text-align: justify; hyphens: auto;
+  margin-bottom: 1.2em;
+  color: var(--ink);
+}
+
+.editor-broadsheet .body-a a {
+  color: var(--mn-teal-alt);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.editor-broadsheet .body-a a:hover { color: var(--ink); }
+
+.editor-broadsheet .body-a blockquote,
+.editor-broadsheet .body-a [data-slate-type="blockquote"] {
+  border-left: 4px solid var(--pebble);
+  padding-left: 20px;
+  margin: 1.5em 0;
+  font-style: italic;
+  color: var(--slate);
+}
+
+.editor-broadsheet .body-a h2,
+.editor-broadsheet .body-a [data-slate-type="h2"] {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.6rem;
+  line-height: 1.2;
+  margin: 1.5em 0 0.5em;
+  color: var(--ink);
+}
+
+.editor-broadsheet .body-a h3,
+.editor-broadsheet .body-a [data-slate-type="h3"] {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.3rem;
+  line-height: 1.25;
+  margin: 1.3em 0 0.4em;
+  color: var(--ink);
+}
+
+.editor-broadsheet .body-a h4,
+.editor-broadsheet .body-a [data-slate-type="h4"] {
+  font-family: var(--font-condensed);
+  font-weight: 500;
+  font-size: 1rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 1.2em 0 0.4em;
+  color: var(--slate);
+}
+
+.editor-broadsheet .body-a ul,
+.editor-broadsheet .body-a ol {
+  font-family: var(--font-body);
+  font-size: 1rem; line-height: 1.65;
+  margin-bottom: 1.2em;
+  padding-left: 1.5em;
+  color: var(--ink);
+}
+.editor-broadsheet .body-a li {
+  margin-bottom: 0.3em;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CUSTOM BLOCK: PULL QUOTE
+   In editor: full-width (no float).
+   On web-app: floats right (40% width).
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .pull-quote {
+  padding: 16px 0;
+  border-top: 1px solid rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(0,0,0,0.12);
+  margin: 1.5em 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-style: italic;
+  font-size: 1.2rem;
+  line-height: 1.3;
+  color: var(--ink);
+  position: relative;
+}
+
+.editor-broadsheet .pull-quote__hint {
+  position: absolute;
+  top: -10px;
+  right: 0;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-style: normal;
+  color: var(--pebble);
+  background: var(--paper);
+  padding: 0 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CUSTOM BLOCK: SECTION BREAK
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .section-break {
+  text-align: center;
+  margin: 2em 0;
+  color: var(--pebble);
+  font-size: 1.2rem;
+  letter-spacing: 0.5em;
+  user-select: none;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CUSTOM BLOCK: INLINE PHOTO (C and D variants)
+   In editor: full-width (no float). Label indicates
+   published layout.
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .photo-block {
+  margin: 1.5em 0;
+  padding: 12px;
+  border: 1px dashed rgba(0,0,0,0.12);
+  border-radius: 4px;
+  position: relative;
+}
+.editor-broadsheet .photo-block img {
+  width: 100%; max-width: 400px; height: auto; display: block;
+  filter: saturate(0.95) contrast(0.77) brightness(0.96);
+  background-color: #d2cecc;
+}
+.editor-broadsheet .photo-block__caption-text {
+  font-family: var(--font-body);
+  font-style: italic; font-size: 0.85rem;
+  color: var(--slate);
+  margin-top: 6px;
+}
+.editor-broadsheet .photo-block__credit {
+  font-family: var(--font-mono);
+  font-size: 0.72rem; color: var(--pebble);
+  margin-top: 2px;
+}
+.editor-broadsheet .photo-block__variant-label {
+  position: absolute;
+  top: -10px;
+  right: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--pebble);
+  background: var(--paper);
+  padding: 0 4px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.editor-broadsheet .photo-block__placeholder {
+  width: 100%; max-width: 400px; height: 200px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0,0,0,0.04);
+  border: 1px dashed rgba(0,0,0,0.15);
+  color: var(--pebble);
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CUSTOM BLOCK: LINKS BOX
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .links-a {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  padding: 16px 0;
+  margin: 1.5em 0;
+}
+.editor-broadsheet .links-a__header {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.editor-broadsheet .links-a__item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 0;
+}
+.editor-broadsheet .links-a__title {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.95rem;
+  color: var(--ink);
+  flex: 1;
+}
+.editor-broadsheet .links-a__url {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--pebble);
+  flex: 1;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CUSTOM BLOCK: RESOURCE LIST
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .resource-list {
+  margin: 1.5em 0;
+  list-style: none;
+  padding: 0;
+}
+.editor-broadsheet .resource-list__item {
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  padding: 0.3em 0;
+}
+.editor-broadsheet .resource-list__name {
+  font-weight: 700;
+  color: var(--ink);
+}
+.editor-broadsheet .resource-list__sep {
+  color: var(--pebble);
+  margin: 0 0.4em;
+}
+.editor-broadsheet .resource-list__detail {
+  color: var(--slate);
+}
+
+
+/* ═══════════════════════════════════════════════
+   STRUCTURED FIELD: PERSON PULL QUOTE (spotlight)
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .person-quote {
+  margin-top: 2em;
+  padding: 20px 0;
+  border-top: 1px solid rgba(0,0,0,0.12);
+  border-bottom: 1px solid rgba(0,0,0,0.12);
+}
+.editor-broadsheet .person-quote__text {
+  font-family: var(--font-display);
+  font-style: italic;
+  font-size: 1.2rem;
+  line-height: 1.3;
+  color: var(--ink);
+  margin-bottom: 12px;
+}
+.editor-broadsheet .person-quote__attribution {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--pebble);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+
+/* ═══════════════════════════════════════════════
+   EDITOR AFFORDANCES
+   Subtle edit UI that doesn't break the illusion
+   ═══════════════════════════════════════════════ */
+
+/* Inline editable fields: transparent until focus */
+.editor-broadsheet .inline-field {
+  background: transparent;
+  border: none;
+  outline: none;
+  width: 100%;
+  resize: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  margin: 0;
+}
+.editor-broadsheet .inline-field::placeholder {
+  color: var(--pebble);
+  opacity: 0.5;
+}
+.editor-broadsheet .inline-field:focus {
+  outline: 2px solid var(--mn-teal-alt);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Editable region hover hint */
+.editor-broadsheet .editable-region {
+  transition: background-color 0.15s ease;
+  border-radius: 2px;
+}
+.editor-broadsheet .editable-region:hover {
+  background-color: rgba(11, 122, 142, 0.04);
+}
+.editor-broadsheet .editable-region:focus-within {
+  outline: 2px solid var(--mn-teal-alt);
+  outline-offset: 2px;
+}
+
+/* Plate editor focus ring on the overall content area */
+.editor-broadsheet [data-slate-editor="true"]:focus {
+  outline: none;
+}
+
+/* Selected custom block highlight */
+.editor-broadsheet [data-slate-node="element"].selected-block {
+  outline: 2px solid var(--mn-teal-alt);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Void element action buttons */
+.editor-broadsheet .block-actions {
+  display: flex;
+  gap: 4px;
+  margin-top: 8px;
+}
+.editor-broadsheet .block-action-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border: 1px solid rgba(0,0,0,0.15);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--pebble);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.editor-broadsheet .block-action-btn:hover {
+  background: rgba(0,0,0,0.04);
+  color: var(--ink);
+}
+
+/* Void block inline inputs */
+.editor-broadsheet .void-input {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed rgba(0,0,0,0.15);
+  outline: none;
+  padding: 2px 0;
+  width: 100%;
+}
+.editor-broadsheet .void-input:focus {
+  border-bottom-color: var(--mn-teal-alt);
+}
+.editor-broadsheet .void-input::placeholder {
+  color: var(--pebble);
+  opacity: 0.5;
+}
+
+/* Insert toolbar within editor */
+.editor-broadsheet .insert-menu {
+  display: flex;
+  gap: 6px;
+  padding: 8px 0;
+  margin: 0;
+  border-top: 1px dashed rgba(0,0,0,0.08);
+  border-bottom: 1px dashed rgba(0,0,0,0.08);
+}

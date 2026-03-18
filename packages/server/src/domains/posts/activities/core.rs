@@ -349,6 +349,7 @@ pub async fn admin_update_post(
     post_id: Uuid,
     title: Option<String>,
     description_markdown: Option<String>,
+    body_ast: Option<serde_json::Value>,
     summary: Option<String>,
     post_type: Option<String>,
     category: Option<String>,
@@ -374,6 +375,7 @@ pub async fn admin_update_post(
             .title(title)
             .description(plain_description)
             .description_markdown(description_markdown)
+            .body_ast(body_ast)
             .summary(summary)
             .post_type(post_type)
             .category(category)

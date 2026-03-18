@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useQuery, useMutation } from "urql";
+import { AstRenderer } from "@/components/broadsheet/detail/AstRenderer";
 import { useEffect, useState } from "react";
 import { PostDetailPublicQuery, TrackPostViewMutation, TrackPostClickMutation } from "@/lib/graphql/public";
 import { isAuthenticated } from "@/lib/auth/actions";
@@ -218,33 +219,44 @@ export default function PublicPostDetailPage() {
               )}
             </div>
 
-            {/* Description */}
-            <div className="prose">
-              <ReactMarkdown
-                components={{
-                  a: ({ href, children }) => (
-                    <a
-                      href={href}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      {children}
-                    </a>
-                  ),
-                  h1: ({ children }) => (
-                    <h2>{children}</h2>
-                  ),
-                  h2: ({ children }) => (
-                    <h3>{children}</h3>
-                  ),
-                  h3: ({ children }) => (
-                    <h4>{children}</h4>
-                  ),
-                }}
-              >
-                {post.descriptionMarkdown || post.description || ""}
-              </ReactMarkdown>
-            </div>
+            {/* Description — render from AST if available, fall back to markdown */}
+            {post.bodyAst ? (
+              (() => {
+                try {
+                  const ast = JSON.parse(post.bodyAst);
+                  return <AstRenderer value={ast} className="body-a" />;
+                } catch {
+                  return null;
+                }
+              })()
+            ) : (
+              <div className="prose">
+                <ReactMarkdown
+                  components={{
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {children}
+                      </a>
+                    ),
+                    h1: ({ children }) => (
+                      <h2>{children}</h2>
+                    ),
+                    h2: ({ children }) => (
+                      <h3>{children}</h3>
+                    ),
+                    h3: ({ children }) => (
+                      <h4>{children}</h4>
+                    ),
+                  }}
+                >
+                  {post.descriptionMarkdown || post.description || ""}
+                </ReactMarkdown>
+              </div>
+            )}
 
             {/* Tags */}
             {(postTypeTag || displayTags.length > 0) && (
