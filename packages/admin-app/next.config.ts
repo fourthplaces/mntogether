@@ -13,7 +13,17 @@ const nextConfig: NextConfig = {
   outputFileTracingRoot: resolve(process.cwd(), "../.."),
 
   // Transpile shared package
-  transpilePackages: ["@rooteditorial/shared"],
+  transpilePackages: [
+    "@rooteditorial/shared",
+    "platejs",
+    "@platejs/core",
+    "@platejs/basic-nodes",
+    "@platejs/link",
+    "@platejs/list",
+    "@platejs/markdown",
+    "@platejs/slate",
+    "@platejs/utils",
+  ],
 
   // Keep GraphQL server packages as external (Node.js runtime, not bundled)
   serverExternalPackages: [
@@ -37,6 +47,18 @@ const nextConfig: NextConfig = {
   // Disable telemetry
   typescript: {
     ignoreBuildErrors: false,
+  },
+
+  // Turbopack doesn't resolve package.json "exports" subpaths for hoisted
+  // monorepo packages. Map subpath imports to their actual dist files.
+  // Paths must work both locally (../../node_modules) and in Docker (/app/node_modules).
+  turbopack: {
+    resolveAlias: {
+      "@platejs/basic-nodes/react": "@platejs/basic-nodes/dist/react/index.js",
+      "@platejs/link/react": "@platejs/link/dist/react/index.js",
+      "@platejs/list/react": "@platejs/list/dist/react/index.js",
+      "platejs/react": "platejs/dist/react/index.js",
+    },
   },
 
   async headers() {
