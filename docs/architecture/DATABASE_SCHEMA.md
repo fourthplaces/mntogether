@@ -1,16 +1,26 @@
 # Database Schema Architecture
 
-> Last updated from migrations through `000171`. This is the canonical reference for the current database schema.
+> ⚠️ **Partially stale.** Last comprehensively updated from migrations through `000171`. Schema is now at migration `000206`. Key changes since 171: post type expansion (173), edition system (174-175), broadsheet templates (181-184), dead code drops (187-200), tag taxonomy rework (197), widget system (202-206). See individual migration files for details.
 
 ## Overview
 
 Root Editorial uses PostgreSQL with the following extensions:
 
 - **uuid-ossp** — UUID generation
-- **pgvector** — Vector similarity search (1024-dimension embeddings via Voyage AI)
-- **pg_trgm** — Trigram text similarity
+- **pgvector** — Vector similarity search (retained for future use; AI columns dropped in migration 193)
+- **pg_trgm** — Trigram text similarity (used for full-text search, threshold tuned in migrations 194-196)
 
-The schema spans **~90 tables across 23 business domains**, connected through a combination of foreign keys, polymorphic joins, and class table inheritance.
+The schema spans ~90 tables across the active business domains, connected through a combination of foreign keys, polymorphic joins, and class table inheritance.
+
+### Tables dropped since migration 171
+
+The following legacy tables were dropped during the Root Editorial pivot cleanup (migrations 187-200):
+
+- `agents`, `agent_scores` (migration 189)
+- `memo_cache` (migration 191)
+- `heat_map_points` (migration 192)
+- `business_listings`, `business_listing_*` extension tables (migration 199-200)
+- Columns dropped: `posts.capacity_status` (190), `posts.scored_at` (198), `posts.embedding`/`relevance_score`/`relevance_breakdown` (193), `posts.pending_approval` status value (187)
 
 ---
 

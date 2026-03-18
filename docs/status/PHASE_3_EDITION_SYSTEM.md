@@ -283,16 +283,16 @@ Also caught in review and fixed:
 | Batch generate | Creates 87 county editions successfully |
 | Remove post from edition | Slot deleted, edition refetched |
 
-## Remaining Work (Not in Scope for Phase 3)
+## Remaining Work — Status (updated 2026-03-17)
 
-- **Drag-and-drop broadsheet editor** (Phase 4)
-- **Visual broadsheet CSS grid rendering** (Phase 5)
-- **Unit tests for layout engine** (Phase 4)
-- **DataLoader for rowTemplate resolver** (Phase 4/5)
-- **Organization name in slot data** (Phase 4, via proper join path)
-- **Period-based post filtering** (layout engine currently uses all active posts; needs `published_at` windowing)
-- **Edition preview / public viewing** (Phase 5)
-- **Email newsletter generation from editions** (Phase 4)
+- ~~Drag-and-drop broadsheet editor~~ — **Done.** Admin UI with DnD for sections and rows, built in Phase 4.
+- ~~Visual broadsheet CSS grid rendering~~ — **Done.** 45 post renderers, full design system, public broadsheet endpoint. See [Broadsheet import postmortem](BROADSHEET_DESIGN_IMPORT.md).
+- **Unit tests for layout engine** — outstanding, project-wide test gap
+- **DataLoader for rowTemplate resolver** — outstanding (embedded data avoids N+1 for now)
+- **Organization name in slot data** — outstanding (via proper join path)
+- **Period-based post filtering** — outstanding (layout engine uses all active posts; needs `published_at` windowing)
+- ~~Edition preview / public viewing~~ — **Done.** Public broadsheet API serves unauthenticated edition data.
+- **Email newsletter generation from editions** — **deferred to post-MVP**
 
 ## Stats Summary
 

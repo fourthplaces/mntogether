@@ -78,8 +78,8 @@ These need a decision: are they CMS-driven (need post template mappings) or edit
 #### Detail pages not routed
 14 detail page components (`components/broadsheet/detail/`) plus 5 hours-visualization widgets are ported but not mounted to any route. `broadsheet-detail.css` hasn't been ported yet either. This is the next major piece — clicking a post on the broadsheet should open its detail page.
 
-#### Weather widgets need data
-WeatherForecast, WeatherAlmanac, WeatherThermo, WeatherLine exist as components but render nothing. They need a weather data source (API integration or CMS widget config).
+#### Weather widgets need data — DEFERRED
+WeatherForecast, WeatherAlmanac, WeatherThermo, WeatherLine exist as components but render nothing. They need a weather data source (API integration or CMS widget config). **Deferred to post-MVP.**
 
 #### Row variants not fully exercised
 The prototype showcases `pair-stack`, `trio-mixed`, and other layout variants that the CMS doesn't currently produce. The row-map handles them as fallbacks but they haven't been visually tested with real data.

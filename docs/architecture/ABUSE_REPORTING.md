@@ -1,5 +1,7 @@
 # Abuse Reporting
 
+> **Status: DEFERRED to post-MVP.** Backend stubs exist but the full feature (DB migration, GraphQL, admin UI, public UI, tests) is punted. Revisit after story editor and Root Signal integration are complete.
+
 ## Why This Exists
 
 MN Together publishes community-sourced content: posts from scraped sources, admin-authored stories, and org-submitted listings. Some of this content will be wrong, outdated, misleading, or harmful. Readers need a way to flag problems, and editors need a way to act on those flags.

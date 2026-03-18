@@ -1,8 +1,10 @@
 # Plan: MVP Map Page — Active Posts Across Minnesota
 
+> **Status: DEFERRED to post-MVP.** Plan is ready to implement but punted in favor of story editor and Root Signal integration. The `heat_map` domain was dropped (migration 192).
+
 ## Context
 
-The `heat_map` domain exists but is note-severity-weighted and not what we want. The goal is a simple, lightweight map page showing all active posts with locations as dots on an OpenStreetMap view of Minnesota. Zip-code clusters get low-opacity large circles. No county/edition scoping — statewide, all live posts.
+The goal is a simple, lightweight map page showing all active posts with locations as dots on an OpenStreetMap view of Minnesota. Zip-code clusters get low-opacity large circles. No county/edition scoping — statewide, all live posts.
 
 ## Approach
 

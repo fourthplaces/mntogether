@@ -166,9 +166,9 @@ Staleness is shown in two places with different purposes:
 
 ---
 
-## What's Left (Deferred to Next Session)
+## What's Left — Status (updated 2026-03-17)
 
-### Chunk 6: Post Status Expansion (Backend)
+### Chunk 6: Post Status Expansion (Backend) — Deferred
 
 Add review workflow statuses to post model:
 
@@ -178,15 +178,17 @@ draft → pending → in_review → approved → rejected
                                   └→ active (when edition publishes)
 ```
 
-Requires: SQL migration, Rust model changes, GraphQL schema update.
+Requires: SQL migration, Rust model changes, GraphQL schema update. **Deferred to post-MVP.**
 
-### Chunk 7: Edition Detail — Scoped Post Review
+### Chunk 7: Edition Detail — Scoped Post Review — Deferred
 
 The current Posts tab extracts posts from edition slots. The full vision includes:
 - Status filter tabs within the edition posts view (Pending, In Review, Approved, Rejected)
 - Approve/reject actions per post within the edition context
 - A new `editionPosts` GraphQL query that includes unplaced posts eligible for the county
 - Post status transitions that work within the edition context (requires Chunk 6)
+
+**Deferred to post-MVP.** Current workflow (all posts visible, manual review) is sufficient for launch.
 
 ---
 
