@@ -599,12 +599,77 @@ type BroadsheetPost {
   bodyHeavy: String
   bodyMedium: String
   bodyLight: String
+  media: [BroadsheetMedia!]!
+  items: [BroadsheetItem!]!
+  person: BroadsheetPerson
+  link: BroadsheetLink
+  sourceAttribution: BroadsheetSourceAttribution
+  meta: BroadsheetMeta
+  datetime: BroadsheetDatetime
+  postStatus: BroadsheetStatus
+  schedule: [BroadsheetScheduleEntry!]!
 }
 
 type BroadsheetContact {
   contactType: String!
   contactValue: String!
   contactLabel: String
+}
+
+type BroadsheetMedia {
+  imageUrl: String
+  caption: String
+  credit: String
+}
+
+type BroadsheetItem {
+  name: String!
+  detail: String
+}
+
+type BroadsheetPerson {
+  name: String
+  role: String
+  bio: String
+  photoUrl: String
+  quote: String
+}
+
+type BroadsheetLink {
+  label: String
+  url: String
+  deadline: String
+}
+
+type BroadsheetSourceAttribution {
+  sourceName: String
+  attribution: String
+}
+
+type BroadsheetMeta {
+  kicker: String
+  byline: String
+  timestamp: String
+  updated: String
+  deck: String
+}
+
+type BroadsheetDatetime {
+  start: String
+  end: String
+  cost: String
+  recurring: Boolean
+}
+
+type BroadsheetStatus {
+  state: String
+  verified: String
+}
+
+type BroadsheetScheduleEntry {
+  day: String!
+  opens: String!
+  closes: String!
 }
 
 input CreatePostInput {

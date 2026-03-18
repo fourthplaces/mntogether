@@ -15,6 +15,11 @@ import type {
   PostSource,
   PostMeta,
   PostLink,
+  PostMedia,
+  PostPerson,
+  PostDatetime,
+  PostItem,
+  PostStatus,
 } from './types';
 import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
 
@@ -73,6 +78,47 @@ export function preparePost(
   // Derive tag label from tags
   const tagLabel = deriveTagLabel(tagValues, gqlPost.postType as PostType);
 
+  // Field groups: prefer real data from field group tables, fall back to flat fields
+  const media: PostMedia | undefined = gqlPost.media?.length
+    ? { image: gqlPost.media[0].imageUrl ?? undefined, caption: gqlPost.media[0].caption ?? undefined, credit: gqlPost.media[0].credit ?? undefined }
+    : undefined;
+
+  const person: PostPerson | undefined = gqlPost.person
+    ? { name: gqlPost.person.name ?? undefined, role: gqlPost.person.role ?? undefined, bio: gqlPost.person.bio ?? undefined, photo: gqlPost.person.photoUrl ?? undefined, quote: gqlPost.person.quote ?? undefined }
+    : undefined;
+
+  const source: PostSource | undefined = gqlPost.sourceAttribution
+    ? { name: gqlPost.sourceAttribution.sourceName ?? undefined, attribution: gqlPost.sourceAttribution.attribution ?? undefined }
+    : gqlPost.organizationName
+      ? { name: gqlPost.organizationName }
+      : undefined;
+
+  const meta: PostMeta | undefined = gqlPost.meta
+    ? { kicker: gqlPost.meta.kicker ?? undefined, byline: gqlPost.meta.byline ?? undefined, timestamp: gqlPost.meta.timestamp ?? undefined, updated: gqlPost.meta.updated ?? undefined, deck: gqlPost.meta.deck ?? undefined }
+    : buildMeta(gqlPost);
+
+  const link: PostLink | undefined = gqlPost.link
+    ? { label: gqlPost.link.label ?? undefined, url: gqlPost.link.url ?? undefined, deadline: gqlPost.link.deadline ?? undefined }
+    : gqlPost.sourceUrl
+      ? { url: gqlPost.sourceUrl }
+      : undefined;
+
+  const items: PostItem[] | undefined = gqlPost.items?.length
+    ? gqlPost.items.map((i) => ({ name: i.name, detail: i.detail ?? '' }))
+    : undefined;
+
+  const datetime: PostDatetime | undefined = gqlPost.datetime
+    ? { start: gqlPost.datetime.start ?? undefined, end: gqlPost.datetime.end ?? undefined, cost: gqlPost.datetime.cost ?? undefined, recurring: gqlPost.datetime.recurring ?? undefined }
+    : undefined;
+
+  const postStatus: PostStatus | undefined = gqlPost.postStatus
+    ? { state: gqlPost.postStatus.state ?? undefined, verified: gqlPost.postStatus.verified ?? undefined }
+    : undefined;
+
+  const schedule = gqlPost.schedule?.length
+    ? { entries: gqlPost.schedule.map((e) => ({ day: e.day, opens: e.opens, closes: e.closes })) }
+    : undefined;
+
   // Build the broadsheet Post
   const post: Post = {
     id: gqlPost.id,
@@ -84,18 +130,20 @@ export function preparePost(
     title: gqlPost.title,
     body: bodyHtml,
 
-    // Nested objects
+    // Field groups
+    media,
     contact: contact || undefined,
     location: gqlPost.location
       ? { address: gqlPost.location } as PostLocation
       : undefined,
-    source: gqlPost.organizationName
-      ? { name: gqlPost.organizationName } as PostSource
-      : undefined,
-    meta: buildMeta(gqlPost),
-    link: gqlPost.sourceUrl
-      ? { url: gqlPost.sourceUrl } as PostLink
-      : undefined,
+    person,
+    source,
+    meta,
+    link,
+    items,
+    datetime,
+    status: postStatus,
+    schedule,
 
     // Renderer hints
     paragraphs: isFeature ? paragraphs : undefined,
@@ -104,6 +152,12 @@ export function preparePost(
     clamp: isFeature ? undefined : clamp,
     tagLabel,
     readMore: gqlPost.sourceUrl || undefined,
+    deck: meta?.deck,
+
+    // Feature-level image/caption/credit shorthand (backward compat)
+    image: media?.image,
+    caption: media?.caption,
+    credit: media?.credit,
   };
 
   return post;

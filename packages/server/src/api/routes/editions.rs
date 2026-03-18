@@ -23,6 +23,10 @@ use crate::domains::editions::models::row_template_config::RowTemplateConfig;
 use crate::domains::editions::models::row_template_slot::RowTemplateSlot;
 use crate::domains::contacts::models::contact::Contact;
 use crate::domains::posts::models::post::Post;
+use crate::domains::posts::models::{
+    PostDatetimeRecord, PostItem, PostLinkRecord, PostMediaRecord, PostMetaRecord,
+    PostPersonRecord, PostScheduleEntry, PostSourceAttr, PostStatusRecord,
+};
 
 // =============================================================================
 // Request types
@@ -425,6 +429,25 @@ pub struct PublicBroadsheetPostResult {
     pub body_medium: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_light: Option<String>,
+    // Field groups
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub media: Vec<BroadsheetMediaResult>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<BroadsheetItemResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person: Option<BroadsheetPersonResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<BroadsheetLinkResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_attribution: Option<BroadsheetSourceAttributionResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<BroadsheetMetaResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datetime: Option<BroadsheetDatetimeResult>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_status: Option<BroadsheetStatusResult>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub schedule: Vec<BroadsheetScheduleEntryResult>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -432,6 +455,75 @@ pub struct BroadsheetContactResult {
     pub contact_type: String,
     pub contact_value: String,
     pub contact_label: Option<String>,
+}
+
+// =============================================================================
+// Field group result types
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetMediaResult {
+    pub image_url: Option<String>,
+    pub caption: Option<String>,
+    pub credit: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetItemResult {
+    pub name: String,
+    pub detail: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetPersonResult {
+    pub name: Option<String>,
+    pub role: Option<String>,
+    pub bio: Option<String>,
+    pub photo_url: Option<String>,
+    pub quote: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetLinkResult {
+    pub label: Option<String>,
+    pub url: Option<String>,
+    pub deadline: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetSourceAttributionResult {
+    pub source_name: Option<String>,
+    pub attribution: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetMetaResult {
+    pub kicker: Option<String>,
+    pub byline: Option<String>,
+    pub timestamp: Option<String>,
+    pub updated: Option<String>,
+    pub deck: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetDatetimeResult {
+    pub start: Option<String>,
+    pub end: Option<String>,
+    pub cost: Option<String>,
+    pub recurring: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetStatusResult {
+    pub state: Option<String>,
+    pub verified: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BroadsheetScheduleEntryResult {
+    pub day: String,
+    pub opens: String,
+    pub closes: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -1344,6 +1436,109 @@ async fn build_public_broadsheet(
             });
     }
 
+    // Batch load field groups for all posts
+    let all_media = PostMediaRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut media_by_post: HashMap<Uuid, Vec<BroadsheetMediaResult>> = HashMap::new();
+    for m in all_media {
+        media_by_post
+            .entry(m.post_id)
+            .or_default()
+            .push(BroadsheetMediaResult {
+                image_url: m.image_url,
+                caption: m.caption,
+                credit: m.credit,
+            });
+    }
+
+    let all_items = PostItem::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut items_by_post: HashMap<Uuid, Vec<BroadsheetItemResult>> = HashMap::new();
+    for item in all_items {
+        items_by_post
+            .entry(item.post_id)
+            .or_default()
+            .push(BroadsheetItemResult {
+                name: item.name,
+                detail: item.detail,
+            });
+    }
+
+    let all_schedule = PostScheduleEntry::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut schedule_by_post: HashMap<Uuid, Vec<BroadsheetScheduleEntryResult>> = HashMap::new();
+    for entry in all_schedule {
+        schedule_by_post
+            .entry(entry.post_id)
+            .or_default()
+            .push(BroadsheetScheduleEntryResult {
+                day: entry.day,
+                opens: entry.opens,
+                closes: entry.closes,
+            });
+    }
+
+    // 1:1 field groups
+    let all_persons = PostPersonRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut persons_by_post: HashMap<Uuid, BroadsheetPersonResult> = all_persons
+        .into_iter()
+        .map(|p| (p.post_id, BroadsheetPersonResult {
+            name: p.name,
+            role: p.role,
+            bio: p.bio,
+            photo_url: p.photo_url,
+            quote: p.quote,
+        }))
+        .collect();
+
+    let all_links = PostLinkRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut links_by_post: HashMap<Uuid, BroadsheetLinkResult> = all_links
+        .into_iter()
+        .map(|l| (l.post_id, BroadsheetLinkResult {
+            label: l.label,
+            url: l.url,
+            deadline: l.deadline.map(|d| d.to_string()),
+        }))
+        .collect();
+
+    let all_source_attrs = PostSourceAttr::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut source_attrs_by_post: HashMap<Uuid, BroadsheetSourceAttributionResult> = all_source_attrs
+        .into_iter()
+        .map(|s| (s.post_id, BroadsheetSourceAttributionResult {
+            source_name: s.source_name,
+            attribution: s.attribution,
+        }))
+        .collect();
+
+    let all_metas = PostMetaRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut metas_by_post: HashMap<Uuid, BroadsheetMetaResult> = all_metas
+        .into_iter()
+        .map(|m| (m.post_id, BroadsheetMetaResult {
+            kicker: m.kicker,
+            byline: m.byline,
+            timestamp: m.timestamp.map(|t| t.to_rfc3339()),
+            updated: m.updated,
+            deck: m.deck,
+        }))
+        .collect();
+
+    let all_datetimes = PostDatetimeRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut datetimes_by_post: HashMap<Uuid, BroadsheetDatetimeResult> = all_datetimes
+        .into_iter()
+        .map(|d| (d.post_id, BroadsheetDatetimeResult {
+            start: d.start_at.map(|t| t.to_rfc3339()),
+            end: d.end_at.map(|t| t.to_rfc3339()),
+            cost: d.cost,
+            recurring: d.recurring,
+        }))
+        .collect();
+
+    let all_statuses = PostStatusRecord::find_by_post_ids(&all_post_ids, pool).await?;
+    let mut statuses_by_post: HashMap<Uuid, BroadsheetStatusResult> = all_statuses
+        .into_iter()
+        .map(|s| (s.post_id, BroadsheetStatusResult {
+            state: s.state,
+            verified: s.verified,
+        }))
+        .collect();
+
     // Assemble rows
     let mut row_results = Vec::new();
     for (row, slots) in rows.iter().zip(all_slots_by_row.iter()) {
@@ -1382,6 +1577,16 @@ async fn build_public_broadsheet(
                                 body_heavy: post.body_heavy.clone(),
                                 body_medium: post.body_medium.clone(),
                                 body_light: post.body_light.clone(),
+                                // Field groups
+                                media: media_by_post.remove(&id).unwrap_or_default(),
+                                items: items_by_post.remove(&id).unwrap_or_default(),
+                                person: persons_by_post.remove(&id),
+                                link: links_by_post.remove(&id),
+                                source_attribution: source_attrs_by_post.remove(&id),
+                                meta: metas_by_post.remove(&id),
+                                datetime: datetimes_by_post.remove(&id),
+                                post_status: statuses_by_post.remove(&id),
+                                schedule: schedule_by_post.remove(&id).unwrap_or_default(),
                             }),
                             widget: None,
                         })

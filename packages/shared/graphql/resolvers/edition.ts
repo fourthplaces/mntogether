@@ -135,6 +135,16 @@ interface PublicBroadsheetPostData {
   bodyHeavy?: string;
   bodyMedium?: string;
   bodyLight?: string;
+  // Field groups (snake_case from Rust serde)
+  media?: Array<{ image_url?: string; caption?: string; credit?: string }>;
+  items?: Array<{ name: string; detail?: string }>;
+  person?: { name?: string; role?: string; bio?: string; photo_url?: string; quote?: string };
+  link?: { label?: string; url?: string; deadline?: string };
+  source_attribution?: { source_name?: string; attribution?: string };
+  meta?: { kicker?: string; byline?: string; timestamp?: string; updated?: string; deck?: string };
+  datetime?: { start?: string; end?: string; cost?: string; recurring?: boolean };
+  post_status?: { state?: string; verified?: string };
+  schedule?: Array<{ day: string; opens: string; closes: string }>;
 }
 
 export const editionResolvers = {
@@ -275,10 +285,34 @@ export const editionResolvers = {
   },
 
   // Coerce nullable arrays to empty arrays for non-nullable schema fields
+  // and map snake_case field group data to camelCase GraphQL fields
   BroadsheetPost: {
     urgentNotes: (parent: PublicBroadsheetPostData) => parent.urgentNotes ?? [],
     tags: (parent: PublicBroadsheetPostData) => parent.tags ?? [],
     contacts: (parent: PublicBroadsheetPostData) => parent.contacts ?? [],
+    media: (parent: PublicBroadsheetPostData) => parent.media ?? [],
+    items: (parent: PublicBroadsheetPostData) => parent.items ?? [],
+    schedule: (parent: PublicBroadsheetPostData) => parent.schedule ?? [],
+    person: (parent: PublicBroadsheetPostData) => parent.person ?? null,
+    link: (parent: PublicBroadsheetPostData) => parent.link ?? null,
+    sourceAttribution: (parent: PublicBroadsheetPostData) => parent.source_attribution ?? null,
+    meta: (parent: PublicBroadsheetPostData) => parent.meta ?? null,
+    datetime: (parent: PublicBroadsheetPostData) => parent.datetime ?? null,
+    postStatus: (parent: PublicBroadsheetPostData) => parent.post_status ?? null,
+  },
+
+  // snake_case → camelCase for nested field group types
+  BroadsheetMedia: {
+    imageUrl: (parent: { image_url?: string; imageUrl?: string }) =>
+      parent.imageUrl ?? parent.image_url ?? null,
+  },
+  BroadsheetPerson: {
+    photoUrl: (parent: { photo_url?: string; photoUrl?: string }) =>
+      parent.photoUrl ?? parent.photo_url ?? null,
+  },
+  BroadsheetSourceAttribution: {
+    sourceName: (parent: { source_name?: string; sourceName?: string }) =>
+      parent.sourceName ?? parent.source_name ?? null,
   },
 
   BroadsheetWidget: {
