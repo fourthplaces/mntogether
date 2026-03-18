@@ -41,6 +41,10 @@ import {
   RemovePostContactMutation,
   AddPostScheduleMutation,
   DeletePostScheduleMutation,
+  UpsertPostLinkMutation,
+  UpsertPostSourceAttrMutation,
+  UpsertPostDatetimeMutation,
+  UpsertPostStatusMutation,
 } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
@@ -327,6 +331,189 @@ function ContactsSection({
 }
 
 // ---------------------------------------------------------------------------
+// Field Group Panels — sidebar content (items, datetime, status, link, source)
+// ---------------------------------------------------------------------------
+
+function FieldGroupPanels({
+  post,
+  postId,
+  upsertLink,
+  upsertSourceAttr,
+  upsertDatetime,
+  upsertPostStatus,
+  mutationContext,
+}: {
+  post: Record<string, unknown>;
+  postId: string;
+  upsertLink: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
+  upsertSourceAttr: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
+  upsertDatetime: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
+  upsertPostStatus: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
+  mutationContext: Record<string, unknown>;
+}) {
+  // Local state for field groups — initialized from post data
+  const link = post.link as { label?: string; url?: string; deadline?: string } | null;
+  const sourceAttr = post.sourceAttribution as { sourceName?: string; attribution?: string } | null;
+  const datetime = post.datetime as { start?: string; end?: string; cost?: string; recurring?: boolean } | null;
+  const postStatus = post.postStatus as { state?: string; verified?: string } | null;
+  const items = post.items as Array<{ name: string; detail?: string }> | null;
+
+  const [linkLabel, setLinkLabel] = useState(link?.label || "");
+  const [linkUrl, setLinkUrl] = useState(link?.url || "");
+  const [linkDeadline, setLinkDeadline] = useState(link?.deadline || "");
+  const [sourceName, setSourceName] = useState(sourceAttr?.sourceName || "");
+  const [attribution, setAttribution] = useState(sourceAttr?.attribution || "");
+  const [dtStart, setDtStart] = useState(datetime?.start || "");
+  const [dtEnd, setDtEnd] = useState(datetime?.end || "");
+  const [dtCost, setDtCost] = useState(datetime?.cost || "");
+  const [dtRecurring, setDtRecurring] = useState(datetime?.recurring || false);
+  const [statusState, setStatusState] = useState(postStatus?.state || "");
+  const [statusVerified, setStatusVerified] = useState(postStatus?.verified || "");
+
+  // Debounced auto-save
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const autoSave = useCallback(
+    (saveFn: () => void) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      saveTimer.current = setTimeout(saveFn, 800);
+    },
+    []
+  );
+
+  const saveLink = useCallback(() => {
+    upsertLink({ postId, label: linkLabel || null, url: linkUrl || null, deadline: linkDeadline || null }, mutationContext);
+  }, [postId, linkLabel, linkUrl, linkDeadline, upsertLink, mutationContext]);
+
+  const saveSource = useCallback(() => {
+    upsertSourceAttr({ postId, sourceName: sourceName || null, attribution: attribution || null }, mutationContext);
+  }, [postId, sourceName, attribution, upsertSourceAttr, mutationContext]);
+
+  const saveDatetime = useCallback(() => {
+    upsertDatetime({ postId, startAt: dtStart || null, endAt: dtEnd || null, cost: dtCost || null, recurring: dtRecurring }, mutationContext);
+  }, [postId, dtStart, dtEnd, dtCost, dtRecurring, upsertDatetime, mutationContext]);
+
+  const saveStatus = useCallback(() => {
+    upsertPostStatus({ postId, state: statusState || null, verified: statusVerified || null }, mutationContext);
+  }, [postId, statusState, statusVerified, upsertPostStatus, mutationContext]);
+
+  return (
+    <div className="border-t border-border pt-4 space-y-3">
+      <SectionLabel>Field Groups</SectionLabel>
+
+      {/* Items (read-only for now — list display) */}
+      {items && items.length > 0 && (
+        <div className="rounded-lg border border-border p-3">
+          <div className="text-xs font-medium text-text-muted uppercase tracking-wide mb-2">Items ({items.length})</div>
+          <div className="space-y-1">
+            {items.map((item, i) => (
+              <div key={i} className="flex gap-2 text-sm">
+                <span className="font-medium text-text-primary">{item.name}</span>
+                {item.detail && <span className="text-text-muted">— {item.detail}</span>}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Link (CTA) */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-xs font-medium text-text-muted uppercase tracking-wide">Link / CTA</div>
+        <Input
+          value={linkLabel}
+          onChange={(e) => { setLinkLabel(e.target.value); autoSave(saveLink); }}
+          placeholder="Button label (e.g., Apply Now)"
+          className="text-sm"
+        />
+        <Input
+          value={linkUrl}
+          onChange={(e) => { setLinkUrl(e.target.value); autoSave(saveLink); }}
+          placeholder="URL"
+          className="text-sm"
+        />
+        <Input
+          type="date"
+          value={linkDeadline}
+          onChange={(e) => { setLinkDeadline(e.target.value); autoSave(saveLink); }}
+          className="text-sm"
+        />
+      </div>
+
+      {/* Source Attribution */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-xs font-medium text-text-muted uppercase tracking-wide">Source Attribution</div>
+        <Input
+          value={sourceName}
+          onChange={(e) => { setSourceName(e.target.value); autoSave(saveSource); }}
+          placeholder="Source name (e.g., City of Minneapolis)"
+          className="text-sm"
+        />
+        <Input
+          value={attribution}
+          onChange={(e) => { setAttribution(e.target.value); autoSave(saveSource); }}
+          placeholder="Attribution"
+          className="text-sm"
+        />
+      </div>
+
+      {/* Datetime (events) */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-xs font-medium text-text-muted uppercase tracking-wide">Date & Time</div>
+        <div className="grid grid-cols-2 gap-2">
+          <Input
+            type="datetime-local"
+            value={dtStart}
+            onChange={(e) => { setDtStart(e.target.value); autoSave(saveDatetime); }}
+            className="text-sm"
+          />
+          <Input
+            type="datetime-local"
+            value={dtEnd}
+            onChange={(e) => { setDtEnd(e.target.value); autoSave(saveDatetime); }}
+            className="text-sm"
+          />
+        </div>
+        <Input
+          value={dtCost}
+          onChange={(e) => { setDtCost(e.target.value); autoSave(saveDatetime); }}
+          placeholder="Cost (e.g., Free, $5)"
+          className="text-sm"
+        />
+        <label className="flex items-center gap-2 text-sm text-text-muted">
+          <input
+            type="checkbox"
+            checked={dtRecurring}
+            onChange={(e) => { setDtRecurring(e.target.checked); autoSave(saveDatetime); }}
+            className="rounded"
+          />
+          Recurring event
+        </label>
+      </div>
+
+      {/* Status (exchanges) */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-xs font-medium text-text-muted uppercase tracking-wide">Status</div>
+        <select
+          value={statusState}
+          onChange={(e) => { setStatusState(e.target.value); autoSave(saveStatus); }}
+          className="w-full rounded border border-border bg-white px-2 py-1.5 text-sm"
+        >
+          <option value="">— none —</option>
+          <option value="available">Available</option>
+          <option value="needed">Needed</option>
+          <option value="closed">Closed</option>
+        </select>
+        <Input
+          type="date"
+          value={statusVerified}
+          onChange={(e) => { setStatusVerified(e.target.value); autoSave(saveStatus); }}
+          className="text-sm"
+        />
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Styled time input — hides native browser chrome per shadcn Time Picker
 // ---------------------------------------------------------------------------
 
@@ -605,6 +792,10 @@ export default function PostDetailPage() {
   const [, removePostContact] = useMutation(RemovePostContactMutation);
   const [, addPostSchedule] = useMutation(AddPostScheduleMutation);
   const [, deletePostSchedule] = useMutation(DeletePostScheduleMutation);
+  const [, upsertLink] = useMutation(UpsertPostLinkMutation);
+  const [, upsertSourceAttr] = useMutation(UpsertPostSourceAttrMutation);
+  const [, upsertDatetime] = useMutation(UpsertPostDatetimeMutation);
+  const [, upsertPostStatus] = useMutation(UpsertPostStatusMutation);
 
   // Tag data: kinds + all tag values
   const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
@@ -996,6 +1187,17 @@ export default function PostDetailPage() {
               postId={postId}
               addPostSchedule={addPostSchedule}
               deletePostSchedule={deletePostSchedule}
+              mutationContext={mutationContext}
+            />
+
+            {/* ── Field Groups (sidebar content) ───────────────────── */}
+            <FieldGroupPanels
+              post={post}
+              postId={postId}
+              upsertLink={upsertLink}
+              upsertSourceAttr={upsertSourceAttr}
+              upsertDatetime={upsertDatetime}
+              upsertPostStatus={upsertPostStatus}
               mutationContext={mutationContext}
             />
 
