@@ -21,6 +21,7 @@ const nextConfig: NextConfig = {
     "@platejs/link",
     "@platejs/list",
     "@platejs/markdown",
+    "@platejs/floating",
     "@platejs/slate",
     "@platejs/utils",
   ],

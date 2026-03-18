@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Geist } from "next/font/google";
 import GraphQLProvider from "@/lib/urql-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { featureDeck, featureDeckCondensed, featureText } from "./broadsheet-fonts";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +21,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable)}>
+    <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable, featureDeck.variable, featureDeckCondensed.variable, featureText.variable)}>
       <body className={inter.className}>
         <GraphQLProvider>
           <TooltipProvider>{children}</TooltipProvider>

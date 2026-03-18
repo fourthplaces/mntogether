@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * PlateEditor — Single-pane WYSIWYG editor for post body content.
+ * PlateEditor — Notion-style block editor with broadsheet styling.
  *
- * Renders content with broadsheet newspaper styling (body-a class).
- * Custom block types: pull quotes, section breaks, inline photos,
- * links boxes, resource lists.
- *
- * Accepts and emits Plate.js Value (JSON AST) — not markdown.
- * Fallback: can deserialize from markdown for existing posts that
- * don't yet have body_ast.
+ * Features:
+ * - Floating toolbar on text selection (bold, italic, underline)
+ * - Slash command menu (type "/" to insert any block type)
+ * - Block-level + and ⋮⋮ handles on hover
+ * - Full broadsheet prototype component library as insertable blocks
+ * - Real FeatureDeck/FeatureText fonts
+ * - JSON AST storage (body_ast)
  */
 
 import { useCallback, useRef, useEffect, useState } from "react";
@@ -28,18 +28,33 @@ import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
 import { MarkdownPlugin } from "@platejs/markdown";
 
+// Custom block plugins
 import {
   PullQuotePlugin,
-  PULL_QUOTE_KEY,
   SectionBreakPlugin,
-  SECTION_BREAK_KEY,
   PhotoBlockPlugin,
-  PHOTO_BLOCK_KEY,
   LinksBoxPlugin,
-  LINKS_BOX_KEY,
   ResourceListPlugin,
-  RESOURCE_LIST_KEY,
+  PhotoAPlugin,
+  PhotoBPlugin,
+  AudioAPlugin,
+  AudioBPlugin,
+  KickerAPlugin,
+  KickerBPlugin,
+  ArticleMetaPlugin,
+  LinksBPlugin,
+  ListAPlugin,
+  ListBPlugin,
+  ResourceListBPlugin,
+  AddressAPlugin,
+  AddressBPlugin,
+  PhoneAPlugin,
+  PhoneBPlugin,
 } from "./plate-plugins";
+
+// Editor UI components
+import { FloatingToolbar } from "./editor/FloatingToolbar";
+import { SlashCommandMenu } from "./editor/SlashCommandMenu";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,204 +74,47 @@ interface PlateEditorProps {
 }
 
 // ---------------------------------------------------------------------------
-// Toolbar button
+// All plugins
 // ---------------------------------------------------------------------------
 
-function ToolbarButton({
-  active,
-  onClick,
-  title,
-  children,
-}: {
-  active?: boolean;
-  onClick: () => void;
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onMouseDown={(e) => {
-        e.preventDefault();
-        onClick();
-      }}
-      title={title}
-      className={`px-2 py-1 rounded text-sm font-medium transition-colors ${
-        active
-          ? "bg-surface-muted text-text-primary"
-          : "text-text-muted hover:text-text-primary hover:bg-surface-muted/50"
-      }`}
-    >
-      {children}
-    </button>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Insert menu
-// ---------------------------------------------------------------------------
-
-function InsertMenu({ editor }: { editor: ReturnType<typeof usePlateEditor> }) {
-  const [open, setOpen] = useState(false);
-
-  const insertBlock = (type: string, data?: Record<string, unknown>) => {
-    const node: TElement = {
-      type,
-      children: [{ text: "" }],
-      ...data,
-    };
-    editor.tf.insertNodes(node);
-    setOpen(false);
-  };
-
-  return (
-    <div className="relative inline-block">
-      <ToolbarButton
-        onClick={() => setOpen(!open)}
-        title="Insert block"
-      >
-        + Insert
-      </ToolbarButton>
-      {open && (
-        <div
-          className="absolute top-full left-0 mt-1 bg-white border border-border rounded shadow-lg z-50 min-w-[180px] py-1"
-          onMouseDown={(e) => e.preventDefault()}
-        >
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
-            onClick={() => insertBlock(PULL_QUOTE_KEY)}
-          >
-            Pull Quote
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
-            onClick={() => insertBlock(SECTION_BREAK_KEY)}
-          >
-            Section Break
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
-            onClick={() => insertBlock(PHOTO_BLOCK_KEY, { src: "", caption: "", credit: "", variant: "c" })}
-          >
-            Inline Photo
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
-            onClick={() => insertBlock(LINKS_BOX_KEY, { header: "See Also", links: [{ title: "", url: "" }] })}
-          >
-            Links Box
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-1.5 text-sm hover:bg-surface-muted/50"
-            onClick={() => insertBlock(RESOURCE_LIST_KEY, { items: [{ name: "", detail: "" }] })}
-          >
-            Resource List
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Toolbar
-// ---------------------------------------------------------------------------
-
-function EditorToolbar({ editor }: { editor: ReturnType<typeof usePlateEditor> }) {
-  const isMarkActive = (type: string) => {
-    try {
-      return editor.api.isMarkActive(type);
-    } catch {
-      return false;
-    }
-  };
-
-  const toggleMark = (type: string) => {
-    editor.tf.toggleMark(type);
-  };
-
-  const isBlockActive = (type: string) => {
-    try {
-      const nodes = editor.api.nodes({ match: { type } });
-      return !!nodes.next().value;
-    } catch {
-      return false;
-    }
-  };
-
-  const toggleBlock = (type: string) => {
-    editor.tf.toggleBlock(type);
-  };
-
-  return (
-    <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-border bg-surface-raised/50 sticky top-0 z-10">
-      <ToolbarButton
-        active={isMarkActive("bold")}
-        onClick={() => toggleMark("bold")}
-        title="Bold (⌘B)"
-      >
-        <strong>B</strong>
-      </ToolbarButton>
-      <ToolbarButton
-        active={isMarkActive("italic")}
-        onClick={() => toggleMark("italic")}
-        title="Italic (⌘I)"
-      >
-        <em>I</em>
-      </ToolbarButton>
-      <ToolbarButton
-        active={isMarkActive("underline")}
-        onClick={() => toggleMark("underline")}
-        title="Underline (⌘U)"
-      >
-        <u>U</u>
-      </ToolbarButton>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      <ToolbarButton
-        active={isBlockActive("h2")}
-        onClick={() => toggleBlock("h2")}
-        title="Heading 2"
-      >
-        H2
-      </ToolbarButton>
-      <ToolbarButton
-        active={isBlockActive("h3")}
-        onClick={() => toggleBlock("h3")}
-        title="Heading 3"
-      >
-        H3
-      </ToolbarButton>
-      <ToolbarButton
-        active={isBlockActive("h4")}
-        onClick={() => toggleBlock("h4")}
-        title="Heading 4"
-      >
-        H4
-      </ToolbarButton>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      <ToolbarButton
-        active={isBlockActive("blockquote")}
-        onClick={() => toggleBlock("blockquote")}
-        title="Blockquote"
-      >
-        &ldquo;
-      </ToolbarButton>
-
-      <div className="w-px h-5 bg-border mx-1" />
-
-      <InsertMenu editor={editor} />
-    </div>
-  );
-}
+const ALL_PLUGINS = [
+  // Marks
+  BoldPlugin,
+  ItalicPlugin,
+  UnderlinePlugin,
+  // Standard blocks
+  BlockquotePlugin,
+  H2Plugin,
+  H3Plugin,
+  H4Plugin,
+  // Inline
+  LinkPlugin,
+  ListPlugin,
+  // Markdown (for fallback deserialization)
+  MarkdownPlugin,
+  // Custom blocks — existing
+  PullQuotePlugin,
+  SectionBreakPlugin,
+  PhotoBlockPlugin,
+  LinksBoxPlugin,
+  ResourceListPlugin,
+  // Custom blocks — new
+  PhotoAPlugin,
+  PhotoBPlugin,
+  AudioAPlugin,
+  AudioBPlugin,
+  KickerAPlugin,
+  KickerBPlugin,
+  ArticleMetaPlugin,
+  LinksBPlugin,
+  ListAPlugin,
+  ListBPlugin,
+  ResourceListBPlugin,
+  AddressAPlugin,
+  AddressBPlugin,
+  PhoneAPlugin,
+  PhoneBPlugin,
+];
 
 // ---------------------------------------------------------------------------
 // Main component
@@ -266,32 +124,17 @@ export function PlateEditor({
   initialValue,
   initialMarkdown = "",
   onChange,
-  placeholder = "Write your story...",
+  placeholder = "Type / for commands...",
   disabled = false,
 }: PlateEditorProps) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+
   // Create editor with all plugins
   const editor = usePlateEditor({
-    plugins: [
-      BoldPlugin,
-      ItalicPlugin,
-      UnderlinePlugin,
-      BlockquotePlugin,
-      H2Plugin,
-      H3Plugin,
-      H4Plugin,
-      LinkPlugin,
-      ListPlugin,
-      MarkdownPlugin,
-      // Custom block plugins
-      PullQuotePlugin,
-      SectionBreakPlugin,
-      PhotoBlockPlugin,
-      LinksBoxPlugin,
-      ResourceListPlugin,
-    ],
+    plugins: ALL_PLUGINS,
   });
 
   // Initialize editor on mount: prefer JSON AST, fall back to markdown
@@ -301,10 +144,8 @@ export function PlateEditor({
     initialized.current = true;
 
     if (initialValue && Array.isArray(initialValue) && initialValue.length > 0) {
-      // Load from JSON AST
       editor.tf.setValue(initialValue);
     } else if (initialMarkdown) {
-      // Fall back to markdown deserialization
       try {
         const value = editor.getApi(MarkdownPlugin).markdown.deserialize(initialMarkdown);
         if (value && value.length > 0) {
@@ -325,16 +166,45 @@ export function PlateEditor({
     []
   );
 
+  // Handle "/" key to open slash command menu
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "/" && !slashMenuOpen) {
+        // Check if we're at the start of a block or in an empty block
+        const { selection } = editor;
+        if (selection) {
+          const [node] = editor.api.nodes({ match: { type: "p" }, at: selection });
+          if (node) {
+            const [element] = node;
+            const text = (element as TElement).children
+              ?.map((c: { text?: string }) => c.text || "")
+              .join("") || "";
+            // Open slash menu if at start of empty paragraph or typing /
+            if (text === "" || text === "/") {
+              // Let the "/" character be typed, then open menu on next tick
+              setTimeout(() => setSlashMenuOpen(true), 0);
+            }
+          }
+        }
+      }
+    },
+    [editor, slashMenuOpen]
+  );
+
   return (
-    <>
-      <EditorToolbar editor={editor} />
-      <Plate editor={editor} onChange={handleChange}>
-        <PlateContent
-          placeholder={placeholder}
-          disabled={disabled}
-          className="body-a focus:outline-none"
-        />
-      </Plate>
-    </>
+    <Plate editor={editor} onChange={handleChange}>
+      <PlateContent
+        placeholder={placeholder}
+        disabled={disabled}
+        className="body-a focus:outline-none"
+        onKeyDown={handleKeyDown}
+      />
+      <FloatingToolbar editor={editor} />
+      <SlashCommandMenu
+        editor={editor}
+        open={slashMenuOpen}
+        onClose={() => setSlashMenuOpen(false)}
+      />
+    </Plate>
   );
 }

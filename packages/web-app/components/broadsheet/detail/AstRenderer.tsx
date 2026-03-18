@@ -2,21 +2,19 @@
  * AstRenderer — renders Plate.js JSON AST (Value) to React elements
  * with broadsheet CSS classes.
  *
- * This is a lightweight read-only renderer — no Plate.js dependency needed.
- * It maps each node type to the appropriate broadsheet detail component or
- * CSS class.
- *
- * Custom node types:
- * - pull_quote → .pull-quote (floated right on web-app)
- * - section_break → .section-break (centered decorative dots)
- * - photo_block → PhotoC / PhotoD component
- * - links_box → LinksA component
- * - resource_list → .list-a--resource
+ * Lightweight read-only renderer — no Plate.js dependency needed.
+ * Maps each node type to the appropriate broadsheet detail component.
  */
 
 import React from "react";
-import { PhotoC, PhotoD } from "./Photo";
-import { LinksA } from "./Links";
+import { PhotoA, PhotoB, PhotoC, PhotoD } from "./Photo";
+import { LinksA, LinksB } from "./Links";
+import { ListA, ListB, ResourceListA, ResourceListB } from "./List";
+import { AddressA, AddressB } from "./Address";
+import { PhoneA, PhoneB } from "./Phone";
+import { KickerA, KickerB } from "./Kicker";
+import { ArticleMeta } from "./ArticleMeta";
+import { AudioA, AudioB } from "./Audio";
 
 // ---------------------------------------------------------------------------
 // Types — minimal subset of Plate.js AST
@@ -32,18 +30,32 @@ interface AstText {
 interface AstElement {
   type?: string;
   children?: AstNode[];
-  // Photo block attrs
+  // Common data attrs (varies by node type)
   src?: string;
   caption?: string;
   credit?: string;
   variant?: "c" | "d";
-  // Links box attrs
   header?: string;
   links?: Array<{ title: string; url: string }>;
-  // Resource list attrs
-  items?: Array<{ name: string; detail: string }>;
-  // Link attrs
+  items?: Array<{ name: string; detail: string }> | string[];
   url?: string;
+  tags?: string[];
+  primary?: string;
+  secondary?: string[];
+  color?: string;
+  parts?: string[];
+  ordered?: boolean;
+  title?: string;
+  duration?: string;
+  excerpt?: string;
+  street?: string;
+  city?: string;
+  state?: string;
+  zip?: string;
+  directionsUrl?: string;
+  number?: string;
+  display?: string;
+  label?: string;
 }
 
 type AstNode = AstText | AstElement;
@@ -53,7 +65,7 @@ function isText(node: AstNode): node is AstText {
 }
 
 // ---------------------------------------------------------------------------
-// Text renderer — handles marks (bold, italic, underline)
+// Text renderer — handles marks
 // ---------------------------------------------------------------------------
 
 function renderText(node: AstText, key: number): React.ReactNode {
@@ -68,7 +80,7 @@ function renderText(node: AstText, key: number): React.ReactNode {
 }
 
 // ---------------------------------------------------------------------------
-// Element renderer — maps node type to broadsheet elements
+// Element renderer
 // ---------------------------------------------------------------------------
 
 function renderChildren(children?: AstNode[]): React.ReactNode {
@@ -103,7 +115,7 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
     case "a":
       return <a key={key} href={node.url || "#"}>{children}</a>;
 
-    // Custom blocks
+    // Pull quote (floated right on web-app)
     case "pull_quote":
       return (
         <blockquote key={key} className="pull-quote">
@@ -111,46 +123,77 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
         </blockquote>
       );
 
+    // Section break
     case "section_break":
-      return (
-        <div key={key} className="section-break">
-          · · ·
-        </div>
-      );
+      return <div key={key} className="section-break">· · ·</div>;
 
+    // Photos
+    case "photo_a":
+      return <PhotoA key={key} photo={{ src: node.src || "", alt: node.caption || "", caption: node.caption || "", credit: node.credit || "" }} />;
+    case "photo_b":
+      return <PhotoB key={key} photo={{ src: node.src || "", alt: node.caption || "", caption: node.caption || "", credit: node.credit || "" }} />;
     case "photo_block": {
-      const photo = {
-        src: node.src || "",
-        alt: node.caption || "",
-        caption: node.caption || "",
-        credit: node.credit || "",
-      };
-      if (node.variant === "d") {
-        return <PhotoD key={key} photo={photo} />;
-      }
-      return <PhotoC key={key} photo={photo} />;
+      const photo = { src: node.src || "", alt: node.caption || "", caption: node.caption || "", credit: node.credit || "" };
+      return node.variant === "d" ? <PhotoD key={key} photo={photo} /> : <PhotoC key={key} photo={photo} />;
     }
 
-    case "links_box":
-      return (
-        <LinksA
-          key={key}
-          links={node.links || []}
-          header={node.header || "See Also"}
-        />
-      );
+    // Audio
+    case "audio_a":
+      return <AudioA key={key} audio={{ title: node.title || "", duration: node.duration || "", credit: node.credit }} />;
+    case "audio_b":
+      return <AudioB key={key} audio={{ title: node.title || "", duration: node.duration || "", excerpt: node.excerpt }} />;
 
-    case "resource_list":
-      return (
-        <ul key={key} className="list-a list-a--resource">
-          {(node.items || []).map((item, i) => (
-            <li key={i}>
-              <strong>{item.name}</strong>
-              {item.detail && <> · {item.detail}</>}
-            </li>
-          ))}
-        </ul>
-      );
+    // Kickers
+    case "kicker_a":
+      return <KickerA key={key} tags={node.tags || []} />;
+    case "kicker_b":
+      return <KickerB key={key} primary={node.primary || ""} secondary={node.secondary} color={node.color} />;
+
+    // Article meta
+    case "article_meta":
+      return <ArticleMeta key={key} parts={node.parts || []} />;
+
+    // Links
+    case "links_box":
+      return <LinksA key={key} links={node.links || []} header={node.header || "See Also"} />;
+    case "links_b":
+      return <LinksB key={key} links={node.links || []} />;
+
+    // Lists
+    case "list_a": {
+      const stringItems = (node.items || []) as string[];
+      return node.ordered
+        ? <ListA key={key} items={stringItems} ordered />
+        : <ListA key={key} items={stringItems} />;
+    }
+    case "list_b": {
+      const stringItems = (node.items || []) as string[];
+      return node.ordered
+        ? <ListB key={key} items={stringItems} ordered />
+        : <ListB key={key} items={stringItems} />;
+    }
+
+    // Resource lists
+    case "resource_list": {
+      const resItems = (node.items || []) as Array<{ name: string; detail: string }>;
+      return <ResourceListA key={key} items={resItems} />;
+    }
+    case "resource_list_b": {
+      const resItems = (node.items || []) as Array<{ name: string; detail: string }>;
+      return <ResourceListB key={key} items={resItems} />;
+    }
+
+    // Addresses
+    case "address_a":
+      return <AddressA key={key} address={{ street: node.street || "", city: node.city || "", state: node.state || "", zip: node.zip || "", directionsUrl: node.directionsUrl }} />;
+    case "address_b":
+      return <AddressB key={key} address={{ street: node.street || "", city: node.city || "", state: node.state || "", zip: node.zip || "" }} />;
+
+    // Phones
+    case "phone_a":
+      return <PhoneA key={key} phone={{ number: node.number || "", display: node.display, label: node.label }} />;
+    case "phone_b":
+      return <PhoneB key={key} phone={{ number: node.number || "", display: node.display, label: node.label }} />;
 
     // Default: render children in a div
     default:
@@ -163,9 +206,7 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
 // ---------------------------------------------------------------------------
 
 interface AstRendererProps {
-  /** Plate.js Value — array of top-level AST nodes */
   value: AstNode[];
-  /** CSS class for the wrapper (default: "body-a") */
   className?: string;
 }
 
