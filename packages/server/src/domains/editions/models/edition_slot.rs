@@ -173,7 +173,7 @@ impl EditionSlot {
             r#"
             SELECT
                 es.id, es.edition_row_id, es.kind, es.post_id, es.widget_id,
-                es.post_template, es.slot_index, es.created_at,
+                es.post_template, es.widget_template, es.slot_index, es.created_at,
                 p.title AS post_title,
                 p.post_type AS post_post_type,
                 p.weight AS post_weight,
