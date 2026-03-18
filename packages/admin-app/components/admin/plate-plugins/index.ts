@@ -21,3 +21,9 @@ export { AddressAPlugin, ADDRESS_A_KEY } from "./address-a-plugin";
 export { AddressBPlugin, ADDRESS_B_KEY } from "./address-b-plugin";
 export { PhoneAPlugin, PHONE_A_KEY } from "./phone-a-plugin";
 export { PhoneBPlugin, PHONE_B_KEY } from "./phone-b-plugin";
+
+// Notion-style block types
+export { TodoPlugin, TODO_KEY } from "./todo-plugin";
+export { TogglePlugin, TOGGLE_KEY } from "./toggle-plugin";
+export { CalloutPlugin, CALLOUT_KEY } from "./callout-plugin";
+export { CodeBlockPlugin, CODE_BLOCK_KEY } from "./code-block-plugin";

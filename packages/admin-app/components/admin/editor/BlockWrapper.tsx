@@ -1,59 +1,25 @@
 "use client";
 
 /**
- * BlockWrapper — wraps every block element with Notion-style chrome.
+ * BlockHandles — rendered above each block element via Plate's aboveNodes.
  *
- * On hover, reveals a left gutter with:
- *   + button → opens block picker to insert above
- *   ⋮⋮ button → drag handle for reordering (via @dnd-kit/sortable)
+ * Shows + (insert) and ⋮⋮ (drag handle placeholder) on hover.
+ * The + button opens the slash command menu callback.
+ * Drag-and-drop will be wired in a future phase.
  */
 
-import React, { useState, useCallback } from "react";
-import { useSortable } from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
+import React from "react";
 
-interface BlockWrapperProps {
-  /** Stable ID for this block (used by @dnd-kit) */
-  id: string;
-  /** Callback to open the block picker for inserting a block */
-  onInsertAbove?: () => void;
+interface BlockHandlesProps {
+  onInsert?: () => void;
+  onDelete?: () => void;
   children: React.ReactNode;
 }
 
-export function BlockWrapper({ id, onInsertAbove, children }: BlockWrapperProps) {
-  const [hovered, setHovered] = useState(false);
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
+export function BlockHandles({ onInsert, onDelete, children }: BlockHandlesProps) {
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className="block-wrapper"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      {...attributes}
-    >
-      {/* Left gutter with handles */}
-      <div
-        className="block-handle-gutter"
-        style={{ opacity: hovered ? 1 : 0 }}
-        contentEditable={false}
-      >
-        {/* Insert handle */}
+    <div className="block-wrapper">
+      <div className="block-handle-gutter" contentEditable={false}>
         <button
           type="button"
           className="block-handle block-handle--insert"
@@ -61,24 +27,37 @@ export function BlockWrapper({ id, onInsertAbove, children }: BlockWrapperProps)
           onMouseDown={(e) => {
             e.preventDefault();
             e.stopPropagation();
-            onInsertAbove?.();
+            onInsert?.();
           }}
         >
           +
         </button>
-
-        {/* Drag handle */}
         <button
           type="button"
           className="block-handle block-handle--drag"
           title="Drag to reorder"
-          {...listeners}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            // DnD will be wired in a future phase
+          }}
         >
           ⋮⋮
         </button>
+        {onDelete && (
+          <button
+            type="button"
+            className="block-handle block-handle--delete"
+            title="Delete block"
+            onMouseDown={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDelete();
+            }}
+          >
+            ×
+          </button>
+        )}
       </div>
-
-      {/* The actual block content */}
       {children}
     </div>
   );

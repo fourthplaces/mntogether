@@ -85,6 +85,30 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
       <MarkButton editor={editor} mark="underline" label="Underline (⌘U)">
         <u>U</u>
       </MarkButton>
+      <MarkButton editor={editor} mark="strikethrough" label="Strikethrough">
+        <s>S</s>
+      </MarkButton>
+      <MarkButton editor={editor} mark="code" label="Code">
+        <span style={{ fontFamily: "monospace", fontSize: "0.8em" }}>&lt;/&gt;</span>
+      </MarkButton>
+
+      <span className="floating-toolbar__sep" />
+
+      {/* Link button */}
+      <button
+        type="button"
+        title="Link (⌘K)"
+        onMouseDown={(e) => {
+          e.preventDefault();
+          const url = window.prompt("Enter URL:");
+          if (url) {
+            editor.tf.insertLink({ url });
+          }
+        }}
+        className="floating-toolbar__btn"
+      >
+        🔗
+      </button>
     </div>
   );
 }

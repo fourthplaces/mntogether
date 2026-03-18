@@ -4,9 +4,9 @@
  * PlateEditor — Notion-style block editor with broadsheet styling.
  *
  * Features:
- * - Floating toolbar on text selection (bold, italic, underline)
+ * - Floating toolbar on text selection (bold, italic, underline, link, code, strikethrough)
  * - Slash command menu (type "/" to insert any block type)
- * - Block-level + and ⋮⋮ handles on hover
+ * - Block-level + and ⋮⋮ handles on hover (via aboveNodes wrapper)
  * - Full broadsheet prototype component library as insertable blocks
  * - Real FeatureDeck/FeatureText fonts
  * - JSON AST storage (body_ast)
@@ -14,15 +14,20 @@
 
 import { useCallback, useRef, useEffect, useState } from "react";
 import type { Value, TElement } from "platejs";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
+import { Plate, PlateContent, usePlateEditor, createPlatePlugin } from "platejs/react";
+import type { PlateElementProps } from "platejs/react";
 import {
   BoldPlugin,
   ItalicPlugin,
   UnderlinePlugin,
+  StrikethroughPlugin,
+  CodePlugin,
   BlockquotePlugin,
   H2Plugin,
   H3Plugin,
   H4Plugin,
+  H5Plugin,
+  H6Plugin,
 } from "@platejs/basic-nodes/react";
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
@@ -50,11 +55,16 @@ import {
   AddressBPlugin,
   PhoneAPlugin,
   PhoneBPlugin,
+  TodoPlugin,
+  TogglePlugin,
+  CalloutPlugin,
+  CodeBlockPlugin,
 } from "./plate-plugins";
 
 // Editor UI components
 import { FloatingToolbar } from "./editor/FloatingToolbar";
 import { SlashCommandMenu } from "./editor/SlashCommandMenu";
+import { BlockHandles } from "./editor/BlockWrapper";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -74,6 +84,35 @@ interface PlateEditorProps {
 }
 
 // ---------------------------------------------------------------------------
+// Block handles plugin — wraps every element with + and ⋮⋮ handles
+// ---------------------------------------------------------------------------
+
+const BlockHandlesPlugin = createPlatePlugin({
+  key: "block_handles",
+  render: {
+    aboveNodes:
+      (props: PlateElementProps) => {
+        const { children, editor, element } = props;
+
+        const handleDelete = () => {
+          const path = editor.api.findPath(element);
+          if (path) {
+            editor.tf.deleteNodes({ at: path });
+          }
+        };
+
+        return function BlockHandlesWrapper({ children: innerChildren }: { children: React.ReactNode }) {
+          return (
+            <BlockHandles onDelete={handleDelete}>
+              {innerChildren}
+            </BlockHandles>
+          );
+        };
+      },
+  },
+});
+
+// ---------------------------------------------------------------------------
 // All plugins
 // ---------------------------------------------------------------------------
 
@@ -82,30 +121,36 @@ const ALL_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
   UnderlinePlugin,
+  StrikethroughPlugin,
+  CodePlugin,
   // Standard blocks
   BlockquotePlugin,
   H2Plugin,
   H3Plugin,
   H4Plugin,
+  H5Plugin,
+  H6Plugin,
   // Inline
   LinkPlugin,
   ListPlugin,
   // Markdown (for fallback deserialization)
   MarkdownPlugin,
-  // Custom blocks — existing
+  // Custom blocks — editorial
   PullQuotePlugin,
   SectionBreakPlugin,
   PhotoBlockPlugin,
   LinksBoxPlugin,
   ResourceListPlugin,
-  // Custom blocks — new
+  // Custom blocks — media
   PhotoAPlugin,
   PhotoBPlugin,
   AudioAPlugin,
   AudioBPlugin,
+  // Custom blocks — structure
   KickerAPlugin,
   KickerBPlugin,
   ArticleMetaPlugin,
+  // Custom blocks — data
   LinksBPlugin,
   ListAPlugin,
   ListBPlugin,
@@ -114,6 +159,13 @@ const ALL_PLUGINS = [
   AddressBPlugin,
   PhoneAPlugin,
   PhoneBPlugin,
+  // Notion-style blocks
+  TodoPlugin,
+  TogglePlugin,
+  CalloutPlugin,
+  CodeBlockPlugin,
+  // UI infrastructure
+  BlockHandlesPlugin,
 ];
 
 // ---------------------------------------------------------------------------
@@ -170,18 +222,16 @@ export function PlateEditor({
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "/" && !slashMenuOpen) {
-        // Check if we're at the start of a block or in an empty block
         const { selection } = editor;
         if (selection) {
+          // Open slash menu in any empty paragraph
           const [node] = editor.api.nodes({ match: { type: "p" }, at: selection });
           if (node) {
             const [element] = node;
             const text = (element as TElement).children
               ?.map((c: { text?: string }) => c.text || "")
               .join("") || "";
-            // Open slash menu if at start of empty paragraph or typing /
             if (text === "" || text === "/") {
-              // Let the "/" character be typed, then open menu on next tick
               setTimeout(() => setSlashMenuOpen(true), 0);
             }
           }

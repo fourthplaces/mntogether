@@ -639,3 +639,157 @@
 .block-handle--drag:active {
   cursor: grabbing;
 }
+.block-handle--delete {
+  color: var(--mn-red, #A6192E);
+  font-size: 0.9rem;
+}
+.block-handle--delete:hover {
+  background: rgba(166, 25, 46, 0.08);
+}
+
+/* Floating toolbar separator */
+.floating-toolbar__sep {
+  display: block;
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.2);
+  margin: 0 2px;
+}
+
+
+/* ═══════════════════════════════════════════════
+   TODO LIST — checkbox + editable text
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .todo-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 2px 0;
+}
+.editor-broadsheet .todo-item__checkbox {
+  cursor: pointer;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  user-select: none;
+  flex-shrink: 0;
+}
+.editor-broadsheet .todo-item__text {
+  flex: 1;
+  min-width: 0;
+}
+.editor-broadsheet .todo-item__text--checked {
+  text-decoration: line-through;
+  color: var(--pebble);
+}
+
+
+/* ═══════════════════════════════════════════════
+   TOGGLE LIST — collapsible disclosure
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .toggle-block {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 2px 0;
+}
+.editor-broadsheet .toggle-block__trigger {
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  user-select: none;
+  flex-shrink: 0;
+  width: 16px;
+  text-align: center;
+  color: var(--pebble);
+}
+.editor-broadsheet .toggle-block__trigger:hover {
+  color: var(--ink);
+}
+.editor-broadsheet .toggle-block__content {
+  flex: 1;
+  min-width: 0;
+}
+.editor-broadsheet .toggle-block__content--collapsed {
+  display: none;
+}
+
+
+/* ═══════════════════════════════════════════════
+   CALLOUT — colored info box
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .callout-block {
+  display: flex;
+  gap: 10px;
+  padding: 12px 16px;
+  margin: 1em 0;
+  background: rgba(11, 122, 142, 0.06);
+  border-left: 4px solid var(--mn-teal-alt, #0B7A8E);
+  border-radius: 2px;
+}
+.editor-broadsheet .callout-block__icon {
+  font-size: 1.2rem;
+  flex-shrink: 0;
+  user-select: none;
+}
+.editor-broadsheet .callout-block__content {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════
+   CODE BLOCK — monospace pre
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .code-block {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin: 1em 0;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.editor-broadsheet .code-block code {
+  font: inherit;
+  background: none;
+  padding: 0;
+}
+
+
+/* ═══════════════════════════════════════════════
+   H5 / H6 — smaller headings
+   ═══════════════════════════════════════════════ */
+
+.editor-broadsheet .body-a h5,
+.editor-broadsheet .body-a [data-slate-type="h5"] {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  margin: 1.1em 0 0.3em;
+  color: var(--ink);
+}
+
+.editor-broadsheet .body-a h6,
+.editor-broadsheet .body-a [data-slate-type="h6"] {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 1em 0 0.3em;
+  color: var(--pebble);
+}

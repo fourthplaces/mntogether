@@ -20,7 +20,13 @@ export const BLOCK_CATALOG: BlockCatalogEntry[] = [
   { key: "h2", label: "Heading 2", description: "Large section heading", category: "text" },
   { key: "h3", label: "Heading 3", description: "Medium section heading", category: "text" },
   { key: "h4", label: "Heading 4", description: "Small section heading", category: "text" },
+  { key: "h5", label: "Heading 5", description: "Extra small heading", category: "text" },
+  { key: "h6", label: "Heading 6", description: "Tiny heading", category: "text" },
   { key: "blockquote", label: "Blockquote", description: "Indented quote with left border", category: "text" },
+  { key: "todo", label: "Todo List", description: "Checkbox with text", category: "text" },
+  { key: "toggle", label: "Toggle List", description: "Collapsible content block", category: "text" },
+  { key: "callout", label: "Callout", description: "Highlighted info box", category: "text" },
+  { key: "code_block", label: "Code Block", description: "Monospace code block", category: "text" },
 
   // ── Media ──
   { key: "photo_a", label: "Photo (Full Width)", description: "Contained image with caption", category: "media", defaultData: { src: "", caption: "", credit: "" } },
