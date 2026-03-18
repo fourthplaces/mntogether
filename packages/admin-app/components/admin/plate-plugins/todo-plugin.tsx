@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Square, SquareCheck } from "lucide-react";
 
 export const TODO_KEY = "todo";
 
@@ -21,7 +22,7 @@ export function TodoElement(props: PlateElementProps) {
   return (
     <PlateElement {...rest} element={element} editor={editor} className="todo-item">
       <span {...{contentEditable: false} as any} className="todo-item__checkbox" onMouseDown={(e) => { e.preventDefault(); toggleChecked(); }}>
-        {data.checked ? "☑" : "☐"}
+        {data.checked ? <SquareCheck size={16} strokeWidth={2} /> : <Square size={16} strokeWidth={2} />}
       </span>
       <span className={`todo-item__text ${data.checked ? "todo-item__text--checked" : ""}`}>
         {children}

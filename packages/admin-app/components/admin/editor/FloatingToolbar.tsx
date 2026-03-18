@@ -16,7 +16,8 @@ import {
   getDOMSelectionBoundingClientRect,
 } from "@platejs/floating";
 import { useEditorId, usePlateEditor } from "platejs/react";
-import { Code, Link } from "lucide-react";
+import { upsertLink } from "@platejs/link";
+import { Code, Link as LinkIcon } from "lucide-react";
 import { TurnIntoMenu } from "./TurnIntoMenu";
 
 interface FloatingToolbarProps {
@@ -106,12 +107,12 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
           e.preventDefault();
           const url = window.prompt("Enter URL:");
           if (url) {
-            editor.tf.insertLink({ url });
+            upsertLink(editor, { url });
           }
         }}
         className="floating-toolbar__btn"
       >
-        <Link size={14} strokeWidth={2} />
+        <LinkIcon size={14} strokeWidth={2} />
       </button>
     </div>
   );
