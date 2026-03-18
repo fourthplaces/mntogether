@@ -25,6 +25,10 @@ use crate::domains::posts::data::types::SubmitPostInput;
 use crate::domains::posts::models::post::PostFilters;
 use crate::domains::posts::models::post_report::{PostReportRecord, PostReportWithDetails};
 use crate::domains::posts::models::Post;
+use crate::domains::posts::models::{
+    PostMediaRecord, PostMetaRecord, PostPersonRecord, PostLinkRecord,
+    PostSourceAttr, PostDatetimeRecord, PostStatusRecord,
+};
 use crate::domains::schedules::models::Schedule;
 use crate::domains::tag::models::tag::Tag;
 use crate::kernel::ServerDeps;
@@ -2017,6 +2021,262 @@ async fn get_revision(
 }
 
 // =============================================================================
+// Field group read handler
+// =============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct PostFieldGroupsResult {
+    pub media: Vec<PostMediaRecord>,
+    pub items: Vec<crate::domains::posts::models::PostItem>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person: Option<PostPersonRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<PostLinkRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_attribution: Option<PostSourceAttr>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub meta: Option<PostMetaRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub datetime: Option<PostDatetimeRecord>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub post_status: Option<PostStatusRecord>,
+    pub schedule: Vec<crate::domains::posts::models::PostScheduleEntry>,
+}
+
+async fn get_field_groups(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+) -> ApiResult<Json<PostFieldGroupsResult>> {
+    let pool = &state.deps.db_pool;
+    let ids = &[post_id];
+
+    let media = PostMediaRecord::find_by_post_ids(ids, pool).await?;
+    let items = crate::domains::posts::models::PostItem::find_by_post_ids(ids, pool).await?;
+    let persons = PostPersonRecord::find_by_post_ids(ids, pool).await?;
+    let links = PostLinkRecord::find_by_post_ids(ids, pool).await?;
+    let source_attrs = PostSourceAttr::find_by_post_ids(ids, pool).await?;
+    let metas = PostMetaRecord::find_by_post_ids(ids, pool).await?;
+    let datetimes = PostDatetimeRecord::find_by_post_ids(ids, pool).await?;
+    let statuses = PostStatusRecord::find_by_post_ids(ids, pool).await?;
+    let schedule = crate::domains::posts::models::PostScheduleEntry::find_by_post_ids(ids, pool).await?;
+
+    Ok(Json(PostFieldGroupsResult {
+        media,
+        items,
+        person: persons.into_iter().next(),
+        link: links.into_iter().next(),
+        source_attribution: source_attrs.into_iter().next(),
+        meta: metas.into_iter().next(),
+        datetime: datetimes.into_iter().next(),
+        post_status: statuses.into_iter().next(),
+        schedule,
+    }))
+}
+
+// =============================================================================
+// Field group upsert handlers
+// =============================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostMediaRequest {
+    pub image_url: Option<String>,
+    pub caption: Option<String>,
+    pub credit: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FieldGroupResult {
+    pub success: bool,
+}
+
+async fn upsert_post_media(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostMediaRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    PostMediaRecord::upsert_primary(
+        post_id,
+        req.image_url.as_deref(),
+        req.caption.as_deref(),
+        req.credit.as_deref(),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostMetaRequest {
+    pub kicker: Option<String>,
+    pub byline: Option<String>,
+    pub deck: Option<String>,
+    pub updated: Option<String>,
+}
+
+async fn upsert_post_meta(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostMetaRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    PostMetaRecord::upsert(
+        post_id,
+        req.kicker.as_deref(),
+        req.byline.as_deref(),
+        req.deck.as_deref(),
+        req.updated.as_deref(),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostPersonRequest {
+    pub name: Option<String>,
+    pub role: Option<String>,
+    pub bio: Option<String>,
+    pub photo_url: Option<String>,
+    pub quote: Option<String>,
+}
+
+async fn upsert_post_person(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostPersonRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    PostPersonRecord::upsert(
+        post_id,
+        req.name.as_deref(),
+        req.role.as_deref(),
+        req.bio.as_deref(),
+        req.photo_url.as_deref(),
+        req.quote.as_deref(),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostLinkRequest {
+    pub label: Option<String>,
+    pub url: Option<String>,
+    pub deadline: Option<String>, // ISO date string
+}
+
+async fn upsert_post_link(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostLinkRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    let deadline = req
+        .deadline
+        .as_deref()
+        .and_then(|d| chrono::NaiveDate::parse_from_str(d, "%Y-%m-%d").ok());
+    PostLinkRecord::upsert(
+        post_id,
+        req.label.as_deref(),
+        req.url.as_deref(),
+        deadline,
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostSourceAttrRequest {
+    pub source_name: Option<String>,
+    pub attribution: Option<String>,
+}
+
+async fn upsert_post_source_attr(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostSourceAttrRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    PostSourceAttr::upsert(
+        post_id,
+        req.source_name.as_deref(),
+        req.attribution.as_deref(),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostDatetimeRequest {
+    pub start_at: Option<String>, // ISO datetime
+    pub end_at: Option<String>,   // ISO datetime
+    pub cost: Option<String>,
+    pub recurring: Option<bool>,
+}
+
+async fn upsert_post_datetime(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostDatetimeRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    let start_at = req
+        .start_at
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    let end_at = req
+        .end_at
+        .as_deref()
+        .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+        .map(|dt| dt.with_timezone(&chrono::Utc));
+    PostDatetimeRecord::upsert(
+        post_id,
+        start_at,
+        end_at,
+        req.cost.as_deref(),
+        req.recurring.unwrap_or(false),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpsertPostStatusRequest {
+    pub state: Option<String>,
+    pub verified: Option<String>,
+}
+
+async fn upsert_post_status(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: AdminUser,
+    Json(req): Json<UpsertPostStatusRequest>,
+) -> ApiResult<Json<FieldGroupResult>> {
+    let pool = &state.deps.db_pool;
+    PostStatusRecord::upsert(
+        post_id,
+        req.state.as_deref(),
+        req.verified.as_deref(),
+        pool,
+    )
+    .await?;
+    Ok(Json(FieldGroupResult { success: true }))
+}
+
+// =============================================================================
 // Router
 // =============================================================================
 
@@ -2065,4 +2325,13 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/update_content", post(update_content))
         .route("/Post/{id}/get_reports", post(get_reports))
         .route("/Post/{id}/get_revision", post(get_revision))
+        // Field groups
+        .route("/Post/{id}/field_groups", post(get_field_groups))
+        .route("/Post/{id}/upsert_media", post(upsert_post_media))
+        .route("/Post/{id}/upsert_meta", post(upsert_post_meta))
+        .route("/Post/{id}/upsert_person", post(upsert_post_person))
+        .route("/Post/{id}/upsert_link", post(upsert_post_link))
+        .route("/Post/{id}/upsert_source_attr", post(upsert_post_source_attr))
+        .route("/Post/{id}/upsert_datetime", post(upsert_post_datetime))
+        .route("/Post/{id}/upsert_status", post(upsert_post_status))
 }

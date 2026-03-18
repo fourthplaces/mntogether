@@ -26,4 +26,32 @@ impl PostLinkRecord {
         .await?;
         Ok(rows)
     }
+
+    /// Upsert link record for a post (1:1, post_id is UNIQUE).
+    pub async fn upsert(
+        post_id: Uuid,
+        label: Option<&str>,
+        url: Option<&str>,
+        deadline: Option<NaiveDate>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO post_link (post_id, label, url, deadline)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (post_id) DO UPDATE SET
+                label = EXCLUDED.label,
+                url = EXCLUDED.url,
+                deadline = EXCLUDED.deadline
+            RETURNING *
+            "#,
+        )
+        .bind(post_id)
+        .bind(label)
+        .bind(url)
+        .bind(deadline)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
 }

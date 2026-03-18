@@ -24,4 +24,29 @@ impl PostStatusRecord {
         .await?;
         Ok(rows)
     }
+
+    /// Upsert status record for a post (1:1, post_id is UNIQUE).
+    pub async fn upsert(
+        post_id: Uuid,
+        state: Option<&str>,
+        verified: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO post_status (post_id, state, verified)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (post_id) DO UPDATE SET
+                state = EXCLUDED.state,
+                verified = EXCLUDED.verified
+            RETURNING *
+            "#,
+        )
+        .bind(post_id)
+        .bind(state)
+        .bind(verified)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
 }

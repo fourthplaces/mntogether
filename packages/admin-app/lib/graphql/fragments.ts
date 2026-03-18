@@ -96,6 +96,53 @@ export const PostDetailFields = graphql(`
       content
       ctaText
     }
+    media {
+      imageUrl
+      caption
+      credit
+    }
+    items {
+      name
+      detail
+    }
+    person {
+      name
+      role
+      bio
+      photoUrl
+      quote
+    }
+    link {
+      label
+      url
+      deadline
+    }
+    sourceAttribution {
+      sourceName
+      attribution
+    }
+    meta {
+      kicker
+      byline
+      timestamp
+      updated
+      deck
+    }
+    datetime {
+      start
+      end
+      cost
+      recurring
+    }
+    postStatus {
+      state
+      verified
+    }
+    schedule {
+      day
+      opens
+      closes
+    }
   }
 `);
 

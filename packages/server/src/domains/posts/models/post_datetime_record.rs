@@ -27,4 +27,35 @@ impl PostDatetimeRecord {
         .await?;
         Ok(rows)
     }
+
+    /// Upsert datetime record for a post (1:1, post_id is UNIQUE).
+    pub async fn upsert(
+        post_id: Uuid,
+        start_at: Option<DateTime<Utc>>,
+        end_at: Option<DateTime<Utc>>,
+        cost: Option<&str>,
+        recurring: bool,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO post_datetime (post_id, start_at, end_at, cost, recurring)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (post_id) DO UPDATE SET
+                start_at = EXCLUDED.start_at,
+                end_at = EXCLUDED.end_at,
+                cost = EXCLUDED.cost,
+                recurring = EXCLUDED.recurring
+            RETURNING *
+            "#,
+        )
+        .bind(post_id)
+        .bind(start_at)
+        .bind(end_at)
+        .bind(cost)
+        .bind(recurring)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
 }

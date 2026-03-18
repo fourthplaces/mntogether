@@ -284,3 +284,46 @@ export const UpdatePostMutation = graphql(`
   }
 `);
 
+// Field group upsert mutations
+export const UpsertPostMediaMutation = graphql(`
+  mutation UpsertPostMedia($postId: ID!, $imageUrl: String, $caption: String, $credit: String) {
+    upsertPostMedia(postId: $postId, imageUrl: $imageUrl, caption: $caption, credit: $credit)
+  }
+`);
+
+export const UpsertPostMetaMutation = graphql(`
+  mutation UpsertPostMeta($postId: ID!, $kicker: String, $byline: String, $deck: String, $updated: String) {
+    upsertPostMeta(postId: $postId, kicker: $kicker, byline: $byline, deck: $deck, updated: $updated)
+  }
+`);
+
+export const UpsertPostPersonMutation = graphql(`
+  mutation UpsertPostPerson($postId: ID!, $name: String, $role: String, $bio: String, $photoUrl: String, $quote: String) {
+    upsertPostPerson(postId: $postId, name: $name, role: $role, bio: $bio, photoUrl: $photoUrl, quote: $quote)
+  }
+`);
+
+export const UpsertPostLinkMutation = graphql(`
+  mutation UpsertPostLink($postId: ID!, $label: String, $url: String, $deadline: String) {
+    upsertPostLink(postId: $postId, label: $label, url: $url, deadline: $deadline)
+  }
+`);
+
+export const UpsertPostSourceAttrMutation = graphql(`
+  mutation UpsertPostSourceAttr($postId: ID!, $sourceName: String, $attribution: String) {
+    upsertPostSourceAttr(postId: $postId, sourceName: $sourceName, attribution: $attribution)
+  }
+`);
+
+export const UpsertPostDatetimeMutation = graphql(`
+  mutation UpsertPostDatetime($postId: ID!, $startAt: String, $endAt: String, $cost: String, $recurring: Boolean) {
+    upsertPostDatetime(postId: $postId, startAt: $startAt, endAt: $endAt, cost: $cost, recurring: $recurring)
+  }
+`);
+
+export const UpsertPostStatusMutation = graphql(`
+  mutation UpsertPostStatus($postId: ID!, $state: String, $verified: String) {
+    upsertPostStatus(postId: $postId, state: $state, verified: $verified)
+  }
+`);
+

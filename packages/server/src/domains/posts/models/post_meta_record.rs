@@ -28,4 +28,35 @@ impl PostMetaRecord {
         .await?;
         Ok(rows)
     }
+
+    /// Upsert meta record for a post (1:1, post_id is UNIQUE).
+    pub async fn upsert(
+        post_id: Uuid,
+        kicker: Option<&str>,
+        byline: Option<&str>,
+        deck: Option<&str>,
+        updated: Option<&str>,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        let row = sqlx::query_as::<_, Self>(
+            r#"
+            INSERT INTO post_meta (post_id, kicker, byline, deck, updated)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (post_id) DO UPDATE SET
+                kicker = EXCLUDED.kicker,
+                byline = EXCLUDED.byline,
+                deck = EXCLUDED.deck,
+                updated = EXCLUDED.updated
+            RETURNING *
+            "#,
+        )
+        .bind(post_id)
+        .bind(kicker)
+        .bind(byline)
+        .bind(deck)
+        .bind(updated)
+        .fetch_one(pool)
+        .await?;
+        Ok(row)
+    }
 }

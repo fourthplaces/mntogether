@@ -102,6 +102,15 @@ type Mutation {
   createPost(input: CreatePostInput!): Post!
   updatePost(id: ID!, input: UpdatePostInput!): Post!
 
+  # Post field group upserts (admin)
+  upsertPostMedia(postId: ID!, imageUrl: String, caption: String, credit: String): Boolean!
+  upsertPostMeta(postId: ID!, kicker: String, byline: String, deck: String, updated: String): Boolean!
+  upsertPostPerson(postId: ID!, name: String, role: String, bio: String, photoUrl: String, quote: String): Boolean!
+  upsertPostLink(postId: ID!, label: String, url: String, deadline: String): Boolean!
+  upsertPostSourceAttr(postId: ID!, sourceName: String, attribution: String): Boolean!
+  upsertPostDatetime(postId: ID!, startAt: String, endAt: String, cost: String, recurring: Boolean): Boolean!
+  upsertPostStatus(postId: ID!, state: String, verified: String): Boolean!
+
   # Organizations (admin)
   createOrganization(name: String!, description: String, sourceType: String): Organization!
   updateOrganization(id: ID!, name: String!, description: String): Organization!
@@ -226,6 +235,16 @@ type Post {
   translationOfId: ID
   duplicateOfId: ID
   sourceLanguage: String!
+  # Field groups
+  media: [BroadsheetMedia!]!
+  items: [BroadsheetItem!]!
+  person: BroadsheetPerson
+  link: BroadsheetLink
+  sourceAttribution: BroadsheetSourceAttribution
+  meta: BroadsheetMeta
+  datetime: BroadsheetDatetime
+  postStatus: BroadsheetStatus
+  schedule: [BroadsheetScheduleEntry!]!
 }
 
 type PostConnection {
