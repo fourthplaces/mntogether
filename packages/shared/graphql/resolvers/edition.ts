@@ -318,7 +318,7 @@ export const editionResolvers = {
 
   BroadsheetSlot: {
     widgetTemplate: (parent: PublicBroadsheetSlotData) =>
-      parent.widget_template ?? (parent as Record<string, unknown>).widgetTemplate ?? null,
+      parent.widget_template ?? (parent as unknown as Record<string, unknown>).widgetTemplate ?? null,
   },
 
   BroadsheetWidget: {

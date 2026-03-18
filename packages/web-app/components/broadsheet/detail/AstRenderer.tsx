@@ -25,6 +25,8 @@ interface AstText {
   bold?: boolean;
   italic?: boolean;
   underline?: boolean;
+  strikethrough?: boolean;
+  code?: boolean;
 }
 
 interface AstElement {
@@ -56,6 +58,11 @@ interface AstElement {
   number?: string;
   display?: string;
   label?: string;
+  // Todo / toggle / callout / code_block
+  checked?: boolean;
+  open?: boolean;
+  emoji?: string;
+  language?: string;
 }
 
 type AstNode = AstText | AstElement;
@@ -75,6 +82,8 @@ function renderText(node: AstText, key: number): React.ReactNode {
   if (node.bold) content = <strong key={`b-${key}`}>{content}</strong>;
   if (node.italic) content = <em key={`i-${key}`}>{content}</em>;
   if (node.underline) content = <u key={`u-${key}`}>{content}</u>;
+  if (node.strikethrough) content = <s key={`s-${key}`}>{content}</s>;
+  if (node.code) content = <code key={`c-${key}`}>{content}</code>;
 
   return <React.Fragment key={key}>{content}</React.Fragment>;
 }
@@ -104,6 +113,10 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
       return <h3 key={key}>{children}</h3>;
     case "h4":
       return <h4 key={key}>{children}</h4>;
+    case "h5":
+      return <h5 key={key}>{children}</h5>;
+    case "h6":
+      return <h6 key={key}>{children}</h6>;
     case "blockquote":
       return <blockquote key={key}>{children}</blockquote>;
     case "ul":
@@ -114,6 +127,34 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
       return <li key={key}>{children}</li>;
     case "a":
       return <a key={key} href={node.url || "#"}>{children}</a>;
+
+    // Notion-style blocks
+    case "todo":
+      return (
+        <div key={key} className="todo-item">
+          <input type="checkbox" checked={!!node.checked} readOnly className="todo-checkbox" />
+          <span className={node.checked ? "todo-text todo-text--checked" : "todo-text"}>{children}</span>
+        </div>
+      );
+    case "toggle":
+      return (
+        <details key={key} open={node.open !== false}>
+          <summary className="toggle-summary">{children}</summary>
+        </details>
+      );
+    case "callout":
+      return (
+        <div key={key} className="callout">
+          {node.emoji && <span className="callout-emoji">{node.emoji}</span>}
+          <div className="callout-content">{children}</div>
+        </div>
+      );
+    case "code_block":
+      return (
+        <pre key={key} className="code-block">
+          <code>{children}</code>
+        </pre>
+      );
 
     // Pull quote (floated right on web-app)
     case "pull_quote":

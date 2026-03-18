@@ -490,11 +490,14 @@ export const postResolvers = {
     media: async (parent: { id: string; media?: unknown[] }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.media) return parent.media;
       const fg = await ctx.server.callService<{ media: unknown[] }>("Post", `${parent.id}/field_groups`, {});
-      return (fg.media ?? []).map((m: Record<string, unknown>) => ({
-        imageUrl: m.image_url ?? m.imageUrl,
-        caption: m.caption,
-        credit: m.credit,
-      }));
+      return (fg.media ?? []).map((m: unknown) => {
+        const rec = m as Record<string, unknown>;
+        return {
+          imageUrl: rec.image_url ?? rec.imageUrl,
+          caption: rec.caption,
+          credit: rec.credit,
+        };
+      });
     },
     items: async (parent: { id: string; items?: unknown[] }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.items) return parent.items;

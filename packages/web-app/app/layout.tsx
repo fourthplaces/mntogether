@@ -9,6 +9,7 @@ import {
 } from "./broadsheet-fonts";
 import "./globals.css";
 import "./broadsheet.css";
+import "./broadsheet-detail.css";
 
 export const metadata: Metadata = {
   title: "MN Together - Find help. Give help. Come together.",
