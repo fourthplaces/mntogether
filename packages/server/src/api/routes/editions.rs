@@ -391,6 +391,8 @@ pub struct PublicBroadsheetSlotResult {
     pub kind: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post_template: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub widget_template: Option<String>,
     pub slot_index: i32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub post: Option<PublicBroadsheetPostResult>,
@@ -1559,6 +1561,7 @@ async fn build_public_broadsheet(
                         Some(PublicBroadsheetSlotResult {
                             kind: "post".to_string(),
                             post_template: slot.post_template.clone(),
+                            widget_template: None,
                             slot_index: slot.slot_index,
                             post: Some(PublicBroadsheetPostResult {
                                 id,
@@ -1598,6 +1601,7 @@ async fn build_public_broadsheet(
                         Some(PublicBroadsheetSlotResult {
                             kind: "widget".to_string(),
                             post_template: None,
+                            widget_template: slot.widget_template.clone(),
                             slot_index: slot.slot_index,
                             post: None,
                             widget: Some(PublicBroadsheetWidgetResult {

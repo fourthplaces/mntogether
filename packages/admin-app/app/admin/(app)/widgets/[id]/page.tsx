@@ -440,19 +440,8 @@ interface EditorProps {
 
 function WidgetEditor({ widgetType, data, updateField, setWidgetData }: EditorProps) {
   switch (widgetType) {
+    case "number":
     case "stat_card":
-      return (
-        <FieldsEditor
-          data={data}
-          updateField={updateField}
-          fields={[
-            { key: "number", label: "Number", min: 1, max: 6, placeholder: "2,847" },
-            { key: "title", label: "Title", min: 10, max: 35, placeholder: "volunteer hours this month" },
-            { key: "body", label: "Body", min: 40, max: 100, multiline: true, placeholder: "Longer description providing context for the statistic" },
-          ]}
-        />
-      );
-
     case "number_block":
       return (
         <>
@@ -460,8 +449,10 @@ function WidgetEditor({ widgetType, data, updateField, setWidgetData }: EditorPr
             data={data}
             updateField={updateField}
             fields={[
-              { key: "number", label: "Number", min: 1, max: 6, placeholder: "64K" },
-              { key: "label", label: "Label", min: 20, max: 55, placeholder: "meals served across all partner locations" },
+              { key: "number", label: "Number", min: 1, max: 6, placeholder: "2,847" },
+              { key: "title", label: "Title", min: 1, max: 55, placeholder: "volunteer hours this month" },
+              { key: "label", label: "Label (alt)", min: 0, max: 55, placeholder: "meals served across all partner locations" },
+              { key: "body", label: "Body (optional)", min: 0, max: 100, multiline: true, placeholder: "Longer description providing context" },
               { key: "detail", label: "Detail (optional)", min: 0, max: 100, multiline: true, placeholder: "Additional context for the number" },
             ]}
           />

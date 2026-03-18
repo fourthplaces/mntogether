@@ -113,6 +113,7 @@ interface PublicBroadsheetRowData {
 interface PublicBroadsheetSlotData {
   kind: string;
   postTemplate?: string;
+  widget_template?: string;
   slotIndex: number;
   post?: PublicBroadsheetPostData;
   widget?: { id: string; widgetType: string; authoringMode: string; data: unknown };
@@ -313,6 +314,11 @@ export const editionResolvers = {
   BroadsheetSourceAttribution: {
     sourceName: (parent: { source_name?: string; sourceName?: string }) =>
       parent.sourceName ?? parent.source_name ?? null,
+  },
+
+  BroadsheetSlot: {
+    widgetTemplate: (parent: PublicBroadsheetSlotData) =>
+      parent.widget_template ?? (parent as Record<string, unknown>).widgetTemplate ?? null,
   },
 
   BroadsheetWidget: {

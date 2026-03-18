@@ -2027,8 +2027,9 @@ function SlotCell({
 // ─── WidgetPickerDialog (search & select existing widget) ────────────────────
 
 const WIDGET_TYPE_LABELS: Record<string, string> = {
-  stat_card: "Stat Card",
-  number_block: "Number Block",
+  number: "Number",
+  stat_card: "Number",
+  number_block: "Number",
   pull_quote: "Pull Quote",
   resource_bar: "Resource Bar",
   weather: "Weather",
@@ -2036,8 +2037,9 @@ const WIDGET_TYPE_LABELS: Record<string, string> = {
 };
 
 const WIDGET_TYPE_COLORS: Record<string, string> = {
+  number: "bg-amber-100 text-amber-800",
   stat_card: "bg-amber-100 text-amber-800",
-  number_block: "bg-violet-100 text-violet-800",
+  number_block: "bg-amber-100 text-amber-800",
   pull_quote: "bg-rose-100 text-rose-800",
   resource_bar: "bg-teal-100 text-teal-800",
   weather: "bg-sky-100 text-sky-800",
@@ -2049,10 +2051,10 @@ function widgetSummary(widgetType: string, dataStr: string | null): string {
   try {
     const data = typeof dataStr === "string" ? JSON.parse(dataStr) : dataStr;
     switch (widgetType) {
+      case "number":
       case "stat_card":
-        return [data.number, data.title].filter(Boolean).join(" — ");
       case "number_block":
-        return [data.number, data.label].filter(Boolean).join(" — ");
+        return [data.number, data.title || data.label].filter(Boolean).join(" — ");
       case "pull_quote":
         return data.quote
           ? `"${data.quote.slice(0, 50)}${data.quote.length > 50 ? "..." : ""}"`

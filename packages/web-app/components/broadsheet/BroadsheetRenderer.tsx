@@ -13,7 +13,7 @@
 
 import type { PublicBroadsheetQuery } from '@/gql/graphql';
 import { Row, Cell, NewspaperFrame, DebugLabels } from '@/components/broadsheet';
-import { SectionSep, ResourceBar } from '@/components/broadsheet';
+import { SectionSep, ResourceBar, StatCard, NumberBlock, PullQuote } from '@/components/broadsheet';
 import { getRowLayout, distributeSlots } from '@/lib/broadsheet/row-map';
 import { resolveTemplate } from '@/lib/broadsheet/templates';
 import { preparePost } from '@/lib/broadsheet/prepare';
@@ -86,7 +86,7 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
   if (row.layoutVariant === 'widget-standalone') {
     const widgetSlot = row.slots.find((s) => s.kind === 'widget');
     if (!widgetSlot?.widget) return null;
-    return <WidgetRenderer widget={widgetSlot.widget} />;
+    return <WidgetRenderer widget={widgetSlot.widget} widgetTemplate={widgetSlot.widgetTemplate ?? undefined} />;
   }
 
   // Filter to only post slots for the row layout engine
@@ -115,7 +115,7 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
 
 function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
   if (slot.kind === 'widget' && slot.widget) {
-    return <WidgetRenderer widget={slot.widget} />;
+    return <WidgetRenderer widget={slot.widget} widgetTemplate={slot.widgetTemplate ?? undefined} />;
   }
 
   if (!slot.post || !slot.postTemplate) return null;
@@ -140,7 +140,7 @@ function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
 
 type WidgetData = NonNullable<BroadsheetSlotData['widget']>;
 
-function WidgetRenderer({ widget }: { widget: WidgetData }) {
+function WidgetRenderer({ widget, widgetTemplate }: { widget: WidgetData; widgetTemplate?: string }) {
   let data: Record<string, unknown> = {};
   try {
     data = typeof widget.data === 'string'
@@ -157,6 +157,41 @@ function WidgetRenderer({ widget }: { widget: WidgetData }) {
         <SectionSep
           title={(data.title as string) || 'Section'}
           sub={data.sub as string | undefined}
+          variant={widgetTemplate === 'ledger' ? 'ledger' : 'default'}
+        />
+      );
+
+    case 'number':
+    case 'stat_card':
+    case 'number_block': {
+      // Merged "number" type — variant selects visual treatment.
+      // stat_card/number_block kept as aliases for backward compat.
+      const variant = widgetTemplate || widget.widgetType;
+      if (variant === 'number_block' || variant === 'number-block') {
+        return (
+          <NumberBlock
+            number={(data.number as string) || ''}
+            label={(data.label as string) || (data.title as string) || ''}
+            detail={data.detail as string | undefined}
+            color={(data.color as string) || 'teal'}
+          />
+        );
+      }
+      // Default: stat-card rendering
+      return (
+        <StatCard
+          number={(data.number as string) || ''}
+          title={(data.title as string) || (data.label as string) || ''}
+          body={(data.body as string) || (data.detail as string) || ''}
+        />
+      );
+    }
+
+    case 'pull_quote':
+      return (
+        <PullQuote
+          quote={(data.quote as string) || ''}
+          attribution={(data.attribution as string) || ''}
         />
       );
 

@@ -7,9 +7,11 @@ use uuid::Uuid;
 use crate::domains::editions::ZipCounty;
 
 /// Known widget types — discriminated union key.
+/// Note: stat_card and number_block were merged into "number" with visual
+/// variants controlled by widget_template on edition_slots.
+/// See DECISIONS_LOG.md: "Widget template system: Merge stat_card + number_block"
 pub const WIDGET_TYPES: &[&str] = &[
-    "stat_card",
-    "number_block",
+    "number",
     "pull_quote",
     "resource_bar",
     "weather",
@@ -371,8 +373,7 @@ fn validate_authoring_mode(mode: &str) -> Result<()> {
 /// Enforces required fields and character limits from the spec.
 pub fn validate_widget_data(widget_type: &str, data: &serde_json::Value) -> Result<()> {
     match widget_type {
-        "stat_card" => validate_stat_card(data),
-        "number_block" => validate_number_block(data),
+        "number" => validate_number(data),
         "pull_quote" => validate_pull_quote(data),
         "resource_bar" => validate_resource_bar(data),
         "weather" => validate_weather(data),
@@ -409,17 +410,26 @@ fn optional_string(data: &serde_json::Value, field: &str, min: usize, max: usize
     Ok(())
 }
 
-fn validate_stat_card(data: &serde_json::Value) -> Result<()> {
+/// Unified validation for the merged "number" widget type.
+/// Accepts fields from both old stat_card (number, title, body) and
+/// number_block (number, label, detail, color). Visual variant is
+/// controlled by widget_template on the edition slot, not the data shape.
+fn validate_number(data: &serde_json::Value) -> Result<()> {
     require_string(data, "number", 1, 6)?;
-    require_string(data, "title", 10, 35)?;
-    require_string(data, "body", 40, 100)?;
-    Ok(())
-}
-
-fn validate_number_block(data: &serde_json::Value) -> Result<()> {
-    require_string(data, "number", 1, 6)?;
-    require_string(data, "label", 20, 55)?;
-    optional_string(data, "detail", 40, 100)?;
+    // Accept either title (stat_card style) or label (number_block style)
+    let has_title = data.get("title").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+    let has_label = data.get("label").and_then(|v| v.as_str()).map(|s| !s.is_empty()).unwrap_or(false);
+    if !has_title && !has_label {
+        bail!("Number widget requires either 'title' or 'label' field");
+    }
+    if has_title {
+        require_string(data, "title", 1, 55)?;
+    }
+    if has_label {
+        require_string(data, "label", 1, 55)?;
+    }
+    optional_string(data, "body", 1, 100)?;
+    optional_string(data, "detail", 1, 100)?;
     // Validate color if present
     if let Some(color) = data.get("color").and_then(|v| v.as_str()) {
         let valid_colors = ["teal", "rust", "forest", "plum", "blue"];

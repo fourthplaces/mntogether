@@ -30,6 +30,7 @@ export const EditionPreviewQuery = graphql(`
         slots {
           kind
           postTemplate
+          widgetTemplate
           slotIndex
           post {
             id
@@ -150,6 +151,7 @@ export const PublicBroadsheetQuery = graphql(`
         slots {
           kind
           postTemplate
+          widgetTemplate
           slotIndex
           post {
             id

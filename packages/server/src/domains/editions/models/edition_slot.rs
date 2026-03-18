@@ -12,6 +12,7 @@ pub struct EditionSlot {
     pub post_id: Option<Uuid>,
     pub widget_id: Option<Uuid>,
     pub post_template: Option<String>,
+    pub widget_template: Option<String>,
     pub slot_index: i32,
     pub created_at: DateTime<Utc>,
 }
@@ -25,6 +26,7 @@ pub struct SlotWithPost {
     pub post_id: Option<Uuid>,
     pub widget_id: Option<Uuid>,
     pub post_template: Option<String>,
+    pub widget_template: Option<String>,
     pub slot_index: i32,
     pub created_at: DateTime<Utc>,
     // Post fields (joined from posts table, nullable for widget slots)

@@ -571,6 +571,7 @@ type BroadsheetSlot {
   kind: String!
   slotIndex: Int!
   postTemplate: String
+  widgetTemplate: String
   post: BroadsheetPost
   widget: BroadsheetWidget
 }

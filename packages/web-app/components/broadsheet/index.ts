@@ -45,7 +45,8 @@ export { LedgerEvent } from './posts/LedgerEvent';
 export { LedgerExchange } from './posts/LedgerExchange';
 export { LedgerReference } from './posts/LedgerReference';
 export { LedgerSpotlight } from './posts/LedgerSpotlight';
-export { LedgerSectionBreak } from './posts/LedgerSectionBreak';
+// LedgerSectionBreak removed — was dead code, SectionSep widget handles both variants.
+// See DECISIONS_LOG.md: "SectionSep: Two variants, not two components"
 
 // Post renderers — Digest family
 export { DigestStory } from './posts/DigestStory';

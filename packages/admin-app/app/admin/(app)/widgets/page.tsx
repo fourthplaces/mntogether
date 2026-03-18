@@ -36,8 +36,7 @@ import { Plus } from "lucide-react";
 // ─── Widget type definitions ────────────────────────────────────────────────
 
 const WIDGET_TYPES = [
-  { type: "stat_card", label: "Stat Card", description: "Large statistic with context", authoring: "human" },
-  { type: "number_block", label: "Number Block", description: "Compact colored number tile", authoring: "human" },
+  { type: "number", label: "Number", description: "Big number with title/body — variants: stat card or colored tile", authoring: "human" },
   { type: "pull_quote", label: "Pull Quote", description: "Editorial quotation", authoring: "human" },
   { type: "resource_bar", label: "Resource Bar", description: "Horizontal strip of resources", authoring: "human" },
   { type: "weather", label: "Weather", description: "Automated weather display", authoring: "automated" },
@@ -51,20 +50,22 @@ const AUTHORING_COLORS: Record<string, string> = {
 };
 
 const TYPE_COLORS: Record<string, string> = {
-  stat_card: "bg-amber-100 text-amber-800",
-  number_block: "bg-violet-100 text-violet-800",
+  number: "bg-amber-100 text-amber-800",
   pull_quote: "bg-rose-100 text-rose-800",
   resource_bar: "bg-teal-100 text-teal-800",
   weather: "bg-sky-100 text-sky-800",
   section_sep: "bg-gray-100 text-gray-700",
+  // Backward compat for old type names in DB
+  stat_card: "bg-amber-100 text-amber-800",
+  number_block: "bg-violet-100 text-violet-800",
 };
 
 function defaultData(widgetType: string): Record<string, unknown> {
   switch (widgetType) {
+    case "number":
     case "stat_card":
-      return { number: "", title: "", body: "" };
     case "number_block":
-      return { number: "", label: "", detail: "", color: "teal" };
+      return { number: "", title: "", label: "", body: "", detail: "", color: "teal" };
     case "pull_quote":
       return { quote: "", attribution: "" };
     case "resource_bar":
@@ -309,10 +310,10 @@ function getWidgetSummary(type: string, dataStr: string | null): string {
   try {
     const data = typeof dataStr === "string" ? JSON.parse(dataStr) : dataStr;
     switch (type) {
+      case "number":
       case "stat_card":
-        return [data.number, data.title].filter(Boolean).join(" — ");
       case "number_block":
-        return [data.number, data.label].filter(Boolean).join(" — ");
+        return [data.number, data.title || data.label].filter(Boolean).join(" — ");
       case "pull_quote":
         return data.quote ? `"${data.quote.slice(0, 60)}${data.quote.length > 60 ? "..." : ""}"` : "";
       case "resource_bar":
