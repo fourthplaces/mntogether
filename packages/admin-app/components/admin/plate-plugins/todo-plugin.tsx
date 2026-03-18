@@ -20,7 +20,7 @@ export function TodoElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="todo-item">
-      <span contentEditable={false} className="todo-item__checkbox" onMouseDown={(e) => { e.preventDefault(); toggleChecked(); }}>
+      <span {...{contentEditable: false} as any} className="todo-item__checkbox" onMouseDown={(e) => { e.preventDefault(); toggleChecked(); }}>
         {data.checked ? "☑" : "☐"}
       </span>
       <span className={`todo-item__text ${data.checked ? "todo-item__text--checked" : ""}`}>

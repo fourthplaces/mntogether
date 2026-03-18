@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Minus, Plus } from "lucide-react";
 
 export const ARTICLE_META_KEY = "article_meta";
 
@@ -21,7 +22,7 @@ export function ArticleMetaElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="article-meta" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="article-meta" {...{contentEditable: false} as any}>
       {parts.map((part, i) => (
         <span key={i}>
           {i > 0 && <span className="sep" style={{ margin: "0 0.6em" }}>·</span>}
@@ -29,8 +30,8 @@ export function ArticleMetaElement(props: PlateElementProps) {
         </span>
       ))}
       <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateParts([...parts, ""])}>+ Part</button>
-        {parts.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateParts(parts.slice(0, -1))}>- Part</button>}
+        <button type="button" className="block-action-btn" onClick={() => updateParts([...parts, ""])}><Plus size={12} strokeWidth={2} /> Part</button>
+        {parts.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateParts(parts.slice(0, -1))}><Minus size={12} strokeWidth={2} /> Part</button>}
       </div>
       {children}
     </PlateElement>

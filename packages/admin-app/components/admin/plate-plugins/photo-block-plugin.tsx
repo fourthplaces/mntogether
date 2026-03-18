@@ -15,6 +15,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { ArrowRightLeft } from "lucide-react";
 
 export const PHOTO_BLOCK_KEY = "photo_block";
 
@@ -52,7 +53,7 @@ export function PhotoBlockElement(props: PlateElementProps) {
   }, [editor, element, variant]);
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="photo-block" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="photo-block" {...{contentEditable: false} as any}>
       <span className="photo-block__variant-label">{variantLabel}</span>
 
       {data.src ? (
@@ -84,7 +85,7 @@ export function PhotoBlockElement(props: PlateElementProps) {
 
       <div className="block-actions">
         <button type="button" className="block-action-btn" onClick={toggleVariant}>
-          {variant === "c" ? "→ Small Left" : "→ Medium Right"}
+          <ArrowRightLeft size={12} strokeWidth={2} /> {variant === "c" ? "Small Left" : "Medium Right"}
         </button>
       </div>
 

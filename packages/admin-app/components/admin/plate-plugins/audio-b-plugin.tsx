@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Play } from "lucide-react";
 
 export const AUDIO_B_KEY = "audio_b";
 
@@ -20,9 +21,9 @@ export function AudioBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="audio-b" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="audio-b" {...{contentEditable: false} as any}>
       <div>
-        <span style={{ marginRight: "0.3em" }}>▶</span>
+        <Play size={14} strokeWidth={2} style={{ marginRight: "0.3em", flexShrink: 0 }} />
         <input className="void-input" placeholder="Excerpt or description..." value={data.excerpt || ""} onChange={(e) => updateData("excerpt", e.target.value)} style={{ display: "inline", width: "80%", fontStyle: "italic", color: "var(--slate)" }} />
       </div>
       <input className="void-input" placeholder="Audio title" value={data.title || ""} onChange={(e) => updateData("title", e.target.value)} style={{ fontSize: "0.75rem", color: "var(--slate)", marginTop: "8px" }} />

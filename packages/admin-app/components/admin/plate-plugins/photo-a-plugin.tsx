@@ -20,7 +20,7 @@ export function PhotoAElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="photo-a" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="photo-a" {...{contentEditable: false} as any}>
       {data.src ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={data.src} alt={data.caption || ""} />

@@ -16,9 +16,11 @@ import {
   getDOMSelectionBoundingClientRect,
 } from "@platejs/floating";
 import { useEditorId, usePlateEditor } from "platejs/react";
+import { Code, Link } from "lucide-react";
+import { TurnIntoMenu } from "./TurnIntoMenu";
 
 interface FloatingToolbarProps {
-  editor: ReturnType<typeof usePlateEditor>;
+  editor: NonNullable<ReturnType<typeof usePlateEditor>>;
 }
 
 function MarkButton({
@@ -27,7 +29,7 @@ function MarkButton({
   label,
   children,
 }: {
-  editor: ReturnType<typeof usePlateEditor>;
+  editor: NonNullable<ReturnType<typeof usePlateEditor>>;
   mark: string;
   label: string;
   children: React.ReactNode;
@@ -76,6 +78,8 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
       className="floating-toolbar"
       {...props}
     >
+      <TurnIntoMenu editor={editor} />
+      <span className="floating-toolbar__sep" />
       <MarkButton editor={editor} mark="bold" label="Bold (⌘B)">
         <strong>B</strong>
       </MarkButton>
@@ -89,7 +93,7 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
         <s>S</s>
       </MarkButton>
       <MarkButton editor={editor} mark="code" label="Code">
-        <span style={{ fontFamily: "monospace", fontSize: "0.8em" }}>&lt;/&gt;</span>
+        <Code size={14} strokeWidth={2} />
       </MarkButton>
 
       <span className="floating-toolbar__sep" />
@@ -107,7 +111,7 @@ export function FloatingToolbar({ editor }: FloatingToolbarProps) {
         }}
         className="floating-toolbar__btn"
       >
-        🔗
+        <Link size={14} strokeWidth={2} />
       </button>
     </div>
   );

@@ -13,6 +13,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Plus, X } from "lucide-react";
 
 export const RESOURCE_LIST_KEY = "resource_list";
 
@@ -54,7 +55,7 @@ export function ResourceListElement(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="resource-list" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="resource-list" {...{contentEditable: false} as any}>
       {items.map((item, i) => (
         <div key={i} className="resource-list__item" style={{ display: "flex", gap: "8px", alignItems: "baseline" }}>
           <input
@@ -78,14 +79,14 @@ export function ResourceListElement(props: PlateElementProps) {
             onClick={() => removeItem(i)}
             title="Remove item"
           >
-            ×
+            <X size={12} strokeWidth={2} />
           </button>
         </div>
       ))}
 
       <div className="block-actions">
         <button type="button" className="block-action-btn" onClick={addItem}>
-          + Add Item
+          <Plus size={12} strokeWidth={2} /> Add Item
         </button>
       </div>
 

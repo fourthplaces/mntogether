@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Plus } from "lucide-react";
 
 export const KICKER_B_KEY = "kicker_b";
 
@@ -21,7 +22,7 @@ export function KickerBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="kicker-b" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="kicker-b" {...{contentEditable: false} as any}>
       <div className="kicker-b__primary" style={{ borderTopColor: data.color || "var(--deep-forest)" }}>
         <input className="void-input" value={data.primary || ""} onChange={(e) => updateData("primary", e.target.value)} placeholder="Primary tag" style={{ fontSize: "0.88rem" }} />
       </div>
@@ -31,7 +32,7 @@ export function KickerBElement(props: PlateElementProps) {
         ))}
       </div>
       <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateData("secondary", [...secondary, ""])}>+ Pill</button>
+        <button type="button" className="block-action-btn" onClick={() => updateData("secondary", [...secondary, ""])}><Plus size={12} strokeWidth={2} /> Pill</button>
       </div>
       {children}
     </PlateElement>

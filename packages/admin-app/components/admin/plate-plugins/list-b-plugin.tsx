@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { ArrowRightLeft, Plus, X } from "lucide-react";
 
 export const LIST_B_KEY = "list_b";
 
@@ -24,18 +25,18 @@ export function ListBElement(props: PlateElementProps) {
   const Tag = ordered ? "ol" : "ul";
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} {...{contentEditable: false} as any}>
       <Tag className="list-b" style={{ listStyle: "none", padding: 0 }}>
         {items.map((item, i) => (
           <li key={i} style={{ display: "flex", gap: "4px", alignItems: "baseline", borderBottom: "1px dotted rgba(0,0,0,0.1)", padding: "8px 0" }}>
             <input className="void-input" value={item} onChange={(e) => { const t = [...items]; t[i] = e.target.value; updateData("items", t); }} placeholder={`Item ${i + 1}`} style={{ flex: 1 }} />
-            <button type="button" className="block-action-btn" onClick={() => updateData("items", items.filter((_, j) => j !== i))}>×</button>
+            <button type="button" className="block-action-btn" onClick={() => updateData("items", items.filter((_, j) => j !== i))}><X size={12} strokeWidth={2} /></button>
           </li>
         ))}
       </Tag>
       <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateData("items", [...items, ""])}>+ Item</button>
-        <button type="button" className="block-action-btn" onClick={() => updateData("ordered", !ordered)}>{ordered ? "→ Unordered" : "→ Ordered"}</button>
+        <button type="button" className="block-action-btn" onClick={() => updateData("items", [...items, ""])}><Plus size={12} strokeWidth={2} /> Item</button>
+        <button type="button" className="block-action-btn" onClick={() => updateData("ordered", !ordered)}><ArrowRightLeft size={12} strokeWidth={2} /> {ordered ? "Unordered" : "Ordered"}</button>
       </div>
       {children}
     </PlateElement>

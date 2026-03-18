@@ -4,6 +4,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Minus, Plus } from "lucide-react";
 
 export const KICKER_A_KEY = "kicker_a";
 
@@ -21,7 +22,7 @@ export function KickerAElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="kicker-a" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="kicker-a" {...{contentEditable: false} as any}>
       {tags.map((tag, i) => (
         <span key={i}>
           {i > 0 && <span className="sep" style={{ color: "var(--pebble)", margin: "0 0.5em" }}>·</span>}
@@ -29,8 +30,8 @@ export function KickerAElement(props: PlateElementProps) {
         </span>
       ))}
       <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateTags([...tags, ""])}>+ Tag</button>
-        {tags.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateTags(tags.slice(0, -1))}>- Tag</button>}
+        <button type="button" className="block-action-btn" onClick={() => updateTags([...tags, ""])}><Plus size={12} strokeWidth={2} /> Tag</button>
+        {tags.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateTags(tags.slice(0, -1))}><Minus size={12} strokeWidth={2} /> Tag</button>}
       </div>
       {children}
     </PlateElement>

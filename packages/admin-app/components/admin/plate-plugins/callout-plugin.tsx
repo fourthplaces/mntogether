@@ -10,7 +10,7 @@ export function CalloutElement(props: PlateElementProps) {
   const { children, ...rest } = props;
   return (
     <PlateElement {...rest} className="callout-block">
-      <span contentEditable={false} className="callout-block__icon">💡</span>
+      <span {...{contentEditable: false} as any} className="callout-block__icon">💡</span>
       <div className="callout-block__content">{children}</div>
     </PlateElement>
   );

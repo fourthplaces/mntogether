@@ -10,6 +10,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { MoreHorizontal } from "lucide-react";
 
 interface PostReviewCardPost {
   id: string;
@@ -94,7 +95,7 @@ export function PostReviewCard({
         {/* More menu — replaces hand-rolled dropdown with Radix DropdownMenu */}
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="ghost" size="icon-xs" className="ml-2" />}>
-              {"\u22EF"}
+              <MoreHorizontal size={14} strokeWidth={2} />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem render={<Link href={`/admin/posts/${post.id}`} />}>

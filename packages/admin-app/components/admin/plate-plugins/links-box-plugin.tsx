@@ -13,6 +13,7 @@ import React, { useCallback } from "react";
 import type { PlateElementProps } from "platejs/react";
 import { createPlatePlugin, PlateElement } from "platejs/react";
 import type { TElement } from "platejs";
+import { Plus, X } from "lucide-react";
 
 export const LINKS_BOX_KEY = "links_box";
 
@@ -66,7 +67,7 @@ export function LinksBoxElement(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="links-a" contentEditable={false}>
+    <PlateElement {...rest} element={element} editor={editor} className="links-a" {...{contentEditable: false} as any}>
       <input
         className="void-input links-a__header"
         value={header}
@@ -94,14 +95,14 @@ export function LinksBoxElement(props: PlateElementProps) {
             onClick={() => removeLink(i)}
             title="Remove link"
           >
-            ×
+            <X size={12} strokeWidth={2} />
           </button>
         </div>
       ))}
 
       <div className="block-actions">
         <button type="button" className="block-action-btn" onClick={addLink}>
-          + Add Link
+          <Plus size={12} strokeWidth={2} /> Add Link
         </button>
       </div>
 
