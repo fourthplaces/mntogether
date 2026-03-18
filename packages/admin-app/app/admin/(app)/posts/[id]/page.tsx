@@ -45,6 +45,7 @@ import {
   UpsertPostSourceAttrMutation,
   UpsertPostDatetimeMutation,
   UpsertPostStatusMutation,
+  UpsertPostMediaMutation,
 } from "@/lib/graphql/posts";
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
@@ -341,15 +342,23 @@ function FieldGroupPanels({
   upsertSourceAttr,
   upsertDatetime,
   upsertPostStatus,
+  upsertMedia,
   mutationContext,
 }: {
   post: Record<string, unknown>;
   postId: string;
-  upsertLink: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
-  upsertSourceAttr: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
-  upsertDatetime: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
-  upsertPostStatus: (vars: Record<string, unknown>, ctx?: Record<string, unknown>) => Promise<unknown>;
-  mutationContext: Record<string, unknown>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  upsertLink: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  upsertSourceAttr: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  upsertDatetime: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  upsertPostStatus: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  upsertMedia: (vars: any, ctx?: any) => Promise<any>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  mutationContext: any;
 }) {
   // Local state for field groups — initialized from post data
   const link = post.link as { label?: string; url?: string; deadline?: string } | null;
@@ -357,7 +366,12 @@ function FieldGroupPanels({
   const datetime = post.datetime as { start?: string; end?: string; cost?: string; recurring?: boolean } | null;
   const postStatus = post.postStatus as { state?: string; verified?: string } | null;
   const items = post.items as Array<{ name: string; detail?: string }> | null;
+  const media = post.media as Array<{ imageUrl?: string; caption?: string; credit?: string }> | null;
+  const heroMedia = media && media.length > 0 ? media[0] : null;
 
+  const [mediaUrl, setMediaUrl] = useState(heroMedia?.imageUrl || "");
+  const [mediaCaption, setMediaCaption] = useState(heroMedia?.caption || "");
+  const [mediaCredit, setMediaCredit] = useState(heroMedia?.credit || "");
   const [linkLabel, setLinkLabel] = useState(link?.label || "");
   const [linkUrl, setLinkUrl] = useState(link?.url || "");
   const [linkDeadline, setLinkDeadline] = useState(link?.deadline || "");
@@ -371,7 +385,7 @@ function FieldGroupPanels({
   const [statusVerified, setStatusVerified] = useState(postStatus?.verified || "");
 
   // Debounced auto-save
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
+  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const autoSave = useCallback(
     (saveFn: () => void) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -379,6 +393,10 @@ function FieldGroupPanels({
     },
     []
   );
+
+  const saveMedia = useCallback(() => {
+    upsertMedia({ postId, imageUrl: mediaUrl || null, caption: mediaCaption || null, credit: mediaCredit || null }, mutationContext);
+  }, [postId, mediaUrl, mediaCaption, mediaCredit, upsertMedia, mutationContext]);
 
   const saveLink = useCallback(() => {
     upsertLink({ postId, label: linkLabel || null, url: linkUrl || null, deadline: linkDeadline || null }, mutationContext);
@@ -399,6 +417,38 @@ function FieldGroupPanels({
   return (
     <div className="border-t border-border pt-4 space-y-3">
       <SectionLabel>Field Groups</SectionLabel>
+
+      {/* Hero Photo (media field group) */}
+      <div className="rounded-lg border border-border p-3 space-y-2">
+        <div className="text-xs font-medium text-text-muted uppercase tracking-wide">Hero Photo</div>
+        {mediaUrl && (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={mediaUrl}
+            alt={mediaCaption || "Hero photo preview"}
+            className="w-full rounded border border-border object-cover"
+            style={{ maxHeight: "12rem" }}
+          />
+        )}
+        <Input
+          value={mediaUrl}
+          onChange={(e) => { setMediaUrl(e.target.value); autoSave(saveMedia); }}
+          placeholder="Image URL"
+          className="text-sm"
+        />
+        <Input
+          value={mediaCaption}
+          onChange={(e) => { setMediaCaption(e.target.value); autoSave(saveMedia); }}
+          placeholder="Caption"
+          className="text-sm"
+        />
+        <Input
+          value={mediaCredit}
+          onChange={(e) => { setMediaCredit(e.target.value); autoSave(saveMedia); }}
+          placeholder="Photo credit"
+          className="text-sm"
+        />
+      </div>
 
       {/* Items (read-only for now — list display) */}
       {items && items.length > 0 && (
@@ -796,6 +846,7 @@ export default function PostDetailPage() {
   const [, upsertSourceAttr] = useMutation(UpsertPostSourceAttrMutation);
   const [, upsertDatetime] = useMutation(UpsertPostDatetimeMutation);
   const [, upsertPostStatus] = useMutation(UpsertPostStatusMutation);
+  const [, upsertMedia] = useMutation(UpsertPostMediaMutation);
 
   // Tag data: kinds + all tag values
   const [{ data: kindsData }] = useQuery({ query: TagKindsQuery });
@@ -1198,6 +1249,7 @@ export default function PostDetailPage() {
               upsertSourceAttr={upsertSourceAttr}
               upsertDatetime={upsertDatetime}
               upsertPostStatus={upsertPostStatus}
+              upsertMedia={upsertMedia}
               mutationContext={mutationContext}
             />
 
