@@ -22,6 +22,7 @@ const nextConfig: NextConfig = {
     "@platejs/list",
     "@platejs/markdown",
     "@platejs/floating",
+    "@platejs/dnd",
     "@platejs/slate",
     "@platejs/utils",
   ],
@@ -59,6 +60,7 @@ const nextConfig: NextConfig = {
       "@platejs/link/react": "@platejs/link/dist/react/index.js",
       "@platejs/list/react": "@platejs/list/dist/react/index.js",
       "platejs/react": "platejs/dist/react/index.js",
+      "@platejs/dnd": "@platejs/dnd/dist/index.js",
     },
   },
 

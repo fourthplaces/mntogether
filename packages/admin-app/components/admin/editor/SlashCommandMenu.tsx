@@ -80,8 +80,8 @@ export function SlashCommandMenu({ editor, open, onClose }: SlashCommandMenuProp
         }
       }
 
-      // For text blocks (p, h2, h3, h4, blockquote): convert current block type
-      const textBlocks = ["p", "h2", "h3", "h4", "blockquote"];
+      // For text blocks: convert current block type
+      const textBlocks = ["p", "h2", "h3", "h4", "h5", "h6", "blockquote", "todo", "toggle", "callout", "code_block"];
       if (textBlocks.includes(entry.key)) {
         editor.tf.toggleBlock(entry.key);
       } else {

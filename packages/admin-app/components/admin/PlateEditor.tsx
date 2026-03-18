@@ -6,15 +6,17 @@
  * Features:
  * - Floating toolbar on text selection (bold, italic, underline, link, code, strikethrough)
  * - Slash command menu (type "/" to insert any block type)
- * - Block-level + and ⋮⋮ handles on hover (via aboveNodes wrapper)
+ * - Block-level drag-and-drop reordering via @platejs/dnd
+ * - Block handles: + (insert) and grip (drag) on hover
  * - Full broadsheet prototype component library as insertable blocks
  * - Real FeatureDeck/FeatureText fonts
  * - JSON AST storage (body_ast)
  */
 
 import { useCallback, useRef, useEffect, useState } from "react";
-import type { Value, TElement } from "platejs";
-import { Plate, PlateContent, usePlateEditor, createPlatePlugin } from "platejs/react";
+import type { Value, TElement, Path } from "platejs";
+import { NodeIdPlugin } from "platejs";
+import { Plate, PlateContent, usePlateEditor } from "platejs/react";
 import type { PlateElementProps } from "platejs/react";
 import {
   BoldPlugin,
@@ -32,6 +34,9 @@ import {
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
 import { MarkdownPlugin } from "@platejs/markdown";
+import { DndPlugin } from "@platejs/dnd";
+import { DndProvider } from "react-dnd";
+import { HTML5Backend } from "react-dnd-html5-backend";
 
 // Custom block plugins
 import {
@@ -64,7 +69,7 @@ import {
 // Editor UI components
 import { FloatingToolbar } from "./editor/FloatingToolbar";
 import { SlashCommandMenu } from "./editor/SlashCommandMenu";
-import { BlockHandles } from "./editor/BlockWrapper";
+import { BlockDraggable } from "./editor/BlockWrapper";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,31 +89,68 @@ interface PlateEditorProps {
 }
 
 // ---------------------------------------------------------------------------
-// Block handles plugin — wraps every element with + and ⋮⋮ handles
+// Shared ref: lets the BlockDraggable's + button trigger the slash menu
 // ---------------------------------------------------------------------------
 
-const BlockHandlesPlugin = createPlatePlugin({
-  key: "block_handles",
+export const slashMenuRequestRef: { current: (() => void) | null } = { current: null };
+
+// ---------------------------------------------------------------------------
+// BlockDraggable render wrapper for DndPlugin.aboveNodes
+//
+// Plate's aboveNodes receives the element props and must return a
+// component that wraps each block's children. We create a closure
+// that captures the element/editor and passes callbacks to BlockDraggable.
+// ---------------------------------------------------------------------------
+
+function blockDraggableWrapper(props: PlateElementProps) {
+  const { editor, element } = props;
+
+  const handleDelete = () => {
+    const path = editor.api.findPath(element);
+    if (path) {
+      editor.tf.removeNodes({ at: path });
+    }
+  };
+
+  const handleInsert = () => {
+    const path = editor.api.findPath(element);
+    if (!path) return;
+    const insertPath = [...path.slice(0, -1), path[path.length - 1] + 1] as Path;
+    editor.tf.insertNodes(
+      { type: "p", children: [{ text: "" }] } as TElement,
+      { at: insertPath }
+    );
+    editor.tf.select({ path: [...insertPath, 0], offset: 0 });
+    slashMenuRequestRef.current?.();
+  };
+
+  return function BlockDraggableWrapper({ children }: { children: React.ReactNode }) {
+    return (
+      <BlockDraggable
+        element={element}
+        editor={editor}
+        onInsert={handleInsert}
+        onDelete={handleDelete}
+      >
+        {children}
+      </BlockDraggable>
+    );
+  };
+}
+
+// ---------------------------------------------------------------------------
+// DnD plugin configuration
+// ---------------------------------------------------------------------------
+
+const ConfiguredDndPlugin = DndPlugin.configure({
+  options: {
+    enableScroller: true,
+  },
   render: {
-    aboveNodes:
-      (props: PlateElementProps) => {
-        const { children, editor, element } = props;
-
-        const handleDelete = () => {
-          const path = editor.api.findPath(element);
-          if (path) {
-            editor.tf.removeNodes({ at: path });
-          }
-        };
-
-        return function BlockHandlesWrapper({ children: innerChildren }: { children: React.ReactNode }) {
-          return (
-            <BlockHandles onDelete={handleDelete}>
-              {innerChildren}
-            </BlockHandles>
-          );
-        };
-      },
+    aboveNodes: blockDraggableWrapper,
+    aboveSlate: ({ children }) => (
+      <DndProvider backend={HTML5Backend}>{children}</DndProvider>
+    ),
   },
 });
 
@@ -117,6 +159,8 @@ const BlockHandlesPlugin = createPlatePlugin({
 // ---------------------------------------------------------------------------
 
 const ALL_PLUGINS = [
+  // Node IDs — required for DnD (assigns unique id to each block element)
+  NodeIdPlugin,
   // Marks
   BoldPlugin,
   ItalicPlugin,
@@ -164,8 +208,8 @@ const ALL_PLUGINS = [
   TogglePlugin,
   CalloutPlugin,
   CodeBlockPlugin,
-  // UI infrastructure
-  BlockHandlesPlugin,
+  // DnD — drag handles + block reordering
+  ConfiguredDndPlugin,
 ];
 
 // ---------------------------------------------------------------------------
@@ -183,6 +227,11 @@ export function PlateEditor({
   onChangeRef.current = onChange;
 
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+
+  // Wire the shared ref so + button can open the slash menu
+  slashMenuRequestRef.current = useCallback(() => {
+    setTimeout(() => setSlashMenuOpen(true), 50);
+  }, []);
 
   // Create editor with all plugins
   const editor = usePlateEditor({
@@ -224,12 +273,11 @@ export function PlateEditor({
       if (e.key === "/" && !slashMenuOpen) {
         const { selection } = editor;
         if (selection) {
-          // Open slash menu in any empty paragraph
           const [node] = editor.api.nodes({ match: { type: "p" }, at: selection });
           if (node) {
             const [element] = node;
             const text = (element as TElement).children
-              ?.map((c: { text?: string }) => c.text || "")
+              ?.map((c) => (c as { text?: string }).text || "")
               .join("") || "";
             if (text === "" || text === "/") {
               setTimeout(() => setSlashMenuOpen(true), 0);
