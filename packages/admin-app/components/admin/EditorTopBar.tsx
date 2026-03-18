@@ -75,6 +75,8 @@ interface EditorTopBarProps {
   dirty?: boolean;
   mode: SplitMode;
   onModeChange: (mode: SplitMode) => void;
+  /** URL to open full preview in web-app (new tab) */
+  previewUrl?: string;
 }
 
 export function EditorTopBar({
@@ -88,6 +90,7 @@ export function EditorTopBar({
   dirty = false,
   mode,
   onModeChange,
+  previewUrl,
 }: EditorTopBarProps) {
   const modeButtons: { key: SplitMode; icon: React.ReactNode; label: string }[] = [
     { key: "editor", icon: icons.editorOnly, label: "Editor only" },
@@ -142,6 +145,21 @@ export function EditorTopBar({
             </Button>
           ))}
         </div>
+
+        {/* Open in web-app preview */}
+        {previewUrl && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.open(previewUrl, "_blank")}
+            title="Open full preview in web app"
+          >
+            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            Preview
+          </Button>
+        )}
 
         {/* Save button */}
         <Button
