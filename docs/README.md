@@ -8,6 +8,10 @@ Documentation for the Root Editorial CMS platform — an open CMS for community 
 
 What's done, what's next, what's punted. Start here for prioritization.
 
+## [→ Decisions Log](DECISIONS_LOG.md)
+
+Architectural decisions and the reasoning behind them. Read this before re-evaluating settled questions.
+
 ---
 
 ## Documentation Structure

@@ -78,7 +78,7 @@ Post slots have `post_template`; widget slots need the equivalent. Add `widget_t
 **Also needed:**
 - Add `image` widget type (not yet specced). Fields: `src`, `alt`, `caption`, `credit`. Referenced in prototype RT-02 (Photo Essay) but never implemented.
 - Admin template picker shows widget variants when slot kind is `widget`
-- Centralize widget rendering: create a `resolveWidget(widgetType, variant, span)` function in `web-app/lib/broadsheet/` (parallel to `resolveTemplate` for posts). Today widget `data` JSON is parsed inline in `BroadsheetRenderer`; this will break down as variant count grows with the image widget and number type merge.
+- Centralize widget rendering: create a `resolveWidget(widgetType, widgetTemplate, span)` function in `web-app/lib/broadsheet/` (parallel to `resolveTemplate` for posts). Today widget `data` JSON is parsed inline in `BroadsheetRenderer`; this will break down as variant count grows with the image widget and number type merge. This function should own JSON parsing, variant resolution, and component selection — single entry point for all widget rendering.
 
 **Section separator architecture note:** Rendering a section separator currently requires: Widget record → edition_slot (kind=widget) → edition_row (template=widget-standalone) → BroadsheetRenderer detects layout variant → skips Row/Cell wrapper → renders SectionSep. Three table records and a special-case render path for a horizontal line with a title. This exists because we intentionally decoupled separators from sections (thrashed on this — see commits `c6381b0` → `0bd0d2f` → `a80e2df`). Editors should place separators wherever they want, or not at all. The "sections as parents of rows" concept may be reworked or removed once Root Signal integration clarifies the broadsheet data flow. If sections get removed, the widget approach is already correct.
 
@@ -170,7 +170,18 @@ Seed data should exercise the full visual range of the prototype:
 
 This is a prerequisite for visually validating that field group hydration, render hints, and row templates all work together.
 
-### 10. Integration Tests
+### 10. Centralize Widget Rendering (`resolveWidget`)
+
+Widget data JSON is currently parsed inline in `BroadsheetRenderer.tsx` with a switch on `widget_type`. This works for 6 types but breaks down as variant count grows (number type merge, image widget, SectionSep variants).
+
+**Work required:**
+- Create `lib/broadsheet/widget-resolver.ts` in web-app
+- `resolveWidget(widgetType, widgetTemplate, span): WidgetComponent` — parallel to `resolveTemplate` for posts
+- Owns JSON parsing, variant resolution, and component selection — single entry point
+- Move all widget rendering logic out of BroadsheetRenderer into this module
+- Depends on widget template system (#3) for the `widgetTemplate` parameter
+
+### 11. Integration Tests
 
 Project-wide gap. CLAUDE.md mandates TDD and API-edge testing but no test harness exists.
 
