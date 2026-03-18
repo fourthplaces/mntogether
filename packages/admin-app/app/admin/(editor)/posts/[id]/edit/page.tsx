@@ -12,7 +12,6 @@ import {
   PostDetailQuery,
   UpdatePostMutation,
   ApprovePostMutation,
-  UpsertPostMediaMutation,
   UpsertPostMetaMutation,
   UpsertPostPersonMutation,
 } from "@/lib/graphql/posts";
@@ -31,10 +30,6 @@ const mutationContext = {
 // ---------------------------------------------------------------------------
 
 interface FieldGroupState {
-  // Media
-  imageUrl: string;
-  caption: string;
-  credit: string;
   // Meta
   kicker: string;
   byline: string;
@@ -48,9 +43,6 @@ interface FieldGroupState {
 }
 
 const DEFAULT_FIELD_GROUPS: FieldGroupState = {
-  imageUrl: "",
-  caption: "",
-  credit: "",
   kicker: "",
   byline: "",
   deck: "",
@@ -70,122 +62,28 @@ function InlineField({
   value,
   onChange,
   placeholder,
-  multiline = false,
 }: {
   className?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
-  multiline?: boolean;
 }) {
-  if (multiline) {
-    return (
-      <div className={`editable-region ${className}`}>
-        <textarea
-          className="inline-field"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
-          rows={1}
-          style={{ minHeight: "1.4em" }}
-          onInput={(e) => {
-            // Auto-resize textarea
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = el.scrollHeight + "px";
-          }}
-        />
-      </div>
-    );
-  }
   return (
     <div className={`editable-region ${className}`}>
-      <input
-        type="text"
+      <textarea
         className="inline-field"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-      />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// HeroPhotoField — image with inline-editable caption/credit
-// ---------------------------------------------------------------------------
-
-function HeroPhotoField({
-  imageUrl,
-  caption,
-  credit,
-  onImageUrlChange,
-  onCaptionChange,
-  onCreditChange,
-}: {
-  imageUrl: string;
-  caption: string;
-  credit: string;
-  onImageUrlChange: (v: string) => void;
-  onCaptionChange: (v: string) => void;
-  onCreditChange: (v: string) => void;
-}) {
-  return (
-    <figure className="photo-a editable-region">
-      {imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt={caption || ""} />
-      ) : (
-        <div
-          style={{
-            width: "100%",
-            height: "200px",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            background: "rgba(0,0,0,0.04)",
-            border: "1px dashed rgba(0,0,0,0.15)",
-            color: "var(--pebble)",
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.82rem",
-          }}
-        >
-          No hero image
-        </div>
-      )}
-      <figcaption className="photo-a__caption">
-        <input
-          type="text"
-          className="inline-field photo-a__caption-text"
-          value={caption}
-          onChange={(e) => onCaptionChange(e.target.value)}
-          placeholder="Caption"
-        />
-        <input
-          type="text"
-          className="inline-field photo-a__credit"
-          value={credit}
-          onChange={(e) => onCreditChange(e.target.value)}
-          placeholder="Credit"
-          style={{ textAlign: "right", maxWidth: "200px" }}
-        />
-      </figcaption>
-      <input
-        type="text"
-        className="inline-field"
-        value={imageUrl}
-        onChange={(e) => onImageUrlChange(e.target.value)}
-        placeholder="Image URL"
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.72rem",
-          color: "var(--pebble)",
-          marginTop: "4px",
-          borderBottom: "1px dashed rgba(0,0,0,0.15)",
-          paddingBottom: "4px",
+        rows={1}
+        style={{ minHeight: "1.4em" }}
+        onInput={(e) => {
+          const el = e.currentTarget;
+          el.style.height = "auto";
+          el.style.height = el.scrollHeight + "px";
         }}
       />
-    </figure>
+    </div>
   );
 }
 
@@ -290,9 +188,6 @@ export default function EditPostPage() {
         summary: post.summary || "",
       });
       setFieldGroups({
-        imageUrl: post.media?.[0]?.imageUrl || "",
-        caption: post.media?.[0]?.caption || "",
-        credit: post.media?.[0]?.credit || "",
         kicker: post.meta?.kicker || "",
         byline: post.meta?.byline || "",
         deck: post.meta?.deck || "",
@@ -319,7 +214,6 @@ export default function EditPostPage() {
   // Mutations
   const [{ fetching: saving }, updatePost] = useMutation(UpdatePostMutation);
   const [, approvePost] = useMutation(ApprovePostMutation);
-  const [, upsertMedia] = useMutation(UpsertPostMediaMutation);
   const [, upsertMeta] = useMutation(UpsertPostMetaMutation);
   const [, upsertPerson] = useMutation(UpsertPostPersonMutation);
 
@@ -361,14 +255,6 @@ export default function EditPostPage() {
 
     // Save field groups (parallel)
     const fg = fieldGroups;
-    if (fg.imageUrl || fg.caption || fg.credit) {
-      upsertMedia({
-        postId,
-        imageUrl: fg.imageUrl || undefined,
-        caption: fg.caption || undefined,
-        credit: fg.credit || undefined,
-      });
-    }
     if (fg.kicker || fg.byline || fg.deck) {
       upsertMeta({
         postId,
@@ -391,7 +277,7 @@ export default function EditPostPage() {
     if (!result.error) {
       setDirty(false);
     }
-  }, [values, fieldGroups, bodyAst, postId, updatePost, upsertMedia, upsertMeta, upsertPerson]);
+  }, [values, fieldGroups, bodyAst, postId, updatePost, upsertMeta, upsertPerson]);
 
   const handlePublish = useCallback(async () => {
     await handleSave();
@@ -479,7 +365,6 @@ export default function EditPostPage() {
             value={fieldGroups.deck}
             onChange={(v) => updateFieldGroup("deck", v)}
             placeholder="Subtitle or subheadline"
-            multiline
           />
 
           {/* Article meta (byline) */}
@@ -490,16 +375,6 @@ export default function EditPostPage() {
               placeholder="Byline"
             />
           </div>
-
-          {/* Hero photo */}
-          <HeroPhotoField
-            imageUrl={fieldGroups.imageUrl}
-            caption={fieldGroups.caption}
-            credit={fieldGroups.credit}
-            onImageUrlChange={(v) => updateFieldGroup("imageUrl", v)}
-            onCaptionChange={(v) => updateFieldGroup("caption", v)}
-            onCreditChange={(v) => updateFieldGroup("credit", v)}
-          />
 
           {/* Body — Plate.js WYSIWYG with broadsheet styling */}
           <PlateEditor
