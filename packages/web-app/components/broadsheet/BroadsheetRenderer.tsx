@@ -13,9 +13,9 @@
 
 import type { PublicBroadsheetQuery } from '@/gql/graphql';
 import { Row, Cell, NewspaperFrame, DebugLabels } from '@/components/broadsheet';
-import { SectionSep, ResourceBar, StatCard, NumberBlock, PullQuote } from '@/components/broadsheet';
 import { getRowLayout, distributeSlots } from '@/lib/broadsheet/row-map';
 import { resolveTemplate } from '@/lib/broadsheet/templates';
+import { resolveWidget } from '@/lib/broadsheet/widget-resolver';
 import { preparePost } from '@/lib/broadsheet/prepare';
 
 type BroadsheetData = NonNullable<PublicBroadsheetQuery['publicBroadsheet']>;
@@ -141,82 +141,10 @@ function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
 type WidgetData = NonNullable<BroadsheetSlotData['widget']>;
 
 function WidgetRenderer({ widget, widgetTemplate }: { widget: WidgetData; widgetTemplate?: string }) {
-  let data: Record<string, unknown> = {};
-  try {
-    data = typeof widget.data === 'string'
-      ? JSON.parse(widget.data)
-      : (widget.data as Record<string, unknown>) ?? {};
-  } catch {
-    return null;
-  }
-
-  switch (widget.widgetType) {
-    case 'section_header':
-    case 'section_sep':
-      return (
-        <SectionSep
-          title={(data.title as string) || 'Section'}
-          sub={data.sub as string | undefined}
-          variant={widgetTemplate === 'ledger' ? 'ledger' : 'default'}
-        />
-      );
-
-    case 'number':
-    case 'stat_card':
-    case 'number_block': {
-      // Merged "number" type — variant selects visual treatment.
-      // stat_card/number_block kept as aliases for backward compat.
-      const variant = widgetTemplate || widget.widgetType;
-      if (variant === 'number_block' || variant === 'number-block') {
-        return (
-          <NumberBlock
-            number={(data.number as string) || ''}
-            label={(data.label as string) || (data.title as string) || ''}
-            detail={data.detail as string | undefined}
-            color={(data.color as string) || 'teal'}
-          />
-        );
-      }
-      // Default: stat-card rendering
-      return (
-        <StatCard
-          number={(data.number as string) || ''}
-          title={(data.title as string) || (data.label as string) || ''}
-          body={(data.body as string) || (data.detail as string) || ''}
-        />
-      );
-    }
-
-    case 'pull_quote':
-      return (
-        <PullQuote
-          quote={(data.quote as string) || ''}
-          attribution={(data.attribution as string) || ''}
-        />
-      );
-
-    case 'resource_bar':
-      return (
-        <ResourceBar
-          label={(data.label as string) || 'Resources'}
-          items={
-            Array.isArray(data.items)
-              ? (data.items as Array<{ number: string; text: string }>)
-              : []
-          }
-        />
-      );
-
-    case 'weather':
-      return (
-        <div className="widget-placeholder" data-widget={widget.widgetType}>
-          <span className="mono-sm">Weather widget (data pending)</span>
-        </div>
-      );
-
-    default:
-      return null;
-  }
+  return resolveWidget(
+    { widgetType: widget.widgetType, data: widget.data },
+    widgetTemplate
+  );
 }
 
 // =============================================================================
