@@ -16,11 +16,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-migrations.sh",
-            "statusMessage": "Checking migration file safety..."
-          },
-          {
-            "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-code-patterns.sh",
             "statusMessage": "Checking code patterns..."
           }
