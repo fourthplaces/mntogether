@@ -22,7 +22,7 @@ export function KickerBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="kicker-b" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="kicker-b">
       <div className="kicker-b__primary" style={{ borderTopColor: data.color || "var(--deep-forest)" }}>
         <input className="void-input" value={data.primary || ""} onChange={(e) => updateData("primary", e.target.value)} placeholder="Primary tag" style={{ fontSize: "0.88rem" }} />
       </div>

@@ -24,7 +24,7 @@ export function ResourceListBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="resource-list" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="resource-list">
       <ul className="list-b" style={{ listStyle: "none", padding: 0 }}>
         {items.map((item, i) => (
           <li key={i} style={{ display: "flex", gap: "8px", alignItems: "baseline", borderBottom: "1px dotted rgba(0,0,0,0.1)", padding: "8px 0" }}>

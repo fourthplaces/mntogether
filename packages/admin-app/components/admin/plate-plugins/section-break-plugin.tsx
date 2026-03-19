@@ -16,7 +16,7 @@ export const SECTION_BREAK_KEY = "section_break";
 export function SectionBreakElement(props: PlateElementProps) {
   const { children, ...rest } = props;
   return (
-    <PlateElement {...rest} className="section-break" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} className="section-break">
       · · ·
       {children}
     </PlateElement>

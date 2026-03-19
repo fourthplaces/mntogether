@@ -20,7 +20,7 @@ export function AddressAElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="address-a" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="address-a">
       <div className="address-a__street">
         <input className="void-input" value={data.street || ""} onChange={(e) => updateData("street", e.target.value)} placeholder="Street address" style={{ fontSize: "0.95rem" }} />
       </div>

@@ -25,7 +25,7 @@ export function ListAElement(props: PlateElementProps) {
   const Tag = ordered ? "ol" : "ul";
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor}>
       <Tag className="list-a" style={{ listStyle: "none", padding: 0 }}>
         {items.map((item, i) => (
           <li key={i} style={{ display: "flex", gap: "4px", alignItems: "baseline" }}>

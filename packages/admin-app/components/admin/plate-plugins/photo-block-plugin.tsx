@@ -53,7 +53,7 @@ export function PhotoBlockElement(props: PlateElementProps) {
   }, [editor, element, variant]);
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="photo-block" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="photo-block">
       <span className="photo-block__variant-label">{variantLabel}</span>
 
       {data.src ? (

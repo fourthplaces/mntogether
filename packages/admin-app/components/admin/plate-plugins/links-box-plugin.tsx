@@ -67,7 +67,7 @@ export function LinksBoxElement(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="links-a" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="links-a">
       <input
         className="void-input links-a__header"
         value={header}

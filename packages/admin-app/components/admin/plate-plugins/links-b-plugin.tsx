@@ -24,7 +24,7 @@ export function LinksBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="links-b" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="links-b">
       {links.map((link, i) => (
         <div key={i} className="links-b__item" style={{ display: "flex", gap: "8px", padding: "8px 0" }}>
           <span className="links-b__num" style={{ fontFamily: "var(--font-display)", fontWeight: 500, fontSize: "0.95rem", color: "var(--pebble)", minWidth: "1.2em" }}>{i + 1}</span>

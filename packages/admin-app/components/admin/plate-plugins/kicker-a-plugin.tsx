@@ -22,7 +22,7 @@ export function KickerAElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="kicker-a" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="kicker-a">
       {tags.map((tag, i) => (
         <span key={i}>
           {i > 0 && <span className="sep" style={{ color: "var(--pebble)", margin: "0 0.5em" }}>·</span>}

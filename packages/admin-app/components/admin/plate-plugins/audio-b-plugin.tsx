@@ -21,7 +21,7 @@ export function AudioBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="audio-b" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="audio-b">
       <div>
         <Play size={14} strokeWidth={2} style={{ marginRight: "0.3em", flexShrink: 0 }} />
         <input className="void-input" placeholder="Excerpt or description..." value={data.excerpt || ""} onChange={(e) => updateData("excerpt", e.target.value)} style={{ display: "inline", width: "80%", fontStyle: "italic", color: "var(--slate)" }} />

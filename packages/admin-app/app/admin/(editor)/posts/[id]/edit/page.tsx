@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "urql";
 import type { Value } from "platejs";
@@ -68,20 +68,26 @@ function InlineField({
   onChange: (v: string) => void;
   placeholder?: string;
 }) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    }
+  }, [value]);
+
   return (
     <div className={`editable-region ${className}`}>
       <textarea
+        ref={textareaRef}
         className="inline-field"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={1}
         style={{ minHeight: "1.4em" }}
-        onInput={(e) => {
-          const el = e.currentTarget;
-          el.style.height = "auto";
-          el.style.height = el.scrollHeight + "px";
-        }}
       />
     </div>
   );
@@ -106,10 +112,21 @@ function PersonQuoteField({
   onRoleChange: (v: string) => void;
   onQuoteChange: (v: string) => void;
 }) {
+  const quoteRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = quoteRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = el.scrollHeight + "px";
+    }
+  }, [quote]);
+
   return (
     <div className="person-quote editable-region">
       <div className="person-quote__text">
         <textarea
+          ref={quoteRef}
           className="inline-field"
           value={quote}
           onChange={(e) => onQuoteChange(e.target.value)}
@@ -118,11 +135,6 @@ function PersonQuoteField({
           style={{
             font: "inherit",
             minHeight: "2.6em",
-          }}
-          onInput={(e) => {
-            const el = e.currentTarget;
-            el.style.height = "auto";
-            el.style.height = el.scrollHeight + "px";
           }}
         />
       </div>
@@ -173,9 +185,12 @@ export default function EditPostPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const initialized = useRef(false);
 
-  // Parsed body_ast from GraphQL (comes as JSON string)
-  const [parsedInitialAst, setParsedInitialAst] = useState<Value | null>(null);
-  const [initialMarkdown, setInitialMarkdown] = useState("");
+  // Parse body_ast synchronously from GraphQL (comes as JSON string)
+  const parsedInitialAst = useMemo(() => {
+    if (!post?.bodyAst) return null;
+    try { return JSON.parse(post.bodyAst) as Value; }
+    catch { return null; }
+  }, [post?.bodyAst]);
 
   // Initialize form values from loaded post
   useEffect(() => {
@@ -198,16 +213,6 @@ export default function EditPostPage() {
         personQuote: post.person?.quote || "",
       });
 
-      // Parse body AST from GraphQL (stored as JSON string)
-      if (post.bodyAst) {
-        try {
-          const parsed = JSON.parse(post.bodyAst);
-          setParsedInitialAst(parsed);
-        } catch {
-          console.warn("Failed to parse bodyAst JSON");
-        }
-      }
-      setInitialMarkdown(post.descriptionMarkdown || post.description || "");
     }
   }, [post]);
 
@@ -246,7 +251,9 @@ export default function EditPostPage() {
         input: {
           title: values.title.trim(),
           descriptionMarkdown: values.descriptionMarkdown.trim() || undefined,
-          bodyAst: bodyAst ? JSON.stringify(bodyAst) : undefined,
+          bodyAst: bodyAst
+            ? JSON.stringify(bodyAst)
+            : (parsedInitialAst ? JSON.stringify(parsedInitialAst) : undefined),
           summary: values.summary.trim() || undefined,
         },
       },
@@ -277,7 +284,7 @@ export default function EditPostPage() {
     if (!result.error) {
       setDirty(false);
     }
-  }, [values, fieldGroups, bodyAst, postId, updatePost, upsertMeta, upsertPerson]);
+  }, [values, fieldGroups, bodyAst, parsedInitialAst, postId, updatePost, upsertMeta, upsertPerson]);
 
   const handlePublish = useCallback(async () => {
     await handleSave();
@@ -378,8 +385,8 @@ export default function EditPostPage() {
 
           {/* Body — Plate.js WYSIWYG with broadsheet styling */}
           <PlateEditor
+            key={postId}
             initialValue={parsedInitialAst}
-            initialMarkdown={initialMarkdown}
             onChange={handleBodyAstChange}
             placeholder="Write your story..."
             disabled={saving}

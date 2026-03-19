@@ -20,7 +20,7 @@ export function PhoneBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="phone-b" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="phone-b">
       <input className="void-input phone-b__label" value={data.label || ""} onChange={(e) => updateData("label", e.target.value)} placeholder="Label (e.g. Telephone)" style={{ fontSize: "0.75rem", color: "var(--pebble)", letterSpacing: "0.06em", textTransform: "uppercase" }} />
       <input className="void-input phone-b__number" value={data.number || ""} onChange={(e) => updateData("number", e.target.value)} placeholder="Phone number" style={{ fontFamily: "var(--font-display)", fontWeight: 400, fontSize: "1.4rem" }} />
       <div className="phone-b__rule" style={{ borderTop: "1px solid rgba(0,0,0,0.06)", marginTop: "8px" }} />

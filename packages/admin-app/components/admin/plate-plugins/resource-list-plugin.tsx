@@ -55,7 +55,7 @@ export function ResourceListElement(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="resource-list" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="resource-list">
       {items.map((item, i) => (
         <div key={i} className="resource-list__item" style={{ display: "flex", gap: "8px", alignItems: "baseline" }}>
           <input

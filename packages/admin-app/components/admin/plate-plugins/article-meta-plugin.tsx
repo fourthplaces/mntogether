@@ -22,7 +22,7 @@ export function ArticleMetaElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="article-meta" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="article-meta">
       {parts.map((part, i) => (
         <span key={i}>
           {i > 0 && <span className="sep" style={{ margin: "0 0.6em" }}>·</span>}

@@ -436,9 +436,7 @@
   opacity: 0.5;
 }
 .editor-broadsheet .inline-field:focus {
-  outline: 2px solid var(--mn-teal-alt);
-  outline-offset: 4px;
-  border-radius: 2px;
+  outline: none;
 }
 
 /* Editable region hover hint */
@@ -473,6 +471,9 @@
   margin-top: 8px;
 }
 .editor-broadsheet .block-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-family: var(--font-mono);
   font-size: 0.7rem;
   text-transform: uppercase;

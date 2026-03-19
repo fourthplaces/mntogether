@@ -13,7 +13,7 @@
  * - JSON AST storage (body_ast)
  */
 
-import { useCallback, useRef, useEffect, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { Value, TElement, Path } from "platejs";
 import { NodeIdPlugin } from "platejs";
 import { Plate, PlateContent, usePlateEditor } from "platejs/react";
@@ -76,10 +76,8 @@ import { BlockDraggable } from "./editor/BlockWrapper";
 // ---------------------------------------------------------------------------
 
 interface PlateEditorProps {
-  /** Initial editor value (JSON AST). Takes precedence over initialMarkdown. */
+  /** Initial editor value (JSON AST). */
   initialValue?: Value | null;
-  /** Fallback: initial markdown to deserialize if initialValue is null. */
-  initialMarkdown?: string;
   /** Called with JSON AST on every content change. */
   onChange?: (value: Value) => void;
   /** Placeholder text when editor is empty */
@@ -218,7 +216,6 @@ const ALL_PLUGINS = [
 
 export function PlateEditor({
   initialValue,
-  initialMarkdown = "",
   onChange,
   placeholder = "Type / for commands...",
   disabled = false,
@@ -233,30 +230,13 @@ export function PlateEditor({
     setTimeout(() => setSlashMenuOpen(true), 50);
   }, []);
 
-  // Create editor with all plugins
+  // Create editor with all plugins and initial value
   const editor = usePlateEditor({
     plugins: ALL_PLUGINS,
+    value: initialValue && Array.isArray(initialValue) && initialValue.length > 0
+      ? initialValue
+      : undefined,
   });
-
-  // Initialize editor on mount: prefer JSON AST, fall back to markdown
-  const initialized = useRef(false);
-  useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-
-    if (initialValue && Array.isArray(initialValue) && initialValue.length > 0) {
-      editor.tf.setValue(initialValue);
-    } else if (initialMarkdown) {
-      try {
-        const value = editor.getApi(MarkdownPlugin).markdown.deserialize(initialMarkdown);
-        if (value && value.length > 0) {
-          editor.tf.setValue(value);
-        }
-      } catch (e) {
-        console.warn("Failed to deserialize markdown:", e);
-      }
-    }
-  }, [editor, initialValue, initialMarkdown]);
 
   // Emit JSON AST on change
   const handleChange = useCallback(

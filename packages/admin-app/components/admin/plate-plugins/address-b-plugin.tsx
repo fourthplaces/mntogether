@@ -20,7 +20,7 @@ export function AddressBElement(props: PlateElementProps) {
   );
 
   return (
-    <PlateElement {...rest} element={element} editor={editor} className="address-b" {...{contentEditable: false} as any}>
+    <PlateElement {...rest} element={element} editor={editor} className="address-b">
       <div className="address-b__city" style={{ display: "flex", gap: "4px" }}>
         <input className="void-input" value={data.city || ""} onChange={(e) => updateData("city", e.target.value)} placeholder="City" style={{ fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
         <input className="void-input" value={data.state || ""} onChange={(e) => updateData("state", e.target.value)} placeholder="ST" style={{ width: "40px", fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
