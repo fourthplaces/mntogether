@@ -21,15 +21,17 @@ export function AddressAElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="address-a">
-      <div className="address-a__street">
-        <input className="void-input" value={data.street || ""} onChange={(e) => updateData("street", e.target.value)} placeholder="Street address" style={{ fontSize: "0.95rem" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <div className="address-a__street">
+          <input className="void-input" value={data.street || ""} onChange={(e) => updateData("street", e.target.value)} placeholder="Street address" style={{ fontSize: "0.95rem" }} />
+        </div>
+        <div className="address-a__city-state" style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
+          <input className="void-input" value={data.city || ""} onChange={(e) => updateData("city", e.target.value)} placeholder="City" style={{ fontSize: "0.75rem" }} />
+          <input className="void-input" value={data.state || ""} onChange={(e) => updateData("state", e.target.value)} placeholder="ST" style={{ width: "40px", fontSize: "0.75rem" }} />
+          <input className="void-input" value={data.zip || ""} onChange={(e) => updateData("zip", e.target.value)} placeholder="ZIP" style={{ width: "60px", fontSize: "0.75rem" }} />
+        </div>
+        <input className="void-input" value={data.directionsUrl || ""} onChange={(e) => updateData("directionsUrl", e.target.value)} placeholder="Directions URL (optional)" style={{ fontSize: "0.72rem", color: "var(--pebble)", marginTop: "8px" }} />
       </div>
-      <div className="address-a__city-state" style={{ display: "flex", gap: "4px", marginTop: "4px" }}>
-        <input className="void-input" value={data.city || ""} onChange={(e) => updateData("city", e.target.value)} placeholder="City" style={{ fontSize: "0.75rem" }} />
-        <input className="void-input" value={data.state || ""} onChange={(e) => updateData("state", e.target.value)} placeholder="ST" style={{ width: "40px", fontSize: "0.75rem" }} />
-        <input className="void-input" value={data.zip || ""} onChange={(e) => updateData("zip", e.target.value)} placeholder="ZIP" style={{ width: "60px", fontSize: "0.75rem" }} />
-      </div>
-      <input className="void-input" value={data.directionsUrl || ""} onChange={(e) => updateData("directionsUrl", e.target.value)} placeholder="Directions URL (optional)" style={{ fontSize: "0.72rem", color: "var(--pebble)", marginTop: "8px" }} />
       {children}
     </PlateElement>
   );

@@ -23,16 +23,18 @@ export function KickerBElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="kicker-b">
-      <div className="kicker-b__primary" style={{ borderTopColor: data.color || "var(--deep-forest)" }}>
-        <input className="void-input" value={data.primary || ""} onChange={(e) => updateData("primary", e.target.value)} placeholder="Primary tag" style={{ fontSize: "0.88rem" }} />
-      </div>
-      <div className="kicker-b__secondary" style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
-        {secondary.map((tag, i) => (
-          <input key={i} className="void-input kicker-b__pill" value={tag} onChange={(e) => { const s = [...secondary]; s[i] = e.target.value; updateData("secondary", s); }} placeholder="Tag" style={{ width: "auto", minWidth: "60px", fontSize: "0.75rem", padding: "3px 10px", background: "rgba(0,0,0,0.04)" }} />
-        ))}
-      </div>
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateData("secondary", [...secondary, ""])}><Plus size={12} strokeWidth={2} /> Pill</button>
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <div className="kicker-b__primary" style={{ borderTopColor: data.color || "var(--deep-forest)" }}>
+          <input className="void-input" value={data.primary || ""} onChange={(e) => updateData("primary", e.target.value)} placeholder="Primary tag" style={{ fontSize: "0.88rem" }} />
+        </div>
+        <div className="kicker-b__secondary" style={{ display: "flex", gap: "6px", marginTop: "8px", flexWrap: "wrap" }}>
+          {secondary.map((tag, i) => (
+            <input key={i} className="void-input kicker-b__pill" value={tag} onChange={(e) => { const s = [...secondary]; s[i] = e.target.value; updateData("secondary", s); }} placeholder="Tag" style={{ width: "auto", minWidth: "60px", fontSize: "0.75rem", padding: "3px 10px", background: "rgba(0,0,0,0.04)" }} />
+          ))}
+        </div>
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={() => updateData("secondary", [...secondary, ""])}><Plus size={12} strokeWidth={2} /> Pill</button>
+        </div>
       </div>
       {children}
     </PlateElement>

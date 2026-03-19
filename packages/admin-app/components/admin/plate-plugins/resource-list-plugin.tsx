@@ -56,40 +56,41 @@ export function ResourceListElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="resource-list">
-      {items.map((item, i) => (
-        <div key={i} className="resource-list__item" style={{ display: "flex", gap: "8px", alignItems: "baseline" }}>
-          <input
-            className="void-input resource-list__name"
-            value={item.name}
-            onChange={(e) => updateItem(i, "name", e.target.value)}
-            placeholder="Name"
-            style={{ flex: "0 0 30%", fontWeight: 700 }}
-          />
-          <span className="resource-list__sep">·</span>
-          <input
-            className="void-input resource-list__detail"
-            value={item.detail}
-            onChange={(e) => updateItem(i, "detail", e.target.value)}
-            placeholder="Detail"
-            style={{ flex: 1 }}
-          />
-          <button
-            type="button"
-            className="block-action-btn"
-            onClick={() => removeItem(i)}
-            title="Remove item"
-          >
-            <X size={12} strokeWidth={2} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        {items.map((item, i) => (
+          <div key={i} className="resource-list__item" style={{ display: "flex", gap: "8px", alignItems: "baseline" }}>
+            <input
+              className="void-input resource-list__name"
+              value={item.name}
+              onChange={(e) => updateItem(i, "name", e.target.value)}
+              placeholder="Name"
+              style={{ flex: "0 0 30%", fontWeight: 700 }}
+            />
+            <span className="resource-list__sep">·</span>
+            <input
+              className="void-input resource-list__detail"
+              value={item.detail}
+              onChange={(e) => updateItem(i, "detail", e.target.value)}
+              placeholder="Detail"
+              style={{ flex: 1 }}
+            />
+            <button
+              type="button"
+              className="block-action-btn"
+              onClick={() => removeItem(i)}
+              title="Remove item"
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </div>
+        ))}
+
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={addItem}>
+            <Plus size={12} strokeWidth={2} /> Add Item
           </button>
         </div>
-      ))}
-
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={addItem}>
-          <Plus size={12} strokeWidth={2} /> Add Item
-        </button>
       </div>
-
       {children}
     </PlateElement>
   );

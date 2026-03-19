@@ -21,17 +21,19 @@ export function PhotoAElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="photo-a">
-      {data.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={data.src} alt={data.caption || ""} />
-      ) : (
-        <div className="photo-block__placeholder">Full-width photo</div>
-      )}
-      <div className="photo-a__caption">
-        <input className="void-input photo-a__caption-text" placeholder="Caption" value={data.caption || ""} onChange={(e) => updateData("caption", e.target.value)} />
-        <input className="void-input photo-a__credit" placeholder="Credit" value={data.credit || ""} onChange={(e) => updateData("credit", e.target.value)} style={{ textAlign: "right", maxWidth: "200px" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        {data.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={data.src} alt={data.caption || ""} />
+        ) : (
+          <div className="photo-block__placeholder">Full-width photo</div>
+        )}
+        <div className="photo-a__caption">
+          <input className="void-input photo-a__caption-text" placeholder="Caption" value={data.caption || ""} onChange={(e) => updateData("caption", e.target.value)} />
+          <input className="void-input photo-a__credit" placeholder="Credit" value={data.credit || ""} onChange={(e) => updateData("credit", e.target.value)} style={{ textAlign: "right", maxWidth: "200px" }} />
+        </div>
+        <input className="void-input" placeholder="Image URL" value={data.src || ""} onChange={(e) => updateData("src", e.target.value)} style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--pebble)" }} />
       </div>
-      <input className="void-input" placeholder="Image URL" value={data.src || ""} onChange={(e) => updateData("src", e.target.value)} style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--pebble)" }} />
       {children}
     </PlateElement>
   );

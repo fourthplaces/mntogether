@@ -22,12 +22,14 @@ export function AudioBElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="audio-b">
-      <div>
-        <Play size={14} strokeWidth={2} style={{ marginRight: "0.3em", flexShrink: 0 }} />
-        <input className="void-input" placeholder="Excerpt or description..." value={data.excerpt || ""} onChange={(e) => updateData("excerpt", e.target.value)} style={{ display: "inline", width: "80%", fontStyle: "italic", color: "var(--slate)" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <div>
+          <Play size={14} strokeWidth={2} style={{ marginRight: "0.3em", flexShrink: 0 }} />
+          <input className="void-input" placeholder="Excerpt or description..." value={data.excerpt || ""} onChange={(e) => updateData("excerpt", e.target.value)} style={{ display: "inline", width: "80%", fontStyle: "italic", color: "var(--slate)" }} />
+        </div>
+        <input className="void-input" placeholder="Audio title" value={data.title || ""} onChange={(e) => updateData("title", e.target.value)} style={{ fontSize: "0.75rem", color: "var(--slate)", marginTop: "8px" }} />
+        <input className="void-input" placeholder="Duration (e.g. 3:42)" value={data.duration || ""} onChange={(e) => updateData("duration", e.target.value)} style={{ fontSize: "0.72rem", color: "var(--pebble)", width: "80px" }} />
       </div>
-      <input className="void-input" placeholder="Audio title" value={data.title || ""} onChange={(e) => updateData("title", e.target.value)} style={{ fontSize: "0.75rem", color: "var(--slate)", marginTop: "8px" }} />
-      <input className="void-input" placeholder="Duration (e.g. 3:42)" value={data.duration || ""} onChange={(e) => updateData("duration", e.target.value)} style={{ fontSize: "0.72rem", color: "var(--pebble)", width: "80px" }} />
       {children}
     </PlateElement>
   );

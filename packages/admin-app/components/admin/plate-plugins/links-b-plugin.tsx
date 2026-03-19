@@ -25,18 +25,20 @@ export function LinksBElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="links-b">
-      {links.map((link, i) => (
-        <div key={i} className="links-b__item" style={{ display: "flex", gap: "8px", padding: "8px 0" }}>
-          <span className="links-b__num" style={{ fontFamily: "var(--font-display)", fontWeight: 500, fontSize: "0.95rem", color: "var(--pebble)", minWidth: "1.2em" }}>{i + 1}</span>
-          <div style={{ flex: 1 }}>
-            <input className="void-input links-b__title" value={link.title} onChange={(e) => { const l = [...links]; l[i] = { ...l[i], title: e.target.value }; updateLinks(l); }} placeholder="Link title" style={{ fontStyle: "italic", fontSize: "0.9rem" }} />
-            <input className="void-input" value={link.url} onChange={(e) => { const l = [...links]; l[i] = { ...l[i], url: e.target.value }; updateLinks(l); }} placeholder="https://..." style={{ fontSize: "0.72rem", color: "var(--pebble)" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        {links.map((link, i) => (
+          <div key={i} className="links-b__item" style={{ display: "flex", gap: "8px", padding: "8px 0" }}>
+            <span className="links-b__num" style={{ fontFamily: "var(--font-display)", fontWeight: 500, fontSize: "0.95rem", color: "var(--pebble)", minWidth: "1.2em" }}>{i + 1}</span>
+            <div style={{ flex: 1 }}>
+              <input className="void-input links-b__title" value={link.title} onChange={(e) => { const l = [...links]; l[i] = { ...l[i], title: e.target.value }; updateLinks(l); }} placeholder="Link title" style={{ fontStyle: "italic", fontSize: "0.9rem" }} />
+              <input className="void-input" value={link.url} onChange={(e) => { const l = [...links]; l[i] = { ...l[i], url: e.target.value }; updateLinks(l); }} placeholder="https://..." style={{ fontSize: "0.72rem", color: "var(--pebble)" }} />
+            </div>
+            <button type="button" className="block-action-btn" onClick={() => updateLinks(links.filter((_, j) => j !== i))}><X size={12} strokeWidth={2} /></button>
           </div>
-          <button type="button" className="block-action-btn" onClick={() => updateLinks(links.filter((_, j) => j !== i))}><X size={12} strokeWidth={2} /></button>
+        ))}
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={() => updateLinks([...links, { title: "", url: "" }])}><Plus size={12} strokeWidth={2} /> Link</button>
         </div>
-      ))}
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateLinks([...links, { title: "", url: "" }])}><Plus size={12} strokeWidth={2} /> Link</button>
       </div>
       {children}
     </PlateElement>

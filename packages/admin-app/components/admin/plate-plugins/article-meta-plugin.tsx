@@ -23,15 +23,17 @@ export function ArticleMetaElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="article-meta">
-      {parts.map((part, i) => (
-        <span key={i}>
-          {i > 0 && <span className="sep" style={{ margin: "0 0.6em" }}>·</span>}
-          <input className="void-input" value={part} onChange={(e) => { const p = [...parts]; p[i] = e.target.value; updateParts(p); }} placeholder={i === 0 ? "Byline" : i === 1 ? "Date" : "Location"} style={{ display: "inline", width: "auto", minWidth: "80px" }} />
-        </span>
-      ))}
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateParts([...parts, ""])}><Plus size={12} strokeWidth={2} /> Part</button>
-        {parts.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateParts(parts.slice(0, -1))}><Minus size={12} strokeWidth={2} /> Part</button>}
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        {parts.map((part, i) => (
+          <span key={i}>
+            {i > 0 && <span className="sep" style={{ margin: "0 0.6em" }}>·</span>}
+            <input className="void-input" value={part} onChange={(e) => { const p = [...parts]; p[i] = e.target.value; updateParts(p); }} placeholder={i === 0 ? "Byline" : i === 1 ? "Date" : "Location"} style={{ display: "inline", width: "auto", minWidth: "80px" }} />
+          </span>
+        ))}
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={() => updateParts([...parts, ""])}><Plus size={12} strokeWidth={2} /> Part</button>
+          {parts.length > 1 && <button type="button" className="block-action-btn" onClick={() => updateParts(parts.slice(0, -1))}><Minus size={12} strokeWidth={2} /> Part</button>}
+        </div>
       </div>
       {children}
     </PlateElement>

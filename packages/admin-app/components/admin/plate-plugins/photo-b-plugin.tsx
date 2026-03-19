@@ -21,17 +21,19 @@ export function PhotoBElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="photo-b">
-      {data.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={data.src} alt={data.caption || ""} />
-      ) : (
-        <div className="photo-block__placeholder">Full-bleed photo</div>
-      )}
-      <div style={{ padding: "8px 0" }}>
-        <input className="void-input" placeholder="Caption" value={data.caption || ""} onChange={(e) => updateData("caption", e.target.value)} style={{ fontStyle: "italic", fontSize: "0.85rem", color: "var(--slate)" }} />
-        <input className="void-input" placeholder="Credit" value={data.credit || ""} onChange={(e) => updateData("credit", e.target.value)} style={{ fontSize: "0.72rem", color: "var(--pebble)" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        {data.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={data.src} alt={data.caption || ""} />
+        ) : (
+          <div className="photo-block__placeholder">Full-bleed photo</div>
+        )}
+        <div style={{ padding: "8px 0" }}>
+          <input className="void-input" placeholder="Caption" value={data.caption || ""} onChange={(e) => updateData("caption", e.target.value)} style={{ fontStyle: "italic", fontSize: "0.85rem", color: "var(--slate)" }} />
+          <input className="void-input" placeholder="Credit" value={data.credit || ""} onChange={(e) => updateData("credit", e.target.value)} style={{ fontSize: "0.72rem", color: "var(--pebble)" }} />
+        </div>
+        <input className="void-input" placeholder="Image URL" value={data.src || ""} onChange={(e) => updateData("src", e.target.value)} style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--pebble)" }} />
       </div>
-      <input className="void-input" placeholder="Image URL" value={data.src || ""} onChange={(e) => updateData("src", e.target.value)} style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--pebble)" }} />
       {children}
     </PlateElement>
   );

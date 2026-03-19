@@ -26,17 +26,19 @@ export function ListAElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor}>
-      <Tag className="list-a" style={{ listStyle: "none", padding: 0 }}>
-        {items.map((item, i) => (
-          <li key={i} style={{ display: "flex", gap: "4px", alignItems: "baseline" }}>
-            <input className="void-input" value={item} onChange={(e) => { const t = [...items]; t[i] = e.target.value; updateData("items", t); }} placeholder={`Item ${i + 1}`} style={{ flex: 1 }} />
-            <button type="button" className="block-action-btn" onClick={() => updateData("items", items.filter((_, j) => j !== i))}><X size={12} strokeWidth={2} /></button>
-          </li>
-        ))}
-      </Tag>
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={() => updateData("items", [...items, ""])}><Plus size={12} strokeWidth={2} /> Item</button>
-        <button type="button" className="block-action-btn" onClick={() => updateData("ordered", !ordered)}><ArrowRightLeft size={12} strokeWidth={2} /> {ordered ? "Unordered" : "Ordered"}</button>
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <Tag className="list-a" style={{ listStyle: "none", padding: 0 }}>
+          {items.map((item, i) => (
+            <li key={i} style={{ display: "flex", gap: "4px", alignItems: "baseline" }}>
+              <input className="void-input" value={item} onChange={(e) => { const t = [...items]; t[i] = e.target.value; updateData("items", t); }} placeholder={`Item ${i + 1}`} style={{ flex: 1 }} />
+              <button type="button" className="block-action-btn" onClick={() => updateData("items", items.filter((_, j) => j !== i))}><X size={12} strokeWidth={2} /></button>
+            </li>
+          ))}
+        </Tag>
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={() => updateData("items", [...items, ""])}><Plus size={12} strokeWidth={2} /> Item</button>
+          <button type="button" className="block-action-btn" onClick={() => updateData("ordered", !ordered)}><ArrowRightLeft size={12} strokeWidth={2} /> {ordered ? "Unordered" : "Ordered"}</button>
+        </div>
       </div>
       {children}
     </PlateElement>

@@ -21,13 +21,15 @@ export function AddressBElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="address-b">
-      <div className="address-b__city" style={{ display: "flex", gap: "4px" }}>
-        <input className="void-input" value={data.city || ""} onChange={(e) => updateData("city", e.target.value)} placeholder="City" style={{ fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
-        <input className="void-input" value={data.state || ""} onChange={(e) => updateData("state", e.target.value)} placeholder="ST" style={{ width: "40px", fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
-      </div>
-      <div style={{ display: "flex", gap: "8px" }}>
-        <input className="void-input address-b__street" value={data.street || ""} onChange={(e) => updateData("street", e.target.value)} placeholder="Street" style={{ color: "var(--slate)" }} />
-        <input className="void-input address-b__zip" value={data.zip || ""} onChange={(e) => updateData("zip", e.target.value)} placeholder="ZIP" style={{ width: "60px", fontSize: "0.75rem", color: "var(--slate)" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <div className="address-b__city" style={{ display: "flex", gap: "4px" }}>
+          <input className="void-input" value={data.city || ""} onChange={(e) => updateData("city", e.target.value)} placeholder="City" style={{ fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
+          <input className="void-input" value={data.state || ""} onChange={(e) => updateData("state", e.target.value)} placeholder="ST" style={{ width: "40px", fontFamily: "var(--font-condensed)", fontWeight: 500, textTransform: "uppercase" }} />
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input className="void-input address-b__street" value={data.street || ""} onChange={(e) => updateData("street", e.target.value)} placeholder="Street" style={{ color: "var(--slate)" }} />
+          <input className="void-input address-b__zip" value={data.zip || ""} onChange={(e) => updateData("zip", e.target.value)} placeholder="ZIP" style={{ width: "60px", fontSize: "0.75rem", color: "var(--slate)" }} />
+        </div>
       </div>
       {children}
     </PlateElement>

@@ -21,8 +21,10 @@ export function PhoneAElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="phone-a">
-      <input className="void-input phone-a__number" value={data.number || ""} onChange={(e) => updateData("number", e.target.value)} placeholder="Phone number" style={{ fontSize: "0.85rem" }} />
-      <input className="void-input" value={data.label || ""} onChange={(e) => updateData("label", e.target.value)} placeholder="Label (optional)" style={{ fontSize: "0.72rem", color: "var(--pebble)", marginTop: "4px" }} />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <input className="void-input phone-a__number" value={data.number || ""} onChange={(e) => updateData("number", e.target.value)} placeholder="Phone number" style={{ fontSize: "0.85rem" }} />
+        <input className="void-input" value={data.label || ""} onChange={(e) => updateData("label", e.target.value)} placeholder="Label (optional)" style={{ fontSize: "0.72rem", color: "var(--pebble)", marginTop: "4px" }} />
+      </div>
       {children}
     </PlateElement>
   );

@@ -54,41 +54,42 @@ export function PhotoBlockElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="photo-block">
-      <span className="photo-block__variant-label">{variantLabel}</span>
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <span className="photo-block__variant-label">{variantLabel}</span>
 
-      {data.src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={data.src} alt={data.caption || ""} />
-      ) : (
-        <div className="photo-block__placeholder">Click to add image URL</div>
-      )}
+        {data.src ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={data.src} alt={data.caption || ""} />
+        ) : (
+          <div className="photo-block__placeholder">Click to add image URL</div>
+        )}
 
-      <input
-        className="void-input photo-block__caption-text"
-        placeholder="Caption"
-        value={data.caption || ""}
-        onChange={(e) => updateData("caption", e.target.value)}
-      />
-      <input
-        className="void-input photo-block__credit"
-        placeholder="Credit"
-        value={data.credit || ""}
-        onChange={(e) => updateData("credit", e.target.value)}
-      />
-      <input
-        className="void-input"
-        placeholder="Image URL"
-        value={data.src || ""}
-        onChange={(e) => updateData("src", e.target.value)}
-        style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem" }}
-      />
+        <input
+          className="void-input photo-block__caption-text"
+          placeholder="Caption"
+          value={data.caption || ""}
+          onChange={(e) => updateData("caption", e.target.value)}
+        />
+        <input
+          className="void-input photo-block__credit"
+          placeholder="Credit"
+          value={data.credit || ""}
+          onChange={(e) => updateData("credit", e.target.value)}
+        />
+        <input
+          className="void-input"
+          placeholder="Image URL"
+          value={data.src || ""}
+          onChange={(e) => updateData("src", e.target.value)}
+          style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem" }}
+        />
 
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={toggleVariant}>
-          <ArrowRightLeft size={12} strokeWidth={2} /> {variant === "c" ? "Small Left" : "Medium Right"}
-        </button>
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={toggleVariant}>
+            <ArrowRightLeft size={12} strokeWidth={2} /> {variant === "c" ? "Small Left" : "Medium Right"}
+          </button>
+        </div>
       </div>
-
       {children}
     </PlateElement>
   );

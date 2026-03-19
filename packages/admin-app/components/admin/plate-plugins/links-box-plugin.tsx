@@ -68,44 +68,45 @@ export function LinksBoxElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...rest} element={element} editor={editor} className="links-a">
-      <input
-        className="void-input links-a__header"
-        value={header}
-        onChange={(e) => updateHeader(e.target.value)}
-        placeholder="Header (e.g. See Also)"
-      />
+      <div contentEditable={false} onMouseDown={(e) => { if (!(e.target instanceof HTMLInputElement || e.target instanceof HTMLButtonElement)) e.preventDefault(); }}>
+        <input
+          className="void-input links-a__header"
+          value={header}
+          onChange={(e) => updateHeader(e.target.value)}
+          placeholder="Header (e.g. See Also)"
+        />
 
-      {links.map((link, i) => (
-        <div key={i} className="links-a__item">
-          <input
-            className="void-input links-a__title"
-            value={link.title}
-            onChange={(e) => updateLink(i, "title", e.target.value)}
-            placeholder="Link title"
-          />
-          <input
-            className="void-input links-a__url"
-            value={link.url}
-            onChange={(e) => updateLink(i, "url", e.target.value)}
-            placeholder="https://..."
-          />
-          <button
-            type="button"
-            className="block-action-btn"
-            onClick={() => removeLink(i)}
-            title="Remove link"
-          >
-            <X size={12} strokeWidth={2} />
+        {links.map((link, i) => (
+          <div key={i} className="links-a__item">
+            <input
+              className="void-input links-a__title"
+              value={link.title}
+              onChange={(e) => updateLink(i, "title", e.target.value)}
+              placeholder="Link title"
+            />
+            <input
+              className="void-input links-a__url"
+              value={link.url}
+              onChange={(e) => updateLink(i, "url", e.target.value)}
+              placeholder="https://..."
+            />
+            <button
+              type="button"
+              className="block-action-btn"
+              onClick={() => removeLink(i)}
+              title="Remove link"
+            >
+              <X size={12} strokeWidth={2} />
+            </button>
+          </div>
+        ))}
+
+        <div className="block-actions">
+          <button type="button" className="block-action-btn" onClick={addLink}>
+            <Plus size={12} strokeWidth={2} /> Add Link
           </button>
         </div>
-      ))}
-
-      <div className="block-actions">
-        <button type="button" className="block-action-btn" onClick={addLink}>
-          <Plus size={12} strokeWidth={2} /> Add Link
-        </button>
       </div>
-
       {children}
     </PlateElement>
   );
