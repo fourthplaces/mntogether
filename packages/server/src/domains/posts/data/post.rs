@@ -7,8 +7,7 @@ use serde::{Deserialize, Serialize};
 pub struct PostData {
     pub id: String,
     pub title: String,
-    pub description: String,
-    pub summary: Option<String>,
+    pub body_raw: String,
 
     // Hot path fields
     pub post_type: String,
@@ -67,8 +66,7 @@ impl From<Post> for PostData {
         Self {
             id: post.id.to_string(),
             title: post.title,
-            description: post.description,
-            summary: post.summary,
+            body_raw: post.body_raw,
             post_type: post.post_type,
             category: post.category,
             urgency: post.urgency,

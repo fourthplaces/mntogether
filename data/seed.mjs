@@ -122,11 +122,13 @@ for (const p of posts) {
   // Begin CTE
   out(`-- ${p.postType}: ${p.title}`);
   out(`WITH post AS (`);
-  out(`    INSERT INTO posts (title, description, summary, post_type, category, weight, priority, status, submission_type, published_at, location)`);
+  out(`    INSERT INTO posts (title, body_raw, body_heavy, body_medium, body_light, post_type, category, weight, priority, status, submission_type, published_at, location)`);
   out(`    VALUES (`);
   out(`        ${esc(p.title)},`);
-  out(`        ${esc(p.description)},`);
-  out(`        ${esc(p.summary)},`);
+  out(`        ${esc(p.bodyRaw)},`);
+  out(`        ${esc(p.bodyHeavy || null)},`);
+  out(`        ${esc(p.bodyMedium || null)},`);
+  out(`        ${esc(p.bodyLight || null)},`);
   out(`        ${esc(p.postType)}, ${esc(p.category)}, ${esc(p.weight)}, ${p.priority}, 'active', 'admin', now(), ${esc(p.location || null)}`);
   out(`    )`);
   out(`    ON CONFLICT DO NOTHING RETURNING id`);

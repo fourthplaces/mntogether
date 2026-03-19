@@ -185,12 +185,23 @@ export default function EditPostPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const initialized = useRef(false);
 
-  // Parse body_ast synchronously from GraphQL (comes as JSON string)
+  // Parse body_ast synchronously from GraphQL (comes as JSON string).
+  // If no body_ast exists, fall back to description text as paragraphs.
   const parsedInitialAst = useMemo(() => {
-    if (!post?.bodyAst) return null;
-    try { return JSON.parse(post.bodyAst) as Value; }
-    catch { return null; }
-  }, [post?.bodyAst]);
+    if (post?.bodyAst) {
+      try { return JSON.parse(post.bodyAst) as Value; }
+      catch { /* fall through */ }
+    }
+    // Convert plain text description to Plate paragraph nodes
+    const text = post?.bodyRaw;
+    if (text) {
+      return text.split(/\n\n+/).filter(Boolean).map((para) => ({
+        type: "p" as const,
+        children: [{ text: para.trim() }],
+      })) as Value;
+    }
+    return null;
+  }, [post?.bodyAst, post?.bodyRaw]);
 
   // Initialize form values from loaded post
   useEffect(() => {
@@ -199,8 +210,7 @@ export default function EditPostPage() {
       setValues({
         ...DEFAULT_VALUES,
         title: post.title || "",
-        descriptionMarkdown: post.descriptionMarkdown || post.description || "",
-        summary: post.summary || "",
+        bodyRaw: post.bodyRaw || "",
       });
       setFieldGroups({
         kicker: post.meta?.kicker || "",
@@ -250,11 +260,10 @@ export default function EditPostPage() {
         id: postId,
         input: {
           title: values.title.trim(),
-          descriptionMarkdown: values.descriptionMarkdown.trim() || undefined,
+          bodyRaw: values.bodyRaw.trim() || undefined,
           bodyAst: bodyAst
             ? JSON.stringify(bodyAst)
             : (parsedInitialAst ? JSON.stringify(parsedInitialAst) : undefined),
-          summary: values.summary.trim() || undefined,
         },
       },
       mutationContext

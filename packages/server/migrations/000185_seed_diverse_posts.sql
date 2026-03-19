@@ -36,7 +36,7 @@ ON CONFLICT DO NOTHING;
 -- =============================================================================
 -- STORY posts (heavy weight) — 5 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000001-0000-0000-0000-000000000001'::uuid,
  'Anoka County Opens New Affordable Housing Complex on Main Street',
  'A 48-unit affordable housing complex opened this week in downtown Anoka, providing one and two-bedroom apartments for families earning below 60% of area median income. The development includes on-site childcare, a community garden, and connections to county transit. Applications are now being accepted through Anoka County Housing Authority.',
@@ -65,7 +65,7 @@ INSERT INTO posts (id, title, description, post_type, category, weight, priority
 -- =============================================================================
 -- NOTICE posts (light weight) — 10 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000002-0000-0000-0000-000000000001'::uuid,
  'Heating Assistance Applications Due March 31',
  'The Energy Assistance Program deadline is approaching. Households earning below 50% SMI may qualify for help with heating bills. Apply at Anoka County Human Services or call 763-324-1500.',
@@ -119,7 +119,7 @@ INSERT INTO posts (id, title, description, post_type, category, weight, priority
 -- =============================================================================
 -- EXCHANGE posts (medium weight) — 5 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000003-0000-0000-0000-000000000001'::uuid,
  'Seeking Volunteer Drivers for Senior Meal Delivery',
  'Anoka County Senior Services needs volunteer drivers to deliver meals to homebound seniors. Routes available Monday through Friday, 11 AM to 1 PM. Mileage reimbursement provided. Background check required. Contact: 763-324-1600.',
@@ -148,7 +148,7 @@ INSERT INTO posts (id, title, description, post_type, category, weight, priority
 -- =============================================================================
 -- EVENT posts (medium weight) — 5 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000004-0000-0000-0000-000000000001'::uuid,
  'Community Resource Fair — Saturday March 22',
  'Over 40 local organizations will be at the Anoka County Fairgrounds providing information on housing, food assistance, healthcare, legal aid, and employment services. Free lunch, childcare, and interpreters available. 10 AM-3 PM.',
@@ -177,7 +177,7 @@ INSERT INTO posts (id, title, description, post_type, category, weight, priority
 -- =============================================================================
 -- SPOTLIGHT posts (medium weight) — 3 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000005-0000-0000-0000-000000000001'::uuid,
  'Alexandra House: 40 Years Serving Domestic Violence Survivors',
  'This year marks 40 years of Alexandra House providing emergency shelter, legal advocacy, and support services to survivors of domestic violence in Anoka County. Their 24-hour crisis line has answered over 200,000 calls since opening.',
@@ -196,7 +196,7 @@ INSERT INTO posts (id, title, description, post_type, category, weight, priority
 -- =============================================================================
 -- REFERENCE posts (medium weight) — 3 posts
 -- =============================================================================
-INSERT INTO posts (id, title, description, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
+INSERT INTO posts (id, title, body_raw, post_type, category, weight, priority, status, source_language, created_at, updated_at) VALUES
 ('b0000006-0000-0000-0000-000000000001'::uuid,
  'Anoka County Food Shelves Directory',
  'Complete list of food shelves in Anoka County with hours, eligibility, and contact information. Updated monthly. Includes SNAP enrollment assistance locations.',

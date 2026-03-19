@@ -37,8 +37,7 @@ export const URGENCIES = [
 
 export interface PostFormValues {
   title: string;
-  descriptionMarkdown: string;
-  summary: string;
+  bodyRaw: string;
   postType: string;
   weight: string;
   priority: number;
@@ -49,8 +48,7 @@ export interface PostFormValues {
 
 export const DEFAULT_VALUES: PostFormValues = {
   title: "",
-  descriptionMarkdown: "",
-  summary: "",
+  bodyRaw: "",
   postType: "notice",
   weight: "medium",
   priority: 0,
@@ -62,7 +60,7 @@ export const DEFAULT_VALUES: PostFormValues = {
 export function validatePostForm(values: PostFormValues): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!values.title.trim()) errors.title = "Title is required";
-  if (!values.descriptionMarkdown.trim())
-    errors.descriptionMarkdown = "Content is required";
+  if (!values.bodyRaw.trim())
+    errors.bodyRaw = "Content is required";
   return errors;
 }

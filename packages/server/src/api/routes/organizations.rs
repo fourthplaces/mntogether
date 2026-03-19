@@ -37,8 +37,8 @@ pub struct PublicTagResult {
 pub struct PublicPostResult {
     pub id: Uuid,
     pub title: String,
-    pub summary: String,
-    pub description: String,
+    pub body_raw: String,
+    pub body_light: Option<String>,
     pub location: Option<String>,
     pub source_url: Option<String>,
     pub post_type: String,
@@ -268,8 +268,8 @@ async fn public_get(
                 PublicPostResult {
                     id,
                     title: p.title,
-                    summary: p.summary.unwrap_or_default(),
-                    description: p.description,
+                    body_raw: p.body_raw,
+                    body_light: p.body_light,
                     location: p.location,
                     source_url: p.source_url,
                     post_type: p.post_type,

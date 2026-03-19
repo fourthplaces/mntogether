@@ -74,7 +74,7 @@ export function PostCard({ post }: { post: PublicPost }) {
           </p>
         )}
         <p className="post-card-summary">
-          {post.summary || post.description}
+          {post.bodyLight || post.bodyRaw}
         </p>
         <div className="post-card-tags">
           {postTypeTag && (

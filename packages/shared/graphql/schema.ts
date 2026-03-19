@@ -200,10 +200,8 @@ type PostTypeOption {
 type Post {
   id: ID!
   title: String!
-  description: String!
-  descriptionMarkdown: String
+  bodyRaw: String!
   bodyAst: String
-  summary: String
   status: PostStatus!
   postType: PostType
   weight: Weight
@@ -263,8 +261,8 @@ type PublicPostConnection {
 type PublicPost {
   id: ID!
   title: String!
-  summary: String
-  description: String!
+  bodyRaw: String!
+  bodyLight: String
   location: String
   sourceUrl: String
   postType: PostType!
@@ -606,7 +604,7 @@ type BroadsheetWidget {
 type BroadsheetPost {
   id: ID!
   title: String!
-  description: String!
+  bodyRaw: String!
   postType: String!
   weight: String!
   urgency: String
@@ -695,8 +693,7 @@ type BroadsheetScheduleEntry {
 
 input CreatePostInput {
   title: String!
-  descriptionMarkdown: String!
-  summary: String
+  bodyRaw: String!
   postType: String
   weight: String
   priority: Int
@@ -707,9 +704,8 @@ input CreatePostInput {
 
 input UpdatePostInput {
   title: String
-  descriptionMarkdown: String
+  bodyRaw: String
   bodyAst: String
-  summary: String
   postType: String
   category: String
   weight: String

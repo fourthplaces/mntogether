@@ -35,7 +35,7 @@ export const EditionPreviewQuery = graphql(`
           post {
             id
             title
-            description
+            bodyRaw
             postType
             weight
             urgency
@@ -156,7 +156,7 @@ export const PublicBroadsheetQuery = graphql(`
           post {
             id
             title
-            description
+            bodyRaw
             postType
             weight
             urgency

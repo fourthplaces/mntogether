@@ -32,7 +32,7 @@ pub async fn submit_post(
     let post = post_operations::create_post(
         member_id_typed,
         input.title.clone(),
-        input.description,
+        input.body_raw,
         contact_json,
         input.urgency,
         input.location,
@@ -119,9 +119,7 @@ pub async fn edit_and_approve_post(
         UpdateAndApprovePost::builder()
             .post_id(post_id)
             .title(input.title)
-            .description(input.description)
-            .description_markdown(input.description_markdown)
-            .summary(input.summary)
+            .body_raw(input.body_raw)
             .urgency(input.urgency)
             .location(input.location)
             .build(),
@@ -303,11 +301,9 @@ pub async fn get_posts_near_zip(
 }
 
 /// Create a post from the admin editor. Saves as draft with submission_type = "admin".
-/// Strips markdown to plain text for the `description` field (search/display fallback).
 pub async fn admin_create_post(
     title: String,
-    description_markdown: String,
-    summary: Option<String>,
+    body_raw: String,
     post_type: Option<String>,
     weight: Option<String>,
     priority: Option<i32>,
@@ -319,14 +315,10 @@ pub async fn admin_create_post(
 ) -> Result<Post> {
     info!(title = %title, member_id = %member_id, "Admin creating draft post");
 
-    let plain_description = strip_markdown(&description_markdown);
-
     let post = Post::create(
         CreatePost::builder()
             .title(title)
-            .description(plain_description)
-            .description_markdown(Some(description_markdown))
-            .summary(summary)
+            .body_raw(body_raw)
             .status("draft".to_string())
             .submission_type(Some("admin".to_string()))
             .submitted_by_id(Some(member_id))
@@ -344,13 +336,11 @@ pub async fn admin_create_post(
 }
 
 /// Update post content from the admin editor.
-/// Strips markdown to plain text for the `description` field.
 pub async fn admin_update_post(
     post_id: Uuid,
     title: Option<String>,
-    description_markdown: Option<String>,
+    body_raw: Option<String>,
     body_ast: Option<serde_json::Value>,
-    summary: Option<String>,
     post_type: Option<String>,
     category: Option<String>,
     weight: Option<String>,
@@ -366,17 +356,12 @@ pub async fn admin_update_post(
     let post_id = PostId::from_uuid(post_id);
     info!(post_id = %post_id, "Admin updating post content");
 
-    // If markdown changed, regenerate plain text description
-    let plain_description = description_markdown.as_ref().map(|md| strip_markdown(md));
-
     let post = Post::update_content(
         UpdatePostContent::builder()
             .id(post_id)
             .title(title)
-            .description(plain_description)
-            .description_markdown(description_markdown)
+            .body_raw(body_raw)
             .body_ast(body_ast)
-            .summary(summary)
             .post_type(post_type)
             .category(category)
             .weight(weight)
@@ -394,67 +379,3 @@ pub async fn admin_update_post(
     Ok(post)
 }
 
-/// Strip markdown formatting to produce plain text for the description field.
-/// Uses a simple regex-based approach — handles the common cases (headings, bold,
-/// italic, links, images, code blocks) without pulling in a full parser.
-fn strip_markdown(md: &str) -> String {
-    use regex::Regex;
-
-    let text = md.to_string();
-
-    // Remove images: ![alt](url)
-    let text = Regex::new(r"!\[([^\]]*)\]\([^)]*\)")
-        .unwrap()
-        .replace_all(&text, "$1")
-        .to_string();
-
-    // Convert links to just their text: [text](url)
-    let text = Regex::new(r"\[([^\]]*)\]\([^)]*\)")
-        .unwrap()
-        .replace_all(&text, "$1")
-        .to_string();
-
-    // Remove headings markers
-    let text = Regex::new(r"(?m)^#{1,6}\s+")
-        .unwrap()
-        .replace_all(&text, "")
-        .to_string();
-
-    // Remove bold/italic markers
-    let text = Regex::new(r"\*{1,3}([^*]+)\*{1,3}")
-        .unwrap()
-        .replace_all(&text, "$1")
-        .to_string();
-
-    // Remove code blocks
-    let text = Regex::new(r"```[\s\S]*?```")
-        .unwrap()
-        .replace_all(&text, "")
-        .to_string();
-
-    // Remove inline code
-    let text = Regex::new(r"`([^`]+)`")
-        .unwrap()
-        .replace_all(&text, "$1")
-        .to_string();
-
-    // Remove blockquote markers
-    let text = Regex::new(r"(?m)^>\s?")
-        .unwrap()
-        .replace_all(&text, "")
-        .to_string();
-
-    // Remove horizontal rules
-    let text = Regex::new(r"(?m)^[-*_]{3,}\s*$")
-        .unwrap()
-        .replace_all(&text, "")
-        .to_string();
-
-    // Clean up extra whitespace
-    let text = Regex::new(r"\n{3,}")
-        .unwrap()
-        .replace_all(&text, "\n\n")
-        .to_string();
-
-    text.trim().to_string()
-}

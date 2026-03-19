@@ -8,9 +8,7 @@ use uuid::Uuid;
 pub struct PostType {
     pub id: Uuid,
     pub title: String,
-    pub summary: Option<String>,
-    pub description: String,
-    pub description_markdown: Option<String>,
+    pub body_raw: String,
     pub post_type: String,
     pub category: String,
     pub status: PostStatusData,
@@ -27,9 +25,7 @@ impl From<Post> for PostType {
         Self {
             id: post.id.into_uuid(),
             title: post.title,
-            summary: post.summary,
-            description: post.description,
-            description_markdown: post.description_markdown,
+            body_raw: post.body_raw,
             post_type: post.post_type,
             category: post.category,
             status: match post.status.as_str() {
@@ -92,9 +88,7 @@ impl std::fmt::Display for PostStatusData {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EditPostInput {
     pub title: Option<String>,
-    pub description: Option<String>,
-    pub description_markdown: Option<String>,
-    pub summary: Option<String>,
+    pub body_raw: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
 }
@@ -103,7 +97,7 @@ pub struct EditPostInput {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SubmitPostInput {
     pub title: String,
-    pub description: String,
+    pub body_raw: String,
     pub contact_info: Option<ContactInfoInput>,
     pub urgency: Option<String>,
     pub location: Option<String>,

@@ -16,9 +16,7 @@ pub struct Post {
 
     // Content
     pub title: String,
-    pub description: String,
-    pub description_markdown: Option<String>,
-    pub summary: Option<String>,
+    pub body_raw: String,
 
     // Plate.js editor state (JSON AST)
     pub body_ast: Option<serde_json::Value>,
@@ -90,9 +88,8 @@ pub struct Post {
 pub struct PostWithDistance {
     pub id: PostId,
     pub title: String,
-    pub description: String,
-    pub description_markdown: Option<String>,
-    pub summary: Option<String>,
+    pub body_raw: String,
+    pub body_light: Option<String>,
     pub post_type: String,
     pub category: String,
     pub status: String,
@@ -113,9 +110,8 @@ pub struct PostWithDistance {
 pub struct PostWithDistanceAndCount {
     pub id: PostId,
     pub title: String,
-    pub description: String,
-    pub description_markdown: Option<String>,
-    pub summary: Option<String>,
+    pub body_raw: String,
+    pub body_light: Option<String>,
     pub post_type: String,
     pub category: String,
     pub status: String,
@@ -323,11 +319,9 @@ impl std::str::FromStr for PostStatus {
 pub struct CreatePost {
     // Required fields - no default
     pub title: String,
-    pub description: String,
+    pub body_raw: String,
 
     // Optional fields - have defaults
-    #[builder(default)]
-    pub summary: Option<String>,
     #[builder(default = "notice".to_string())]
     pub post_type: String,
     #[builder(default = "general".to_string())]
@@ -349,8 +343,6 @@ pub struct CreatePost {
     #[builder(default)]
     pub submitted_by_id: Option<Uuid>,
     #[builder(default)]
-    pub description_markdown: Option<String>,
-    #[builder(default)]
     pub source_url: Option<String>,
     #[builder(default)]
     pub revision_of_post_id: Option<PostId>,
@@ -368,13 +360,9 @@ pub struct UpdatePostContent {
     #[builder(default)]
     pub title: Option<String>,
     #[builder(default)]
-    pub description: Option<String>,
-    #[builder(default)]
-    pub description_markdown: Option<String>,
+    pub body_raw: Option<String>,
     #[builder(default)]
     pub body_ast: Option<serde_json::Value>,
-    #[builder(default)]
-    pub summary: Option<String>,
     #[builder(default)]
     pub post_type: Option<String>,
     #[builder(default)]
@@ -665,9 +653,7 @@ impl Post {
             r#"
             INSERT INTO posts (
                 title,
-                description,
-                description_markdown,
-                summary,
+                body_raw,
                 post_type,
                 category,
                 weight,
@@ -682,14 +668,12 @@ impl Post {
                 revision_of_post_id,
                 translation_of_id,
                 published_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
             RETURNING *
             "#,
         )
         .bind(input.title)
-        .bind(input.description)
-        .bind(input.description_markdown)
-        .bind(input.summary)
+        .bind(input.body_raw)
         .bind(input.post_type)
         .bind(input.category)
         .bind(input.weight)
@@ -734,19 +718,17 @@ impl Post {
             UPDATE posts
             SET
                 title = COALESCE($2, title),
-                description = COALESCE($3, description),
-                description_markdown = COALESCE($4, description_markdown),
-                body_ast = COALESCE($5, body_ast),
-                summary = COALESCE($6, summary),
-                post_type = COALESCE($7, post_type),
-                category = COALESCE($8, category),
-                weight = COALESCE($9, weight),
-                priority = COALESCE($10, priority),
-                urgency = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE urgency END,
-                location = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE location END,
-                zip_code = CASE WHEN $13 = '' THEN NULL WHEN $13 IS NOT NULL THEN $13 ELSE zip_code END,
-                source_url = CASE WHEN $14 = '' THEN NULL WHEN $14 IS NOT NULL THEN $14 ELSE source_url END,
-                organization_id = COALESCE($15, organization_id),
+                body_raw = COALESCE($3, body_raw),
+                body_ast = COALESCE($4, body_ast),
+                post_type = COALESCE($5, post_type),
+                category = COALESCE($6, category),
+                weight = COALESCE($7, weight),
+                priority = COALESCE($8, priority),
+                urgency = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE urgency END,
+                location = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE location END,
+                zip_code = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE zip_code END,
+                source_url = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE source_url END,
+                organization_id = COALESCE($13, organization_id),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -754,10 +736,8 @@ impl Post {
         )
         .bind(input.id)
         .bind(input.title)
-        .bind(input.description)
-        .bind(input.description_markdown)
+        .bind(input.body_raw)
         .bind(input.body_ast)
-        .bind(input.summary)
         .bind(input.post_type)
         .bind(input.category)
         .bind(input.weight)
@@ -917,8 +897,7 @@ impl Post {
             WITH center AS (
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
-            SELECT p.id, p.title, p.description,
-                   p.description_markdown, p.summary,
+            SELECT p.id, p.title, p.body_raw, p.body_light,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
                    p.created_at, p.published_at, p.updated_at,
@@ -966,8 +945,7 @@ impl Post {
             WITH center AS (
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
-            SELECT p.id, p.title, p.description,
-                   p.description_markdown, p.summary,
+            SELECT p.id, p.title, p.body_raw, p.body_light,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
                    p.created_at, p.published_at, p.updated_at,
@@ -999,7 +977,7 @@ impl Post {
                                  AND c.latitude + ($6::float8 / 69.0)
               AND z.longitude BETWEEN c.longitude - ($6::float8 / (69.0 * cos(radians(c.latitude))))
                                   AND c.longitude + ($6::float8 / (69.0 * cos(radians(c.latitude))))
-            GROUP BY p.id, p.title, p.description, p.description_markdown, p.summary,
+            GROUP BY p.id, p.title, p.body_raw, p.body_light,
                      p.post_type, p.category, p.status, p.urgency, p.location,
                      p.submission_type, p.source_url, p.created_at, p.published_at, p.updated_at,
                      c.latitude, c.longitude
@@ -1181,8 +1159,7 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT DISTINCT ON (p.id)
-                   p.id, p.title, p.description,
-                   p.description_markdown, p.summary,
+                   p.id, p.title, p.body_raw,
                    p.post_type, p.category, p.status, p.urgency,
                    p.location, p.submission_type, p.source_url,
                    p.created_at, p.published_at, p.updated_at,

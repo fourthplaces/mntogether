@@ -258,9 +258,7 @@ export const RegeneratePostMutation = graphql(`
     regeneratePost(id: $id) {
       id
       title
-      description
-      descriptionMarkdown
-      summary
+      bodyRaw
     }
   }
 `);

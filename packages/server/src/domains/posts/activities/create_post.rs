@@ -62,8 +62,7 @@ pub async fn create_extracted_post(
     let created = Post::create(
         CreatePost::builder()
             .title(post.title.clone())
-            .description(post.description.clone())
-            .summary(Some(post.summary.clone()))
+            .body_raw(post.body_raw.clone())
             .urgency(urgency)
             .location(post.location.clone())
             .submission_type(Some("scraped".to_string()))

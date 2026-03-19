@@ -282,11 +282,11 @@ export default function PublicPostDetailPage() {
 
       {/* Title */}
       {variants.titleVariant === "B" ? (
-        <TitleB size={variants.titleSize} summary={post.summary || undefined}>
+        <TitleB size={variants.titleSize}>
           {post.title}
         </TitleB>
       ) : (
-        <TitleA size={variants.titleSize} deck={post.meta?.deck || post.summary || undefined}>
+        <TitleA size={variants.titleSize} deck={post.meta?.deck || undefined}>
           {post.title}
         </TitleA>
       )}
@@ -321,7 +321,7 @@ export default function PublicPostDetailPage() {
             return null;
           }
         })()
-      ) : (post.descriptionMarkdown || post.description) ? (
+      ) : post.bodyRaw ? (
         variants.bodyVariant === "B" ? (
           <BodyB>
             <ReactMarkdown
@@ -334,7 +334,7 @@ export default function PublicPostDetailPage() {
                 h3: ({ children }) => <h4>{children}</h4>,
               }}
             >
-              {post.descriptionMarkdown || post.description || ""}
+              {post.bodyRaw}
             </ReactMarkdown>
           </BodyB>
         ) : (
@@ -349,7 +349,7 @@ export default function PublicPostDetailPage() {
                 h3: ({ children }) => <h4>{children}</h4>,
               }}
             >
-              {post.descriptionMarkdown || post.description || ""}
+              {post.bodyRaw}
             </ReactMarkdown>
           </BodyA>
         )

@@ -4,8 +4,7 @@ export const PostListFields = graphql(`
   fragment PostListFields on Post {
     id
     title
-    description
-    summary
+    bodyRaw
     status
     postType
     urgency
@@ -32,10 +31,8 @@ export const PostDetailFields = graphql(`
   fragment PostDetailFields on Post {
     id
     title
-    description
-    descriptionMarkdown
+    bodyRaw
     bodyAst
-    summary
     status
     postType
     category

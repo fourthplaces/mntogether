@@ -70,7 +70,7 @@ pub struct NearbySearchRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct SubmitPostRequest {
     pub title: String,
-    pub description: String,
+    pub body_raw: String,
     pub contact_phone: Option<String>,
     pub contact_email: Option<String>,
     pub contact_website: Option<String>,
@@ -136,8 +136,7 @@ pub struct ExpireStalePostsRequest {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct CreatePostRequest {
     pub title: String,
-    pub description_markdown: String,
-    pub summary: Option<String>,
+    pub body_raw: String,
     pub post_type: Option<String>,
     pub weight: Option<String>,
     pub priority: Option<i32>,
@@ -162,9 +161,7 @@ pub struct ApprovePostRequest {}
 #[derive(Debug, Clone, Deserialize)]
 pub struct EditApproveRequest {
     pub title: Option<String>,
-    pub description: Option<String>,
-    pub description_markdown: Option<String>,
-    pub summary: Option<String>,
+    pub body_raw: Option<String>,
     pub urgency: Option<String>,
     pub location: Option<String>,
 }
@@ -269,9 +266,8 @@ pub struct DeleteScheduleRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct UpdatePostContentRequest {
     pub title: Option<String>,
-    pub description_markdown: Option<String>,
+    pub body_raw: Option<String>,
     pub body_ast: Option<serde_json::Value>,
-    pub summary: Option<String>,
     pub post_type: Option<String>,
     pub category: Option<String>,
     pub weight: Option<String>,
@@ -334,11 +330,9 @@ pub struct UrgentNoteInfo {
 pub struct PostResult {
     pub id: Uuid,
     pub title: String,
-    pub description: String,
-    pub description_markdown: Option<String>,
+    pub body_raw: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub body_ast: Option<serde_json::Value>,
-    pub summary: Option<String>,
     pub status: String,
     pub post_type: String,
     pub category: String,
@@ -396,10 +390,8 @@ impl From<Post> for PostResult {
         Self {
             id: p.id.into_uuid(),
             title: p.title,
-            description: p.description,
-            description_markdown: p.description_markdown,
+            body_raw: p.body_raw,
             body_ast: p.body_ast,
-            summary: p.summary,
             status: p.status,
             post_type: p.post_type,
             category: p.category,
@@ -484,7 +476,7 @@ pub struct ReportListResult {
 pub struct EventPostResult {
     pub id: Uuid,
     pub title: String,
-    pub description: String,
+    pub body_raw: String,
     pub status: String,
     pub location: Option<String>,
     pub source_url: Option<String>,
@@ -526,8 +518,8 @@ pub struct ScheduleResult {
 pub struct PublicPostResult {
     pub id: Uuid,
     pub title: String,
-    pub summary: Option<String>,
-    pub description: String,
+    pub body_raw: String,
+    pub body_light: Option<String>,
     pub location: Option<String>,
     pub source_url: Option<String>,
     pub post_type: String,
@@ -838,10 +830,8 @@ async fn list(
                     PostResult {
                         id,
                         title: pwd.title,
-                        description: pwd.description,
-                        description_markdown: pwd.description_markdown,
+                        body_raw: pwd.body_raw,
                         body_ast: None,
-                        summary: pwd.summary,
                         status: pwd.status,
                         post_type: pwd.post_type,
                         category: pwd.category,
@@ -920,10 +910,8 @@ async fn list(
                     PostResult {
                         id,
                         title: e.node.title,
-                        description: e.node.description,
-                        description_markdown: e.node.description_markdown,
+                        body_raw: e.node.body_raw,
                         body_ast: None,
-                        summary: e.node.summary,
                         status: e.node.status.to_string(),
                         post_type: e.node.post_type,
                         category: e.node.category,
@@ -986,10 +974,8 @@ async fn search_nearby(
                 post: PostResult {
                     id: pwd.id.into_uuid(),
                     title: pwd.title,
-                    description: pwd.description,
-                    description_markdown: pwd.description_markdown,
+                    body_raw: pwd.body_raw,
                     body_ast: None,
-                    summary: pwd.summary,
                     status: pwd.status,
                     post_type: pwd.post_type,
                     category: pwd.category,
@@ -1050,7 +1036,7 @@ async fn submit(
 
     let input = SubmitPostInput {
         title: req.title,
-        description: req.description,
+        body_raw: req.body_raw,
         contact_info,
         urgency: req.urgency,
         location: req.location,
@@ -1134,7 +1120,7 @@ async fn upcoming_events(
             .map(|e| EventPostResult {
                 id: e.id,
                 title: e.title,
-                description: e.description,
+                body_raw: e.body_raw,
                 status: e.status.to_string(),
                 location: e.location,
                 source_url: e.source_url,
@@ -1227,10 +1213,8 @@ async fn list_by_organization(
                 PostResult {
                     id,
                     title: p.title,
-                    description: p.description,
-                    description_markdown: p.description_markdown,
+                    body_raw: p.body_raw,
                     body_ast: p.body_ast,
-                    summary: p.summary,
                     status: p.status,
                     post_type: p.post_type,
                     category: p.category,
@@ -1319,8 +1303,8 @@ async fn public_list(
                     PublicPostResult {
                         id,
                         title: p.title,
-                        summary: p.summary,
-                        description: p.description,
+                        body_raw: p.body_raw,
+                        body_light: p.body_light,
                         location: p.location,
                         source_url: p.source_url,
                         post_type: p.post_type,
@@ -1363,8 +1347,8 @@ async fn public_list(
                     PublicPostResult {
                         id,
                         title: p.title,
-                        summary: p.summary,
-                        description: p.description,
+                        body_raw: p.body_raw,
+                        body_light: p.body_light,
                         location: p.location,
                         source_url: p.source_url,
                         post_type: p.post_type,
@@ -1484,8 +1468,7 @@ async fn create_post(
 ) -> ApiResult<Json<PostResult>> {
     let post = activities::admin_create_post(
         req.title,
-        req.description_markdown,
-        req.summary,
+        req.body_raw,
         req.post_type,
         req.weight,
         req.priority,
@@ -1558,9 +1541,7 @@ async fn edit_and_approve(
 
     let edit_input = EditPostInput {
         title: req.title,
-        description: req.description,
-        description_markdown: req.description_markdown,
-        summary: req.summary,
+        body_raw: req.body_raw,
         urgency: req.urgency,
         location: req.location,
     };
@@ -1965,9 +1946,8 @@ async fn update_content(
     activities::admin_update_post(
         post_id,
         req.title,
-        req.description_markdown,
+        req.body_raw,
         req.body_ast,
-        req.summary,
         req.post_type,
         req.category,
         req.weight,

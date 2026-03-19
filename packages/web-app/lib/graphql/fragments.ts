@@ -4,8 +4,8 @@ export const PublicPostFields = graphql(`
   fragment PublicPostFields on PublicPost {
     id
     title
-    summary
-    description
+    bodyRaw
+    bodyLight
     location
     sourceUrl
     postType
@@ -32,10 +32,8 @@ export const PostDetailPublicFields = graphql(`
   fragment PostDetailPublicFields on Post {
     id
     title
-    description
-    descriptionMarkdown
+    bodyRaw
     bodyAst
-    summary
     status
     postType
     category

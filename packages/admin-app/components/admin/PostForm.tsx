@@ -37,10 +37,9 @@ export function PostForm({
   loading,
 }: PostFormProps) {
   const [title, setTitle] = useState(initialValues?.title ?? "");
-  const [descriptionMarkdown, setDescriptionMarkdown] = useState(
-    initialValues?.descriptionMarkdown ?? ""
+  const [bodyRaw, setBodyRaw] = useState(
+    initialValues?.bodyRaw ?? ""
   );
-  const [summary, setSummary] = useState(initialValues?.summary ?? "");
   const [postType, setPostType] = useState(
     initialValues?.postType ?? "notice"
   );
@@ -59,8 +58,8 @@ export function PostForm({
   function validate(): boolean {
     const newErrors: Record<string, string> = {};
     if (!title.trim()) newErrors.title = "Title is required";
-    if (!descriptionMarkdown.trim())
-      newErrors.descriptionMarkdown = "Content is required";
+    if (!bodyRaw.trim())
+      newErrors.bodyRaw = "Content is required";
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   }
@@ -70,8 +69,7 @@ export function PostForm({
     if (!validate()) return;
     await onSubmit({
       title: title.trim(),
-      descriptionMarkdown: descriptionMarkdown.trim(),
-      summary: summary.trim(),
+      bodyRaw: bodyRaw.trim(),
       postType,
       weight,
       priority,
@@ -95,29 +93,16 @@ export function PostForm({
       <FieldWrapper
         label="Content"
         required
-        error={errors.descriptionMarkdown}
+        error={errors.bodyRaw}
         hint="Markdown supported. A rich editor is coming soon."
       >
         <Textarea
-          value={descriptionMarkdown}
-          onChange={(e) => setDescriptionMarkdown(e.target.value)}
+          value={bodyRaw}
+          onChange={(e) => setBodyRaw(e.target.value)}
           placeholder="Write your content in Markdown..."
           rows={12}
           disabled={loading}
           className="font-mono text-sm"
-        />
-      </FieldWrapper>
-
-      <FieldWrapper
-        label="Summary"
-        hint="Brief plain-text summary for cards and previews"
-      >
-        <Textarea
-          value={summary}
-          onChange={(e) => setSummary(e.target.value)}
-          placeholder="Optional summary..."
-          rows={3}
-          disabled={loading}
         />
       </FieldWrapper>
 

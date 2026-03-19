@@ -44,36 +44,19 @@ export function PostEditorForm({
         )}
       </div>
 
-      {/* Summary */}
-      <Separator className="my-5" />
-
-      <FieldWrapper
-        label="Summary"
-        hint="Brief plain-text summary for cards and previews"
-        className="mb-0"
-      >
-        <Textarea
-          value={values.summary}
-          onChange={(e) => update("summary", e.target.value)}
-          placeholder="Optional summary..."
-          rows={2}
-          disabled={disabled}
-        />
-      </FieldWrapper>
-
       {/* Content — markdown textarea (future Plate.js swap point) */}
       <Separator className="my-5" />
 
       <FieldWrapper
         label="Content"
         required
-        error={errors.descriptionMarkdown}
+        error={errors.bodyRaw}
         hint="Markdown supported"
         className="mb-0"
       >
         <Textarea
-          value={values.descriptionMarkdown}
-          onChange={(e) => update("descriptionMarkdown", e.target.value)}
+          value={values.bodyRaw}
+          onChange={(e) => update("bodyRaw", e.target.value)}
           placeholder="Write your content in Markdown..."
           rows={20}
           disabled={disabled}

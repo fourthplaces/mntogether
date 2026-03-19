@@ -15,8 +15,8 @@ import { MoreHorizontal } from "lucide-react";
 interface PostReviewCardPost {
   id: string;
   title: string;
-  description: string;
-  summary?: string | null;
+  bodyRaw: string;
+  bodyLight?: string | null;
   postType?: string | null;
   category?: string | null;
   urgency?: string | null;
@@ -106,7 +106,7 @@ export function PostReviewCard({
       </div>
 
       {/* Summary */}
-      {post.summary && <p className="text-sm text-muted-foreground mb-2">{post.summary}</p>}
+      {post.bodyLight && <p className="text-sm text-muted-foreground mb-2">{post.bodyLight}</p>}
 
       {/* Tags */}
       {tags.length > 0 && (
@@ -120,7 +120,7 @@ export function PostReviewCard({
       )}
 
       {/* Description (collapsed) */}
-      <p className={`text-sm text-muted-foreground ${!expanded && "line-clamp-2"}`}>{post.description}</p>
+      <p className={`text-sm text-muted-foreground ${!expanded && "line-clamp-2"}`}>{post.bodyLight || post.bodyRaw}</p>
 
       {/* Expand button */}
       <Button

@@ -44,8 +44,7 @@ export default function NewPostPage() {
       {
         input: {
           title: values.title.trim(),
-          descriptionMarkdown: values.descriptionMarkdown.trim(),
-          summary: values.summary.trim() || undefined,
+          bodyRaw: values.bodyRaw.trim(),
           postType: values.postType,
           weight: values.weight,
           priority: values.priority,

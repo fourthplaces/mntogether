@@ -1258,7 +1258,7 @@ export default function PostDetailPage() {
               <SectionLabel>Full Text</SectionLabel>
               <div className="prose prose-stone max-w-none text-sm">
                 <ReactMarkdown components={markdownComponents}>
-                  {post.descriptionMarkdown || post.description || ""}
+                  {post.bodyRaw || ""}
                 </ReactMarkdown>
               </div>
             </div>

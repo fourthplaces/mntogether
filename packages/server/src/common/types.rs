@@ -37,8 +37,7 @@ pub struct ExtractedSchedule {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtractedPost {
     pub title: String,
-    pub summary: String,
-    pub description: String,
+    pub body_raw: String,
     pub contact: Option<ContactInfo>,
     #[serde(default)]
     pub location: Option<String>,

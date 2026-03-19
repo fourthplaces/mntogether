@@ -412,7 +412,7 @@ pub struct PublicBroadsheetWidgetResult {
 pub struct PublicBroadsheetPostResult {
     pub id: Uuid,
     pub title: String,
-    pub description: String,
+    pub body_raw: String,
     pub post_type: String,
     pub weight: String,
     pub urgency: Option<String>,
@@ -1566,7 +1566,7 @@ async fn build_public_broadsheet(
                             post: Some(PublicBroadsheetPostResult {
                                 id,
                                 title: post.title.clone(),
-                                description: post.description.clone(),
+                                body_raw: post.body_raw.clone(),
                                 post_type: post.post_type.clone(),
                                 weight: post.weight.clone(),
                                 urgency: post.urgency.clone(),

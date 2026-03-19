@@ -41,9 +41,7 @@ export type Urgency = "urgent" | "high" | "medium" | "low";
 export interface Post {
   id: string;
   title: string;
-  summary?: string;
-  description: string;
-  descriptionMarkdown?: string;
+  bodyRaw: string;
   postType?: PostType;
   category?: string;
   urgency?: Urgency;
@@ -100,8 +98,7 @@ export interface PostStatsResult {
 
 export interface EditPostInput {
   title?: string;
-  description?: string;
-  summary?: string;
+  bodyRaw?: string;
   location?: string;
   category?: string;
   urgency?: Urgency;

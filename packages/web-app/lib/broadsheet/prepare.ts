@@ -70,7 +70,7 @@ export function preparePost(
   const contact = buildContact(gqlPost.contacts);
 
   // Body: use weight-specific text from Root Signal if available, else fall back to description
-  const bodyHtml = selectWeightBody(gqlPost, postTemplate) ?? gqlPost.description;
+  const bodyHtml = selectWeightBody(gqlPost, postTemplate) ?? gqlPost.bodyRaw;
   const paragraphs = splitParagraphs(bodyHtml);
 
   // Compute clamp based on template body target (chars → approximate line count)

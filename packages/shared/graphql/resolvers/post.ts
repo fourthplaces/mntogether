@@ -295,8 +295,7 @@ export const postResolvers = {
       args: {
         input: {
           title: string;
-          descriptionMarkdown: string;
-          summary?: string;
+          bodyRaw: string;
           postType?: string;
           weight?: string;
           priority?: number;
@@ -309,8 +308,7 @@ export const postResolvers = {
     ) => {
       const result = await ctx.server.callService("Posts", "create_post", {
         title: args.input.title,
-        description_markdown: args.input.descriptionMarkdown,
-        summary: args.input.summary,
+        body_raw: args.input.bodyRaw,
         post_type: args.input.postType,
         weight: args.input.weight,
         priority: args.input.priority,
@@ -327,9 +325,8 @@ export const postResolvers = {
         id: string;
         input: {
           title?: string;
-          descriptionMarkdown?: string;
+          bodyRaw?: string;
           bodyAst?: string;
-          summary?: string;
           postType?: string;
           category?: string;
           weight?: string;
@@ -345,9 +342,8 @@ export const postResolvers = {
     ) => {
       await ctx.server.callObject("Post", args.id, "update_content", {
         title: args.input.title,
-        description_markdown: args.input.descriptionMarkdown,
+        body_raw: args.input.bodyRaw,
         body_ast: args.input.bodyAst ? JSON.parse(args.input.bodyAst) : undefined,
-        summary: args.input.summary,
         post_type: args.input.postType,
         category: args.input.category,
         weight: args.input.weight,

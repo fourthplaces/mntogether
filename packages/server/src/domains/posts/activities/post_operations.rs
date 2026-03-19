@@ -8,7 +8,6 @@ use serde_json::Value as JsonValue;
 use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 
-use crate::common::utils::generate_summary;
 use crate::common::{MemberId, PostId};
 use crate::domains::contacts::Contact;
 use crate::domains::posts::models::{CreatePost, Post, UpdatePostContent};
@@ -22,11 +21,7 @@ pub struct UpdateAndApprovePost {
     #[builder(default)]
     pub title: Option<String>,
     #[builder(default)]
-    pub description: Option<String>,
-    #[builder(default)]
-    pub description_markdown: Option<String>,
-    #[builder(default)]
-    pub summary: Option<String>,
+    pub body_raw: Option<String>,
     #[builder(default)]
     pub contact_info: Option<JsonValue>,
     #[builder(default)]
@@ -35,11 +30,11 @@ pub struct UpdateAndApprovePost {
     pub location: Option<String>,
 }
 
-/// Create a new listing with generated summary (truncation-based)
+/// Create a new listing
 pub async fn create_post(
     member_id: Option<MemberId>,
     title: String,
-    description: String,
+    body_raw: String,
     contact_info: Option<JsonValue>,
     urgency: Option<String>,
     location: Option<String>,
@@ -54,15 +49,11 @@ pub async fn create_post(
         tracing::info!(ip_address = %ip, "Listing submitted from IP");
     }
 
-    // Generate summary via truncation
-    let summary = generate_summary(&description, 250);
-
     // Create listing using model method
     let post = Post::create(
         CreatePost::builder()
             .title(title)
-            .description(description)
-            .summary(Some(summary))
+            .body_raw(body_raw)
             .urgency(urgency)
             .location(location)
             .submission_type(Some(submission_type))
@@ -115,9 +106,7 @@ pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool)
         UpdatePostContent::builder()
             .id(input.post_id)
             .title(input.title)
-            .description(input.description)
-            .description_markdown(input.description_markdown)
-            .summary(input.summary)
+            .body_raw(input.body_raw)
             .urgency(input.urgency)
             .location(input.location)
             .build(),
