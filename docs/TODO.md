@@ -1,6 +1,6 @@
 # Root Editorial — Outstanding Work
 
-> **Last updated:** 2026-03-18
+> **Last updated:** 2026-03-19
 >
 > What's done, what's next, and what's punted. This is the single source of truth for prioritization.
 
@@ -25,6 +25,8 @@
 | **Seed Data Overhaul** | Migration 208 seeds field group records for all 35 posts: media, meta, source attribution, items, status, datetime, person, schedule. |
 | **resolveWidget** | Centralized widget rendering in `web-app/lib/broadsheet/widget-resolver.ts` — parallel to `resolveTemplate` for posts. Owns JSON parsing, variant resolution, component selection. |
 | **Story Editor** | Plate.js WYSIWYG replaces markdown textarea. ArticlePreview with web-app body styling. Field group panels on edit page (media, meta, person) and detail page (link, source, datetime, status, items). 7 upsert endpoints + GraphQL mutations. "Open Preview" button in EditorTopBar. |
+| **Editor UX Fixes** | DnD block reordering via @platejs/dnd. TurnIntoMenu for block type conversion. Fixed Turbopack resolution, Slate SVG errors, void plugin input focus, content loading race condition, save handler. Lucide icons replace all Unicode/emoji hacks. |
+| **Data Model Consolidation** | Renamed `description` → `body_raw`, dropped `description_markdown` and `summary`. Full-stack rename across migration, Rust server, GraphQL, admin-app, web-app. Seed data updated with body tier fields (`body_heavy/medium/light`). Search vector trigger updated. Migration 211. |
 
 ---
 
@@ -40,8 +42,9 @@ Connect the CMS to Root Signal so AI-analyzed content flows into editions automa
 - **Scope:**
   - Finalize API contract (request/response format, auth, cadence)
   - Build ingestion endpoint — receives Signal output, upserts posts with `submission_type = 'signal'`
-  - Map Signal fields to post columns (weight, priority, weight-body text, tags, topic)
+  - Map Signal fields to post columns: `body_raw`, `body_heavy/medium/light`, weight, priority, tags, topic
   - Wire into batch generation flow: Signal runs → posts enriched → `batch_generate_editions`
+- **Data model ready:** `body_raw` (source text), `body_heavy/medium/light` (tiered display text), `body_ast` (rich editor content) — all columns exist. `ExtractedPost` struct uses `body_raw` field name.
 - **May affect:** Whether "sections" survive as a concept, how editions are structured, broadsheet data flow
 
 ### 2. Signal Inbox
@@ -52,14 +55,13 @@ Triage UI for incoming Root Signal content.
 - **Depends on:** Story Editor (✅ done) for "Edit & Approve" flow, Root Signal (#1) for real data
 - **Scope:** Admin page with filtered post list, bulk approve/reject, edit-before-approve flow
 
-### 3. Broadsheet Detail Pages
+### 3. Broadsheet Detail Pages (partially done)
 
-Clicking a post on the broadsheet does nothing — 15 detail page components are ported but not routed.
+Post detail route `/posts/[id]` is wired with AstRenderer for body_ast and broadsheet ArticlePage layout. Remaining:
 
-- **Location:** `packages/web-app/components/broadsheet/detail/`
-- **Components:** `ArticlePage`, `Title`, `Kicker`, `BodyA`, `BodyB`, `Photo`, `List`, `Links`, `Audio`, `Phone`, `Address`, `ArticleMeta`, `ArticleNav`, `Related`, `SidebarCard`, plus 5 hours visualizations
-- **Scope:** Mount to `/posts/[id]` route, wire GraphQL query, link broadsheet post clicks
-- Self-contained — no impact on existing code
+- **Related articles sidebar** — `RelatedA`/`RelatedB` components exist but aren't wired (need API endpoint)
+- **Mobile responsive** — detail page should stack sidebar above main on mobile
+- **Post click navigation** — broadsheet homepage cards may not link to detail yet
 
 ### 4. Seed Missing Row Templates
 
@@ -124,7 +126,8 @@ Explicitly punted. These have plans/specs but are not on the active roadmap.
 
 | Document | Issue |
 |---|---|
-| `status/BROADSHEET_DESIGN_IMPORT.md` | Says migrations 183/184 "NOT YET APPLIED" — applied long ago (schema now at 209) |
+| `status/BROADSHEET_DESIGN_IMPORT.md` | Says migrations 183/184 "NOT YET APPLIED" — applied long ago (schema now at 211) |
 | `architecture/ROOT_EDITORIAL_PIVOT.md` | Lists Q1–Q10 open questions, several answered by implementation. Needs pass to close resolved Qs. |
-| `architecture/DATABASE_SCHEMA.md` | Covers through migration 171, schema now at 209. Still documents dropped tables. |
+| `architecture/DATABASE_SCHEMA.md` | Covers through migration 171, schema now at 211. Still documents dropped tables. References `description`/`summary` columns (now `body_raw`, summary dropped). |
 | `guides/TESTING_WORKFLOWS.md` | References Restate workflow testing patterns that may have shifted. |
+| `status/FINAL_SCHEMA_SUMMARY.md` | May reference `description`/`description_markdown`/`summary` columns — renamed/dropped in migration 211. |
