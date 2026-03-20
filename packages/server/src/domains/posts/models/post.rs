@@ -440,6 +440,82 @@ impl Post {
             .map_err(Into::into)
     }
 
+    /// Find up to 3 related posts for a given post.
+    /// Priority: same county (via zip_counties) > statewide backfill,
+    /// then shared tags > same post_type > recency.
+    pub async fn find_related(
+        post_id: PostId,
+        zip_code: Option<&str>,
+        post_type: &str,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        // If the post has a zip code, find related in the same county first,
+        // with statewide posts as backfill. If no zip, search all posts.
+        let has_zip = zip_code.is_some();
+        let zip = zip_code.unwrap_or("");
+
+        let ids: Vec<Uuid> = sqlx::query_scalar(
+            r#"
+            WITH post_county AS (
+                SELECT zc.county_id
+                FROM zip_counties zc
+                WHERE zc.zip_code = $2
+                  AND zc.is_primary = true
+                LIMIT 1
+            ),
+            post_tags AS (
+                SELECT tag_id FROM taggables
+                WHERE taggable_type = 'post' AND taggable_id = $1
+            ),
+            candidates AS (
+                SELECT p.id,
+                    p.published_at,
+                    COUNT(pt.tag_id) AS shared_tag_count,
+                    CASE WHEN p.post_type = $3 THEN 1 ELSE 0 END AS same_type,
+                    CASE WHEN p.zip_code IS NOT NULL THEN 1 ELSE 0 END AS is_local
+                FROM posts p
+                LEFT JOIN zip_counties zc ON zc.zip_code = p.zip_code AND zc.is_primary = true
+                LEFT JOIN taggables t ON t.taggable_type = 'post' AND t.taggable_id = p.id
+                LEFT JOIN post_tags pt ON pt.tag_id = t.tag_id
+                WHERE p.id != $1
+                  AND p.status = 'active'
+                  AND p.deleted_at IS NULL
+                  AND p.revision_of_post_id IS NULL
+                  AND (
+                      NOT $4  -- if no zip, skip county filter
+                      OR zc.county_id = (SELECT county_id FROM post_county)
+                      OR p.zip_code IS NULL
+                  )
+                GROUP BY p.id, p.post_type, p.zip_code, p.published_at
+            )
+            SELECT id FROM candidates
+            ORDER BY is_local DESC, shared_tag_count DESC, same_type DESC,
+                     published_at DESC NULLS LAST
+            LIMIT 3
+            "#,
+        )
+        .bind(post_id.into_uuid())
+        .bind(zip)
+        .bind(post_type)
+        .bind(has_zip)
+        .fetch_all(pool)
+        .await?;
+
+        if ids.is_empty() {
+            return Ok(vec![]);
+        }
+
+        // Batch-load the full Post objects, preserving the ranked order
+        let posts = Self::find_by_ids(&ids, pool).await?;
+        let mut ordered: Vec<Self> = Vec::with_capacity(ids.len());
+        for id in &ids {
+            if let Some(post) = posts.iter().find(|p| p.id.into_uuid() == *id) {
+                ordered.push(post.clone());
+            }
+        }
+        Ok(ordered)
+    }
+
     /// Find listing by ID
     pub async fn find_by_id(id: PostId, pool: &PgPool) -> Result<Option<Self>> {
         let post = sqlx::query_as::<_, Post>("SELECT * FROM posts WHERE id = $1")

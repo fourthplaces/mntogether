@@ -244,6 +244,7 @@ type Post {
   datetime: BroadsheetDatetime
   postStatus: BroadsheetStatus
   schedule: [BroadsheetScheduleEntry!]!
+  relatedPosts: [PublicPost!]!
 }
 
 type PostConnection {

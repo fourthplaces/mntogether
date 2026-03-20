@@ -17,6 +17,7 @@ import { isAuthenticated } from "@/lib/auth/actions";
 import { resolveDetailVariants } from "@/lib/broadsheet/detail-variants";
 
 // Broadsheet detail components
+import { NewspaperFrame } from "@/components/broadsheet/layout/NewspaperFrame";
 import { ArticlePage } from "@/components/broadsheet/detail/ArticlePage";
 import { ArticleNav } from "@/components/broadsheet/detail/ArticleNav";
 import { TitleA, TitleB } from "@/components/broadsheet/detail/Title";
@@ -31,6 +32,7 @@ import { LinksA } from "@/components/broadsheet/detail/Links";
 import { SidebarCard } from "@/components/broadsheet/detail/SidebarCard";
 import { HoursScheduleLarge } from "@/components/broadsheet/detail/hours/HoursSchedule";
 import { AstRenderer } from "@/components/broadsheet/detail/AstRenderer";
+import { RelatedA } from "@/components/broadsheet/detail/Related";
 
 import type { WeekSchedule } from "@/lib/broadsheet/hours";
 
@@ -221,14 +223,11 @@ export default function PublicPostDetailPage() {
   const emails = contacts.filter(c => c.contactType === "email");
   const websites = contacts.filter(c => c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social");
 
-  // Check if sidebar has content
   const hasSchedules = (post.schedules && post.schedules.length > 0) || weekSchedule;
   const hasContacts = contacts.length > 0;
-  const hasSource = !!post.sourceUrl || !!sourceAttribution;
-  const hasSidebar = hasSchedules || hasContacts || hasSource;
 
-  // ── Main content ──
-  const mainContent = (
+  // ── Full-width header section (above the 2-column grid) ──
+  const headerContent = (
     <>
       <ArticleNav />
 
@@ -293,7 +292,12 @@ export default function PublicPostDetailPage() {
 
       {/* Article meta (byline · date · location) */}
       {metaParts.length > 0 && <ArticleMeta parts={metaParts} />}
+    </>
+  );
 
+  // ── Main column (body content, inside 2/3 grid) ──
+  const mainContent = (
+    <>
       {/* Hero photo */}
       {heroMedia && heroMedia.imageUrl && (
         <PhotoA
@@ -362,6 +366,21 @@ export default function PublicPostDetailPage() {
           {sourceAttribution.sourceName && sourceAttribution.attribution && <span> · </span>}
           {sourceAttribution.sourceName && <span>{sourceAttribution.sourceName}</span>}
         </div>
+      )}
+
+      {/* Related posts */}
+      {post.relatedPosts && post.relatedPosts.length > 0 && (
+        <RelatedA
+          articles={post.relatedPosts.map((rp) => {
+            const ptTag = rp.tags?.find((t) => t.kind === "post_type");
+            return {
+              id: rp.id,
+              kicker: ptTag?.displayName || formatCategory(rp.postType || "post"),
+              title: rp.title,
+              color: ptTag?.color || undefined,
+            };
+          })}
+        />
       )}
     </>
   );
@@ -510,14 +529,10 @@ export default function PublicPostDetailPage() {
     </>
   );
 
-  // If no sidebar content, render main-only layout
-  if (!hasSidebar) {
-    return (
-      <div className="article-page" style={{ display: "block" }}>
-        <div className="article-main">{mainContent}</div>
-      </div>
-    );
-  }
-
-  return <ArticlePage main={mainContent} sidebar={sidebarContent} />;
+  return (
+    <NewspaperFrame>
+      {headerContent}
+      <ArticlePage main={mainContent} sidebar={sidebarContent} />
+    </NewspaperFrame>
+  );
 }

@@ -1510,6 +1510,54 @@ async fn get_post(
         .map(Json)
 }
 
+async fn get_related_posts(
+    State(state): State<AppState>,
+    Path(post_id): Path<Uuid>,
+    _user: OptionalUser,
+) -> ApiResult<Json<Vec<PublicPostResult>>> {
+    let post = Post::find_by_id(PostId::from_uuid(post_id), &state.deps.db_pool)
+        .await?
+        .ok_or_else(|| ApiError::NotFound("Post not found".into()))?;
+
+    let related = Post::find_related(
+        post.id,
+        post.zip_code.as_deref(),
+        &post.post_type,
+        &state.deps.db_pool,
+    )
+    .await?;
+
+    let post_ids: Vec<Uuid> = related.iter().map(|p| p.id.into_uuid()).collect();
+    let (mut tags_by_post, _urgent_notes_by_post) =
+        load_tags_and_notes(&post_ids, &state.deps).await?;
+
+    let results = related
+        .into_iter()
+        .map(|p| {
+            let id = p.id.into_uuid();
+            PublicPostResult {
+                id,
+                title: p.title,
+                body_raw: p.body_raw,
+                body_light: p.body_light,
+                location: p.location,
+                source_url: p.source_url,
+                post_type: p.post_type,
+                category: p.category,
+                created_at: p.created_at.to_rfc3339(),
+                published_at: p.published_at.map(|dt| dt.to_rfc3339()),
+                tags: tags_by_post.remove(&id).unwrap_or_default(),
+                urgent_notes: vec![],
+                distance_miles: None,
+                organization_id: None,
+                organization_name: None,
+            }
+        })
+        .collect();
+
+    Ok(Json(results))
+}
+
 async fn approve(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
@@ -2035,7 +2083,7 @@ pub struct PostFieldGroupsResult {
 async fn get_field_groups(
     State(state): State<AppState>,
     Path(post_id): Path<Uuid>,
-    _user: AdminUser,
+    _user: OptionalUser,
 ) -> ApiResult<Json<PostFieldGroupsResult>> {
     let pool = &state.deps.db_pool;
     let ids = &[post_id];
@@ -2314,6 +2362,8 @@ pub fn router() -> Router<AppState> {
         .route("/Post/{id}/update_content", post(update_content))
         .route("/Post/{id}/get_reports", post(get_reports))
         .route("/Post/{id}/get_revision", post(get_revision))
+        // Field groups
+        .route("/Post/{id}/related", post(get_related_posts))
         // Field groups
         .route("/Post/{id}/field_groups", post(get_field_groups))
         .route("/Post/{id}/upsert_media", post(upsert_post_media))

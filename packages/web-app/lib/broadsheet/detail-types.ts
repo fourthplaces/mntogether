@@ -38,6 +38,7 @@ export interface PhoneData {
 }
 
 export interface RelatedArticle {
+  id: string;
   kicker: string;
   title: string;
   meta?: string;

@@ -126,5 +126,17 @@ export const PostDetailPublicFields = graphql(`
       opens
       closes
     }
+    relatedPosts {
+      id
+      title
+      postType
+      bodyLight
+      tags {
+        kind
+        value
+        displayName
+        color
+      }
+    }
   }
 `);

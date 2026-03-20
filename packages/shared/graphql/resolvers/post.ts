@@ -543,5 +543,9 @@ export const postResolvers = {
       const fg = await ctx.server.callService<{ schedule: unknown[] }>("Post", `${parent.id}/field_groups`, {});
       return fg.schedule ?? [];
     },
+    relatedPosts: async (parent: { id: string; relatedPosts?: unknown[] }, _args: unknown, ctx: GraphQLContext) => {
+      if (parent.relatedPosts) return parent.relatedPosts;
+      return ctx.server.callService("Post", `${parent.id}/related`, {});
+    },
   },
 };
