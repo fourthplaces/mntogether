@@ -523,6 +523,88 @@
 
 
 /* ═══════════════════════════════════════════════
+   COMPONENT 6b: EMAIL ADDRESS
+   ═══════════════════════════════════════════════ */
+
+/* Option A: Classified Contact Strip — matches Phone A */
+.email-a {
+  border-top: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding: 10px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.email-a__icon { color: var(--graphite); }
+.email-a__address {
+  font-size: 0.85rem; color: var(--ink);
+  text-decoration: none;
+}
+.email-a__address:hover { text-decoration: underline; }
+.email-a__cta {
+  font-size: 0.75rem; color: var(--slate);
+  text-decoration: none; margin-left: auto;
+}
+.email-a__cta:hover { color: var(--ink); text-decoration: underline; }
+
+/* Option B: Display Masthead — matches Phone B */
+.email-b { margin-bottom: 8px; }
+.email-b__label {
+  font-size: 0.75rem; color: var(--pebble);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.email-b__address {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink); text-decoration: none;
+  display: block;
+}
+.email-b__address:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.email-b__rule { border-top: 1px solid rgba(0,0,0,0.06); margin-top: 8px; }
+
+
+/* ═══════════════════════════════════════════════
+   COMPONENT 6c: WEBSITE URL
+   ═══════════════════════════════════════════════ */
+
+/* Option A: Classified Contact Strip — matches Phone A */
+.website-a {
+  border-top: 1px solid rgba(0,0,0,0.06);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+  padding: 10px 0;
+  display: flex; align-items: center; gap: 8px;
+}
+.website-a__icon { color: var(--graphite); }
+.website-a__url {
+  font-size: 0.85rem; color: var(--ink);
+  text-decoration: none;
+}
+.website-a__url:hover { text-decoration: underline; }
+.website-a__cta {
+  font-size: 0.75rem; color: var(--slate);
+  text-decoration: none; margin-left: auto;
+}
+.website-a__cta:hover { color: var(--ink); text-decoration: underline; }
+
+/* Option B: Display Masthead — matches Phone B */
+.website-b { margin-bottom: 8px; }
+.website-b__label {
+  font-size: 0.75rem; color: var(--pebble);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+.website-b__url {
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  color: var(--ink); text-decoration: none;
+  display: block;
+}
+.website-b__url:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
+.website-b__rule { border-top: 1px solid rgba(0,0,0,0.06); margin-top: 8px; }
+
+
+/* ═══════════════════════════════════════════════
    COMPONENT 7: LISTS
    ═══════════════════════════════════════════════ */
 
@@ -959,4 +1041,70 @@ ol.list-b li::before {
   font-size: 0.72rem;
   color: var(--pebble);
   text-align: center;
+}
+
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR: SOURCE CTA
+   ═══════════════════════════════════════════════ */
+
+.sidebar-card__contacts {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.sidebar-card__contacts > * + * {
+  margin-top: 0;
+}
+
+.sidebar-source-cta {
+  display: block;
+  text-align: center;
+  font-family: var(--font-feature-deck-condensed), var(--font-feature-deck), sans-serif;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.85rem;
+  color: var(--sienna, #a0522d);
+  text-decoration: none;
+  padding: 0.75rem 1rem;
+}
+.sidebar-source-cta:hover { text-decoration: underline; }
+
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR: POST STATUS BADGE
+   ═══════════════════════════════════════════════ */
+
+.sidebar-post-status {
+  opacity: 0.6;
+  margin-top: 0.5rem;
+}
+
+
+/* ═══════════════════════════════════════════════
+   URGENT NOTES BANNER
+   ═══════════════════════════════════════════════ */
+
+.urgent-banner {
+  border-left: 3px solid var(--burnt-clay, #c0392b);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.5rem;
+  background: rgba(192, 57, 43, 0.04);
+}
+.urgent-banner__label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.25rem;
+  color: var(--burnt-clay, #c0392b);
+}
+.urgent-banner__cta {
+  font-weight: 600;
+}
+.urgent-banner p {
+  font-family: var(--font-feature-text), serif;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin: 0.25rem 0;
 }

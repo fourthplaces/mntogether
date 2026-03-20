@@ -489,7 +489,7 @@ export const postResolvers = {
       return (fg.media ?? []).map((m: unknown) => {
         const rec = m as Record<string, unknown>;
         return {
-          imageUrl: rec.image_url ?? rec.imageUrl,
+          imageUrl: rec.imageUrl,
           caption: rec.caption,
           credit: rec.credit,
         };
@@ -504,7 +504,7 @@ export const postResolvers = {
       if (parent.person !== undefined) return parent.person;
       const fg = await ctx.server.callService<{ person?: Record<string, unknown> }>("Post", `${parent.id}/field_groups`, {});
       if (!fg.person) return null;
-      return { ...fg.person, photoUrl: fg.person.photo_url ?? fg.person.photoUrl };
+      return { ...fg.person, photoUrl: fg.person.photoUrl };
     },
     link: async (parent: { id: string; link?: unknown }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.link !== undefined) return parent.link;
@@ -518,9 +518,9 @@ export const postResolvers = {
         const obj = sa as Record<string, unknown>;
         return { sourceName: obj.sourceName ?? obj.source_name, attribution: obj.attribution };
       }
-      const fg = await ctx.server.callService<{ source_attribution?: Record<string, unknown> }>("Post", `${parent.id}/field_groups`, {});
-      if (!fg.source_attribution) return null;
-      return { sourceName: fg.source_attribution.source_name, attribution: fg.source_attribution.attribution };
+      const fg = await ctx.server.callService<{ sourceAttribution?: Record<string, unknown> }>("Post", `${parent.id}/field_groups`, {});
+      if (!fg.sourceAttribution) return null;
+      return { sourceName: fg.sourceAttribution.sourceName, attribution: fg.sourceAttribution.attribution };
     },
     meta: async (parent: { id: string; meta?: unknown }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.meta !== undefined) return parent.meta;
@@ -531,12 +531,12 @@ export const postResolvers = {
       if (parent.datetime !== undefined) return parent.datetime;
       const fg = await ctx.server.callService<{ datetime?: Record<string, unknown> }>("Post", `${parent.id}/field_groups`, {});
       if (!fg.datetime) return null;
-      return { start: fg.datetime.start_at, end: fg.datetime.end_at, cost: fg.datetime.cost, recurring: fg.datetime.recurring };
+      return { start: fg.datetime.startAt, end: fg.datetime.endAt, cost: fg.datetime.cost, recurring: fg.datetime.recurring };
     },
     postStatus: async (parent: { id: string; postStatus?: unknown; post_status?: unknown }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.postStatus !== undefined || parent.post_status !== undefined) return parent.postStatus ?? parent.post_status ?? null;
-      const fg = await ctx.server.callService<{ post_status?: unknown }>("Post", `${parent.id}/field_groups`, {});
-      return fg.post_status ?? null;
+      const fg = await ctx.server.callService<{ postStatus?: unknown }>("Post", `${parent.id}/field_groups`, {});
+      return fg.postStatus ?? null;
     },
     schedule: async (parent: { id: string; schedule?: unknown[] }, _args: unknown, ctx: GraphQLContext) => {
       if (parent.schedule) return parent.schedule;

@@ -1,4 +1,4 @@
-type IconName = 'chevron-right' | 'arrow-back' | 'play-arrow' | 'place' | 'phone' | 'open-in-new';
+type IconName = 'chevron-right' | 'arrow-back' | 'play-arrow' | 'place' | 'phone' | 'open-in-new' | 'email' | 'link';
 
 interface IconProps {
   name: IconName;

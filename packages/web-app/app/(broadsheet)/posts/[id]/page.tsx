@@ -27,10 +27,14 @@ import { KickerA, KickerB } from "@/components/broadsheet/detail/Kicker";
 import { ArticleMeta } from "@/components/broadsheet/detail/ArticleMeta";
 import { PhotoA } from "@/components/broadsheet/detail/Photo";
 import { PhoneA } from "@/components/broadsheet/detail/Phone";
+import { EmailA } from "@/components/broadsheet/detail/Email";
+import { WebsiteA } from "@/components/broadsheet/detail/Website";
 import { AddressA } from "@/components/broadsheet/detail/Address";
 import { LinksA } from "@/components/broadsheet/detail/Links";
+import { ResourceListA } from "@/components/broadsheet/detail/List";
 import { SidebarCard } from "@/components/broadsheet/detail/SidebarCard";
 import { HoursScheduleLarge } from "@/components/broadsheet/detail/hours/HoursSchedule";
+import { HoursDotsLarge } from "@/components/broadsheet/detail/hours/HoursDots";
 import { AstRenderer } from "@/components/broadsheet/detail/AstRenderer";
 import { RelatedA } from "@/components/broadsheet/detail/Related";
 
@@ -58,6 +62,15 @@ function formatTimeAgo(dateString: string) {
   if (diffInDays < 7) return `${diffInDays} days ago`;
   if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
   return `${Math.floor(diffInDays / 30)} months ago`;
+}
+
+function formatDeadline(dateStr: string): string {
+  try {
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
+  } catch {
+    return dateStr;
+  }
 }
 
 const DAY_NAMES_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -231,33 +244,13 @@ export default function PublicPostDetailPage() {
     <>
       <ArticleNav />
 
-      {/* Admin edit link */}
-      {isAdmin && (
-        <div style={{ marginBottom: "0.5rem" }}>
-          <Link
-            href={`/admin/posts/${postId}`}
-            style={{
-              fontSize: "0.75rem",
-              fontFamily: "var(--font-mono)",
-              color: "var(--sienna, #a0522d)",
-              textDecoration: "none",
-              opacity: 0.7,
-            }}
-          >
-            Edit in CMS &rarr;
-          </Link>
-        </div>
-      )}
-
       {/* Urgent notes banner */}
       {post.urgentNotes && post.urgentNotes.length > 0 && (
-        <div className="callout" style={{ borderColor: "var(--burnt-clay, #c0392b)", marginBottom: "1.5rem" }}>
-          <div style={{ fontFamily: "var(--font-condensed)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "0.25rem" }}>
-            Urgent
-          </div>
+        <div className="urgent-banner">
+          <div className="urgent-banner__label mono-sm">Urgent</div>
           {post.urgentNotes.map((note, i) => (
             <div key={i}>
-              {note.ctaText && <p style={{ fontWeight: 600 }}>{note.ctaText}</p>}
+              {note.ctaText && <p className="urgent-banner__cta">{note.ctaText}</p>}
               <p>{note.content}</p>
             </div>
           ))}
@@ -361,7 +354,7 @@ export default function PublicPostDetailPage() {
 
       {/* Source attribution at bottom of article */}
       {sourceAttribution && (sourceAttribution.sourceName || sourceAttribution.attribution) && (
-        <div className="article-meta mono-sm" style={{ marginTop: "2rem", opacity: 0.7 }}>
+        <div className="footer-rule">
           {sourceAttribution.attribution && <span>{sourceAttribution.attribution}</span>}
           {sourceAttribution.sourceName && sourceAttribution.attribution && <span> · </span>}
           {sourceAttribution.sourceName && <span>{sourceAttribution.sourceName}</span>}
@@ -398,28 +391,30 @@ export default function PublicPostDetailPage() {
       {/* Legacy schedules (events, one-off times) */}
       {post.schedules && post.schedules.length > 0 && !weekSchedule && (
         <SidebarCard header="Schedule">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.375rem" }}>
-            {post.schedules.map((s) => (
-              <div key={s.id} className="mono-sm">
-                {formatSchedule(s)}
-              </div>
-            ))}
-          </div>
+          {post.schedules.map((s) => (
+            <div key={s.id} className="address-a">
+              <div className="address-a__street">{formatSchedule(s)}</div>
+            </div>
+          ))}
         </SidebarCard>
       )}
 
       {/* Datetime from field groups (event dates) */}
       {post.datetime && post.datetime.start && (
         <SidebarCard header="Event">
-          <div className="mono-sm">
-            <div>{new Date(post.datetime.start).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}</div>
+          <div className="address-a">
+            <div className="address-a__street">
+              {new Date(post.datetime.start).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
+            </div>
             {post.datetime.end && (
-              <div style={{ opacity: 0.7 }}>
+              <div className="address-a__city-state mono-sm">
                 through {new Date(post.datetime.end).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
               </div>
             )}
             {post.datetime.cost && (
-              <div style={{ marginTop: "0.25rem" }}>{post.datetime.cost}</div>
+              <div className="address-a__directions mono-sm">
+                {post.datetime.cost}
+              </div>
             )}
           </div>
         </SidebarCard>
@@ -428,7 +423,7 @@ export default function PublicPostDetailPage() {
       {/* Contact info */}
       {hasContacts && (
         <SidebarCard header="Contact">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+          <div className="sidebar-card__contacts">
             {phones.map((c) => (
               <PhoneA
                 key={c.id}
@@ -440,88 +435,69 @@ export default function PublicPostDetailPage() {
               />
             ))}
             {emails.map((c) => (
-              <div key={c.id} className="mono-sm">
-                {c.contactLabel && <div style={{ fontWeight: 600, marginBottom: "0.125rem" }}>{c.contactLabel}</div>}
-                <a href={`mailto:${c.contactValue}`} style={{ color: "var(--sienna, #a0522d)" }}>{c.contactValue}</a>
-              </div>
+              <EmailA
+                key={c.id}
+                email={{
+                  address: c.contactValue,
+                  label: c.contactLabel || undefined,
+                }}
+              />
             ))}
             {websites.map((c) => (
-              <div key={c.id} className="mono-sm">
-                {c.contactLabel && <div style={{ fontWeight: 600, marginBottom: "0.125rem" }}>{c.contactLabel}</div>}
-                <a
-                  href={c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ color: "var(--sienna, #a0522d)", wordBreak: "break-all" }}
-                >
-                  {c.contactValue.replace(/^https?:\/\//, "")}
-                </a>
-              </div>
+              <WebsiteA
+                key={c.id}
+                website={{
+                  url: c.contactValue.startsWith("http") ? c.contactValue : `https://${c.contactValue}`,
+                  label: c.contactLabel || undefined,
+                }}
+              />
             ))}
           </div>
         </SidebarCard>
       )}
 
-      {/* Address from person/link field groups */}
+      {/* Link from field groups */}
       {post.link && post.link.url && (
         <SidebarCard header="Link">
-          <div className="mono-sm">
-            <a
-              href={post.link.url.startsWith("http") ? post.link.url : `https://${post.link.url}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{ color: "var(--sienna, #a0522d)" }}
-            >
-              {post.link.label || post.link.url.replace(/^https?:\/\//, "")}
-            </a>
-            {post.link.deadline && (
-              <div style={{ marginTop: "0.25rem", opacity: 0.7 }}>Deadline: {post.link.deadline}</div>
-            )}
-          </div>
+          <LinksA
+            links={[
+              {
+                title: post.link.label || post.link.url.replace(/^https?:\/\//, ""),
+                url: post.link.url.startsWith("http") ? post.link.url : `https://${post.link.url}`,
+              },
+            ]}
+            header=""
+          />
+          {post.link.deadline && (
+            <div className="address-a__city-state mono-sm">
+              Deadline: {formatDeadline(post.link.deadline)}
+            </div>
+          )}
         </SidebarCard>
       )}
 
       {/* Items list (resources, inventory, etc.) */}
       {post.items && post.items.length > 0 && (
         <SidebarCard header="Items">
-          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-            {post.items.map((item, i) => (
-              <div key={i} className="mono-sm">
-                <span style={{ fontWeight: 600 }}>{item.name}</span>
-                {item.detail && <span style={{ opacity: 0.7 }}> · {item.detail}</span>}
-              </div>
-            ))}
-          </div>
+          <ResourceListA items={post.items.map((item) => ({ name: item.name, detail: item.detail || "" }))} />
         </SidebarCard>
       )}
 
       {/* Source link CTA */}
       {post.sourceUrl && (
-        <a
-          href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={handleSourceClick}
-          className="sidebar-card"
-          style={{
-            display: "block",
-            textAlign: "center",
-            fontFamily: "var(--font-condensed)",
-            fontWeight: 700,
-            textTransform: "uppercase",
-            letterSpacing: "0.05em",
-            color: "var(--sienna, #a0522d)",
-            textDecoration: "none",
-            padding: "0.75rem 1rem",
-          }}
-        >
-          Visit Source &rarr;
-        </a>
+        <SidebarCard header="Source">
+          <WebsiteA
+            website={{
+              url: post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`,
+              label: "Original Source",
+            }}
+          />
+        </SidebarCard>
       )}
 
       {/* Post status badge */}
       {post.postStatus && post.postStatus.state && (
-        <div className="mono-sm" style={{ opacity: 0.6, marginTop: "0.5rem" }}>
+        <div className="sidebar-post-status mono-sm">
           {post.postStatus.verified && <span>Verified · </span>}
           <span>{post.postStatus.state}</span>
         </div>
@@ -530,9 +506,45 @@ export default function PublicPostDetailPage() {
   );
 
   return (
-    <NewspaperFrame>
-      {headerContent}
-      <ArticlePage main={mainContent} sidebar={sidebarContent} />
-    </NewspaperFrame>
+    <>
+      {isAdmin && (
+        <div
+          style={{
+            background: "#b45309",
+            color: "#fff",
+            padding: "0.5rem 1rem",
+            fontSize: "0.8125rem",
+            fontFamily: "var(--font-geist-mono), monospace",
+            letterSpacing: "0.05em",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.75rem",
+          }}
+        >
+          <span
+            style={{
+              background: "rgba(255,255,255,0.2)",
+              padding: "0.125rem 0.5rem",
+              borderRadius: "4px",
+              fontWeight: 600,
+            }}
+          >
+            Admin
+          </span>
+          <span>Viewing published post</span>
+          <Link
+            href={`/admin/posts/${postId}`}
+            style={{ color: "#fff", textDecoration: "underline" }}
+          >
+            Edit in CMS &rarr;
+          </Link>
+        </div>
+      )}
+      <NewspaperFrame>
+        {headerContent}
+        <ArticlePage main={mainContent} sidebar={sidebarContent} />
+      </NewspaperFrame>
+    </>
   );
 }

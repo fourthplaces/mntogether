@@ -37,6 +37,16 @@ export interface PhoneData {
   label?: string;
 }
 
+export interface EmailData {
+  address: string;
+  label?: string;
+}
+
+export interface WebsiteData {
+  url: string;
+  label?: string;
+}
+
 export interface RelatedArticle {
   id: string;
   kicker: string;

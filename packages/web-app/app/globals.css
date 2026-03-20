@@ -17,8 +17,9 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   font-family: system-ui, -apple-system, sans-serif;
-  background-color: var(--color-surface);
+  background-color: var(--deep-forest);
   color: var(--color-text-primary);
+  overflow-x: hidden;
 }
 
 img, picture, video, canvas, svg {

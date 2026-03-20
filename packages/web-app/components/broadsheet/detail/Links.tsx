@@ -17,7 +17,7 @@ interface LinksAProps {
 export function LinksA({ links, header = 'See Also' }: LinksAProps) {
   return (
     <div className="links-a">
-      <div className="links-a__header mono-sm">{header}</div>
+      {header && <div className="links-a__header mono-sm">{header}</div>}
       {links.map((link, i) => {
         const domain = extractDomain(link.url);
         return (
