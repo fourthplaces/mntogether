@@ -10,7 +10,7 @@ export default function BroadsheetLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ backgroundColor: "var(--deep-forest)", minHeight: "100vh" }}>
+    <div className="broadsheet-page">
       {children}
       <SiteFooter />
     </div>

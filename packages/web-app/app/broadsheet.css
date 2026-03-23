@@ -72,6 +72,7 @@ body:has(.broadsheet-page) {
 .broadsheet-page {
   background-color: var(--deep-forest);
   min-height: 100vh;
+  overflow-x: clip;
 }
 
 
