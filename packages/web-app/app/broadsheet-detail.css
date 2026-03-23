@@ -405,16 +405,19 @@
 }
 .links-a__header { font-size: 0.75rem; color: var(--pebble); margin-bottom: 10px; }
 .links-a__item {
-  display: block; padding: 8px 0;
+  display: flex; align-items: baseline; gap: 0; padding: 8px 0;
   text-decoration: none; color: var(--ink);
+  flex-wrap: wrap;
 }
 .links-a__item:hover .links-a__title { text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
 .links-a__title {
   font-family: var(--font-body);
   font-style: italic; font-size: 0.95rem;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex: 1;
 }
-.links-a__arrow { color: var(--pebble); margin-right: 0.3em; }
-.links-a__domain { font-size: 0.72rem; color: var(--pebble); margin-left: 1.2em; display: block; }
+.links-a__arrow { color: var(--pebble); margin-right: 0.3em; flex-shrink: 0; }
+.links-a__domain { font-size: 0.72rem; color: var(--pebble); margin-left: 1.2em; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Option B: Margin References (numbered footnotes) */
 .links-b {
@@ -426,6 +429,7 @@
   text-decoration: none; color: var(--ink);
 }
 .links-b__item:hover .links-b__title { text-decoration: underline; }
+.links-b__item > div { min-width: 0; }
 .links-b__num {
   font-family: var(--font-display);
   font-weight: 500; font-size: 0.95rem;
@@ -433,6 +437,7 @@
 }
 .links-b__title {
   font-family: var(--font-body); font-style: italic; font-size: 0.9rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .links-b__domain { font-size: 0.72rem; color: var(--pebble); display: block; }
 
@@ -496,13 +501,9 @@
 .phone-a__number {
   font-size: 0.85rem; color: var(--ink);
   text-decoration: none;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .phone-a__number:hover { text-decoration: underline; }
-.phone-a__cta {
-  font-size: 0.75rem; color: var(--slate);
-  text-decoration: none; margin-left: auto;
-}
-.phone-a__cta:hover { color: var(--ink); text-decoration: underline; }
 
 /* Option B: Display Masthead Number */
 .phone-b { margin-bottom: 8px; }
@@ -517,6 +518,7 @@
   font-weight: 400; font-size: 1.4rem;
   color: var(--ink); text-decoration: none;
   display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .phone-b__number:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .phone-b__rule { border-top: 1px solid rgba(0,0,0,0.06); margin-top: 8px; }
@@ -537,13 +539,9 @@
 .email-a__address {
   font-size: 0.85rem; color: var(--ink);
   text-decoration: none;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .email-a__address:hover { text-decoration: underline; }
-.email-a__cta {
-  font-size: 0.75rem; color: var(--slate);
-  text-decoration: none; margin-left: auto;
-}
-.email-a__cta:hover { color: var(--ink); text-decoration: underline; }
 
 /* Option B: Display Masthead — matches Phone B */
 .email-b { margin-bottom: 8px; }
@@ -558,6 +556,7 @@
   font-size: 0.95rem;
   color: var(--ink); text-decoration: none;
   display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .email-b__address:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .email-b__rule { border-top: 1px solid rgba(0,0,0,0.06); margin-top: 8px; }
@@ -578,13 +577,9 @@
 .website-a__url {
   font-size: 0.85rem; color: var(--ink);
   text-decoration: none;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .website-a__url:hover { text-decoration: underline; }
-.website-a__cta {
-  font-size: 0.75rem; color: var(--slate);
-  text-decoration: none; margin-left: auto;
-}
-.website-a__cta:hover { color: var(--ink); text-decoration: underline; }
 
 /* Option B: Display Masthead — matches Phone B */
 .website-b { margin-bottom: 8px; }
@@ -599,6 +594,7 @@
   font-size: 0.95rem;
   color: var(--ink); text-decoration: none;
   display: block;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .website-b__url:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .website-b__rule { border-top: 1px solid rgba(0,0,0,0.06); margin-top: 8px; }
@@ -1031,21 +1027,7 @@ ol.list-b li::before {
 
 
 /* ═══════════════════════════════════════════════
-   FOOTER (simple, inside-paper variant)
-   ═══════════════════════════════════════════════ */
-
-.footer-rule {
-  border-top: 1px solid rgba(0,0,0,0.08);
-  margin-top: 40px;
-  padding: 16px 0;
-  font-size: 0.72rem;
-  color: var(--pebble);
-  text-align: center;
-}
-
-
-/* ═══════════════════════════════════════════════
-   SIDEBAR: SOURCE CTA
+   SIDEBAR: CONTACTS STACK
    ═══════════════════════════════════════════════ */
 
 .sidebar-card__contacts {
@@ -1057,28 +1039,250 @@ ol.list-b li::before {
   margin-top: 0;
 }
 
-.sidebar-source-cta {
-  display: block;
-  text-align: center;
-  font-family: var(--font-feature-deck-condensed), var(--font-feature-deck), sans-serif;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.85rem;
-  color: var(--sienna, #a0522d);
-  text-decoration: none;
-  padding: 0.75rem 1rem;
+
+/* ═══════════════════════════════════════════════
+   COMPONENT: PERSON CARD
+   ═══════════════════════════════════════════════ */
+
+/* Option A: Sidebar Spotlight — photo + name + role + quote */
+.person-card-a {
+  border-left: 4px solid var(--pebble);
+  padding: 10px 0 10px 14px;
 }
-.sidebar-source-cta:hover { text-decoration: underline; }
+.person-card-a__header {
+  display: flex; align-items: center; gap: 12px;
+}
+.person-card-a__photo {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  object-fit: cover;
+  filter: saturate(0.95) contrast(0.77) brightness(0.96);
+  flex-shrink: 0;
+}
+.person-card-a__photo-placeholder {
+  width: 48px; height: 48px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.04);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--pebble);
+  flex-shrink: 0;
+}
+.person-card-a__info { min-width: 0; }
+.person-card-a__name {
+  font-size: 1rem;
+  color: var(--ink);
+  line-height: 1.2;
+}
+.person-card-a__role {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-top: 2px;
+}
+.person-card-a__quote {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--slate);
+  margin: 10px 0 0;
+  padding: 0;
+  border: none;
+}
+.person-card-a__bio {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--ink);
+  margin: 8px 0 0;
+}
+
+/* Option B: Compact Byline — no photo, name + role inline */
+.person-card-b {
+  padding: 6px 0;
+}
+.person-card-b__name {
+  font-size: 0.95rem;
+  color: var(--ink);
+  display: inline;
+}
+.person-card-b__role {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-left: 0.5em;
+}
+.person-card-b__bio {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--slate);
+  margin: 6px 0 0;
+}
 
 
 /* ═══════════════════════════════════════════════
-   SIDEBAR: POST STATUS BADGE
+   COMPONENT: EVENT DATE
+   Calendar badge pattern adapted from BulletinEvent
    ═══════════════════════════════════════════════ */
 
-.sidebar-post-status {
-  opacity: 0.6;
-  margin-top: 0.5rem;
+/* Option A: Calendar Badge (sidebar) */
+.event-date-a__row {
+  display: flex; align-items: flex-start; gap: 12px;
+}
+.event-date-a__cal {
+  flex-shrink: 0;
+  width: 48px;
+  text-align: center;
+}
+.event-date-a__month {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  background: var(--mn-plum);
+  color: var(--chalk);
+  padding: 2px 0;
+}
+.event-date-a__day {
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 500;
+  color: var(--mn-plum);
+  line-height: 1;
+  padding: 4px 0 6px;
+  border: 1px solid rgba(93,41,95,0.2);
+  border-top: none;
+}
+.event-date-a__info { min-width: 0; padding-top: 1px; }
+.event-date-a__dow {
+  font-size: 0.92rem;
+  color: var(--ink);
+}
+.event-date-a__range {
+  font-family: var(--font-body);
+  font-size: 0.82rem;
+  color: var(--slate);
+  margin-top: 2px;
+}
+.event-date-a__cost {
+  font-size: 0.75rem;
+  color: var(--slate);
+  margin-top: 4px;
+}
+
+/* Option B: Compact Inline — single line */
+.event-date-b {
+  font-family: var(--font-body);
+  font-size: 0.92rem;
+  color: var(--ink);
+  padding: 4px 0;
+}
+.event-date-b__sep { color: var(--pebble); }
+.event-date-b__cost { color: var(--slate); }
+
+
+/* ═══════════════════════════════════════════════
+   COMPONENT: STATUS BADGE
+   ═══════════════════════════════════════════════ */
+
+/* Option A: Inline Verified Badge */
+.status-badge-a {
+  display: flex; align-items: center; gap: 2px;
+  font-size: 0.75rem;
+  margin-top: 12px;
+}
+.status-badge-a__icon {
+  color: var(--moss);
+  vertical-align: -2px;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+.status-badge-a__label {
+  font-size: 0.75rem;
+  color: var(--moss);
+}
+.status-badge-a__sep { color: var(--pebble); }
+.status-badge-a__state {
+  font-size: 0.75rem;
+  color: var(--slate);
+}
+
+/* Option B: Pill Badge */
+.status-badge-b {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-top: 12px;
+}
+.status-badge-b__pill {
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  background: rgba(0,0,0,0.04);
+  color: var(--slate);
+}
+.status-badge-b__pill--verified {
+  background: rgba(61,90,62,0.08);
+  color: var(--moss);
+}
+
+
+/* ═══════════════════════════════════════════════
+   COMPONENT: SOURCE ATTRIBUTION
+   ═══════════════════════════════════════════════ */
+
+/* Option A: Centered Footer Rule — below article body */
+.source-attribution-a {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  margin-top: 40px;
+  padding: 16px 0;
+  font-size: 0.75rem;
+  color: var(--pebble);
+  text-align: center;
+}
+.source-attribution-a__sep { margin: 0 0.4em; }
+
+/* Option B: Left-Aligned Byline */
+.source-attribution-b {
+  border-top: 1px solid rgba(0,0,0,0.08);
+  margin-top: 40px;
+  padding: 16px 0;
+}
+.source-attribution-b__source {
+  font-size: 0.75rem;
+  color: var(--pebble);
+  margin-bottom: 4px;
+}
+.source-attribution-b__attribution {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.82rem;
+  color: var(--slate);
+}
+
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR: SCHEDULE ENTRY (legacy one-off schedules)
+   ═══════════════════════════════════════════════ */
+
+.schedule-entry {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(0,0,0,0.04);
+}
+.schedule-entry:last-child { border-bottom: none; }
+.schedule-entry__text {
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  color: var(--ink);
+}
+
+
+/* ═══════════════════════════════════════════════
+   SIDEBAR: LINK DEADLINE
+   ═══════════════════════════════════════════════ */
+
+.link-deadline {
+  font-size: 0.75rem;
+  color: var(--slate);
+  margin-top: 8px;
+  font-style: italic;
 }
 
 

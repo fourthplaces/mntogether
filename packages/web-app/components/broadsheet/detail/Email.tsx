@@ -8,9 +8,6 @@ export function EmailA({ email }: { email: EmailData }) {
       <a href={`mailto:${email.address}`} className="email-a__address mono-md">
         {email.address}
       </a>
-      <a href={`mailto:${email.address}`} className="email-a__cta mono-sm">
-        Email <Icon name="chevron-right" size={12} />
-      </a>
     </div>
   );
 }

@@ -1,6 +1,6 @@
 # Root Editorial — Outstanding Work
 
-> **Last updated:** 2026-03-19
+> **Last updated:** 2026-03-20
 >
 > What's done, what's next, and what's punted. This is the single source of truth for prioritization.
 
@@ -27,6 +27,7 @@
 | **Story Editor** | Plate.js WYSIWYG replaces markdown textarea. ArticlePreview with web-app body styling. Field group panels on edit page (media, meta, person) and detail page (link, source, datetime, status, items). 7 upsert endpoints + GraphQL mutations. "Open Preview" button in EditorTopBar. |
 | **Editor UX Fixes** | DnD block reordering via @platejs/dnd. TurnIntoMenu for block type conversion. Fixed Turbopack resolution, Slate SVG errors, void plugin input focus, content loading race condition, save handler. Lucide icons replace all Unicode/emoji hacks. |
 | **Data Model Consolidation** | Renamed `description` → `body_raw`, dropped `description_markdown` and `summary`. Full-stack rename across migration, Rust server, GraphQL, admin-app, web-app. Seed data updated with body tier fields (`body_heavy/medium/light`). Search vector trigger updated. Migration 211. |
+| **Post Detail Pages** | Full broadsheet detail layout: `(broadsheet)` route group (no site chrome), NewspaperFrame, ArticlePage 2/3+1/3 grid. Field groups load via OptionalUser (was AdminUser — blocked all public access). Components: EmailA, WebsiteA, PhoneA, AddressA, LinksA, ResourceListA. SVG icon sprite. Related posts endpoint + `Post::find_related()` (county → tags → type → recency). Admin preview bar. SiteFooter. Sidebar data backfill migration 212. |
 
 ---
 
@@ -55,12 +56,12 @@ Triage UI for incoming Root Signal content.
 - **Depends on:** Story Editor (✅ done) for "Edit & Approve" flow, Root Signal (#1) for real data
 - **Scope:** Admin page with filtered post list, bulk approve/reject, edit-before-approve flow
 
-### 3. Broadsheet Detail Pages (partially done)
+### 3. Post Detail Page Polish
 
-Post detail route `/posts/[id]` is wired with AstRenderer for body_ast and broadsheet ArticlePage layout. Remaining:
+Core detail layout done (NewspaperFrame, ArticlePage, field group components, related posts, SiteFooter). Remaining:
 
-- **Related articles sidebar** — `RelatedA`/`RelatedB` components exist but aren't wired (need API endpoint)
-- **Mobile responsive** — detail page should stack sidebar above main on mobile
+- **Full component audit** — sidebar fields (schedule, link, deadline, items) render as unstyled text instead of proper detail components (HoursScheduleA, LinksA, etc.). Need to map each field group type to the correct A/B component variant.
+- **Mobile responsive** — detail page should stack sidebar below main on mobile
 - **Post click navigation** — broadsheet homepage cards may not link to detail yet
 
 ### 4. Seed Missing Row Templates

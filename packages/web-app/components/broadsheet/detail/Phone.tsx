@@ -8,9 +8,6 @@ export function PhoneA({ phone }: { phone: PhoneData }) {
       <a href={`tel:${phone.number}`} className="phone-a__number mono-md">
         {phone.display || phone.number}
       </a>
-      <a href={`tel:${phone.number}`} className="phone-a__cta mono-sm">
-        Call <Icon name="chevron-right" size={12} />
-      </a>
     </div>
   );
 }

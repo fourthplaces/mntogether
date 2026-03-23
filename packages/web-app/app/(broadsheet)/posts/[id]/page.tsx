@@ -12,7 +12,7 @@ import { useParams } from "next/navigation";
 import ReactMarkdown from "react-markdown";
 import { useQuery, useMutation } from "urql";
 import { useEffect, useState } from "react";
-import { PostDetailPublicQuery, TrackPostViewMutation, TrackPostClickMutation } from "@/lib/graphql/public";
+import { PostDetailPublicQuery, TrackPostViewMutation } from "@/lib/graphql/public";
 import { isAuthenticated } from "@/lib/auth/actions";
 import { resolveDetailVariants } from "@/lib/broadsheet/detail-variants";
 
@@ -34,9 +34,13 @@ import { LinksA } from "@/components/broadsheet/detail/Links";
 import { ResourceListA } from "@/components/broadsheet/detail/List";
 import { SidebarCard } from "@/components/broadsheet/detail/SidebarCard";
 import { HoursScheduleLarge } from "@/components/broadsheet/detail/hours/HoursSchedule";
-import { HoursDotsLarge } from "@/components/broadsheet/detail/hours/HoursDots";
 import { AstRenderer } from "@/components/broadsheet/detail/AstRenderer";
 import { RelatedA } from "@/components/broadsheet/detail/Related";
+import { PersonCardA } from "@/components/broadsheet/detail/PersonCard";
+import { EventDateA } from "@/components/broadsheet/detail/EventDate";
+import { StatusBadgeA } from "@/components/broadsheet/detail/StatusBadge";
+import { SourceAttributionA } from "@/components/broadsheet/detail/SourceAttribution";
+import { UrgentBanner } from "@/components/broadsheet/detail/UrgentBanner";
 
 import type { WeekSchedule } from "@/lib/broadsheet/hours";
 
@@ -158,7 +162,6 @@ export default function PublicPostDetailPage() {
   const post = data?.post;
 
   const [, trackView] = useMutation(TrackPostViewMutation);
-  const [, trackClick] = useMutation(TrackPostClickMutation);
 
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -172,10 +175,6 @@ export default function PublicPostDetailPage() {
       trackView({ postId }).catch(() => {});
     }
   }, [postId, trackView]);
-
-  const handleSourceClick = () => {
-    trackClick({ postId }).catch(() => {});
-  };
 
   // Loading skeleton
   if (isLoading) {
@@ -246,15 +245,7 @@ export default function PublicPostDetailPage() {
 
       {/* Urgent notes banner */}
       {post.urgentNotes && post.urgentNotes.length > 0 && (
-        <div className="urgent-banner">
-          <div className="urgent-banner__label mono-sm">Urgent</div>
-          {post.urgentNotes.map((note, i) => (
-            <div key={i}>
-              {note.ctaText && <p className="urgent-banner__cta">{note.ctaText}</p>}
-              <p>{note.content}</p>
-            </div>
-          ))}
-        </div>
+        <UrgentBanner notes={post.urgentNotes} />
       )}
 
       {/* Kicker (category tags) */}
@@ -354,11 +345,10 @@ export default function PublicPostDetailPage() {
 
       {/* Source attribution at bottom of article */}
       {sourceAttribution && (sourceAttribution.sourceName || sourceAttribution.attribution) && (
-        <div className="footer-rule">
-          {sourceAttribution.attribution && <span>{sourceAttribution.attribution}</span>}
-          {sourceAttribution.sourceName && sourceAttribution.attribution && <span> · </span>}
-          {sourceAttribution.sourceName && <span>{sourceAttribution.sourceName}</span>}
-        </div>
+        <SourceAttributionA
+          attribution={sourceAttribution.attribution}
+          sourceName={sourceAttribution.sourceName}
+        />
       )}
 
       {/* Related posts */}
@@ -392,8 +382,8 @@ export default function PublicPostDetailPage() {
       {post.schedules && post.schedules.length > 0 && !weekSchedule && (
         <SidebarCard header="Schedule">
           {post.schedules.map((s) => (
-            <div key={s.id} className="address-a">
-              <div className="address-a__street">{formatSchedule(s)}</div>
+            <div key={s.id} className="schedule-entry">
+              <span className="schedule-entry__text">{formatSchedule(s)}</span>
             </div>
           ))}
         </SidebarCard>
@@ -402,21 +392,11 @@ export default function PublicPostDetailPage() {
       {/* Datetime from field groups (event dates) */}
       {post.datetime && post.datetime.start && (
         <SidebarCard header="Event">
-          <div className="address-a">
-            <div className="address-a__street">
-              {new Date(post.datetime.start).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" })}
-            </div>
-            {post.datetime.end && (
-              <div className="address-a__city-state mono-sm">
-                through {new Date(post.datetime.end).toLocaleDateString("en-US", { month: "long", day: "numeric" })}
-              </div>
-            )}
-            {post.datetime.cost && (
-              <div className="address-a__directions mono-sm">
-                {post.datetime.cost}
-              </div>
-            )}
-          </div>
+          <EventDateA
+            start={post.datetime.start}
+            end={post.datetime.end}
+            cost={post.datetime.cost}
+          />
         </SidebarCard>
       )}
 
@@ -469,7 +449,7 @@ export default function PublicPostDetailPage() {
             header=""
           />
           {post.link.deadline && (
-            <div className="address-a__city-state mono-sm">
+            <div className="link-deadline">
               Deadline: {formatDeadline(post.link.deadline)}
             </div>
           )}
@@ -483,24 +463,40 @@ export default function PublicPostDetailPage() {
         </SidebarCard>
       )}
 
+      {/* Person (spotlight, about) */}
+      {post.person && post.person.name && (
+        <SidebarCard header="About">
+          <PersonCardA person={{
+            name: post.person.name,
+            role: post.person.role,
+            bio: post.person.bio,
+            photoUrl: post.person.photoUrl,
+            quote: post.person.quote,
+          }} />
+        </SidebarCard>
+      )}
+
       {/* Source link CTA */}
       {post.sourceUrl && (
         <SidebarCard header="Source">
-          <WebsiteA
-            website={{
-              url: post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`,
-              label: "Original Source",
-            }}
+          <LinksA
+            links={[
+              {
+                title: sourceAttribution?.sourceName || "Original Source",
+                url: post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`,
+              },
+            ]}
+            header=""
           />
         </SidebarCard>
       )}
 
       {/* Post status badge */}
       {post.postStatus && post.postStatus.state && (
-        <div className="sidebar-post-status mono-sm">
-          {post.postStatus.verified && <span>Verified · </span>}
-          <span>{post.postStatus.state}</span>
-        </div>
+        <StatusBadgeA
+          state={post.postStatus.state}
+          verified={post.postStatus.verified}
+        />
       )}
     </>
   );

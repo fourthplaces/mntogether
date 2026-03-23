@@ -16,9 +16,6 @@ export function WebsiteA({ website }: { website: WebsiteData }) {
       <a href={website.url} className="website-a__url mono-md">
         {website.label || extractDomain(website.url)}
       </a>
-      <a href={website.url} className="website-a__cta mono-sm">
-        Visit <Icon name="chevron-right" size={12} />
-      </a>
     </div>
   );
 }
