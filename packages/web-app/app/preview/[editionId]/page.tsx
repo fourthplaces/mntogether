@@ -92,48 +92,21 @@ export default function PreviewPage() {
   return (
     <div className="broadsheet-page">
       {/* Preview banner */}
-      <div
-        style={{
-          background: "#b45309",
-          color: "#fff",
-          padding: "0.5rem 1rem",
-          fontSize: "0.8125rem",
-          fontFamily: "var(--font-geist-mono), monospace",
-          letterSpacing: "0.05em",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "0.75rem",
-        }}
-      >
-        <span
-          style={{
-            background: "rgba(255,255,255,0.2)",
-            padding: "0.125rem 0.5rem",
-            borderRadius: "4px",
-            fontWeight: 600,
-          }}
-        >
-          {statusLabel}
-        </span>
-        <span>
-          {edition.status !== "published" ? "PREVIEW — Not Published" : "PREVIEW"}
-        </span>
-        <button
-          onClick={handleRefresh}
-          style={{
-            background: "rgba(255,255,255,0.15)",
-            border: "1px solid rgba(255,255,255,0.25)",
-            borderRadius: "4px",
-            color: "#fff",
-            padding: "0.125rem 0.5rem",
-            fontSize: "0.75rem",
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          {fetching ? "⟳" : "Refresh"}
-        </button>
+      <div className="admin-bar">
+        <div className="admin-bar__inner">
+          <span className="admin-bar__badge">
+            {statusLabel}
+          </span>
+          <span>
+            {edition.status !== "published" ? "PREVIEW — Not Published" : "PREVIEW"}
+          </span>
+          <button
+            onClick={handleRefresh}
+            className="admin-bar__button"
+          >
+            {fetching ? "⟳" : "Refresh"}
+          </button>
+        </div>
       </div>
       <BroadsheetRenderer edition={edition} />
       <SiteFooter />

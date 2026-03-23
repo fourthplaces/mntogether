@@ -3,6 +3,53 @@
    Article-specific components for post detail views.
    ═══════════════════════════════════════════════ */
 
+
+/* ═══════════════════════════════════════════════
+   ADMIN BAR — amber banner above newspaper
+   Constrained to newspaper max-width so it never
+   causes horizontal overflow.
+   ═══════════════════════════════════════════════ */
+
+.admin-bar {
+  background: #b45309;
+  color: #fff;
+}
+.admin-bar__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  font-family: var(--font-geist-mono), monospace;
+  letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+.admin-bar__badge {
+  background: rgba(255,255,255,0.2);
+  padding: 0.125rem 0.5rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.admin-bar__link {
+  color: #fff;
+  text-decoration: underline;
+}
+.admin-bar__button {
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  color: #fff;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+.admin-bar__button:hover {
+  background: rgba(255,255,255,0.25);
+}
+
 /* ── Inline icons (Material Icons Filled — local SVG sprite) ── */
 .icon {
   display: inline-block;

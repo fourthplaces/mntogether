@@ -504,37 +504,17 @@ export default function PublicPostDetailPage() {
   return (
     <>
       {isAdmin && (
-        <div
-          style={{
-            background: "#b45309",
-            color: "#fff",
-            padding: "0.5rem 1rem",
-            fontSize: "0.8125rem",
-            fontFamily: "var(--font-geist-mono), monospace",
-            letterSpacing: "0.05em",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: "0.75rem",
-          }}
-        >
-          <span
-            style={{
-              background: "rgba(255,255,255,0.2)",
-              padding: "0.125rem 0.5rem",
-              borderRadius: "4px",
-              fontWeight: 600,
-            }}
-          >
-            Admin
-          </span>
-          <span>Viewing published post</span>
-          <Link
-            href={`/admin/posts/${postId}`}
-            style={{ color: "#fff", textDecoration: "underline" }}
-          >
-            Edit in CMS &rarr;
-          </Link>
+        <div className="admin-bar">
+          <div className="admin-bar__inner">
+            <span className="admin-bar__badge">Admin</span>
+            <span>Viewing published post</span>
+            <Link
+              href={`/admin/posts/${postId}`}
+              className="admin-bar__link"
+            >
+              Edit in CMS &rarr;
+            </Link>
+          </div>
         </div>
       )}
       <NewspaperFrame>
