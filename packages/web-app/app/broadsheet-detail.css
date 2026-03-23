@@ -291,6 +291,28 @@
   letter-spacing: 0.5em;
 }
 
+/* Body A lists — mirrors list-a styling for inline rich-text lists */
+.body-a ul, .body-a ol { list-style: none; padding: 0; margin: 0 0 1.2em; }
+.body-a li {
+  font-family: var(--font-body);
+  font-size: 1rem; line-height: 1.6;
+  text-align: justify; hyphens: auto;
+  padding: 0.3em 0 0.3em 1.2em;
+  text-indent: -1.2em;
+}
+.body-a ul li::before {
+  content: '\2022\00a0';
+  color: var(--graphite);
+}
+.body-a ol { counter-reset: body-list-counter; }
+.body-a ol li { text-indent: 0; padding-left: 2em; counter-increment: body-list-counter; }
+.body-a ol li::before {
+  content: counter(body-list-counter) '.\00a0\00a0';
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--ink);
+}
+
 /* Option B: Column Narrative — left-aligned, single column, modern */
 .body-b { max-width: 38em; }
 .body-b p {
@@ -325,6 +347,27 @@
   font-family: var(--font-display);
   font-weight: 400; font-style: italic;
   font-size: 1.2rem; line-height: 1.3;
+  color: var(--ink);
+}
+
+/* Body B lists — mirrors list-a styling, left-aligned to match body-b */
+.body-b ul, .body-b ol { list-style: none; padding: 0; margin: 0 0 1.1em; }
+.body-b li {
+  font-family: var(--font-body);
+  font-size: 1.05rem; line-height: 1.55;
+  padding: 0.3em 0 0.3em 1.2em;
+  text-indent: -1.2em;
+}
+.body-b ul li::before {
+  content: '\2022\00a0';
+  color: var(--graphite);
+}
+.body-b ol { counter-reset: body-list-counter; }
+.body-b ol li { text-indent: 0; padding-left: 2em; counter-increment: body-list-counter; }
+.body-b ol li::before {
+  content: counter(body-list-counter) '.\00a0\00a0';
+  font-family: var(--font-display);
+  font-weight: 700;
   color: var(--ink);
 }
 

@@ -120,9 +120,9 @@ function renderElement(node: AstElement, key: number): React.ReactNode {
     case "blockquote":
       return <blockquote key={key}>{children}</blockquote>;
     case "ul":
-      return <ul key={key}>{children}</ul>;
+      return <ul key={key} className="list-a">{children}</ul>;
     case "ol":
-      return <ol key={key}>{children}</ol>;
+      return <ol key={key} className="list-a">{children}</ol>;
     case "li":
       return <li key={key}>{children}</li>;
     case "a":
