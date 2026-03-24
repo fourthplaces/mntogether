@@ -1509,6 +1509,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-story:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-story:hover .tick-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1521,12 +1522,19 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-story__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ── TICKER URGENT ── spec: notice (urgent) */
@@ -1537,6 +1545,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-urgent:hover { background: var(--type-urgent-tint); }
 .tick-urgent:hover .tick-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1557,8 +1566,11 @@ body:has(.broadsheet-page) {
 .tick-urgent__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ── TICKER UPDATE ── spec: notice (default) */
@@ -1569,6 +1581,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-update:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-update:hover .tick-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1594,8 +1607,11 @@ body:has(.broadsheet-page) {
 .tick-update__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ── TICKER EVENT ── */
@@ -1606,6 +1622,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-event:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-event:hover .tick-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1626,8 +1643,11 @@ body:has(.broadsheet-page) {
 .tick-event__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ── TICKER REQUEST ── spec: exchange (need) */
@@ -1638,6 +1658,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-request:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-request:hover .tick-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1650,12 +1671,19 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-request__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ── TICKER OFFER ── spec: exchange (aid) */
@@ -1666,6 +1694,7 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
+  overflow: hidden;
 }
 .tick-offer:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-offer:hover .tick-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1678,12 +1707,19 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-offer__meta {
   font-size: 0.72rem;
   color: var(--pebble);
-  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
+  flex-shrink: 1;
+  max-width: 40%;
 }
 
 /* ═════════════════════════════════════════════
