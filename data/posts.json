@@ -1,9 +1,9 @@
 [
-
-  {"_comment": "═══ STORIES (20) ═══════════════════════════════════════════════"},
-
   {
-    "title": "\u201cI Didn\u2019t Know Where to Turn\u201d\u2014How One Family Found Help After a House Fire",
+    "_comment": "═══ STORIES (20) ═══════════════════════════════════════════════"
+  },
+  {
+    "title": "“I Didn’t Know Where to Turn”—How One Family Found Help After a House Fire",
     "postType": "story",
     "weight": "heavy",
     "priority": 90,
@@ -11,15 +11,32 @@
     "publishedOffsetDays": -5,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["housing", "community"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
     "bodyHeavy": "When a kitchen fire displaced the Nguyen family from their Brooklyn Center apartment in January, they had no renters insurance and no relatives nearby. With two school-age children and a newborn, Linh Nguyen spent the first night at a hotel paid for by the Red Cross, unsure what would happen next. A caseworker at Hennepin County connected the family with CEAP, which helped them secure temporary housing within 48 hours, provided furniture and household essentials, and connected Linh with a benefits navigator who walked her through every application.",
     "bodyMedium": "A kitchen fire left the Nguyen family homeless in Brooklyn Center. Within 48 hours, CEAP helped them find temporary housing, furnishings, and a benefits navigator. Their story shows how community organizations step in when disaster strikes.",
     "bodyLight": "How one Brooklyn Center family found help after a house fire displaced them.",
-    "meta": { "kicker": "Community Emergency Assistance Programs", "timestampOffsetDays": -5, "deck": "After a kitchen fire left them homeless, the Nguyen family found a community that showed up\u2014not with a list of numbers, but with real help.", "byline": "Root Editorial Staff" },
-    "sourceAttribution": { "sourceName": "Community Emergency Assistance Programs (CEAP)", "attribution": "Interview with family and staff" }
+    "meta": {
+      "kicker": "Community Emergency Assistance Programs",
+      "timestampOffsetDays": -5,
+      "deck": "After a kitchen fire left them homeless, the Nguyen family found a community that showed up—not with a list of numbers, but with real help.",
+      "byline": "Root Editorial Staff"
+    },
+    "sourceAttribution": {
+      "sourceName": "Community Emergency Assistance Programs (CEAP)",
+      "attribution": "Interview with family and staff"
+    }
   },
   {
-    "title": "Thousands Expected at Region\u2019s Largest Winter Food Drive",
+    "title": "Thousands Expected at Region’s Largest Winter Food Drive",
     "postType": "story",
     "weight": "heavy",
     "priority": 88,
@@ -27,12 +44,27 @@
     "publishedOffsetDays": -2,
     "zipCode": "55415",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Over 40 organizations will converge on the Minneapolis Convention Center this Saturday for the annual Fill the Shelves winter food drive. Organizers expect more than 3,000 attendees and hope to collect 50,000 pounds of non-perishable food items. Volunteers from across the metro have signed up to sort, pack, and distribute donations to food shelves in all five core metro counties. Free parking is available in the Convention Center ramp, and Metro Transit is offering free rides on Routes 5, 14, and 22 for anyone showing a Fill the Shelves flyer.",
     "bodyMedium": "Over 40 organizations converge on the Minneapolis Convention Center this Saturday for the annual Fill the Shelves drive, expecting 3,000+ attendees and 50,000 pounds of food donations.",
     "bodyLight": "Annual Fill the Shelves food drive this Saturday at the Convention Center.",
-    "meta": { "kicker": "This Saturday", "timestampOffsetDays": -2, "deck": "Over 40 organizations converge on the Minneapolis Convention Center for the annual Fill the Shelves drive." },
-    "sourceAttribution": { "sourceName": "Sabathani Community Center", "attribution": "Press release" }
+    "meta": {
+      "kicker": "This Saturday",
+      "timestampOffsetDays": -2,
+      "deck": "Over 40 organizations converge on the Minneapolis Convention Center for the annual Fill the Shelves drive."
+    },
+    "sourceAttribution": {
+      "sourceName": "Sabathani Community Center",
+      "attribution": "Press release"
+    }
   },
   {
     "title": "How a Block Club in Phillips Organized Its Own Warming Station",
@@ -43,11 +75,24 @@
     "publishedOffsetDays": -3,
     "zipCode": "55407",
     "location": "Phillips Neighborhood, Minneapolis",
-    "tags": { "topic": ["community", "housing"], "serviceArea": ["hennepin-county", "phillips"] },
+    "tags": {
+      "topic": [
+        "community",
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "phillips"
+      ]
+    },
     "bodyHeavy": "When the city ran out of warming center capacity during a bitter cold snap in February, neighbors on 25th and Bloomington Avenue opened their church basement. Within three days they had space heaters, donated blankets, a rotating schedule of volunteers, and enough hot coffee to keep fifty people warm overnight. The block club coordinated with Minneapolis Emergency Management and Hennepin County outreach workers to ensure guests could connect with shelter referrals by morning. It started as an act of desperation, but organizers say it could become a model for neighborhood-level emergency response.",
     "bodyMedium": "When the city ran out of warming center capacity, neighbors on 25th and Bloomington opened their church basement and kept fifty people warm overnight. It started as desperation and became a model.",
     "bodyLight": "Phillips neighbors opened a church basement warming station during the cold snap.",
-    "meta": { "kicker": "Community Spotlight", "timestampOffsetDays": -3, "deck": "When the city couldn\u2019t keep up, neighbors on 25th & Bloomington opened their church basement." }
+    "meta": {
+      "kicker": "Community Spotlight",
+      "timestampOffsetDays": -3,
+      "deck": "When the city couldn’t keep up, neighbors on 25th & Bloomington opened their church basement."
+    }
   },
   {
     "title": "Point-in-Time Count Shows 12% Drop in Unsheltered Homelessness",
@@ -56,26 +101,52 @@
     "priority": 50,
     "submissionType": "ingested",
     "publishedOffsetDays": -7,
-    "tags": { "topic": ["housing"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "The annual point-in-time count found 12% fewer people sleeping outside statewide compared to last year, though advocates caution the improvement is partly due to expanded shelter capacity rather than permanent housing placements.",
     "bodyMedium": "Annual count shows 12% fewer unsheltered Minnesotans, though advocates note expanded shelters account for much of the drop.",
     "bodyLight": "Statewide unsheltered homelessness down 12% in annual count.",
-    "meta": { "kicker": "Housing", "timestampOffsetDays": -7 },
-    "sourceAttribution": { "sourceName": "Wilder Foundation", "attribution": "2026 Point-in-Time Count preliminary results" }
+    "meta": {
+      "kicker": "Housing",
+      "timestampOffsetDays": -7
+    },
+    "sourceAttribution": {
+      "sourceName": "Wilder Foundation",
+      "attribution": "2026 Point-in-Time Count preliminary results"
+    }
   },
   {
-    "title": "Minnesota Resettles 1,200 Afghan Refugees\u2014What\u2019s Next",
+    "title": "Minnesota Resettles 1,200 Afghan Refugees—What’s Next",
     "postType": "story",
     "weight": "light",
     "priority": 48,
     "submissionType": "ingested",
     "publishedOffsetDays": -10,
-    "tags": { "topic": ["immigration"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "immigration"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Since August 2021, Minnesota has resettled more than 1,200 Afghan evacuees through a network of resettlement agencies. Many families are now transitioning off temporary assistance, and agencies report growing demand for employment services and English language classes.",
     "bodyMedium": "Minnesota has resettled over 1,200 Afghan refugees. Agencies now report growing demand for employment and English language services.",
     "bodyLight": "Over 1,200 Afghan refugees resettled in Minnesota since 2021.",
-    "meta": { "kicker": "Resettlement", "timestampOffsetDays": -10 },
-    "sourceAttribution": { "sourceName": "International Institute of Minnesota", "attribution": "MN Dept of Human Services data" }
+    "meta": {
+      "kicker": "Resettlement",
+      "timestampOffsetDays": -10
+    },
+    "sourceAttribution": {
+      "sourceName": "International Institute of Minnesota",
+      "attribution": "MN Dept of Human Services data"
+    }
   },
   {
     "title": "Twin Cities Urban Tree Canopy Drops 8% Since 2015",
@@ -84,12 +155,26 @@
     "priority": 46,
     "submissionType": "ingested",
     "publishedOffsetDays": -12,
-    "tags": { "topic": ["environment"], "serviceArea": ["hennepin-county", "ramsey-county"] },
+    "tags": {
+      "topic": [
+        "environment"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "A new analysis by the Minnesota Department of Natural Resources found that the Twin Cities metro area has lost roughly 8% of its urban tree canopy since 2015, largely due to emerald ash borer and drought stress. The steepest losses are in North Minneapolis and parts of East St. Paul.",
     "bodyMedium": "MN DNR analysis finds the Twin Cities lost 8% of urban tree canopy since 2015, with the steepest losses in North Minneapolis and East St. Paul.",
     "bodyLight": "Twin Cities tree canopy down 8% since 2015, per MN DNR.",
-    "meta": { "kicker": "Environment", "timestampOffsetDays": -12 },
-    "sourceAttribution": { "sourceName": "MN DNR", "attribution": "Urban Forest Assessment 2026" }
+    "meta": {
+      "kicker": "Environment",
+      "timestampOffsetDays": -12
+    },
+    "sourceAttribution": {
+      "sourceName": "MN DNR",
+      "attribution": "Urban Forest Assessment 2026"
+    }
   },
   {
     "title": "Hennepin County Pilots Guaranteed Income Program for 200 Families",
@@ -100,11 +185,24 @@
     "publishedOffsetDays": -1,
     "zipCode": "55411",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["housing", "community"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Hennepin County announced a two-year guaranteed income pilot that will provide $500 per month to 200 families earning below 30% of area median income. Participants were selected by lottery from applicants in North Minneapolis and Brooklyn Park zip codes with the highest rates of housing instability. County officials say the program is funded by federal ARPA dollars and will be evaluated by the University of Minnesota Humphrey School. Payments begin in April.",
     "bodyMedium": "Hennepin County will give $500/month to 200 low-income families in a two-year guaranteed income pilot. Payments begin in April, funded by federal ARPA dollars.",
     "bodyLight": "Hennepin County launches $500/month guaranteed income pilot for 200 families.",
-    "meta": { "kicker": "Economic Security", "timestampOffsetDays": -1, "deck": "Two hundred families in North Minneapolis and Brooklyn Park will receive $500 per month starting in April.", "byline": "Root Editorial Staff" }
+    "meta": {
+      "kicker": "Economic Security",
+      "timestampOffsetDays": -1,
+      "deck": "Two hundred families in North Minneapolis and Brooklyn Park will receive $500 per month starting in April.",
+      "byline": "Root Editorial Staff"
+    }
   },
   {
     "title": "St. Paul Library System Expands Multilingual Story Hours",
@@ -115,11 +213,23 @@
     "publishedOffsetDays": -4,
     "zipCode": "55106",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["education", "culture"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "education",
+        "culture"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "The St. Paul Public Library announced new weekly story hours in Somali, Hmong, Karen, and Spanish at four branch locations. The programs are part of a broader effort to make library resources accessible to families who speak languages other than English at home. Each session includes read-alouds, crafts, and connections to library card sign-up in home languages.",
     "bodyMedium": "St. Paul Public Library launches weekly story hours in Somali, Hmong, Karen, and Spanish at four branches, with read-alouds, crafts, and library card sign-up.",
     "bodyLight": "St. Paul libraries add weekly story hours in four languages.",
-    "meta": { "kicker": "Education", "timestampOffsetDays": -4, "deck": "New weekly sessions in Somali, Hmong, Karen, and Spanish at four branches." }
+    "meta": {
+      "kicker": "Education",
+      "timestampOffsetDays": -4,
+      "deck": "New weekly sessions in Somali, Hmong, Karen, and Spanish at four branches."
+    }
   },
   {
     "title": "Dakota County Food Shelves Report 40% Surge in First-Time Visitors",
@@ -130,12 +240,26 @@
     "publishedOffsetDays": -6,
     "zipCode": "55337",
     "location": "Burnsville, MN",
-    "tags": { "topic": ["food"], "serviceArea": ["dakota-county", "south-metro"] },
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "dakota-county",
+        "south-metro"
+      ]
+    },
     "bodyHeavy": "Food shelves across Dakota County saw a 40% jump in first-time visitors during January and February, according to data compiled by 360 Communities. Staff attribute the surge to rising grocery costs and the end of pandemic-era SNAP supplements. The Open Door Pantry in Eagan and Hastings Family Service both reported they needed emergency restocking from Second Harvest Heartland to keep pace with demand.",
     "bodyMedium": "Dakota County food shelves saw 40% more first-time visitors in early 2026, driven by grocery inflation and the end of pandemic SNAP supplements.",
     "bodyLight": "Dakota County food shelves report 40% jump in first-time visitors.",
-    "meta": { "kicker": "Food Access", "timestampOffsetDays": -6 },
-    "sourceAttribution": { "sourceName": "360 Communities \u2013 Burnsville Resource Center & Food Shelf", "attribution": "Staff interviews and intake data" }
+    "meta": {
+      "kicker": "Food Access",
+      "timestampOffsetDays": -6
+    },
+    "sourceAttribution": {
+      "sourceName": "360 Communities – Burnsville Resource Center & Food Shelf",
+      "attribution": "Staff interviews and intake data"
+    }
   },
   {
     "title": "Inside the Push to Build 1,000 Affordable Units Along the Green Line",
@@ -146,11 +270,24 @@
     "publishedOffsetDays": -2,
     "zipCode": "55104",
     "location": "University Avenue, St. Paul",
-    "tags": { "topic": ["housing"], "serviceArea": ["ramsey-county", "hennepin-county"] },
-    "bodyHeavy": "A coalition of nonprofit developers and community organizations is pressing the Met Council to fund 1,000 new affordable housing units along the Green Line corridor between downtown Minneapolis and downtown St. Paul. The proposal targets vacant and underused parcels within a quarter-mile of stations. Advocates say the corridor\u2019s transit access makes it ideal for car-free households, many of whom are immigrants and refugees. Opponents on some city councils worry about density and parking. The Met Council is expected to vote in May.",
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "ramsey-county",
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "A coalition of nonprofit developers and community organizations is pressing the Met Council to fund 1,000 new affordable housing units along the Green Line corridor between downtown Minneapolis and downtown St. Paul. The proposal targets vacant and underused parcels within a quarter-mile of stations. Advocates say the corridor’s transit access makes it ideal for car-free households, many of whom are immigrants and refugees. Opponents on some city councils worry about density and parking. The Met Council is expected to vote in May.",
     "bodyMedium": "A nonprofit coalition is pushing the Met Council to fund 1,000 affordable units along the Green Line. Advocates cite transit access for car-free households; a vote is expected in May.",
     "bodyLight": "Coalition pushes for 1,000 affordable units along the Green Line corridor.",
-    "meta": { "kicker": "Housing", "timestampOffsetDays": -2, "deck": "Nonprofit coalition targets vacant parcels along the Green Line for car-free affordable housing.", "byline": "Root Editorial Staff" }
+    "meta": {
+      "kicker": "Housing",
+      "timestampOffsetDays": -2,
+      "deck": "Nonprofit coalition targets vacant parcels along the Green Line for car-free affordable housing.",
+      "byline": "Root Editorial Staff"
+    }
   },
   {
     "title": "Scott County Schools See Record English Learner Enrollment",
@@ -161,15 +298,29 @@
     "publishedOffsetDays": -8,
     "zipCode": "55379",
     "location": "Shakopee, MN",
-    "tags": { "topic": ["education", "immigration"], "serviceArea": ["scott-county"] },
+    "tags": {
+      "topic": [
+        "education",
+        "immigration"
+      ],
+      "serviceArea": [
+        "scott-county"
+      ]
+    },
     "bodyHeavy": "Shakopee and Prior Lake-Savage school districts enrolled a combined 1,800 English learners this year, a record driven by families arriving from East Africa, Central America, and South Asia. District officials are hiring additional EL staff and expanding summer bridge programs to help students transition.",
     "bodyMedium": "Shakopee and Prior Lake-Savage districts enrolled a record 1,800 English learners, driven by new immigrant families from East Africa, Central America, and South Asia.",
     "bodyLight": "Scott County schools see record English learner enrollment.",
-    "meta": { "kicker": "Education", "timestampOffsetDays": -8 },
-    "sourceAttribution": { "sourceName": "Shakopee Public Schools", "attribution": "District enrollment data" }
+    "meta": {
+      "kicker": "Education",
+      "timestampOffsetDays": -8
+    },
+    "sourceAttribution": {
+      "sourceName": "Shakopee Public Schools",
+      "attribution": "District enrollment data"
+    }
   },
   {
-    "title": "Stillwater\u2019s First Community Fridge Opens on Main Street",
+    "title": "Stillwater’s First Community Fridge Opens on Main Street",
     "postType": "story",
     "weight": "medium",
     "priority": 55,
@@ -177,11 +328,23 @@
     "publishedOffsetDays": -9,
     "zipCode": "55082",
     "location": "Stillwater, MN",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["washington-county"] },
-    "bodyHeavy": "A community fridge stocked by local restaurants and gardeners opened on Main Street in Stillwater this month, the first of its kind in Washington County. Valley Outreach helped coordinate permits and volunteer schedules. Anyone can take what they need\u2014no ID, no questions. The fridge is restocked daily by a rotating team of neighbors.",
-    "bodyMedium": "Stillwater\u2019s first community fridge opened on Main Street, stocked daily by restaurants and neighbors. No ID or questions\u2014just take what you need.",
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
+    "bodyHeavy": "A community fridge stocked by local restaurants and gardeners opened on Main Street in Stillwater this month, the first of its kind in Washington County. Valley Outreach helped coordinate permits and volunteer schedules. Anyone can take what they need—no ID, no questions. The fridge is restocked daily by a rotating team of neighbors.",
+    "bodyMedium": "Stillwater’s first community fridge opened on Main Street, stocked daily by restaurants and neighbors. No ID or questions—just take what you need.",
     "bodyLight": "Stillwater opens its first community fridge on Main Street.",
-    "meta": { "kicker": "Food Access", "timestampOffsetDays": -9, "deck": "No ID, no questions\u2014just take what you need." }
+    "meta": {
+      "kicker": "Food Access",
+      "timestampOffsetDays": -9,
+      "deck": "No ID, no questions—just take what you need."
+    }
   },
   {
     "title": "Metro Transit Ridership Rebounds to Pre-Pandemic Levels on Blue Line",
@@ -190,12 +353,25 @@
     "priority": 44,
     "submissionType": "ingested",
     "publishedOffsetDays": -14,
-    "tags": { "topic": ["transit"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "transit"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Blue Line ridership hit pre-pandemic levels in February for the first time, averaging 28,000 boardings per weekday. Metro Transit credits increased service frequency and a fare-free pilot for youth under 18.",
     "bodyMedium": "Blue Line ridership returned to pre-pandemic levels in February, averaging 28,000 daily boardings thanks to increased frequency and free youth fares.",
     "bodyLight": "Blue Line ridership back to pre-pandemic levels.",
-    "meta": { "kicker": "Transit", "timestampOffsetDays": -14 },
-    "sourceAttribution": { "sourceName": "Metro Transit", "attribution": "Ridership report" }
+    "meta": {
+      "kicker": "Transit",
+      "timestampOffsetDays": -14
+    },
+    "sourceAttribution": {
+      "sourceName": "Metro Transit",
+      "attribution": "Ridership report"
+    }
   },
   {
     "title": "New Law Expands Tenant Protections for Families With Children",
@@ -204,12 +380,26 @@
     "priority": 65,
     "submissionType": "ingested",
     "publishedOffsetDays": -5,
-    "tags": { "topic": ["housing", "legal"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "legal"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "A new Minnesota law taking effect March 1 prohibits landlords from advertising units as \"adults only\" or denying applications based on the presence of children under 18. The law also caps application fees at $50 and requires landlords to provide a written reason for denial. Housing advocates say the measure will particularly benefit immigrant families, who disproportionately face familial-status discrimination.",
     "bodyMedium": "A new Minnesota law effective March 1 bans \"adults only\" rental ads, caps application fees at $50, and requires written denial reasons. Advocates say it helps immigrant families.",
     "bodyLight": "New MN law expands tenant protections for families with children.",
-    "meta": { "kicker": "Housing Policy", "timestampOffsetDays": -5 },
-    "sourceAttribution": { "sourceName": "HOME Line (Tenant Hotline)", "attribution": "Legislative summary" }
+    "meta": {
+      "kicker": "Housing Policy",
+      "timestampOffsetDays": -5
+    },
+    "sourceAttribution": {
+      "sourceName": "HOME Line (Tenant Hotline)",
+      "attribution": "Legislative summary"
+    }
   },
   {
     "title": "Washington County Opens New Mental Health Crisis Center",
@@ -220,11 +410,22 @@
     "publishedOffsetDays": -3,
     "zipCode": "55082",
     "location": "Stillwater, MN",
-    "tags": { "topic": ["health"], "serviceArea": ["washington-county"] },
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
     "bodyHeavy": "Washington County opened a 16-bed mental health crisis center in Stillwater that offers walk-in services and short-term stabilization as an alternative to emergency rooms. The center operates 24/7 and accepts all residents regardless of insurance status. Staff include licensed counselors and peer support specialists who have lived experience with mental health challenges.",
     "bodyMedium": "Washington County opened a 24/7 walk-in mental health crisis center in Stillwater with 16 beds, offering stabilization services regardless of insurance status.",
     "bodyLight": "Washington County opens 24/7 mental health crisis center in Stillwater.",
-    "meta": { "kicker": "Health", "timestampOffsetDays": -3, "deck": "Walk-in crisis center offers an alternative to the ER, with peer support specialists and no insurance requirement." }
+    "meta": {
+      "kicker": "Health",
+      "timestampOffsetDays": -3,
+      "deck": "Walk-in crisis center offers an alternative to the ER, with peer support specialists and no insurance requirement."
+    }
   },
   {
     "title": "Brooklyn Park Youth Program Graduates First Cohort of Apprentices",
@@ -235,11 +436,22 @@
     "publishedOffsetDays": -11,
     "zipCode": "55445",
     "location": "Brooklyn Park, MN",
-    "tags": { "topic": ["employment", "education"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "employment",
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "A youth workforce program in Brooklyn Park graduated its first cohort of 24 apprentices, who completed paid internships in healthcare, IT, and skilled trades. The program, a partnership between Hennepin Technical College and local employers, targets teens from immigrant families.",
-    "bodyMedium": "Brooklyn Park youth program graduated 24 apprentices in healthcare, IT, and trades\u2014a partnership between Hennepin Tech and local employers targeting immigrant teens.",
+    "bodyMedium": "Brooklyn Park youth program graduated 24 apprentices in healthcare, IT, and trades—a partnership between Hennepin Tech and local employers targeting immigrant teens.",
     "bodyLight": "Brooklyn Park youth program graduates first 24 apprentices.",
-    "meta": { "kicker": "Employment", "timestampOffsetDays": -11 }
+    "meta": {
+      "kicker": "Employment",
+      "timestampOffsetDays": -11
+    }
   },
   {
     "title": "Eagan Breaks Ground on Affordable Senior Housing Complex",
@@ -250,12 +462,25 @@
     "publishedOffsetDays": -4,
     "zipCode": "55121",
     "location": "Eagan, MN",
-    "tags": { "topic": ["housing"], "serviceArea": ["dakota-county"] },
-    "bodyHeavy": "Construction began on a 72-unit affordable senior housing complex near the Eagan Transit Station. The development will serve residents earning 30\u201350% of area median income and includes ground-floor community space, on-site case management, and connections to Metro Transit. Units should be available by late 2027.",
-    "bodyMedium": "Eagan broke ground on a 72-unit affordable senior housing complex near the transit station, serving residents at 30\u201350% AMI with on-site case management.",
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
+    "bodyHeavy": "Construction began on a 72-unit affordable senior housing complex near the Eagan Transit Station. The development will serve residents earning 30–50% of area median income and includes ground-floor community space, on-site case management, and connections to Metro Transit. Units should be available by late 2027.",
+    "bodyMedium": "Eagan broke ground on a 72-unit affordable senior housing complex near the transit station, serving residents at 30–50% AMI with on-site case management.",
     "bodyLight": "Eagan breaks ground on 72-unit affordable senior housing complex.",
-    "meta": { "kicker": "Housing", "timestampOffsetDays": -4 },
-    "sourceAttribution": { "sourceName": "The Open Door Pantry", "attribution": "City of Eagan press release" }
+    "meta": {
+      "kicker": "Housing",
+      "timestampOffsetDays": -4
+    },
+    "sourceAttribution": {
+      "sourceName": "The Open Door Pantry",
+      "attribution": "City of Eagan press release"
+    }
   },
   {
     "title": "Ramsey County Launches Eviction Diversion Pilot",
@@ -266,11 +491,23 @@
     "publishedOffsetDays": -2,
     "zipCode": "55101",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["housing", "legal"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "legal"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Ramsey County launched an eviction diversion program that pairs tenants facing eviction with mediators and emergency rental assistance before a case goes to court. The pilot, funded through a state grant, aims to reduce formal eviction filings by 25% in the first year. Participating landlords agree to a 30-day mediation window in exchange for guaranteed rent payments through the program.",
-    "bodyMedium": "Ramsey County\u2019s new eviction diversion program pairs tenants with mediators and rental assistance before court. The pilot aims to cut filings by 25%.",
+    "bodyMedium": "Ramsey County’s new eviction diversion program pairs tenants with mediators and rental assistance before court. The pilot aims to cut filings by 25%.",
     "bodyLight": "Ramsey County launches eviction diversion pilot to cut filings by 25%.",
-    "meta": { "kicker": "Housing", "timestampOffsetDays": -2, "deck": "Mediators and emergency rental assistance before a case goes to court." }
+    "meta": {
+      "kicker": "Housing",
+      "timestampOffsetDays": -2,
+      "deck": "Mediators and emergency rental assistance before a case goes to court."
+    }
   },
   {
     "title": "Community Solar Garden Brings Lower Bills to 300 Renters in Brooklyn Center",
@@ -281,12 +518,27 @@
     "publishedOffsetDays": -15,
     "zipCode": "55430",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["environment", "housing"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
+    "tags": {
+      "topic": [
+        "environment",
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
     "bodyHeavy": "A community solar garden in Brooklyn Center is now delivering credits to roughly 300 renter households, cutting their electricity bills by an average of 15%. The project is one of the first in Minnesota specifically designed for renters, who traditionally cannot install rooftop panels.",
-    "bodyMedium": "A Brooklyn Center community solar garden is cutting electricity bills by 15% for 300 renter households\u2014one of the first renter-focused solar projects in Minnesota.",
+    "bodyMedium": "A Brooklyn Center community solar garden is cutting electricity bills by 15% for 300 renter households—one of the first renter-focused solar projects in Minnesota.",
     "bodyLight": "Brooklyn Center solar garden cuts bills for 300 renters.",
-    "meta": { "kicker": "Environment", "timestampOffsetDays": -15 },
-    "sourceAttribution": { "sourceName": "Community Emergency Assistance Programs (CEAP)", "attribution": "Program data" }
+    "meta": {
+      "kicker": "Environment",
+      "timestampOffsetDays": -15
+    },
+    "sourceAttribution": {
+      "sourceName": "Community Emergency Assistance Programs (CEAP)",
+      "attribution": "Program data"
+    }
   },
   {
     "title": "Local Chef Turns Food Waste Into 500 Free Meals a Week",
@@ -297,17 +549,31 @@
     "publishedOffsetDays": -1,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["hennepin-county", "lake-street"] },
-    "bodyHeavy": "Chef Amina Hassan recovers surplus produce from restaurants and grocers along Lake Street and transforms it into 500 free meals each week, distributed through three community centers in South Minneapolis. Her operation runs on volunteer labor and donated commercial kitchen space, with zero government funding. Hassan says the meals are culturally appropriate\u2014halal, vegetarian, and allergen-labeled\u2014because she asks recipients what they actually want to eat.",
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
+    "bodyHeavy": "Chef Amina Hassan recovers surplus produce from restaurants and grocers along Lake Street and transforms it into 500 free meals each week, distributed through three community centers in South Minneapolis. Her operation runs on volunteer labor and donated commercial kitchen space, with zero government funding. Hassan says the meals are culturally appropriate—halal, vegetarian, and allergen-labeled—because she asks recipients what they actually want to eat.",
     "bodyMedium": "Chef Amina Hassan turns surplus Lake Street produce into 500 free culturally appropriate meals per week, distributed through three South Minneapolis community centers.",
     "bodyLight": "Lake Street chef turns food waste into 500 free meals a week.",
-    "meta": { "kicker": "Food Access", "timestampOffsetDays": -1, "deck": "Chef Amina Hassan recovers surplus produce and cooks 500 free meals a week for South Minneapolis.", "byline": "Root Editorial Staff" }
+    "meta": {
+      "kicker": "Food Access",
+      "timestampOffsetDays": -1,
+      "deck": "Chef Amina Hassan recovers surplus produce and cooks 500 free meals a week for South Minneapolis.",
+      "byline": "Root Editorial Staff"
+    }
   },
-
-  {"_comment": "═══ NOTICES (25) ═══════════════════════════════════════════════"},
-
   {
-    "title": "Winter Shelter Beds Available Tonight\u2014Walk-ins Welcome",
+    "_comment": "═══ NOTICES (25) ═══════════════════════════════════════════════"
+  },
+  {
+    "title": "Winter Shelter Beds Available Tonight—Walk-ins Welcome",
     "postType": "notice",
     "weight": "heavy",
     "priority": 95,
@@ -316,15 +582,28 @@
     "publishedOffsetDays": 0,
     "zipCode": "55405",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["housing", "safety"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Overflow shelters open at Simpson Housing (2740 1st Ave S) and Mary\u2019s Place (401 N 7th St). No ID required. Temperatures dropping to \u22128\u00b0F tonight. Metro Transit routes 5 and 14 stop within one block. Call 612-874-8683 for transport assistance. Beds are first come, first served. Doors open at 7pm.",
-    "bodyMedium": "Overflow shelters open tonight at Simpson Housing and Mary\u2019s Place. No ID required. Temps dropping to \u22128\u00b0F. Call 612-874-8683 for transport help.",
+    "tags": {
+      "topic": [
+        "housing",
+        "safety"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Overflow shelters open at Simpson Housing (2740 1st Ave S) and Mary’s Place (401 N 7th St). No ID required. Temperatures dropping to −8°F tonight. Metro Transit routes 5 and 14 stop within one block. Call 612-874-8683 for transport assistance. Beds are first come, first served. Doors open at 7pm.",
+    "bodyMedium": "Overflow shelters open tonight at Simpson Housing and Mary’s Place. No ID required. Temps dropping to −8°F. Call 612-874-8683 for transport help.",
     "bodyLight": "Shelter beds available tonight. No ID required. Call 612-874-8683.",
-    "meta": { "timestampOffsetDays": 0 },
-    "sourceAttribution": { "sourceName": "Simpson Housing Services", "attribution": "Daily shelter update" }
+    "meta": {
+      "timestampOffsetDays": 0
+    },
+    "sourceAttribution": {
+      "sourceName": "Simpson Housing Services",
+      "attribution": "Daily shelter update"
+    }
   },
   {
-    "title": "Boil Water Advisory\u2014North Minneapolis",
+    "title": "Boil Water Advisory—North Minneapolis",
     "postType": "notice",
     "weight": "heavy",
     "priority": 92,
@@ -333,12 +612,26 @@
     "publishedOffsetDays": 0,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
-    "tags": { "topic": ["safety", "health"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
-    "bodyHeavy": "Water main break at 26th and Lyndale. Residents between 24th and 28th Streets should boil water before drinking until further notice. Free bottled water is available at Whittier Park recreation center from 8am to 8pm. City crews are on site and expect repairs to take 24\u201348 hours. Updates will be posted at minneapolismn.gov/water.",
-    "bodyMedium": "Water main break at 26th & Lyndale. Boil water before drinking. Free bottled water at Whittier Park rec center, 8am\u20138pm. Repairs expected in 24\u201348 hours.",
-    "bodyLight": "Boil water advisory: 24th\u201328th Streets, North Minneapolis.",
-    "meta": { "timestampOffsetDays": 0 },
-    "sourceAttribution": { "sourceName": "Minneapolis Public Works", "attribution": "Emergency bulletin" }
+    "tags": {
+      "topic": [
+        "safety",
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
+    "bodyHeavy": "Water main break at 26th and Lyndale. Residents between 24th and 28th Streets should boil water before drinking until further notice. Free bottled water is available at Whittier Park recreation center from 8am to 8pm. City crews are on site and expect repairs to take 24–48 hours. Updates will be posted at minneapolismn.gov/water.",
+    "bodyMedium": "Water main break at 26th & Lyndale. Boil water before drinking. Free bottled water at Whittier Park rec center, 8am–8pm. Repairs expected in 24–48 hours.",
+    "bodyLight": "Boil water advisory: 24th–28th Streets, North Minneapolis.",
+    "meta": {
+      "timestampOffsetDays": 0
+    },
+    "sourceAttribution": {
+      "sourceName": "Minneapolis Public Works",
+      "attribution": "Emergency bulletin"
+    }
   },
   {
     "title": "ICE Activity Reported Near Lake Street",
@@ -350,12 +643,26 @@
     "publishedOffsetDays": 0,
     "zipCode": "55407",
     "location": "Lake Street, Minneapolis",
-    "tags": { "topic": ["immigration", "legal"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "immigration",
+        "legal"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "Community members report ICE agents near Lake Street and Chicago Avenue this morning. Know your rights: you do not have to open your door without a judicial warrant. You have the right to remain silent. Do not sign anything. Call the Immigrant Law Center hotline at 651-641-1011 if you witness activity or need legal guidance.",
     "bodyMedium": "ICE activity reported near Lake Street and Chicago Ave. You do not have to open your door. Right to remain silent. Call 651-641-1011.",
     "bodyLight": "ICE activity near Lake Street. Know your rights. Call 651-641-1011.",
-    "meta": { "timestampOffsetDays": 0 },
-    "sourceAttribution": { "sourceName": "Immigrant Law Center of Minnesota (ILCM)", "attribution": "Community alert" }
+    "meta": {
+      "timestampOffsetDays": 0
+    },
+    "sourceAttribution": {
+      "sourceName": "Immigrant Law Center of Minnesota (ILCM)",
+      "attribution": "Community alert"
+    }
   },
   {
     "title": "Hennepin County Opens 3 New Warming Centers Through March",
@@ -364,12 +671,25 @@
     "priority": 70,
     "submissionType": "ingested",
     "publishedOffsetDays": -1,
-    "tags": { "topic": ["housing", "safety"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "New warming centers in Brooklyn Center, downtown Minneapolis, and Bloomington are open 6pm\u20138am nightly through the end of March. No ID required. Hot beverages and snacks provided. Outreach workers on site can connect guests with shelter and housing referrals.",
-    "bodyMedium": "Warming centers in Brooklyn Center, downtown Minneapolis, and Bloomington open 6pm\u20138am nightly. No ID required.",
+    "tags": {
+      "topic": [
+        "housing",
+        "safety"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "New warming centers in Brooklyn Center, downtown Minneapolis, and Bloomington are open 6pm–8am nightly through the end of March. No ID required. Hot beverages and snacks provided. Outreach workers on site can connect guests with shelter and housing referrals.",
+    "bodyMedium": "Warming centers in Brooklyn Center, downtown Minneapolis, and Bloomington open 6pm–8am nightly. No ID required.",
     "bodyLight": "Three new warming centers open nightly through March. No ID.",
-    "meta": { "timestampOffsetDays": -1 },
-    "sourceAttribution": { "sourceName": "Community Action Partnership of Hennepin County (CAP-HC)", "attribution": "County announcement" }
+    "meta": {
+      "timestampOffsetDays": -1
+    },
+    "sourceAttribution": {
+      "sourceName": "Community Action Partnership of Hennepin County (CAP-HC)",
+      "attribution": "County announcement"
+    }
   },
   {
     "title": "MNsure Open Enrollment Extended to March 15",
@@ -378,12 +698,24 @@
     "priority": 65,
     "submissionType": "ingested",
     "publishedOffsetDays": -1,
-    "tags": { "topic": ["health"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Minnesotans can still apply for health coverage through MNsure until March 15. Free navigators are available by phone at 855-366-7873 or in person at enrollment events across the metro. Language assistance is available in Somali, Hmong, Spanish, and Karen.",
     "bodyMedium": "MNsure open enrollment extended to March 15. Free navigators at 855-366-7873. Language help in Somali, Hmong, Spanish, and Karen.",
     "bodyLight": "MNsure enrollment extended to March 15. Call 855-366-7873.",
-    "meta": { "timestampOffsetDays": -1 },
-    "sourceAttribution": { "sourceName": "MNsure", "attribution": "Official extension notice" }
+    "meta": {
+      "timestampOffsetDays": -1
+    },
+    "sourceAttribution": {
+      "sourceName": "MNsure",
+      "attribution": "Official extension notice"
+    }
   },
   {
     "title": "Free Tax Prep Sites Open at 12 Library Locations",
@@ -392,12 +724,24 @@
     "priority": 60,
     "submissionType": "ingested",
     "publishedOffsetDays": -2,
-    "tags": { "topic": ["employment"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "VITA volunteers help with federal and state returns at 12 Hennepin County Library locations. Walk-ins accepted Saturdays 10am\u20132pm. Weekday appointments available. Bring your ID, W-2s, and Social Security cards for all household members.",
-    "bodyMedium": "VITA volunteers at 12 Hennepin County libraries help with tax returns. Walk-ins Saturdays 10am\u20132pm. Appointments weekdays.",
+    "tags": {
+      "topic": [
+        "employment"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "VITA volunteers help with federal and state returns at 12 Hennepin County Library locations. Walk-ins accepted Saturdays 10am–2pm. Weekday appointments available. Bring your ID, W-2s, and Social Security cards for all household members.",
+    "bodyMedium": "VITA volunteers at 12 Hennepin County libraries help with tax returns. Walk-ins Saturdays 10am–2pm. Appointments weekdays.",
     "bodyLight": "Free tax prep at 12 Hennepin County libraries. Walk-ins Saturdays.",
-    "meta": { "timestampOffsetDays": -2 },
-    "sourceAttribution": { "sourceName": "Hennepin County Library", "attribution": "VITA program" }
+    "meta": {
+      "timestampOffsetDays": -2
+    },
+    "sourceAttribution": {
+      "sourceName": "Hennepin County Library",
+      "attribution": "VITA program"
+    }
   },
   {
     "title": "SNAP Benefits: March EBT Deposits Begin March 4",
@@ -406,12 +750,24 @@
     "priority": 55,
     "submissionType": "ingested",
     "publishedOffsetDays": -3,
-    "tags": { "topic": ["food"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "March SNAP deposits will be staggered over 10 business days starting March 4. Check your specific deposit date at mn.gov/dhs/snap or call your county office. If your card is lost or stolen, call the EBT hotline at 888-997-2227 for immediate replacement.",
     "bodyMedium": "March SNAP deposits begin March 4, staggered over 10 days. Check your date at mn.gov/dhs/snap. Lost card? Call 888-997-2227.",
     "bodyLight": "SNAP deposits begin March 4. Check date at mn.gov/dhs/snap.",
-    "meta": { "timestampOffsetDays": -3 },
-    "sourceAttribution": { "sourceName": "MN DHS", "attribution": "Benefits schedule" }
+    "meta": {
+      "timestampOffsetDays": -3
+    },
+    "sourceAttribution": {
+      "sourceName": "MN DHS",
+      "attribution": "Benefits schedule"
+    }
   },
   {
     "title": "SNAP Benefits: Processing Delays Expected This Week",
@@ -420,12 +776,24 @@
     "priority": 42,
     "submissionType": "ingested",
     "publishedOffsetDays": -5,
-    "tags": { "topic": ["food"], "serviceArea": ["statewide"] },
-    "bodyHeavy": "SNAP benefit processing may be delayed 2\u20133 business days this week due to a system update. If your deposit does not arrive on schedule, wait 48 hours before contacting your county office.",
-    "bodyMedium": "SNAP processing delays of 2\u20133 days expected this week due to system update. Wait 48 hours before calling your county.",
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
+    "bodyHeavy": "SNAP benefit processing may be delayed 2–3 business days this week due to a system update. If your deposit does not arrive on schedule, wait 48 hours before contacting your county office.",
+    "bodyMedium": "SNAP processing delays of 2–3 days expected this week due to system update. Wait 48 hours before calling your county.",
     "bodyLight": "SNAP processing delays expected. Wait 48 hours before calling.",
-    "meta": { "timestampOffsetDays": -5 },
-    "sourceAttribution": { "sourceName": "MN DHS", "attribution": "System update notice" }
+    "meta": {
+      "timestampOffsetDays": -5
+    },
+    "sourceAttribution": {
+      "sourceName": "MN DHS",
+      "attribution": "System update notice"
+    }
   },
   {
     "title": "Minneapolis Public Schools Announce Snow Day Protocol Changes",
@@ -434,12 +802,24 @@
     "priority": 40,
     "submissionType": "ingested",
     "publishedOffsetDays": -6,
-    "tags": { "topic": ["education"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Minneapolis Public Schools will now use remote learning on snow days instead of canceling classes outright. Families will receive a text alert by 5:30am. Students need a device and internet access; those who lack either should contact their school\u2019s family liaison.",
-    "bodyMedium": "MPS will use remote learning on snow days instead of canceling. Text alerts by 5:30am. Contact your school\u2019s family liaison if you lack a device.",
+    "tags": {
+      "topic": [
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Minneapolis Public Schools will now use remote learning on snow days instead of canceling classes outright. Families will receive a text alert by 5:30am. Students need a device and internet access; those who lack either should contact their school’s family liaison.",
+    "bodyMedium": "MPS will use remote learning on snow days instead of canceling. Text alerts by 5:30am. Contact your school’s family liaison if you lack a device.",
     "bodyLight": "MPS switches to remote learning on snow days. Alert by 5:30am.",
-    "meta": { "timestampOffsetDays": -6 },
-    "sourceAttribution": { "sourceName": "MPS Communications", "attribution": "District policy update" }
+    "meta": {
+      "timestampOffsetDays": -6
+    },
+    "sourceAttribution": {
+      "sourceName": "MPS Communications",
+      "attribution": "District policy update"
+    }
   },
   {
     "title": "Metro Transit Adds Overnight Service on Route 5",
@@ -448,12 +828,24 @@
     "priority": 38,
     "submissionType": "ingested",
     "publishedOffsetDays": -7,
-    "tags": { "topic": ["transit"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "transit"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Metro Transit will add overnight service on Route 5 (Chicago Ave) starting March 1, with buses running every 30 minutes from midnight to 5am. The route connects North Minneapolis to the Mall of America with stops at key employment centers.",
     "bodyMedium": "Route 5 gets overnight service starting March 1. Buses every 30 minutes, midnight to 5am, connecting North Mpls to Mall of America.",
     "bodyLight": "Route 5 adds overnight service starting March 1.",
-    "meta": { "timestampOffsetDays": -7 },
-    "sourceAttribution": { "sourceName": "Metro Transit", "attribution": "Service change" }
+    "meta": {
+      "timestampOffsetDays": -7
+    },
+    "sourceAttribution": {
+      "sourceName": "Metro Transit",
+      "attribution": "Service change"
+    }
   },
   {
     "title": "Tell Your Rep: Fund Emergency Rental Assistance",
@@ -462,13 +854,30 @@
     "priority": 72,
     "submissionType": "admin",
     "publishedOffsetDays": -2,
-    "tags": { "topic": ["housing", "legal"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "legal"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "HF 1247 would allocate $50 million for emergency rental assistance across Minnesota. The bill is in committee now and a single phone call from a constituent can make a real difference. Find your legislator and urge them to support the bill. Tenant advocates say the current fund is on track to run out by June.",
     "bodyMedium": "HF 1247 would allocate $50M for emergency rental assistance. The bill is in committee. Find your legislator and call today.",
     "bodyLight": "Call your rep: fund emergency rental assistance (HF 1247).",
-    "meta": { "timestampOffsetDays": -2 },
-    "link": { "label": "Find your legislator & call today", "url": "https://www.gis.lcc.mn.gov/iMaps/districts/", "deadlineOffsetDays": 14 },
-    "sourceAttribution": { "sourceName": "HOME Line (Tenant Hotline)", "attribution": "Legislative alert" }
+    "meta": {
+      "timestampOffsetDays": -2
+    },
+    "link": {
+      "label": "Find your legislator & call today",
+      "url": "https://www.gis.lcc.mn.gov/iMaps/districts/",
+      "deadlineOffsetDays": 14
+    },
+    "sourceAttribution": {
+      "sourceName": "HOME Line (Tenant Hotline)",
+      "attribution": "Legislative alert"
+    }
   },
   {
     "title": "Make Your Community Count",
@@ -477,11 +886,22 @@
     "priority": 58,
     "submissionType": "admin",
     "publishedOffsetDays": -3,
-    "tags": { "topic": ["community"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Every person counted in the census means more federal funding for schools, roads, and emergency services in Minnesota. Self-response is available online, by phone, or by mail. Assistance centers are open at libraries and community centers across the metro with help in 12 languages.",
     "bodyMedium": "Every person counted means more federal funding for MN schools, roads, and services. Self-response online, by phone, or by mail. Help in 12 languages.",
     "bodyLight": "Census: every person counted means more funding for Minnesota.",
-    "link": { "label": "Find your census site", "url": "https://my2020census.gov/", "deadlineOffsetDays": 30 }
+    "link": {
+      "label": "Find your census site",
+      "url": "https://my2020census.gov/",
+      "deadlineOffsetDays": 30
+    }
   },
   {
     "title": "Register to Vote or Check Your Status",
@@ -490,11 +910,22 @@
     "priority": 56,
     "submissionType": "admin",
     "publishedOffsetDays": -4,
-    "tags": { "topic": ["voting"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "voting"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Minnesota allows same-day voter registration, but registering early saves time at the polls. You can register online or check your status at mnvotes.org. Bring a valid ID and proof of residence (utility bill, bank statement, or government mail). New citizens can register with their naturalization certificate.",
     "bodyMedium": "Minnesota allows same-day registration, but registering early saves time. Check your status at mnvotes.org. Bring ID and proof of residence.",
     "bodyLight": "Register to vote or check status at mnvotes.org.",
-    "link": { "label": "Check status at mnvotes.org", "url": "https://mnvotes.org/", "deadlineOffsetDays": 60 }
+    "link": {
+      "label": "Check status at mnvotes.org",
+      "url": "https://mnvotes.org/",
+      "deadlineOffsetDays": 60
+    }
   },
   {
     "title": "Ramsey County Emergency Assistance Applications Now Online",
@@ -505,12 +936,24 @@
     "publishedOffsetDays": -1,
     "zipCode": "55101",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["housing"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Ramsey County residents can now apply for emergency assistance online at ramseycountymn.gov. The portal covers rent, utilities, and other crisis needs. Paper applications are still accepted at the Northern Service Center. Phone support available in English, Somali, Hmong, Spanish, and Karen at 651-266-4884.",
     "bodyMedium": "Ramsey County emergency assistance applications are now available online. Covers rent, utilities, and crisis needs. Phone help in five languages at 651-266-4884.",
     "bodyLight": "Ramsey County emergency assistance now online. Call 651-266-4884.",
-    "meta": { "timestampOffsetDays": -1 },
-    "sourceAttribution": { "sourceName": "Ramsey County Emergency Assistance (Financial Assistance)", "attribution": "County announcement" }
+    "meta": {
+      "timestampOffsetDays": -1
+    },
+    "sourceAttribution": {
+      "sourceName": "Ramsey County Emergency Assistance (Financial Assistance)",
+      "attribution": "County announcement"
+    }
   },
   {
     "title": "Severe Thunderstorm Watch: Metro Area Until 10pm",
@@ -520,11 +963,22 @@
     "is_urgent": true,
     "submissionType": "ingested",
     "publishedOffsetDays": 0,
-    "tags": { "topic": ["safety"], "serviceArea": ["hennepin-county", "ramsey-county", "dakota-county"] },
+    "tags": {
+      "topic": [
+        "safety"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county",
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "The National Weather Service has issued a severe thunderstorm watch for the Twin Cities metro area until 10pm tonight. Large hail and damaging winds possible. Secure outdoor items and stay indoors during the storm. Warming centers and shelters will remain open. Monitor local media for updates.",
     "bodyMedium": "Severe thunderstorm watch for the metro until 10pm. Large hail and damaging winds possible. Secure outdoor items and stay indoors.",
     "bodyLight": "Severe thunderstorm watch until 10pm. Stay indoors.",
-    "meta": { "timestampOffsetDays": 0 }
+    "meta": {
+      "timestampOffsetDays": 0
+    }
   },
   {
     "title": "Dakota County WIC Offices Extend Hours for Working Parents",
@@ -535,12 +989,25 @@
     "publishedOffsetDays": -4,
     "zipCode": "55337",
     "location": "Burnsville, MN",
-    "tags": { "topic": ["food", "childcare"], "serviceArea": ["dakota-county"] },
+    "tags": {
+      "topic": [
+        "food",
+        "childcare"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "Dakota County WIC offices in Burnsville and Apple Valley now offer evening appointments on Tuesdays and Thursdays until 7pm, and Saturday morning walk-ins from 9am to noon. The extended hours are designed for working parents who cannot visit during traditional office hours.",
-    "bodyMedium": "Dakota County WIC in Burnsville and Apple Valley now open Tuesday/Thursday evenings until 7pm and Saturday mornings 9am\u2013noon.",
+    "bodyMedium": "Dakota County WIC in Burnsville and Apple Valley now open Tuesday/Thursday evenings until 7pm and Saturday mornings 9am–noon.",
     "bodyLight": "Dakota County WIC extends hours for working parents.",
-    "meta": { "timestampOffsetDays": -4 },
-    "sourceAttribution": { "sourceName": "Dakota County Emergency Assistance (Public Assistance)", "attribution": "Schedule update" }
+    "meta": {
+      "timestampOffsetDays": -4
+    },
+    "sourceAttribution": {
+      "sourceName": "Dakota County Emergency Assistance (Public Assistance)",
+      "attribution": "Schedule update"
+    }
   },
   {
     "title": "Free School Supply Kits Available at North Minneapolis Libraries",
@@ -551,11 +1018,21 @@
     "publishedOffsetDays": -3,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
-    "tags": { "topic": ["education"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
+    "tags": {
+      "topic": [
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
     "bodyHeavy": "Free spring semester school supply kits are available while supplies last at North Regional, Webber Park, and Sumner libraries. Kits include notebooks, pencils, folders, and a calculator. One per student, no ID required.",
     "bodyMedium": "Free school supply kits at North Regional, Webber Park, and Sumner libraries. One per student, no ID required. While supplies last.",
     "bodyLight": "Free school supply kits at three North Minneapolis libraries.",
-    "meta": { "timestampOffsetDays": -3 }
+    "meta": {
+      "timestampOffsetDays": -3
+    }
   },
   {
     "title": "Shakopee Food Shelf Adds Halal and Latino Staples",
@@ -566,12 +1043,25 @@
     "publishedOffsetDays": -5,
     "zipCode": "55379",
     "location": "Shakopee, MN",
-    "tags": { "topic": ["food", "culture"], "serviceArea": ["scott-county"] },
-    "bodyHeavy": "CAP Agency\u2019s Shakopee food shelf has expanded its inventory to include halal meats, injera flour, masa, dried chilies, and other culturally specific staples. The change follows feedback from Somali and Latino families who make up a growing share of visitors.",
+    "tags": {
+      "topic": [
+        "food",
+        "culture"
+      ],
+      "serviceArea": [
+        "scott-county"
+      ]
+    },
+    "bodyHeavy": "CAP Agency’s Shakopee food shelf has expanded its inventory to include halal meats, injera flour, masa, dried chilies, and other culturally specific staples. The change follows feedback from Somali and Latino families who make up a growing share of visitors.",
     "bodyMedium": "CAP Agency Shakopee food shelf now offers halal meats, injera flour, masa, and other culturally specific items after feedback from Somali and Latino families.",
     "bodyLight": "Shakopee food shelf adds halal and Latino staples.",
-    "meta": { "timestampOffsetDays": -5 },
-    "sourceAttribution": { "sourceName": "CAP Agency \u2013 Scott County Office / Food Shelf (Shakopee)", "attribution": "Staff update" }
+    "meta": {
+      "timestampOffsetDays": -5
+    },
+    "sourceAttribution": {
+      "sourceName": "CAP Agency – Scott County Office / Food Shelf (Shakopee)",
+      "attribution": "Staff update"
+    }
   },
   {
     "title": "Cottage Grove Opens New Playground at Kingston Park",
@@ -582,11 +1072,20 @@
     "publishedOffsetDays": -8,
     "zipCode": "55016",
     "location": "Cottage Grove, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["washington-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
     "bodyHeavy": "Cottage Grove held a ribbon-cutting for the renovated Kingston Park playground, which now includes wheelchair-accessible equipment, a sensory play area, and shade structures. The $1.2M project was funded by a state bonding bill.",
     "bodyMedium": "New accessible playground at Kingston Park in Cottage Grove includes wheelchair-accessible equipment, a sensory area, and shade structures.",
     "bodyLight": "Cottage Grove opens renovated accessible playground at Kingston Park.",
-    "meta": { "timestampOffsetDays": -8 }
+    "meta": {
+      "timestampOffsetDays": -8
+    }
   },
   {
     "title": "Free Legal Clinic for Immigrants This Saturday at CLUES",
@@ -597,12 +1096,25 @@
     "publishedOffsetDays": -1,
     "zipCode": "55106",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["legal", "immigration"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "legal",
+        "immigration"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "CLUES St. Paul is hosting a free immigration legal clinic this Saturday from 10am to 2pm. Volunteer attorneys will assist with DACA renewals, TPS applications, and family petitions. Spanish and English spoken. Childcare provided. Walk-ins welcome but appointments preferred. Call 651-379-4200.",
-    "bodyMedium": "Free immigration legal clinic at CLUES St. Paul this Saturday, 10am\u20132pm. Help with DACA, TPS, family petitions. Childcare provided. Call 651-379-4200.",
+    "bodyMedium": "Free immigration legal clinic at CLUES St. Paul this Saturday, 10am–2pm. Help with DACA, TPS, family petitions. Childcare provided. Call 651-379-4200.",
     "bodyLight": "Free immigration legal clinic Saturday at CLUES St. Paul.",
-    "meta": { "timestampOffsetDays": -1 },
-    "sourceAttribution": { "sourceName": "CLUES (Comunidades Latinas Unidas En Servicio) \u2013 St. Paul", "attribution": "Event notice" }
+    "meta": {
+      "timestampOffsetDays": -1
+    },
+    "sourceAttribution": {
+      "sourceName": "CLUES (Comunidades Latinas Unidas En Servicio) – St. Paul",
+      "attribution": "Event notice"
+    }
   },
   {
     "title": "Hennepin County Expands Free Diaper Program",
@@ -613,12 +1125,25 @@
     "publishedOffsetDays": -6,
     "zipCode": "55420",
     "location": "Bloomington, MN",
-    "tags": { "topic": ["childcare", "community"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Hennepin County\u2019s free diaper distribution program, previously available only at VEAP in Bloomington, has expanded to three additional sites: CEAP in Brooklyn Center, STEP in St. Louis Park, and Sabathani in South Minneapolis. Families can receive up to 50 diapers per child per month, no income verification required.",
+    "tags": {
+      "topic": [
+        "childcare",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Hennepin County’s free diaper distribution program, previously available only at VEAP in Bloomington, has expanded to three additional sites: CEAP in Brooklyn Center, STEP in St. Louis Park, and Sabathani in South Minneapolis. Families can receive up to 50 diapers per child per month, no income verification required.",
     "bodyMedium": "Free diapers now at four Hennepin County sites: VEAP, CEAP, STEP, and Sabathani. Up to 50 per child per month, no income check.",
     "bodyLight": "Free diaper program expands to four Hennepin County sites.",
-    "meta": { "timestampOffsetDays": -6 },
-    "sourceAttribution": { "sourceName": "VEAP (Volunteers Enlisted to Assist People)", "attribution": "Program expansion" }
+    "meta": {
+      "timestampOffsetDays": -6
+    },
+    "sourceAttribution": {
+      "sourceName": "VEAP (Volunteers Enlisted to Assist People)",
+      "attribution": "Program expansion"
+    }
   },
   {
     "title": "New Bus Rapid Transit Station Open at Brooklyn Blvd",
@@ -629,18 +1154,31 @@
     "publishedOffsetDays": -10,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["transit"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
+    "tags": {
+      "topic": [
+        "transit"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
     "bodyHeavy": "The new Brooklyn Blvd BRT station on the D Line opened this week, adding a heated shelter, real-time arrival displays, and level boarding for wheelchair users. The station connects to routes serving downtown Minneapolis, Brooklyn Park, and Maple Grove.",
     "bodyMedium": "New Brooklyn Blvd D Line BRT station open with heated shelter, real-time displays, and level boarding for wheelchair access.",
     "bodyLight": "New D Line BRT station open at Brooklyn Blvd.",
-    "meta": { "timestampOffsetDays": -10 },
-    "sourceAttribution": { "sourceName": "Metro Transit", "attribution": "Station opening" }
+    "meta": {
+      "timestampOffsetDays": -10
+    },
+    "sourceAttribution": {
+      "sourceName": "Metro Transit",
+      "attribution": "Station opening"
+    }
   },
-
-  {"_comment": "═══ EXCHANGES (20) ═════════════════════════════════════════════"},
-
   {
-    "title": "Family of 4 Needs Temporary Housing\u2014South Metro",
+    "_comment": "═══ EXCHANGES (20) ═════════════════════════════════════════════"
+  },
+  {
+    "title": "Family of 4 Needs Temporary Housing—South Metro",
     "postType": "exchange",
     "weight": "medium",
     "priority": 85,
@@ -649,15 +1187,29 @@
     "publishedOffsetDays": -1,
     "zipCode": "55415",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["housing"], "serviceArea": ["hennepin-county", "south-metro"] },
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "south-metro"
+      ]
+    },
     "bodyHeavy": "Parents with two children (ages 3 and 7) currently in shelter. Employed, looking for 2BR in Bloomington, Richfield, or Minneapolis area. Can pay up to $1,200 per month. Case manager available to coordinate move-in. Family has completed housing readiness program. References provided.",
     "bodyMedium": "Family of four in shelter seeking 2BR in south metro. Employed, up to $1,200/mo. Case manager available. Housing-ready.",
     "bodyLight": "Family of 4 needs 2BR housing, south metro. Up to $1,200/mo.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "People Serving People (Family Shelter)", "attribution": "Case referral" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "People Serving People (Family Shelter)",
+      "attribution": "Case referral"
+    }
   },
   {
-    "title": "Food Shelf Volunteers\u2014Weekday Mornings",
+    "title": "Food Shelf Volunteers—Weekday Mornings",
     "postType": "exchange",
     "weight": "medium",
     "priority": 68,
@@ -665,15 +1217,30 @@
     "publishedOffsetDays": -3,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
-    "bodyHeavy": "Sort and stock donations, greet clients, help with intake paperwork. Tuesday through Friday, 8:30am\u201312pm. No experience needed. Background check required. Volunteers commit to at least one morning per week for a minimum of three months. Training provided on first day.",
-    "bodyMedium": "Sort donations, greet clients, help with paperwork. Tu\u2013Fr 8:30am\u201312pm. No experience needed. Background check required. Commit to 1 morning/week.",
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
+    "bodyHeavy": "Sort and stock donations, greet clients, help with intake paperwork. Tuesday through Friday, 8:30am–12pm. No experience needed. Background check required. Volunteers commit to at least one morning per week for a minimum of three months. Training provided on first day.",
+    "bodyMedium": "Sort donations, greet clients, help with paperwork. Tu–Fr 8:30am–12pm. No experience needed. Background check required. Commit to 1 morning/week.",
     "bodyLight": "Food shelf volunteers needed, weekday mornings. Brooklyn Center.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Community Emergency Assistance Programs (CEAP)", "attribution": "Volunteer posting" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Community Emergency Assistance Programs (CEAP)",
+      "attribution": "Volunteer posting"
+    }
   },
   {
-    "title": "Winter Coats & Boots\u2014All Sizes",
+    "title": "Winter Coats & Boots—All Sizes",
     "postType": "exchange",
     "weight": "medium",
     "priority": 66,
@@ -681,12 +1248,26 @@
     "publishedOffsetDays": -2,
     "zipCode": "55415",
     "location": "614 S 3rd St, Minneapolis",
-    "tags": { "topic": ["donations", "community"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Accepting clean, gently used winter coats, boots, gloves, and hats. Children\u2019s sizes especially needed. Drop-off Monday through Friday 8am\u20136pm at front desk. We also accept new items. Donations are distributed directly to families in shelter and transitional housing.",
-    "bodyMedium": "Accepting winter coats, boots, gloves, hats\u2014especially children\u2019s sizes. Drop-off M\u2013F 8am\u20136pm at front desk. Distributed to families in shelter.",
-    "bodyLight": "Winter coats & boots needed, all sizes. Drop off M\u2013F 8\u20136.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "People Serving People (Family Shelter)", "attribution": "Donation drive" }
+    "tags": {
+      "topic": [
+        "donations",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Accepting clean, gently used winter coats, boots, gloves, and hats. Children’s sizes especially needed. Drop-off Monday through Friday 8am–6pm at front desk. We also accept new items. Donations are distributed directly to families in shelter and transitional housing.",
+    "bodyMedium": "Accepting winter coats, boots, gloves, hats—especially children’s sizes. Drop-off M–F 8am–6pm at front desk. Distributed to families in shelter.",
+    "bodyLight": "Winter coats & boots needed, all sizes. Drop off M–F 8–6.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "People Serving People (Family Shelter)",
+      "attribution": "Donation drive"
+    }
   },
   {
     "title": "ESL Conversation Partners",
@@ -697,15 +1278,29 @@
     "publishedOffsetDays": -5,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["education"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
-    "bodyHeavy": "Practice English with adult learners, one hour per week. Daytime and evening slots available. No teaching experience needed\u2014just patience and a willingness to listen. CAPI provides training and matches you with a learner.",
+    "tags": {
+      "topic": [
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
+    "bodyHeavy": "Practice English with adult learners, one hour per week. Daytime and evening slots available. No teaching experience needed—just patience and a willingness to listen. CAPI provides training and matches you with a learner.",
     "bodyMedium": "Practice English with adult learners, 1 hr/week. Day and evening slots. No teaching experience needed. CAPI provides training.",
     "bodyLight": "ESL conversation partners needed, 1 hr/week.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "CAPI USA (Communities Advancing Prosperity for Immigrants)", "attribution": "Volunteer posting" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "CAPI USA (Communities Advancing Prosperity for Immigrants)",
+      "attribution": "Volunteer posting"
+    }
   },
   {
-    "title": "Interpretation\u2014Somali & Hmong",
+    "title": "Interpretation—Somali & Hmong",
     "postType": "exchange",
     "weight": "light",
     "priority": 53,
@@ -713,15 +1308,28 @@
     "publishedOffsetDays": -6,
     "zipCode": "55103",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Help community members navigate benefits applications and service intake. Flexible hours, stipend available. Bilingual speakers of Somali or Hmong preferred. HAP provides orientation and ongoing support.",
     "bodyMedium": "Help community members navigate benefits and intake. Flexible hours, stipend available. Somali or Hmong speakers preferred.",
-    "bodyLight": "Interpreters needed\u2014Somali & Hmong. Stipend available.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Hmong American Partnership (HAP)", "attribution": "Volunteer/staff posting" }
+    "bodyLight": "Interpreters needed—Somali & Hmong. Stipend available.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Hmong American Partnership (HAP)",
+      "attribution": "Volunteer/staff posting"
+    }
   },
   {
-    "title": "Mobile Pantry Drivers\u2014Saturdays",
+    "title": "Mobile Pantry Drivers—Saturdays",
     "postType": "exchange",
     "weight": "light",
     "priority": 50,
@@ -729,15 +1337,29 @@
     "publishedOffsetDays": -4,
     "zipCode": "55121",
     "location": "Eagan, MN",
-    "tags": { "topic": ["food", "transit"], "serviceArea": ["dakota-county"] },
-    "bodyHeavy": "Deliver food to mobile distribution sites across Dakota County on Saturdays. Valid driver\u2019s license required, ability to lift 40 pounds. Shifts are 2\u20133 hours. Mileage reimbursed at the federal rate. Routes change weekly based on community need.",
-    "bodyMedium": "Deliver food across Dakota County on Saturdays. Valid license, lift 40 lbs. 2\u20133 hour shifts. Mileage reimbursed.",
+    "tags": {
+      "topic": [
+        "food",
+        "transit"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
+    "bodyHeavy": "Deliver food to mobile distribution sites across Dakota County on Saturdays. Valid driver’s license required, ability to lift 40 pounds. Shifts are 2–3 hours. Mileage reimbursed at the federal rate. Routes change weekly based on community need.",
+    "bodyMedium": "Deliver food across Dakota County on Saturdays. Valid license, lift 40 lbs. 2–3 hour shifts. Mileage reimbursed.",
     "bodyLight": "Mobile pantry drivers needed Saturdays. Mileage reimbursed.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "The Open Door Pantry", "attribution": "Volunteer posting" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "The Open Door Pantry",
+      "attribution": "Volunteer posting"
+    }
   },
   {
-    "title": "Room Available in North Minneapolis\u2014Low Cost",
+    "title": "Room Available in North Minneapolis—Low Cost",
     "postType": "exchange",
     "weight": "medium",
     "priority": 60,
@@ -745,14 +1367,25 @@
     "publishedOffsetDays": -2,
     "zipCode": "55411",
     "location": "Near West Broadway, Minneapolis",
-    "tags": { "topic": ["housing"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
     "bodyHeavy": "Furnished room in shared house, $400 per month utilities included. Near bus lines 5 and 22. Prefer someone in recovery or recently housed. References required. Quiet household, shared kitchen and bathroom. Available immediately. Contact through posting.",
     "bodyMedium": "Furnished room, $400/mo utilities included. Near bus lines 5 & 22. Prefer someone in recovery or recently housed. References required.",
     "bodyLight": "Room available in North Mpls, $400/mo. Bus lines 5 & 22.",
-    "status": { "state": "available", "verified": "unverified" }
+    "status": {
+      "state": "available",
+      "verified": "unverified"
+    }
   },
   {
-    "title": "Free Furniture\u2014Beds, Tables, Chairs",
+    "title": "Free Furniture—Beds, Tables, Chairs",
     "postType": "exchange",
     "weight": "light",
     "priority": 52,
@@ -760,15 +1393,29 @@
     "publishedOffsetDays": -7,
     "zipCode": "55420",
     "location": "Bloomington, MN",
-    "tags": { "topic": ["housing", "donations"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "donations"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Gently used furniture for individuals and families setting up new homes. Available by referral from a case manager. Items include beds, dressers, tables, chairs, lamps, and kitchen supplies. Delivery available within Hennepin County.",
     "bodyMedium": "Free furniture by case manager referral: beds, tables, chairs, kitchen supplies. Delivery available in Hennepin County.",
     "bodyLight": "Free furniture by referral. Delivery in Hennepin County.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Bridging", "attribution": "Referral program" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Bridging",
+      "attribution": "Referral program"
+    }
   },
   {
-    "title": "Pro Bono Legal Help\u2014Immigration Cases",
+    "title": "Pro Bono Legal Help—Immigration Cases",
     "postType": "exchange",
     "weight": "medium",
     "priority": 58,
@@ -776,15 +1423,29 @@
     "publishedOffsetDays": -3,
     "zipCode": "55401",
     "location": "Hennepin County",
-    "tags": { "topic": ["legal", "immigration"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "legal",
+        "immigration"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Attorneys available for DACA renewals, asylum applications, and family petitions. By appointment through VLN intake at 612-752-6677. Cases are matched with pro bono attorneys who specialize in immigration law. No fee for eligible clients. Interpretation available.",
     "bodyMedium": "Pro bono attorneys for DACA, asylum, and family petitions. Appointment through VLN at 612-752-6677. No fee for eligible clients.",
     "bodyLight": "Free immigration legal help. Call VLN at 612-752-6677.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "The Advocates for Human Rights (Immigrant Client Line)", "attribution": "VLN partnership" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "The Advocates for Human Rights (Immigrant Client Line)",
+      "attribution": "VLN partnership"
+    }
   },
   {
-    "title": "Free After-School Program\u2014Ages 6\u201312",
+    "title": "Free After-School Program—Ages 6–12",
     "postType": "exchange",
     "weight": "medium",
     "priority": 56,
@@ -792,12 +1453,27 @@
     "publishedOffsetDays": -4,
     "zipCode": "55411",
     "location": "North Minneapolis",
-    "tags": { "topic": ["childcare", "education"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
-    "bodyHeavy": "Homework help, arts, and recreation Monday through Friday 3\u20136pm. Snack included. Registration open for spring semester. Program runs through June. Transportation available from select North Minneapolis schools. Staff are background-checked and CPR certified.",
-    "bodyMedium": "Homework help, arts, and recreation M\u2013F 3\u20136pm. Snack included. Spring registration open. Transport from select N. Mpls schools.",
-    "bodyLight": "Free after-school program, ages 6\u201312. M\u2013F 3\u20136pm.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Pillsbury United Communities \u2013 Brian Coyle Center (Food Shelf)", "attribution": "Program listing" }
+    "tags": {
+      "topic": [
+        "childcare",
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
+    "bodyHeavy": "Homework help, arts, and recreation Monday through Friday 3–6pm. Snack included. Registration open for spring semester. Program runs through June. Transportation available from select North Minneapolis schools. Staff are background-checked and CPR certified.",
+    "bodyMedium": "Homework help, arts, and recreation M–F 3–6pm. Snack included. Spring registration open. Transport from select N. Mpls schools.",
+    "bodyLight": "Free after-school program, ages 6–12. M–F 3–6pm.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Pillsbury United Communities – Brian Coyle Center (Food Shelf)",
+      "attribution": "Program listing"
+    }
   },
   {
     "title": "Free Rides to Medical Appointments",
@@ -806,14 +1482,25 @@
     "priority": 48,
     "submissionType": "org_submitted",
     "publishedOffsetDays": -8,
-    "tags": { "topic": ["transit", "health"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Door-to-door transport for eligible Hennepin County residents going to medical appointments. Schedule 1\u20133 days ahead. Wheelchair-accessible vehicles available. Call 651-602-1111 to register and book rides.",
-    "bodyMedium": "Door-to-door medical transport for eligible residents. Schedule 1\u20133 days ahead. Wheelchair accessible. Call 651-602-1111.",
+    "tags": {
+      "topic": [
+        "transit",
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Door-to-door transport for eligible Hennepin County residents going to medical appointments. Schedule 1–3 days ahead. Wheelchair-accessible vehicles available. Call 651-602-1111 to register and book rides.",
+    "bodyMedium": "Door-to-door medical transport for eligible residents. Schedule 1–3 days ahead. Wheelchair accessible. Call 651-602-1111.",
     "bodyLight": "Free medical rides. Call 651-602-1111 to schedule.",
-    "status": { "state": "available", "verified": "verified" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    }
   },
   {
-    "title": "Bicycle Repair\u2014Free for Anyone",
+    "title": "Bicycle Repair—Free for Anyone",
     "postType": "exchange",
     "weight": "light",
     "priority": 44,
@@ -821,14 +1508,25 @@
     "publishedOffsetDays": -6,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["transit", "community"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Bring your bike to the Freewheel Community Workshop on Saturdays 10am\u20132pm for free repairs. Volunteers help you fix your own bike using donated parts and tools. All skill levels welcome. Kids under 16 must have an adult present.",
-    "bodyMedium": "Free bike repairs Saturdays 10am\u20132pm at Freewheel Workshop. Volunteers help you fix your own bike. All skill levels.",
-    "bodyLight": "Free bike repairs Saturdays 10\u20132 at Freewheel Workshop.",
-    "status": { "state": "available", "verified": "verified" }
+    "tags": {
+      "topic": [
+        "transit",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Bring your bike to the Freewheel Community Workshop on Saturdays 10am–2pm for free repairs. Volunteers help you fix your own bike using donated parts and tools. All skill levels welcome. Kids under 16 must have an adult present.",
+    "bodyMedium": "Free bike repairs Saturdays 10am–2pm at Freewheel Workshop. Volunteers help you fix your own bike. All skill levels.",
+    "bodyLight": "Free bike repairs Saturdays 10–2 at Freewheel Workshop.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    }
   },
   {
-    "title": "Sewing Machine & Fabric\u2014Free to Take",
+    "title": "Sewing Machine & Fabric—Free to Take",
     "postType": "exchange",
     "weight": "light",
     "priority": 38,
@@ -836,14 +1534,24 @@
     "publishedOffsetDays": -9,
     "zipCode": "55106",
     "location": "East St. Paul, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Working Singer sewing machine with carrying case, plus assorted fabric and thread. Free to anyone who can pick up from East St. Paul. Great for someone starting a tailoring business or learning to sew. First to respond gets it.",
     "bodyMedium": "Working Singer sewing machine, fabric, and thread. Free pickup in East St. Paul. Great for tailoring or learning to sew.",
     "bodyLight": "Free sewing machine and fabric. Pickup in East St. Paul.",
-    "status": { "state": "available", "verified": "unverified" }
+    "status": {
+      "state": "available",
+      "verified": "unverified"
+    }
   },
   {
-    "title": "Somali Women\u2019s Support Circle\u2014Weekly Meetings",
+    "title": "Somali Women’s Support Circle—Weekly Meetings",
     "postType": "exchange",
     "weight": "medium",
     "priority": 54,
@@ -851,28 +1559,54 @@
     "publishedOffsetDays": -5,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["health", "community"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Weekly peer support group for Somali women dealing with stress, isolation, or adjustment challenges. Meets Wednesdays 10am\u201312pm at Brian Coyle Center. Facilitated in Somali by a trained peer counselor. Childcare and tea provided. No registration or referral needed.",
-    "bodyMedium": "Peer support for Somali women, Wednesdays 10am\u201312pm at Brian Coyle Center. Facilitated in Somali. Childcare and tea provided.",
-    "bodyLight": "Somali women\u2019s support circle, Wednesdays at Brian Coyle.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Pillsbury United Communities \u2013 Brian Coyle Center (Food Shelf)", "attribution": "Program listing" }
+    "tags": {
+      "topic": [
+        "health",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Weekly peer support group for Somali women dealing with stress, isolation, or adjustment challenges. Meets Wednesdays 10am–12pm at Brian Coyle Center. Facilitated in Somali by a trained peer counselor. Childcare and tea provided. No registration or referral needed.",
+    "bodyMedium": "Peer support for Somali women, Wednesdays 10am–12pm at Brian Coyle Center. Facilitated in Somali. Childcare and tea provided.",
+    "bodyLight": "Somali women’s support circle, Wednesdays at Brian Coyle.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Pillsbury United Communities – Brian Coyle Center (Food Shelf)",
+      "attribution": "Program listing"
+    }
   },
   {
-    "title": "Volunteer Tax Preparers Needed\u2014VITA Program",
+    "title": "Volunteer Tax Preparers Needed—VITA Program",
     "postType": "exchange",
     "weight": "light",
     "priority": 46,
     "submissionType": "org_submitted",
     "publishedOffsetDays": -7,
-    "tags": { "topic": ["employment", "community"], "serviceArea": ["hennepin-county", "ramsey-county"] },
+    "tags": {
+      "topic": [
+        "employment",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "VITA (Volunteer Income Tax Assistance) needs bilingual tax preparers for the 2026 filing season. Free IRS certification training provided. Shifts available at libraries across Hennepin and Ramsey counties, Saturdays and weekday evenings. Especially need speakers of Somali, Hmong, and Spanish.",
     "bodyMedium": "VITA needs bilingual tax preparers. Free IRS training. Shifts at libraries in Hennepin and Ramsey counties. Somali, Hmong, Spanish speakers needed.",
     "bodyLight": "VITA needs bilingual volunteer tax preparers. Training provided.",
-    "status": { "state": "available", "verified": "verified" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    }
   },
   {
-    "title": "Garden Plots Available\u2014Midtown Community Garden",
+    "title": "Garden Plots Available—Midtown Community Garden",
     "postType": "exchange",
     "weight": "light",
     "priority": 40,
@@ -880,14 +1614,26 @@
     "publishedOffsetDays": -10,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "Four 4x8 raised bed plots available at Midtown Community Garden near Lake Street. Free for first-year gardeners. Water access on site. Tools available to borrow. Great for growing vegetables, herbs, or flowers. Contact the garden coordinator to claim a plot.",
     "bodyMedium": "Four free garden plots at Midtown Community Garden near Lake Street. Water and tools on site. Contact coordinator to claim.",
     "bodyLight": "Free garden plots at Midtown Community Garden, Lake Street.",
-    "status": { "state": "available", "verified": "unverified" }
+    "status": {
+      "state": "available",
+      "verified": "unverified"
+    }
   },
   {
-    "title": "Cribs & Car Seats\u2014New, Free for Qualifying Families",
+    "title": "Cribs & Car Seats—New, Free for Qualifying Families",
     "postType": "exchange",
     "weight": "light",
     "priority": 51,
@@ -895,15 +1641,29 @@
     "publishedOffsetDays": -4,
     "zipCode": "55337",
     "location": "Burnsville, MN",
-    "tags": { "topic": ["childcare", "safety"], "serviceArea": ["dakota-county"] },
+    "tags": {
+      "topic": [
+        "childcare",
+        "safety"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "New cribs and car seats available free to qualifying families through 360 Communities in Burnsville. Must be referred by a case manager, home visitor, or WIC office. Items are brand-new and meet current safety standards. Installation help available for car seats.",
     "bodyMedium": "Free new cribs and car seats through 360 Communities. Referral from case manager, home visitor, or WIC required. Installation help available.",
     "bodyLight": "Free cribs and car seats by referral. 360 Communities, Burnsville.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "360 Communities \u2013 Burnsville Resource Center & Food Shelf", "attribution": "Safe sleep program" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "360 Communities – Burnsville Resource Center & Food Shelf",
+      "attribution": "Safe sleep program"
+    }
   },
   {
-    "title": "Karen Language Tutors for K\u20133 Students",
+    "title": "Karen Language Tutors for K–3 Students",
     "postType": "exchange",
     "weight": "light",
     "priority": 42,
@@ -911,12 +1671,26 @@
     "publishedOffsetDays": -8,
     "zipCode": "55113",
     "location": "Roseville, MN",
-    "tags": { "topic": ["education", "culture"], "serviceArea": ["ramsey-county"] },
-    "bodyHeavy": "Bilingual Karen-English speakers needed to tutor K\u20133 students at after-school programs in Roseville and St. Paul. Two hours per week, flexible schedule. Small stipend provided. Training and curriculum materials included.",
-    "bodyMedium": "Karen-English tutors needed for K\u20133 students in Roseville/St. Paul. 2 hrs/week, stipend provided. Training included.",
-    "bodyLight": "Karen language tutors needed for K\u20133. Stipend provided.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "Karen Organization of Minnesota", "attribution": "Volunteer posting" }
+    "tags": {
+      "topic": [
+        "education",
+        "culture"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
+    "bodyHeavy": "Bilingual Karen-English speakers needed to tutor K–3 students at after-school programs in Roseville and St. Paul. Two hours per week, flexible schedule. Small stipend provided. Training and curriculum materials included.",
+    "bodyMedium": "Karen-English tutors needed for K–3 students in Roseville/St. Paul. 2 hrs/week, stipend provided. Training included.",
+    "bodyLight": "Karen language tutors needed for K–3. Stipend provided.",
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "Karen Organization of Minnesota",
+      "attribution": "Volunteer posting"
+    }
   },
   {
     "title": "Free Laptops for Job Seekers",
@@ -927,16 +1701,29 @@
     "publishedOffsetDays": -3,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["employment"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "employment"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Refurbished laptops available free to job seekers enrolled in workforce programs at CLUES, CAPI, or partner agencies. Laptops come with Windows, a carrying case, and a one-year warranty. Must be actively engaged in a job search or training program. One per household.",
     "bodyMedium": "Free refurbished laptops for job seekers in CLUES, CAPI, or partner workforce programs. Includes warranty and carrying case. One per household.",
     "bodyLight": "Free laptops for job seekers in workforce programs.",
-    "status": { "state": "available", "verified": "verified" },
-    "sourceAttribution": { "sourceName": "CLUES \u2013 Minneapolis (CareerForce Center)", "attribution": "Tech access program" }
+    "status": {
+      "state": "available",
+      "verified": "verified"
+    },
+    "sourceAttribution": {
+      "sourceName": "CLUES – Minneapolis (CareerForce Center)",
+      "attribution": "Tech access program"
+    }
   },
-
-  {"_comment": "═══ EVENTS (20) ════════════════════════════════════════════════"},
-
+  {
+    "_comment": "═══ EVENTS (20) ════════════════════════════════════════════════"
+  },
   {
     "title": "Community Food Drive & Resource Fair",
     "postType": "event",
@@ -946,12 +1733,29 @@
     "publishedOffsetDays": -3,
     "zipCode": "55409",
     "location": "310 E 38th St, Minneapolis",
-    "tags": { "topic": ["food", "community"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Bring non-perishable items or come browse tables from 15+ local service organizations. Free lunch for all. Kids\u2019 activities include face painting, balloon animals, and a story corner. Representatives from housing, health, and employment programs will be on site. Interpretation available in Somali and Spanish.",
-    "bodyMedium": "Bring non-perishable items or browse tables from 15+ service organizations. Free lunch for all. Kids\u2019 activities, housing and health reps on site.",
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Bring non-perishable items or come browse tables from 15+ local service organizations. Free lunch for all. Kids’ activities include face painting, balloon animals, and a story corner. Representatives from housing, health, and employment programs will be on site. Interpretation available in Somali and Spanish.",
+    "bodyMedium": "Bring non-perishable items or browse tables from 15+ service organizations. Free lunch for all. Kids’ activities, housing and health reps on site.",
     "bodyLight": "Food drive and resource fair. Free lunch. 15+ service organizations.",
-    "datetime": { "offsetDays": 3, "durationHours": 4, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "Sabathani Community Center", "attribution": "Event listing" }
+    "datetime": {
+      "offsetDays": 3,
+      "durationHours": 4,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "10:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Sabathani Community Center",
+      "attribution": "Event listing"
+    }
   },
   {
     "title": "Know Your Rights Workshop",
@@ -962,12 +1766,29 @@
     "publishedOffsetDays": -2,
     "zipCode": "55104",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["legal", "immigration"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "legal",
+        "immigration"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Tenant rights, immigration basics, and workplace protections in one evening. Presented by attorneys from the Immigrant Law Center of Minnesota. Childcare provided. RSVP at ilcm.org but walk-ins welcome. Materials available in English, Spanish, Somali, and Hmong.",
     "bodyMedium": "Tenant rights, immigration basics, and workplace protections. Childcare provided. Walk-ins welcome. Materials in English, Spanish, Somali, Hmong.",
     "bodyLight": "Know your rights: tenants, immigrants, workers. Free workshop.",
-    "datetime": { "offsetDays": 5, "durationHours": 2, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "Immigrant Law Center of Minnesota (ILCM)", "attribution": "Workshop series" }
+    "datetime": {
+      "offsetDays": 5,
+      "durationHours": 2,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "18:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Immigrant Law Center of Minnesota (ILCM)",
+      "attribution": "Workshop series"
+    }
   },
   {
     "title": "Karen New Year Celebration",
@@ -978,12 +1799,29 @@
     "publishedOffsetDays": -5,
     "zipCode": "55113",
     "location": "Roseville, MN",
-    "tags": { "topic": ["community", "culture"], "serviceArea": ["ramsey-county"] },
-    "bodyHeavy": "Cultural performances, traditional food, and family activities celebrating Karen New Year. Open to all community members. Performances begin at noon. Traditional Karen weaving demonstrations, children\u2019s games, and live music throughout the afternoon. Free admission, free food.",
+    "tags": {
+      "topic": [
+        "community",
+        "culture"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
+    "bodyHeavy": "Cultural performances, traditional food, and family activities celebrating Karen New Year. Open to all community members. Performances begin at noon. Traditional Karen weaving demonstrations, children’s games, and live music throughout the afternoon. Free admission, free food.",
     "bodyMedium": "Karen New Year celebration with cultural performances, traditional food, and family activities. Open to all. Free admission and food.",
     "bodyLight": "Karen New Year: cultural performances, food, activities. Free.",
-    "datetime": { "offsetDays": 10, "durationHours": 5, "cost": "Free admission", "recurring": false },
-    "sourceAttribution": { "sourceName": "Karen Organization of Minnesota", "attribution": "Annual celebration" }
+    "datetime": {
+      "offsetDays": 10,
+      "durationHours": 5,
+      "cost": "Free admission",
+      "recurring": false,
+      "startTime": "11:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Karen Organization of Minnesota",
+      "attribution": "Annual celebration"
+    }
   },
   {
     "title": "Tenant Rights Clinic",
@@ -993,12 +1831,29 @@
     "submissionType": "org_submitted",
     "publishedOffsetDays": -4,
     "location": "Virtual",
-    "tags": { "topic": ["housing", "legal"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "housing",
+        "legal"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Free virtual clinic for Minnesota renters. One-on-one consultations with housing attorneys. Topics include eviction defense, security deposit disputes, and lease questions. Spanish interpretation available. Register at homelinemn.org or call 612-728-5767.",
     "bodyMedium": "Free virtual clinic with housing attorneys. Eviction defense, deposits, lease questions. Spanish interpretation. Call 612-728-5767.",
     "bodyLight": "Free virtual tenant rights clinic. Call 612-728-5767.",
-    "datetime": { "offsetDays": 12, "durationHours": 3, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "HOME Line (Tenant Hotline)", "attribution": "Clinic series" }
+    "datetime": {
+      "offsetDays": 12,
+      "durationHours": 3,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "17:30"
+    },
+    "sourceAttribution": {
+      "sourceName": "HOME Line (Tenant Hotline)",
+      "attribution": "Clinic series"
+    }
   },
   {
     "title": "Community Health Fair & Free Screenings",
@@ -1009,11 +1864,25 @@
     "publishedOffsetDays": -3,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
-    "tags": { "topic": ["health"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
-    "bodyHeavy": "Blood pressure, glucose, vision, and dental screenings. Flu shots available. Interpretation in six languages. Representatives from NorthPoint Health, Hennepin Healthcare, and community clinics on site. Free food and children\u2019s activities.",
-    "bodyMedium": "Blood pressure, glucose, vision, dental screenings. Flu shots. Interpretation in 6 languages. Free food and kids\u2019 activities.",
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
+    "bodyHeavy": "Blood pressure, glucose, vision, and dental screenings. Flu shots available. Interpretation in six languages. Representatives from NorthPoint Health, Hennepin Healthcare, and community clinics on site. Free food and children’s activities.",
+    "bodyMedium": "Blood pressure, glucose, vision, dental screenings. Flu shots. Interpretation in 6 languages. Free food and kids’ activities.",
     "bodyLight": "Free health screenings and flu shots. Walk-in, six languages.",
-    "datetime": { "offsetDays": 18, "durationHours": 6, "cost": "Walk-in, free", "recurring": false }
+    "datetime": {
+      "offsetDays": 18,
+      "durationHours": 6,
+      "cost": "Walk-in, free",
+      "recurring": false,
+      "startTime": "10:00"
+    }
   },
   {
     "title": "Adult Literacy Circle",
@@ -1024,11 +1893,24 @@
     "publishedOffsetDays": -10,
     "zipCode": "55101",
     "location": "Rice St Branch, St. Paul",
-    "tags": { "topic": ["education"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "education"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Free English reading and writing practice. Materials provided. Drop-in, no registration. Meets weekly at the Rice Street branch of the St. Paul Public Library. Volunteers work one-on-one with adult learners at all levels.",
     "bodyMedium": "Free English reading and writing practice. Materials provided. Drop-in, no registration. Weekly at Rice St branch.",
     "bodyLight": "Free English literacy circle. Drop-in weekly.",
-    "datetime": { "offsetDays": 2, "durationHours": 1.5, "cost": "Free", "recurring": true }
+    "datetime": {
+      "offsetDays": 2,
+      "durationHours": 1.5,
+      "cost": "Free",
+      "recurring": true,
+      "startTime": "10:00"
+    }
   },
   {
     "title": "Citizenship Test Prep Class",
@@ -1039,12 +1921,29 @@
     "publishedOffsetDays": -12,
     "zipCode": "55108",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["education", "immigration"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "education",
+        "immigration"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Practice civics questions and English skills for the naturalization interview. Interpreters available. Class meets weekly and covers all 100 civics questions over a 10-week cycle. New students can join any week.",
     "bodyMedium": "Practice civics and English for the naturalization interview. Interpreters available. Join any week of the 10-week cycle.",
     "bodyLight": "Citizenship test prep. Interpreters available. Join anytime.",
-    "datetime": { "offsetDays": 4, "durationHours": 2, "cost": "Free", "recurring": true },
-    "sourceAttribution": { "sourceName": "International Institute of Minnesota", "attribution": "Class listing" }
+    "datetime": {
+      "offsetDays": 4,
+      "durationHours": 2,
+      "cost": "Free",
+      "recurring": true,
+      "startTime": "18:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "International Institute of Minnesota",
+      "attribution": "Class listing"
+    }
   },
   {
     "title": "Morning Recovery Meeting",
@@ -1055,11 +1954,24 @@
     "publishedOffsetDays": -14,
     "zipCode": "55408",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["health"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Open meeting. Coffee provided. All are welcome regardless of where you are in your recovery journey. Meets daily 7\u20138am. Wheelchair accessible.",
-    "bodyMedium": "Open recovery meeting daily 7\u20138am. Coffee provided. All welcome. Wheelchair accessible.",
-    "bodyLight": "Daily recovery meeting 7\u20138am. All welcome.",
-    "datetime": { "offsetDays": 1, "durationHours": 1, "cost": "Free", "recurring": true }
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Open meeting. Coffee provided. All are welcome regardless of where you are in your recovery journey. Meets daily 7–8am. Wheelchair accessible.",
+    "bodyMedium": "Open recovery meeting daily 7–8am. Coffee provided. All welcome. Wheelchair accessible.",
+    "bodyLight": "Daily recovery meeting 7–8am. All welcome.",
+    "datetime": {
+      "offsetDays": 1,
+      "durationHours": 1,
+      "cost": "Free",
+      "recurring": true,
+      "startTime": "07:00"
+    }
   },
   {
     "title": "Hmong New Year Celebration",
@@ -1070,15 +1982,32 @@
     "publishedOffsetDays": -4,
     "zipCode": "55106",
     "location": "1075 Arcade St, St. Paul",
-    "tags": { "topic": ["community", "culture"], "serviceArea": ["ramsey-county"] },
-    "bodyHeavy": "Hmong American Partnership invites the whole community to its annual Hmong New Year Celebration. Doors open at 11am. Traditional pov pob (ball toss), cultural performances, and music throughout the day. Traditional Hmong food served; admission includes a meal. Children\u2019s activities run all afternoon. Free and open to all. No registration required. Parking in the Arcade St lot. Bus line 61 stops two blocks north.",
-    "bodyMedium": "HAP\u2019s annual Hmong New Year: pov pob, cultural performances, music, traditional food. Free, open to all. No registration. Bus line 61 nearby.",
+    "tags": {
+      "topic": [
+        "community",
+        "culture"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
+    "bodyHeavy": "Hmong American Partnership invites the whole community to its annual Hmong New Year Celebration. Doors open at 11am. Traditional pov pob (ball toss), cultural performances, and music throughout the day. Traditional Hmong food served; admission includes a meal. Children’s activities run all afternoon. Free and open to all. No registration required. Parking in the Arcade St lot. Bus line 61 stops two blocks north.",
+    "bodyMedium": "HAP’s annual Hmong New Year: pov pob, cultural performances, music, traditional food. Free, open to all. No registration. Bus line 61 nearby.",
     "bodyLight": "Hmong New Year at HAP. Performances, food, activities. Free.",
-    "datetime": { "offsetDays": 8, "durationHours": 6, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "Hmong American Partnership (HAP)", "attribution": "Annual celebration" }
+    "datetime": {
+      "offsetDays": 8,
+      "durationHours": 6,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "11:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Hmong American Partnership (HAP)",
+      "attribution": "Annual celebration"
+    }
   },
   {
-    "title": "Drop Off Donations at Lakeville\u2019s Spring Food Drive",
+    "title": "Drop Off Donations at Lakeville’s Spring Food Drive",
     "postType": "event",
     "weight": "medium",
     "priority": 78,
@@ -1086,12 +2015,29 @@
     "publishedOffsetDays": -3,
     "zipCode": "55044",
     "location": "Lakeville, MN",
-    "tags": { "topic": ["food", "donations"], "serviceArea": ["dakota-county"] },
+    "tags": {
+      "topic": [
+        "food",
+        "donations"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "Messiah Community Food Shelf in Lakeville hosts its annual spring food drive. Drop off non-perishable items at the church parking lot from 9am to 3pm. Most needed: canned proteins, peanut butter, rice, and cooking oil. Volunteers on site to help unload cars. Cash donations also accepted.",
-    "bodyMedium": "Spring food drive at Messiah Food Shelf, Lakeville. Drop off 9am\u20133pm. Most needed: canned proteins, peanut butter, rice, oil. Cash accepted.",
-    "bodyLight": "Spring food drive in Lakeville. Drop off 9am\u20133pm.",
-    "datetime": { "offsetDays": 6, "durationHours": 6, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "360 Communities \u2013 Messiah Community Food Shelf (Lakeville)", "attribution": "Drive announcement" }
+    "bodyMedium": "Spring food drive at Messiah Food Shelf, Lakeville. Drop off 9am–3pm. Most needed: canned proteins, peanut butter, rice, oil. Cash accepted.",
+    "bodyLight": "Spring food drive in Lakeville. Drop off 9am–3pm.",
+    "datetime": {
+      "offsetDays": 6,
+      "durationHours": 6,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "10:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "360 Communities – Messiah Community Food Shelf (Lakeville)",
+      "attribution": "Drive announcement"
+    }
   },
   {
     "title": "Craft & Connection Morning at Community Thread",
@@ -1102,12 +2048,28 @@
     "publishedOffsetDays": -6,
     "zipCode": "55082",
     "location": "Stillwater, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["washington-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
     "bodyHeavy": "Drop-in morning of knitting, crafting, and conversation at Community Thread in Stillwater. All skill levels welcome. Supplies provided. Coffee and tea available. Great for anyone feeling isolated or just looking for company on a weekday morning. No registration needed.",
     "bodyMedium": "Knitting, crafting, and conversation at Community Thread, Stillwater. All levels. Supplies, coffee, and tea provided. No registration.",
     "bodyLight": "Craft morning at Community Thread, Stillwater. Drop in.",
-    "datetime": { "offsetDays": 3, "durationHours": 2, "cost": "Free", "recurring": true },
-    "sourceAttribution": { "sourceName": "Community Thread", "attribution": "Weekly program" }
+    "datetime": {
+      "offsetDays": 3,
+      "durationHours": 2,
+      "cost": "Free",
+      "recurring": true,
+      "startTime": "10:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Community Thread",
+      "attribution": "Weekly program"
+    }
   },
   {
     "title": "Free Dental Day at Open Cities Health Center",
@@ -1118,11 +2080,24 @@
     "publishedOffsetDays": -2,
     "zipCode": "55104",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["health"], "serviceArea": ["ramsey-county"] },
-    "bodyHeavy": "Open Cities Health Center in St. Paul offers free cleanings, fillings, and extractions on the last Saturday of each month. No insurance needed. First come, first served\u2014doors open at 8am. Expect a wait. Interpretation available in Somali, Karen, and Spanish.",
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
+    "bodyHeavy": "Open Cities Health Center in St. Paul offers free cleanings, fillings, and extractions on the last Saturday of each month. No insurance needed. First come, first served—doors open at 8am. Expect a wait. Interpretation available in Somali, Karen, and Spanish.",
     "bodyMedium": "Free dental care at Open Cities Health Center, last Saturday of each month. No insurance needed. Doors open 8am, first come first served.",
     "bodyLight": "Free dental day at Open Cities. No insurance needed.",
-    "datetime": { "offsetDays": 14, "durationHours": 6, "cost": "Free", "recurring": false }
+    "datetime": {
+      "offsetDays": 14,
+      "durationHours": 6,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "08:00"
+    }
   },
   {
     "title": "Resume Workshop for New Americans",
@@ -1133,12 +2108,29 @@
     "publishedOffsetDays": -5,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["employment", "immigration"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Learn to write a U.S.-style resume and practice interview skills. Presented by CLUES workforce staff. Bring your work history or we\u2019ll help you build one. Available in Spanish and English.",
+    "tags": {
+      "topic": [
+        "employment",
+        "immigration"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Learn to write a U.S.-style resume and practice interview skills. Presented by CLUES workforce staff. Bring your work history or we’ll help you build one. Available in Spanish and English.",
     "bodyMedium": "Resume writing and interview practice for new Americans. In Spanish and English. Bring your work history or build one on site.",
     "bodyLight": "Resume workshop for new Americans. Spanish and English.",
-    "datetime": { "offsetDays": 7, "durationHours": 2, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "CLUES \u2013 Minneapolis (CareerForce Center)", "attribution": "Workshop series" }
+    "datetime": {
+      "offsetDays": 7,
+      "durationHours": 2,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "13:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "CLUES – Minneapolis (CareerForce Center)",
+      "attribution": "Workshop series"
+    }
   },
   {
     "title": "Youth Basketball League Registration Open",
@@ -1149,11 +2141,25 @@
     "publishedOffsetDays": -7,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
-    "bodyHeavy": "Spring youth basketball league for ages 8\u201314 at the North Community YMCA. Games on Saturdays, practices Tuesdays and Thursdays. Sliding-scale fees, scholarships available. Registration closes March 20.",
-    "bodyMedium": "Spring basketball league, ages 8\u201314. Saturday games, Tu/Th practices. Sliding-scale fees, scholarships available. Register by March 20.",
-    "bodyLight": "Youth basketball league, ages 8\u201314. Register by March 20.",
-    "datetime": { "offsetDays": 9, "durationHours": 3, "cost": "Sliding scale", "recurring": false }
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
+    "bodyHeavy": "Spring youth basketball league for ages 8–14 at the North Community YMCA. Games on Saturdays, practices Tuesdays and Thursdays. Sliding-scale fees, scholarships available. Registration closes March 20.",
+    "bodyMedium": "Spring basketball league, ages 8–14. Saturday games, Tu/Th practices. Sliding-scale fees, scholarships available. Register by March 20.",
+    "bodyLight": "Youth basketball league, ages 8–14. Register by March 20.",
+    "datetime": {
+      "offsetDays": 9,
+      "durationHours": 3,
+      "cost": "Sliding scale",
+      "recurring": false,
+      "startTime": "09:00"
+    }
   },
   {
     "title": "Somali Bantu Community Gathering",
@@ -1164,12 +2170,29 @@
     "publishedOffsetDays": -4,
     "zipCode": "55454",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["community", "culture"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "community",
+        "culture"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Monthly gathering for Somali Bantu families at Brian Coyle Center. Share news, discuss community needs, and connect with service providers. Traditional food served. Children welcome. Interpretation between Maay Maay and English provided.",
     "bodyMedium": "Monthly Somali Bantu gathering at Brian Coyle Center. Share news, connect with services. Food served, kids welcome, Maay Maay interpretation.",
     "bodyLight": "Somali Bantu gathering at Brian Coyle. Food and services.",
-    "datetime": { "offsetDays": 11, "durationHours": 3, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "Pillsbury United Communities \u2013 Brian Coyle Center (Food Shelf)", "attribution": "Monthly event" }
+    "datetime": {
+      "offsetDays": 11,
+      "durationHours": 3,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "11:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Pillsbury United Communities – Brian Coyle Center (Food Shelf)",
+      "attribution": "Monthly event"
+    }
   },
   {
     "title": "Free Car Seat Safety Check",
@@ -1180,11 +2203,25 @@
     "publishedOffsetDays": -6,
     "zipCode": "55337",
     "location": "Burnsville, MN",
-    "tags": { "topic": ["safety", "childcare"], "serviceArea": ["dakota-county"] },
+    "tags": {
+      "topic": [
+        "safety",
+        "childcare"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "Certified technicians check your car seat installation and help you make corrections. Free for all families. No appointment needed. Dakota County Public Health sponsors the event at the Burnsville Fire Station.",
     "bodyMedium": "Certified technicians check car seat installation for free. No appointment. At Burnsville Fire Station, sponsored by Dakota County Public Health.",
     "bodyLight": "Free car seat check at Burnsville Fire Station.",
-    "datetime": { "offsetDays": 15, "durationHours": 3, "cost": "Free", "recurring": false }
+    "datetime": {
+      "offsetDays": 15,
+      "durationHours": 3,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "10:00"
+    }
   },
   {
     "title": "Scott County Job Fair",
@@ -1195,12 +2232,28 @@
     "publishedOffsetDays": -2,
     "zipCode": "55379",
     "location": "Shakopee, MN",
-    "tags": { "topic": ["employment"], "serviceArea": ["scott-county"] },
+    "tags": {
+      "topic": [
+        "employment"
+      ],
+      "serviceArea": [
+        "scott-county"
+      ]
+    },
     "bodyHeavy": "Over 30 employers hiring on the spot for manufacturing, healthcare, food service, and warehouse positions in Scott County. Bring your resume. On-site help with applications. Interpretation in Spanish and Somali. Free bus shuttle from Prior Lake and Savage park-and-rides.",
     "bodyMedium": "30+ employers hiring on the spot in Shakopee. Manufacturing, healthcare, food service, warehouse. Resume help and interpretation on site.",
     "bodyLight": "Scott County job fair. 30+ employers. Hiring on the spot.",
-    "datetime": { "offsetDays": 9, "durationHours": 4, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "CAP Agency \u2013 Scott County Office / Food Shelf (Shakopee)", "attribution": "Job fair partner" }
+    "datetime": {
+      "offsetDays": 9,
+      "durationHours": 4,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "09:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "CAP Agency – Scott County Office / Food Shelf (Shakopee)",
+      "attribution": "Job fair partner"
+    }
   },
   {
     "title": "Washington County Family Fun Day",
@@ -1211,15 +2264,31 @@
     "publishedOffsetDays": -5,
     "zipCode": "55071",
     "location": "St. Paul Park, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["washington-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
     "bodyHeavy": "Free family event with games, crafts, and food at Lake Park in St. Paul Park. Local service organizations will have resource tables. Music by a local high school jazz band. Sponsored by Basic Needs Inc. and Washington County.",
     "bodyMedium": "Family event at Lake Park, St. Paul Park. Games, crafts, food, and resource tables from local organizations. Free admission.",
     "bodyLight": "Family fun day at Lake Park, St. Paul Park. Free.",
-    "datetime": { "offsetDays": 16, "durationHours": 4, "cost": "Free", "recurring": false },
-    "sourceAttribution": { "sourceName": "Basic Needs Inc. (South Washington County)", "attribution": "Event listing" }
+    "datetime": {
+      "offsetDays": 16,
+      "durationHours": 4,
+      "cost": "Free",
+      "recurring": false,
+      "startTime": "10:00"
+    },
+    "sourceAttribution": {
+      "sourceName": "Basic Needs Inc. (South Washington County)",
+      "attribution": "Event listing"
+    }
   },
   {
-    "title": "Parenting Through Immigration Stress\u2014Support Group",
+    "title": "Parenting Through Immigration Stress—Support Group",
     "postType": "event",
     "weight": "light",
     "priority": 52,
@@ -1227,16 +2296,34 @@
     "publishedOffsetDays": -3,
     "zipCode": "55407",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["immigration", "health"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "immigration",
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "Bilingual support group for parents navigating immigration-related anxiety and family stress. Meets biweekly at CLUES Minneapolis. Led by a licensed therapist. Childcare and snacks provided. No referral needed. Available in Spanish.",
     "bodyMedium": "Support group for parents with immigration stress. Biweekly at CLUES Minneapolis. Licensed therapist, childcare, snacks. No referral. In Spanish.",
     "bodyLight": "Immigration stress support group for parents. Biweekly at CLUES.",
-    "datetime": { "offsetDays": 5, "durationHours": 1.5, "cost": "Free", "recurring": true },
-    "sourceAttribution": { "sourceName": "CLUES \u2013 Minneapolis (CareerForce Center)", "attribution": "Support group" }
+    "datetime": {
+      "offsetDays": 5,
+      "durationHours": 1.5,
+      "cost": "Free",
+      "recurring": true,
+      "startTime": "18:30"
+    },
+    "sourceAttribution": {
+      "sourceName": "CLUES – Minneapolis (CareerForce Center)",
+      "attribution": "Support group"
+    }
   },
-
-  {"_comment": "═══ SPOTLIGHTS (15) ════════════════════════════════════════════"},
-
+  {
+    "_comment": "═══ SPOTLIGHTS (15) ════════════════════════════════════════════"
+  },
   {
     "title": "Li Nguyen",
     "postType": "spotlight",
@@ -1246,12 +2333,26 @@
     "publishedOffsetDays": -3,
     "zipCode": "55429",
     "location": "Brooklyn Center, MN",
-    "tags": { "topic": ["community"], "serviceArea": ["hennepin-county", "brooklyn-center"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "brooklyn-center"
+      ]
+    },
     "bodyHeavy": "Li has coordinated over 8,000 volunteer shifts since joining CEAP in 2014. She connects food shelf visitors with housing navigators and ESL programs, and has built a network of bilingual volunteers who speak Vietnamese, Hmong, and Somali. Her approach is simple: meet people where they are, listen first, and never let someone leave without knowing their next step.",
     "bodyMedium": "Li has coordinated over 8,000 volunteer shifts since 2014, connecting food shelf visitors with housing navigators and ESL programs at CEAP Brooklyn Center.",
     "bodyLight": "Volunteer coordinator at CEAP. 8,000+ shifts since 2014.",
-    "meta": { "kicker": "Neighbor to Know" },
-    "person": { "name": "Li Nguyen", "role": "Volunteer Coordinator, CEAP Brooklyn Center", "bio": "Li has coordinated over 8,000 volunteer shifts since joining CEAP in 2014. She connects food shelf visitors with housing navigators and ESL programs." }
+    "meta": {
+      "kicker": "Neighbor to Know"
+    },
+    "person": {
+      "name": "Li Nguyen",
+      "role": "Volunteer Coordinator, CEAP Brooklyn Center",
+      "bio": "Li has coordinated over 8,000 volunteer shifts since joining CEAP in 2014. She connects food shelf visitors with housing navigators and ESL programs."
+    }
   },
   {
     "title": "Marcus Thompson",
@@ -1262,12 +2363,26 @@
     "publishedOffsetDays": -5,
     "zipCode": "55415",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["community", "housing"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "community",
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Marcus works with families transitioning out of shelter into permanent housing across Hennepin County. As a case manager at People Serving People, he helps families navigate waitlists, secure deposits, and connect with landlords willing to work with rapid rehousing vouchers. He has placed more than 150 families in stable housing over the past three years.",
     "bodyMedium": "Marcus helps families move from shelter to permanent housing at People Serving People. Over 150 families placed in three years.",
     "bodyLight": "Case manager at People Serving People. 150+ families housed.",
-    "meta": { "kicker": "Community Voice" },
-    "person": { "name": "Marcus Thompson", "role": "Case Manager, People Serving People", "bio": "Marcus works with families transitioning out of shelter into permanent housing across Hennepin County." }
+    "meta": {
+      "kicker": "Community Voice"
+    },
+    "person": {
+      "name": "Marcus Thompson",
+      "role": "Case Manager, People Serving People",
+      "bio": "Marcus works with families transitioning out of shelter into permanent housing across Hennepin County."
+    }
   },
   {
     "title": "Pimento Jamaican Kitchen",
@@ -1278,18 +2393,55 @@
     "publishedOffsetDays": -10,
     "zipCode": "55408",
     "location": "Nicollet Ave, Minneapolis",
-    "tags": { "topic": ["restaurant", "culture"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "restaurant",
+        "culture"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "Black-owned Jamaican restaurant on Nicollet Avenue serving jerk chicken, oxtail, and fresh juices. Catering available for community events and organizational meals. The restaurant sources ingredients from local farms when possible and employs staff from the surrounding neighborhood.",
     "bodyMedium": "Black-owned Jamaican restaurant on Nicollet Ave. Jerk chicken, oxtail, fresh juices. Catering available for community events.",
     "bodyLight": "Jamaican restaurant on Nicollet Ave. Catering available.",
     "scheduleEntries": [
-      { "day": "monday", "opens": "11:00", "closes": "21:00" },
-      { "day": "tuesday", "opens": "11:00", "closes": "21:00" },
-      { "day": "wednesday", "opens": "11:00", "closes": "21:00" },
-      { "day": "thursday", "opens": "11:00", "closes": "21:00" },
-      { "day": "friday", "opens": "11:00", "closes": "22:00" },
-      { "day": "saturday", "opens": "11:00", "closes": "22:00" },
-      { "day": "sunday", "opens": "12:00", "closes": "20:00" }
+      {
+        "day": "monday",
+        "opens": "11:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "tuesday",
+        "opens": "11:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "11:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "11:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "friday",
+        "opens": "11:00",
+        "closes": "22:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "11:00",
+        "closes": "22:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "12:00",
+        "closes": "20:00"
+      }
     ]
   },
   {
@@ -1301,18 +2453,54 @@
     "publishedOffsetDays": -12,
     "zipCode": "55106",
     "location": "1001 Johnson Pkwy, St. Paul",
-    "tags": { "topic": ["culture", "food"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "culture",
+        "food"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Over 200 vendors under one roof offering prepared foods, fresh produce, clothing, jewelry, and cultural items. Saturday and Sunday are the busiest days. The market is a hub for Hmong families and a destination for anyone seeking authentic Southeast Asian food and goods. Cash preferred at most stalls.",
     "bodyMedium": "200+ vendors: fresh produce, prepared foods, clothing, jewelry, cultural items. A hub for Hmong families and a destination for all. Cash preferred.",
     "bodyLight": "200+ vendors. Fresh produce, food, clothing, cultural items.",
     "scheduleEntries": [
-      { "day": "monday", "opens": "08:00", "closes": "18:00" },
-      { "day": "tuesday", "opens": "08:00", "closes": "18:00" },
-      { "day": "wednesday", "opens": "08:00", "closes": "18:00" },
-      { "day": "thursday", "opens": "08:00", "closes": "18:00" },
-      { "day": "friday", "opens": "08:00", "closes": "18:00" },
-      { "day": "saturday", "opens": "07:00", "closes": "19:00" },
-      { "day": "sunday", "opens": "07:00", "closes": "19:00" }
+      {
+        "day": "monday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "tuesday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "friday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "07:00",
+        "closes": "19:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "07:00",
+        "closes": "19:00"
+      }
     ]
   },
   {
@@ -1324,18 +2512,55 @@
     "publishedOffsetDays": -14,
     "zipCode": "55407",
     "location": "Lake St & Chicago Ave, Minneapolis",
-    "tags": { "topic": ["food", "culture"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "food",
+        "culture"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "World cuisine under one roof with more than 40 vendors representing cuisines from East Africa, Latin America, Southeast Asia, and the Middle East. Located at the intersection of Lake Street and Chicago Avenue, the market is accessible by bus and light rail. Community events and cooking classes held regularly.",
     "bodyMedium": "40+ food vendors from around the world at Lake St & Chicago Ave. Accessible by bus and light rail. Regular cooking classes and events.",
     "bodyLight": "World cuisine, 40+ vendors. Lake St & Chicago Ave.",
     "scheduleEntries": [
-      { "day": "monday", "opens": "10:00", "closes": "20:00" },
-      { "day": "tuesday", "opens": "10:00", "closes": "20:00" },
-      { "day": "wednesday", "opens": "10:00", "closes": "20:00" },
-      { "day": "thursday", "opens": "10:00", "closes": "20:00" },
-      { "day": "friday", "opens": "10:00", "closes": "20:00" },
-      { "day": "saturday", "opens": "10:00", "closes": "20:00" },
-      { "day": "sunday", "opens": "10:00", "closes": "18:00" }
+      {
+        "day": "monday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "tuesday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "friday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "10:00",
+        "closes": "18:00"
+      }
     ]
   },
   {
@@ -1347,18 +2572,53 @@
     "publishedOffsetDays": -15,
     "zipCode": "55408",
     "location": "2944 Pillsbury Ave S, Minneapolis",
-    "tags": { "topic": ["culture"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "culture"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "A Somali commercial hub with restaurants, shops, and money transfer services on Pillsbury Avenue in South Minneapolis. Vendors offer traditional clothing, groceries, henna, and phone accessories. The mall is a central gathering place for the Somali community and a stop for anyone exploring the neighborhood.",
     "bodyMedium": "Somali commercial hub: restaurants, shops, money transfer, traditional clothing, groceries, henna. Central gathering place on Pillsbury Ave.",
     "bodyLight": "Somali shops, restaurants, money transfer on Pillsbury Ave.",
     "scheduleEntries": [
-      { "day": "monday", "opens": "09:00", "closes": "21:00" },
-      { "day": "tuesday", "opens": "09:00", "closes": "21:00" },
-      { "day": "wednesday", "opens": "09:00", "closes": "21:00" },
-      { "day": "thursday", "opens": "09:00", "closes": "21:00" },
-      { "day": "friday", "opens": "09:00", "closes": "21:00" },
-      { "day": "saturday", "opens": "09:00", "closes": "21:00" },
-      { "day": "sunday", "opens": "10:00", "closes": "20:00" }
+      {
+        "day": "monday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "tuesday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "friday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "10:00",
+        "closes": "20:00"
+      }
     ]
   },
   {
@@ -1370,12 +2630,26 @@
     "publishedOffsetDays": -4,
     "zipCode": "55454",
     "location": "Minneapolis, MN",
-    "tags": { "topic": ["community", "food"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "community",
+        "food"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "Fatima runs the halal food shelf at Brian Coyle Center, where she serves over 200 families per week. She arrived in Minnesota from Somalia in 2008 and spent her first years navigating the same services she now helps others access. Her kitchen also hosts monthly cooking classes where immigrant women learn food safety certification for restaurant work.",
     "bodyMedium": "Fatima runs the halal food shelf at Brian Coyle, serving 200+ families weekly. She hosts cooking classes for immigrant women seeking food safety certification.",
     "bodyLight": "Halal food shelf coordinator at Brian Coyle. 200+ families weekly.",
-    "meta": { "kicker": "Neighbor to Know" },
-    "person": { "name": "Fatima Abdi", "role": "Food Shelf Coordinator, Brian Coyle Center", "bio": "Fatima runs the halal food shelf at Brian Coyle Center, serving over 200 families per week. She arrived from Somalia in 2008." }
+    "meta": {
+      "kicker": "Neighbor to Know"
+    },
+    "person": {
+      "name": "Fatima Abdi",
+      "role": "Food Shelf Coordinator, Brian Coyle Center",
+      "bio": "Fatima runs the halal food shelf at Brian Coyle Center, serving over 200 families per week. She arrived from Somalia in 2008."
+    }
   },
   {
     "title": "David Xiong",
@@ -1386,12 +2660,26 @@
     "publishedOffsetDays": -6,
     "zipCode": "55103",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["employment", "community"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "employment",
+        "community"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "David is an employment navigator at Hmong American Partnership who helps refugees and immigrants find their first U.S. jobs. He specializes in translating overseas credentials and work experience into formats that American employers understand. In 2025, he helped 89 clients secure employment in healthcare, manufacturing, and food service.",
     "bodyMedium": "Employment navigator at HAP helping refugees land first U.S. jobs. Translates overseas credentials for American employers. 89 placements in 2025.",
     "bodyLight": "Employment navigator at HAP. 89 job placements in 2025.",
-    "meta": { "kicker": "Community Voice" },
-    "person": { "name": "David Xiong", "role": "Employment Navigator, Hmong American Partnership", "bio": "David helps refugees and immigrants find their first U.S. jobs, specializing in translating overseas credentials." }
+    "meta": {
+      "kicker": "Community Voice"
+    },
+    "person": {
+      "name": "David Xiong",
+      "role": "Employment Navigator, Hmong American Partnership",
+      "bio": "David helps refugees and immigrants find their first U.S. jobs, specializing in translating overseas credentials."
+    }
   },
   {
     "title": "Rosa Mendez",
@@ -1402,15 +2690,29 @@
     "publishedOffsetDays": -7,
     "zipCode": "55106",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["legal", "immigration"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "legal",
+        "immigration"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Rosa is a paralegal at CLUES who walks immigrant families through DACA renewals, TPS applications, and naturalization paperwork. She holds weekly office hours in both Spanish and English and has helped more than 300 families since 2020. She says her goal is to make the legal system less frightening for people who have already survived so much.",
     "bodyMedium": "Paralegal at CLUES helping immigrant families with DACA, TPS, and naturalization. Weekly office hours in Spanish and English. 300+ families served.",
     "bodyLight": "CLUES paralegal. 300+ immigrant families served since 2020.",
-    "meta": { "kicker": "Neighbor to Know" },
-    "person": { "name": "Rosa Mendez", "role": "Paralegal, CLUES St. Paul", "bio": "Rosa walks immigrant families through DACA renewals, TPS applications, and naturalization at CLUES." }
+    "meta": {
+      "kicker": "Neighbor to Know"
+    },
+    "person": {
+      "name": "Rosa Mendez",
+      "role": "Paralegal, CLUES St. Paul",
+      "bio": "Rosa walks immigrant families through DACA renewals, TPS applications, and naturalization at CLUES."
+    }
   },
   {
-    "title": "Tou Moua\u2019s Garden",
+    "title": "Tou Moua’s Garden",
     "postType": "spotlight",
     "weight": "light",
     "priority": 28,
@@ -1418,14 +2720,26 @@
     "publishedOffsetDays": -13,
     "zipCode": "55104",
     "location": "St. Paul, MN",
-    "tags": { "topic": ["food", "culture"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "food",
+        "culture"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Tou Moua has tended a plot at the Midway Community Garden for 18 years, growing bitter melon, lemongrass, Thai peppers, and traditional Hmong herbs. He shares surplus produce with neighbors and teaches younger gardeners how to grow vegetables their families ate in Laos.",
     "bodyMedium": "Tou Moua has gardened at the Midway Community Garden for 18 years, growing traditional Hmong herbs and sharing with neighbors.",
     "bodyLight": "18-year Midway Community Garden grower. Traditional Hmong herbs.",
-    "person": { "name": "Tou Moua", "role": "Community Gardener, Midway", "bio": "Tou has tended a plot at the Midway Community Garden for 18 years, growing traditional Hmong herbs and vegetables." }
+    "person": {
+      "name": "Tou Moua",
+      "role": "Community Gardener, Midway",
+      "bio": "Tou has tended a plot at the Midway Community Garden for 18 years, growing traditional Hmong herbs and vegetables."
+    }
   },
   {
-    "title": "Maria\u2019s Pupuseria",
+    "title": "Maria’s Pupuseria",
     "postType": "spotlight",
     "weight": "light",
     "priority": 29,
@@ -1433,17 +2747,50 @@
     "publishedOffsetDays": -11,
     "zipCode": "55407",
     "location": "Lake Street, Minneapolis",
-    "tags": { "topic": ["restaurant", "culture"], "serviceArea": ["hennepin-county", "lake-street"] },
+    "tags": {
+      "topic": [
+        "restaurant",
+        "culture"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "lake-street"
+      ]
+    },
     "bodyHeavy": "Family-run Salvadoran restaurant on Lake Street known for handmade pupusas, tamales, and horchata. Maria opened the shop in 2019 with savings from her cleaning business and now employs five neighbors. She donates leftover food to the Brian Coyle food shelf every Friday.",
     "bodyMedium": "Family-run Salvadoran restaurant on Lake Street. Handmade pupusas and tamales. Donates leftovers to Brian Coyle food shelf weekly.",
     "bodyLight": "Salvadoran restaurant on Lake Street. Handmade pupusas.",
     "scheduleEntries": [
-      { "day": "tuesday", "opens": "10:00", "closes": "20:00" },
-      { "day": "wednesday", "opens": "10:00", "closes": "20:00" },
-      { "day": "thursday", "opens": "10:00", "closes": "20:00" },
-      { "day": "friday", "opens": "10:00", "closes": "21:00" },
-      { "day": "saturday", "opens": "09:00", "closes": "21:00" },
-      { "day": "sunday", "opens": "09:00", "closes": "18:00" }
+      {
+        "day": "tuesday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "10:00",
+        "closes": "20:00"
+      },
+      {
+        "day": "friday",
+        "opens": "10:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "09:00",
+        "closes": "21:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "09:00",
+        "closes": "18:00"
+      }
     ]
   },
   {
@@ -1455,12 +2802,27 @@
     "publishedOffsetDays": -8,
     "zipCode": "55411",
     "location": "North Minneapolis, MN",
-    "tags": { "topic": ["health", "community"], "serviceArea": ["hennepin-county", "north-minneapolis"] },
+    "tags": {
+      "topic": [
+        "health",
+        "community"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "north-minneapolis"
+      ]
+    },
     "bodyHeavy": "James is a peer recovery specialist at NorthPoint Health who supports people navigating sobriety and reentry after incarceration. A North Minneapolis native, he draws on his own recovery journey to build trust with clients who are skeptical of institutions. He has mentored more than 60 men in the past two years.",
     "bodyMedium": "Peer recovery specialist at NorthPoint Health. North Minneapolis native who has mentored 60+ men navigating sobriety and reentry.",
     "bodyLight": "Recovery specialist at NorthPoint. 60+ men mentored.",
-    "meta": { "kicker": "Community Voice" },
-    "person": { "name": "James Fairbanks", "role": "Peer Recovery Specialist, NorthPoint Health", "bio": "James supports people navigating sobriety and reentry, drawing on his own recovery journey." }
+    "meta": {
+      "kicker": "Community Voice"
+    },
+    "person": {
+      "name": "James Fairbanks",
+      "role": "Peer Recovery Specialist, NorthPoint Health",
+      "bio": "James supports people navigating sobriety and reentry, drawing on his own recovery journey."
+    }
   },
   {
     "title": "Oakdale Family Bakery",
@@ -1471,16 +2833,43 @@
     "publishedOffsetDays": -16,
     "zipCode": "55128",
     "location": "Oakdale, MN",
-    "tags": { "topic": ["restaurant"], "serviceArea": ["washington-county"] },
+    "tags": {
+      "topic": [
+        "restaurant"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
     "bodyHeavy": "Vietnamese-owned bakery in Oakdale specializing in banh mi, pho, and French-style pastries. The owners, a husband-and-wife team, opened the shop after 15 years in restaurant work. They employ three part-time workers and donate day-old bread to Open Cupboard food shelf.",
     "bodyMedium": "Vietnamese-owned bakery in Oakdale. Banh mi, pho, and pastries. Donates day-old bread to Open Cupboard food shelf.",
     "bodyLight": "Vietnamese bakery in Oakdale. Banh mi, pho, pastries.",
     "scheduleEntries": [
-      { "day": "wednesday", "opens": "07:00", "closes": "18:00" },
-      { "day": "thursday", "opens": "07:00", "closes": "18:00" },
-      { "day": "friday", "opens": "07:00", "closes": "18:00" },
-      { "day": "saturday", "opens": "07:00", "closes": "16:00" },
-      { "day": "sunday", "opens": "08:00", "closes": "14:00" }
+      {
+        "day": "wednesday",
+        "opens": "07:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "07:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "friday",
+        "opens": "07:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "07:00",
+        "closes": "16:00"
+      },
+      {
+        "day": "sunday",
+        "opens": "08:00",
+        "closes": "14:00"
+      }
     ]
   },
   {
@@ -1492,11 +2881,23 @@
     "publishedOffsetDays": -9,
     "zipCode": "55075",
     "location": "South St. Paul, MN",
-    "tags": { "topic": ["education", "community"], "serviceArea": ["dakota-county"] },
+    "tags": {
+      "topic": [
+        "education",
+        "community"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
     "bodyHeavy": "Amira is a family liaison at a South St. Paul elementary school who bridges the gap between Somali families and the school system. She translates report cards, explains IEP meetings, and organizes parent coffee hours where families can ask questions without judgment.",
     "bodyMedium": "Family liaison at a South St. Paul school bridging Somali families and the school system. Translates report cards, explains IEPs, hosts parent coffees.",
     "bodyLight": "School family liaison bridging Somali families and teachers.",
-    "person": { "name": "Amira Hassan", "role": "Family Liaison, South St. Paul Schools", "bio": "Amira bridges the gap between Somali families and the school system at a South St. Paul elementary school." }
+    "person": {
+      "name": "Amira Hassan",
+      "role": "Family Liaison, South St. Paul Schools",
+      "bio": "Amira bridges the gap between Somali families and the school system at a South St. Paul elementary school."
+    }
   },
   {
     "title": "New Prague Butcher Shop",
@@ -1507,22 +2908,53 @@
     "publishedOffsetDays": -18,
     "zipCode": "56071",
     "location": "New Prague, MN",
-    "tags": { "topic": ["food"], "serviceArea": ["scott-county"] },
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "scott-county"
+      ]
+    },
     "bodyHeavy": "Third-generation family butcher shop in New Prague known for Czech-style sausages, smoked meats, and custom processing. The shop partners with the Peace Center food shelf to donate surplus cuts and has been a fixture on Columbus Avenue for over 50 years.",
     "bodyMedium": "Third-generation butcher in New Prague. Czech sausages, smoked meats, custom processing. Donates surplus to Peace Center food shelf.",
     "bodyLight": "Family butcher in New Prague. Czech sausages, 50+ years.",
     "scheduleEntries": [
-      { "day": "monday", "opens": "08:00", "closes": "17:00" },
-      { "day": "tuesday", "opens": "08:00", "closes": "17:00" },
-      { "day": "wednesday", "opens": "08:00", "closes": "17:00" },
-      { "day": "thursday", "opens": "08:00", "closes": "17:00" },
-      { "day": "friday", "opens": "08:00", "closes": "18:00" },
-      { "day": "saturday", "opens": "08:00", "closes": "14:00" }
+      {
+        "day": "monday",
+        "opens": "08:00",
+        "closes": "17:00"
+      },
+      {
+        "day": "tuesday",
+        "opens": "08:00",
+        "closes": "17:00"
+      },
+      {
+        "day": "wednesday",
+        "opens": "08:00",
+        "closes": "17:00"
+      },
+      {
+        "day": "thursday",
+        "opens": "08:00",
+        "closes": "17:00"
+      },
+      {
+        "day": "friday",
+        "opens": "08:00",
+        "closes": "18:00"
+      },
+      {
+        "day": "saturday",
+        "opens": "08:00",
+        "closes": "14:00"
+      }
     ]
   },
-
-  {"_comment": "═══ REFERENCES (10) ════════════════════════════════════════════"},
-
+  {
+    "_comment": "═══ REFERENCES (10) ════════════════════════════════════════════"
+  },
   {
     "title": "Hennepin County Food Shelves",
     "postType": "reference",
@@ -1530,18 +2962,45 @@
     "priority": 30,
     "submissionType": "admin",
     "publishedOffsetDays": -7,
-    "tags": { "topic": ["food"], "serviceArea": ["hennepin-county"] },
-    "bodyHeavy": "Food shelves across Hennepin County that accept visitors without ID or documentation. Hours and services vary by location. Call ahead if possible. Most sites offer supplemental groceries for 3\u20135 days.",
-    "bodyMedium": "Hennepin County food shelves\u2014no ID required. Hours vary. Call ahead. Most offer 3\u20135 days of supplemental groceries.",
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
+    "bodyHeavy": "Food shelves across Hennepin County that accept visitors without ID or documentation. Hours and services vary by location. Call ahead if possible. Most sites offer supplemental groceries for 3–5 days.",
+    "bodyMedium": "Hennepin County food shelves—no ID required. Hours vary. Call ahead. Most offer 3–5 days of supplemental groceries.",
     "bodyLight": "Hennepin County food shelves. No ID required.",
-    "meta": { "updated": "Updated weekly" },
-    "sourceAttribution": { "sourceName": "No ID required", "attribution": "Compiled from site data" },
+    "meta": {
+      "updated": "Updated weekly"
+    },
+    "sourceAttribution": {
+      "sourceName": "No ID required",
+      "attribution": "Compiled from site data"
+    },
     "items": [
-      { "name": "CEAP", "detail": "Brooklyn Ctr, Tu\u2013Fr 9a\u20133p" },
-      { "name": "ICA", "detail": "Minnetonka, by appointment" },
-      { "name": "PRISM", "detail": "Golden Valley, M/W/F 10a\u20132p" },
-      { "name": "Sabathani", "detail": "Mpls, W 10a\u20132p" },
-      { "name": "VEAP", "detail": "Bloomington, M\u2013F 9a\u20134p" }
+      {
+        "name": "CEAP",
+        "detail": "Brooklyn Ctr, Tu–Fr 9a–3p"
+      },
+      {
+        "name": "ICA",
+        "detail": "Minnetonka, by appointment"
+      },
+      {
+        "name": "PRISM",
+        "detail": "Golden Valley, M/W/F 10a–2p"
+      },
+      {
+        "name": "Sabathani",
+        "detail": "Mpls, W 10a–2p"
+      },
+      {
+        "name": "VEAP",
+        "detail": "Bloomington, M–F 9a–4p"
+      }
     ]
   },
   {
@@ -1551,17 +3010,41 @@
     "priority": 28,
     "submissionType": "admin",
     "publishedOffsetDays": -7,
-    "tags": { "topic": ["food"], "serviceArea": ["ramsey-county"] },
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Food shelves in Ramsey County open to all residents. No ID or proof of address required at most locations. Some sites offer culturally specific foods. Check hours before visiting.",
-    "bodyMedium": "Ramsey County food shelves\u2014no ID required at most. Some offer culturally specific foods. Check hours before visiting.",
+    "bodyMedium": "Ramsey County food shelves—no ID required at most. Some offer culturally specific foods. Check hours before visiting.",
     "bodyLight": "Ramsey County food shelves. No ID required at most.",
-    "meta": { "updated": "Updated weekly" },
-    "sourceAttribution": { "sourceName": "Ramsey County", "attribution": "No ID required" },
+    "meta": {
+      "updated": "Updated weekly"
+    },
+    "sourceAttribution": {
+      "sourceName": "Ramsey County",
+      "attribution": "No ID required"
+    },
     "items": [
-      { "name": "Keystone", "detail": "St. Paul (Univ Ave), M\u2013F 9a\u20134p" },
-      { "name": "Merrick", "detail": "Maplewood, by appointment" },
-      { "name": "Open Hands Midway", "detail": "St. Paul, W 5\u20137p" },
-      { "name": "Interfaith Action", "detail": "Little Canada, Tu/Th 10a\u20132p" }
+      {
+        "name": "Keystone",
+        "detail": "St. Paul (Univ Ave), M–F 9a–4p"
+      },
+      {
+        "name": "Merrick",
+        "detail": "Maplewood, by appointment"
+      },
+      {
+        "name": "Open Hands Midway",
+        "detail": "St. Paul, W 5–7p"
+      },
+      {
+        "name": "Interfaith Action",
+        "detail": "Little Canada, Tu/Th 10a–2p"
+      }
     ]
   },
   {
@@ -1571,37 +3054,87 @@
     "priority": 25,
     "submissionType": "admin",
     "publishedOffsetDays": -10,
-    "tags": { "topic": ["employment"], "serviceArea": ["hennepin-county"] },
+    "tags": {
+      "topic": [
+        "employment"
+      ],
+      "serviceArea": [
+        "hennepin-county"
+      ]
+    },
     "bodyHeavy": "VITA program sites at Hennepin County libraries offering free federal and state tax preparation. Bring ID, W-2s, and Social Security cards. Most sites serve individuals earning under $67,000/year.",
     "bodyMedium": "VITA tax prep at Hennepin County libraries. Free for incomes under $67K. Bring ID, W-2s, and SSN cards.",
     "bodyLight": "Free tax prep at Hennepin County libraries. Under $67K income.",
-    "meta": { "updated": "Updated Feb 2026" },
-    "sourceAttribution": { "sourceName": "VITA Program", "attribution": "Updated Feb 2026" },
+    "meta": {
+      "updated": "Updated Feb 2026"
+    },
+    "sourceAttribution": {
+      "sourceName": "VITA Program",
+      "attribution": "Updated Feb 2026"
+    },
     "items": [
-      { "name": "Minneapolis Central Library", "detail": "Sat 10a\u20132p, walk-in" },
-      { "name": "Brookdale Library", "detail": "Wed 5\u20138p, appointment" },
-      { "name": "Hosmer Library", "detail": "Thu 4\u20137p, walk-in" },
-      { "name": "Southdale Library", "detail": "Sat 9a\u201312p, appointment" }
+      {
+        "name": "Minneapolis Central Library",
+        "detail": "Sat 10a–2p, walk-in"
+      },
+      {
+        "name": "Brookdale Library",
+        "detail": "Wed 5–8p, appointment"
+      },
+      {
+        "name": "Hosmer Library",
+        "detail": "Thu 4–7p, walk-in"
+      },
+      {
+        "name": "Southdale Library",
+        "detail": "Sat 9a–12p, appointment"
+      }
     ]
   },
   {
-    "title": "Free Health Clinics\u2014No Insurance Needed",
+    "title": "Free Health Clinics—No Insurance Needed",
     "postType": "reference",
     "weight": "medium",
     "priority": 22,
     "submissionType": "admin",
     "publishedOffsetDays": -14,
-    "tags": { "topic": ["health"], "serviceArea": ["hennepin-county", "ramsey-county"] },
+    "tags": {
+      "topic": [
+        "health"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Community health clinics in the Twin Cities that provide primary care regardless of insurance status or immigration status. Most offer sliding-scale fees and interpretation services. No ID required at most locations.",
     "bodyMedium": "Free health clinics in the Twin Cities. No insurance or ID needed at most. Sliding-scale fees and interpretation available.",
     "bodyLight": "Free clinics. No insurance or ID needed at most.",
-    "sourceAttribution": { "sourceName": "MN Dept of Health", "attribution": "No ID required" },
+    "sourceAttribution": {
+      "sourceName": "MN Dept of Health",
+      "attribution": "No ID required"
+    },
     "items": [
-      { "name": "NorthPoint Health", "detail": "N. Mpls, M\u2013F 8a\u20135p" },
-      { "name": "Community-University", "detail": "SE Mpls, M\u2013Sat" },
-      { "name": "People\u2019s Center", "detail": "Cedar-Riverside, M\u2013F" },
-      { "name": "Open Cities Health", "detail": "St. Paul, M\u2013F 8a\u20135p" },
-      { "name": "Indian Health Board", "detail": "S. Mpls, M\u2013F 8a\u20134:30p" }
+      {
+        "name": "NorthPoint Health",
+        "detail": "N. Mpls, M–F 8a–5p"
+      },
+      {
+        "name": "Community-University",
+        "detail": "SE Mpls, M–Sat"
+      },
+      {
+        "name": "People’s Center",
+        "detail": "Cedar-Riverside, M–F"
+      },
+      {
+        "name": "Open Cities Health",
+        "detail": "St. Paul, M–F 8a–5p"
+      },
+      {
+        "name": "Indian Health Board",
+        "detail": "S. Mpls, M–F 8a–4:30p"
+      }
     ]
   },
   {
@@ -1611,17 +3144,41 @@
     "priority": 26,
     "submissionType": "admin",
     "publishedOffsetDays": -8,
-    "tags": { "topic": ["food"], "serviceArea": ["dakota-county"] },
-    "bodyHeavy": "Food shelves and meal programs in Dakota County. Most sites require no ID. Some offer halal and culturally specific options. Mobile pantry schedules change weekly\u2014call ahead or check websites.",
+    "tags": {
+      "topic": [
+        "food"
+      ],
+      "serviceArea": [
+        "dakota-county"
+      ]
+    },
+    "bodyHeavy": "Food shelves and meal programs in Dakota County. Most sites require no ID. Some offer halal and culturally specific options. Mobile pantry schedules change weekly—call ahead or check websites.",
     "bodyMedium": "Dakota County food shelves and meal programs. No ID at most. Some halal and culturally specific options. Mobile pantry schedules vary.",
     "bodyLight": "Dakota County food resources. No ID at most locations.",
-    "meta": { "updated": "Updated monthly" },
+    "meta": {
+      "updated": "Updated monthly"
+    },
     "items": [
-      { "name": "360 Communities", "detail": "Burnsville, M\u2013F 9a\u20134p" },
-      { "name": "Open Door Pantry", "detail": "Eagan, Tu/Th 10a\u20132p" },
-      { "name": "Hastings Family Service", "detail": "Hastings, by appointment" },
-      { "name": "Neighbors Inc.", "detail": "S. St. Paul, M\u2013F 9a\u20133p" },
-      { "name": "Isuroon (halal)", "detail": "Burnsville, call for hours" }
+      {
+        "name": "360 Communities",
+        "detail": "Burnsville, M–F 9a–4p"
+      },
+      {
+        "name": "Open Door Pantry",
+        "detail": "Eagan, Tu/Th 10a–2p"
+      },
+      {
+        "name": "Hastings Family Service",
+        "detail": "Hastings, by appointment"
+      },
+      {
+        "name": "Neighbors Inc.",
+        "detail": "S. St. Paul, M–F 9a–3p"
+      },
+      {
+        "name": "Isuroon (halal)",
+        "detail": "Burnsville, call for hours"
+      }
     ]
   },
   {
@@ -1631,17 +3188,42 @@
     "priority": 35,
     "submissionType": "admin",
     "publishedOffsetDays": -5,
-    "tags": { "topic": ["housing"], "serviceArea": ["hennepin-county", "ramsey-county"] },
-    "bodyHeavy": "Emergency shelters, coordinated entry points, and housing assistance programs in the Twin Cities. If you are experiencing homelessness, start by calling Hennepin County Coordinated Entry at 612-348-9410 or Ramsey County at 651-266-4100. Shelter beds fill quickly\u2014call early in the day.",
-    "bodyMedium": "Emergency shelters and housing help in the Twin Cities. Hennepin: 612-348-9410. Ramsey: 651-266-4100. Call early\u2014beds fill quickly.",
+    "tags": {
+      "topic": [
+        "housing"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county"
+      ]
+    },
+    "bodyHeavy": "Emergency shelters, coordinated entry points, and housing assistance programs in the Twin Cities. If you are experiencing homelessness, start by calling Hennepin County Coordinated Entry at 612-348-9410 or Ramsey County at 651-266-4100. Shelter beds fill quickly—call early in the day.",
+    "bodyMedium": "Emergency shelters and housing help in the Twin Cities. Hennepin: 612-348-9410. Ramsey: 651-266-4100. Call early—beds fill quickly.",
     "bodyLight": "Emergency housing: Hennepin 612-348-9410, Ramsey 651-266-4100.",
-    "meta": { "updated": "Updated weekly" },
+    "meta": {
+      "updated": "Updated weekly"
+    },
     "items": [
-      { "name": "Simpson Housing", "detail": "Mpls, families & singles" },
-      { "name": "People Serving People", "detail": "Mpls, families with children" },
-      { "name": "Union Gospel Mission", "detail": "St. Paul, men & families" },
-      { "name": "Catholic Charities", "detail": "Multiple locations" },
-      { "name": "Salvation Army", "detail": "N. Mpls, families" }
+      {
+        "name": "Simpson Housing",
+        "detail": "Mpls, families & singles"
+      },
+      {
+        "name": "People Serving People",
+        "detail": "Mpls, families with children"
+      },
+      {
+        "name": "Union Gospel Mission",
+        "detail": "St. Paul, men & families"
+      },
+      {
+        "name": "Catholic Charities",
+        "detail": "Multiple locations"
+      },
+      {
+        "name": "Salvation Army",
+        "detail": "N. Mpls, families"
+      }
     ]
   },
   {
@@ -1651,16 +3233,39 @@
     "priority": 24,
     "submissionType": "admin",
     "publishedOffsetDays": -12,
-    "tags": { "topic": ["immigration", "legal"], "serviceArea": ["statewide"] },
+    "tags": {
+      "topic": [
+        "immigration",
+        "legal"
+      ],
+      "serviceArea": [
+        "statewide"
+      ]
+    },
     "bodyHeavy": "Organizations providing free or low-cost immigration legal services in Minnesota. Services include DACA renewals, asylum, family petitions, TPS, and Know Your Rights education. Most offer interpretation in multiple languages.",
     "bodyMedium": "Free and low-cost immigration legal help in MN. DACA, asylum, TPS, family petitions. Interpretation in multiple languages.",
     "bodyLight": "Immigration legal help in MN. Free or low-cost.",
     "items": [
-      { "name": "Immigrant Law Center of MN", "detail": "651-641-1011, statewide" },
-      { "name": "The Advocates", "detail": "612-341-9845, Mpls" },
-      { "name": "CLUES", "detail": "651-379-4200, St. Paul" },
-      { "name": "Volunteer Lawyers Network", "detail": "612-752-6677, Hennepin" },
-      { "name": "Mid-MN Legal Aid", "detail": "612-334-5970, metro" }
+      {
+        "name": "Immigrant Law Center of MN",
+        "detail": "651-641-1011, statewide"
+      },
+      {
+        "name": "The Advocates",
+        "detail": "612-341-9845, Mpls"
+      },
+      {
+        "name": "CLUES",
+        "detail": "651-379-4200, St. Paul"
+      },
+      {
+        "name": "Volunteer Lawyers Network",
+        "detail": "612-752-6677, Hennepin"
+      },
+      {
+        "name": "Mid-MN Legal Aid",
+        "detail": "612-334-5970, metro"
+      }
     ]
   },
   {
@@ -1670,15 +3275,34 @@
     "priority": 20,
     "submissionType": "admin",
     "publishedOffsetDays": -15,
-    "tags": { "topic": ["community"], "serviceArea": ["scott-county"] },
+    "tags": {
+      "topic": [
+        "community"
+      ],
+      "serviceArea": [
+        "scott-county"
+      ]
+    },
     "bodyHeavy": "Key resource contacts for Scott County residents including food assistance, financial help, and community support services. Most services available in English and Spanish.",
     "bodyMedium": "Scott County resource contacts: food, financial help, community services. Available in English and Spanish.",
     "bodyLight": "Scott County resource directory.",
     "items": [
-      { "name": "CAP Agency Shakopee", "detail": "952-496-2125, food & emergency" },
-      { "name": "Belle Plaine Food Shelf", "detail": "612-751-9923" },
-      { "name": "Peace Center New Prague", "detail": "952-758-4688, food" },
-      { "name": "Scott County Financial Aid", "detail": "952-447-7751" }
+      {
+        "name": "CAP Agency Shakopee",
+        "detail": "952-496-2125, food & emergency"
+      },
+      {
+        "name": "Belle Plaine Food Shelf",
+        "detail": "612-751-9923"
+      },
+      {
+        "name": "Peace Center New Prague",
+        "detail": "952-758-4688, food"
+      },
+      {
+        "name": "Scott County Financial Aid",
+        "detail": "952-447-7751"
+      }
     ]
   },
   {
@@ -1688,16 +3312,39 @@
     "priority": 19,
     "submissionType": "admin",
     "publishedOffsetDays": -15,
-    "tags": { "topic": ["food", "community"], "serviceArea": ["washington-county"] },
-    "bodyHeavy": "Food shelves and community support in Washington County. Most locations accept visitors without proof of address. Mobile distributions change seasonally\u2014check websites for current schedules.",
+    "tags": {
+      "topic": [
+        "food",
+        "community"
+      ],
+      "serviceArea": [
+        "washington-county"
+      ]
+    },
+    "bodyHeavy": "Food shelves and community support in Washington County. Most locations accept visitors without proof of address. Mobile distributions change seasonally—check websites for current schedules.",
     "bodyMedium": "Washington County food shelves and support. Most accept visitors without proof of address. Mobile schedules vary seasonally.",
     "bodyLight": "Washington County food shelves and community help.",
     "items": [
-      { "name": "Valley Outreach", "detail": "Stillwater, 651-430-2739" },
-      { "name": "Community Thread", "detail": "Stillwater, 651-439-7434" },
-      { "name": "Open Cupboard", "detail": "Oakdale, 651-233-1296" },
-      { "name": "Friends In Need", "detail": "Cottage Grove, 651-458-0730" },
-      { "name": "Basic Needs Inc.", "detail": "St. Paul Park, 651-207-8656" }
+      {
+        "name": "Valley Outreach",
+        "detail": "Stillwater, 651-430-2739"
+      },
+      {
+        "name": "Community Thread",
+        "detail": "Stillwater, 651-439-7434"
+      },
+      {
+        "name": "Open Cupboard",
+        "detail": "Oakdale, 651-233-1296"
+      },
+      {
+        "name": "Friends In Need",
+        "detail": "Cottage Grove, 651-458-0730"
+      },
+      {
+        "name": "Basic Needs Inc.",
+        "detail": "St. Paul Park, 651-207-8656"
+      }
     ]
   },
   {
@@ -1707,15 +3354,36 @@
     "priority": 23,
     "submissionType": "admin",
     "publishedOffsetDays": -10,
-    "tags": { "topic": ["childcare", "education"], "serviceArea": ["hennepin-county", "ramsey-county"] },
+    "tags": {
+      "topic": [
+        "childcare",
+        "education"
+      ],
+      "serviceArea": [
+        "hennepin-county",
+        "ramsey-county"
+      ]
+    },
     "bodyHeavy": "Childcare assistance programs and early learning resources in the Twin Cities. Includes sliding-scale and free options for low-income families. Some programs offer bilingual staff and culturally specific programming.",
     "bodyMedium": "Childcare assistance and early learning in the Twin Cities. Sliding-scale and free options. Some bilingual and culturally specific programs.",
     "bodyLight": "Childcare and early learning resources. Sliding-scale options.",
     "items": [
-      { "name": "Think Small", "detail": "Referral line: 651-641-0332" },
-      { "name": "Pillsbury United", "detail": "N. Mpls, after-school & Pre-K" },
-      { "name": "Sabathani Head Start", "detail": "S. Mpls, ages 3\u20135" },
-      { "name": "CLUES Family Programs", "detail": "Mpls & St. Paul" }
+      {
+        "name": "Think Small",
+        "detail": "Referral line: 651-641-0332"
+      },
+      {
+        "name": "Pillsbury United",
+        "detail": "N. Mpls, after-school & Pre-K"
+      },
+      {
+        "name": "Sabathani Head Start",
+        "detail": "S. Mpls, ages 3–5"
+      },
+      {
+        "name": "CLUES Family Programs",
+        "detail": "Mpls & St. Paul"
+      }
     ]
   }
 ]

@@ -214,7 +214,10 @@ for (const p of posts) {
   // --- post_datetime (events) ----------------------------------------------
   if (p.datetime) {
     const a = nextAlias("dt");
-    const startExpr = offsetToSql(p.datetime.offsetDays ?? 0);
+    // Use date-only offset + explicit start time (default 10:00 AM CT)
+    const startTime = p.datetime.startTime || "10:00";
+    const dateExpr = offsetToDateSql(p.datetime.offsetDays ?? 0);
+    const startExpr = `(${dateExpr} + TIME '${startTime}')`;
     // end = start + duration
     const endExpr =
       p.datetime.durationHours != null

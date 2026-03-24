@@ -10,7 +10,7 @@ export function DigestNotice({ data: d }: DigestNoticeProps) {
   const c = 'dig-update';
   return (
     <div className={c} data-debug={`Post.${c}`}>
-      <div className={`${c}__date condensed`}>{d.date || d.meta?.timestamp || ''}</div>
+      <div className={`${c}__date condensed`}>{d.date || ''}</div>
       <div className={`${c}__content`}>
         <MTitle text={d.title} prefix={c} />
         <div className={`${c}__source mono-sm`}>{getSourceLine(d)}</div>

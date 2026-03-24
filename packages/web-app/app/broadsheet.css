@@ -198,6 +198,9 @@ body:has(.broadsheet-page) {
 .row--lead-stack { }
 .row--pair { }
 .row--pair-stack { }
+/* pair-stack: left cell gets 1 tall post, right cell stacks multiple smaller posts */
+.row--pair-stack > .cell:first-child { display: flex; flex-direction: column; }
+.row--pair-stack > .cell:first-child > * { flex: 1; }
 .row--trio { }
 .row--trio-mixed { }
 .row--full { }
@@ -1546,6 +1549,10 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-urgent__meta {
   font-size: 0.72rem;
@@ -1579,6 +1586,10 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-update__meta {
   font-size: 0.72rem;
@@ -1607,6 +1618,10 @@ body:has(.broadsheet-page) {
   line-height: 1.3;
   color: var(--ink);
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tick-event__meta {
   font-size: 0.72rem;

@@ -91,10 +91,16 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
 
   // Filter to only post slots for the row layout engine
   const postSlots = row.slots.filter((s) => s.kind === 'post' && s.post);
+  if (postSlots.length === 0) return null;
+
   const layout = getRowLayout(row.layoutVariant ?? 'full', postSlots.length);
 
   // Distribute post slots into cells
   const cellSlots = distributeSlots(postSlots, layout);
+
+  // Skip rows where any cell is empty — indicates an unfilled layout
+  const hasEmptyCell = cellSlots.some((slots) => slots.length === 0);
+  if (hasEmptyCell) return null;
 
   return (
     <Row variant={layout.variant}>

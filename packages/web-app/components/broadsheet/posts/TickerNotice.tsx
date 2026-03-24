@@ -21,7 +21,7 @@ export function TickerNotice({ data: d }: TickerNoticeProps) {
   const c = 'tick-update';
   return (
     <div className={c} data-debug={`Post.${c}`}>
-      {d.meta?.timestamp && <MTime text={d.meta.timestamp} prefix={c} />}
+      {d.date && <MTime text={d.date} prefix={c} />}
       <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
       <span className={`${c}__meta mono-sm`}>{getSourceLine(d)}</span>
     </div>

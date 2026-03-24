@@ -6,7 +6,7 @@ export function getMetaLine(post: Post): string {
   if (post.source?.name) parts.push(post.source.name);
   if (post.source?.attribution) parts.push(post.source.attribution);
   if (post.location?.address) parts.push(post.location.address);
-  if (post.meta?.timestamp) parts.push(post.meta.timestamp);
+  if (post.date) parts.push(post.date);
   return parts.join(' \u00b7 ');
 }
 

@@ -40,7 +40,7 @@ export function LedgerNotice({ data: d }: LedgerNoticeProps) {
   const c = 'led-update';
   return (
     <div className={c} data-debug={`Post.${c}`}>
-      {d.meta?.timestamp && <MTime text={d.meta.timestamp} prefix={c} />}
+      {d.date && <MTime text={d.date} prefix={c} />}
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />
       <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
