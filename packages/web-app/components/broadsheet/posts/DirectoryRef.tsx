@@ -9,7 +9,7 @@ interface DirectoryRefProps {
 export function DirectoryRef({ data: d }: DirectoryRefProps) {
   const c = 'directory-resource';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTitle text={d.title} prefix={c} extra="condensed" />
       <MMeta text={getSourceLine(d)} prefix={c} small />
       {d.items

@@ -13,7 +13,7 @@ export function GazetteNotice({ data: d }: GazetteNoticeProps) {
   if (isAction) {
     const c = 'gaz-cta';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text="Action" prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getMetaLine(d)} prefix={c} />
@@ -26,7 +26,7 @@ export function GazetteNotice({ data: d }: GazetteNoticeProps) {
   if (isUrgent) {
     const c = 'gaz-urgent';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getMetaLine(d)} prefix={c} />
@@ -39,7 +39,7 @@ export function GazetteNotice({ data: d }: GazetteNoticeProps) {
   // Default update treatment
   const c = 'gaz-update';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.date && <MTime text={d.date} prefix={c} />}
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />

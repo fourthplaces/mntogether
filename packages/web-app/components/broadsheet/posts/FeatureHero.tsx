@@ -8,7 +8,7 @@ interface FeatureHeroProps {
 export function FeatureHero({ data: d }: FeatureHeroProps) {
   const c = 'feat-hero';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div
         className={`${c}__image newsprint-photo`}
         style={{ backgroundImage: `url('${d.media?.image || ''}')` }}

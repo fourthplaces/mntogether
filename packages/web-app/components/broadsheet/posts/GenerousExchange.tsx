@@ -9,7 +9,7 @@ interface GenerousExchangeProps {
 export function GenerousExchange({ data: d }: GenerousExchangeProps) {
   const c = 'generous-offer';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__header mono-sm`}>{getTagLabel(d)}</div>
       <div className={`${c}__content`}>
         <MTitle text={d.title} prefix={c} />

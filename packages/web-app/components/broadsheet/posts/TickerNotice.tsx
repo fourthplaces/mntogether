@@ -10,7 +10,7 @@ export function TickerNotice({ data: d }: TickerNoticeProps) {
   if (d.tags?.includes('urgent')) {
     const c = 'tick-urgent';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
         <span className={`${c}__meta mono-sm`}>{getMetaLine(d)}</span>
@@ -20,7 +20,7 @@ export function TickerNotice({ data: d }: TickerNoticeProps) {
 
   const c = 'tick-update';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.date && <MTime text={d.date} prefix={c} />}
       <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
       <span className={`${c}__meta mono-sm`}>{getSourceLine(d)}</span>

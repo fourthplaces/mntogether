@@ -9,7 +9,7 @@ interface DigestStoryProps {
 export function DigestStory({ data: d }: DigestStoryProps) {
   const c = 'dig-story';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} small />}
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getMetaLine(d)} prefix={c} small />

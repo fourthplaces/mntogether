@@ -9,7 +9,7 @@ interface DigestSpotlightProps {
 export function DigestSpotlight({ data: d }: DigestSpotlightProps) {
   const c = 'dig-local';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__label mono-sm`}>Support Local</div>
       <div className={`${c}__name`} dangerouslySetInnerHTML={{ __html: d.title }} />
       {d.tagline && <MTagline text={d.tagline} prefix={c} />}

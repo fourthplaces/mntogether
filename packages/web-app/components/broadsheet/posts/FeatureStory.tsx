@@ -9,7 +9,7 @@ interface FeatureStoryProps {
 export function FeatureStory({ data: d }: FeatureStoryProps) {
   const c = 'feat-story';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__rule`} />
       {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} />}
       <MTitle text={d.title} prefix={c} extra="condensed" />

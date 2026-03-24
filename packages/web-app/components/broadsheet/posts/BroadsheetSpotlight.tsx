@@ -9,7 +9,7 @@ interface BroadsheetSpotlightProps {
 export function BroadsheetSpotlight({ data: d }: BroadsheetSpotlightProps) {
   const c = 'spotlight-local';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__label mono-sm`}>Support Local</div>
       <div className={`${c}__name condensed`} dangerouslySetInnerHTML={{ __html: d.title }} />
       {d.tagline && <MTagline text={d.tagline} prefix={c} />}

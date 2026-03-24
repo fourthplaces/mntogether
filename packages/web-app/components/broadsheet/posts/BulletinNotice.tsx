@@ -13,7 +13,7 @@ export function BulletinNotice({ data: d }: BulletinNoticeProps) {
   if (isAction) {
     const c = 'bul-cta';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text="Action" prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getMetaLine(d)} prefix={c} />
@@ -26,7 +26,7 @@ export function BulletinNotice({ data: d }: BulletinNoticeProps) {
   if (isUrgent) {
     const c = 'bul-urgent';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getMetaLine(d)} prefix={c} />
@@ -39,7 +39,7 @@ export function BulletinNotice({ data: d }: BulletinNoticeProps) {
   // Default update treatment
   const c = 'bul-update';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.date && <MTime text={d.date} prefix={c} />}
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />

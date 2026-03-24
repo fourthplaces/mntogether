@@ -12,7 +12,7 @@ export function BulletinExchange({ data: d }: BulletinExchangeProps) {
   if (isNeed) {
     const c = 'bul-request';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getSourceLine(d)} prefix={c} />
@@ -25,7 +25,7 @@ export function BulletinExchange({ data: d }: BulletinExchangeProps) {
   // Aid/offer treatment
   const c = 'bul-offer';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />

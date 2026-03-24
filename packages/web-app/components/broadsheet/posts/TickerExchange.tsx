@@ -10,7 +10,7 @@ export function TickerExchange({ data: d }: TickerExchangeProps) {
   if (d.tags?.includes('need')) {
     const c = 'tick-request';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
         <span className={`${c}__meta mono-sm`}>{getSourceLine(d)}</span>
@@ -20,7 +20,7 @@ export function TickerExchange({ data: d }: TickerExchangeProps) {
 
   const c = 'tick-offer';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
       <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
       <span className={`${c}__meta mono-sm`}>{d.status?.state || getSourceLine(d)}</span>

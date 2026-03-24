@@ -9,7 +9,7 @@ interface QuickRefProps {
 export function QuickRef({ data: d }: QuickRefProps) {
   const c = 'quickref-resource';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.count && <div className={`${c}__count condensed`}>{d.count}</div>}
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} small />

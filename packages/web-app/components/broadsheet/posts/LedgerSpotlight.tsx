@@ -9,7 +9,7 @@ interface LedgerSpotlightProps {
 export function LedgerSpotlight({ data: d }: LedgerSpotlightProps) {
   const c = 'led-local';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Local" prefix={c} />
       <MTitle text={d.title} prefix={c} />
       {d.tagline && <MTagline text={d.tagline} prefix={c} />}

@@ -10,7 +10,7 @@ export function FeatureNotice({ data: d }: FeatureNoticeProps) {
   if (d.tags?.includes('action')) {
     const c = 'feat-cta';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTitle text={d.title} prefix={c} extra="condensed" />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
         {d.link && <MCtaLink href={d.link.url} text={d.link.label || ''} prefix={c} />}
@@ -21,7 +21,7 @@ export function FeatureNotice({ data: d }: FeatureNoticeProps) {
   // Urgent/alert treatment
   const c = 'feat-urgent';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__kicker mono-md`}>{getTagLabel(d)}</div>
       <MTitle text={d.title} prefix={c} extra="condensed" />
       <MBody text={d.body} prefix={c} />

@@ -9,7 +9,7 @@ interface GazetteEventProps {
 export function GazetteEvent({ data: d }: GazetteEventProps) {
   const c = 'gaz-event';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__row`}>
         <MTag text="Event" prefix={c} />
         <span className={`${c}__date mono-md`}>{d.day || ''} {d.month || ''}</span>

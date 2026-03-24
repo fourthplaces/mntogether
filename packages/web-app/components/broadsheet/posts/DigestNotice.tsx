@@ -9,7 +9,7 @@ interface DigestNoticeProps {
 export function DigestNotice({ data: d }: DigestNoticeProps) {
   const c = 'dig-update';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__date condensed`}>{d.date || ''}</div>
       <div className={`${c}__content`}>
         <MTitle text={d.title} prefix={c} />

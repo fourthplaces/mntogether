@@ -17,7 +17,7 @@ export function CardEvent({ data: d }: CardEventProps) {
   );
 
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__header`}>
         {d.circleLabel ? (
           <div

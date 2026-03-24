@@ -637,7 +637,9 @@ Plain-text filter rules. NULL query_id means global rule.
 
 ## Scheduling
 
-### schedules (polymorphic)
+### schedules (polymorphic) — DEPRECATED, DROP PENDING
+
+> **TODO:** Drop this table once confirmed no org-side features depend on it. All post scheduling is now handled by `post_schedule` (weekly hours) and `post_datetime` (event dates) field group tables. The `schedules` table is a legacy overengineered design with iCal-style rrules, polymorphic joins, and mixed concerns (business hours + event dates + recurring shifts in one table). All frontend and backend references were removed in March 2026. The table still exists with 0 rows. Orgs may eventually need their own hours table — if so, model it after `post_schedule`, not this.
 
 | Column | Type | Notes |
 |--------|------|-------|

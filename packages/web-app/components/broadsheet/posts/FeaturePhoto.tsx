@@ -7,7 +7,7 @@ interface FeaturePhotoProps {
 export function FeaturePhoto({ data: d }: FeaturePhotoProps) {
   const c = 'feat-photo';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div
         className={`${c}__image newsprint-photo`}
         style={{ backgroundImage: `url('${d.image || d.media?.image || ''}')` }}

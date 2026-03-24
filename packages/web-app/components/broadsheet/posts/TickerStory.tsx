@@ -9,7 +9,7 @@ interface TickerStoryProps {
 export function TickerStory({ data: d }: TickerStoryProps) {
   const c = 'tick-story';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Story" prefix={c} />
       <span className={`${c}__title`} dangerouslySetInnerHTML={{ __html: d.title }} />
       <span className={`${c}__meta mono-sm`}>{getMetaLine(d)}</span>

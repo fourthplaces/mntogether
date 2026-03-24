@@ -10,7 +10,7 @@ interface BulletinEventProps {
 export function BulletinEvent({ data: d }: BulletinEventProps) {
   const c = 'bul-event';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__cal`}>
         <span className={`${c}__month mono-sm`}>{d.month || ''}</span>
         <span className={`${c}__day`}>{d.day || ''}</span>

@@ -12,7 +12,7 @@ export function LedgerExchange({ data: d }: LedgerExchangeProps) {
   if (isNeed) {
     const c = 'led-request';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getSourceLine(d)} prefix={c} />
@@ -25,7 +25,7 @@ export function LedgerExchange({ data: d }: LedgerExchangeProps) {
   // Aid/offer treatment
   const c = 'led-offer';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />

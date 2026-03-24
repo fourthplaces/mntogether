@@ -12,7 +12,7 @@ export function GazetteExchange({ data: d }: GazetteExchangeProps) {
   if (isNeed) {
     const c = 'gaz-request';
     return (
-      <div className={c} data-debug={`Post.${c}`}>
+      <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} />
         <MMeta text={getSourceLine(d)} prefix={c} />
@@ -25,7 +25,7 @@ export function GazetteExchange({ data: d }: GazetteExchangeProps) {
   // Aid/offer treatment
   const c = 'gaz-offer';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />

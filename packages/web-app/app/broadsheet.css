@@ -436,6 +436,7 @@ body:has(.broadsheet-page) {
 /* ── GAZETTE STORY ── */
 .gaz-story {
   padding-top: 16px;
+  padding-bottom: 14px;
   border-top: 3px solid var(--type-story);
   cursor: pointer;
 }
@@ -536,6 +537,7 @@ body:has(.broadsheet-page) {
 .gaz-update {
   border-top: 2px dotted rgba(0, 0, 0, 0.15);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-update:hover { background: rgba(0, 0, 0, 0.02); }
@@ -582,6 +584,7 @@ body:has(.broadsheet-page) {
 .bul-event {
   display: flex;
   gap: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .bul-event:hover { background: rgba(0, 0, 0, 0.02); }
@@ -651,6 +654,7 @@ body:has(.broadsheet-page) {
 .bul-request {
   border-left: 4px solid var(--type-need);
   padding-left: 16px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .bul-request:hover { background: rgba(0, 0, 0, 0.02); }
@@ -694,6 +698,7 @@ body:has(.broadsheet-page) {
 .bul-offer {
   border-left: 4px solid var(--type-aid);
   padding-left: 16px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .bul-offer:hover { background: rgba(0, 0, 0, 0.02); }
@@ -796,6 +801,7 @@ body:has(.broadsheet-page) {
 .gaz-cta {
   border-top: 3px solid var(--type-action);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-cta:hover { background: rgba(0, 0, 0, 0.02); }
@@ -897,7 +903,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-story {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-story);
   cursor: pointer;
 }
@@ -941,7 +947,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-event {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-event);
   cursor: pointer;
 }
@@ -990,7 +996,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-update {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-update);
   cursor: pointer;
 }
@@ -1029,7 +1035,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-urgent {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-urgent);
   cursor: pointer;
 }
@@ -1067,7 +1073,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-request {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-need);
   cursor: pointer;
 }
@@ -1109,7 +1115,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-offer {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-aid);
   cursor: pointer;
 }
@@ -1204,7 +1210,7 @@ body:has(.broadsheet-page) {
    ───────────────────────────────────────────── */
 
 .led-cta {
-  padding: 0 0 0 16px;
+  padding: 0 0 14px 16px;
   border-left: 4px solid var(--type-action);
   cursor: pointer;
 }
@@ -1326,6 +1332,7 @@ body:has(.broadsheet-page) {
 .gaz-event {
   border-top: 3px solid var(--type-event);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-event:hover { background: rgba(0, 0, 0, 0.02); }
@@ -1372,6 +1379,7 @@ body:has(.broadsheet-page) {
 .gaz-request {
   border-top: 3px solid var(--type-need);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-request:hover { background: rgba(0, 0, 0, 0.02); }
@@ -1411,6 +1419,7 @@ body:has(.broadsheet-page) {
 .gaz-offer {
   border-top: 3px solid var(--type-aid);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-offer:hover { background: rgba(0, 0, 0, 0.02); }
@@ -1448,6 +1457,7 @@ body:has(.broadsheet-page) {
 .gaz-resource {
   border-top: 3px solid var(--type-reference);
   padding-top: 14px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .gaz-resource:hover { background: rgba(0, 0, 0, 0.02); }
@@ -2139,6 +2149,7 @@ body:has(.broadsheet-page) {
    Looks like an actual classified ad. */
 .dig-request {
   padding-top: 10px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .dig-request:hover .dig-request__title { text-decoration: underline; text-underline-offset: 2px; }
@@ -2177,6 +2188,7 @@ body:has(.broadsheet-page) {
    large readable title, generous padding.
    Status as a prominent badge. */
 .generous-offer {
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .generous-offer:hover .generous-offer__title { text-decoration: underline; text-underline-offset: 2px; }
@@ -2224,6 +2236,7 @@ body:has(.broadsheet-page) {
 .directory-resource {
   border-top: 3px solid var(--mn-blue);
   padding-top: 12px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .directory-resource:hover .directory-resource__title { text-decoration: underline; text-underline-offset: 2px; }
@@ -2550,6 +2563,7 @@ body:has(.broadsheet-page) {
 .quickref-resource {
   border-top: 3px solid var(--type-reference);
   padding-top: 16px;
+  padding-bottom: 14px;
   cursor: pointer;
 }
 .quickref-resource:hover .quickref-resource__title { text-decoration: underline; text-underline-offset: 2px; }
@@ -3671,4 +3685,46 @@ body.show-labels [data-debug^="Cell"]::before {
   color: #00663a;
   border: 1px solid rgba(0, 120, 60, 0.15);
   font-size: 0.55rem;
+}
+
+/* ── Weight debug overlay (?weights) ── */
+* [data-weight]::after { display: none; }
+body.show-weights [data-weight]::after {
+  content: attr(data-weight);
+  display: block;
+  position: absolute;
+  top: -16px;
+  right: 0;
+  z-index: 20;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 2px;
+  white-space: nowrap;
+  width: fit-content;
+  text-transform: uppercase;
+}
+body.show-weights [data-weight] { position: relative; }
+body.show-weights [data-weight="heavy"]::after {
+  background: rgba(180, 20, 20, 0.14);
+  color: #a01010;
+  border: 1px solid rgba(180, 20, 20, 0.25);
+}
+body.show-weights [data-weight="medium"]::after {
+  background: rgba(180, 120, 0, 0.12);
+  color: #8a5e00;
+  border: 1px solid rgba(180, 120, 0, 0.2);
+}
+body.show-weights [data-weight="light"]::after {
+  background: rgba(0, 120, 60, 0.10);
+  color: #00663a;
+  border: 1px solid rgba(0, 120, 60, 0.18);
+}
+/* When both labels and weights active, move weight badge to bottom-right */
+body.show-labels.show-weights [data-weight][data-debug^="Post."]::after {
+  top: auto;
+  bottom: -16px;
 }

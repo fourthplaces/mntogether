@@ -9,7 +9,7 @@ interface FeatureEditorialProps {
 export function FeatureEditorial({ data: d }: FeatureEditorialProps) {
   const c = 'feat-editorial';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTitle text={d.title} prefix={c} />
       <div className={`${c}__byline mono-sm`}>{getMetaLine(d)}</div>
       {d.paragraphs

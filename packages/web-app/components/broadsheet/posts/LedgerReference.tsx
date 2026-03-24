@@ -9,7 +9,7 @@ interface LedgerReferenceProps {
 export function LedgerReference({ data: d }: LedgerReferenceProps) {
   const c = 'led-resource';
   return (
-    <div className={c} data-debug={`Post.${c}`}>
+    <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Reference" prefix={c} />
       <MTitle text={d.title} prefix={c} />
       <MMeta text={getSourceLine(d)} prefix={c} />
