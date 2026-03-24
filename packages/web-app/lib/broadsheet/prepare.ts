@@ -23,6 +23,7 @@ import type {
 } from './types';
 import type { BroadsheetPost, BroadsheetContact } from '@/gql/graphql';
 import { computeRenderHints } from './render-hints';
+import { formatPostDate } from './dates';
 
 // Post template configs from the CMS — mirrors post_template_configs seed data
 const TEMPLATE_CONFIGS: Record<string, { bodyTarget: number; bodyMax: number }> = {
@@ -208,14 +209,8 @@ function buildMeta(gqlPost: BroadsheetPost): PostMeta | undefined {
   const parts: Partial<PostMeta> = {};
 
   if (gqlPost.publishedAt) {
-    const d = new Date(gqlPost.publishedAt);
-    if (!isNaN(d.getTime())) {
-      parts.timestamp = d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      });
-    }
+    // Store the raw ISO string — render-hints will format it via formatPostDate()
+    parts.timestamp = gqlPost.publishedAt;
   }
 
   return Object.keys(parts).length ? (parts as PostMeta) : undefined;

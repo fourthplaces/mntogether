@@ -6,22 +6,11 @@
  *   1. Single day — calendar badge + day-of-week + optional time
  *   2. Same-day start/end — treated as single day (no "through" silliness)
  *   3. Date range — start badge + "through" + end badge
+ *
+ * All dates displayed in Minnesota timezone (America/Chicago).
  */
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday',
-  'Thursday', 'Friday', 'Saturday'];
-
-function isSameDay(a: Date, b: Date): boolean {
-  return a.getFullYear() === b.getFullYear()
-    && a.getMonth() === b.getMonth()
-    && a.getDate() === b.getDate();
-}
+import { extractEventParts, formatEventDate } from '@/lib/broadsheet/dates';
 
 // ---------------------------------------------------------------------------
 // Components
@@ -35,34 +24,26 @@ interface EventDateProps {
 
 /**
  * EventDate A — Calendar badge (sidebar).
- * Adapts the BulletinEvent `bul-event__cal` pattern for the detail sidebar.
- * Single-day: one badge + day-of-week. Range: two badges with "through" connector.
+ * Single-day: one badge + full date with relative hint.
+ * Range: badge + "Saturday, March 15 – Sunday, March 16"
  */
 export function EventDateA({ start, end, cost }: EventDateProps) {
-  const startDate = new Date(start);
-  const startMonth = SHORT_MONTHS[startDate.getMonth()];
-  const startDay = startDate.getDate();
-  const startDow = DAYS_OF_WEEK[startDate.getDay()];
+  const startParts = extractEventParts(start);
+  if (!startParts) return null;
 
-  const endDate = end ? new Date(end) : null;
-  const isRange = endDate && !isSameDay(startDate, endDate);
+  const dateLabel = formatEventDate(start, end);
 
   return (
     <div className="event-date-a">
       <div className="event-date-a__row">
         {/* Start date badge */}
         <div className="event-date-a__cal">
-          <span className="event-date-a__month mono-sm">{startMonth}</span>
-          <span className="event-date-a__day">{startDay}</span>
+          <span className="event-date-a__month mono-sm">{startParts.month}</span>
+          <span className="event-date-a__day">{startParts.day}</span>
         </div>
 
         <div className="event-date-a__info">
-          <div className="event-date-a__dow condensed">{startDow}</div>
-          {isRange && endDate && (
-            <div className="event-date-a__range">
-              through {SHORT_MONTHS[endDate.getMonth()]} {endDate.getDate()}
-            </div>
-          )}
+          <div className="event-date-a__dow condensed">{dateLabel}</div>
           {cost && (
             <div className="event-date-a__cost mono-sm">{cost}</div>
           )}
@@ -74,16 +55,19 @@ export function EventDateA({ start, end, cost }: EventDateProps) {
 
 /**
  * EventDate B — Compact inline.
- * Single line: "Apr 8" or "Apr 8 – Apr 12 · Free"
+ * Single line: "Mar 15" or "Mar 15 – Mar 17 · Free"
  */
 export function EventDateB({ start, end, cost }: EventDateProps) {
-  const startDate = new Date(start);
-  const startLabel = `${SHORT_MONTHS[startDate.getMonth()]} ${startDate.getDate()}`;
+  const startParts = extractEventParts(start);
+  if (!startParts) return null;
 
-  const endDate = end ? new Date(end) : null;
-  const isRange = endDate && !isSameDay(startDate, endDate);
-  const endLabel = isRange && endDate
-    ? `${SHORT_MONTHS[endDate.getMonth()]} ${endDate.getDate()}`
+  const startLabel = `${startParts.month.charAt(0)}${startParts.month.slice(1).toLowerCase()} ${startParts.day}`;
+
+  const endParts = end ? extractEventParts(end) : null;
+  const isRange = endParts
+    && (endParts.month !== startParts.month || endParts.day !== startParts.day);
+  const endLabel = isRange && endParts
+    ? `${endParts.month.charAt(0)}${endParts.month.slice(1).toLowerCase()} ${endParts.day}`
     : null;
 
   return (

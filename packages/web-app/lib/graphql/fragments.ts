@@ -56,19 +56,6 @@ export const PostDetailPublicFields = graphql(`
       description
       emoji
     }
-    schedules {
-      id
-      dayOfWeek
-      opensAt
-      closesAt
-      timezone
-      notes
-      rrule
-      dtstart
-      dtend
-      isAllDay
-      durationMinutes
-    }
     contacts {
       id
       contactType

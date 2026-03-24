@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import { PostDetailPublicQuery, TrackPostViewMutation } from "@/lib/graphql/public";
 import { isAuthenticated } from "@/lib/auth/actions";
 import { resolveDetailVariants } from "@/lib/broadsheet/detail-variants";
+import { formatPostDate, formatDeadline as formatDeadlineMN } from "@/lib/broadsheet/dates";
 
 // Broadsheet detail components
 import { NewspaperFrame } from "@/components/broadsheet/layout/NewspaperFrame";
@@ -55,71 +56,6 @@ function formatCategory(value: string): string {
     .join(" ");
 }
 
-function formatTimeAgo(dateString: string) {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffInDays = Math.floor(
-    (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)
-  );
-  if (diffInDays === 0) return "Today";
-  if (diffInDays === 1) return "Yesterday";
-  if (diffInDays < 7) return `${diffInDays} days ago`;
-  if (diffInDays < 30) return `${Math.floor(diffInDays / 7)} weeks ago`;
-  return `${Math.floor(diffInDays / 30)} months ago`;
-}
-
-function formatDeadline(dateStr: string): string {
-  try {
-    const d = new Date(dateStr + "T00:00:00");
-    return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" });
-  } catch {
-    return dateStr;
-  }
-}
-
-const DAY_NAMES_FULL = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function formatTime12h(time24: string): string {
-  const [h, m] = time24.split(":").map(Number);
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
-}
-
-interface Schedule {
-  id: string;
-  dayOfWeek?: number | null;
-  opensAt?: string | null;
-  closesAt?: string | null;
-  timezone: string;
-  notes?: string | null;
-  rrule?: string | null;
-  dtstart?: string | null;
-  dtend?: string | null;
-  isAllDay: boolean;
-  durationMinutes?: number | null;
-}
-
-function formatSchedule(s: Schedule): string {
-  if (s.dtstart && s.dayOfWeek == null) {
-    const date = new Date(s.dtstart);
-    const dateStr = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const timeStr = s.opensAt && s.closesAt
-      ? `${formatTime12h(s.opensAt)} \u2013 ${formatTime12h(s.closesAt)}`
-      : s.opensAt ? formatTime12h(s.opensAt) : "";
-    const parts = [dateStr, timeStr].filter(Boolean).join("  ");
-    return s.notes ? `${parts} (${s.notes})` : parts;
-  }
-  const dayName = s.dayOfWeek != null ? DAY_NAMES_FULL[s.dayOfWeek] : "";
-  const timeStr = s.opensAt && s.closesAt
-    ? `${formatTime12h(s.opensAt)} \u2013 ${formatTime12h(s.closesAt)}`
-    : s.opensAt ? formatTime12h(s.opensAt) : "";
-  let suffix = "";
-  if (s.rrule?.includes("INTERVAL=2")) suffix = " (every other week)";
-  if (s.rrule?.includes("FREQ=MONTHLY")) suffix = " (monthly)";
-  if (s.notes) suffix = ` (${s.notes})`;
-  return [dayName, timeStr, suffix].filter(Boolean).join("  ");
-}
 
 /**
  * Convert BroadsheetScheduleEntry[] from field groups into a WeekSchedule
@@ -217,7 +153,7 @@ export default function PublicPostDetailPage() {
   // Build article meta parts (byline · date · location)
   const metaParts: string[] = [];
   if (post.meta?.byline) metaParts.push(post.meta.byline);
-  metaParts.push(formatTimeAgo(post.publishedAt || post.createdAt));
+  metaParts.push(formatPostDate(post.publishedAt || post.createdAt));
   if (post.location) metaParts.push(post.location);
 
   // Hero photo from media field group
@@ -235,7 +171,6 @@ export default function PublicPostDetailPage() {
   const emails = contacts.filter(c => c.contactType === "email");
   const websites = contacts.filter(c => c.contactType === "website" || c.contactType === "booking_url" || c.contactType === "social");
 
-  const hasSchedules = (post.schedules && post.schedules.length > 0) || weekSchedule;
   const hasContacts = contacts.length > 0;
 
   // ── Full-width header section (above the 2-column grid) ──
@@ -378,18 +313,7 @@ export default function PublicPostDetailPage() {
         </SidebarCard>
       )}
 
-      {/* Legacy schedules (events, one-off times) */}
-      {post.schedules && post.schedules.length > 0 && !weekSchedule && (
-        <SidebarCard header="Schedule">
-          {post.schedules.map((s) => (
-            <div key={s.id} className="schedule-entry">
-              <span className="schedule-entry__text">{formatSchedule(s)}</span>
-            </div>
-          ))}
-        </SidebarCard>
-      )}
-
-      {/* Datetime from field groups (event dates) */}
+      {/* Datetime — event dates */}
       {post.datetime && post.datetime.start && (
         <SidebarCard header="Event">
           <EventDateA
@@ -450,7 +374,7 @@ export default function PublicPostDetailPage() {
           />
           {post.link.deadline && (
             <div className="link-deadline">
-              Deadline: {formatDeadline(post.link.deadline)}
+              Deadline: {formatDeadlineMN(post.link.deadline)}
             </div>
           )}
         </SidebarCard>
