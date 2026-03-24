@@ -32,6 +32,7 @@ export interface RowLayout {
  *   full       → 6 grid: full-width single column
  *   lead       → 4+2 grid: wide lead + narrow companion
  *   pair       → 3+3 grid: two equal columns
+ *   pair-stack → 3+3 grid: single lead + stacked posts in second cell
  */
 export function getRowLayout(layoutVariant: string, slotCount?: number): RowLayout {
   switch (layoutVariant) {
@@ -70,6 +71,13 @@ export function getRowLayout(layoutVariant: string, slotCount?: number): RowLayo
         variant: 'pair',
         cells: [3, 3],
         postsPerCell: [2, 2],
+      };
+
+    case 'pair-stack':
+      return {
+        variant: 'pair-stack',
+        cells: [3, 3],
+        postsPerCell: [1, Math.max((slotCount ?? 5) - 1, 1)],
       };
 
     case 'full':

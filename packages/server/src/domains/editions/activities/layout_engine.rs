@@ -29,16 +29,14 @@ use crate::kernel::ServerDeps;
 /// 6. Return the broadsheet draft
 pub async fn generate_broadsheet(
     county_id: Uuid,
-    _period_start: NaiveDate,
+    period_start: NaiveDate,
     _period_end: NaiveDate,
     deps: &ServerDeps,
 ) -> Result<BroadsheetDraft> {
     let pool = &deps.db_pool;
 
-    // Step 1: Load eligible posts for this county
-    // Note: period filtering will be added when posts gain published_at-based windowing.
-    // For now, all active posts are eligible.
-    let posts = load_county_posts(county_id, pool).await?;
+    // Step 1: Load eligible posts for this county within the edition's time window
+    let posts = load_county_posts(county_id, period_start, pool).await?;
 
     // Step 2: Already sorted by priority DESC in the query
     let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
@@ -85,6 +83,7 @@ pub async fn generate_broadsheet(
 /// - It is tagged 'statewide'
 async fn load_county_posts(
     county_id: Uuid,
+    period_start: NaiveDate,
     pool: &PgPool,
 ) -> Result<Vec<LayoutPost>> {
     // Lightweight struct for layout engine — only needs id, type, weight, priority, topic
@@ -118,10 +117,12 @@ async fn load_county_posts(
                 AND tg.value = 'statewide'
             )
           )
+          AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
         ORDER BY p.priority DESC NULLS LAST
         "#,
     )
     .bind(county_id)
+    .bind(period_start)
     .fetch_all(pool)
     .await?;
 
@@ -413,13 +414,19 @@ fn select_row_templates<'a>(
                 }
             }
 
-            // Penalize overused layout variants (max 3 of any variant)
+            // Penalize overused layout variants (max 2 of any variant)
             let variant_count = variant_counts
                 .get(tws.config.layout_variant.as_str())
                 .copied()
                 .unwrap_or(0);
-            if variant_count >= 3 {
+            if variant_count >= 2 {
                 adj_score *= 0.3;
+            }
+
+            // Boost templates not yet used in this edition
+            let already_selected = selected.iter().any(|(cfg, _)| cfg.slug == tws.config.slug);
+            if !already_selected {
+                adj_score *= 1.5;
             }
 
             if best.is_none() || adj_score > best.unwrap().1 {
