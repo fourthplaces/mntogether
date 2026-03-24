@@ -36,18 +36,14 @@ export interface ContactInfo {
 
 export type PostType = "story" | "notice" | "exchange" | "event" | "spotlight" | "reference";
 export type PostStatus = "PENDING_APPROVAL" | "ACTIVE" | "REJECTED" | "EXPIRED" | "ARCHIVED";
-export type Urgency = "urgent" | "high" | "medium" | "low";
-
 export interface Post {
   id: string;
   title: string;
   bodyRaw: string;
   postType?: PostType;
-  category?: string;
-  urgency?: Urgency;
+  isUrgent: boolean;
   status: PostStatus;
   location?: string;
-  sourceUrl?: string;
   weight?: string;
   priority?: number;
   tags?: Tag[];
@@ -100,8 +96,7 @@ export interface EditPostInput {
   title?: string;
   bodyRaw?: string;
   location?: string;
-  category?: string;
-  urgency?: Urgency;
+  isUrgent?: boolean;
 }
 
 export interface TagInput {

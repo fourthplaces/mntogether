@@ -7,9 +7,8 @@ export const PostListFields = graphql(`
     bodyRaw
     status
     postType
-    urgency
+    isUrgent
     location
-    sourceUrl
     createdAt
     publishedAt
     distanceMiles
@@ -35,11 +34,9 @@ export const PostDetailFields = graphql(`
     bodyAst
     status
     postType
-    category
-    urgency
+    isUrgent
     location
     zipCode
-    sourceUrl
     createdAt
     updatedAt
     publishedAt
@@ -67,19 +64,6 @@ export const PostDetailFields = graphql(`
       color
       description
       emoji
-    }
-    schedules {
-      id
-      dayOfWeek
-      opensAt
-      closesAt
-      timezone
-      notes
-      rrule
-      dtstart
-      dtend
-      isAllDay
-      durationMinutes
     }
     contacts {
       id

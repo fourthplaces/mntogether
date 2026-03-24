@@ -24,7 +24,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SignalPostsQuery, RejectPostMutation } from "@/lib/graphql/posts";
 import { CountiesQuery } from "@/lib/graphql/editions";
@@ -341,18 +341,6 @@ export default function SignalPage() {
                           >
                             <X className="w-4 h-4" />
                           </Button>
-                        )}
-                        {post.sourceUrl && (
-                          <a
-                            href={post.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-1 text-muted-foreground hover:text-foreground rounded inline-block"
-                            title="View source"
-                          >
-                            <ExternalLink className="w-4 h-4" />
-                          </a>
                         )}
                       </TableCell>
                     </TableRow>

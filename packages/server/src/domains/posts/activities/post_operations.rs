@@ -25,7 +25,7 @@ pub struct UpdateAndApprovePost {
     #[builder(default)]
     pub contact_info: Option<JsonValue>,
     #[builder(default)]
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     #[builder(default)]
     pub location: Option<String>,
 }
@@ -36,7 +36,7 @@ pub async fn create_post(
     title: String,
     body_raw: String,
     contact_info: Option<JsonValue>,
-    urgency: Option<String>,
+    is_urgent: bool,
     location: Option<String>,
     ip_address: Option<String>,
     submission_type: String,
@@ -54,7 +54,7 @@ pub async fn create_post(
         CreatePost::builder()
             .title(title)
             .body_raw(body_raw)
-            .urgency(urgency)
+            .is_urgent(is_urgent)
             .location(location)
             .submission_type(Some(submission_type))
             .submitted_by_id(member_id.map(|m| m.into_uuid()))
@@ -107,7 +107,7 @@ pub async fn update_and_approve_post(input: UpdateAndApprovePost, pool: &PgPool)
             .id(input.post_id)
             .title(input.title)
             .body_raw(input.body_raw)
-            .urgency(input.urgency)
+            .is_urgent(input.is_urgent)
             .location(input.location)
             .build(),
         pool,

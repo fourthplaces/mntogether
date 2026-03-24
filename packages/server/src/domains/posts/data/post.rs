@@ -11,12 +11,8 @@ pub struct PostData {
 
     // Hot path fields
     pub post_type: String,
-    pub category: String,
-    pub urgency: Option<String>,
     pub status: String,
-
-    // Verification
-    pub verified_at: Option<String>,
+    pub is_urgent: bool,
 
     // Language
     pub source_language: String,
@@ -30,8 +26,6 @@ pub struct PostData {
     pub created_at: String,
     pub updated_at: String,
 
-    // Source tracking
-    pub source_url: Option<String>,
 }
 
 /// Service-specific properties
@@ -68,17 +62,14 @@ impl From<Post> for PostData {
             title: post.title,
             body_raw: post.body_raw,
             post_type: post.post_type,
-            category: post.category,
-            urgency: post.urgency,
             status: post.status,
-            verified_at: post.verified_at.map(|dt| dt.to_rfc3339()),
+            is_urgent: post.is_urgent,
             source_language: post.source_language,
             location: post.location,
             latitude: post.latitude.and_then(|d| d.to_f64()),
             longitude: post.longitude.and_then(|d| d.to_f64()),
             created_at: post.created_at.to_rfc3339(),
             updated_at: post.updated_at.to_rfc3339(),
-            source_url: post.source_url,
         }
     }
 }

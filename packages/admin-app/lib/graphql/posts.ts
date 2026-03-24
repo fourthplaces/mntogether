@@ -239,7 +239,6 @@ export const AddPostScheduleMutation = graphql(`
   mutation AddPostSchedule($postId: ID!, $input: AddScheduleInput!) {
     addPostSchedule(postId: $postId, input: $input) {
       id
-      schedules { id dayOfWeek opensAt closesAt timezone notes rrule dtstart dtend isAllDay durationMinutes }
     }
   }
 `);
@@ -248,7 +247,6 @@ export const DeletePostScheduleMutation = graphql(`
   mutation DeletePostSchedule($postId: ID!, $scheduleId: ID!) {
     deletePostSchedule(postId: $postId, scheduleId: $scheduleId) {
       id
-      schedules { id dayOfWeek opensAt closesAt timezone notes rrule dtstart dtend isAllDay durationMinutes }
     }
   }
 `);

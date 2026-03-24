@@ -10,12 +10,10 @@ pub struct PostType {
     pub title: String,
     pub body_raw: String,
     pub post_type: String,
-    pub category: String,
     pub status: PostStatusData,
-    pub urgency: Option<String>,
+    pub is_urgent: bool,
     pub location: Option<String>,
     pub submission_type: Option<String>,
-    pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
 }
@@ -27,7 +25,6 @@ impl From<Post> for PostType {
             title: post.title,
             body_raw: post.body_raw,
             post_type: post.post_type,
-            category: post.category,
             status: match post.status.as_str() {
                 "draft" => PostStatusData::Draft,
                 "pending_approval" => PostStatusData::PendingApproval,
@@ -38,10 +35,9 @@ impl From<Post> for PostType {
                 "archived" => PostStatusData::Archived,
                 _ => PostStatusData::Active, // default fallback
             },
-            urgency: post.urgency,
+            is_urgent: post.is_urgent,
             location: post.location,
             submission_type: post.submission_type,
-            source_url: post.source_url,
             created_at: post.created_at,
             published_at: post.published_at,
         }
@@ -89,7 +85,7 @@ impl std::fmt::Display for PostStatusData {
 pub struct EditPostInput {
     pub title: Option<String>,
     pub body_raw: Option<String>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
 }
 
@@ -99,7 +95,7 @@ pub struct SubmitPostInput {
     pub title: String,
     pub body_raw: String,
     pub contact_info: Option<ContactInfoInput>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
 }
 

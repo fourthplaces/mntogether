@@ -20,23 +20,6 @@ use crate::domains::schedules::models::{
 };
 use crate::domains::tag::models::{Tag, Taggable};
 
-/// Valid urgency values per database constraint
-const VALID_URGENCY_VALUES: &[&str] = &["notice", "urgent"];
-
-/// Normalize urgency value to a valid database value.
-/// Returns None if the input is invalid or None.
-fn normalize_urgency(urgency: Option<&str>) -> Option<String> {
-    urgency.and_then(|u| {
-        let normalized = u.to_lowercase();
-        if VALID_URGENCY_VALUES.contains(&normalized.as_str()) {
-            Some(normalized)
-        } else {
-            warn!(urgency = %u, "Invalid urgency value from AI, ignoring");
-            None
-        }
-    })
-}
-
 /// Create a post from extracted data with all associated records.
 ///
 /// This is the single place that handles:
@@ -56,17 +39,14 @@ pub async fn create_extracted_post(
 ) -> Result<Post> {
     use crate::domains::posts::models::PostSource;
 
-    let urgency = normalize_urgency(post.urgency.as_deref());
-
     // Create the post
     let created = Post::create(
         CreatePost::builder()
             .title(post.title.clone())
             .body_raw(post.body_raw.clone())
-            .urgency(urgency)
+            .is_urgent(post.is_urgent)
             .location(post.location.clone())
-            .submission_type(Some("scraped".to_string()))
-            .source_url(source_url.clone())
+            .submission_type(Some("ingested".to_string()))
             .submitted_by_id(submitted_by_id)
             .build(),
         pool,

@@ -8,7 +8,7 @@ interface WorkflowCardProps {
   id: string;
   title: string;
   postType?: string | null;
-  urgency?: string | null;
+  isUrgent?: boolean | null;
   createdAt: string;
   isDragOverlay?: boolean;
 }
@@ -22,12 +22,6 @@ const TYPE_COLORS: Record<string, string> = {
   reference: "bg-surface-muted text-text-secondary",
 };
 
-const URGENCY_COLORS: Record<string, string> = {
-  high: "text-danger-text",
-  urgent: "text-danger-text font-semibold",
-  medium: "text-warning-text",
-};
-
 function formatShortDate(dateString: string): string {
   const d = new Date(dateString);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -37,7 +31,7 @@ export function WorkflowCard({
   id,
   title,
   postType,
-  urgency,
+  isUrgent,
   createdAt,
   isDragOverlay,
 }: WorkflowCardProps) {
@@ -57,7 +51,6 @@ export function WorkflowCard({
   };
 
   const typeClass = TYPE_COLORS[postType ?? ""] ?? "bg-surface-muted text-text-secondary";
-  const urgencyClass = URGENCY_COLORS[urgency ?? ""] ?? "";
 
   const card = (
     <div
@@ -100,8 +93,8 @@ export function WorkflowCard({
                 {postType}
               </span>
             )}
-            {urgency && urgency !== "low" && (
-              <span className={`text-[10px] ${urgencyClass}`}>{urgency}</span>
+            {isUrgent && (
+              <span className="text-[10px] text-danger-text font-semibold">Urgent</span>
             )}
             <span className="text-[10px] text-text-faint ml-auto">
               {formatShortDate(createdAt)}

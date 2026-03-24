@@ -7,16 +7,7 @@ import { AdminLoader } from "@/components/admin/AdminLoader";
 import { TagsSection } from "@/components/admin/TagsSection";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { ArrowLeft, CalendarIcon, ChevronDownIcon, Clock, ExternalLink, Plus, X } from "lucide-react";
-import { format } from "date-fns";
-import { Calendar } from "@/components/ui/calendar";
-import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ArrowLeft, ExternalLink, Plus, X } from "lucide-react";
 import {
   Select,
   SelectTrigger,
@@ -39,8 +30,6 @@ import {
   RemovePostTagMutation,
   AddPostContactMutation,
   RemovePostContactMutation,
-  AddPostScheduleMutation,
-  DeletePostScheduleMutation,
   UpsertPostLinkMutation,
   UpsertPostSourceAttrMutation,
   UpsertPostDatetimeMutation,
@@ -50,59 +39,11 @@ import {
 import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import { TagKindsQuery, TagsQuery } from "@/lib/graphql/tags";
 import { markdownComponents } from "@/lib/markdown-components";
-import { POST_TYPES, WEIGHTS, URGENCIES, CATEGORIES } from "@/lib/post-form-constants";
+import { POST_TYPES, WEIGHTS } from "@/lib/post-form-constants";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function formatTime12h(time24: string): string {
-  const [h, m] = time24.split(":").map(Number);
-  const suffix = h >= 12 ? "PM" : "AM";
-  const h12 = h % 12 || 12;
-  return `${h12}:${m.toString().padStart(2, "0")} ${suffix}`;
-}
-
-interface ScheduleItem {
-  id: string;
-  dayOfWeek?: number | null;
-  opensAt?: string | null;
-  closesAt?: string | null;
-  timezone: string;
-  notes?: string | null;
-  rrule?: string | null;
-  dtstart?: string | null;
-  dtend?: string | null;
-  isAllDay: boolean;
-  durationMinutes?: number | null;
-}
-
-function isScheduleExpired(s: ScheduleItem): boolean {
-  if (s.dtend && !s.rrule) return new Date(s.dtend) < new Date();
-  if (s.dtstart && !s.rrule && !s.dtend) return new Date(s.dtstart) < new Date();
-  return false;
-}
-
-function formatSchedule(s: ScheduleItem): string {
-  if (s.dtstart && s.dayOfWeek == null) {
-    const date = new Date(s.dtstart);
-    const dateStr = date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" });
-    const timeStr = s.opensAt && s.closesAt
-      ? `${formatTime12h(s.opensAt)} \u2013 ${formatTime12h(s.closesAt)}`
-      : s.opensAt ? formatTime12h(s.opensAt) : "";
-    return [dateStr, timeStr].filter(Boolean).join("  ");
-  }
-  const dayName = s.dayOfWeek != null ? DAY_NAMES[s.dayOfWeek] : "";
-  const timeStr = s.opensAt && s.closesAt
-    ? `${formatTime12h(s.opensAt)} \u2013 ${formatTime12h(s.closesAt)}`
-    : s.opensAt ? formatTime12h(s.opensAt) : "";
-  let suffix = "";
-  if (s.rrule?.includes("INTERVAL=2")) suffix = " (every other week)";
-  if (s.rrule?.includes("FREQ=MONTHLY")) suffix = " (monthly)";
-  return [dayName, timeStr, suffix].filter(Boolean).join("  ");
-}
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString();
@@ -564,249 +505,6 @@ function FieldGroupPanels({
 }
 
 // ---------------------------------------------------------------------------
-// Styled time input — hides native browser chrome per shadcn Time Picker
-// ---------------------------------------------------------------------------
-
-const timeInputStyles =
-  "appearance-none bg-card [&::-webkit-calendar-picker-indicator]:hidden [&::-webkit-calendar-picker-indicator]:appearance-none";
-
-// ---------------------------------------------------------------------------
-// Schedules inline CRUD
-// ---------------------------------------------------------------------------
-
-const DAY_OPTIONS = DAY_NAMES.map((name, i) => ({ value: i, label: name }));
-
-type ScheduleMode = "hours" | "event";
-
-function SchedulesSection({
-  schedules,
-  postId,
-  addPostSchedule,
-  deletePostSchedule,
-  mutationContext,
-}: {
-  schedules: ScheduleItem[];
-  postId: string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  addPostSchedule: (vars: any, ctx?: any) => Promise<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  deletePostSchedule: (vars: any, ctx?: any) => Promise<any>;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  mutationContext: any;
-}) {
-  const [mode, setMode] = useState<ScheduleMode>("hours");
-  const [busy, setBusy] = useState(false);
-
-  // Operating hours state
-  const [newDay, setNewDay] = useState<string>("1"); // Monday
-  const [newOpens, setNewOpens] = useState("09:00");
-  const [newCloses, setNewCloses] = useState("17:00");
-
-  // Event state
-  const [eventDate, setEventDate] = useState<Date | undefined>(undefined);
-  const [eventTime, setEventTime] = useState("12:00");
-  const [calendarOpen, setCalendarOpen] = useState(false);
-
-  const handleAddHours = async () => {
-    setBusy(true);
-    try {
-      await addPostSchedule(
-        {
-          postId,
-          input: {
-            dayOfWeek: parseInt(newDay, 10),
-            opensAt: newOpens,
-            closesAt: newCloses,
-            timezone: "America/Chicago",
-          },
-        },
-        mutationContext
-      );
-    } catch (err) {
-      console.error("Failed to add schedule:", err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleAddEvent = async () => {
-    if (!eventDate) return;
-    setBusy(true);
-    try {
-      const [h, m] = eventTime.split(":").map(Number);
-      const dt = new Date(eventDate);
-      dt.setHours(h, m, 0, 0);
-      await addPostSchedule(
-        {
-          postId,
-          input: {
-            dtstart: dt.toISOString(),
-            opensAt: eventTime,
-            timezone: "America/Chicago",
-          },
-        },
-        mutationContext
-      );
-      setEventDate(undefined);
-      setEventTime("12:00");
-    } catch (err) {
-      console.error("Failed to add event:", err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const handleRemove = async (scheduleId: string) => {
-    setBusy(true);
-    try {
-      await deletePostSchedule({ postId, scheduleId }, mutationContext);
-    } catch (err) {
-      console.error("Failed to delete schedule:", err);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const oneOffSchedules = schedules.filter((s) => !s.rrule);
-  const allOneOffsExpired = oneOffSchedules.length > 0 && oneOffSchedules.every(isScheduleExpired);
-
-  return (
-    <div className="border-t border-border pt-4">
-      <SectionLabel>Schedule</SectionLabel>
-
-      {allOneOffsExpired && (
-        <p className="text-xs text-amber-600 font-medium mb-2">This event has passed</p>
-      )}
-
-      {/* Existing schedules */}
-      {schedules.length > 0 ? (
-        <div className="space-y-1.5 mb-4">
-          {schedules.map((s) => (
-            <div key={s.id} className={`flex items-center gap-2 group ${isScheduleExpired(s) ? "opacity-60" : ""}`}>
-              <Clock className="w-4 h-4 flex-shrink-0 text-text-faint" />
-              <span className="text-sm text-text-body flex-1 min-w-0">{formatSchedule(s)}</span>
-              {s.notes && <span className="text-xs text-text-faint italic truncate max-w-[100px]">{s.notes}</span>}
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => handleRemove(s.id)}
-                disabled={busy}
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger-text transition-opacity"
-                title="Remove schedule"
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-text-faint italic mb-4">No schedules</p>
-      )}
-
-      {/* Add form */}
-      <Tabs value={mode} onValueChange={(v) => setMode(v as ScheduleMode)}>
-        <TabsList className="mb-3">
-          <TabsTrigger value="hours">Operating Hours</TabsTrigger>
-          <TabsTrigger value="event">One-off Event</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="hours">
-          <FieldGroup className="flex-row items-end gap-2">
-            <Field className="w-auto">
-              <FieldLabel className="text-xs">Day</FieldLabel>
-              <Select value={newDay} onValueChange={(val) => val !== null && setNewDay(val)}>
-                <SelectTrigger className="text-sm w-28">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DAY_OPTIONS.map((d) => (
-                    <SelectItem key={d.value} value={String(d.value)}>{d.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field className="w-auto">
-              <FieldLabel className="text-xs">Opens</FieldLabel>
-              <Input
-                type="time"
-                value={newOpens}
-                onChange={(e) => setNewOpens(e.target.value)}
-                className={`text-sm w-[110px] ${timeInputStyles}`}
-                disabled={busy}
-              />
-            </Field>
-            <Field className="w-auto">
-              <FieldLabel className="text-xs">Closes</FieldLabel>
-              <Input
-                type="time"
-                value={newCloses}
-                onChange={(e) => setNewCloses(e.target.value)}
-                className={`text-sm w-[110px] ${timeInputStyles}`}
-                disabled={busy}
-              />
-            </Field>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddHours}
-              disabled={busy}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
-          </FieldGroup>
-        </TabsContent>
-
-        <TabsContent value="event">
-          <FieldGroup className="flex-row items-end gap-2">
-            <Field className="w-auto">
-              <FieldLabel className="text-xs">Date</FieldLabel>
-              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger render={<Button variant="outline" className="w-40 justify-between text-sm font-normal" />}>
-                    {eventDate ? format(eventDate, "MMM d, yyyy") : "Select date"}
-                    <ChevronDownIcon className="h-4 w-4 opacity-50" />
-                </PopoverTrigger>
-                <PopoverContent className="w-auto overflow-hidden p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={eventDate}
-                    captionLayout="dropdown"
-                    defaultMonth={eventDate}
-                    onSelect={(date) => {
-                      setEventDate(date);
-                      setCalendarOpen(false);
-                    }}
-                  />
-                </PopoverContent>
-              </Popover>
-            </Field>
-            <Field className="w-auto">
-              <FieldLabel className="text-xs">Time</FieldLabel>
-              <Input
-                type="time"
-                value={eventTime}
-                onChange={(e) => setEventTime(e.target.value)}
-                className={`text-sm w-[110px] ${timeInputStyles}`}
-                disabled={busy}
-              />
-            </Field>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddEvent}
-              disabled={busy || !eventDate}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add
-            </Button>
-          </FieldGroup>
-        </TabsContent>
-      </Tabs>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -840,8 +538,6 @@ export default function PostDetailPage() {
   const [, removePostTag] = useMutation(RemovePostTagMutation);
   const [, addPostContact] = useMutation(AddPostContactMutation);
   const [, removePostContact] = useMutation(RemovePostContactMutation);
-  const [, addPostSchedule] = useMutation(AddPostScheduleMutation);
-  const [, deletePostSchedule] = useMutation(DeletePostScheduleMutation);
   const [, upsertLink] = useMutation(UpsertPostLinkMutation);
   const [, upsertSourceAttr] = useMutation(UpsertPostSourceAttrMutation);
   const [, upsertDatetime] = useMutation(UpsertPostDatetimeMutation);
@@ -962,7 +658,7 @@ export default function PostDetailPage() {
     );
   }
 
-  const urgencyValue = post.urgency || "";
+  const isUrgent = post.isUrgent ?? false;
 
   // ---------------------------------------------------------------------------
   // Render
@@ -1019,18 +715,6 @@ export default function PostDetailPage() {
               >
                 <ExternalLink className="w-4 h-4" />
               </Link>
-            )}
-
-            {post.sourceUrl && (
-              <a
-                href={post.sourceUrl.startsWith("http") ? post.sourceUrl : `https://${post.sourceUrl}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-2 text-muted-foreground hover:text-foreground hover:bg-accent rounded-lg"
-                title="View source page"
-              >
-                {"\u{1F517}"}
-              </a>
             )}
 
             <Button
@@ -1110,28 +794,22 @@ export default function PostDetailPage() {
                   />
                 </div>
 
-                {/* Urgency */}
+                {/* Urgent */}
                 <div>
-                  <label className="block text-xs text-muted-foreground uppercase mb-1">Urgency</label>
-                  <Select
-                    value={urgencyValue || "__none__"}
-                    onValueChange={(v) => inlineUpdate({ urgency: v === "__none__" ? "" : v })}
-                  >
-                    <SelectTrigger className="text-sm w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {URGENCIES.map((u) => (
-                        <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
-                          {u.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <label className="block text-xs text-muted-foreground uppercase mb-1">Urgent</label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isUrgent}
+                      onChange={(e) => inlineUpdate({ isUrgent: e.target.checked })}
+                      className="rounded border-border"
+                    />
+                    <span className="text-sm">Flag as urgent</span>
+                  </label>
                 </div>
               </div>
 
-              {urgencyValue === "urgent" && (
+              {isUrgent && (
                 <p className="text-xs text-red-600">Flagged as urgent — will display an Urgent label on the broadsheet.</p>
               )}
             </div>
@@ -1158,33 +836,6 @@ export default function PostDetailPage() {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Category */}
-              <div>
-                <label className="block text-xs text-muted-foreground uppercase mb-1">Category</label>
-                <Select
-                  value={post.category || "other"}
-                  onValueChange={(v) => inlineUpdate({ category: v })}
-                >
-                  <SelectTrigger className="text-sm w-full max-w-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map((c) => (
-                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Source URL */}
-              <InlineTextField
-                label="Source URL"
-                value={post.sourceUrl || ""}
-                placeholder="https://..."
-                onSave={(v) => inlineUpdate({ sourceUrl: v || null })}
-                missing={!post.sourceUrl}
-              />
 
               {/* Location + Zip Code */}
               <div className="grid grid-cols-2 gap-3">
@@ -1229,15 +880,6 @@ export default function PostDetailPage() {
               postId={postId}
               addPostContact={addPostContact}
               removePostContact={removePostContact}
-              mutationContext={mutationContext}
-            />
-
-            {/* Schedule */}
-            <SchedulesSection
-              schedules={post.schedules || []}
-              postId={postId}
-              addPostSchedule={addPostSchedule}
-              deletePostSchedule={deletePostSchedule}
               mutationContext={mutationContext}
             />
 

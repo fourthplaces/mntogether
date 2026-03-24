@@ -48,7 +48,7 @@ export default function NewPostPage() {
           postType: values.postType,
           weight: values.weight,
           priority: values.priority,
-          urgency: values.urgency || undefined,
+          isUrgent: values.isUrgent || undefined,
           location: values.location.trim() || undefined,
           organizationId: values.organizationId || undefined,
         },

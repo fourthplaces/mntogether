@@ -41,8 +41,7 @@ pub async fn approve_revision(revision_id: PostId, pool: &PgPool) -> Result<Opti
             .id(original_id)
             .title(Some(revision.title))
             .body_raw(Some(revision.body_raw))
-            .category(Some(revision.category))
-            .urgency(revision.urgency)
+            .is_urgent(Some(revision.is_urgent))
             .location(revision.location)
             .build(),
         pool,

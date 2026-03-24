@@ -18,10 +18,8 @@ interface PostReviewCardPost {
   bodyRaw: string;
   bodyLight?: string | null;
   postType?: string | null;
-  category?: string | null;
-  urgency?: string | null;
+  isUrgent?: boolean | null;
   location?: string | null;
-  sourceUrl?: string | null;
   distanceMiles?: number | null;
   tags: Array<{
     id: string;
@@ -49,13 +47,6 @@ const TYPE_VARIANTS: Record<string, "info" | "success" | "spotlight" | "warning"
   reference: "info",
 };
 
-const URGENCY_VARIANTS: Record<string, "danger" | "warning" | "success" | "secondary"> = {
-  urgent: "danger",
-  high: "warning",
-  medium: "warning",
-  low: "success",
-};
-
 export function PostReviewCard({
   post,
   onApprove,
@@ -76,14 +67,9 @@ export function PostReviewCard({
             <Badge variant={TYPE_VARIANTS[post.postType ?? ""] ?? "secondary"}>
               {post.postType || "post"}
             </Badge>
-            {post.urgency && (
-              <Badge variant={URGENCY_VARIANTS[post.urgency.toLowerCase()] ?? "secondary"}>
-                {post.urgency}
-              </Badge>
-            )}
-            {post.category && (
-              <Badge variant="secondary">
-                {post.category}
+            {post.isUrgent && (
+              <Badge variant="danger">
+                Urgent
               </Badge>
             )}
           </div>
@@ -139,19 +125,6 @@ export function PostReviewCard({
             <div>
               <span className="font-semibold text-sm text-foreground">Location:</span>{" "}
               <span className="text-sm text-muted-foreground">{post.location}</span>
-            </div>
-          )}
-          {post.sourceUrl && (
-            <div>
-              <span className="font-semibold text-sm text-foreground">Source:</span>{" "}
-              <a
-                href={post.sourceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-admin-accent hover:text-admin-accent-hover break-all"
-              >
-                {post.sourceUrl}
-              </a>
             </div>
           )}
         </div>

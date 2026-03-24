@@ -74,7 +74,7 @@ pub struct SubmitPostRequest {
     pub contact_phone: Option<String>,
     pub contact_email: Option<String>,
     pub contact_website: Option<String>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
 }
 
@@ -99,7 +99,6 @@ pub struct ListReportsRequest {
 #[derive(Debug, Clone, Deserialize)]
 pub struct PublicListRequest {
     pub post_type: Option<String>,
-    pub category: Option<String>,
     pub limit: Option<i32>,
     pub offset: Option<i32>,
     pub zip_code: Option<String>,
@@ -140,7 +139,7 @@ pub struct CreatePostRequest {
     pub post_type: Option<String>,
     pub weight: Option<String>,
     pub priority: Option<i32>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
     pub organization_id: Option<Uuid>,
 }
@@ -162,7 +161,7 @@ pub struct ApprovePostRequest {}
 pub struct EditApproveRequest {
     pub title: Option<String>,
     pub body_raw: Option<String>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
 }
 
@@ -269,13 +268,11 @@ pub struct UpdatePostContentRequest {
     pub body_raw: Option<String>,
     pub body_ast: Option<serde_json::Value>,
     pub post_type: Option<String>,
-    pub category: Option<String>,
     pub weight: Option<String>,
     pub priority: Option<i32>,
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     pub location: Option<String>,
     pub zip_code: Option<String>,
-    pub source_url: Option<String>,
     pub organization_id: Option<Uuid>,
 }
 
@@ -335,12 +332,10 @@ pub struct PostResult {
     pub body_ast: Option<serde_json::Value>,
     pub status: String,
     pub post_type: String,
-    pub category: String,
-    pub urgency: Option<String>,
+    pub is_urgent: bool,
     pub location: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zip_code: Option<String>,
-    pub source_url: Option<String>,
     pub submission_type: Option<String>,
     pub weight: String,
     pub priority: i32,
@@ -394,11 +389,9 @@ impl From<Post> for PostResult {
             body_ast: p.body_ast,
             status: p.status,
             post_type: p.post_type,
-            category: p.category,
-            urgency: p.urgency,
+            is_urgent: p.is_urgent,
             location: p.location,
             zip_code: p.zip_code,
-            source_url: p.source_url,
             submission_type: p.submission_type,
             weight: p.weight,
             priority: p.priority,
@@ -479,7 +472,6 @@ pub struct EventPostResult {
     pub body_raw: String,
     pub status: String,
     pub location: Option<String>,
-    pub source_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -521,9 +513,8 @@ pub struct PublicPostResult {
     pub body_raw: String,
     pub body_light: Option<String>,
     pub location: Option<String>,
-    pub source_url: Option<String>,
     pub post_type: String,
-    pub category: String,
+    pub is_urgent: bool,
     pub created_at: String,
     pub published_at: Option<String>,
     pub tags: Vec<PublicTagResult>,
@@ -569,7 +560,6 @@ pub struct PostTypeOption {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PublicFiltersResult {
-    pub categories: Vec<FilterOption>,
     pub post_types: Vec<PostTypeOption>,
 }
 
@@ -583,7 +573,7 @@ pub struct PostStatsResult {
     pub spotlights: i64,
     pub references: i64,
     pub user_submitted: i64,
-    pub scraped: i64,
+    pub ingested: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -834,10 +824,8 @@ async fn list(
                         body_ast: None,
                         status: pwd.status,
                         post_type: pwd.post_type,
-                        category: pwd.category,
-                        urgency: pwd.urgency,
+                        is_urgent: pwd.is_urgent,
                         location: pwd.location,
-                        source_url: pwd.source_url,
                         submission_type: pwd.submission_type,
                         created_at: pwd.created_at.to_rfc3339(),
                         updated_at: pwd.updated_at.to_rfc3339(),
@@ -914,10 +902,8 @@ async fn list(
                         body_ast: None,
                         status: e.node.status.to_string(),
                         post_type: e.node.post_type,
-                        category: e.node.category,
-                        urgency: e.node.urgency,
+                        is_urgent: e.node.is_urgent,
                         location: e.node.location,
-                        source_url: e.node.source_url,
                         submission_type: e.node.submission_type,
                         created_at: e.node.created_at.to_rfc3339(),
                         updated_at: e.node.created_at.to_rfc3339(),
@@ -978,10 +964,8 @@ async fn search_nearby(
                     body_ast: None,
                     status: pwd.status,
                     post_type: pwd.post_type,
-                    category: pwd.category,
-                    urgency: pwd.urgency,
+                    is_urgent: pwd.is_urgent,
                     location: pwd.location,
-                    source_url: pwd.source_url,
                     submission_type: pwd.submission_type,
                     created_at: pwd.created_at.to_rfc3339(),
                     updated_at: pwd.updated_at.to_rfc3339(),
@@ -1038,7 +1022,7 @@ async fn submit(
         title: req.title,
         body_raw: req.body_raw,
         contact_info,
-        urgency: req.urgency,
+        is_urgent: req.is_urgent,
         location: req.location,
     };
 
@@ -1123,7 +1107,6 @@ async fn upcoming_events(
                 body_raw: e.body_raw,
                 status: e.status.to_string(),
                 location: e.location,
-                source_url: e.source_url,
             })
             .collect(),
     }))
@@ -1217,11 +1200,9 @@ async fn list_by_organization(
                     body_ast: p.body_ast,
                     status: p.status,
                     post_type: p.post_type,
-                    category: p.category,
-                    urgency: p.urgency,
+                    is_urgent: p.is_urgent,
                     location: p.location,
                     zip_code: p.zip_code,
-                    source_url: p.source_url,
                     submission_type: p.submission_type,
                     weight: p.weight,
                     priority: p.priority,
@@ -1263,7 +1244,7 @@ async fn public_list(
     let limit = req.limit.unwrap_or(50).min(200) as i64;
     let offset = req.offset.unwrap_or(0) as i64;
     let post_type = req.post_type.as_deref();
-    let category = req.category.as_deref();
+    let category: Option<&str> = None;
 
     let (post_items, total_count): (Vec<PublicPostResult>, i64) =
         if let Some(ref zip) = req.zip_code {
@@ -1306,9 +1287,8 @@ async fn public_list(
                         body_raw: p.body_raw,
                         body_light: p.body_light,
                         location: p.location,
-                        source_url: p.source_url,
                         post_type: p.post_type,
-                        category: p.category,
+                        is_urgent: p.is_urgent,
                         created_at: p.created_at.to_rfc3339(),
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
@@ -1350,9 +1330,8 @@ async fn public_list(
                         body_raw: p.body_raw,
                         body_light: p.body_light,
                         location: p.location,
-                        source_url: p.source_url,
                         post_type: p.post_type,
-                        category: p.category,
+                        is_urgent: p.is_urgent,
                         created_at: p.created_at.to_rfc3339(),
                         published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                         tags: tags_by_post.remove(&id).unwrap_or_default(),
@@ -1377,18 +1356,9 @@ async fn public_filters(
     State(state): State<AppState>,
     Json(_req): Json<PublicFiltersRequest>,
 ) -> ApiResult<Json<PublicFiltersResult>> {
-    let categories = Tag::find_active_categories(&state.deps.db_pool).await?;
     let post_types = Tag::find_post_types(&state.deps.db_pool).await?;
 
     Ok(Json(PublicFiltersResult {
-        categories: categories
-            .into_iter()
-            .map(|c| FilterOption {
-                value: c.value,
-                display_name: c.display_name,
-                count: c.count,
-            })
-            .collect(),
         post_types: post_types
             .into_iter()
             .map(|t| PostTypeOption {
@@ -1426,7 +1396,7 @@ async fn stats(
     let mut events: i64 = 0;
     let mut spotlights: i64 = 0;
     let mut references: i64 = 0;
-    let mut scraped: i64 = 0;
+    let mut ingested: i64 = 0;
     let mut user_submitted: i64 = 0;
 
     for (post_type, submission_type, count) in &rows {
@@ -1443,7 +1413,7 @@ async fn stats(
         }
 
         match submission_type.as_deref() {
-            Some("scraped") => scraped += count,
+            Some("ingested") => ingested += count,
             _ => user_submitted += count,
         }
     }
@@ -1457,7 +1427,7 @@ async fn stats(
         spotlights,
         references,
         user_submitted,
-        scraped,
+        ingested,
     }))
 }
 
@@ -1472,7 +1442,7 @@ async fn create_post(
         req.post_type,
         req.weight,
         req.priority,
-        req.urgency,
+        req.is_urgent,
         req.location,
         req.organization_id,
         user.0.member_id.into_uuid(),
@@ -1541,9 +1511,8 @@ async fn get_related_posts(
                 body_raw: p.body_raw,
                 body_light: p.body_light,
                 location: p.location,
-                source_url: p.source_url,
                 post_type: p.post_type,
-                category: p.category,
+                is_urgent: p.is_urgent,
                 created_at: p.created_at.to_rfc3339(),
                 published_at: p.published_at.map(|dt| dt.to_rfc3339()),
                 tags: tags_by_post.remove(&id).unwrap_or_default(),
@@ -1590,7 +1559,7 @@ async fn edit_and_approve(
     let edit_input = EditPostInput {
         title: req.title,
         body_raw: req.body_raw,
-        urgency: req.urgency,
+        is_urgent: req.is_urgent,
         location: req.location,
     };
 
@@ -1997,13 +1966,11 @@ async fn update_content(
         req.body_raw,
         req.body_ast,
         req.post_type,
-        req.category,
         req.weight,
         req.priority,
-        req.urgency,
+        req.is_urgent,
         req.location,
         req.zip_code,
-        req.source_url,
         req.organization_id,
         user.0.member_id.into_uuid(),
         &state.deps,

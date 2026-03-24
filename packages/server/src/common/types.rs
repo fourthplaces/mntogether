@@ -41,14 +41,13 @@ pub struct ExtractedPost {
     pub contact: Option<ContactInfo>,
     #[serde(default)]
     pub location: Option<String>,
-    pub urgency: Option<String>,
-    pub confidence: Option<String>, // "high" | "medium" | "low"
+    #[serde(default)]
+    pub is_urgent: bool,
+    #[serde(default)]
+    pub extraction_confidence: Option<i32>, // 0-100
     /// The page snapshot this post was extracted from (for linking)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_page_snapshot_id: Option<Uuid>,
-    /// Source URL(s) where this post was extracted from (may be comma-separated after dedup)
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub source_url: Option<String>,
     /// Structured location fields for proximity search
     #[serde(default)]
     pub zip_code: Option<String>,
@@ -95,8 +94,10 @@ impl TagEntry {
 pub struct ExtractedPostInformation {
     pub contact: ContactInfo,
     pub location: Option<String>,
-    pub urgency: String,
-    pub confidence: String,
+    #[serde(default)]
+    pub is_urgent: bool,
+    #[serde(default)]
+    pub extraction_confidence: Option<i32>, // 0-100
     #[serde(default)]
     pub zip_code: Option<String>,
     #[serde(default)]
@@ -117,8 +118,8 @@ impl Default for ExtractedPostInformation {
         Self {
             contact: ContactInfo::default(),
             location: None,
-            urgency: "medium".to_string(),
-            confidence: "low".to_string(),
+            is_urgent: false,
+            extraction_confidence: None,
             zip_code: None,
             city: None,
             state: None,

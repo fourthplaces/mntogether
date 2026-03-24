@@ -11,7 +11,7 @@ interface Post {
   id: string;
   title: string;
   postType?: string | null;
-  urgency?: string | null;
+  isUrgent?: boolean | null;
   createdAt: string;
 }
 
@@ -61,7 +61,7 @@ export function WorkflowColumn({
               id={post.id}
               title={post.title}
               postType={post.postType}
-              urgency={post.urgency}
+              isUrgent={post.isUrgent}
               createdAt={post.createdAt}
             />
           ))}

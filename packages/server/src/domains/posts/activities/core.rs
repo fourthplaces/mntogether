@@ -34,7 +34,7 @@ pub async fn submit_post(
         input.title.clone(),
         input.body_raw,
         contact_json,
-        input.urgency,
+        input.is_urgent.unwrap_or(false),
         input.location,
         None, // ip_address
         "user_submitted".to_string(),
@@ -120,7 +120,7 @@ pub async fn edit_and_approve_post(
             .post_id(post_id)
             .title(input.title)
             .body_raw(input.body_raw)
-            .urgency(input.urgency)
+            .is_urgent(input.is_urgent)
             .location(input.location)
             .build(),
         &deps.db_pool,
@@ -307,7 +307,7 @@ pub async fn admin_create_post(
     post_type: Option<String>,
     weight: Option<String>,
     priority: Option<i32>,
-    urgency: Option<String>,
+    is_urgent: Option<bool>,
     location: Option<String>,
     _organization_id: Option<Uuid>,
     member_id: Uuid,
@@ -325,7 +325,7 @@ pub async fn admin_create_post(
             .post_type(post_type.unwrap_or_else(|| "notice".to_string()))
             .weight(weight.unwrap_or_else(|| "medium".to_string()))
             .priority(priority.unwrap_or(0))
-            .urgency(urgency)
+            .is_urgent(is_urgent.unwrap_or(false))
             .location(location)
             .build(),
         &deps.db_pool,
@@ -342,13 +342,11 @@ pub async fn admin_update_post(
     body_raw: Option<String>,
     body_ast: Option<serde_json::Value>,
     post_type: Option<String>,
-    category: Option<String>,
     weight: Option<String>,
     priority: Option<i32>,
-    urgency: Option<String>,
+    is_urgent: Option<bool>,
     location: Option<String>,
     zip_code: Option<String>,
-    source_url: Option<String>,
     organization_id: Option<Uuid>,
     _member_id: Uuid,
     deps: &ServerDeps,
@@ -363,13 +361,11 @@ pub async fn admin_update_post(
             .body_raw(body_raw)
             .body_ast(body_ast)
             .post_type(post_type)
-            .category(category)
             .weight(weight)
             .priority(priority)
-            .urgency(urgency)
+            .is_urgent(is_urgent)
             .location(location)
             .zip_code(zip_code)
-            .source_url(source_url)
             .organization_id(organization_id)
             .build(),
         &deps.db_pool,

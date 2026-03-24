@@ -6,7 +6,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
-use crate::common::{ContainerId, PaginationDirection, PostId, ValidatedPaginationArgs};
+use crate::common::{PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
 /// A post — community content in one of 6 types (story, notice, exchange, event, spotlight, reference).
@@ -28,14 +28,10 @@ pub struct Post {
 
     // Type system (Phase 2)
     pub post_type: String, // 'story', 'notice', 'exchange', 'event', 'spotlight', 'reference'
-    pub category: String,
     pub weight: String,  // 'heavy', 'medium', 'light' — layout column width
     pub priority: i32,   // editorial importance (higher = more prominent)
-    pub urgency: Option<String>,         // 'none', 'notice', 'urgent'
+    pub is_urgent: bool,
     pub status: String, // 'draft', 'active', 'filled', 'rejected', 'expired', 'archived'
-
-    // Verification
-    pub verified_at: Option<DateTime<Utc>>,
 
     // Language
     pub source_language: String,
@@ -47,13 +43,13 @@ pub struct Post {
     pub zip_code: Option<String>,
 
     // Submission tracking
-    pub submission_type: Option<String>, // 'scraped', 'admin', 'org_submitted'
+    pub submission_type: Option<String>, // 'ingested', 'admin', 'org_submitted'
 
     // Who submitted this post (member FK)
     pub submitted_by_id: Option<Uuid>,
 
-    // Source tracking (for scraped listings)
-    pub source_url: Option<String>, // Specific page URL where listing was found (for traceability)
+    // Extraction confidence (0-100, populated by ingestion pipeline)
+    pub extraction_confidence: Option<i32>,
 
     // Soft delete (preserves links)
     pub deleted_at: Option<DateTime<Utc>>,
@@ -74,9 +70,6 @@ pub struct Post {
     // Deduplication tracking (points to the canonical post this was merged into)
     pub duplicate_of_id: Option<PostId>,
 
-    // Comments container (inverted FK from containers table)
-    pub comments_container_id: Option<ContainerId>,
-
     // Full-text search vector (auto-managed by DB trigger, never read in app code)
     #[sqlx(skip)]
     #[serde(skip)]
@@ -91,12 +84,10 @@ pub struct PostWithDistance {
     pub body_raw: String,
     pub body_light: Option<String>,
     pub post_type: String,
-    pub category: String,
     pub status: String,
-    pub urgency: Option<String>,
+    pub is_urgent: bool,
     pub location: Option<String>,
     pub submission_type: Option<String>,
-    pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
@@ -113,12 +104,10 @@ pub struct PostWithDistanceAndCount {
     pub body_raw: String,
     pub body_light: Option<String>,
     pub post_type: String,
-    pub category: String,
     pub status: String,
-    pub urgency: Option<String>,
+    pub is_urgent: bool,
     pub location: Option<String>,
     pub submission_type: Option<String>,
-    pub source_url: Option<String>,
     pub created_at: DateTime<Utc>,
     pub published_at: Option<DateTime<Utc>>,
     pub updated_at: DateTime<Utc>,
@@ -236,35 +225,6 @@ impl std::str::FromStr for CapacityStatus {
     }
 }
 
-/// Urgency enum — NULL means no urgency (info-level)
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum Urgency {
-    Notice,
-    Urgent,
-}
-
-impl std::fmt::Display for Urgency {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Urgency::Notice => write!(f, "notice"),
-            Urgency::Urgent => write!(f, "urgent"),
-        }
-    }
-}
-
-impl std::str::FromStr for Urgency {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self> {
-        match s {
-            "notice" => Ok(Urgency::Notice),
-            "urgent" => Ok(Urgency::Urgent),
-            _ => Err(anyhow::anyhow!("Invalid urgency: {}", s)),
-        }
-    }
-}
-
 /// Status enum for type-safe edges
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -324,14 +284,12 @@ pub struct CreatePost {
     // Optional fields - have defaults
     #[builder(default = "notice".to_string())]
     pub post_type: String,
-    #[builder(default = "general".to_string())]
-    pub category: String,
     #[builder(default = "medium".to_string())]
     pub weight: String,
     #[builder(default)]
     pub priority: i32,
     #[builder(default)]
-    pub urgency: Option<String>,
+    pub is_urgent: bool,
     #[builder(default)]
     pub location: Option<String>,
     #[builder(default = "active".to_string())]
@@ -342,8 +300,6 @@ pub struct CreatePost {
     pub submission_type: Option<String>,
     #[builder(default)]
     pub submitted_by_id: Option<Uuid>,
-    #[builder(default)]
-    pub source_url: Option<String>,
     #[builder(default)]
     pub revision_of_post_id: Option<PostId>,
     #[builder(default)]
@@ -366,19 +322,15 @@ pub struct UpdatePostContent {
     #[builder(default)]
     pub post_type: Option<String>,
     #[builder(default)]
-    pub category: Option<String>,
-    #[builder(default)]
     pub weight: Option<String>,
     #[builder(default)]
     pub priority: Option<i32>,
     #[builder(default)]
-    pub urgency: Option<String>,
+    pub is_urgent: Option<bool>,
     #[builder(default)]
     pub location: Option<String>,
     #[builder(default)]
     pub zip_code: Option<String>,
-    #[builder(default)]
-    pub source_url: Option<String>,
     #[builder(default)]
     pub organization_id: Option<Uuid>,
 }
@@ -731,36 +683,32 @@ impl Post {
                 title,
                 body_raw,
                 post_type,
-                category,
                 weight,
                 priority,
-                urgency,
+                is_urgent,
                 location,
                 status,
                 source_language,
                 submission_type,
                 submitted_by_id,
-                source_url,
                 revision_of_post_id,
                 translation_of_id,
                 published_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
             RETURNING *
             "#,
         )
         .bind(input.title)
         .bind(input.body_raw)
         .bind(input.post_type)
-        .bind(input.category)
         .bind(input.weight)
         .bind(input.priority)
-        .bind(input.urgency)
+        .bind(input.is_urgent)
         .bind(input.location)
         .bind(input.status)
         .bind(input.source_language)
         .bind(input.submission_type)
         .bind(input.submitted_by_id)
-        .bind(input.source_url)
         .bind(input.revision_of_post_id)
         .bind(input.translation_of_id)
         .bind(input.published_at)
@@ -797,14 +745,12 @@ impl Post {
                 body_raw = COALESCE($3, body_raw),
                 body_ast = COALESCE($4, body_ast),
                 post_type = COALESCE($5, post_type),
-                category = COALESCE($6, category),
-                weight = COALESCE($7, weight),
-                priority = COALESCE($8, priority),
-                urgency = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE urgency END,
-                location = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE location END,
-                zip_code = CASE WHEN $11 = '' THEN NULL WHEN $11 IS NOT NULL THEN $11 ELSE zip_code END,
-                source_url = CASE WHEN $12 = '' THEN NULL WHEN $12 IS NOT NULL THEN $12 ELSE source_url END,
-                organization_id = COALESCE($13, organization_id),
+                weight = COALESCE($6, weight),
+                priority = COALESCE($7, priority),
+                is_urgent = COALESCE($8, is_urgent),
+                location = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE location END,
+                zip_code = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE zip_code END,
+                organization_id = COALESCE($11, organization_id),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -815,13 +761,11 @@ impl Post {
         .bind(input.body_raw)
         .bind(input.body_ast)
         .bind(input.post_type)
-        .bind(input.category)
         .bind(input.weight)
         .bind(input.priority)
-        .bind(input.urgency)
+        .bind(input.is_urgent)
         .bind(input.location)
         .bind(input.zip_code)
-        .bind(input.source_url)
         .bind(input.organization_id)
         .fetch_one(pool)
         .await?;
@@ -974,8 +918,8 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT p.id, p.title, p.body_raw, p.body_light,
-                   p.post_type, p.category, p.status, p.urgency,
-                   p.location, p.submission_type, p.source_url,
+                   p.post_type, p.status, p.is_urgent,
+                   p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,
                    haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles
@@ -1022,8 +966,8 @@ impl Post {
                 SELECT latitude, longitude FROM zip_codes WHERE zip_code = $1
             )
             SELECT p.id, p.title, p.body_raw, p.body_light,
-                   p.post_type, p.category, p.status, p.urgency,
-                   p.location, p.submission_type, p.source_url,
+                   p.post_type, p.status, p.is_urgent,
+                   p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) as distance_miles,
                    COUNT(*) OVER() as total_count
@@ -1054,8 +998,8 @@ impl Post {
               AND z.longitude BETWEEN c.longitude - ($6::float8 / (69.0 * cos(radians(c.latitude))))
                                   AND c.longitude + ($6::float8 / (69.0 * cos(radians(c.latitude))))
             GROUP BY p.id, p.title, p.body_raw, p.body_light,
-                     p.post_type, p.category, p.status, p.urgency, p.location,
-                     p.submission_type, p.source_url, p.created_at, p.published_at, p.updated_at,
+                     p.post_type, p.status, p.is_urgent, p.location,
+                     p.submission_type, p.created_at, p.published_at, p.updated_at,
                      c.latitude, c.longitude
             HAVING MIN(haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude)) <= $6
             ORDER BY distance_miles ASC
@@ -1236,8 +1180,8 @@ impl Post {
             )
             SELECT DISTINCT ON (p.id)
                    p.id, p.title, p.body_raw,
-                   p.post_type, p.category, p.status, p.urgency,
-                   p.location, p.submission_type, p.source_url,
+                   p.post_type, p.status, p.is_urgent,
+                   p.location, p.submission_type,
                    p.created_at, p.published_at, p.updated_at,
                    l.postal_code as zip_code, l.city as location_city,
                    haversine_distance(c.latitude, c.longitude, z.latitude, z.longitude) as distance_miles

@@ -17,7 +17,6 @@ import { OrganizationsListQuery } from "@/lib/graphql/organizations";
 import {
   POST_TYPES,
   WEIGHTS,
-  URGENCIES,
   type PostFormValues,
 } from "@/lib/post-form-constants";
 
@@ -45,7 +44,7 @@ export function PostForm({
   );
   const [weight, setWeight] = useState(initialValues?.weight ?? "medium");
   const [priority, setPriority] = useState(initialValues?.priority ?? 0);
-  const [urgency, setUrgency] = useState(initialValues?.urgency ?? "");
+  const [isUrgent, setIsUrgent] = useState(initialValues?.isUrgent ?? false);
   const [location, setLocation] = useState(initialValues?.location ?? "");
   const [organizationId, setOrganizationId] = useState(
     initialValues?.organizationId ?? ""
@@ -73,7 +72,7 @@ export function PostForm({
       postType,
       weight,
       priority,
-      urgency,
+      isUrgent,
       location: location.trim(),
       organizationId,
     });
@@ -148,23 +147,17 @@ export function PostForm({
       </div>
 
       <div className="grid grid-cols-2 gap-4 mb-6">
-        <FieldWrapper label="Urgency" className="mb-0">
-          <Select
-            value={urgency || "__none__"}
-            onValueChange={(v) => v !== null && setUrgency(v === "__none__" ? "" : v)}
-            disabled={loading}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {URGENCIES.map((u) => (
-                <SelectItem key={u.value || "__none__"} value={u.value || "__none__"}>
-                  {u.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <FieldWrapper label="Urgent" className="mb-0">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={isUrgent}
+              onChange={(e) => setIsUrgent(e.target.checked)}
+              disabled={loading}
+              className="rounded border-border"
+            />
+            <span className="text-sm">Flag as urgent</span>
+          </label>
         </FieldWrapper>
 
         <FieldWrapper label="Location" className="mb-0">
