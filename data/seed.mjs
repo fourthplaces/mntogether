@@ -109,6 +109,13 @@ out("");
 
 // --- Posts -----------------------------------------------------------------
 
+// Clean up any previous seed run. Delete all ingested posts (seed data)
+// so re-running the seed is idempotent. CASCADE via FK handles field group rows.
+out("-- Clean previous seed data (ingested posts only)");
+out("DELETE FROM edition_slots WHERE post_id IN (SELECT id FROM posts WHERE submission_type = 'ingested');");
+out("DELETE FROM posts WHERE submission_type = 'ingested';");
+out("");
+
 out("-- Posts");
 let postIndex = 0;
 for (const p of posts) {

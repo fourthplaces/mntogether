@@ -1,7 +1,13 @@
-//! Layout engine — the "deliberately dumb" placement algorithm from CMS_SYSTEM_SPEC.md §7.
+//! Layout engine — height-balanced placement with density progression.
 //!
-//! Takes a county_id and date range, finds eligible posts, then greedily assigns them
-//! to row template slots based on weight matching and priority ordering.
+//! Takes a county_id and date range, finds eligible posts, then assigns them
+//! to row template slots using:
+//! - **Height balancing**: stacked cells match the lead cell's height (via height_units)
+//! - **Family consistency**: prefer same post_type within a row
+//! - **Density progression**: heavy features at top → medium mid → light/ticker bottom
+//!
+//! The algorithm is greedy (no backtracking) but produces visually balanced broadsheets
+//! by using integer height estimates on post templates.
 
 use std::collections::HashMap;
 
@@ -18,15 +24,11 @@ use crate::domains::editions::models::row_template_config::RowTemplateWithSlots;
 use crate::domains::editions::models::row_template_config::RowTemplateConfig;
 use crate::kernel::ServerDeps;
 
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
 /// Generate a broadsheet draft for a county and date range.
-///
-/// Algorithm (from CMS_SYSTEM_SPEC.md §7):
-/// 1. Load eligible posts for the county (via zip→county + statewide)
-/// 2. Sort by priority (descending)
-/// 3. Load available row templates + post templates
-/// 4. Greedily assign posts to slots (weight match + type compatibility)
-/// 5. Order rows by highest-priority post in each row
-/// 6. Return the broadsheet draft
 pub async fn generate_broadsheet(
     county_id: Uuid,
     period_start: NaiveDate,
@@ -35,10 +37,8 @@ pub async fn generate_broadsheet(
 ) -> Result<BroadsheetDraft> {
     let pool = &deps.db_pool;
 
-    // Step 1: Load eligible posts for this county within the edition's time window
     let posts = load_county_posts(county_id, period_start, pool).await?;
 
-    // Step 2: Already sorted by priority DESC in the query
     let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
     let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
     let light_count = posts.iter().filter(|p| p.weight == "light").count();
@@ -51,18 +51,16 @@ pub async fn generate_broadsheet(
         "Layout engine: loaded posts by weight tier"
     );
 
-    // Step 3: Load config
     let templates = RowTemplateConfig::find_all_with_slots(pool).await?;
     let post_templates = PostTemplateConfig::find_all(pool).await?;
 
-    tracing::info!(
-        row_templates = templates.len(),
-        post_templates = post_templates.len(),
-        "Layout engine: loaded template configs"
-    );
+    // Build height_units lookup from post templates
+    let height_map: HashMap<String, i32> = post_templates
+        .iter()
+        .map(|pt| (pt.slug.clone(), pt.height_units))
+        .collect();
 
-    // Steps 4-5: Place posts into rows
-    let draft = place_posts(posts, &templates, &post_templates);
+    let draft = place_posts(posts, &templates, &post_templates, &height_map);
 
     tracing::info!(
         rows = draft.rows.len(),
@@ -74,19 +72,522 @@ pub async fn generate_broadsheet(
     Ok(draft)
 }
 
-/// Load active posts relevant to a county.
+// ---------------------------------------------------------------------------
+// Core placement
+// ---------------------------------------------------------------------------
+
+/// The core placement algorithm. Pure function — no I/O.
 ///
-/// A post is relevant if:
-/// - Its primary location's postal_code maps to this county via zip_counties
-///   (join path: posts → locationables → locations → zip_counties)
-/// - It has no location (treated as statewide)
-/// - It is tagged 'statewide'
+/// Strategy:
+/// 1. Select row templates in density-progression order (hero → mid → dense)
+/// 2. Fill each row's slots with height-balanced, family-consistent posts
+/// 3. Only emit fully-filled rows (no partial rows)
+fn place_posts(
+    posts: Vec<LayoutPost>,
+    templates: &[RowTemplateWithSlots],
+    post_templates: &[PostTemplateConfig],
+    height_map: &HashMap<String, i32>,
+) -> BroadsheetDraft {
+    if posts.is_empty() {
+        return BroadsheetDraft { rows: vec![], sections: vec![] };
+    }
+
+    let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
+    let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
+    let light_count = posts.iter().filter(|p| p.weight == "light").count();
+
+    // Select row templates with density progression
+    let selected_rows = select_row_templates(heavy_count, medium_count, light_count, templates);
+
+    tracing::info!(
+        selected = selected_rows.len(),
+        templates = ?selected_rows.iter().map(|(cfg, _)| &cfg.slug).collect::<Vec<_>>(),
+        "Layout engine: selected row templates"
+    );
+
+    let mut placed: Vec<bool> = vec![false; posts.len()];
+    let mut broadsheet_rows: Vec<BroadsheetRow> = Vec::new();
+
+    for (template, template_with_slots) in &selected_rows {
+        let row = fill_row(
+            template,
+            template_with_slots,
+            &posts,
+            &mut placed,
+            post_templates,
+            height_map,
+        );
+
+        if let Some(row) = row {
+            broadsheet_rows.push(row);
+        }
+    }
+
+    // Density progression ordering: hero rows first, then mid, then dense.
+    // Within each density zone, sort by max_priority descending.
+    order_rows_by_density(&mut broadsheet_rows, templates);
+
+    let total_placed = placed.iter().filter(|&&p| p).count();
+    tracing::info!(
+        placed = total_placed,
+        unplaced = posts.len() - total_placed,
+        rows = broadsheet_rows.len(),
+        "Layout engine: slot filling summary"
+    );
+
+    let sections = build_topic_sections(&broadsheet_rows, &posts);
+
+    BroadsheetDraft {
+        rows: broadsheet_rows,
+        sections,
+    }
+}
+
+/// Fill a single row template with posts, using height-balanced placement.
+///
+/// Returns None if the row can't be fully filled (all slot groups must be satisfied).
+fn fill_row(
+    template: &RowTemplateConfig,
+    template_with_slots: &RowTemplateWithSlots,
+    posts: &[LayoutPost],
+    placed: &mut [bool],
+    post_templates: &[PostTemplateConfig],
+    height_map: &HashMap<String, i32>,
+) -> Option<BroadsheetRow> {
+    let mut row_slots: Vec<BroadsheetSlot> = Vec::new();
+    let mut row_max_priority: i32 = 0;
+    let mut anchor_type: Option<String> = None;
+    let mut anchor_height: i32 = 0;
+
+    // Group slots by slot_index to identify anchor vs. stacked slots.
+    // Slot index 0 is always the anchor (widest/heaviest cell).
+    let slots = &template_with_slots.slots;
+
+    // Identify if this is a stacked layout (lead-stack, pair-stack)
+    let is_stacked = matches!(
+        template.layout_variant.as_str(),
+        "lead-stack" | "pair-stack"
+    );
+
+    for slot_def in slots {
+        let is_anchor = slot_def.slot_index == 0;
+
+        // For stacked layouts, the non-anchor slots should height-balance
+        let target_height = if is_stacked && !is_anchor {
+            anchor_height
+        } else {
+            0 // No height target for anchor or non-stacked layouts
+        };
+
+        let filled = fill_slot_group(
+            slot_def,
+            posts,
+            placed,
+            post_templates,
+            height_map,
+            &anchor_type,
+            target_height,
+        );
+
+        if filled.is_empty() {
+            // Can't fill this slot group — abandon the entire row.
+            // Undo any placements we already made for this row.
+            for slot in &row_slots {
+                if let Some(idx) = posts.iter().position(|p| p.id == slot.post_id) {
+                    placed[idx] = false;
+                }
+            }
+            tracing::debug!(
+                template = %template.slug,
+                slot_index = slot_def.slot_index,
+                "Layout engine: abandoned row — unfillable slot"
+            );
+            return None;
+        }
+
+        // Track anchor info for family consistency and height balancing
+        if is_anchor {
+            if let Some(first) = filled.first() {
+                if let Some(post) = posts.iter().find(|p| p.id == first.post_id) {
+                    anchor_type = Some(post.post_type.clone());
+                }
+                anchor_height = filled.iter()
+                    .map(|s| height_map.get(&s.post_template_slug).copied().unwrap_or(4))
+                    .sum();
+            }
+        }
+
+        for slot in &filled {
+            if let Some(post) = posts.iter().find(|p| p.id == slot.post_id) {
+                if post.priority > row_max_priority {
+                    row_max_priority = post.priority;
+                }
+            }
+        }
+
+        row_slots.extend(filled);
+    }
+
+    Some(BroadsheetRow {
+        row_template_slug: template.slug.clone(),
+        row_template_id: template.id,
+        slots: row_slots,
+        max_priority: row_max_priority,
+    })
+}
+
+/// Fill a single slot group (one slot_index with N posts).
+///
+/// For stacked layouts with a target_height > 0, fills greedily until
+/// cumulative height_units ≈ target_height.
+///
+/// Applies family consistency: prefers posts matching anchor_type.
+fn fill_slot_group(
+    slot_def: &crate::domains::editions::models::row_template_slot::RowTemplateSlot,
+    posts: &[LayoutPost],
+    placed: &mut [bool],
+    post_templates: &[PostTemplateConfig],
+    height_map: &HashMap<String, i32>,
+    anchor_type: &Option<String>,
+    target_height: i32,
+) -> Vec<BroadsheetSlot> {
+    let mut filled: Vec<BroadsheetSlot> = Vec::new();
+    let mut cumulative_height: i32 = 0;
+
+    // Build candidate list: all unplaced posts matching weight + type
+    let mut candidates: Vec<(usize, &LayoutPost, i32)> = Vec::new();
+    for (i, post) in posts.iter().enumerate() {
+        if placed[i] {
+            continue;
+        }
+        if post.weight != slot_def.weight {
+            continue;
+        }
+        if !slot_def.accepts_type(&post.post_type) {
+            continue;
+        }
+
+        // Verify a compatible post template exists
+        if resolve_post_template(post, slot_def, post_templates).is_none() {
+            continue;
+        }
+
+        // Score: priority + family consistency bonus
+        let mut score = post.priority;
+        if let Some(ref anchor) = anchor_type {
+            if &post.post_type == anchor {
+                score += 20; // Family consistency bonus
+            }
+        }
+
+        candidates.push((i, post, score));
+    }
+
+    // Sort by score descending (priority + family bonus)
+    candidates.sort_by(|a, b| b.2.cmp(&a.2));
+
+    for (i, _post, _score) in &candidates {
+        if filled.len() as i32 >= slot_def.count {
+            break;
+        }
+
+        let pt_slug = resolve_post_template(posts.get(*i).unwrap(), slot_def, post_templates)
+            .expect("already verified above");
+        let h = height_map.get(&pt_slug).copied().unwrap_or(4);
+
+        // Height-balance check for stacked slots
+        if target_height > 0 && !filled.is_empty() {
+            let would_be = cumulative_height + h;
+            let overshoot = would_be - target_height;
+            let undershoot = target_height - cumulative_height;
+            // Stop if adding this post would overshoot more than the current undershoot
+            if overshoot > 0 && overshoot > undershoot {
+                break;
+            }
+        }
+
+        filled.push(BroadsheetSlot {
+            post_id: posts[*i].id,
+            post_template_slug: pt_slug,
+            slot_index: slot_def.slot_index,
+        });
+        placed[*i] = true;
+        cumulative_height += h;
+    }
+
+    filled
+}
+
+/// Resolve the post template slug for a post in a slot.
+fn resolve_post_template(
+    post: &LayoutPost,
+    slot_def: &crate::domains::editions::models::row_template_slot::RowTemplateSlot,
+    post_templates: &[PostTemplateConfig],
+) -> Option<String> {
+    // Prefer the slot's recipe template if compatible
+    if let Some(ref slug) = slot_def.post_template_slug {
+        if post_templates.iter().any(|pt| &pt.slug == slug && pt.is_compatible(&post.post_type)) {
+            return Some(slug.clone());
+        }
+    }
+    // Fallback: find a compatible template matching the slot weight
+    find_compatible_post_template(post, &slot_def.weight, post_templates)
+}
+
+// ---------------------------------------------------------------------------
+// Row template selection
+// ---------------------------------------------------------------------------
+
+/// Select row templates to accommodate the weight distribution of posts.
+///
+/// Three-phase approach for density progression:
+/// 1. Hero zone: templates with heavy slots (lead-stack, full, lead)
+/// 2. Mid zone: medium-focused templates (trio, pair, lead)
+/// 3. Dense zone: light-focused templates (classifieds, tickers)
+fn select_row_templates<'a>(
+    mut heavy: usize,
+    mut medium: usize,
+    mut light: usize,
+    templates: &'a [RowTemplateWithSlots],
+) -> Vec<(&'a RowTemplateConfig, &'a RowTemplateWithSlots)> {
+    let mut selected: Vec<(&RowTemplateConfig, &RowTemplateWithSlots)> = Vec::new();
+    let max_rows = 12;
+    let mut variant_counts: HashMap<&str, usize> = HashMap::new();
+
+    // Phase 1: Hero rows (templates with heavy slots). Cap at 3.
+    let max_hero_rows = 3.min(heavy);
+    for _ in 0..max_hero_rows {
+        if heavy == 0 { break; }
+
+        let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
+        let best = pick_best_template(
+            templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            |tws| tws.slots.iter().any(|s| s.weight == "heavy"),
+        );
+
+        if let Some(tws) = best {
+            deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
+            selected.push((&tws.config, tws));
+        } else {
+            break;
+        }
+    }
+
+    // Phase 2: Medium-focused rows
+    let max_mid_rows = 6.min(max_rows - selected.len());
+    for _ in 0..max_mid_rows {
+        if medium == 0 { break; }
+
+        let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
+        let best = pick_best_template(
+            templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            |tws| {
+                tws.slots.iter().any(|s| s.weight == "medium")
+                    && !tws.slots.iter().any(|s| s.weight == "heavy")
+            },
+        );
+
+        if let Some(tws) = best {
+            deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
+            selected.push((&tws.config, tws));
+        } else {
+            break;
+        }
+    }
+
+    // Phase 3: Light/dense rows (tickers, classifieds, digests)
+    let remaining = max_rows - selected.len();
+    for _ in 0..remaining {
+        if light == 0 { break; }
+
+        let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
+        let best = pick_best_template(
+            templates, heavy, medium, light, last_slug, &variant_counts, &selected,
+            |tws| {
+                tws.slots.iter().all(|s| s.weight == "light")
+            },
+        );
+
+        if let Some(tws) = best {
+            deduct_slots(tws, &mut heavy, &mut medium, &mut light);
+            *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
+            selected.push((&tws.config, tws));
+        } else {
+            break;
+        }
+    }
+
+    selected
+}
+
+/// Pick the best template from candidates, applying variety scoring.
+fn pick_best_template<'a, F>(
+    templates: &'a [RowTemplateWithSlots],
+    heavy: usize,
+    medium: usize,
+    light: usize,
+    last_slug: Option<&str>,
+    variant_counts: &HashMap<&str, usize>,
+    already_selected: &[(&RowTemplateConfig, &RowTemplateWithSlots)],
+    filter: F,
+) -> Option<&'a RowTemplateWithSlots>
+where
+    F: Fn(&RowTemplateWithSlots) -> bool,
+{
+    let mut best: Option<(&RowTemplateWithSlots, f64)> = None;
+
+    for tws in templates {
+        if !filter(tws) {
+            continue;
+        }
+
+        // Score by how many slots can be filled
+        let mut score = 0usize;
+        let mut h = heavy;
+        let mut m = medium;
+        let mut l = light;
+
+        for slot in &tws.slots {
+            let available = match slot.weight.as_str() {
+                "heavy" => &mut h,
+                "medium" => &mut m,
+                "light" => &mut l,
+                _ => continue,
+            };
+            let consume = (slot.count as usize).min(*available);
+            score += consume;
+            *available -= consume;
+        }
+
+        if score == 0 {
+            continue;
+        }
+
+        // Check that ALL slots can be filled (avoid partial rows)
+        let total_needed: usize = tws.slots.iter().map(|s| s.count as usize).sum();
+        if score < total_needed {
+            continue; // Can't fully fill this template
+        }
+
+        let mut adj_score = score as f64;
+
+        // Avoid repeating the same slug consecutively
+        if let Some(last) = last_slug {
+            if tws.config.slug == last {
+                adj_score *= 0.3;
+            }
+        }
+
+        // Penalize overused layout variants
+        let variant_count = variant_counts
+            .get(tws.config.layout_variant.as_str())
+            .copied()
+            .unwrap_or(0);
+        if variant_count >= 2 {
+            adj_score *= 0.3;
+        }
+
+        // Boost templates not yet used
+        let already = already_selected.iter().any(|(cfg, _)| cfg.slug == tws.config.slug);
+        if !already {
+            adj_score *= 1.5;
+        }
+
+        if best.is_none() || adj_score > best.unwrap().1 {
+            best = Some((tws, adj_score));
+        }
+    }
+
+    best.map(|(tws, _)| tws)
+}
+
+/// Deduct post counts consumed by a row template's slots.
+fn deduct_slots(tws: &RowTemplateWithSlots, heavy: &mut usize, medium: &mut usize, light: &mut usize) {
+    for slot in &tws.slots {
+        let available = match slot.weight.as_str() {
+            "heavy" => &mut *heavy,
+            "medium" => &mut *medium,
+            "light" => &mut *light,
+            _ => continue,
+        };
+        let consume = (slot.count as usize).min(*available);
+        *available -= consume;
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Row ordering — density progression
+// ---------------------------------------------------------------------------
+
+/// Order rows by density zone, then by max_priority within each zone.
+///
+/// Zone 1 (hero): rows with heavy posts → top of broadsheet
+/// Zone 2 (mid): rows with medium posts → middle
+/// Zone 3 (dense): rows with only light posts → bottom
+fn order_rows_by_density(rows: &mut Vec<BroadsheetRow>, templates: &[RowTemplateWithSlots]) {
+    // Build a slug → layout_variant lookup
+    let variant_map: HashMap<&str, &str> = templates
+        .iter()
+        .map(|t| (t.config.slug.as_str(), t.config.layout_variant.as_str()))
+        .collect();
+
+    // Classify each row into a density zone
+    fn density_zone(row: &BroadsheetRow, variant_map: &HashMap<&str, &str>) -> i32 {
+        let variant = variant_map.get(row.row_template_slug.as_str()).copied().unwrap_or("full");
+        // Hero zone: lead-stack and full rows tend to have heavy content
+        // But we classify by the actual template, not just variant
+        match variant {
+            "lead-stack" | "lead" => 0, // Hero zone
+            "full" => {
+                // Full-width could be hero (single feature) or dense (tickers)
+                // Use max_priority as a heuristic: high priority = hero
+                if row.max_priority >= 70 { 0 } else { 2 }
+            }
+            "pair" | "pair-stack" | "trio" => 1, // Mid zone
+            _ => 2, // Dense zone
+        }
+    }
+
+    rows.sort_by(|a, b| {
+        let zone_a = density_zone(a, &variant_map);
+        let zone_b = density_zone(b, &variant_map);
+        zone_a.cmp(&zone_b).then(b.max_priority.cmp(&a.max_priority))
+    });
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/// Find the best compatible post template for a post, based on slot weight.
+fn find_compatible_post_template(
+    post: &LayoutPost,
+    slot_weight: &str,
+    post_templates: &[PostTemplateConfig],
+) -> Option<String> {
+    // First: weight match + type compatible
+    for pt in post_templates {
+        if pt.weight == slot_weight && pt.is_compatible(&post.post_type) {
+            return Some(pt.slug.clone());
+        }
+    }
+    // Fallback: any compatible template
+    for pt in post_templates {
+        if pt.is_compatible(&post.post_type) {
+            return Some(pt.slug.clone());
+        }
+    }
+    None
+}
+
+/// Load active posts relevant to a county.
 async fn load_county_posts(
     county_id: Uuid,
     period_start: NaiveDate,
     pool: &PgPool,
 ) -> Result<Vec<LayoutPost>> {
-    // Lightweight struct for layout engine — only needs id, type, weight, priority, topic
     #[derive(Debug, sqlx::FromRow)]
     struct PostRow {
         id: Uuid,
@@ -126,7 +627,6 @@ async fn load_county_posts(
     .fetch_all(pool)
     .await?;
 
-    // Load topic tags for all posts in one query
     let post_ids: Vec<Uuid> = rows.iter().map(|r| r.id).collect();
     let topic_tags = load_topic_tags(&post_ids, pool).await?;
 
@@ -147,345 +647,7 @@ async fn load_county_posts(
     Ok(posts)
 }
 
-/// The core placement algorithm. Pure function — no I/O.
-///
-/// Strategy:
-/// 1. Count weight distribution of available posts
-/// 2. Select row templates to match the distribution
-/// 3. Greedily fill slots with highest-priority posts
-/// 4. Sort rows by highest-priority post in each
-fn place_posts(
-    posts: Vec<LayoutPost>,
-    templates: &[RowTemplateWithSlots],
-    post_templates: &[PostTemplateConfig],
-) -> BroadsheetDraft {
-    if posts.is_empty() {
-        return BroadsheetDraft { rows: vec![], sections: vec![] };
-    }
-
-    // Count weight distribution
-    let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
-    let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
-    let light_count = posts.iter().filter(|p| p.weight == "light").count();
-
-    // Select row templates to match weight distribution
-    let selected_rows = select_row_templates(heavy_count, medium_count, light_count, templates);
-
-    tracing::info!(
-        selected = selected_rows.len(),
-        templates = ?selected_rows.iter().map(|(cfg, _)| &cfg.slug).collect::<Vec<_>>(),
-        "Layout engine: selected row templates"
-    );
-
-    // Track which posts have been placed
-    let mut placed: Vec<bool> = vec![false; posts.len()];
-    let mut broadsheet_rows: Vec<BroadsheetRow> = Vec::new();
-
-    // Place posts into row slots — slot_index matches the template slot definition
-    // so the admin UI can group edition slots by their template slot correctly.
-    for (template, template_with_slots) in &selected_rows {
-        let mut row_slots: Vec<BroadsheetSlot> = Vec::new();
-        let mut row_max_priority: i32 = 0;
-
-        for slot_def in &template_with_slots.slots {
-            // Fill this slot group with `count` posts of matching weight.
-            // All posts in this group share the same slot_index (the template slot's index).
-            let mut filled = 0;
-            for (i, post) in posts.iter().enumerate() {
-                if filled >= slot_def.count {
-                    break;
-                }
-                if placed[i] {
-                    continue;
-                }
-                if post.weight != slot_def.weight {
-                    continue;
-                }
-                if !slot_def.accepts_type(&post.post_type) {
-                    continue;
-                }
-
-                // Use the slot's recipe template if set and compatible, else fall back
-                let pt_slug = slot_def
-                    .post_template_slug
-                    .as_ref()
-                    .filter(|slug| {
-                        // Verify the recipe's template is compatible with this post type
-                        post_templates
-                            .iter()
-                            .any(|pt| &pt.slug == *slug && pt.is_compatible(&post.post_type))
-                    })
-                    .cloned()
-                    .or_else(|| {
-                        find_compatible_post_template(post, &slot_def.weight, post_templates)
-                    });
-
-                if let Some(pt_slug) = pt_slug {
-                    row_slots.push(BroadsheetSlot {
-                        post_id: post.id,
-                        post_template_slug: pt_slug,
-                        slot_index: slot_def.slot_index,
-                    });
-                    placed[i] = true;
-                    filled += 1;
-                    if post.priority > row_max_priority {
-                        row_max_priority = post.priority;
-                    }
-                }
-            }
-        }
-
-        // Only add the row if at least one slot was filled
-        if !row_slots.is_empty() {
-            let expected_slots: i32 = template_with_slots.slots.iter().map(|s| s.count).sum();
-            tracing::debug!(
-                template = %template.slug,
-                filled = row_slots.len(),
-                expected = expected_slots,
-                "Layout engine: filled row"
-            );
-            broadsheet_rows.push(BroadsheetRow {
-                row_template_slug: template.slug.clone(),
-                row_template_id: template.id,
-                slots: row_slots,
-                max_priority: row_max_priority,
-            });
-        } else {
-            tracing::debug!(
-                template = %template.slug,
-                "Layout engine: skipped empty row (no posts matched)"
-            );
-        }
-    }
-
-    // Sort rows by highest-priority post (descending)
-    broadsheet_rows.sort_by(|a, b| b.max_priority.cmp(&a.max_priority));
-
-    let total_placed = placed.iter().filter(|&&p| p).count();
-    tracing::info!(
-        placed = total_placed,
-        unplaced = posts.len() - total_placed,
-        rows = broadsheet_rows.len(),
-        "Layout engine: slot filling summary"
-    );
-
-    // Build sections from topic slugs on placed posts
-    let sections = build_topic_sections(&broadsheet_rows, &posts);
-
-    BroadsheetDraft {
-        rows: broadsheet_rows,
-        sections,
-    }
-}
-
-/// Select row templates to accommodate the weight distribution of posts.
-///
-/// Strategy: allocate rows proportionally across weight tiers.
-/// 1. Reserve 2-3 rows for hero/lead templates (heavy posts)
-/// 2. Fill remaining rows with medium-only and light-only templates
-/// 3. Avoid repeating the same template consecutively
-fn select_row_templates<'a>(
-    mut heavy: usize,
-    mut medium: usize,
-    mut light: usize,
-    templates: &'a [RowTemplateWithSlots],
-) -> Vec<(&'a RowTemplateConfig, &'a RowTemplateWithSlots)> {
-    let mut selected: Vec<(&RowTemplateConfig, &RowTemplateWithSlots)> = Vec::new();
-    let max_rows = 12;
-
-    // Track how many times each layout_variant has been used
-    let mut variant_counts: HashMap<&str, usize> = HashMap::new();
-
-    // Phase 1: Select hero/lead rows (templates using heavy slots).
-    // Cap at 3 to leave room for medium/light rows.
-    let max_hero_rows = 3.min(heavy);
-    for _ in 0..max_hero_rows {
-        if heavy == 0 {
-            break;
-        }
-
-        let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
-        let mut best: Option<(&RowTemplateWithSlots, usize)> = None;
-
-        for tws in templates {
-            // Only consider templates with heavy slots
-            if !tws.slots.iter().any(|s| s.weight == "heavy") {
-                continue;
-            }
-
-            let mut score = 0usize;
-            let mut h = heavy;
-            let mut m = medium;
-            let mut l = light;
-
-            for slot in &tws.slots {
-                let available = match slot.weight.as_str() {
-                    "heavy" => &mut h,
-                    "medium" => &mut m,
-                    "light" => &mut l,
-                    _ => continue,
-                };
-                let consume = (slot.count as usize).min(*available);
-                score += consume;
-                *available -= consume;
-            }
-
-            if score == 0 {
-                continue;
-            }
-
-            // Avoid repeating the same slug
-            if let Some(last) = last_slug {
-                if tws.config.slug == last {
-                    continue;
-                }
-            }
-
-            if best.is_none() || score > best.unwrap().1 {
-                best = Some((tws, score));
-            }
-        }
-
-        if let Some((tws, _)) = best {
-            for slot in &tws.slots {
-                let available = match slot.weight.as_str() {
-                    "heavy" => &mut heavy,
-                    "medium" => &mut medium,
-                    "light" => &mut light,
-                    _ => continue,
-                };
-                let consume = (slot.count as usize).min(*available);
-                *available -= consume;
-            }
-            *variant_counts
-                .entry(tws.config.layout_variant.as_str())
-                .or_insert(0) += 1;
-            selected.push((&tws.config, tws));
-        } else {
-            break;
-        }
-    }
-
-    // Phase 2: Fill remaining rows with medium/light templates.
-    // Prefer variety in layout_variant.
-    let remaining_rows = max_rows - selected.len();
-    for _ in 0..remaining_rows {
-        if medium == 0 && light == 0 {
-            break;
-        }
-
-        let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
-        let mut best: Option<(&RowTemplateWithSlots, f64)> = None;
-
-        for tws in templates {
-            let mut score = 0usize;
-            let mut h = heavy;
-            let mut m = medium;
-            let mut l = light;
-
-            for slot in &tws.slots {
-                let available = match slot.weight.as_str() {
-                    "heavy" => &mut h,
-                    "medium" => &mut m,
-                    "light" => &mut l,
-                    _ => continue,
-                };
-                let consume = (slot.count as usize).min(*available);
-                score += consume;
-                *available -= consume;
-            }
-
-            if score == 0 {
-                continue;
-            }
-
-            // Skip heavy-only templates in phase 2 if we already have hero rows
-            let needs_heavy = tws.slots.iter().any(|s| s.weight == "heavy");
-            if needs_heavy && !selected.is_empty() {
-                continue;
-            }
-
-            let mut adj_score = score as f64;
-
-            // Avoid repeating the same slug consecutively
-            if let Some(last) = last_slug {
-                if tws.config.slug == last {
-                    adj_score *= 0.4;
-                }
-            }
-
-            // Penalize overused layout variants (max 2 of any variant)
-            let variant_count = variant_counts
-                .get(tws.config.layout_variant.as_str())
-                .copied()
-                .unwrap_or(0);
-            if variant_count >= 2 {
-                adj_score *= 0.3;
-            }
-
-            // Boost templates not yet used in this edition
-            let already_selected = selected.iter().any(|(cfg, _)| cfg.slug == tws.config.slug);
-            if !already_selected {
-                adj_score *= 1.5;
-            }
-
-            if best.is_none() || adj_score > best.unwrap().1 {
-                best = Some((tws, adj_score));
-            }
-        }
-
-        if let Some((tws, _)) = best {
-            for slot in &tws.slots {
-                let available = match slot.weight.as_str() {
-                    "heavy" => &mut heavy,
-                    "medium" => &mut medium,
-                    "light" => &mut light,
-                    _ => continue,
-                };
-                let consume = (slot.count as usize).min(*available);
-                *available -= consume;
-            }
-            *variant_counts
-                .entry(tws.config.layout_variant.as_str())
-                .or_insert(0) += 1;
-            selected.push((&tws.config, tws));
-        } else {
-            break;
-        }
-    }
-
-    selected
-}
-
-/// Find the best compatible post template for a post, based on slot weight.
-///
-/// Uses the `weight` column from `post_template_configs` to match templates
-/// to slot weights. Falls back to any compatible template if no weight-matched
-/// template is found.
-fn find_compatible_post_template(
-    post: &LayoutPost,
-    slot_weight: &str,
-    post_templates: &[PostTemplateConfig],
-) -> Option<String> {
-    // First pass: find templates whose DB weight matches the slot weight AND are type-compatible
-    for pt in post_templates {
-        if pt.weight == slot_weight && pt.is_compatible(&post.post_type) {
-            return Some(pt.slug.clone());
-        }
-    }
-
-    // Fallback: any compatible template regardless of weight
-    for pt in post_templates {
-        if pt.is_compatible(&post.post_type) {
-            return Some(pt.slug.clone());
-        }
-    }
-
-    None
-}
-
 /// Load topic tags for a batch of post IDs.
-/// Returns a map of post_id → topic_slug for posts that have a topic tag (kind='topic').
 async fn load_topic_tags(
     post_ids: &[Uuid],
     pool: &PgPool,
@@ -516,7 +678,6 @@ async fn load_topic_tags(
 
     let mut map = HashMap::new();
     for row in rows {
-        // If a post has multiple topic tags, take the first one
         map.entry(row.post_id).or_insert(row.topic_slug);
     }
 
@@ -524,21 +685,15 @@ async fn load_topic_tags(
 }
 
 /// Build topic sections from the placed rows.
-///
-/// For each row, determine its dominant topic (most common topic among its posts).
-/// Group consecutive rows with the same topic into sections. Rows without topics
-/// are left ungrouped (above the fold).
 fn build_topic_sections(
     rows: &[BroadsheetRow],
     posts: &[LayoutPost],
 ) -> Vec<BroadsheetSection> {
-    // Build post_id → topic lookup
     let topic_by_id: HashMap<Uuid, &str> = posts
         .iter()
         .filter_map(|p| p.topic_slug.as_ref().map(|t| (p.id, t.as_str())))
         .collect();
 
-    // For each row, find the dominant topic
     let row_topics: Vec<Option<&str>> = rows
         .iter()
         .map(|row| {
@@ -555,7 +710,6 @@ fn build_topic_sections(
         })
         .collect();
 
-    // Group rows by topic into sections (skip ungrouped rows)
     let mut sections: Vec<BroadsheetSection> = Vec::new();
     let mut current_topic: Option<&str> = None;
 
@@ -563,12 +717,10 @@ fn build_topic_sections(
         match topic {
             Some(t) => {
                 if current_topic == Some(*t) {
-                    // Extend current section
                     if let Some(section) = sections.last_mut() {
                         section.row_indices.push(i);
                     }
                 } else {
-                    // Start new section
                     let title = humanize_topic(t);
                     sections.push(BroadsheetSection {
                         title,
@@ -701,7 +853,6 @@ mod tests {
 
     #[test]
     fn build_sections_ungrouped_between_topics() {
-        // Ungrouped row between two topic rows → breaks the section continuity
         let p1 = make_post(Some("housing"));
         let p2 = make_post(None);
         let p3 = make_post(Some("housing"));
@@ -709,7 +860,6 @@ mod tests {
         let posts = vec![p1, p2, p3];
 
         let sections = build_topic_sections(&rows, &posts);
-        // Should create two separate housing sections (interrupted by ungrouped row)
         assert_eq!(sections.len(), 2);
         assert_eq!(sections[0].row_indices, vec![0]);
         assert_eq!(sections[1].row_indices, vec![2]);
@@ -717,7 +867,6 @@ mod tests {
 
     #[test]
     fn build_sections_dominant_topic_in_mixed_row() {
-        // Row with 2 housing posts and 1 food post → housing dominates
         let p1 = make_post(Some("housing"));
         let p2 = make_post(Some("housing"));
         let p3 = make_post(Some("food-access"));

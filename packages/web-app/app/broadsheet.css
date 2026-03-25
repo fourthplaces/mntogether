@@ -1519,7 +1519,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-story:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-story:hover .tick-story__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1555,7 +1554,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-urgent:hover { background: var(--type-urgent-tint); }
 .tick-urgent:hover .tick-urgent__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1591,7 +1589,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-update:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-update:hover .tick-update__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1632,7 +1629,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-event:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-event:hover .tick-event__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1668,7 +1664,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-request:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-request:hover .tick-request__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -1704,7 +1699,6 @@ body:has(.broadsheet-page) {
   align-items: baseline;
   gap: 10px;
   cursor: pointer;
-  overflow: hidden;
 }
 .tick-offer:hover { background: rgba(0, 0, 0, 0.02); }
 .tick-offer:hover .tick-offer__title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
@@ -3723,8 +3717,4 @@ body.show-weights [data-weight="light"]::after {
   color: #00663a;
   border: 1px solid rgba(0, 120, 60, 0.18);
 }
-/* When both labels and weights active, move weight badge to bottom-right */
-body.show-labels.show-weights [data-weight][data-debug^="Post."]::after {
-  top: auto;
-  bottom: -16px;
-}
+/* Labels (top-left ::before) and weights (top-right ::after) coexist without overlap */

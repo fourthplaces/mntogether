@@ -17,6 +17,7 @@ pub struct PostTemplateConfig {
     pub title_max: i32,
     pub sort_order: i32,
     pub weight: String,
+    pub height_units: i32,
     pub created_at: DateTime<Utc>,
 }
 
