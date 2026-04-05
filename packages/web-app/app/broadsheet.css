@@ -155,7 +155,7 @@ body:has(.broadsheet-page) {
 .masthead { text-align: center; padding: 28px 0 48px; margin-bottom: 0; border-bottom: 1px solid rgba(0,0,0,0.1); }
 .masthead h1 { font-family: var(--font-display); font-weight: 400; font-size: 5.75em; line-height: 1; letter-spacing: -0.01em; color: var(--ink); }
 .masthead .dateline { font-family: var(--font-mono); font-size: 0.92rem; letter-spacing: 0.12em; text-transform: uppercase; margin-top: 52px; color: var(--pebble); }
-.masthead .dateline .handwritten { font-family: 'Blissful Radiance', cursive; text-transform: none; font-size: 1.7rem; letter-spacing: -0.03em; vertical-align: baseline; position: relative; top: 1px; color: var(--graphite); text-decoration: none; }
+.masthead .dateline .handwritten { font-family: var(--font-blissful-radiance), cursive; text-transform: none; font-size: 1.7rem; letter-spacing: -0.03em; vertical-align: baseline; position: relative; top: 1px; color: var(--graphite); text-decoration: none; }
 .masthead .dateline .handwritten:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px; }
 .broadsheet-header { display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--pebble); border-top: 2px solid var(--ink); border-bottom: 1px solid rgba(0,0,0,0.1); padding: 8px 0; margin-bottom: 24px; }
 .broadsheet-header a { color: var(--pebble); text-decoration: none; }
@@ -340,7 +340,7 @@ body:has(.broadsheet-page) {
 }
 .pencil-circle::after {
   content: attr(data-label);
-  font-family: 'Blissful Radiance', cursive; font-size: 1.7rem;
+  font-family: var(--font-blissful-radiance), cursive; font-size: 1.7rem;
   color: var(--graphite); position: absolute;
   right: -4.8em; top: 0em;
   transform: rotate(var(--tilt, -6deg));
@@ -3429,7 +3429,7 @@ body:has(.broadsheet-page) {
   top: 11%;
   left: 7%;
   width: 67%;
-  font-family: 'Blissful Radiance', cursive;
+  font-family: var(--font-blissful-radiance), cursive;
   font-size: 3.1cqi;
   line-height: 1.2;
   font-kerning: normal;
@@ -3450,7 +3450,7 @@ body:has(.broadsheet-page) {
   position: absolute;
   bottom: 8%;
   right: 6%;
-  font-family: 'Blissful Radiance', cursive;
+  font-family: var(--font-blissful-radiance), cursive;
   font-size: 3.0cqi;
   line-height: 1.19;
   font-kerning: normal;
