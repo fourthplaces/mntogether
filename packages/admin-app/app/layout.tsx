@@ -23,6 +23,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className={cn("font-sans", geist.variable, geistMono.variable, featureDeck.variable, featureDeckCondensed.variable, featureText.variable)}>
+      <head>
+        <meta name="darkreader-lock" />
+      </head>
       <body className={inter.className}>
         <GraphQLProvider>
           <TooltipProvider>{children}</TooltipProvider>
