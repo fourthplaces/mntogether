@@ -331,8 +331,6 @@ pub struct UpdatePostContent {
     pub location: Option<String>,
     #[builder(default)]
     pub zip_code: Option<String>,
-    #[builder(default)]
-    pub organization_id: Option<Uuid>,
 }
 
 // =============================================================================
@@ -750,7 +748,6 @@ impl Post {
                 is_urgent = COALESCE($8, is_urgent),
                 location = CASE WHEN $9 = '' THEN NULL WHEN $9 IS NOT NULL THEN $9 ELSE location END,
                 zip_code = CASE WHEN $10 = '' THEN NULL WHEN $10 IS NOT NULL THEN $10 ELSE zip_code END,
-                organization_id = COALESCE($11, organization_id),
                 updated_at = NOW()
             WHERE id = $1
             RETURNING *
@@ -766,7 +763,6 @@ impl Post {
         .bind(input.is_urgent)
         .bind(input.location)
         .bind(input.zip_code)
-        .bind(input.organization_id)
         .fetch_one(pool)
         .await?;
         Ok(post)

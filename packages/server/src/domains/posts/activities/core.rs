@@ -309,7 +309,6 @@ pub async fn admin_create_post(
     priority: Option<i32>,
     is_urgent: Option<bool>,
     location: Option<String>,
-    _organization_id: Option<Uuid>,
     member_id: Uuid,
     deps: &ServerDeps,
 ) -> Result<Post> {
@@ -347,7 +346,6 @@ pub async fn admin_update_post(
     is_urgent: Option<bool>,
     location: Option<String>,
     zip_code: Option<String>,
-    organization_id: Option<Uuid>,
     _member_id: Uuid,
     deps: &ServerDeps,
 ) -> Result<Post> {
@@ -366,7 +364,6 @@ pub async fn admin_update_post(
             .is_urgent(is_urgent)
             .location(location)
             .zip_code(zip_code)
-            .organization_id(organization_id)
             .build(),
         &deps.db_pool,
     )

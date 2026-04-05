@@ -141,7 +141,6 @@ pub struct CreatePostRequest {
     pub priority: Option<i32>,
     pub is_urgent: Option<bool>,
     pub location: Option<String>,
-    pub organization_id: Option<Uuid>,
 }
 
 // =============================================================================
@@ -273,7 +272,6 @@ pub struct UpdatePostContentRequest {
     pub is_urgent: Option<bool>,
     pub location: Option<String>,
     pub zip_code: Option<String>,
-    pub organization_id: Option<Uuid>,
 }
 
 // =============================================================================
@@ -1444,7 +1442,6 @@ async fn create_post(
         req.priority,
         req.is_urgent,
         req.location,
-        req.organization_id,
         user.0.member_id.into_uuid(),
         &state.deps,
     )
@@ -1971,7 +1968,6 @@ async fn update_content(
         req.is_urgent,
         req.location,
         req.zip_code,
-        req.organization_id,
         user.0.member_id.into_uuid(),
         &state.deps,
     )
