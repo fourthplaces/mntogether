@@ -324,13 +324,15 @@ fn resolve_post_template(
     slot_def: &crate::domains::editions::models::row_template_slot::RowTemplateSlot,
     post_templates: &[PostTemplateConfig],
 ) -> Option<String> {
-    // Prefer the slot's recipe template if compatible
+    // If the slot specifies a required template, only that template is allowed.
+    // No fallback — if the post isn't compatible, it doesn't belong in this slot.
     if let Some(ref slug) = slot_def.post_template_slug {
         if post_templates.iter().any(|pt| &pt.slug == slug && pt.is_compatible(&post.post_type)) {
             return Some(slug.clone());
         }
+        return None;
     }
-    // Fallback: find a compatible template matching the slot weight
+    // No required template — find any compatible template matching the slot weight
     find_compatible_post_template(post, &slot_def.weight, post_templates)
 }
 
