@@ -32,6 +32,24 @@ UPDATE row_template_slots SET weight = 'light', count = 3, post_template_slug = 
   WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'pair-stack-gazette')
     AND slot_index = 1;
 
+-- Bump gazette/bulletin height units to better match stacked ledgers
+UPDATE post_template_configs SET height_units = 8 WHERE slug = 'gazette';
+UPDATE post_template_configs SET height_units = 7 WHERE slug = 'bulletin';
+
+-- Restrict pair-stack-gazette anchor (slot 0) to story —
+-- only stories have enough body text (avg 381 chars) to fill
+-- a span-3 anchor column. Notices avg 273, events 248.
+UPDATE row_template_slots SET accepts = ARRAY['story']
+  WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'pair-stack-gazette')
+    AND slot_index = 0;
+
+-- two-column-wide-narrow: feature (h=12) leaves too much whitespace with
+-- a single bulletin (h=7) on the right. Convert to lead-stack and stack 2.
+UPDATE row_template_configs SET layout_variant = 'lead-stack' WHERE slug = 'two-column-wide-narrow';
+UPDATE row_template_slots SET count = 2
+  WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'two-column-wide-narrow')
+    AND slot_index = 1;
+
 -- Tickers are full-width only (span-6). Fix row templates that misuse them:
 
 -- classifieds-ticker used tickers in trio (2+2+2) — replace with ledgers

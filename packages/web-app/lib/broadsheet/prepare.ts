@@ -52,7 +52,8 @@ const TEMPLATE_CONFIGS: Record<string, { bodyTarget: number; bodyMax: number }> 
  */
 export function preparePost(
   gqlPost: BroadsheetPost,
-  postTemplate: string
+  postTemplate: string,
+  isAnchor?: boolean,
 ): Post {
   const config = TEMPLATE_CONFIGS[postTemplate] ?? TEMPLATE_CONFIGS.gazette;
   const isFeature = postTemplate === 'feature' || postTemplate === 'feature-reversed';
@@ -70,8 +71,15 @@ export function preparePost(
   // Contacts: flatten into PostContact shape
   const contact = buildContact(gqlPost.contacts);
 
-  // Body: use weight-specific text from Root Signal if available, else fall back to description
-  const bodyHtml = selectWeightBody(gqlPost, postTemplate) ?? gqlPost.bodyRaw;
+  // Body: use weight-specific text from Root Signal if available, else fall back to description.
+  // Anchor posts in stacked layouts need more body text to fill their wider column,
+  // so we bump them up one tier (medium → heavy).
+  const rawBody = (isAnchor
+    ? (gqlPost.bodyHeavy ?? selectWeightBody(gqlPost, postTemplate))
+    : selectWeightBody(gqlPost, postTemplate)
+  ) ?? gqlPost.bodyRaw;
+  // Anchors use bodyHeavy, so enforce against feature-level limits (not the template's own)
+  const { html: bodyHtml, compact } = enforceBodyLimits(rawBody, isAnchor ? 'feature' : postTemplate);
   const paragraphs = splitParagraphs(bodyHtml);
 
   // Compute clamp based on template body target (chars → approximate line count)
@@ -149,11 +157,12 @@ export function preparePost(
 
     // Renderer hints
     paragraphs: isFeature ? paragraphs : undefined,
-    cols: isFeature && paragraphs.length >= 4 ? 2 : undefined,
+    cols: isFeature && isAnchor && paragraphs.length >= 4 ? 2 : undefined,
     dropCap: isFeature,
-    clamp: isFeature ? undefined : clamp,
+    clamp: (isFeature || isAnchor) ? undefined : clamp,
     tagLabel,
     readMore: gqlPost.sourceUrl || undefined,
+    compact,
     deck: meta?.deck,
 
     // Feature-level image/caption/credit shorthand (backward compat)
@@ -307,6 +316,40 @@ const TEMPLATE_WEIGHT_TIER: Record<string, 'heavy' | 'medium' | 'light'> = {
  * Select the weight-appropriate body text from Root Signal data.
  * Returns null if no weight-specific body exists for this template's tier.
  */
+/**
+ * Enforce body text min/max per template config.
+ * Truncates at word boundary if over bodyMax; flags compact if under bodyMin.
+ */
+function enforceBodyLimits(
+  body: string,
+  postTemplate: string
+): { html: string; compact?: boolean } {
+  const config = TEMPLATE_CONFIGS[postTemplate] ?? TEMPLATE_CONFIGS.gazette;
+  if (config.bodyMax === 0) return { html: body };
+
+  // Strip HTML tags for character counting
+  const plain = body.replace(/<[^>]*>/g, '');
+  const len = plain.length;
+
+  // Truncate if over max
+  let html = body;
+  if (len > config.bodyMax) {
+    // Find last space at or before bodyMax in plaintext
+    let cutoff = config.bodyMax;
+    const spaceIdx = plain.lastIndexOf(' ', cutoff);
+    if (spaceIdx > cutoff * 0.7) cutoff = spaceIdx;
+    // Map plaintext position back to HTML — simple approach: strip tags, truncate, done
+    // Since body is typically plain text or simple HTML, truncate the plain version
+    html = plain.slice(0, cutoff).trimEnd() + '\u2026';
+  }
+
+  // Flag compact if under minimum (60% of target)
+  const bodyMin = Math.floor(config.bodyTarget * 0.6);
+  const compact = len < bodyMin ? true : undefined;
+
+  return { html, compact };
+}
+
 function selectWeightBody(
   gqlPost: BroadsheetPost,
   postTemplate: string

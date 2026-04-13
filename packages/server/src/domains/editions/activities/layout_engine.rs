@@ -187,6 +187,7 @@ fn fill_row(
             height_map,
             &anchor_type,
             target_height,
+            template.layout_variant.as_str(),
         );
 
         if filled.is_empty() {
@@ -250,7 +251,16 @@ fn fill_slot_group(
     height_map: &HashMap<String, i32>,
     anchor_type: &Option<String>,
     target_height: i32,
+    layout_variant: &str,
 ) -> Vec<BroadsheetSlot> {
+    // Guard: light posts should never be the anchor (slot 0) in pair layouts.
+    // Light content in a span-3 column looks visually wrong.
+    if slot_def.weight == "light" && slot_def.slot_index == 0
+        && (layout_variant == "pair" || layout_variant == "pair-stack")
+    {
+        return Vec::new();
+    }
+
     let mut filled: Vec<BroadsheetSlot> = Vec::new();
     let mut cumulative_height: i32 = 0;
 
@@ -272,11 +282,14 @@ fn fill_slot_group(
             continue;
         }
 
-        // Score: priority + family consistency bonus
+        // Score: priority + type consistency bonus.
+        // In trio/classifieds rows (multiple posts in one slot group),
+        // matching the anchor's post_type is heavily rewarded so all items
+        // in the row share the same visual treatment (harmony within).
         let mut score = post.priority;
         if let Some(ref anchor) = anchor_type {
             if &post.post_type == anchor {
-                score += 20; // Family consistency bonus
+                score += 50; // Strong type consistency bonus
             }
         }
 
@@ -286,6 +299,14 @@ fn fill_slot_group(
     // Sort by score descending (priority + family bonus)
     candidates.sort_by(|a, b| b.2.cmp(&a.2));
 
+    // Track the type of the first placed post for intra-group consistency.
+    // When multiple posts share a slot group (trio cells, classifieds),
+    // prefer matching types for visual harmony.
+    // Track first post's type AND template for intra-group consistency.
+    // "Harmony within" — all posts in a cell should share the same visual treatment.
+    let mut group_type: Option<String> = None;
+    let mut group_template: Option<String> = None;
+
     for (i, _post, _score) in &candidates {
         if filled.len() as i32 >= slot_def.count {
             break;
@@ -293,6 +314,31 @@ fn fill_slot_group(
 
         let pt_slug = resolve_post_template(posts.get(*i).unwrap(), slot_def, post_templates)
             .expect("already verified above");
+
+        // After the first post, prefer same type AND same template
+        if filled.len() > 0 {
+            let type_matches = group_type.as_ref().map_or(true, |gt| &posts[*i].post_type == gt);
+            let template_matches = group_template.as_ref().map_or(true, |gt| &pt_slug == gt);
+
+            if !type_matches || !template_matches {
+                // Skip if enough matching candidates remain
+                let slots_remaining = slot_def.count as usize - filled.len();
+                let remaining_matching = candidates.iter()
+                    .filter(|(ci, _, _)| {
+                        if placed[*ci] { return false; }
+                        let type_ok = group_type.as_ref().map_or(true, |gt| &posts[*ci].post_type == gt);
+                        if !type_ok { return false; }
+                        // Check template compatibility
+                        resolve_post_template(&posts[*ci], slot_def, post_templates)
+                            .map_or(false, |slug| group_template.as_ref().map_or(true, |gt| &slug == gt))
+                    })
+                    .count();
+                if remaining_matching >= slots_remaining {
+                    continue;
+                }
+            }
+        }
+
         let h = height_map.get(&pt_slug).copied().unwrap_or(4);
 
         // Height-balance check for stacked slots
@@ -300,10 +346,16 @@ fn fill_slot_group(
             let would_be = cumulative_height + h;
             let overshoot = would_be - target_height;
             let undershoot = target_height - cumulative_height;
-            // Stop if adding this post would overshoot more than the current undershoot
             if overshoot > 0 && overshoot > undershoot {
                 break;
             }
+        }
+
+        if group_type.is_none() {
+            group_type = Some(posts[*i].post_type.clone());
+        }
+        if group_template.is_none() {
+            group_template = Some(pt_slug.clone());
         }
 
         filled.push(BroadsheetSlot {
@@ -482,11 +534,22 @@ where
             }
         }
 
+        // Block consecutive same layout_variant (harmony within, diversity between)
+        if let Some((last_cfg, _)) = already_selected.last() {
+            if tws.config.layout_variant == last_cfg.layout_variant {
+                continue; // Hard block: never place same variant back-to-back
+            }
+        }
+
         // Penalize overused layout variants
         let variant_count = variant_counts
             .get(tws.config.layout_variant.as_str())
             .copied()
             .unwrap_or(0);
+        // Full-width rows (tickers, single features) are limited to 1 per edition
+        if tws.config.layout_variant == "full" && variant_count >= 1 {
+            continue;
+        }
         if variant_count >= 2 {
             adj_score *= 0.3;
         }

@@ -107,7 +107,7 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
       {cellSlots.map((slots, cellIdx) => (
         <Cell key={cellIdx} span={layout.cells[cellIdx]}>
           {slots.map((slot) => (
-            <SlotRenderer key={slot.post!.id} slot={slot} />
+            <SlotRenderer key={slot.post!.id} slot={slot} isAnchor={cellIdx === 0 && slots.length === 1} />
           ))}
         </Cell>
       ))}
@@ -119,7 +119,7 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
 // Slot renderer — resolves template + type → component, prepares post data
 // =============================================================================
 
-function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
+function SlotRenderer({ slot, isAnchor }: { slot: BroadsheetSlotData; isAnchor?: boolean }) {
   if (slot.kind === 'widget' && slot.widget) {
     return <WidgetRenderer widget={slot.widget} widgetTemplate={slot.widgetTemplate ?? undefined} />;
   }
@@ -127,7 +127,7 @@ function SlotRenderer({ slot }: { slot: BroadsheetSlotData }) {
   if (!slot.post || !slot.postTemplate) return null;
 
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
-  const post = preparePost(slot.post, slot.postTemplate);
+  const post = preparePost(slot.post, slot.postTemplate, isAnchor);
 
   return (
     <a

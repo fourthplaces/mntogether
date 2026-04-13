@@ -111,6 +111,7 @@ export interface Post {
   count?: string;
   tagline?: string;
   readMore?: string;
+  compact?: boolean;
 
   // Feature-specific
   image?: string;
