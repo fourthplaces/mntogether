@@ -11,7 +11,7 @@ export function DigestExchange({ data: d }: DigestExchangeProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__cat mono-sm`}>{getTagLabel(d)}</div>
-      <MTitle text={d.title} prefix={c} extra="condensed" />
+      <MTitle text={d.title} prefix={c} extra="condensed" pencilMark={d.pencilMark} />
       <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
       {getContactDisplay(d) && (
         <span className={`${c}__contact mono-sm`} dangerouslySetInnerHTML={{ __html: getContactDisplay(d) }} />

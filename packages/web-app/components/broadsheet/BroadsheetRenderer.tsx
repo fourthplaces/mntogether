@@ -129,17 +129,10 @@ function SlotRenderer({ slot, isAnchor }: { slot: BroadsheetSlotData; isAnchor?:
   const Component = resolveTemplate(slot.postTemplate, slot.post.postType);
   const post = preparePost(slot.post, slot.postTemplate, isAnchor);
 
-  // Modifier overlay: urgent + pencil_mark are rendered as wrapper classes/decorations
-  const modifierClasses = [
-    'post-link',
-    post.urgent ? 'post--urgent' : '',
-    post.pencilMark ? `post--pencil post--pencil-${post.pencilMark}` : '',
-  ].filter(Boolean).join(' ');
-
   return (
     <a
       href={`/posts/${slot.post.id}`}
-      className={modifierClasses}
+      className="post-link"
       style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}
     >
       <Component data={post} />

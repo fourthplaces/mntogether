@@ -14,7 +14,7 @@ export function BulletinExchange({ data: d }: BulletinExchangeProps) {
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getSourceLine(d)} prefix={c} />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
         {getContactDisplay(d) && <MContact text={getContactDisplay(d)} prefix={c} />}
@@ -27,7 +27,7 @@ export function BulletinExchange({ data: d }: BulletinExchangeProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} />
       <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
       {d.status && <MStatus text={d.status.state || ''} prefix={c} />}

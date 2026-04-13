@@ -14,7 +14,7 @@ export function GazetteEvent({ data: d }: GazetteEventProps) {
         <MTag text="Event" prefix={c} />
         <span className={`${c}__date mono-md`}>{d.day || ''} {d.month || ''}</span>
       </div>
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} />
       <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
       {d.when && <MWhen text={d.when} prefix={c} />}

@@ -15,7 +15,7 @@ export function LedgerNotice({ data: d }: LedgerNoticeProps) {
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text="Action" prefix={c} />
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getMetaLine(d)} prefix={c} />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
         {d.link && <MCtaLink href={d.link.url} text={d.link.label || ''} prefix={c} />}
@@ -28,7 +28,7 @@ export function LedgerNotice({ data: d }: LedgerNoticeProps) {
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTag text={getTagLabel(d)} prefix={c} />
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getMetaLine(d)} prefix={c} />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
         {d.readMore && <MReadMore href={d.readMore} />}
@@ -41,7 +41,7 @@ export function LedgerNotice({ data: d }: LedgerNoticeProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       {d.date && <MTime text={d.date} prefix={c} />}
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} />
       <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
     </div>

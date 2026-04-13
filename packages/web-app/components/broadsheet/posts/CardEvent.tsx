@@ -30,7 +30,7 @@ export function CardEvent({ data: d }: CardEventProps) {
         ) : dateBlock}
       </div>
       <div className={`${c}__content`}>
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getSourceLine(d)} prefix={c} small />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
         {d.when && <MWhen text={d.when} prefix={c} md />}

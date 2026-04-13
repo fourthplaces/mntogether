@@ -11,7 +11,7 @@ export function FeatureStory({ data: d }: FeatureStoryProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__rule`} />
-      {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} />}
+      {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} pencilMark={d.pencilMark} />}
       <MTitle text={d.title} prefix={c} extra="condensed" />
       {d.deck && <div className={`${c}__deck`}>{d.deck}</div>}
       <div className={`${c}__byline mono-sm`}>{getMetaLine(d)}</div>

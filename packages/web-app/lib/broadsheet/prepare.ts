@@ -283,12 +283,16 @@ function deriveTagLabel(tags: string[], postType: PostType): string {
     if (labels[t]) return labels[t];
   }
 
+  // 9-type system (post-migration 216)
   const typeLabels: Record<string, string> = {
     story: 'Story',
-    notice: 'Update',
+    update: 'Update',
+    action: 'Action',
     event: 'Event',
-    exchange: 'Exchange',
-    spotlight: 'Local',
+    need: 'Needed',
+    aid: 'Offer',
+    person: 'Community Voice',
+    business: 'Support Local',
     reference: 'Reference',
   };
 

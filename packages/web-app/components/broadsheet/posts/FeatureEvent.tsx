@@ -25,7 +25,7 @@ export function FeatureEvent({ data: d }: FeatureEventProps) {
           {dayEl}
         </div>
       ) : dayEl}
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} small />
       {d.when && <MWhen text={d.when} prefix={c} />}
     </div>

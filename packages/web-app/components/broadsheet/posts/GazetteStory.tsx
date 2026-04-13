@@ -12,7 +12,7 @@ export function GazetteStory({ data: d }: GazetteStoryProps) {
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Story" prefix={c} />
       {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} />}
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getMetaLine(d)} prefix={c} />
       {d.paragraphs
         ? <MRichBody paragraphs={d.paragraphs} prefix={c} cols={d.cols} dropCap={d.dropCap} />

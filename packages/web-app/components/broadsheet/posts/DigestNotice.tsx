@@ -12,7 +12,7 @@ export function DigestNotice({ data: d }: DigestNoticeProps) {
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__date condensed`}>{d.date || ''}</div>
       <div className={`${c}__content`}>
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <div className={`${c}__source mono-sm`}>{getSourceLine(d)}</div>
       </div>
     </div>

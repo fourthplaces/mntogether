@@ -11,7 +11,7 @@ export function GazetteSpotlight({ data: d }: GazetteSpotlightProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text="Local" prefix={c} />
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       {d.tagline && <MTagline text={d.tagline} prefix={c} />}
       <MBody text={d.body || ''} prefix={c} clamp={d.clamp || 4} />
       {getDetailsLine(d) && (

@@ -4,7 +4,33 @@
  * These produce the same HTML class structure as the prototype.
  */
 
+import type { ReactNode, CSSProperties } from 'react';
 import type { PostItem } from './types';
+
+// ── Pencil mark wrapper ─────────────────────────
+// Editorial emphasis overlay applied to a specific text element (title,
+// kicker, deck, etc.). The CSS draws the SVG decoration via ::after (or
+// ::before for circle), scaled to em. A random tilt is applied per render
+// for a hand-drawn feel.
+export type PencilMark = 'star' | 'heart' | 'smile' | 'circle';
+
+interface PencilProps {
+  mark?: PencilMark | null;
+  children: ReactNode;
+}
+
+export function Pencil({ mark, children }: PencilProps) {
+  if (!mark) return <>{children}</>;
+  // Tilt range per prototype: star/heart/smile ±20deg, circle -2 to -10deg
+  const tilt = mark === 'circle'
+    ? `${(Math.random() * -8 - 2).toFixed(1)}deg`
+    : `${(Math.random() * 40 - 20).toFixed(1)}deg`;
+  return (
+    <span className={`pencil-${mark}`} style={{ '--tilt': tilt } as CSSProperties}>
+      {children}
+    </span>
+  );
+}
 
 // ── Tag ─────────────────────────────────────────
 interface MTagProps {
@@ -23,10 +49,20 @@ interface MTitleProps {
   text: string;
   prefix: string;
   extra?: string;
+  pencilMark?: PencilMark | null;
 }
 
-export function MTitle({ text, prefix, extra }: MTitleProps) {
+export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
   const className = `${prefix}__title${extra ? ' ' + extra : ''}`;
+  if (pencilMark) {
+    return (
+      <div className={className}>
+        <Pencil mark={pencilMark}>
+          <span dangerouslySetInnerHTML={{ __html: text }} />
+        </Pencil>
+      </div>
+    );
+  }
   return <div className={className} dangerouslySetInnerHTML={{ __html: text }} />;
 }
 
@@ -143,19 +179,40 @@ interface MKickerProps {
   text: string;
   prefix: string;
   small?: boolean;
+  pencilMark?: PencilMark | null;
 }
 
-export function MKicker({ text, prefix, small }: MKickerProps) {
-  return <div className={`${prefix}__kicker ${small ? 'mono-sm' : 'mono-md'}`} dangerouslySetInnerHTML={{ __html: text }} />;
+export function MKicker({ text, prefix, small, pencilMark }: MKickerProps) {
+  const className = `${prefix}__kicker ${small ? 'mono-sm' : 'mono-md'}`;
+  if (pencilMark) {
+    return (
+      <div className={className}>
+        <Pencil mark={pencilMark}>
+          <span dangerouslySetInnerHTML={{ __html: text }} />
+        </Pencil>
+      </div>
+    );
+  }
+  return <div className={className} dangerouslySetInnerHTML={{ __html: text }} />;
 }
 
 // ── Tagline ─────────────────────────────────────
 interface MTaglineProps {
   text: string;
   prefix: string;
+  pencilMark?: PencilMark | null;
 }
 
-export function MTagline({ text, prefix }: MTaglineProps) {
+export function MTagline({ text, prefix, pencilMark }: MTaglineProps) {
+  if (pencilMark) {
+    return (
+      <div className={`${prefix}__tagline`}>
+        <Pencil mark={pencilMark}>
+          <span dangerouslySetInnerHTML={{ __html: text }} />
+        </Pencil>
+      </div>
+    );
+  }
   return <div className={`${prefix}__tagline`} dangerouslySetInnerHTML={{ __html: text }} />;
 }
 

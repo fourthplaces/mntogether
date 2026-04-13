@@ -12,7 +12,7 @@ export function GenerousExchange({ data: d }: GenerousExchangeProps) {
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__header mono-sm`}>{getTagLabel(d)}</div>
       <div className={`${c}__content`}>
-        <MTitle text={d.title} prefix={c} />
+        <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getSourceLine(d)} prefix={c} small />
         <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
         {d.status && <MStatus text={d.status.state || ''} prefix={c} extra="condensed" />}

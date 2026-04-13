@@ -10,7 +10,7 @@ export function FeatureEditorial({ data: d }: FeatureEditorialProps) {
   const c = 'feat-editorial';
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <div className={`${c}__byline mono-sm`}>{getMetaLine(d)}</div>
       {d.paragraphs
         ? <MRichBody paragraphs={d.paragraphs} prefix={c} cols={d.cols} dropCap={d.dropCap} />

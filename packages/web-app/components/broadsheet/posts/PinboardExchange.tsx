@@ -11,7 +11,7 @@ export function PinboardExchange({ data: d }: PinboardExchangeProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <MTag text={getTagLabel(d)} prefix={c} />
-      <MTitle text={d.title} prefix={c} />
+      <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       {getSourceLine(d) && (
         <div className={`${c}__detail`}>{getSourceLine(d)}</div>
       )}

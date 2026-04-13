@@ -3720,54 +3720,59 @@ body.show-weights [data-weight="light"]::after {
 /* Labels (top-left ::before) and weights (top-right ::after) coexist without overlap */
 
 /* ========================================================================
- * MODIFIER OVERLAY SYSTEM
+ * PENCIL MARK OVERLAYS
  *
- * Modifiers (urgent, pencil_mark) overlay on top of the type-driven
- * visual variant. They never replace the base layout — only adorn it.
+ * Hand-drawn editorial emphasis applied to specific text elements within
+ * a post template (title, kicker, deck, etc.). Each template chooses which
+ * element gets the pencil mark.
+ *
+ * Hidden inside contexts where decoration is already visually loud:
+ * .mono-sm, .gaz-urgent, .bul-urgent, .feat-urgent, .feat-cta, .alert-urgent
+ *
+ * Ported from the design prototype. Sizes are em-relative, so they scale
+ * with the text they decorate. A random tilt is applied inline via --tilt.
  * ======================================================================== */
 
-/* Pencil mark — hand-drawn editorial overlay positioned at top-right */
-.post--pencil {
-  position: relative;
-}
-.post--pencil::after {
-  content: '';
-  position: absolute;
-  top: -8px;
-  right: -8px;
-  width: 32px;
-  height: 32px;
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: contain;
-  pointer-events: none;
-  z-index: 5;
-  opacity: 0.85;
-  transform: rotate(8deg);
-}
-.post--pencil-star::after { background-image: url('/pencils/pencil-star.svg'); }
-.post--pencil-heart::after { background-image: url('/pencils/pencil-heart.svg'); }
-.post--pencil-smile::after { background-image: url('/pencils/pencil-smile.svg'); }
-.post--pencil-circle::after {
-  background-image: url('/pencils/pencil-circle.svg');
-  width: 60px;
-  height: 60px;
-  top: -12px;
-  right: -12px;
-  transform: rotate(-3deg);
+.mono-sm .pencil-star::after, .mono-sm.pencil-star::after,
+.gaz-urgent .pencil-star::after, .bul-urgent .pencil-star::after,
+.feat-urgent .pencil-star::after, .feat-cta .pencil-star::after,
+.alert-urgent .pencil-star::after { display: none; }
+.pencil-star::after {
+  content: ''; display: inline-block; width: 0.84em; height: 0.84em;
+  background: url('/pencils/pencil-star.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
 }
 
-/* Urgent modifier — adds an urgent border accent on the post's left edge */
-.post--urgent {
-  position: relative;
+.mono-sm .pencil-heart::after, .mono-sm.pencil-heart::after,
+.gaz-urgent .pencil-heart::after, .bul-urgent .pencil-heart::after,
+.feat-urgent .pencil-heart::after, .feat-cta .pencil-heart::after,
+.alert-urgent .pencil-heart::after { display: none; }
+.pencil-heart::after {
+  content: ''; display: inline-block; width: 0.84em; height: 0.89em;
+  background: url('/pencils/pencil-heart.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
 }
-.post--urgent::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: -4px;
-  width: 4px;
-  background: var(--type-urgent, #a01010);
-  z-index: 4;
+
+.mono-sm .pencil-smile::after, .mono-sm.pencil-smile::after,
+.gaz-urgent .pencil-smile::after, .bul-urgent .pencil-smile::after,
+.feat-urgent .pencil-smile::after, .feat-cta .pencil-smile::after,
+.alert-urgent .pencil-smile::after { display: none; }
+.pencil-smile::after {
+  content: ''; display: inline-block; width: 1.2em; height: 1.2em;
+  background: url('/pencils/pencil-smile.svg') no-repeat center / contain;
+  position: absolute; margin-top: 0.25em; margin-left: 0.25em;
+  transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
 }
+
+.pencil-circle { position: relative; display: inline-block; z-index: 2; }
+.pencil-circle::before {
+  content: ''; position: absolute; inset: -11px -14px;
+  background: url('/pencils/pencil-circle.svg') no-repeat center / 100% 100%;
+  pointer-events: none; z-index: 2;
+}
+.mono-sm .pencil-circle::before, .mono-sm.pencil-circle::before,
+.gaz-urgent .pencil-circle::before, .bul-urgent .pencil-circle::before,
+.feat-urgent .pencil-circle::before, .feat-cta .pencil-circle::before,
+.alert-urgent .pencil-circle::before { display: none; }
