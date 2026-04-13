@@ -7,7 +7,7 @@ interface FeatureNoticeProps {
 }
 
 export function FeatureNotice({ data: d }: FeatureNoticeProps) {
-  if (d.tags?.includes('action')) {
+  if (d.type === 'action') {
     const c = 'feat-cta';
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>

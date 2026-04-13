@@ -136,6 +136,9 @@ export function preparePost(
     tags: tagValues,
     weight: gqlPost.weight as PostWeight,
     priority: 0, // Not exposed in public API — default to 0
+    // Modifiers — overlays on top of type-driven visual variants
+    urgent: ((gqlPost as any).isUrgent ?? gqlPost.urgency === 'urgent') || undefined,
+    pencilMark: (gqlPost as any).pencilMark ?? undefined,
 
     title: gqlPost.title,
     body: bodyHtml,

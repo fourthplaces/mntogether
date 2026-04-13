@@ -7,7 +7,7 @@ interface TickerNoticeProps {
 }
 
 export function TickerNotice({ data: d }: TickerNoticeProps) {
-  if (d.tags?.includes('urgent')) {
+  if (d.urgent === true) {
     const c = 'tick-urgent';
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>

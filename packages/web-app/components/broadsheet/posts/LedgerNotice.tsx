@@ -7,8 +7,8 @@ interface LedgerNoticeProps {
 }
 
 export function LedgerNotice({ data: d }: LedgerNoticeProps) {
-  const isAction = d.tags?.includes('action');
-  const isUrgent = d.tags?.includes('urgent');
+  const isAction = d.type === 'action';
+  const isUrgent = d.urgent === true;
 
   if (isAction) {
     const c = 'led-cta';

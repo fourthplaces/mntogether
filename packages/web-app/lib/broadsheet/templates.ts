@@ -69,63 +69,87 @@ type PostComponent = ComponentType<{ data: Post }>;
 /**
  * Registry: postTemplate → postType → Component
  *
+ * Uses the 9-type model (story | update | action | event | need | aid | person | business | reference).
+ * Components that handle multiple types (e.g. GazetteNotice handles update + action)
+ * branch internally on `d.type`.
+ *
  * feature-reversed shares the same components as feature (the CSS handles the flip).
  */
 const registry: Record<string, Record<string, PostComponent>> = {
   feature: {
     story: FeatureStory,
-    notice: FeatureNotice,
+    update: FeatureNotice,
+    action: FeatureNotice,
     event: FeatureEvent,
-    spotlight: FeatureSpotlight,
+    person: FeatureSpotlight,
+    business: FeatureSpotlight,
   },
   'feature-reversed': {
     story: FeatureStory,
-    notice: FeatureNotice,
+    update: FeatureNotice,
+    action: FeatureNotice,
     event: FeatureEvent,
-    spotlight: FeatureSpotlight,
+    person: FeatureSpotlight,
+    business: FeatureSpotlight,
   },
   gazette: {
     story: GazetteStory,
-    notice: GazetteNotice,
+    update: GazetteNotice,
+    action: GazetteNotice,
     event: GazetteEvent,
-    exchange: GazetteExchange,
+    need: GazetteExchange,
+    aid: GazetteExchange,
     reference: GazetteReference,
-    spotlight: GazetteSpotlight,
+    person: GazetteSpotlight,
+    business: GazetteSpotlight,
   },
   ledger: {
     story: LedgerStory,
-    notice: LedgerNotice,
+    update: LedgerNotice,
+    action: LedgerNotice,
     event: LedgerEvent,
-    exchange: LedgerExchange,
+    need: LedgerExchange,
+    aid: LedgerExchange,
     reference: LedgerReference,
-    spotlight: LedgerSpotlight,
+    person: LedgerSpotlight,
+    business: LedgerSpotlight,
   },
   bulletin: {
     story: BulletinStory,
-    notice: BulletinNotice,
+    update: BulletinNotice,
+    action: BulletinNotice,
     event: BulletinEvent,
-    exchange: BulletinExchange,
+    need: BulletinExchange,
+    aid: BulletinExchange,
     reference: BulletinReference,
-    spotlight: BulletinSpotlight,
+    person: BulletinSpotlight,
+    business: BulletinSpotlight,
   },
   ticker: {
     story: TickerStory,
-    notice: TickerNotice,
+    update: TickerNotice,
+    action: TickerNotice,
     event: TickerEvent,
-    exchange: TickerExchange,
+    need: TickerExchange,
+    aid: TickerExchange,
   },
   digest: {
     story: DigestStory,
-    notice: DigestNotice,
-    exchange: DigestExchange,
-    spotlight: DigestSpotlight,
+    update: DigestNotice,
+    action: DigestNotice,
+    need: DigestExchange,
+    aid: DigestExchange,
+    person: DigestSpotlight,
+    business: DigestSpotlight,
   },
-  // Specialty templates — each maps to a single post type
+  // Specialty templates — each maps to a few specific post types
   'alert-notice': {
-    notice: AlertNotice,
+    update: AlertNotice,
+    action: AlertNotice,
   },
   'pinboard-exchange': {
-    exchange: PinboardExchange,
+    need: PinboardExchange,
+    aid: PinboardExchange,
   },
   'card-event': {
     event: CardEvent,
@@ -137,16 +161,18 @@ const registry: Record<string, Record<string, PostComponent>> = {
     reference: DirectoryRef,
   },
   'generous-exchange': {
-    exchange: GenerousExchange,
+    need: GenerousExchange,
+    aid: GenerousExchange,
   },
   'whisper-notice': {
-    notice: WhisperNotice,
+    update: WhisperNotice,
   },
   'spotlight-local': {
-    spotlight: BroadsheetSpotlight,
+    person: BroadsheetSpotlight,
+    business: BroadsheetSpotlight,
   },
   'ticker-update': {
-    notice: BroadsheetTickerNotice,
+    update: BroadsheetTickerNotice,
   },
 };
 

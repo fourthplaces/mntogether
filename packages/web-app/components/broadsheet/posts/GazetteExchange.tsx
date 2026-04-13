@@ -7,7 +7,7 @@ interface GazetteExchangeProps {
 }
 
 export function GazetteExchange({ data: d }: GazetteExchangeProps) {
-  const isNeed = d.tags?.includes('need');
+  const isNeed = d.type === 'need';
 
   if (isNeed) {
     const c = 'gaz-request';

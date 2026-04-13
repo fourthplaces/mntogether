@@ -26,11 +26,15 @@ pub struct Post {
     pub body_medium: Option<String>,
     pub body_light: Option<String>,
 
-    // Type system (Phase 2)
-    pub post_type: String, // 'story', 'notice', 'exchange', 'event', 'spotlight', 'reference'
+    // Type system — single value that drives visual variant
+    // 'story' | 'update' | 'action' | 'event' | 'need' | 'aid' | 'person' | 'business' | 'reference'
+    pub post_type: String,
     pub weight: String,  // 'heavy', 'medium', 'light' — layout column width
     pub priority: i32,   // editorial importance (higher = more prominent)
     pub is_urgent: bool,
+    // Editorial emphasis overlay — one at a time, nullable
+    // 'star' | 'heart' | 'smile' | 'circle' | null
+    pub pencil_mark: Option<String>,
     pub status: String, // 'draft', 'active', 'filled', 'rejected', 'expired', 'archived'
 
     // Language

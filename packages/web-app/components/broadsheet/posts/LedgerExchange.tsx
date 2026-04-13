@@ -7,7 +7,7 @@ interface LedgerExchangeProps {
 }
 
 export function LedgerExchange({ data: d }: LedgerExchangeProps) {
-  const isNeed = d.tags?.includes('need');
+  const isNeed = d.type === 'need';
 
   if (isNeed) {
     const c = 'led-request';

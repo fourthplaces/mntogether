@@ -3718,3 +3718,56 @@ body.show-weights [data-weight="light"]::after {
   border: 1px solid rgba(0, 120, 60, 0.18);
 }
 /* Labels (top-left ::before) and weights (top-right ::after) coexist without overlap */
+
+/* ========================================================================
+ * MODIFIER OVERLAY SYSTEM
+ *
+ * Modifiers (urgent, pencil_mark) overlay on top of the type-driven
+ * visual variant. They never replace the base layout — only adorn it.
+ * ======================================================================== */
+
+/* Pencil mark — hand-drawn editorial overlay positioned at top-right */
+.post--pencil {
+  position: relative;
+}
+.post--pencil::after {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 32px;
+  height: 32px;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
+  pointer-events: none;
+  z-index: 5;
+  opacity: 0.85;
+  transform: rotate(8deg);
+}
+.post--pencil-star::after { background-image: url('/pencils/pencil-star.svg'); }
+.post--pencil-heart::after { background-image: url('/pencils/pencil-heart.svg'); }
+.post--pencil-smile::after { background-image: url('/pencils/pencil-smile.svg'); }
+.post--pencil-circle::after {
+  background-image: url('/pencils/pencil-circle.svg');
+  width: 60px;
+  height: 60px;
+  top: -12px;
+  right: -12px;
+  transform: rotate(-3deg);
+}
+
+/* Urgent modifier — adds an urgent border accent on the post's left edge */
+.post--urgent {
+  position: relative;
+}
+.post--urgent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 4px;
+  background: var(--type-urgent, #a01010);
+  z-index: 4;
+}

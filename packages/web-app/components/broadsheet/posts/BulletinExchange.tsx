@@ -7,7 +7,7 @@ interface BulletinExchangeProps {
 }
 
 export function BulletinExchange({ data: d }: BulletinExchangeProps) {
-  const isNeed = d.tags?.includes('need');
+  const isNeed = d.type === 'need';
 
   if (isNeed) {
     const c = 'bul-request';

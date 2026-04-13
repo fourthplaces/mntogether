@@ -7,8 +7,10 @@ interface GazetteNoticeProps {
 }
 
 export function GazetteNotice({ data: d }: GazetteNoticeProps) {
-  const isAction = d.tags?.includes('action');
-  const isUrgent = d.tags?.includes('urgent');
+  // Type drives the base variant (action vs update).
+  // Urgent is a modifier that, for the update type, replaces base look with inverted dark style.
+  const isAction = d.type === 'action';
+  const isUrgent = d.urgent === true;
 
   if (isAction) {
     const c = 'gaz-cta';

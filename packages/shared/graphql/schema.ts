@@ -1,6 +1,6 @@
 export const typeDefs = /* GraphQL */ `
 enum PostStatus { draft active rejected expired archived filled }
-enum PostType { story notice exchange event spotlight reference }
+enum PostType { story update action event need aid person business reference }
 enum Weight { heavy medium light }
 enum OrganizationStatus { pending_review approved rejected suspended }
 
@@ -609,6 +609,8 @@ type BroadsheetPost {
   postType: String!
   weight: String!
   urgency: String
+  isUrgent: Boolean
+  pencilMark: String
   location: String
   sourceUrl: String
   organizationName: String

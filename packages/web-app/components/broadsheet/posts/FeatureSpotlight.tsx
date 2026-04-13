@@ -8,7 +8,7 @@ interface FeatureSpotlightProps {
 
 export function FeatureSpotlight({ data: d }: FeatureSpotlightProps) {
   // Person profile variant
-  if (d.tags?.includes('person') && d.person) {
+  if (d.type === 'person' && d.person) {
     const c = 'feat-profile';
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>

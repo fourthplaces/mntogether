@@ -7,7 +7,7 @@ interface TickerExchangeProps {
 }
 
 export function TickerExchange({ data: d }: TickerExchangeProps) {
-  if (d.tags?.includes('need')) {
+  if (d.type === 'need') {
     const c = 'tick-request';
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>

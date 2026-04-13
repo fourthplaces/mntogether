@@ -416,6 +416,8 @@ pub struct PublicBroadsheetPostResult {
     pub post_type: String,
     pub weight: String,
     pub is_urgent: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pencil_mark: Option<String>,
     pub location: Option<String>,
     pub organization_name: Option<String>,
     pub published_at: Option<String>,
@@ -1569,6 +1571,7 @@ async fn build_public_broadsheet(
                                 post_type: post.post_type.clone(),
                                 weight: post.weight.clone(),
                                 is_urgent: post.is_urgent,
+                                pencil_mark: post.pencil_mark.clone(),
                                 location: post.location.clone(),
                                 organization_name: org_name,
                                 published_at: post.published_at.map(|dt| dt.to_rfc3339()),

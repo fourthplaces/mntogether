@@ -7,8 +7,8 @@ interface BulletinNoticeProps {
 }
 
 export function BulletinNotice({ data: d }: BulletinNoticeProps) {
-  const isAction = d.tags?.includes('action');
-  const isUrgent = d.tags?.includes('urgent');
+  const isAction = d.type === 'action';
+  const isUrgent = d.urgent === true;
 
   if (isAction) {
     const c = 'bul-cta';

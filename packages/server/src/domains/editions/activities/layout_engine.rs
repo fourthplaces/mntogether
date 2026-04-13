@@ -701,7 +701,7 @@ async fn load_county_posts(
             let topic_slug = topic_tags.get(&r.id).cloned();
             LayoutPost {
                 id: r.id,
-                post_type: r.post_type.unwrap_or_else(|| "notice".to_string()),
+                post_type: r.post_type.unwrap_or_else(|| "update".to_string()),
                 weight: r.weight.unwrap_or_else(|| "medium".to_string()),
                 priority: r.priority.unwrap_or(50),
                 topic_slug,

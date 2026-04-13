@@ -39,6 +39,8 @@ export const EditionPreviewQuery = graphql(`
             postType
             weight
             urgency
+            isUrgent
+            pencilMark
             location
             sourceUrl
             organizationName
@@ -160,6 +162,8 @@ export const PublicBroadsheetQuery = graphql(`
             postType
             weight
             urgency
+            isUrgent
+            pencilMark
             location
             sourceUrl
             organizationName

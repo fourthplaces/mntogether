@@ -1,4 +1,4 @@
-export type PostType = 'story' | 'notice' | 'exchange' | 'event' | 'spotlight' | 'reference';
+export type PostType = 'story' | 'update' | 'action' | 'event' | 'need' | 'aid' | 'person' | 'business' | 'reference';
 export type PostWeight = 'heavy' | 'medium' | 'light';
 export type PostFamily = 'gazette' | 'bulletin' | 'ledger';
 export type FeatureVariant = 'story' | 'editorial' | 'hero' | 'photo' | 'notice' | 'event' | 'spotlight';
@@ -79,6 +79,9 @@ export interface Post {
   tags: string[];
   weight: PostWeight;
   priority: number;
+  // Modifiers — overlays on top of type-driven visual variants
+  urgent?: boolean;
+  pencilMark?: 'star' | 'heart' | 'smile' | 'circle';
   title: string;
   body: string;
   media?: PostMedia;
