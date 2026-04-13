@@ -58,22 +58,22 @@
   line-height: 1;
 }
 
-/* ── Pencil decoration size overrides for detail pages ──
+/* ── Pencil decoration size overrides — DETAIL PAGES ONLY ──
    Detail pages use clamped sizes (smaller than index page).
-   globals.css provides the full pencil system; these just resize. */
-.pencil-star::after {
+   Scoped to .article-page so they don't leak to the broadsheet index. */
+.article-page .pencil-star::after {
   width: clamp(12px, 0.55em, 18px); height: clamp(12px, 0.55em, 18px);
 }
-.pencil-heart::after {
+.article-page .pencil-heart::after {
   width: clamp(12px, 0.55em, 18px); height: clamp(12px, 0.58em, 18px);
 }
-.pencil-smile::after {
+.article-page .pencil-smile::after {
   width: clamp(14px, 0.65em, 20px); height: clamp(14px, 0.65em, 20px);
 }
-.pencil-circle::before {
+.article-page .pencil-circle::before {
   inset: clamp(-14px, -0.7em, -8px) clamp(-18px, -0.9em, -10px);
 }
-.pencil-circle::after {
+.article-page .pencil-circle::after {
   font-size: clamp(0.85rem, 1.1rem, 1.4rem);
 }
 

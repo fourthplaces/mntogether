@@ -4,31 +4,54 @@
  * These produce the same HTML class structure as the prototype.
  */
 
-import type { ReactNode, CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import type { PostItem } from './types';
 
 // ── Pencil mark wrapper ─────────────────────────
 // Editorial emphasis overlay applied to a specific text element (title,
-// kicker, deck, etc.). The CSS draws the SVG decoration via ::after (or
-// ::before for circle), scaled to em. A random tilt is applied per render
-// for a hand-drawn feel.
+// kicker, deck, etc.). The CSS draws the SVG decoration via ::after, sized
+// in em so it scales with the text. A random tilt is applied per render.
+// Prototype tilt ranges (per style-guide.md):
+//   star/heart: ±20°
+//   smile:      0° to +30° (always leans right)
+//   circle:     -2° to -10°
+// The 4 semantic values stored in the database (one per post).
 export type PencilMark = 'star' | 'heart' | 'smile' | 'circle';
+// The 5 visual decoration styles (mark = flanking asterisks, no randomization).
+export type PencilVariant = PencilMark | 'mark';
 
-interface PencilProps {
-  mark?: PencilMark | null;
-  children: ReactNode;
+function randomTilt(variant: PencilVariant): string | undefined {
+  switch (variant) {
+    case 'mark':
+      return undefined; // flanking asterisks are not tilted
+    case 'smile':
+      return `${(Math.random() * 30).toFixed(1)}deg`;
+    case 'circle':
+      return `${(Math.random() * -8 - 2).toFixed(1)}deg`;
+    default: // star, heart
+      return `${(Math.random() * 40 - 20).toFixed(1)}deg`;
+  }
 }
 
-export function Pencil({ mark, children }: PencilProps) {
-  if (!mark) return <>{children}</>;
-  // Tilt range per prototype: star/heart/smile ±20deg, circle -2 to -10deg
-  const tilt = mark === 'circle'
-    ? `${(Math.random() * -8 - 2).toFixed(1)}deg`
-    : `${(Math.random() * 40 - 20).toFixed(1)}deg`;
+/**
+ * Pencil component wraps a string with a pencil-{variant} span, applying a
+ * random --tilt CSS variable used by the decoration pseudo-element to rotate.
+ * Takes raw HTML string (matching the prototype's M.pencilStar(text) pattern).
+ */
+interface PencilProps {
+  mark?: PencilVariant | null;
+  text: string;
+}
+
+export function Pencil({ mark, text }: PencilProps) {
+  if (!mark) return <span dangerouslySetInnerHTML={{ __html: text }} />;
+  const tilt = randomTilt(mark);
   return (
-    <span className={`pencil-${mark}`} style={{ '--tilt': tilt } as CSSProperties}>
-      {children}
-    </span>
+    <span
+      className={`pencil-${mark}`}
+      style={tilt ? ({ '--tilt': tilt } as CSSProperties) : undefined}
+      dangerouslySetInnerHTML={{ __html: text }}
+    />
   );
 }
 
@@ -49,7 +72,7 @@ interface MTitleProps {
   text: string;
   prefix: string;
   extra?: string;
-  pencilMark?: PencilMark | null;
+  pencilMark?: PencilVariant | null;
 }
 
 export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
@@ -57,9 +80,7 @@ export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
   if (pencilMark) {
     return (
       <div className={className}>
-        <Pencil mark={pencilMark}>
-          <span dangerouslySetInnerHTML={{ __html: text }} />
-        </Pencil>
+        <Pencil mark={pencilMark} text={text} />
       </div>
     );
   }
@@ -179,7 +200,7 @@ interface MKickerProps {
   text: string;
   prefix: string;
   small?: boolean;
-  pencilMark?: PencilMark | null;
+  pencilMark?: PencilVariant | null;
 }
 
 export function MKicker({ text, prefix, small, pencilMark }: MKickerProps) {
@@ -187,9 +208,7 @@ export function MKicker({ text, prefix, small, pencilMark }: MKickerProps) {
   if (pencilMark) {
     return (
       <div className={className}>
-        <Pencil mark={pencilMark}>
-          <span dangerouslySetInnerHTML={{ __html: text }} />
-        </Pencil>
+        <Pencil mark={pencilMark} text={text} />
       </div>
     );
   }
@@ -200,16 +219,14 @@ export function MKicker({ text, prefix, small, pencilMark }: MKickerProps) {
 interface MTaglineProps {
   text: string;
   prefix: string;
-  pencilMark?: PencilMark | null;
+  pencilMark?: PencilVariant | null;
 }
 
 export function MTagline({ text, prefix, pencilMark }: MTaglineProps) {
   if (pencilMark) {
     return (
       <div className={`${prefix}__tagline`}>
-        <Pencil mark={pencilMark}>
-          <span dangerouslySetInnerHTML={{ __html: text }} />
-        </Pencil>
+        <Pencil mark={pencilMark} text={text} />
       </div>
     );
   }

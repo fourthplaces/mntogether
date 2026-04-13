@@ -11,7 +11,16 @@ export function FeatureStory({ data: d }: FeatureStoryProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__rule`} />
-      {d.meta?.kicker && <MKicker text={d.meta.kicker} prefix={c} pencilMark={d.pencilMark} />}
+      {/* FeatureStory convention (per design prototype): pencil mark renders as
+          flanking asterisks on the kicker, regardless of the post's pencilMark
+          semantic value (star/heart/smile/circle). Title stays clean. */}
+      {d.meta?.kicker && (
+        <MKicker
+          text={d.meta.kicker}
+          prefix={c}
+          pencilMark={d.pencilMark ? 'mark' : undefined}
+        />
+      )}
       <MTitle text={d.title} prefix={c} extra="condensed" />
       {d.deck && <div className={`${c}__deck`}>{d.deck}</div>}
       <div className={`${c}__byline mono-sm`}>{getMetaLine(d)}</div>
