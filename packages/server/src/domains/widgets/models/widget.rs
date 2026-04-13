@@ -120,6 +120,34 @@ impl Widget {
             .map_err(Into::into)
     }
 
+    /// Find widgets available for a given county and date.
+    /// Matches widgets where:
+    ///   - county_id is NULL (universal) OR equals the given county
+    ///   - start_date is NULL or <= as_of_date
+    ///   - end_date is NULL or >= as_of_date
+    ///
+    /// Used by the layout engine to pick widgets for widget-standalone rows.
+    pub async fn find_available(
+        county_id: Uuid,
+        as_of_date: NaiveDate,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        sqlx::query_as::<_, Self>(
+            r#"
+            SELECT * FROM widgets
+            WHERE (county_id IS NULL OR county_id = $1)
+              AND (start_date IS NULL OR start_date <= $2)
+              AND (end_date IS NULL OR end_date >= $2)
+            ORDER BY widget_type, created_at
+            "#,
+        )
+        .bind(county_id)
+        .bind(as_of_date)
+        .fetch_all(pool)
+        .await
+        .map_err(Into::into)
+    }
+
     /// List widgets with optional filters.
     pub async fn find_all(
         filters: &WidgetFilters<'_>,

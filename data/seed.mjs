@@ -20,6 +20,7 @@ const orgs = read("organizations.json");
 const rawPosts = read("posts.json");
 // Filter out comment-only entries
 const posts = rawPosts.filter((p) => !p._comment);
+const widgets = read("widgets.json");
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -357,6 +358,50 @@ WHERE NOT EXISTS (
     SELECT 1 FROM post_sources ps
     WHERE ps.post_id = psa.post_id AND ps.source_id = s.id
 );`);
+out("");
+
+// --- Widgets ---------------------------------------------------------------
+// Evergreen widget records. The layout engine picks these up during edition
+// generation and inserts them as widget-standalone rows at rule-based
+// positions (section separators between row groups, pull quotes mid-page, etc).
+
+out("-- Widgets: clear + reseed (idempotent for dev — widgets are evergreen curator content)");
+out("DELETE FROM edition_slots WHERE kind = 'widget';");
+out("DELETE FROM widgets WHERE authoring_mode = 'human';");
+out("");
+
+const widgetJson = (obj) => {
+  const clean = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v != null) clean[k] = v;
+  }
+  return esc(JSON.stringify(clean));
+};
+
+out("-- Section separators");
+for (const sep of widgets.section_separators) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('section_sep', 'human', ${widgetJson(sep)}::jsonb);`);
+}
+out("");
+
+out("-- Pull quotes");
+for (const pq of widgets.pull_quotes) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('pull_quote', 'human', ${widgetJson(pq)}::jsonb);`);
+}
+out("");
+
+out("-- Resource bars");
+for (const rb of widgets.resource_bars) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('resource_bar', 'human', ${widgetJson(rb)}::jsonb);`);
+}
+out("");
+
+out("-- Numbers (stat cards + number blocks)");
+for (const n of widgets.numbers) {
+  // widget_template hint lives in edition_slots.widget_template, not on the widget itself
+  // For seed, we store it in the data JSON as `widget_template` so the layout engine can read it
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('number', 'human', ${widgetJson(n)}::jsonb);`);
+}
 out("");
 
 out("COMMIT;");

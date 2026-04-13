@@ -17,11 +17,13 @@ use sqlx::PgPool;
 use uuid::Uuid;
 
 use crate::domains::editions::data::types::{
-    BroadsheetDraft, BroadsheetRow, BroadsheetSection, BroadsheetSlot, LayoutPost,
+    BroadsheetDraft, BroadsheetRow, BroadsheetSection, BroadsheetSlot, BroadsheetWidgetRow,
+    LayoutPost,
 };
 use crate::domains::editions::models::post_template_config::PostTemplateConfig;
 use crate::domains::editions::models::row_template_config::RowTemplateWithSlots;
 use crate::domains::editions::models::row_template_config::RowTemplateConfig;
+use crate::domains::widgets::models::widget::Widget;
 use crate::kernel::ServerDeps;
 
 // ---------------------------------------------------------------------------
@@ -60,16 +62,90 @@ pub async fn generate_broadsheet(
         .map(|pt| (pt.slug.clone(), pt.height_units))
         .collect();
 
-    let draft = place_posts(posts, &templates, &post_templates, &height_map);
+    let mut draft = place_posts(posts, &templates, &post_templates, &height_map);
+
+    // Load evergreen widgets available for this county+date and interleave
+    // widget-standalone rows into the draft at rule-based positions.
+    let available_widgets = Widget::find_available(county_id, period_start, pool).await?;
+    let widget_standalone_id = templates
+        .iter()
+        .find(|t| t.config.layout_variant == "widget-standalone")
+        .map(|t| t.config.id);
+    if let Some(row_template_id) = widget_standalone_id {
+        draft.widget_rows = place_widgets(&draft.rows, &available_widgets, row_template_id);
+    }
 
     tracing::info!(
         rows = draft.rows.len(),
+        widget_rows = draft.widget_rows.len(),
         total_slots = draft.rows.iter().map(|r| r.slots.len()).sum::<usize>(),
         sections = draft.sections.len(),
         "Layout engine: placement complete"
     );
 
     Ok(draft)
+}
+
+/// Place widget-standalone rows at rule-based positions within the broadsheet.
+///
+/// Rules (applied best-effort; widget availability may skip some positions):
+///   - After row 2: section_sep (establishes mid-page transition)
+///   - After row 4: pull_quote (editorial interlude)
+///   - After row 6: section_sep (another section break)
+///   - After row 8: resource_bar (support info near the bottom)
+///   - After row 9: section_sep (before dense/classifieds zone)
+///
+/// Widgets are picked round-robin from the available pool of each type.
+fn place_widgets(
+    rows: &[BroadsheetRow],
+    widgets: &[Widget],
+    row_template_id: Uuid,
+) -> Vec<BroadsheetWidgetRow> {
+    if rows.is_empty() || widgets.is_empty() {
+        return Vec::new();
+    }
+
+    // Group widgets by type for round-robin selection
+    let mut by_type: HashMap<&str, Vec<&Widget>> = HashMap::new();
+    for w in widgets {
+        by_type.entry(w.widget_type.as_str()).or_default().push(w);
+    }
+
+    // (insert_after_row_index, widget_type, widget_template_hint)
+    let rules: [(usize, &str, Option<&str>); 5] = [
+        (2, "section_sep", None),
+        (4, "pull_quote", None),
+        (6, "section_sep", None),
+        (8, "resource_bar", None),
+        (9, "section_sep", None),
+    ];
+
+    // Track used widgets to round-robin without immediate repeat
+    let mut type_cursor: HashMap<&str, usize> = HashMap::new();
+    let mut result = Vec::new();
+
+    for (after_idx, wtype, template_hint) in rules {
+        // Skip rules that would insert past the last row (we still allow == last)
+        if after_idx >= rows.len() {
+            continue;
+        }
+        let pool = match by_type.get(wtype) {
+            Some(p) if !p.is_empty() => p,
+            _ => continue,
+        };
+        let cursor = type_cursor.entry(wtype).or_insert(0);
+        let picked = pool[*cursor % pool.len()];
+        *cursor += 1;
+
+        result.push(BroadsheetWidgetRow {
+            widget_id: picked.id,
+            widget_template: template_hint.map(|s| s.to_string()),
+            insert_after: after_idx,
+            row_template_id,
+        });
+    }
+
+    result
 }
 
 // ---------------------------------------------------------------------------
@@ -89,7 +165,7 @@ fn place_posts(
     height_map: &HashMap<String, i32>,
 ) -> BroadsheetDraft {
     if posts.is_empty() {
-        return BroadsheetDraft { rows: vec![], sections: vec![] };
+        return BroadsheetDraft { rows: vec![], sections: vec![], widget_rows: vec![] };
     }
 
     let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
@@ -140,6 +216,7 @@ fn place_posts(
     BroadsheetDraft {
         rows: broadsheet_rows,
         sections,
+        widget_rows: Vec::new(), // Widget placement runs separately in generate_broadsheet.
     }
 }
 

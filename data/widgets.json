@@ -1,0 +1,139 @@
+{
+  "_comment": "Evergreen widget seed data. All widgets use authoring_mode='human' (curated) and no geo/temporal targeting (universally applicable). The layout engine picks widgets to insert into widget-standalone rows during edition generation.",
+
+  "section_separators": [
+    {
+      "title": "Community Needs & Offers",
+      "sub": "Volunteer, donate, or find help"
+    },
+    {
+      "title": "Events & Gatherings",
+      "sub": "What's happening near you"
+    },
+    {
+      "title": "Community Voices",
+      "sub": "The people behind the numbers"
+    },
+    {
+      "title": "By the Numbers",
+      "sub": "Community impact this month"
+    },
+    {
+      "title": "In Brief",
+      "sub": "Corrections, updates, and quiet notes"
+    },
+    {
+      "title": "Resources & Support Local",
+      "sub": null
+    },
+    {
+      "title": "Latest Updates",
+      "sub": "Bulletins from local agencies"
+    }
+  ],
+
+  "pull_quotes": [
+    {
+      "quote": "Change happens when neighbors talk to each other, not when they wait for someone else to fix things.",
+      "attribution": "Resident, Phillips neighborhood"
+    },
+    {
+      "quote": "They didn't just give us a list of phone numbers. They picked up the phone and made the call with us.",
+      "attribution": "Nguyen family, Brooklyn Center"
+    },
+    {
+      "quote": "We don't need more studies. We need more people showing up.",
+      "attribution": "Community organizer, North Minneapolis"
+    },
+    {
+      "quote": "Every hour of volunteer time is an hour someone didn't have to face a crisis alone.",
+      "attribution": "VEAP volunteer coordinator"
+    }
+  ],
+
+  "resource_bars": [
+    {
+      "label": "Hotlines & Help",
+      "items": [
+        { "number": "211", "text": "United Way — connects you to local help" },
+        { "number": "988", "text": "Mental health & crisis line" },
+        { "number": "1-866-223-1111", "text": "MN Day One — domestic violence" },
+        { "number": "612-874-8683", "text": "Metro shelter transport" }
+      ]
+    },
+    {
+      "label": "Food & Housing",
+      "items": [
+        { "number": "1-888-711-1151", "text": "Hunger Solutions food helpline" },
+        { "number": "651-291-4567", "text": "Catholic Charities housing intake" },
+        { "number": "612-871-5671", "text": "Simpson Housing — overflow beds" }
+      ]
+    }
+  ],
+
+  "numbers": [
+    {
+      "widget_template": "stat-card",
+      "number": "2,847",
+      "title": "Volunteer hours",
+      "body": "logged this month across metro food shelves and warming centers",
+      "label": null,
+      "detail": null,
+      "color": null
+    },
+    {
+      "widget_template": "stat-card",
+      "number": "156",
+      "title": "Active volunteers",
+      "body": "supporting community meals, tutoring, and neighborhood watches",
+      "label": null,
+      "detail": null,
+      "color": null
+    },
+    {
+      "widget_template": "stat-card",
+      "number": "12%",
+      "title": "Drop in unsheltered homelessness",
+      "body": "Point-in-Time count this winter compared to last year",
+      "label": null,
+      "detail": null,
+      "color": null
+    },
+    {
+      "widget_template": "number-block",
+      "number": "3",
+      "label": "warming centers",
+      "detail": "open nightly through March",
+      "color": "teal",
+      "title": null,
+      "body": null
+    },
+    {
+      "widget_template": "number-block",
+      "number": "50,000",
+      "label": "lbs of food",
+      "detail": "distributed this quarter",
+      "color": "rust",
+      "title": null,
+      "body": null
+    },
+    {
+      "widget_template": "number-block",
+      "number": "1,200",
+      "label": "Afghan refugees resettled",
+      "detail": "across MN in 2025",
+      "color": "plum",
+      "title": null,
+      "body": null
+    },
+    {
+      "widget_template": "number-block",
+      "number": "87",
+      "label": "counties served",
+      "detail": "all of Minnesota covered",
+      "color": "forest",
+      "title": null,
+      "body": null
+    }
+  ]
+}

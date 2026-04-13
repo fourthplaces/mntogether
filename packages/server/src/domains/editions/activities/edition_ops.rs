@@ -79,11 +79,22 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
     )
     .await?;
 
-    // Persist the broadsheet draft
+    // Persist the broadsheet draft, interleaving widget-standalone rows
+    // at their rule-based insert positions.
+    //
+    // Strategy: walk the post rows in order. After each post row at index `i`
+    // (0-based), check if any widget row has `insert_after == i` and emit it
+    // with the next sort_order. This preserves the relative order of both
+    // post rows and widget rows.
     let mut edition_row_ids: Vec<Uuid> = Vec::new();
-    for (sort_order, row) in draft.rows.iter().enumerate() {
+    let mut sort_order: i32 = 0;
+    let widget_rows = &draft.widget_rows;
+
+    for (post_row_idx, row) in draft.rows.iter().enumerate() {
+        // Create the post row
         let edition_row =
-            EditionRow::create(edition_id, row.row_template_id, sort_order as i32, pool).await?;
+            EditionRow::create(edition_id, row.row_template_id, sort_order, pool).await?;
+        sort_order += 1;
 
         let slot_data: Vec<(Uuid, String, i32)> = row
             .slots
@@ -93,6 +104,22 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
 
         EditionSlot::replace_for_row(edition_row.id, &slot_data, pool).await?;
         edition_row_ids.push(edition_row.id);
+
+        // Insert any widget rows that should follow this post row
+        for widget_row in widget_rows.iter().filter(|w| w.insert_after == post_row_idx) {
+            let widget_edition_row =
+                EditionRow::create(edition_id, widget_row.row_template_id, sort_order, pool).await?;
+            sort_order += 1;
+
+            EditionSlot::create_widget_slot(
+                widget_edition_row.id,
+                widget_row.widget_id,
+                0,
+                pool,
+            )
+            .await?;
+            edition_row_ids.push(widget_edition_row.id);
+        }
     }
 
     // Persist sections and assign rows

@@ -8,6 +8,22 @@ use uuid::Uuid;
 pub struct BroadsheetDraft {
     pub rows: Vec<BroadsheetRow>,
     pub sections: Vec<BroadsheetSection>,
+    /// Widget-standalone rows to interleave with the post rows at persistence time.
+    /// Each entry specifies which row index it should be inserted AFTER.
+    pub widget_rows: Vec<BroadsheetWidgetRow>,
+}
+
+/// A widget-standalone row to be inserted into the broadsheet at a specific position.
+/// Persistence rewrites sort orders so these interleave cleanly with post rows.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BroadsheetWidgetRow {
+    pub widget_id: Uuid,
+    pub widget_template: Option<String>,
+    /// Insert this widget row AFTER the row at this index in `BroadsheetDraft.rows`.
+    /// Use `usize::MAX` to append at the end.
+    pub insert_after: usize,
+    /// The widget-standalone row_template_config_id.
+    pub row_template_id: Uuid,
 }
 
 /// A topic section in the broadsheet draft (created from Root Signal topic data).
