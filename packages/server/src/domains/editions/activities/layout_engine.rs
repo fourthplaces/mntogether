@@ -96,6 +96,12 @@ pub async fn generate_broadsheet(
 ///   - After row 9: section_sep (before dense/classifieds zone)
 ///
 /// Widgets are picked round-robin from the available pool of each type.
+///
+/// Section separator variant:
+///   - Default: ledger (center-aligned) — feels like a "chapter break"
+///   - When the FOLLOWING row is a ticker-style full-width left-aligned row,
+///     use the default section-sep (left-aligned) so the separator aligns with
+///     the content below it.
 fn place_widgets(
     rows: &[BroadsheetRow],
     widgets: &[Widget],
@@ -111,20 +117,20 @@ fn place_widgets(
         by_type.entry(w.widget_type.as_str()).or_default().push(w);
     }
 
-    // (insert_after_row_index, widget_type, widget_template_hint)
-    let rules: [(usize, &str, Option<&str>); 5] = [
-        (2, "section_sep", None),
-        (4, "pull_quote", None),
-        (6, "section_sep", None),
-        (8, "resource_bar", None),
-        (9, "section_sep", None),
+    // (insert_after_row_index, widget_type) — template chosen per-insert below
+    let rules: [(usize, &str); 5] = [
+        (2, "section_sep"),
+        (4, "pull_quote"),
+        (6, "section_sep"),
+        (8, "resource_bar"),
+        (9, "section_sep"),
     ];
 
     // Track used widgets to round-robin without immediate repeat
     let mut type_cursor: HashMap<&str, usize> = HashMap::new();
     let mut result = Vec::new();
 
-    for (after_idx, wtype, template_hint) in rules {
+    for (after_idx, wtype) in rules {
         // Skip rules that would insert past the last row (we still allow == last)
         if after_idx >= rows.len() {
             continue;
@@ -137,9 +143,28 @@ fn place_widgets(
         let picked = pool[*cursor % pool.len()];
         *cursor += 1;
 
+        // For section_sep, pick left-aligned (default) when followed by a
+        // left-aligned full-width row (ticker / ticker-updates). Otherwise use
+        // the centered ledger variant as the editorial default.
+        let widget_template = if wtype == "section_sep" {
+            let next_row = rows.get(after_idx + 1);
+            let next_is_left_aligned_full = next_row
+                .map(|r| {
+                    r.row_template_slug == "ticker" || r.row_template_slug == "ticker-updates"
+                })
+                .unwrap_or(false);
+            if next_is_left_aligned_full {
+                None // section-sep default (left-aligned)
+            } else {
+                Some("ledger".to_string()) // led-section-break (center-aligned)
+            }
+        } else {
+            None
+        };
+
         result.push(BroadsheetWidgetRow {
             widget_id: picked.id,
-            widget_template: template_hint.map(|s| s.to_string()),
+            widget_template,
             insert_after: after_idx,
             row_template_id,
         });

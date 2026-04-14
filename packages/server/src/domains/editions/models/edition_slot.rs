@@ -69,18 +69,20 @@ impl EditionSlot {
     pub async fn create_widget_slot(
         edition_row_id: Uuid,
         widget_id: Uuid,
+        widget_template: Option<&str>,
         slot_index: i32,
         pool: &PgPool,
     ) -> Result<Self> {
         sqlx::query_as::<_, Self>(
             r#"
-            INSERT INTO edition_slots (edition_row_id, kind, widget_id, slot_index)
-            VALUES ($1, 'widget', $2, $3)
+            INSERT INTO edition_slots (edition_row_id, kind, widget_id, widget_template, slot_index)
+            VALUES ($1, 'widget', $2, $3, $4)
             RETURNING *
             "#,
         )
         .bind(edition_row_id)
         .bind(widget_id)
+        .bind(widget_template)
         .bind(slot_index)
         .fetch_one(pool)
         .await

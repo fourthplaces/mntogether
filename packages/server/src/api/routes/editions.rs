@@ -1297,6 +1297,7 @@ async fn add_widget_to_edition(
     let slot = EditionSlot::create_widget_slot(
         req.edition_row_id,
         req.widget_id,
+        None, // widget_template set separately via admin UI (not on initial create)
         req.slot_index,
         pool,
     )

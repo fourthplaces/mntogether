@@ -114,6 +114,7 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
             EditionSlot::create_widget_slot(
                 widget_edition_row.id,
                 widget_row.widget_id,
+                widget_row.widget_template.as_deref(),
                 0,
                 pool,
             )
