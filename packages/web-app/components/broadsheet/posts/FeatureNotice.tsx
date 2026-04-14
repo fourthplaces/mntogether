@@ -12,7 +12,7 @@ export function FeatureNotice({ data: d }: FeatureNoticeProps) {
     return (
       <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
         <MTitle text={d.title} prefix={c} extra="condensed" pencilMark={d.pencilMark} />
-        <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
+        <MBody text={d.body} prefix={c} clamp={d.clamp ?? 3} />
         {d.link && <MCtaLink href={d.link.url} text={d.link.label || ''} prefix={c} />}
       </div>
     );

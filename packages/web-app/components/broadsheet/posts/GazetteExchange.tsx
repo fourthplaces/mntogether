@@ -16,7 +16,7 @@ export function GazetteExchange({ data: d }: GazetteExchangeProps) {
         <MTag text={getTagLabel(d)} prefix={c} />
         <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
         <MMeta text={getSourceLine(d)} prefix={c} />
-        <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
+        <MBody text={d.body} prefix={c} clamp={d.clamp ?? 4} />
         {getContactDisplay(d) && <MContact text={getContactDisplay(d)} prefix={c} />}
       </div>
     );
@@ -29,7 +29,7 @@ export function GazetteExchange({ data: d }: GazetteExchangeProps) {
       <MTag text={getTagLabel(d)} prefix={c} />
       <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} />
-      <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
+      <MBody text={d.body} prefix={c} clamp={d.clamp ?? 4} />
       {d.status && <MStatus text={d.status.state || ''} prefix={c} />}
     </div>
   );

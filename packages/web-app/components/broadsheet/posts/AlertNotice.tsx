@@ -12,7 +12,7 @@ export function AlertNotice({ data: d }: AlertNoticeProps) {
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__flag mono-sm`}>{getTagLabel(d)}</div>
       <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
-      <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
+      <MBody text={d.body} prefix={c} clamp={d.clamp ?? 3} />
       <MMeta text={getMetaLine(d)} prefix={c} small />
     </div>
   );

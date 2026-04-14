@@ -13,7 +13,7 @@ export function GazetteSpotlight({ data: d }: GazetteSpotlightProps) {
       <MTag text="Local" prefix={c} />
       <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       {d.tagline && <MTagline text={d.tagline} prefix={c} />}
-      <MBody text={d.body || ''} prefix={c} clamp={d.clamp || 4} />
+      <MBody text={d.body || ''} prefix={c} clamp={d.clamp ?? 4} />
       {getDetailsLine(d) && (
         <div className={`${c}__details mono-sm`}>{getDetailsLine(d)}</div>
       )}

@@ -16,7 +16,7 @@ export function GazetteEvent({ data: d }: GazetteEventProps) {
       </div>
       <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} />
-      <MBody text={d.body} prefix={c} clamp={d.clamp || 3} />
+      <MBody text={d.body} prefix={c} clamp={d.clamp ?? 3} />
       {d.when && <MWhen text={d.when} prefix={c} />}
     </div>
   );

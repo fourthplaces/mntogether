@@ -15,7 +15,7 @@ export function PinboardExchange({ data: d }: PinboardExchangeProps) {
       {getSourceLine(d) && (
         <div className={`${c}__detail`}>{getSourceLine(d)}</div>
       )}
-      <MBody text={d.body} prefix={c} clamp={d.clamp || 4} />
+      <MBody text={d.body} prefix={c} clamp={d.clamp ?? 4} />
       {d.status && <MStatus text={d.status.state || ''} prefix={c} extra="condensed" />}
     </div>
   );
