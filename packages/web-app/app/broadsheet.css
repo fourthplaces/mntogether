@@ -345,14 +345,15 @@ body:has(.broadsheet-page) {
 }
 .pencil-circle::after {
   content: attr(data-label);
-  font-family: var(--font-blissful-radiance), cursive; font-size: 1.7rem;
+  font-family: var(--font-blissful-radiance), cursive;
+  font-size: clamp(1rem, 1.3rem, 1.5rem);
   color: var(--graphite); position: absolute;
-  right: -4.8em; top: 0em;
+  right: -3.5em; top: 0.1em;
   transform: rotate(var(--tilt, -6deg));
   white-space: nowrap; pointer-events: none; z-index: 2;
 }
 .feat-event .pencil-circle::before { inset: -4px -19px; }
-.feat-event .pencil-circle::after { font-size: 1.7rem; right: -6.8rem; }
+.feat-event .pencil-circle::after { font-size: 1.4rem; right: -5rem; }
 
 /* ═══════════════════════════════════════════════
    COMPONENT STYLES

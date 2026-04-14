@@ -105,10 +105,16 @@ export function formatEventLabel(iso: string): string {
   const today = nowMN();
   const diff = diffDays(today, mn); // positive = future
 
+  // Relative labels for the pencil-circle handwritten annotation.
+  // The date circle already shows "APR 10" — the label should add context,
+  // not repeat the date. For far-future dates, return empty (no label).
   if (diff === 0) return 'Today!';
   if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
   if (diff >= 2 && diff <= 6) return fmtDowShort.format(d);
-  return `${fmtMonthShort.format(d)} ${mn.day}`;
+  if (diff >= 7 && diff <= 13) return 'Next week';
+  if (diff >= 14 && diff <= 30) return 'This month';
+  return ''; // No label for far-future/past — the date circle is enough
 }
 
 /**
@@ -125,7 +131,7 @@ export function extractEventParts(iso: string): {
 
   const mn = toMN(d);
   return {
-    month: fmtMonthShort.format(d).toUpperCase(),
+    month: fmtMonthShort.format(d), // "Apr" not "APR" — sentence case per design
     day: mn.day.toString(),
     dow: fmtDowShort.format(d),
   };
