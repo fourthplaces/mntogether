@@ -172,11 +172,32 @@ fn place_widgets(
 
         let cursor = type_cursor.entry(rule.wtype).or_insert(0);
 
-        // Pick widget(s) round-robin
+        // For multi-widget rows (count > 1), all widgets must share the same
+        // visual variant ("harmony within"). Filter to widgets matching the
+        // first pick's widget_template.
+        let first_pick = pool[*cursor % pool.len()];
+        let first_template = first_pick.data.get("widget_template")
+            .and_then(|v| v.as_str())
+            .unwrap_or("");
+        let filtered: Vec<&&Widget> = if rule.count > 1 {
+            pool.iter()
+                .filter(|w| {
+                    w.data.get("widget_template")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("") == first_template
+                })
+                .collect()
+        } else {
+            pool.iter().collect()
+        };
+        if filtered.len() < rule.count { continue; }
+
+        // Pick widget(s) round-robin from the filtered (same-variant) pool
         let mut slots: Vec<BroadsheetWidgetSlot> = Vec::new();
+        let mut local_cursor = 0usize;
         for i in 0..rule.count {
-            let picked = pool[*cursor % pool.len()];
-            *cursor += 1;
+            let picked = filtered[local_cursor % filtered.len()];
+            local_cursor += 1;
 
             let widget_template = if rule.wtype == "number" {
                 picked.data.get("widget_template")
@@ -204,6 +225,9 @@ fn place_widgets(
             2 => pair_id,
             _ => standalone_id,
         };
+
+        // Advance global cursor so the next pick of this type starts fresh
+        *cursor += rule.count;
 
         result.push(BroadsheetWidgetRow {
             widgets: slots,
