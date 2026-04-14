@@ -50,6 +50,13 @@ UPDATE row_template_slots SET count = 2
   WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'two-column-wide-narrow')
     AND slot_index = 1;
 
+-- Kill single-medium and single-bulletin: a lone medium post stretched
+-- full-width (span-6) looks broken. Medium posts belong in span-2/span-3.
+DELETE FROM row_template_slots WHERE row_template_config_id IN (
+  SELECT id FROM row_template_configs WHERE slug IN ('single-medium', 'single-bulletin')
+);
+DELETE FROM row_template_configs WHERE slug IN ('single-medium', 'single-bulletin');
+
 -- lead-alert-digest: alert (h=5) with 3 digests (3×2=6) overshoots. 2 digests fits better.
 UPDATE row_template_slots SET count = 2
   WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'lead-alert-digest')
