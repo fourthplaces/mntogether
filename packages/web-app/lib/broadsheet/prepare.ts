@@ -138,7 +138,11 @@ export function preparePost(
     priority: 0, // Not exposed in public API — default to 0
     // Modifiers — overlays on top of type-driven visual variants
     urgent: ((gqlPost as any).isUrgent ?? gqlPost.urgency === 'urgent') || undefined,
-    pencilMark: (gqlPost as any).pencilMark ?? undefined,
+    // Pencil marks are hidden on dark backgrounds (urgent, action CTA) per style guide.
+    // Clear at the data layer so components don't need to check individually.
+    pencilMark: ((gqlPost as any).isUrgent || gqlPost.urgency === 'urgent')
+      ? undefined
+      : ((gqlPost as any).pencilMark ?? undefined),
 
     title: gqlPost.title,
     body: bodyHtml,
