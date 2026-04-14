@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::domains::editions::data::types::{
     BroadsheetDraft, BroadsheetRow, BroadsheetSection, BroadsheetSlot, BroadsheetWidgetRow,
-    LayoutPost,
+    BroadsheetWidgetSlot, LayoutPost,
 };
 use crate::domains::editions::models::post_template_config::PostTemplateConfig;
 use crate::domains::editions::models::row_template_config::RowTemplateWithSlots;
@@ -67,12 +67,18 @@ pub async fn generate_broadsheet(
     // Load evergreen widgets available for this county+date and interleave
     // widget-standalone rows into the draft at rule-based positions.
     let available_widgets = Widget::find_available(county_id, period_start, pool).await?;
-    let widget_standalone_id = templates
-        .iter()
-        .find(|t| t.config.layout_variant == "widget-standalone")
-        .map(|t| t.config.id);
-    if let Some(row_template_id) = widget_standalone_id {
-        draft.widget_rows = place_widgets(&draft.rows, &available_widgets, row_template_id);
+
+    // Look up widget row template IDs by slug
+    let widget_template_ids: HashMap<String, Uuid> = sqlx::query_as::<_, (String, Uuid)>(
+        "SELECT slug, id FROM row_template_configs WHERE slug LIKE 'widget%'"
+    )
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .collect();
+
+    if !widget_template_ids.is_empty() {
+        draft.widget_rows = place_widgets(&draft.rows, &available_widgets, &widget_template_ids);
     }
 
     tracing::info!(
@@ -105,11 +111,18 @@ pub async fn generate_broadsheet(
 fn place_widgets(
     rows: &[BroadsheetRow],
     widgets: &[Widget],
-    row_template_id: Uuid,
+    template_ids: &HashMap<String, Uuid>,
 ) -> Vec<BroadsheetWidgetRow> {
     if rows.is_empty() || widgets.is_empty() {
         return Vec::new();
     }
+
+    let standalone_id = match template_ids.get("widget-standalone") {
+        Some(id) => *id,
+        None => return Vec::new(),
+    };
+    let trio_id = template_ids.get("widget-trio").copied().unwrap_or(standalone_id);
+    let pair_id = template_ids.get("widget-pair").copied().unwrap_or(standalone_id);
 
     // Group widgets by type for round-robin selection
     let mut by_type: HashMap<&str, Vec<&Widget>> = HashMap::new();
@@ -117,65 +130,81 @@ fn place_widgets(
         by_type.entry(w.widget_type.as_str()).or_default().push(w);
     }
 
-    // (insert_after_row_index, widget_type) — template chosen per-insert below.
-    // Visual pacing: variety of widget types interspersed with post rows.
-    let rules: [(usize, &str); 8] = [
-        (2, "section_sep"),
-        (3, "number"),
-        (5, "photo"),
-        (6, "section_sep"),
-        (7, "pull_quote"),
-        (8, "resource_bar"),
-        (9, "section_sep"),
-        (10, "number"),
+    // Widget placement rules.
+    // "count" = how many widgets in the row (1=standalone, 2=pair, 3=trio).
+    // Never two widget rows back-to-back (enforced after rule application).
+    struct Rule { after: usize, wtype: &'static str, count: usize }
+    // Max 12 post rows (indices 0-11). Rules use 0-based post row indices.
+    let rules = [
+        Rule { after: 2, wtype: "section_sep",  count: 1 },
+        Rule { after: 4, wtype: "number",       count: 3 },  // stat-card trio
+        Rule { after: 5, wtype: "section_sep",  count: 1 },
+        Rule { after: 6, wtype: "photo",        count: 1 },
+        Rule { after: 7, wtype: "pull_quote",   count: 1 },
+        Rule { after: 8, wtype: "number",       count: 2 },  // number-block pair
+        Rule { after: 9, wtype: "resource_bar", count: 1 },
+        Rule { after: 10, wtype: "section_sep", count: 1 },
     ];
 
-    // Track used widgets to round-robin without immediate repeat
     let mut type_cursor: HashMap<&str, usize> = HashMap::new();
-    let mut result = Vec::new();
+    let mut result: Vec<BroadsheetWidgetRow> = Vec::new();
 
-    for (after_idx, wtype) in rules {
-        // Skip rules that would insert past the last row (we still allow == last)
-        if after_idx >= rows.len() {
-            continue;
-        }
-        let pool = match by_type.get(wtype) {
-            Some(p) if !p.is_empty() => p,
+    for rule in &rules {
+        if rule.after >= rows.len() { continue; }
+
+        let pool = match by_type.get(rule.wtype) {
+            Some(p) if p.len() >= rule.count => p,
             _ => continue,
         };
-        let cursor = type_cursor.entry(wtype).or_insert(0);
-        let picked = pool[*cursor % pool.len()];
-        *cursor += 1;
 
-        // Template hints per widget type:
-        // - section_sep: "ledger" (centered) unless followed by a left-aligned full-width row
-        // - number: read widget_template from the widget's data JSON (stat-card or number-block)
-        // - others: None
-        let widget_template = if wtype == "number" {
-            // Read the template hint from the widget's data JSON
-            picked.data.get("widget_template")
-                .and_then(|v| v.as_str())
-                .map(|s| s.to_string())
-        } else if wtype == "section_sep" {
-            let next_row = rows.get(after_idx + 1);
-            let next_is_left_aligned_full = next_row
-                .map(|r| {
-                    r.row_template_slug == "ticker" || r.row_template_slug == "ticker-updates"
-                })
-                .unwrap_or(false);
-            if next_is_left_aligned_full {
-                None // section-sep default (left-aligned)
-            } else {
-                Some("ledger".to_string()) // led-section-break (center-aligned)
+        // No back-to-back: skip if the previous widget row inserts at the
+        // SAME position (both after the same post row). Widgets at adjacent
+        // positions (e.g., after row 6 and after row 7) are fine — there's
+        // a post row between them.
+        if let Some(last) = result.last() {
+            if last.insert_after == rule.after {
+                continue; // Would be truly adjacent — skip this rule
             }
-        } else {
-            None
+        }
+
+        let cursor = type_cursor.entry(rule.wtype).or_insert(0);
+
+        // Pick widget(s) round-robin
+        let mut slots: Vec<BroadsheetWidgetSlot> = Vec::new();
+        for i in 0..rule.count {
+            let picked = pool[*cursor % pool.len()];
+            *cursor += 1;
+
+            let widget_template = if rule.wtype == "number" {
+                picked.data.get("widget_template")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string())
+            } else if rule.wtype == "section_sep" {
+                let next_row = rows.get(rule.after + 1);
+                let next_is_ticker = next_row
+                    .map(|r| r.row_template_slug == "ticker" || r.row_template_slug == "ticker-updates")
+                    .unwrap_or(false);
+                if next_is_ticker { None } else { Some("ledger".to_string()) }
+            } else {
+                None
+            };
+
+            slots.push(BroadsheetWidgetSlot {
+                widget_id: picked.id,
+                widget_template,
+                slot_index: i as i32,
+            });
+        }
+
+        let row_template_id = match rule.count {
+            3 => trio_id,
+            2 => pair_id,
+            _ => standalone_id,
         };
 
         result.push(BroadsheetWidgetRow {
-            widget_id: picked.id,
-            widget_template,
-            insert_after: after_idx,
+            widgets: slots,
+            insert_after: rule.after,
             row_template_id,
         });
     }

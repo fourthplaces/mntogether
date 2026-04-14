@@ -76,6 +76,21 @@ function BroadsheetRow({ row }: { row: BroadsheetRowData }) {
     return <WidgetRenderer widget={widgetSlot.widget} widgetTemplate={widgetSlot.widgetTemplate ?? undefined} />;
   }
 
+  // Multi-widget rows (trio/pair of widgets): render each widget in a cell
+  const widgetSlots = row.slots.filter((s) => s.kind === 'widget' && s.widget);
+  if (widgetSlots.length > 0 && row.slots.every((s) => s.kind === 'widget')) {
+    const layout = getRowLayout(row.layoutVariant ?? 'trio', widgetSlots.length);
+    return (
+      <Row variant={layout.variant}>
+        {widgetSlots.map((slot, idx) => (
+          <Cell key={`widget-${idx}`} span={layout.cells[idx] ?? layout.cells[layout.cells.length - 1]}>
+            <WidgetRenderer widget={slot.widget!} widgetTemplate={slot.widgetTemplate ?? undefined} />
+          </Cell>
+        ))}
+      </Row>
+    );
+  }
+
   // Filter to only post slots for the row layout engine
   const postSlots = row.slots.filter((s) => s.kind === 'post' && s.post);
   if (postSlots.length === 0) return null;

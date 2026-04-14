@@ -111,14 +111,17 @@ pub async fn generate_edition(edition_id: Uuid, deps: &ServerDeps) -> Result<Edi
                 EditionRow::create(edition_id, widget_row.row_template_id, sort_order, pool).await?;
             sort_order += 1;
 
-            EditionSlot::create_widget_slot(
-                widget_edition_row.id,
-                widget_row.widget_id,
-                widget_row.widget_template.as_deref(),
-                0,
-                pool,
-            )
-            .await?;
+            // Create one slot per widget in this row (1 for standalone, 2 for pair, 3 for trio)
+            for ws in &widget_row.widgets {
+                EditionSlot::create_widget_slot(
+                    widget_edition_row.id,
+                    ws.widget_id,
+                    ws.widget_template.as_deref(),
+                    ws.slot_index,
+                    pool,
+                )
+                .await?;
+            }
             edition_row_ids.push(widget_edition_row.id);
         }
     }
