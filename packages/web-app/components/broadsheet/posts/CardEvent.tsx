@@ -19,13 +19,15 @@ export function CardEvent({ data: d }: CardEventProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__header`}>
-        <div
-          className="pencil-circle"
-          data-label={d.circleLabel || ''}
-          style={{ '--tilt': `${(Math.random() * -8 - 2).toFixed(1)}deg` } as React.CSSProperties}
-        >
-          {dateBlock}
-        </div>
+        {d.pencilMark === 'circle' ? (
+          <div
+            className="pencil-circle"
+            data-label={d.circleLabel || ''}
+            style={{ '--tilt': `${(Math.random() * -8 - 2).toFixed(1)}deg` } as React.CSSProperties}
+          >
+            {dateBlock}
+          </div>
+        ) : dateBlock}
       </div>
       <div className={`${c}__content`}>
         <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
