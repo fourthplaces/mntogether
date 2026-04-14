@@ -50,6 +50,11 @@ UPDATE row_template_slots SET count = 2
   WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'two-column-wide-narrow')
     AND slot_index = 1;
 
+-- lead-alert-digest: alert (h=5) with 3 digests (3×2=6) overshoots. 2 digests fits better.
+UPDATE row_template_slots SET count = 2
+  WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'lead-alert-digest')
+    AND slot_index = 1;
+
 -- Reduce ticker count per row: 8 is too many in one block. Split into
 -- smaller groups of 4 at different page positions for visual pacing.
 UPDATE row_template_slots SET count = 4
