@@ -134,7 +134,9 @@ fn place_widgets(
     // "count" = how many widgets in the row (1=standalone, 2=pair, 3=trio).
     // Never two widget rows back-to-back (enforced after rule application).
     struct Rule { after: usize, wtype: &'static str, count: usize }
-    // Max 12 post rows (indices 0-11). Rules use 0-based post row indices.
+    // Rules use 0-based post row indices. The last rule must leave at least
+    // 1 post row after it (no dangling section_sep with nothing below).
+    let last_row = rows.len().saturating_sub(1);
     let rules = [
         Rule { after: 2, wtype: "section_sep",  count: 1 },
         Rule { after: 4, wtype: "number",       count: 3 },  // stat-card trio
@@ -143,7 +145,6 @@ fn place_widgets(
         Rule { after: 7, wtype: "pull_quote",   count: 1 },
         Rule { after: 8, wtype: "number",       count: 2 },  // number-block pair
         Rule { after: 9, wtype: "resource_bar", count: 1 },
-        Rule { after: 10, wtype: "section_sep", count: 1 },
     ];
 
     let mut type_cursor: HashMap<&str, usize> = HashMap::new();
@@ -151,6 +152,8 @@ fn place_widgets(
 
     for rule in &rules {
         if rule.after >= rows.len() { continue; }
+        // Section seps must have at least one post row after them
+        if rule.wtype == "section_sep" && rule.after >= last_row { continue; }
 
         let pool = match by_type.get(rule.wtype) {
             Some(p) if p.len() >= rule.count => p,
