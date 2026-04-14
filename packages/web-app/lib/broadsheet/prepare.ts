@@ -162,7 +162,7 @@ export function preparePost(
     paragraphs: isFeature ? paragraphs : undefined,
     cols: isFeature && isAnchor && paragraphs.length >= 4 ? 2 : undefined,
     dropCap: isFeature,
-    clamp: (isFeature || isAnchor) ? undefined : clamp,
+    clamp: (isFeature || isAnchor) ? 0 : clamp,
     tagLabel,
     readMore: gqlPost.sourceUrl || undefined,
     compact,
