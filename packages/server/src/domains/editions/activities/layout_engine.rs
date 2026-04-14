@@ -723,6 +723,33 @@ fn order_rows_by_density(rows: &mut Vec<BroadsheetRow>, templates: &[RowTemplate
         let zone_b = density_zone(b, &variant_map);
         zone_a.cmp(&zone_b).then(b.max_priority.cmp(&a.max_priority))
     });
+
+    // Post-sort: break up consecutive same-variant rows ("harmony within,
+    // diversity amongst"). When two adjacent rows share a layout_variant,
+    // scan forward for the first row with a different variant and swap it in.
+    let len = rows.len();
+    for i in 1..len {
+        let prev_variant = variant_map
+            .get(rows[i - 1].row_template_slug.as_str())
+            .copied()
+            .unwrap_or("");
+        let curr_variant = variant_map
+            .get(rows[i].row_template_slug.as_str())
+            .copied()
+            .unwrap_or("");
+        if prev_variant == curr_variant {
+            // Find the first non-matching row ahead and swap
+            if let Some(swap_idx) = (i + 1..len).find(|&j| {
+                variant_map
+                    .get(rows[j].row_template_slug.as_str())
+                    .copied()
+                    .unwrap_or("")
+                    != curr_variant
+            }) {
+                rows.swap(i, swap_idx);
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

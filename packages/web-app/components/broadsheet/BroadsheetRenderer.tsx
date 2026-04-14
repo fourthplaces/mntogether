@@ -27,11 +27,11 @@ interface BroadsheetRendererProps {
 }
 
 export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
+  // Render ALL rows in sort_order — flat, no section grouping.
+  // Sections are kept as advisory metadata for the admin editor but
+  // don't affect public rendering. Visual breaks come from SectionSep
+  // widgets placed explicitly by the layout engine.
   const rows = [...edition.rows].sort((a, b) => a.sortOrder - b.sortOrder);
-
-  // Group rows by section
-  const ungroupedRows = rows.filter((r) => !r.sectionId);
-  const sortedSections = [...edition.sections].sort((a, b) => a.sortOrder - b.sortOrder);
 
   return (
     <NewspaperFrame>
@@ -56,23 +56,10 @@ export function BroadsheetRenderer({ edition }: BroadsheetRendererProps) {
         </div>
       </header>
 
-      {/* Above the fold — rows without a section */}
-      {ungroupedRows.map((row, idx) => (
-        <BroadsheetRow key={`ungrouped-row-${idx}`} row={row} />
+      {/* All rows in sort_order — widgets and posts interleaved */}
+      {rows.map((row, idx) => (
+        <BroadsheetRow key={`row-${idx}`} row={row} />
       ))}
-
-      {/* Topic sections — rows interleaved by sort_order */}
-      {sortedSections.map((section) => {
-        const sectionRows = rows.filter((r) => r.sectionId === section.id);
-        if (sectionRows.length === 0) return null;
-        return (
-          <div key={section.id} data-section={section.topicSlug ?? section.id}>
-            {sectionRows.map((row, idx) => (
-              <BroadsheetRow key={`section-row-${idx}`} row={row} />
-            ))}
-          </div>
-        );
-      })}
     </NewspaperFrame>
   );
 }
