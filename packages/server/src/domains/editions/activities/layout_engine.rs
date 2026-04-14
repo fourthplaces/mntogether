@@ -263,13 +263,25 @@ fn place_posts(
     let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
     let light_count = posts.iter().filter(|p| p.weight == "light").count();
 
-    // Select row templates with density progression
-    let selected_rows = select_row_templates(heavy_count, medium_count, light_count, templates);
+    let mut selected_rows = select_row_templates(heavy_count, medium_count, light_count, templates);
+
+    // Reorder: specialty templates fill BEFORE generic ones so they get
+    // first pick of type-restricted posts (alert-notice needs update/action,
+    // generous-exchange needs need/aid, etc.). Generic templates (gazette,
+    // bulletin, digest) accept any type and fill whatever's left.
+    let generic_templates = ["three-column", "classifieds", "classifieds-ledger",
+        "classifieds-ledger-alt", "hero-with-sidebar", "hero-feature-digest",
+        "hero-feature-ledger", "lead-feature-gazette", "pair-stack-gazette"];
+    selected_rows.sort_by(|(a, _), (b, _)| {
+        let a_generic = generic_templates.contains(&a.slug.as_str());
+        let b_generic = generic_templates.contains(&b.slug.as_str());
+        a_generic.cmp(&b_generic) // false (specialty) before true (generic)
+    });
 
     tracing::info!(
         selected = selected_rows.len(),
         templates = ?selected_rows.iter().map(|(cfg, _)| &cfg.slug).collect::<Vec<_>>(),
-        "Layout engine: selected row templates"
+        "Layout engine: selected row templates (specialty-first order)"
     );
 
     let mut placed: Vec<bool> = vec![false; posts.len()];
@@ -573,7 +585,7 @@ fn select_row_templates<'a>(
     templates: &'a [RowTemplateWithSlots],
 ) -> Vec<(&'a RowTemplateConfig, &'a RowTemplateWithSlots)> {
     let mut selected: Vec<(&RowTemplateConfig, &RowTemplateWithSlots)> = Vec::new();
-    let max_rows = 12;
+    let max_rows = 14; // Allow more rows so diverse templates have a chance
     let mut variant_counts: HashMap<&str, usize> = HashMap::new();
 
     // Phase 1: Hero rows (templates with heavy slots). Cap at 3.
@@ -597,7 +609,7 @@ fn select_row_templates<'a>(
     }
 
     // Phase 2: Medium-focused rows
-    let max_mid_rows = 6.min(max_rows - selected.len());
+    let max_mid_rows = 8.min(max_rows - selected.len());
     for _ in 0..max_mid_rows {
         if medium == 0 { break; }
 
@@ -723,10 +735,25 @@ where
             adj_score *= 0.3;
         }
 
-        // Boost templates not yet used
+        // Strongly boost templates not yet used — ensures dormant templates
+        // (pair-exchange, trio-pinboard, pair-spotlight, etc.) surface
         let already = already_selected.iter().any(|(cfg, _)| cfg.slug == tws.config.slug);
         if !already {
-            adj_score *= 1.5;
+            adj_score *= 2.5;
+        }
+
+        // Extra boost for specialty templates that use restricted post templates.
+        // Without this, generic templates (gazette in 3 slots = score 7.5) always
+        // outscore specialty templates (generous-exchange in 2 slots = score 5.0).
+        let has_specialty_template = tws.slots.iter().any(|s| {
+            matches!(s.post_template_slug.as_deref(), Some(
+                "alert-notice" | "card-event" | "directory-ref" | "generous-exchange" |
+                "pinboard-exchange" | "whisper-notice" | "spotlight-local" | "feature-reversed" |
+                "quick-ref"
+            ))
+        });
+        if has_specialty_template && !already {
+            adj_score *= 2.0; // Stacks with the novelty boost above
         }
 
         if best.is_none() || adj_score > best.unwrap().1 {
