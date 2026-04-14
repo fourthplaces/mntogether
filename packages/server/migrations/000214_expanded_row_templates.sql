@@ -155,3 +155,15 @@ INSERT INTO row_template_slots (row_template_config_id, slot_index, weight, coun
 ((SELECT id FROM row_template_configs WHERE slug = 'trio-mixed-gazette'), 0, 'medium', 1, 'gazette'),
 ((SELECT id FROM row_template_configs WHERE slug = 'trio-mixed-gazette'), 1, 'medium', 1, 'gazette'),
 ((SELECT id FROM row_template_configs WHERE slug = 'trio-mixed-gazette'), 2, 'medium', 1, 'gazette');
+
+-- Bulletin Events 2×2: pair layout, 2 bul-event per cell (4 events total).
+-- Events shown as bulletin cards at span-3 width, 2 stacked per column.
+INSERT INTO row_template_configs (slug, display_name, layout_variant, sort_order)
+VALUES ('pair-bulletin-event', 'Bulletin Events (2×2)', 'pair', 50)
+ON CONFLICT DO NOTHING;
+INSERT INTO row_template_slots (row_template_config_id, slot_index, weight, count, post_template_slug, accepts)
+SELECT id, 0, 'medium', 2, 'bulletin', ARRAY['event']
+FROM row_template_configs WHERE slug = 'pair-bulletin-event';
+INSERT INTO row_template_slots (row_template_config_id, slot_index, weight, count, post_template_slug, accepts)
+SELECT id, 1, 'medium', 2, 'bulletin', ARRAY['event']
+FROM row_template_configs WHERE slug = 'pair-bulletin-event';
