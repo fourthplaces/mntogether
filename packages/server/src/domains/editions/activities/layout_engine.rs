@@ -648,8 +648,9 @@ where
             .get(tws.config.layout_variant.as_str())
             .copied()
             .unwrap_or(0);
-        // Full-width rows (tickers, single features) are limited to 1 per edition
-        if tws.config.layout_variant == "full" && variant_count >= 1 {
+        // Full-width rows limited to 2 per edition (allows two ticker groups
+        // at different page positions, but not an overwhelming wall of tickers)
+        if tws.config.layout_variant == "full" && variant_count >= 2 {
             continue;
         }
         if variant_count >= 2 {

@@ -50,6 +50,13 @@ UPDATE row_template_slots SET count = 2
   WHERE row_template_config_id = (SELECT id FROM row_template_configs WHERE slug = 'two-column-wide-narrow')
     AND slot_index = 1;
 
+-- Reduce ticker count per row: 8 is too many in one block. Split into
+-- smaller groups of 4 at different page positions for visual pacing.
+UPDATE row_template_slots SET count = 4
+  WHERE row_template_config_id IN (
+    SELECT id FROM row_template_configs WHERE slug IN ('ticker', 'ticker-updates')
+  );
+
 -- Tickers are full-width only (span-6). Fix row templates that misuse them:
 
 -- classifieds-ticker used tickers in trio (2+2+2) — replace with ledgers
