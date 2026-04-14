@@ -724,27 +724,44 @@ fn order_rows_by_density(rows: &mut Vec<BroadsheetRow>, templates: &[RowTemplate
         zone_a.cmp(&zone_b).then(b.max_priority.cmp(&a.max_priority))
     });
 
-    // Post-sort: break up consecutive same-variant rows ("harmony within,
-    // diversity amongst"). When two adjacent rows share a layout_variant,
-    // scan forward for the first row with a different variant and swap it in.
+    // Post-sort: break up visual monotony ("harmony within, diversity amongst").
+    //
+    // Two adjacent rows feel monotonous when they share either:
+    //   1. The same layout_variant (e.g., two lead-stack rows)
+    //   2. The same anchor template (e.g., three rows all led by `feature`)
+    //   3. The same row_template_slug (exact same recipe back-to-back)
+    //
+    // When detected, scan forward for the first row with a different visual
+    // signature and swap it in. This interleaves features with gazettes,
+    // trios with pairs, etc.
     let len = rows.len();
+
+    // Derive the "visual signature" of a row: (layout_variant, anchor_template)
+    let signature = |row: &BroadsheetRow| -> (String, String) {
+        let variant = variant_map
+            .get(row.row_template_slug.as_str())
+            .copied()
+            .unwrap_or("")
+            .to_string();
+        let anchor = row
+            .slots
+            .first()
+            .map(|s| s.post_template_slug.clone())
+            .unwrap_or_default();
+        (variant, anchor)
+    };
+
     for i in 1..len {
-        let prev_variant = variant_map
-            .get(rows[i - 1].row_template_slug.as_str())
-            .copied()
-            .unwrap_or("");
-        let curr_variant = variant_map
-            .get(rows[i].row_template_slug.as_str())
-            .copied()
-            .unwrap_or("");
-        if prev_variant == curr_variant {
-            // Find the first non-matching row ahead and swap
+        let prev_sig = signature(&rows[i - 1]);
+        let curr_sig = signature(&rows[i]);
+        // Monotonous if EITHER variant or anchor template matches
+        let monotonous = prev_sig.0 == curr_sig.0 || prev_sig.1 == curr_sig.1;
+        if monotonous {
+            // Find the first non-monotonous row ahead and swap
             if let Some(swap_idx) = (i + 1..len).find(|&j| {
-                variant_map
-                    .get(rows[j].row_template_slug.as_str())
-                    .copied()
-                    .unwrap_or("")
-                    != curr_variant
+                let j_sig = signature(&rows[j]);
+                j_sig.0 != curr_sig.0 && j_sig.1 != curr_sig.1
+                    && j_sig.0 != prev_sig.0 && j_sig.1 != prev_sig.1
             }) {
                 rows.swap(i, swap_idx);
             }
