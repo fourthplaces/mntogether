@@ -398,9 +398,13 @@ out("");
 
 out("-- Numbers (stat cards + number blocks)");
 for (const n of widgets.numbers) {
-  // widget_template hint lives in edition_slots.widget_template, not on the widget itself
-  // For seed, we store it in the data JSON as `widget_template` so the layout engine can read it
   out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('number', 'human', ${widgetJson(n)}::jsonb);`);
+}
+out("");
+
+out("-- Photos (full-width editorial photo breaks)");
+for (const photo of widgets.photos || []) {
+  out(`INSERT INTO widgets (widget_type, authoring_mode, data) VALUES ('photo', 'human', ${widgetJson(photo)}::jsonb);`);
 }
 out("");
 

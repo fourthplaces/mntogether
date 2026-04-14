@@ -16,6 +16,7 @@ pub const WIDGET_TYPES: &[&str] = &[
     "resource_bar",
     "weather",
     "section_sep",
+    "photo",
 ];
 
 /// Authoring modes.
@@ -406,8 +407,15 @@ pub fn validate_widget_data(widget_type: &str, data: &serde_json::Value) -> Resu
         "resource_bar" => validate_resource_bar(data),
         "weather" => validate_weather(data),
         "section_sep" => validate_section_sep(data),
+        "photo" => validate_photo(data),
         _ => bail!("Cannot validate unknown widget type: {}", widget_type),
     }
+}
+
+fn validate_photo(data: &serde_json::Value) -> Result<()> {
+    require_string(data, "image", 1, 2000)?;
+    // caption and credit are optional
+    Ok(())
 }
 
 fn require_string(data: &serde_json::Value, field: &str, min: usize, max: usize) -> Result<()> {

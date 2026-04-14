@@ -117,13 +117,17 @@ fn place_widgets(
         by_type.entry(w.widget_type.as_str()).or_default().push(w);
     }
 
-    // (insert_after_row_index, widget_type) — template chosen per-insert below
-    let rules: [(usize, &str); 5] = [
+    // (insert_after_row_index, widget_type) — template chosen per-insert below.
+    // Visual pacing: variety of widget types interspersed with post rows.
+    let rules: [(usize, &str); 8] = [
         (2, "section_sep"),
-        (4, "pull_quote"),
+        (3, "number"),
+        (5, "photo"),
         (6, "section_sep"),
+        (7, "pull_quote"),
         (8, "resource_bar"),
         (9, "section_sep"),
+        (10, "number"),
     ];
 
     // Track used widgets to round-robin without immediate repeat
@@ -143,10 +147,16 @@ fn place_widgets(
         let picked = pool[*cursor % pool.len()];
         *cursor += 1;
 
-        // For section_sep, pick left-aligned (default) when followed by a
-        // left-aligned full-width row (ticker / ticker-updates). Otherwise use
-        // the centered ledger variant as the editorial default.
-        let widget_template = if wtype == "section_sep" {
+        // Template hints per widget type:
+        // - section_sep: "ledger" (centered) unless followed by a left-aligned full-width row
+        // - number: read widget_template from the widget's data JSON (stat-card or number-block)
+        // - others: None
+        let widget_template = if wtype == "number" {
+            // Read the template hint from the widget's data JSON
+            picked.data.get("widget_template")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+        } else if wtype == "section_sep" {
             let next_row = rows.get(after_idx + 1);
             let next_is_left_aligned_full = next_row
                 .map(|r| {

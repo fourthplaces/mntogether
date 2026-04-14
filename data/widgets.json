@@ -135,5 +135,23 @@
       "title": null,
       "body": null
     }
+  ],
+
+  "photos": [
+    {
+      "image": "https://images.unsplash.com/photo-1593113598332-cd288d649433?w=1400&h=500&fit=crop",
+      "caption": "Volunteers sort donations at the CEAP warehouse in Brooklyn Center ahead of Saturday's distribution.",
+      "credit": "Photo: CEAP Communications"
+    },
+    {
+      "image": "https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?w=1400&h=500&fit=crop",
+      "caption": "Lake Street after the first thaw \u2014 shoppers return to the Midtown Global Market as temperatures climb above freezing.",
+      "credit": "Photo: MN Together / J. Olson"
+    },
+    {
+      "image": "https://images.unsplash.com/photo-1559027615-cd4628902d4a?w=1400&h=500&fit=crop",
+      "caption": "Community garden plots open for the season at Midtown Greenway. Over 200 families signed up this year.",
+      "credit": "Photo: Midtown Greenway Coalition"
+    }
   ]
 }

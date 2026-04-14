@@ -15,6 +15,7 @@ import {
   StatCard,
   NumberBlock,
   PullQuote,
+  PhotoBreak,
 } from '@/components/broadsheet';
 
 interface WidgetInput {
@@ -85,6 +86,13 @@ export function resolveWidget(
         items: Array.isArray(data.items)
           ? (data.items as Array<{ number: string; text: string }>)
           : [],
+      });
+
+    case 'photo':
+      return PhotoBreak({
+        image: (data.image as string) || '',
+        caption: data.caption as string | undefined,
+        credit: data.credit as string | undefined,
       });
 
     case 'weather':

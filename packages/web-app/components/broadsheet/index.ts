@@ -81,6 +81,7 @@ export { WeatherAlmanac } from './widgets/WeatherAlmanac';
 export { WeatherThermo } from './widgets/WeatherThermo';
 export { WeatherLine } from './widgets/WeatherLine';
 export { ResourceBar } from './widgets/ResourceBar';
+export { PhotoBreak } from './widgets/PhotoBreak';
 
 // Pencils
 export { PencilMark } from './pencils/PencilMark';
