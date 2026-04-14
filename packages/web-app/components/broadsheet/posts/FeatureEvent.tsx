@@ -16,15 +16,13 @@ export function FeatureEvent({ data: d }: FeatureEventProps) {
   return (
     <div className={c} data-debug={`Post.${c}`} data-weight={d.weight}>
       <div className={`${c}__month mono-md`}>{d.month || ''}</div>
-      {d.circleLabel ? (
-        <div
-          className="pencil-circle"
-          data-label={d.circleLabel}
-          style={{ '--tilt': `${(Math.random() * -8 - 2).toFixed(1)}deg` } as React.CSSProperties}
-        >
-          {dayEl}
-        </div>
-      ) : dayEl}
+      <div
+        className="pencil-circle"
+        data-label={d.circleLabel || ''}
+        style={{ '--tilt': `${(Math.random() * -8 - 2).toFixed(1)}deg` } as React.CSSProperties}
+      >
+        {dayEl}
+      </div>
       <MTitle text={d.title} prefix={c} pencilMark={d.pencilMark} />
       <MMeta text={getSourceLine(d)} prefix={c} small />
       {d.when && <MWhen text={d.when} prefix={c} />}
