@@ -218,6 +218,7 @@ pub struct CountyResult {
     pub fips_code: String,
     pub name: String,
     pub state: String,
+    pub target_content_weight: i32,
 }
 
 #[derive(Debug, Serialize)]
@@ -768,6 +769,7 @@ async fn list_counties(
                 fips_code: c.fips_code.clone(),
                 name: c.name.clone(),
                 state: c.state.clone(),
+                target_content_weight: c.target_content_weight,
             })
             .collect(),
     }))
@@ -787,6 +789,36 @@ async fn get_county(
         fips_code: county.fips_code,
         name: county.name,
         state: county.state,
+        target_content_weight: county.target_content_weight,
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateCountyTargetWeightRequest {
+    pub id: Uuid,
+    pub target_content_weight: i32,
+}
+
+async fn update_county_target_weight(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<UpdateCountyTargetWeightRequest>,
+) -> ApiResult<Json<CountyResult>> {
+    if req.target_content_weight <= 0 {
+        return Err(ApiError::BadRequest(
+            "target_content_weight must be positive".to_string(),
+        ));
+    }
+    let county =
+        County::update_target_content_weight(req.id, req.target_content_weight, &state.deps.db_pool)
+            .await?;
+
+    Ok(Json(CountyResult {
+        id: county.id,
+        fips_code: county.fips_code,
+        name: county.name,
+        state: county.state,
+        target_content_weight: county.target_content_weight,
     }))
 }
 
@@ -1642,6 +1674,7 @@ async fn build_public_broadsheet(
             fips_code: county.fips_code.clone(),
             name: county.name.clone(),
             state: county.state.clone(),
+            target_content_weight: county.target_content_weight,
         },
         rows: row_results,
         sections: section_results,
@@ -1728,6 +1761,7 @@ pub fn router() -> Router<AppState> {
         // Admin
         .route("/Editions/list_counties", post(list_counties))
         .route("/Editions/get_county", post(get_county))
+        .route("/Editions/update_county_target_weight", post(update_county_target_weight))
         .route("/Editions/list_editions", post(list_editions))
         .route("/Editions/latest_editions", post(latest_editions))
         .route("/Editions/get_edition", post(get_edition))

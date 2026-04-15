@@ -21,6 +21,7 @@ export const CountyDashboardQuery = graphql(`
         id
         name
         fipsCode
+        targetContentWeight
       }
       currentEdition {
         id
@@ -32,6 +33,16 @@ export const CountyDashboardQuery = graphql(`
       }
       lastPublishedAt
       isStale
+    }
+  }
+`);
+
+export const UpdateCountyTargetContentWeightMutation = graphql(`
+  mutation UpdateCountyTargetContentWeight($id: ID!, $targetContentWeight: Int!) {
+    updateCountyTargetContentWeight(id: $id, targetContentWeight: $targetContentWeight) {
+      id
+      name
+      targetContentWeight
     }
   }
 `);

@@ -8,6 +8,7 @@ import {
   CountyDashboardQuery,
   EditionHistoryQuery,
   BatchGenerateEditionsMutation,
+  UpdateCountyTargetContentWeightMutation,
 } from "@/lib/graphql/editions";
 import {
   Dialog,
@@ -179,6 +180,15 @@ export default function CountiesDashboardPage() {
   const [showGenerateModal, setShowGenerateModal] = useState(false);
   const [historyCountyId, setHistoryCountyId] = useState<string | null>(null);
   const [historyCountyName, setHistoryCountyName] = useState("");
+
+  // Target content weight editing
+  const [targetDialogCounty, setTargetDialogCounty] = useState<{
+    id: string;
+    name: string;
+    value: number;
+  } | null>(null);
+  const [targetDraft, setTargetDraft] = useState<string>("");
+  const [, updateTargetWeight] = useMutation(UpdateCountyTargetContentWeightMutation);
 
   // ─── Queries ──────────────────────────────────────────────────────
   const [{ data, fetching, error }] = useQuery({ query: CountyDashboardQuery });
@@ -391,6 +401,7 @@ export default function CountiesDashboardPage() {
                 <TableHead>Draft Edition</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="w-20">Rows</TableHead>
+                <TableHead className="w-24" title="Target editorial weight per edition (heavy=3, medium=2, light=1)">Target</TableHead>
                 <TableHead className="w-10" />
               </TableRow>
             </TableHeader>
@@ -428,6 +439,25 @@ export default function CountiesDashboardPage() {
                     </TableCell>
                     <TableCell className="whitespace-nowrap text-muted-foreground">
                       {ed ? `${ed.rowCount}` : "—"}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 font-mono text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setTargetDialogCounty({
+                            id: row.county.id,
+                            name: row.county.name,
+                            value: row.county.targetContentWeight,
+                          });
+                          setTargetDraft(String(row.county.targetContentWeight));
+                        }}
+                        title="Edit editorial weight target (heavy=3, medium=2, light=1)"
+                      >
+                        {row.county.targetContentWeight}
+                      </Button>
                     </TableCell>
                     <TableCell className="whitespace-nowrap">
                       <Button
@@ -577,6 +607,68 @@ export default function CountiesDashboardPage() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Target Content Weight Edit Dialog ──────────────────────────── */}
+      <Dialog
+        open={!!targetDialogCounty}
+        onOpenChange={(open) => {
+          if (!open) setTargetDialogCounty(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {targetDialogCounty?.name} County — Editorial Weight Target
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground leading-relaxed">
+              Sum of post weights (Heavy = 3, Medium = 2, Light = 1) that
+              Root Signal aims to produce per edition. The layout engine
+              flexes up to ~1.3× on busy weeks and scales down when the pool
+              is short. Typical: 40 posts of mixed weight ≈ 66 points.
+            </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm font-medium">Target weight</label>
+              <Input
+                type="number"
+                min={1}
+                value={targetDraft}
+                onChange={(e) => setTargetDraft(e.target.value)}
+                className="w-32 font-mono"
+                autoFocus
+              />
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                variant="ghost"
+                onClick={() => setTargetDialogCounty(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  const n = parseInt(targetDraft, 10);
+                  if (!Number.isFinite(n) || n < 1) return;
+                  if (!targetDialogCounty) return;
+                  await updateTargetWeight(
+                    { id: targetDialogCounty.id, targetContentWeight: n },
+                    { additionalTypenames: ["County", "CountyDashboardRow"] }
+                  );
+                  setTargetDialogCounty(null);
+                }}
+                disabled={
+                  !targetDraft ||
+                  !Number.isFinite(parseInt(targetDraft, 10)) ||
+                  parseInt(targetDraft, 10) < 1
+                }
+              >
+                Save
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

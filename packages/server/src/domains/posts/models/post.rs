@@ -1,5 +1,5 @@
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, Utc};
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
@@ -831,6 +831,90 @@ impl Post {
         .fetch_one(pool)
         .await?;
         Ok(count)
+    }
+
+    /// Find active posts eligible for a given edition's county,
+    /// using the same criteria as the layout engine (locationables-based,
+    /// statewide-tagged, or no-location posts), with optional slotted-filtering
+    /// relative to the edition. Mirrors `Widget::find_for_edition`.
+    pub async fn find_for_edition(
+        county_id: Uuid,
+        period_start: NaiveDate,
+        edition_id: Uuid,
+        slotted_filter: &str,
+        limit: i64,
+        offset: i64,
+        pool: &PgPool,
+    ) -> Result<Vec<Self>> {
+        let slotted_clause = match slotted_filter {
+            "slotted" => {
+                r#"
+                AND EXISTS (
+                    SELECT 1 FROM edition_slots es
+                    JOIN edition_rows er ON er.id = es.edition_row_id
+                    WHERE es.post_id = p.id AND er.edition_id = $4
+                )"#
+            }
+            "not_slotted" => {
+                r#"
+                AND NOT EXISTS (
+                    SELECT 1 FROM edition_slots es
+                    JOIN edition_rows er ON er.id = es.edition_row_id
+                    WHERE es.post_id = p.id AND er.edition_id = $4
+                )"#
+            }
+            _ => "",
+        };
+
+        // Mirrors the layout engine's post eligibility (see
+        // `layout_engine.rs::load_county_posts`): a post is eligible if it has
+        // a location in this county, has no location at all (statewide-ish
+        // fallback), or is explicitly tagged 'statewide'. Also accepts posts
+        // whose p.zip_code maps to this county.
+        let sql = format!(
+            r#"
+            SELECT DISTINCT p.* FROM posts p
+            LEFT JOIN locationables la
+                ON la.locatable_id = p.id
+                AND la.locatable_type = 'post'
+                AND la.is_primary = true
+            LEFT JOIN locations loc ON loc.id = la.location_id
+            LEFT JOIN zip_counties zc_loc ON loc.postal_code = zc_loc.zip_code
+            LEFT JOIN zip_counties zc_p ON p.zip_code = zc_p.zip_code
+            WHERE p.status = 'active'
+              AND p.deleted_at IS NULL
+              AND p.revision_of_post_id IS NULL
+              AND p.translation_of_id IS NULL
+              AND (
+                zc_loc.county_id = $1
+                OR zc_p.county_id = $1
+                OR la.id IS NULL
+                OR EXISTS (
+                  SELECT 1 FROM taggables t
+                  JOIN tags tg ON t.tag_id = tg.id
+                  WHERE t.taggable_type = 'post'
+                    AND t.taggable_id = p.id
+                    AND tg.value = 'statewide'
+                )
+              )
+              AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
+              {}
+            ORDER BY p.priority DESC NULLS LAST, p.created_at DESC
+            LIMIT $5 OFFSET $6
+            "#,
+            slotted_clause
+        );
+
+        sqlx::query_as::<_, Self>(&sql)
+            .bind(county_id)
+            .bind(period_start)
+            .bind(period_start) // placeholder to keep $3 stable even though unused here
+            .bind(edition_id)
+            .bind(limit)
+            .bind(offset)
+            .fetch_all(pool)
+            .await
+            .map_err(Into::into)
     }
 
     /// Count posts grouped by post_type and submission_type for a given status.

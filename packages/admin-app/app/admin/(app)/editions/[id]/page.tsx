@@ -908,9 +908,8 @@ function BroadsheetEditor({
               </p>
             </div>
           ) : (
-            <SectionGroupedLayout
+            <FlatRowLayout
               rows={sortedRows}
-              sections={sections}
               isEditable={isEditable}
               isDragging={isDragging}
               dragType={dragType}
@@ -925,9 +924,6 @@ function BroadsheetEditor({
               onViewPost={(postId) => router.push(`/admin/posts/${postId}`)}
               onAddRow={handleAddRow}
               onAddWidget={handleAddWidgetToEdition}
-              onAddSection={handleAddSection}
-              onUpdateSection={handleUpdateSection}
-              onDeleteSection={handleDeleteSection}
             />
           )}
 
@@ -951,39 +947,20 @@ function EditionPostsView({ edition }: { edition: Edition }) {
   const router = useRouter();
   const [slottedFilter, setSlottedFilter] = useState<string>("all");
 
-  // IDs of posts already slotted in this edition
-  const slottedPostIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const row of edition.rows) {
-      for (const slot of row.slots) {
-        if (slot.post) ids.add(slot.post.id);
-      }
-    }
-    return ids;
-  }, [edition]);
-
-  // Fetch all active posts matching this edition's county
+  // Fetch posts eligible for this edition with server-side slotted filtering.
+  // Uses the same county-matching logic as the layout engine (locationables,
+  // statewide tags, or no-location fallback) so the list matches what the
+  // layout engine sees.
   const [{ data: postsData, fetching: postsFetching }] = useQuery({
     query: EditionPostsQuery,
     variables: {
-      countyId: edition.county.id,
-      status: "active",
+      editionId: edition.id,
+      slottedFilter: slottedFilter === "all" ? undefined : slottedFilter,
       limit: 200,
     },
   });
 
-  const allPosts = postsData?.posts?.posts ?? [];
-
-  const filteredPosts = useMemo(() => {
-    switch (slottedFilter) {
-      case "slotted":
-        return allPosts.filter((p) => slottedPostIds.has(p.id));
-      case "not_slotted":
-        return allPosts.filter((p) => !slottedPostIds.has(p.id));
-      default:
-        return allPosts;
-    }
-  }, [allPosts, slottedFilter, slottedPostIds]);
+  const filteredPosts = postsData?.editionPosts?.posts ?? [];
 
   return (
     <>
@@ -1309,7 +1286,101 @@ function RowEditor({
   );
 }
 
-// ─── SectionGroupedLayout ────────────────────────────────────────────────────
+// ─── FlatRowLayout ───────────────────────────────────────────────────────────
+// Renders all rows in sort_order without section grouping. Sections are kept
+// as advisory metadata in the DB but don't affect the admin layout anymore.
+// Visual section breaks come from SectionSep widgets placed by the layout engine.
+
+function FlatRowLayout({
+  rows,
+  isEditable,
+  isDragging,
+  dragType,
+  allRowsCollapsed,
+  rowTemplates,
+  postTemplates,
+  onMoveRow,
+  onDeleteRow,
+  onChangeRowTemplate,
+  onChangeTemplate,
+  onRemovePost,
+  onViewPost,
+  onAddRow,
+  onAddWidget,
+}: {
+  rows: EditionRow[];
+  isEditable: boolean;
+  isDragging: boolean;
+  dragType: "row" | "section" | "slot" | null;
+  allRowsCollapsed: boolean;
+  rowTemplates: RowTemplate[];
+  postTemplates: PostTemplate[];
+  onMoveRow: (rowId: string, dir: "up" | "down") => void;
+  onDeleteRow: (rowId: string) => void;
+  onChangeRowTemplate: (rowId: string, slug: string) => void;
+  onChangeTemplate: (slotId: string, template: string) => void;
+  onRemovePost: (slotId: string) => void;
+  onViewPost: (postId: string) => void;
+  onAddRow: (templateSlug: string, sortOrder?: number) => void;
+  onAddWidget: (editionRowId: string, widgetId: string, slotIndex: number) => void;
+}) {
+  const sortedRows = [...rows].sort((a, b) => a.sortOrder - b.sortOrder);
+  const rowIds = sortedRows.map((r) => r.id);
+
+  const getInsertSortOrder = (index: number) => {
+    if (sortedRows.length === 0) return 0;
+    if (index <= 0) return (sortedRows[0]?.sortOrder ?? 0) - 10;
+    if (index >= sortedRows.length) return (sortedRows[sortedRows.length - 1]?.sortOrder ?? 0) + 10;
+    const prev = sortedRows[index - 1].sortOrder;
+    const next = sortedRows[index].sortOrder;
+    return Math.floor((prev + next) / 2);
+  };
+
+  return (
+    <SortableContext items={rowIds} strategy={verticalListSortingStrategy}>
+      <div className="space-y-3">
+        {sortedRows.map((row, idx) => (
+          <div key={row.id}>
+            {isEditable && allRowsCollapsed && (
+              <InlineInserter
+                sortOrder={getInsertSortOrder(idx)}
+                rowTemplates={rowTemplates}
+                onAddRow={onAddRow}
+              />
+            )}
+            <RowEditor
+              row={row}
+              rowIndex={idx}
+              totalRows={rows.length}
+              isEditable={isEditable}
+              isDragging={isDragging}
+              dragType={dragType}
+              collapsed={allRowsCollapsed}
+              rowTemplates={rowTemplates}
+              postTemplates={postTemplates}
+              onMoveRow={onMoveRow}
+              onDeleteRow={onDeleteRow}
+              onChangeRowTemplate={onChangeRowTemplate}
+              onChangeTemplate={onChangeTemplate}
+              onRemovePost={onRemovePost}
+              onViewPost={onViewPost}
+              onAddWidget={onAddWidget}
+            />
+          </div>
+        ))}
+        {isEditable && allRowsCollapsed && (
+          <InlineInserter
+            sortOrder={getInsertSortOrder(sortedRows.length)}
+            rowTemplates={rowTemplates}
+            onAddRow={onAddRow}
+          />
+        )}
+      </div>
+    </SortableContext>
+  );
+}
+
+// ─── SectionGroupedLayout (legacy, kept for reference) ───────────────────────
 
 function SectionGroupedLayout({
   rows,

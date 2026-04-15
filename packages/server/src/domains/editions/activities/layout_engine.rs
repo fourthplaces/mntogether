@@ -39,17 +39,30 @@ pub async fn generate_broadsheet(
 ) -> Result<BroadsheetDraft> {
     let pool = &deps.db_pool;
 
+    // Load the per-county editorial weight target. This determines broadsheet
+    // length: the layout engine aims to fill rows until the target is met,
+    // flexing up to 1.3× on busy weeks and down to whatever the pool can supply.
+    let target_content_weight = sqlx::query_scalar::<_, i32>(
+        "SELECT target_content_weight FROM counties WHERE id = $1",
+    )
+    .bind(county_id)
+    .fetch_one(pool)
+    .await?;
+
     let posts = load_county_posts(county_id, period_start, pool).await?;
 
     let heavy_count = posts.iter().filter(|p| p.weight == "heavy").count();
     let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
     let light_count = posts.iter().filter(|p| p.weight == "light").count();
+    let pool_weight = (heavy_count * 3 + medium_count * 2 + light_count) as i32;
     tracing::info!(
         county_id = %county_id,
         total = posts.len(),
         heavy = heavy_count,
         medium = medium_count,
         light = light_count,
+        pool_weight = pool_weight,
+        target_content_weight = target_content_weight,
         "Layout engine: loaded posts by weight tier"
     );
 
@@ -62,7 +75,13 @@ pub async fn generate_broadsheet(
         .map(|pt| (pt.slug.clone(), pt.height_units))
         .collect();
 
-    let mut draft = place_posts(posts, &templates, &post_templates, &height_map);
+    let mut draft = place_posts(
+        posts,
+        &templates,
+        &post_templates,
+        &height_map,
+        target_content_weight,
+    );
 
     // Load evergreen widgets available for this county+date and interleave
     // widget-standalone rows into the draft at rule-based positions.
@@ -254,6 +273,7 @@ fn place_posts(
     templates: &[RowTemplateWithSlots],
     post_templates: &[PostTemplateConfig],
     height_map: &HashMap<String, i32>,
+    target_content_weight: i32,
 ) -> BroadsheetDraft {
     if posts.is_empty() {
         return BroadsheetDraft { rows: vec![], sections: vec![], widget_rows: vec![] };
@@ -263,7 +283,13 @@ fn place_posts(
     let medium_count = posts.iter().filter(|p| p.weight == "medium").count();
     let light_count = posts.iter().filter(|p| p.weight == "light").count();
 
-    let mut selected_rows = select_row_templates(heavy_count, medium_count, light_count, templates);
+    let mut selected_rows = select_row_templates(
+        heavy_count,
+        medium_count,
+        light_count,
+        templates,
+        target_content_weight,
+    );
 
     // Reorder: specialty templates fill BEFORE generic ones so they get
     // first pick of type-restricted posts (alert-notice needs update/action,
@@ -572,27 +598,59 @@ fn resolve_post_template(
 // Row template selection
 // ---------------------------------------------------------------------------
 
-/// Select row templates to accommodate the weight distribution of posts.
+/// Slot-weight score for a single "heavy"/"medium"/"light" slot.
+fn weight_score(w: &str) -> i32 {
+    match w {
+        "heavy" => 3,
+        "medium" => 2,
+        "light" => 1,
+        _ => 0,
+    }
+}
+
+/// Total editorial weight produced by a single row template (sum of slot weights).
+fn row_weight(tws: &RowTemplateWithSlots) -> i32 {
+    tws.slots
+        .iter()
+        .map(|s| weight_score(&s.weight) * s.count as i32)
+        .sum()
+}
+
+/// Select row templates to accommodate the weight distribution of posts,
+/// sized by the county's editorial weight target.
 ///
-/// Three-phase approach for density progression:
-/// 1. Hero zone: templates with heavy slots (lead-stack, full, lead)
-/// 2. Mid zone: medium-focused templates (trio, pair, lead)
-/// 3. Dense zone: light-focused templates (classifieds, tickers)
+/// Weight-budget approach (heavy=3, medium=2, light=1):
+/// - Phase 1 (Hero zone):  20% of target — templates with heavy slots
+/// - Phase 2 (Mid zone):   50% of target — medium-focused templates
+/// - Phase 3 (Dense zone): 30% of target — light-focused templates
+///
+/// Each phase stops when its weight budget is filled OR the matching post pool
+/// runs out, whichever comes first. A soft overshoot of 1.3× the total target
+/// is permitted — once we've reached it, generation stops even if posts remain.
+/// This lets the broadsheet flex naturally: short on slow news weeks, longer
+/// on busy ones, never runaway.
 fn select_row_templates<'a>(
     mut heavy: usize,
     mut medium: usize,
     mut light: usize,
     templates: &'a [RowTemplateWithSlots],
+    target_content_weight: i32,
 ) -> Vec<(&'a RowTemplateConfig, &'a RowTemplateWithSlots)> {
     let mut selected: Vec<(&RowTemplateConfig, &RowTemplateWithSlots)> = Vec::new();
-    let max_rows = 14; // Allow more rows so diverse templates have a chance
     let mut variant_counts: HashMap<&str, usize> = HashMap::new();
 
-    // Phase 1: Hero rows (templates with heavy slots). Cap at 3.
-    let max_hero_rows = 3.min(heavy);
-    for _ in 0..max_hero_rows {
-        if heavy == 0 { break; }
+    // Weight budgets per phase. These add up to 100% of target; the 1.3× soft
+    // ceiling is applied over the total accumulated weight (not per-phase).
+    let hero_budget = (target_content_weight as f64 * 0.20).round() as i32;
+    let mid_budget = (target_content_weight as f64 * 0.50).round() as i32;
+    let dense_budget = (target_content_weight as f64 * 0.30).round() as i32;
+    let overshoot_ceiling = (target_content_weight as f64 * 1.30).round() as i32;
 
+    let mut accumulated: i32 = 0;
+
+    // Phase 1: Hero rows (templates with heavy slots)
+    let mut hero_accum: i32 = 0;
+    while hero_accum < hero_budget && heavy > 0 && accumulated < overshoot_ceiling {
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
@@ -600,19 +658,20 @@ fn select_row_templates<'a>(
         );
 
         if let Some(tws) = best {
+            let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
+            hero_accum += rw;
+            accumulated += rw;
         } else {
             break;
         }
     }
 
     // Phase 2: Medium-focused rows
-    let max_mid_rows = 8.min(max_rows - selected.len());
-    for _ in 0..max_mid_rows {
-        if medium == 0 { break; }
-
+    let mut mid_accum: i32 = 0;
+    while mid_accum < mid_budget && medium > 0 && accumulated < overshoot_ceiling {
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
@@ -623,35 +682,50 @@ fn select_row_templates<'a>(
         );
 
         if let Some(tws) = best {
+            let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
+            mid_accum += rw;
+            accumulated += rw;
         } else {
             break;
         }
     }
 
     // Phase 3: Light/dense rows (tickers, classifieds, digests)
-    let remaining = max_rows - selected.len();
-    for _ in 0..remaining {
-        if light == 0 { break; }
-
+    let mut dense_accum: i32 = 0;
+    while dense_accum < dense_budget && light > 0 && accumulated < overshoot_ceiling {
         let last_slug = selected.last().map(|(cfg, _)| cfg.slug.as_str());
         let best = pick_best_template(
             templates, heavy, medium, light, last_slug, &variant_counts, &selected,
-            |tws| {
-                tws.slots.iter().all(|s| s.weight == "light")
-            },
+            |tws| tws.slots.iter().all(|s| s.weight == "light"),
         );
 
         if let Some(tws) = best {
+            let rw = row_weight(tws);
             deduct_slots(tws, &mut heavy, &mut medium, &mut light);
             *variant_counts.entry(tws.config.layout_variant.as_str()).or_insert(0) += 1;
             selected.push((&tws.config, tws));
+            dense_accum += rw;
+            accumulated += rw;
         } else {
             break;
         }
     }
+
+    tracing::info!(
+        target = target_content_weight,
+        hero_budget = hero_budget,
+        mid_budget = mid_budget,
+        dense_budget = dense_budget,
+        hero_filled = hero_accum,
+        mid_filled = mid_accum,
+        dense_filled = dense_accum,
+        total_filled = accumulated,
+        rows = selected.len(),
+        "Layout engine: weight budget filled"
+    );
 
     selected
 }

@@ -81,6 +81,24 @@ export const postResolvers = {
         status: args.status,
       });
     },
+
+    editionPosts: async (
+      _parent: unknown,
+      args: {
+        editionId: string;
+        slottedFilter?: string;
+        limit?: number;
+        offset?: number;
+      },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Posts", "list_for_edition", {
+        edition_id: args.editionId,
+        slotted_filter: args.slottedFilter ?? null,
+        limit: args.limit ?? null,
+        offset: args.offset ?? null,
+      });
+    },
   },
 
   Mutation: {

@@ -16,6 +16,7 @@ use crate::api::error::{ApiError, ApiResult};
 use crate::api::state::AppState;
 use crate::common::{PaginationArgs, PostId, ScheduleId};
 use crate::domains::contacts::Contact;
+use crate::domains::editions::Edition;
 use crate::domains::locations::models::ZipCode;
 use crate::domains::notes::models::note::Note;
 use crate::domains::posts::activities;
@@ -58,6 +59,14 @@ pub struct ListPostsRequest {
     pub after: Option<String>,
     pub last: Option<i32>,
     pub before: Option<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ListPostsForEditionRequest {
+    pub edition_id: Uuid,
+    pub slotted_filter: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -940,6 +949,70 @@ async fn list(
             has_previous_page: connection.page_info.has_previous_page,
         }))
     }
+}
+
+/// List posts eligible for a given edition, mirroring the layout engine's
+/// county-matching logic (locationables, statewide tag, or no-location fallback)
+/// with optional slotted/not_slotted filtering relative to the edition.
+async fn list_for_edition(
+    State(state): State<AppState>,
+    _user: AdminUser,
+    Json(req): Json<ListPostsForEditionRequest>,
+) -> ApiResult<Json<PostListResult>> {
+    let deps = &state.deps;
+    let edition = Edition::find_by_id(req.edition_id, &deps.db_pool)
+        .await?
+        .ok_or_else(|| ApiError::NotFound(format!("Edition not found: {}", req.edition_id)))?;
+
+    let slotted_filter = req.slotted_filter.as_deref().unwrap_or("all");
+    let limit = req.limit.unwrap_or(200);
+    let offset = req.offset.unwrap_or(0);
+
+    let posts = Post::find_for_edition(
+        edition.county_id,
+        edition.period_start,
+        edition.id,
+        slotted_filter,
+        limit,
+        offset,
+        &deps.db_pool,
+    )
+    .await?;
+
+    let post_ids: Vec<Uuid> = posts.iter().map(|p| p.id.into_uuid()).collect();
+    let tag_rows = Tag::find_for_post_ids(&post_ids, &deps.db_pool).await?;
+
+    let mut tags_by_post: HashMap<Uuid, Vec<PostTagResult>> = HashMap::new();
+    for row in tag_rows {
+        tags_by_post
+            .entry(row.taggable_id)
+            .or_default()
+            .push(PostTagResult {
+                id: row.tag.id.into_uuid(),
+                kind: row.tag.kind,
+                value: row.tag.value,
+                display_name: row.tag.display_name,
+                color: row.tag.color,
+            });
+    }
+
+    let total_count = posts.len() as i32;
+    let results: Vec<PostResult> = posts
+        .into_iter()
+        .map(|p| {
+            let id = p.id.into_uuid();
+            let mut pr = PostResult::from(p);
+            pr.tags = Some(tags_by_post.remove(&id).unwrap_or_default());
+            pr
+        })
+        .collect();
+
+    Ok(Json(PostListResult {
+        posts: results,
+        total_count,
+        has_next_page: false,
+        has_previous_page: offset > 0,
+    }))
 }
 
 async fn search_nearby(
@@ -2291,6 +2364,7 @@ pub fn router() -> Router<AppState> {
     Router::new()
         // --- Posts service (stateless, plural) ---
         .route("/Posts/list", post(list))
+        .route("/Posts/list_for_edition", post(list_for_edition))
         .route("/Posts/search_nearby", post(search_nearby))
         .route("/Posts/submit", post(submit))
         .route("/Posts/list_pending_revisions", post(list_pending_revisions))

@@ -287,10 +287,11 @@ impl Widget {
             _ => "", // "all" — no extra filter
         };
 
+        // Include evergreen widgets (NULL county_id) alongside county-scoped ones.
         let sql = format!(
             r#"
             SELECT w.* FROM widgets w
-            WHERE w.county_id = $1
+            WHERE (w.county_id IS NULL OR w.county_id = $1)
               AND (w.start_date IS NULL OR w.start_date <= $2)
               AND (w.end_date IS NULL OR w.end_date >= $3)
               {}

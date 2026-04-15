@@ -603,6 +603,17 @@ export const editionResolvers = {
   },
 
   Mutation: {
+    updateCountyTargetContentWeight: async (
+      _parent: unknown,
+      args: { id: string; targetContentWeight: number },
+      ctx: GraphQLContext
+    ) => {
+      return ctx.server.callService("Editions", "update_county_target_weight", {
+        id: args.id,
+        target_content_weight: args.targetContentWeight,
+      });
+    },
+
     createEdition: async (
       _parent: unknown,
       args: {

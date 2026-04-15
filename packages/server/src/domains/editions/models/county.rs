@@ -13,6 +13,10 @@ pub struct County {
     pub latitude: f64,
     pub longitude: f64,
     pub created_at: DateTime<Utc>,
+    /// Editorial weight target for this county's weekly broadsheet.
+    /// Sum of post weights (heavy=3, medium=2, light=1). Root Signal aims for
+    /// this total; the layout engine flexes ±30% based on actual pool.
+    pub target_content_weight: i32,
 }
 
 impl County {
@@ -49,5 +53,21 @@ impl County {
             .fetch_optional(pool)
             .await
             .map_err(Into::into)
+    }
+
+    /// Update the editorial weight target for a county.
+    pub async fn update_target_content_weight(
+        id: Uuid,
+        weight: i32,
+        pool: &PgPool,
+    ) -> Result<Self> {
+        sqlx::query_as::<_, Self>(
+            "UPDATE counties SET target_content_weight = $2 WHERE id = $1 RETURNING *",
+        )
+        .bind(id)
+        .bind(weight)
+        .fetch_one(pool)
+        .await
+        .map_err(Into::into)
     }
 }

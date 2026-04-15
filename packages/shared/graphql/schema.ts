@@ -76,6 +76,7 @@ type Query {
   widget(id: ID!): Widget
   widgets(widgetType: String, countyId: ID, search: String, limit: Int, offset: Int): [Widget!]!
   editionWidgets(editionId: ID!, slottedFilter: String, limit: Int, offset: Int): [Widget!]!
+  editionPosts(editionId: ID!, slottedFilter: String, limit: Int, offset: Int): PostConnection!
 
   # Media Library (admin)
   mediaLibrary(limit: Int, offset: Int, contentType: String): MediaConnection!
@@ -139,6 +140,9 @@ type Mutation {
   linkNote(noteId: ID!, noteableType: String!, noteableId: ID!): Note!
   unlinkNote(noteId: ID!, noteableType: String!, noteableId: ID!): Boolean!
   autoAttachNotes(organizationId: ID!): AutoAttachNotesResult!
+
+  # Counties (admin)
+  updateCountyTargetContentWeight(id: ID!, targetContentWeight: Int!): County!
 
   # Editions (admin)
   createEdition(countyId: ID!, periodStart: String!, periodEnd: String!, title: String): Edition!
@@ -208,6 +212,8 @@ type Post {
   priority: Int
   category: String
   urgency: String
+  isUrgent: Boolean
+  pencilMark: String
   location: String
   sourceUrl: String
   createdAt: String!
@@ -428,6 +434,7 @@ type County {
   fipsCode: String!
   name: String!
   state: String!
+  targetContentWeight: Int!
 }
 
 type CountyDashboardRow {

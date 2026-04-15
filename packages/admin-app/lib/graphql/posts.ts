@@ -77,14 +77,14 @@ export const SignalPostsQuery = graphql(`
 
 export const EditionPostsQuery = graphql(`
   query EditionPosts(
-    $countyId: ID
-    $status: String
+    $editionId: ID!
+    $slottedFilter: String
     $limit: Int
     $offset: Int
   ) {
-    posts(
-      countyId: $countyId
-      status: $status
+    editionPosts(
+      editionId: $editionId
+      slottedFilter: $slottedFilter
       limit: $limit
       offset: $offset
     ) {
