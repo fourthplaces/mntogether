@@ -2132,6 +2132,7 @@ body:has(.broadsheet-page) {
    body below on white. Bold, punchy. */
 .card-event {
   cursor: pointer;
+  padding-bottom: 18px;
 }
 .card-event:hover .card-event__title { text-decoration: underline; text-underline-offset: 2px; }
 .card-event__header {
