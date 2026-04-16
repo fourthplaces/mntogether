@@ -2102,6 +2102,10 @@ body:has(.broadsheet-page) {
   font-size: 1.0rem;
   line-height: 1.6;
   color: var(--slate);
+  /* feat-story always reads as a two-column story at the 2/3 width cell.
+     Collapses to one column below 960px where the cell becomes 1/2 width. */
+  column-count: 2;
+  column-gap: 24px;
 }
 .feat-story__body p { margin-bottom: 0.75em; text-align: justify; hyphens: auto; }
 .feat-story__body .drop-cap::first-letter {
@@ -3652,6 +3656,7 @@ body:has(.broadsheet-page) {
   .row > .cell:last-child::after { display: none; }
   .row > .cell:nth-child(n+3) { border-top: 1px solid rgba(0,0,0,0.06); }
   .col-flow-2 { column-count: 1; }
+  .feat-story__body { column-count: 1; }
   .site-footer__columns { grid-template-columns: repeat(2, 1fr); }
   .feat-urgent__title { font-size: 2.0rem; }
   .feat-story__title { font-size: 2.2rem; }
