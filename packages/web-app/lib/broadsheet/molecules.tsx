@@ -77,10 +77,12 @@ interface MTitleProps {
 
 export function MTitle({ text, prefix, extra, pencilMark }: MTitleProps) {
   const className = `${prefix}__title${extra ? ' ' + extra : ''}`;
-  if (pencilMark) {
+  // 'circle' is only for date elements in event cards, never titles.
+  const titleMark = pencilMark === 'circle' ? undefined : pencilMark;
+  if (titleMark) {
     return (
       <div className={className}>
-        <Pencil mark={pencilMark} text={text} />
+        <Pencil mark={titleMark} text={text} />
       </div>
     );
   }

@@ -351,7 +351,7 @@ body:has(.broadsheet-page) {
 .alert-urgent .pencil-smile::after { display: none; }
 .pencil-smile::after {
   content: ''; display: inline-block;
-  width: clamp(16px, 1.2em, 34px); height: clamp(16px, 1.2em, 34px);
+  width: clamp(16px, 0.9em, 24px); height: clamp(16px, 0.9em, 24px);
   background: url('/pencils/pencil-smile.svg') no-repeat center / contain;
   position: absolute; margin-top: 0.25em; margin-left: 0.25em;
   transform: rotate(var(--tilt, 0deg)); pointer-events: none; z-index: 2;
@@ -377,15 +377,14 @@ body:has(.broadsheet-page) {
 }
 .pencil-circle::after {
   content: attr(data-label);
-  font-family: var(--font-blissful-radiance), cursive;
-  font-size: clamp(1rem, 1.3rem, 1.5rem);
+  font-family: var(--font-blissful-radiance), cursive; font-size: 1.7rem;
   color: var(--graphite); position: absolute;
-  right: -3.5em; top: 0.1em;
+  left: calc(100% + 16px); top: 0em;
   transform: rotate(var(--tilt, -6deg));
   white-space: nowrap; pointer-events: none; z-index: 2;
 }
 .feat-event .pencil-circle::before { inset: -4px -19px; }
-.feat-event .pencil-circle::after { font-size: 1.4rem; right: -5rem; }
+.feat-event .pencil-circle::after { font-size: 1.7rem; left: calc(100% + 12px); }
 
 /* ═══════════════════════════════════════════════
    COMPONENT STYLES
