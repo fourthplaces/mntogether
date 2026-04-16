@@ -4185,5 +4185,88 @@
     },
     "bodyLight": "Tribal-specific tax credit workshop Saturday 10am at Red Lake Nation College.",
     "meta": { "kicker": "Tax Help", "timestampOffsetDays": -2 }
+  },
+  {
+    "_comment": "═══ LIGHT REFERENCES (quick-ref eligible) ══════════════════════"
+  },
+  {
+    "title": "Aitkin County Quick Help",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 30,
+    "submissionType": "admin",
+    "publishedOffsetDays": -14,
+    "tags": { "topic": ["community"], "serviceArea": ["aitkin-county"] },
+    "bodyLight": "Key contacts for Aitkin County residents.",
+    "items": [
+      { "name": "County HHS", "detail": "218-927-7200" },
+      { "name": "Food Shelf", "detail": "218-927-3504" },
+      { "name": "Rural Crisis", "detail": "1-800-332-5437" }
+    ],
+    "meta": { "kicker": "Quick Ref", "timestampOffsetDays": -14 }
+  },
+  {
+    "title": "Anoka County Quick Help",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 30,
+    "submissionType": "admin",
+    "publishedOffsetDays": -14,
+    "tags": { "topic": ["community"], "serviceArea": ["anoka-county"] },
+    "bodyLight": "Key contacts for Anoka County residents.",
+    "items": [
+      { "name": "County HHS", "detail": "763-422-7000" },
+      { "name": "ACBC Food Shelf", "detail": "763-767-9892" },
+      { "name": "Lee Carlson Center", "detail": "763-324-1400" }
+    ],
+    "meta": { "kicker": "Quick Ref", "timestampOffsetDays": -14 }
+  },
+  {
+    "title": "Becker County Quick Help",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 30,
+    "submissionType": "admin",
+    "publishedOffsetDays": -14,
+    "tags": { "topic": ["community"], "serviceArea": ["becker-county"] },
+    "bodyLight": "Key contacts for Becker County residents.",
+    "items": [
+      { "name": "County HHS", "detail": "218-847-5628" },
+      { "name": "DL Food Shelf", "detail": "218-844-4111" },
+      { "name": "Lakes Crisis Center", "detail": "218-847-8572" }
+    ],
+    "meta": { "kicker": "Quick Ref", "timestampOffsetDays": -14 }
+  },
+  {
+    "title": "Beltrami County Quick Help",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 30,
+    "submissionType": "admin",
+    "publishedOffsetDays": -14,
+    "tags": { "topic": ["community"], "serviceArea": ["beltrami-county"] },
+    "bodyLight": "Key contacts for Beltrami County residents.",
+    "items": [
+      { "name": "County HHS", "detail": "218-333-8300" },
+      { "name": "Food Shelf", "detail": "218-751-2880" },
+      { "name": "Evergreen Youth", "detail": "218-751-4332" }
+    ],
+    "meta": { "kicker": "Quick Ref", "timestampOffsetDays": -14 }
+  },
+  {
+    "title": "MN Statewide Hotlines",
+    "postType": "reference",
+    "weight": "light",
+    "priority": 32,
+    "submissionType": "admin",
+    "publishedOffsetDays": -30,
+    "tags": { "topic": ["community", "health"], "serviceArea": ["statewide"] },
+    "bodyLight": "Critical statewide numbers for anyone in Minnesota.",
+    "items": [
+      { "name": "211 United Way", "detail": "Connects to local help" },
+      { "name": "988 Crisis Line", "detail": "Suicide & crisis" },
+      { "name": "MN Day One", "detail": "1-866-223-1111" }
+    ],
+    "meta": { "kicker": "Quick Ref", "timestampOffsetDays": -30 }
   }
 ]
