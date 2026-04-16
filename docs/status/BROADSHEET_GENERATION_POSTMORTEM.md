@@ -75,6 +75,7 @@ For medium + light combos, use `pair-stack` variant with `count ≥ 3` on the li
 Violations we shipped and fixed:
 - `pair-bulletin-ledger` (medium bulletin height=7 vs light ledger height=3 = 2.3× imbalance) — converted to pair-stack with 3 lights
 - `pair-bulletin-digest` (bulletin=7 vs digest=2 = 3.5× imbalance) — same fix
+- `pair-gazette-bulletin`, `pair-gazette-spotlight`, `pair-spotlight-bulletin` — mixed-medium pairs where one side renders taller (gazette+story is 2-3× a bulletin+need). Converted to pair-stack with count=2 on the shorter side. Note: this means "medium" as a weight category doesn't guarantee equal rendered heights — the post_type + post_template combination determines actual height.
 
 ### Design mistakes
 
