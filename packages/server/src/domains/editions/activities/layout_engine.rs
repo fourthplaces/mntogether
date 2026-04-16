@@ -16,6 +16,7 @@ use chrono::NaiveDate;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::common::utils::slugs::county_service_area_slug;
 use crate::domains::editions::data::types::{
     BroadsheetDraft, BroadsheetRow, BroadsheetSection, BroadsheetSlot, BroadsheetWidgetRow,
     BroadsheetWidgetSlot, LayoutPost,
@@ -69,17 +70,34 @@ pub async fn generate_broadsheet(
     let templates = RowTemplateConfig::find_all_with_slots(pool).await?;
     let post_templates = PostTemplateConfig::find_all(pool).await?;
 
-    // Build height_units lookup from post templates
+    // Build height_units lookup from post templates.
     let height_map: HashMap<String, i32> = post_templates
         .iter()
         .map(|pt| (pt.slug.clone(), pt.height_units))
         .collect();
+
+    // Build per-(template, post_type) height override map from the DB.
+    // Format: {("ledger", "reference") => 6, ("bulletin", "reference") => 10}
+    let mut height_override_map: HashMap<(String, String), i32> = HashMap::new();
+    for pt in &post_templates {
+        if let Some(ref overrides) = pt.height_override {
+            if let Some(obj) = overrides.as_object() {
+                for (post_type, val) in obj {
+                    if let Some(h) = val.as_i64() {
+                        height_override_map
+                            .insert((pt.slug.clone(), post_type.clone()), h as i32);
+                    }
+                }
+            }
+        }
+    }
 
     let mut draft = place_posts(
         posts,
         &templates,
         &post_templates,
         &height_map,
+        &height_override_map,
         target_content_weight,
     );
 
@@ -273,6 +291,7 @@ fn place_posts(
     templates: &[RowTemplateWithSlots],
     post_templates: &[PostTemplateConfig],
     height_map: &HashMap<String, i32>,
+    height_override_map: &HashMap<(String, String), i32>,
     target_content_weight: i32,
 ) -> BroadsheetDraft {
     if posts.is_empty() {
@@ -323,6 +342,7 @@ fn place_posts(
             &mut placed,
             post_templates,
             height_map,
+            height_override_map,
         );
 
         if let Some(row) = row {
@@ -335,12 +355,40 @@ fn place_posts(
     order_rows_by_density(&mut broadsheet_rows, templates);
 
     let total_placed = placed.iter().filter(|&&p| p).count();
+    let unplaced_count = posts.len() - total_placed;
     tracing::info!(
         placed = total_placed,
-        unplaced = posts.len() - total_placed,
+        unplaced = unplaced_count,
         rows = broadsheet_rows.len(),
         "Layout engine: slot filling summary"
     );
+
+    // Placement report: log each unplaced post with its type/weight so
+    // editors and developers can see WHY a post was dropped. Common causes:
+    // no compatible row template, type not accepted by remaining slots, or
+    // weight budget exhausted.
+    if unplaced_count > 0 {
+        for (i, post) in posts.iter().enumerate() {
+            if !placed[i] {
+                // Check if ANY template could have accepted this post
+                let has_any_template = post_templates
+                    .iter()
+                    .any(|pt| pt.is_compatible(&post.post_type) && pt.weight == post.weight);
+                let reason = if !has_any_template {
+                    "no compatible post template for this type+weight"
+                } else {
+                    "all compatible row templates were filled or rejected by variety rules"
+                };
+                tracing::warn!(
+                    post_id = %post.id,
+                    post_type = %post.post_type,
+                    weight = %post.weight,
+                    reason = reason,
+                    "Layout engine: post not placed"
+                );
+            }
+        }
+    }
 
     let sections = build_topic_sections(&broadsheet_rows, &posts);
 
@@ -361,6 +409,7 @@ fn fill_row(
     placed: &mut [bool],
     post_templates: &[PostTemplateConfig],
     height_map: &HashMap<String, i32>,
+    height_override_map: &HashMap<(String, String), i32>,
 ) -> Option<BroadsheetRow> {
     let mut row_slots: Vec<BroadsheetSlot> = Vec::new();
     let mut row_max_priority: i32 = 0;
@@ -398,6 +447,7 @@ fn fill_row(
             placed,
             post_templates,
             height_map,
+            height_override_map,
             &anchor_type,
             target_height,
             template.layout_variant.as_str(),
@@ -432,7 +482,7 @@ fn fill_row(
                             .find(|p| p.id == s.post_id)
                             .map(|p| p.post_type.as_str())
                             .unwrap_or("");
-                        effective_height(&s.post_template_slug, post_type, height_map)
+                        effective_height(&s.post_template_slug, post_type, height_map, height_override_map)
                     })
                     .sum();
             }
@@ -469,6 +519,7 @@ fn fill_slot_group(
     placed: &mut [bool],
     post_templates: &[PostTemplateConfig],
     height_map: &HashMap<String, i32>,
+    height_override_map: &HashMap<(String, String), i32>,
     anchor_type: &Option<String>,
     target_height: i32,
     layout_variant: &str,
@@ -559,7 +610,7 @@ fn fill_slot_group(
             }
         }
 
-        let h = effective_height(&pt_slug, &posts[*i].post_type, height_map);
+        let h = effective_height(&pt_slug, &posts[*i].post_type, height_map, height_override_map);
 
         // Height-balance check for stacked slots
         if target_height > 0 && !filled.is_empty() {
@@ -612,32 +663,24 @@ fn resolve_post_template(
 // Row template selection
 // ---------------------------------------------------------------------------
 
-/// Slot-weight score for a single "heavy"/"medium"/"light" slot.
 /// Effective rendered height for a (post_template, post_type) pairing.
 ///
-/// The stored `height_units` is a single scalar per template, but several
-/// templates render substantially different components depending on the
-/// post's type. Reference posts rendered via `ledger` or `bulletin` show a
-/// full items list (LedgerReference, BulletinReference) that's ~2× the
-/// height of the same template rendering an update or exchange. Without
-/// this adjustment, stacking two reference posts in a narrow cell produces
-/// a visually unbalanced column that doesn't match its siblings.
-///
-/// Returns the template's base height plus a known-outlier bonus.
+/// Checks `height_override_map` (from `post_template_configs.height_override`
+/// JSONB column) for a per-type override. Falls back to the template's base
+/// `height_units`. This replaces the hardcoded outlier table — new overrides
+/// are added via SQL UPDATE on `post_template_configs`, not code changes.
 fn effective_height(
     template_slug: &str,
     post_type: &str,
     height_map: &HashMap<String, i32>,
+    height_override_map: &HashMap<(String, String), i32>,
 ) -> i32 {
-    let base = height_map.get(template_slug).copied().unwrap_or(4);
-    let bonus = match (template_slug, post_type) {
-        // Reference posts render an items list; in the compact ledger/bulletin
-        // templates this roughly doubles the rendered height.
-        ("ledger", "reference") => 3,
-        ("bulletin", "reference") => 3,
-        _ => 0,
-    };
-    base + bonus
+    // Check for a per-(template, type) override first.
+    if let Some(&h) = height_override_map.get(&(template_slug.to_string(), post_type.to_string())) {
+        return h;
+    }
+    // Fall back to the template's base height_units.
+    height_map.get(template_slug).copied().unwrap_or(4)
 }
 
 fn weight_score(w: &str) -> i32 {
@@ -1126,19 +1169,6 @@ fn find_compatible_post_template(
     None
 }
 
-/// Convert a county name like "Scott" or "Lac qui Parle" to its service_area
-/// tag slug: "scott-county" / "lac-qui-parle-county".
-fn county_service_area_slug(county_name: &str) -> String {
-    let kebab = county_name
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("-");
-    // Replace other common separators
-    let kebab = kebab.replace('.', "").replace(',', "");
-    format!("{}-county", kebab)
-}
-
 /// Load active posts relevant to a county.
 ///
 /// A post is eligible when any of the following holds:
@@ -1216,7 +1246,7 @@ async fn load_county_posts(
               )
             )
           )
-          AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
+          AND (p.is_evergreen = true OR p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
         ORDER BY p.priority DESC NULLS LAST
         "#,
     )

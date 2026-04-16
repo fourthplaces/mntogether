@@ -4717,5 +4717,60 @@
       "kicker": "Quick Ref",
       "timestampOffsetDays": -30
     }
+  },
+  {
+    "_comment": "═══ LIGHT NEED POSTS (ticker-eligible community asks) ═══════════"
+  },
+  {
+    "title": "Need: Winter Coats for Kids, Sizes 6–12",
+    "postType": "need",
+    "weight": "light",
+    "priority": 35,
+    "submissionType": "reader_submitted",
+    "publishedOffsetDays": -2,
+    "tags": { "topic": ["winter-gear", "donations"], "serviceArea": ["statewide"] },
+    "bodyLight": "Collecting kids' winter coats sizes 6–12 for school distribution. Drop-off at any CLUES location.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Community Need", "timestampOffsetDays": -2 }
+  },
+  {
+    "title": "Need: Ride to VA Clinic, Tuesdays from Aitkin",
+    "postType": "need",
+    "weight": "light",
+    "priority": 32,
+    "submissionType": "reader_submitted",
+    "publishedOffsetDays": -1,
+    "zipCode": "56431",
+    "location": "Aitkin, MN",
+    "tags": { "topic": ["health", "transit"], "serviceArea": ["aitkin-county"] },
+    "bodyLight": "Veteran needs weekly ride to St. Cloud VA clinic on Tuesdays. Can split gas.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Ride Needed", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Need: Interpreter for Somali Family, Anoka School Meeting",
+    "postType": "need",
+    "weight": "light",
+    "priority": 38,
+    "submissionType": "reader_submitted",
+    "publishedOffsetDays": -1,
+    "tags": { "topic": ["language-access", "education"], "serviceArea": ["anoka-county"] },
+    "bodyLight": "Somali-speaking interpreter needed for a parent-teacher conference at Blaine Elementary, March 20.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Help Needed", "timestampOffsetDays": -1 }
+  },
+  {
+    "title": "Need: Wheelchair Ramp Build Volunteer, Bemidji",
+    "postType": "need",
+    "weight": "light",
+    "priority": 34,
+    "submissionType": "reader_submitted",
+    "publishedOffsetDays": -3,
+    "zipCode": "56601",
+    "location": "Bemidji, MN",
+    "tags": { "topic": ["community"], "serviceArea": ["beltrami-county"] },
+    "bodyLight": "Volunteer carpenters needed to build a wheelchair ramp for a homebound resident. Materials provided.",
+    "status": { "state": "open" },
+    "meta": { "kicker": "Volunteer Need", "timestampOffsetDays": -3 }
   }
 ]

@@ -6,6 +6,7 @@ use sqlx::PgPool;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
 
+use crate::common::utils::slugs::county_service_area_slug;
 use crate::common::{PaginationDirection, PostId, ValidatedPaginationArgs};
 use crate::domains::schedules::models::Schedule;
 
@@ -32,6 +33,7 @@ pub struct Post {
     pub weight: String,  // 'heavy', 'medium', 'light' — layout column width
     pub priority: i32,   // editorial importance (higher = more prominent)
     pub is_urgent: bool,
+    pub is_evergreen: bool,
     // Editorial emphasis overlay — one at a time, nullable
     // 'star' | 'heart' | 'smile' | 'circle' | null
     pub pencil_mark: Option<String>,
@@ -927,7 +929,7 @@ impl Post {
                   )
                 )
               )
-              AND (p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
+              AND (p.is_evergreen = true OR p.published_at IS NULL OR p.published_at >= ($2::date - INTERVAL '7 days'))
               {}
             ORDER BY p.priority DESC NULLS LAST, p.created_at DESC
             LIMIT $5 OFFSET $6
@@ -1454,17 +1456,3 @@ impl Post {
     }
 }
 
-/// Convert a county name like "Scott" or "Lac qui Parle" to its
-/// `service_area` tag slug: "scott-county" / "lac-qui-parle-county".
-///
-/// Mirrored in `layout_engine.rs`. Keep these in sync if the slug format
-/// changes.
-fn county_service_area_slug(county_name: &str) -> String {
-    let kebab = county_name
-        .to_lowercase()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join("-");
-    let kebab = kebab.replace('.', "").replace(',', "");
-    format!("{}-county", kebab)
-}

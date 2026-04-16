@@ -18,6 +18,10 @@ pub struct PostTemplateConfig {
     pub sort_order: i32,
     pub weight: String,
     pub height_units: i32,
+    /// Per-post-type height overrides. JSON: {"reference": 6, ...}.
+    /// When a post of that type renders via this template, the override
+    /// replaces height_units for balancing calculations.
+    pub height_override: Option<serde_json::Value>,
     pub created_at: DateTime<Utc>,
 }
 
